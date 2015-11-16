@@ -1,10 +1,10 @@
 # B2_Command_Line_Tool
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
-VERSION = '0.3.0'
+	VERSION = '0.3.0'
 
-USAGE = This program provides command-line access to the B2 service.
-Usages:
+	USAGE = This program provides command-line access to the B2 service.
+	Usages:
     b2 authorize_account [-dev | -staging | -production] [accountId] [applicationKey]
          Prompts for Backblaze accountID and applicationKey (unless they are given on the command line). 
         
