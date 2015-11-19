@@ -1,7 +1,7 @@
 # B2_Command_Line_Tool
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
-	VERSION = '0.3.0'
+	VERSION = '0.3.1'
 
 	USAGE = This program provides command-line access to the B2 service.
 	Usages:
