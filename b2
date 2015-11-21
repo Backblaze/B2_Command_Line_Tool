@@ -17,6 +17,7 @@ import datetime
 import getpass
 import hashlib
 import json
+import logging
 import os.path
 import sys
 import urllib
@@ -127,11 +128,16 @@ Usages:
 """
 
 
+def _exit(error_code):
+    logging.shutdown()
+    sys.exit(error_code)
+
+
 def usage_and_exit():
     """Prints a usage message, and exits with an error status.
     """
     print >>sys.stderr, USAGE
-    sys.exit(1)
+    _exit(1)
 
 
 def decode_sys_argv():
@@ -186,33 +192,24 @@ class StoredAccountInfo(object):
         except Exception as e:
             return {}
 
-    def get_account_id(self):
-        account_id = self.data.get(self.ACCOUNT_ID)
-        if account_id is None:
+    def _get_account_info_or_exit(self, key_):
+        value = self.data.get(key_)
+        if value is None:
             print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return account_id
+            _exit(1)
+        return value
+
+    def get_account_id(self):
+        return self._get_account_info_or_exit(self.ACCOUNT_ID)
 
     def get_account_auth_token(self):
-        auth_token = self.data.get(self.ACCOUNT_AUTH_TOKEN)
-        if auth_token is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return auth_token
+        return self._get_account_info_or_exit(self.ACCOUNT_AUTH_TOKEN)
 
     def get_api_url(self):
-        url = self.data.get(self.API_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.API_URL)
 
     def get_download_url(self):
-        url = self.data.get(self.DOWNLOAD_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.DOWNLOAD_URL)
 
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         self.data[self.ACCOUNT_ID] = account_id
@@ -274,7 +271,7 @@ class OpenUrl(object):
             print 'Headers:', self.headers
             print
             print e.read()
-            sys.exit(1)
+            _exit(1)
 
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
@@ -651,7 +648,7 @@ def parse_file_infos(items):
         parts = item.split('=')
         if len(parts) != 2:
             print >>sys.stdout, 'ERROR: bad file info:', item
-            sys.exit(1)
+            _exit(1)
         result[parts[0]] = parts[1]
     return result
 
