@@ -24,6 +24,11 @@ import urllib
 import urllib2
 import base64
 
+
+logging.basicConfig(format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 VERSION = '0.3.1'
 
 USAGE = """This program provides command-line access to the B2 service.
@@ -353,7 +358,7 @@ def authorize_account(args):
             url = auth_urls[option]
             break
         else:
-            print 'ERROR: unknown option', option
+            logger.error('unknown authorization realm: %s', option[1:])
             usage_and_exit()
 
     print 'Using %s %s' % (option[1:], url)
@@ -412,7 +417,7 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
         info.save_bucket_name(bucket_name, bucket_id)
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
-        print 'No such bucket:', bucket_name
+        logger.warning('No such bucket: %s', bucket_name)
     return result
 
 
@@ -647,7 +652,7 @@ def parse_file_infos(items):
     for item in items:
         parts = item.split('=')
         if len(parts) != 2:
-            print >>sys.stdout, 'ERROR: bad file info:', item
+            logger.error('bad file info: %s', item)
             _exit(1)
         result[parts[0]] = parts[1]
     return result
@@ -710,11 +715,11 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
                 digest.update(data)
                 bytes_read += len(data)
         if bytes_read != int(info['content-length']):
-            print 'ERROR: only %d of %d bytes read' % (bytes_read, file_size)
+            logger.error('only %d of %d bytes read', bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
-            print 'ERROR: sha1 checksum mismatch -- bad data'
+            logger.error('sha1 checksum mismatch -- bad data')
         print 'checksum matches'
-    
+
 def download_file_by_id(args):
     if len(args) != 2:
         usage_and_exit()
@@ -803,7 +808,7 @@ def ls(args):
         elif option == '--versions':
             show_versions = True
         else:
-            print 'Unknown option:', option
+            logger.error('Unknown option: %s', option)
             usage_and_exit()
     if len(args) < 1 or 2 < len(args):
         usage_and_exit()
