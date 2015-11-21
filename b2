@@ -17,11 +17,17 @@ import datetime
 import getpass
 import hashlib
 import json
+import logging
 import os.path
 import sys
 import urllib
 import urllib2
 import base64
+
+
+logging.basicConfig(format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 VERSION = '0.3.1'
 
@@ -127,11 +133,16 @@ Usages:
 """
 
 
+def _exit(error_code):
+    logging.shutdown()
+    sys.exit(error_code)
+
+
 def usage_and_exit():
     """Prints a usage message, and exits with an error status.
     """
     print >>sys.stderr, USAGE
-    sys.exit(1)
+    _exit(1)
 
 
 def decode_sys_argv():
@@ -186,33 +197,24 @@ class StoredAccountInfo(object):
         except Exception as e:
             return {}
 
-    def get_account_id(self):
-        account_id = self.data.get(self.ACCOUNT_ID)
-        if account_id is None:
+    def _get_account_info_or_exit(self, key_):
+        value = self.data.get(key_)
+        if value is None:
             print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return account_id
+            _exit(1)
+        return value
+
+    def get_account_id(self):
+        return self._get_account_info_or_exit(self.ACCOUNT_ID)
 
     def get_account_auth_token(self):
-        auth_token = self.data.get(self.ACCOUNT_AUTH_TOKEN)
-        if auth_token is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return auth_token
+        return self._get_account_info_or_exit(self.ACCOUNT_AUTH_TOKEN)
 
     def get_api_url(self):
-        url = self.data.get(self.API_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.API_URL)
 
     def get_download_url(self):
-        url = self.data.get(self.DOWNLOAD_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.DOWNLOAD_URL)
 
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         self.data[self.ACCOUNT_ID] = account_id
@@ -274,7 +276,7 @@ class OpenUrl(object):
             print 'Headers:', self.headers
             print
             print e.read()
-            sys.exit(1)
+            _exit(1)
 
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
@@ -356,7 +358,7 @@ def authorize_account(args):
             url = auth_urls[option]
             break
         else:
-            print 'ERROR: unknown option', option
+            logger.error('unknown authorization realm: %s', option[1:])
             usage_and_exit()
 
     print 'Using %s %s' % (option[1:], url)
@@ -415,7 +417,7 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
         info.save_bucket_name(bucket_name, bucket_id)
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
-        print 'No such bucket:', bucket_name
+        logger.warning('No such bucket: %s', bucket_name)
     return result
 
 
@@ -650,8 +652,8 @@ def parse_file_infos(items):
     for item in items:
         parts = item.split('=')
         if len(parts) != 2:
-            print >>sys.stdout, 'ERROR: bad file info:', item
-            sys.exit(1)
+            logger.error('bad file info: %s', item)
+            _exit(1)
         result[parts[0]] = parts[1]
     return result
 
@@ -713,11 +715,11 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
                 digest.update(data)
                 bytes_read += len(data)
         if bytes_read != int(info['content-length']):
-            print 'ERROR: only %d of %d bytes read' % (bytes_read, file_size)
+            logger.error('only %d of %d bytes read', bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
-            print 'ERROR: sha1 checksum mismatch -- bad data'
+            logger.error('sha1 checksum mismatch -- bad data')
         print 'checksum matches'
-    
+
 def download_file_by_id(args):
     if len(args) != 2:
         usage_and_exit()
@@ -806,7 +808,7 @@ def ls(args):
         elif option == '--versions':
             show_versions = True
         else:
-            print 'Unknown option:', option
+            logger.error('Unknown option: %s', option)
             usage_and_exit()
     if len(args) < 1 or 2 < len(args):
         usage_and_exit()
