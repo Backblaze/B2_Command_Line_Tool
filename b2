@@ -413,6 +413,7 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
         print 'No such bucket:', bucket_name
+        _exit(2)
     return result
 
 
