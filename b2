@@ -17,6 +17,7 @@ import datetime
 import getpass
 import hashlib
 import json
+import logging
 import os.path
 import sys
 import urllib
@@ -32,7 +33,7 @@ Usages:
     b2 authorize_account [-dev | -staging | -production] [accountId] [applicationKey]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
-        on the command line). 
+        on the command line).
 
         The account ID is a 12-digit hex number that you can get from
         your account page on backblaze.com.
@@ -98,7 +99,7 @@ Usages:
         The --long option produces very wide multi-column output
         showing the upload date/time, file size, file id, whether it
         is an uploaded file or the hiding of a file, and the file
-        name.  Folders don't really exist in B2, so folders are 
+        name.  Folders don't really exist in B2, so folders are
         shown with "-" in each of the fields other than the name.
 
         The --version option shows all of versions of each file, not
@@ -106,9 +107,9 @@ Usages:
 
     b2 make_url <fileId>
 
-        Prints an URL that can be used to download the given file, if 
+        Prints an URL that can be used to download the given file, if
         it is public.
-        
+
     b2 update_bucket <bucketName> <bucketType>
 
         Updates the bucketType of an existing bucket.  Prints the ID
@@ -116,7 +117,7 @@ Usages:
 
     b2 upload_file <bucketName> <localFilePath> <b2FileName> [contentType] [<fileInfo> ...]
 
-        Uploads one file to the given bucket.  Uploads the contents 
+        Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
 
         Each fileInfo is of the form "a=b".
@@ -127,18 +128,23 @@ Usages:
 """
 
 
+def _exit(error_code):
+    logging.shutdown()
+    sys.exit(error_code)
+
+
 def usage_and_exit():
     """Prints a usage message, and exits with an error status.
     """
     print >>sys.stderr, USAGE
-    sys.exit(1)
+    _exit(1)
 
 
 def decode_sys_argv():
     """
     Returns the command-line arguments as unicode strings, decoding
     whatever format they are in.
-    
+
     https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
     """
     encoding = sys.getfilesystemencoding()
@@ -186,33 +192,24 @@ class StoredAccountInfo(object):
         except Exception as e:
             return {}
 
-    def get_account_id(self):
-        account_id = self.data.get(self.ACCOUNT_ID)
-        if account_id is None:
+    def _get_account_info_or_exit(self, key_):
+        value = self.data.get(key_)
+        if value is None:
             print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return account_id
+            _exit(1)
+        return value
+
+    def get_account_id(self):
+        return self._get_account_info_or_exit(self.ACCOUNT_ID)
 
     def get_account_auth_token(self):
-        auth_token = self.data.get(self.ACCOUNT_AUTH_TOKEN)
-        if auth_token is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return auth_token
+        return self._get_account_info_or_exit(self.ACCOUNT_AUTH_TOKEN)
 
     def get_api_url(self):
-        url = self.data.get(self.API_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.API_URL)
 
     def get_download_url(self):
-        url = self.data.get(self.DOWNLOAD_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.DOWNLOAD_URL)
 
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         self.data[self.ACCOUNT_ID] = account_id
@@ -232,6 +229,13 @@ class StoredAccountInfo(object):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
         if bucket_name not in names_to_ids:
             names_to_ids[bucket_name] = bucket_id
+            self._write_file()
+
+    def refresh_entire_bucket_name_cache(self, name_id_iterable):
+        names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
+        new_cache = dict(name_id_iterable)
+        if names_to_ids != new_cache:
+            self.data[self.BUCKET_NAMES_TO_IDS] = new_cache
             self._write_file()
 
     def remove_bucket_name(self, bucket_name):
@@ -274,7 +278,7 @@ class OpenUrl(object):
             print 'Headers:', self.headers
             print
             print e.read()
-            sys.exit(1)
+            _exit(1)
 
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
@@ -388,6 +392,21 @@ def authorize_account(args):
         )
 
 
+def _refresh_bucket_mapping(info):
+    account_id = info.get_account_id()
+    auth_token = info.get_account_auth_token()
+
+    # Call list_buckets to get the IDs of *all* buckets for this account.
+    url = url_for_api(info, 'b2_list_buckets')
+    params = { 'accountId' : account_id }
+    response = post_json(url, params, auth_token)
+    info.refresh_entire_bucket_name_cache(
+        (bucket['bucketName'], bucket['bucketId'])
+        for bucket in response['buckets']
+        )
+    return response
+
+
 def get_bucket_id_from_bucket_name(info, bucket_name):
     """
     Returns the bucket_id for the given bucket_name.
@@ -400,22 +419,13 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
     if result is not None:
         return result
 
-    # Call list_buckets to get the IDs of *all* buckets for this
-    # account.
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
+    # If not, try to get it from the server.
+    _refresh_bucket_mapping(info)
 
-    url = url_for_api(info, 'b2_list_buckets')
-    params = { 'accountId' : account_id }
-    response = post_json(url, params, auth_token)
-
-    for bucket in response['buckets']:
-        bucket_name = bucket['bucketName']
-        bucket_id = bucket['bucketId']
-        info.save_bucket_name(bucket_name, bucket_id)
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
         print 'No such bucket:', bucket_name
+        _exit(2)
     return result
 
 
@@ -424,19 +434,13 @@ def list_buckets(args):
         usage_and_exit()
 
     info = StoredAccountInfo()
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_buckets')
-    params = { 'accountId' : account_id }
-    response = post_json(url, params, auth_token)
+    response = _refresh_bucket_mapping(info)
 
     for bucket in response['buckets']:
         bucket_name = bucket['bucketName']
         bucket_id = bucket['bucketId']
         bucket_type = bucket['bucketType']
         print '%s  %-10s  %s' % (bucket_id, bucket_type, bucket_name)
-        info.save_bucket_name(bucket_name, bucket_id)
 
 
 def create_bucket(args):
@@ -651,7 +655,7 @@ def parse_file_infos(items):
         parts = item.split('=')
         if len(parts) != 2:
             print >>sys.stdout, 'ERROR: bad file info:', item
-            sys.exit(1)
+            _exit(1)
         result[parts[0]] = parts[1]
     return result
 
@@ -717,7 +721,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
         if digest.hexdigest() != file_sha1:
             print 'ERROR: sha1 checksum mismatch -- bad data'
         print 'checksum matches'
-    
+
 def download_file_by_id(args):
     if len(args) != 2:
         usage_and_exit()
