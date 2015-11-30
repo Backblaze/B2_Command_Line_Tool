@@ -385,6 +385,16 @@ def authorize_account(args):
         )
 
 
+def _refresh_bucket_mapping(info):
+    account_id = info.get_account_id()
+    auth_token = info.get_account_auth_token()
+
+    # Call list_buckets to get the IDs of *all* buckets for this account.
+    url = url_for_api(info, 'b2_list_buckets')
+    params = { 'accountId' : account_id }
+    return post_json(url, params, auth_token)
+
+
 def get_bucket_id_from_bucket_name(info, bucket_name):
     """
     Returns the bucket_id for the given bucket_name.
@@ -397,14 +407,8 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
     if result is not None:
         return result
 
-    # Call list_buckets to get the IDs of *all* buckets for this
-    # account.
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_buckets')
-    params = { 'accountId' : account_id }
-    response = post_json(url, params, auth_token)
+    # If not, try to get it from the server.
+    response = _refresh_bucket_mapping(info)
 
     for bucket in response['buckets']:
         bucket_name = bucket['bucketName']
@@ -422,12 +426,7 @@ def list_buckets(args):
         usage_and_exit()
 
     info = StoredAccountInfo()
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_buckets')
-    params = { 'accountId' : account_id }
-    response = post_json(url, params, auth_token)
+    response = _refresh_bucket_mapping(info)
 
     for bucket in response['buckets']:
         bucket_name = bucket['bucketName']
