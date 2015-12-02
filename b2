@@ -410,12 +410,12 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
     response = post_json(url, params, auth_token)
 
     for bucket in response['buckets']:
-        bucket_name = bucket['bucketName']
-        bucket_id = bucket['bucketId']
-        info.save_bucket_name(bucket_name, bucket_id)
+        info.save_bucket_name(bucket['bucketName'], bucket['bucketId'])
+        
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
         print 'No such bucket:', bucket_name
+        sys.exit(1)
     return result
 
 
