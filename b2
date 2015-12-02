@@ -181,7 +181,7 @@ class StoredAccountInfo(object):
     def clear(self):
         """Removes all stored information.
         """
-        self.data = { }
+        self.data = {}
         self._write_file()
 
 
@@ -278,6 +278,7 @@ class OpenUrl(object):
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
             self.file.close()
+
 
 def post_json(url, params, auth_token=None):
     """Coverts params to JSON and posts them to the given URL.
@@ -387,6 +388,17 @@ def authorize_account(args):
         )
 
 
+def call_list_buckets(info):
+    """Calls b2_list_buckets and returns the JSON for *all* buckets.
+    """
+    account_id = info.get_account_id()
+    auth_token = info.get_account_auth_token()
+
+    url = url_for_api(info, 'b2_list_buckets')
+    params = {'accountId': account_id}
+    return post_json(url, params, auth_token)
+
+
 def get_bucket_id_from_bucket_name(info, bucket_name):
     """
     Returns the bucket_id for the given bucket_name.
@@ -401,12 +413,7 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
 
     # Call list_buckets to get the IDs of *all* buckets for this
     # account.
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_buckets')
-    params = { 'accountId' : account_id }
-    response = post_json(url, params, auth_token)
+    response = call_list_buckets(info)
 
     for bucket in response['buckets']:
         info.save_bucket_name(bucket['bucketName'], bucket['bucketId'])
@@ -423,12 +430,7 @@ def list_buckets(args):
         usage_and_exit()
 
     info = StoredAccountInfo()
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_buckets')
-    params = { 'accountId' : account_id }
-    response = post_json(url, params, auth_token)
+    response = call_list_buckets(info)
 
     for bucket in response['buckets']:
         bucket_name = bucket['bucketName']
