@@ -23,7 +23,7 @@ import urllib
 import urllib2
 import base64
 
-VERSION = '0.3.1'
+VERSION = '0.3.2'
 
 USAGE = """This program provides command-line access to the B2 service.
 
