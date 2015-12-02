@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 ######################################################################
-# 
+#
 # File: b2
-# 
+#
 # Copyright 2015 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
@@ -32,7 +32,7 @@ Usages:
     b2 authorize_account [-dev | -staging | -production] [accountId] [applicationKey]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
-        on the command line). 
+        on the command line).
 
         The account ID is a 12-digit hex number that you can get from
         your account page on backblaze.com.
@@ -98,7 +98,7 @@ Usages:
         The --long option produces very wide multi-column output
         showing the upload date/time, file size, file id, whether it
         is an uploaded file or the hiding of a file, and the file
-        name.  Folders don't really exist in B2, so folders are 
+        name.  Folders don't really exist in B2, so folders are
         shown with "-" in each of the fields other than the name.
 
         The --version option shows all of versions of each file, not
@@ -106,9 +106,9 @@ Usages:
 
     b2 make_url <fileId>
 
-        Prints an URL that can be used to download the given file, if 
+        Prints an URL that can be used to download the given file, if
         it is public.
-        
+
     b2 update_bucket <bucketName> <bucketType>
 
         Updates the bucketType of an existing bucket.  Prints the ID
@@ -116,7 +116,7 @@ Usages:
 
     b2 upload_file <bucketName> <localFilePath> <b2FileName> [contentType] [<fileInfo> ...]
 
-        Uploads one file to the given bucket.  Uploads the contents 
+        Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
 
         Each fileInfo is of the form "a=b".
@@ -133,7 +133,7 @@ def message_and_exit(message):
     print >>sys.stderr, message
     sys.exit(1)
 
-    
+
 def usage_and_exit():
     """Prints a usage message, and exits with an error status.
     """
@@ -144,7 +144,7 @@ def decode_sys_argv():
     """
     Returns the command-line arguments as unicode strings, decoding
     whatever format they are in.
-    
+
     https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
     """
     encoding = sys.getfilesystemencoding()
@@ -247,7 +247,7 @@ class StoredAccountInfo(object):
             f.write(json.dumps(self.data, indent=4, sort_keys=True))
             f.write('\n')
 
-            
+
 class OpenUrl(object):
     """
     Context manager that handles an open urllib2.Request, and provides
@@ -410,7 +410,7 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
 
     for bucket in response['buckets']:
         info.save_bucket_name(bucket['bucketName'], bucket['bucketId'])
-        
+
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
         print 'No such bucket:', bucket_name
@@ -716,7 +716,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
         if digest.hexdigest() != file_sha1:
             print 'ERROR: sha1 checksum mismatch -- bad data'
         print 'checksum matches'
-    
+
 def download_file_by_id(args):
     if len(args) != 2:
         usage_and_exit()
@@ -878,7 +878,7 @@ def ls(args):
         # B2 has the starting point to continue with the next file,
         # but if we're in the middle of a "folder", we can skip ahead
         # to the end of the folder.  The character after '/' is '0',
-        # so we'll replace the '/' with a '0' and start there.  
+        # so we'll replace the '/' with a '0' and start there.
         if current_dir is None:
             start_file_name = response.get('nextFileName')
             start_file_id = response.get('nextFileId')
