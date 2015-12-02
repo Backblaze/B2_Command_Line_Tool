@@ -127,11 +127,17 @@ Usages:
 """
 
 
+def message_and_exit(message):
+    """Prints a message, and exits with error status.
+    """
+    print >>sys.stderr, message
+    sys.exit(1)
+
+    
 def usage_and_exit():
     """Prints a usage message, and exits with an error status.
     """
-    print >>sys.stderr, USAGE
-    sys.exit(1)
+    message_and_exit(USAGE)
 
 
 def decode_sys_argv():
@@ -187,32 +193,24 @@ class StoredAccountInfo(object):
             return {}
 
     def get_account_id(self):
-        account_id = self.data.get(self.ACCOUNT_ID)
-        if account_id is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return account_id
+        return self._get_account_info_or_exit(self.ACCOUNT_ID)
 
     def get_account_auth_token(self):
-        auth_token = self.data.get(self.ACCOUNT_AUTH_TOKEN)
-        if auth_token is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return auth_token
+        return self._get_account_info_or_exit(self.ACCOUNT_AUTH_TOKEN)
 
     def get_api_url(self):
-        url = self.data.get(self.API_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.API_URL)
 
     def get_download_url(self):
-        url = self.data.get(self.DOWNLOAD_URL)
-        if url is None:
-            print >>sys.stderr, 'ERROR: No account.  Use: b2 authorize_account'
-            sys.exit(1)
-        return url
+        return self._get_account_info_or_exit(self.DOWNLOAD_URL)
+
+    def _get_account_info_or_exit(self, key):
+        """Returns the named field from the account data, or errors and exits.
+        """
+        result = self.data.get(key)
+        if result is None:
+            message_and_exit('ERROR: No account.  Use: b2 authorize_account')
+        return result
 
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         self.data[self.ACCOUNT_ID] = account_id
@@ -249,6 +247,7 @@ class StoredAccountInfo(object):
             f.write(json.dumps(self.data, indent=4, sort_keys=True))
             f.write('\n')
 
+            
 class OpenUrl(object):
     """
     Context manager that handles an open urllib2.Request, and provides
