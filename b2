@@ -23,7 +23,7 @@ import urllib
 import urllib2
 import base64
 
-VERSION = '0.3.2'
+VERSION = '0.3.4'
 
 USAGE = """This program provides command-line access to the B2 service.
 
@@ -299,17 +299,11 @@ def post_json(url, params, auth_token=None):
 
 def post_file(url, headers, file_path):
     """Posts the contents of the file to the URL.
-
-    URL-encodes all of the data in the headers before sending.
     """
     with open(file_path, 'rb') as data_file:
         if 'Content-Length' not in headers:
             headers['Content-Length'] = str(os.path.getsize(file_path))
-        encoded_headers = dict(
-            (k, b2_url_encode(v))
-            for (k, v) in headers.iteritems()
-            )
-        with OpenUrl(url, data_file, encoded_headers) as response_file:
+        with OpenUrl(url, data_file, headers) as response_file:
             json_text = response_file.read()
             return json.loads(json_text)
 
@@ -690,12 +684,12 @@ def upload_file(args):
 
     headers = {
         'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
-        'X-Bz-File-Name': b2_file,
+        'X-Bz-File-Name': b2_url_encode(b2_file),
         'Content-Type': content_type,
         'X-Bz-Content-Sha1': hex_sha1_of_file(local_file)
         }
     for (k, v) in file_infos.iteritems():
-        headers['X-Bz-Info-' + k] = v
+        headers['X-Bz-Info-' + k] = b2_url_encode(v)
     url = bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_URL]
     response = post_file(url, headers, local_file)
     print json.dumps(response, indent=4, sort_keys=True)
@@ -733,6 +727,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
             print 'ERROR: sha1 checksum mismatch -- bad data'
         print 'checksum matches'
 
+
 def download_file_by_id(args):
     if len(args) != 2:
         usage_and_exit()
@@ -747,13 +742,9 @@ def download_file_by_id(args):
     headers = { 'Authorization' : auth_token }
     params = { 'fileId' : file_id }
 
-    encoded_headers = dict(
-        (k, b2_url_encode(v))
-        for (k, v) in headers.iteritems()
-        )
     request_body = json.dumps(params)
 
-    download_file_from_url(url, request_body, encoded_headers, local_file_name)
+    download_file_from_url(url, request_body, headers, local_file_name)
 
 
 def download_file_by_name(args):
@@ -770,12 +761,7 @@ def download_file_by_name(args):
     url = info.get_download_url() + '/file/' + b2_url_encode(bucket_name) + '/' + b2_url_encode(file_name)
     headers = { 'Authorization' : auth_token }
 
-    encoded_headers = dict(
-        (k, b2_url_encode(v))
-        for (k, v) in headers.iteritems()
-        )
-
-    download_file_from_url(url, None, encoded_headers, local_file_name)
+    download_file_from_url(url, None, headers, local_file_name)
 
 
 def make_url(args):
@@ -903,6 +889,7 @@ def ls(args):
                 response['nextFileName'],
                 prefix + current_dir[:-1] + '0'
                 )
+
 
 def main():
     if len(sys.argv) < 2:
