@@ -114,10 +114,13 @@ Usages:
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
 
-    b2 upload_file <bucketName> <localFilePath> <b2FileName> [contentType] [<fileInfo> ...]
+    b2 upload_file [-contentType <contentType>] [-info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
+
+        Content type is optional.  If not set, it will be set based on the
+        file extension.
 
         Each fileInfo is of the form "a=b".
 
@@ -635,6 +638,7 @@ def hide_file(args):
 
     print json.dumps(response, indent=2, sort_keys=True)
 
+
 def hex_sha1_of_file(path):
     with open(path, 'rb') as f:
         block_size = 1024 * 1024
@@ -646,40 +650,49 @@ def hex_sha1_of_file(path):
             digest.update(data)
         return digest.hexdigest()
 
-def parse_file_infos(items):
-    result = {}
-    for item in items:
-        parts = item.split('=')
-        if len(parts) != 2:
-            print >>sys.stdout, 'ERROR: bad file info:', item
-            sys.exit(1)
-        result[parts[0]] = parts[1]
-    return result
+
+def parse_file_info(item, file_infos):
+    parts = item.split('=')
+    if len(parts) != 2:
+        print >>sys.stdout, 'ERROR: bad file info:', item
+        sys.exit(1)
+    file_infos[parts[0]] = parts[1]
+
 
 def upload_file(args):
-    if len(args) < 3:
-        usage_and_exit()
 
+    content_type = 'b2/x-auto'
+    file_infos = {}
+    while 0 < len(args) and args[0][0] == '-':
+        option = args[0]
+        if option == '-contentType':
+            if len(args) < 2:
+                usage_and_exit()
+            content_type = args[1]
+            args = args[2:]
+        elif option == '-info':
+            if len(args) < 2:
+                usage_and_exit()
+            parse_file_info(args[1], file_infos)
+            args = args[2:]
+        else:
+            usage_and_exit()
+
+    if len(args) != 3:
+        usage_and_exit()
     bucket_name = args[0]
     local_file = args[1]
     b2_file = args[2]
-    content_type = "b2/x-auto"
-    file_info_offset = 3
-    if len(args) > 3:
-        if "=" not in args[3]:
-            content_type=args[3]
-            file_info_offset = 4
-    file_infos = parse_file_infos(args[file_info_offset:])
 
     info = StoredAccountInfo()
     bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
     bucket_upload_data = ensure_upload_data(bucket_id, info)
 
     headers = {
-        'Authorization' : bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
-        'X-Bz-File-Name' : b2_file,
-        'Content-Type' : content_type,
-        'X-Bz-Content-Sha1' : hex_sha1_of_file(local_file)
+        'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
+        'X-Bz-File-Name': b2_file,
+        'Content-Type': content_type,
+        'X-Bz-Content-Sha1': hex_sha1_of_file(local_file)
         }
     for (k, v) in file_infos.iteritems():
         headers['X-Bz-Info-' + k] = v
@@ -689,6 +702,7 @@ def upload_file(args):
     if 'fileId' in response:
         print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" +  b2_file
         print "URL by fileId: " + info.get_download_url() + "/b2api/v1/b2_download_file_by_id?fileId=" + response['fileId']
+
 
 def download_file_from_url(url, request_body, encoded_headers, local_file_name):
     with OpenUrl(url, request_body, encoded_headers) as response:
