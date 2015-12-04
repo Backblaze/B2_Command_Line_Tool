@@ -235,6 +235,13 @@ class StoredAccountInfo(object):
             names_to_ids[bucket_name] = bucket_id
             self._write_file()
 
+    def refresh_entire_bucket_name_cache(self, name_id_iterable):
+        names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
+        new_cache = dict(name_id_iterable)
+        if names_to_ids != new_cache:
+            self.data[self.BUCKET_NAMES_TO_IDS] = new_cache
+            self._write_file()
+
     def remove_bucket_name(self, bucket_name):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
         if bucket_name in names_to_ids:
@@ -393,7 +400,12 @@ def call_list_buckets(info):
 
     url = url_for_api(info, 'b2_list_buckets')
     params = {'accountId': account_id}
-    return post_json(url, params, auth_token)
+    response = post_json(url, params, auth_token)
+    info.refresh_entire_bucket_name_cache(
+        (bucket['bucketName'], bucket['bucketId'])
+        for bucket in response['buckets']
+        )
+    return response
 
 
 def get_bucket_id_from_bucket_name(info, bucket_name):
@@ -411,9 +423,6 @@ def get_bucket_id_from_bucket_name(info, bucket_name):
     # Call list_buckets to get the IDs of *all* buckets for this
     # account.
     response = call_list_buckets(info)
-
-    for bucket in response['buckets']:
-        info.save_bucket_name(bucket['bucketName'], bucket['bucketId'])
 
     result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
     if result is None:
@@ -434,7 +443,6 @@ def list_buckets(args):
         bucket_id = bucket['bucketId']
         bucket_type = bucket['bucketType']
         print '%s  %-10s  %s' % (bucket_id, bucket_type, bucket_name)
-        info.save_bucket_name(bucket_name, bucket_id)
 
 
 def create_bucket(args):
