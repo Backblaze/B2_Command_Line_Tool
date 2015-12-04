@@ -3,11 +3,11 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.3.4
+Version 0.3.5
 
 Usages:
 
-    b2 authorize_account [-dev | -staging | -production] [accountId] [applicationKey]
+    b2 authorize_account [--dev | --staging | --production] [accountId] [applicationKey]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
         on the command line).
@@ -92,7 +92,7 @@ Usages:
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
 
-    b2 upload_file [-contentType <contentType>] [-info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
+    b2 upload_file [--contentType <contentType>] [--info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
