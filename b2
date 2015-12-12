@@ -13,6 +13,7 @@
 This is a B2 command-line tool.  See the USAGE message for details.
 """
 
+from abc import ABCMeta, abstractmethod
 import base64
 import datetime
 import getpass
@@ -129,6 +130,212 @@ Usages:
         Echos the version number of this program.
 """
 
+
+## Enums
+
+class BucketType(object):
+    ALL_PUBLIC = 1001
+    ALL_PRIVATE = 1002
+
+BUCKET_TYPES = {
+    "allPrivate": BucketType.ALL_PRIVATE,
+    "allPublic": BucketType.ALL_PUBLIC,
+}
+
+
+## Exceptions
+
+class B2Error(Exception):
+    pass
+
+
+class NonExistentBucket(B2Error):
+    def __init__(self, bucket_name):
+        self.bucket_name = bucket_name
+    def __str__(self):
+        return 'No such bucket: %s' % (self.bucket_name,)
+
+
+class UnrecognizedBucketType(B2Error):
+    def __init__(self, type_):
+        self.type_ = type_
+    def __str__(self):
+        return 'Unrecognized bucket type: %s' % (self.type_,)
+
+
+## Bucket
+
+class AbstractBucket(object):
+    __metaclass__ = ABCMeta
+    def __init__(self, id_, name):
+        self.id_ = id_
+        self.name = name
+    def delete(self):  # TODO
+        pass
+    def set_type(self, permissions):  # TODO
+        return Bucket()
+    def list_file_names(self, start_filename=None, max_entries=None):  # TODO
+        return ["foo"]
+    def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
+        return [FileVersion()]
+    def file_versions(self, start_filename=None, max_entries=None):  # TODO
+        yield FileNameInfo()
+    def upload_file(self, input_stream, remote_filename, mimeTypeOrNull=None, extra_headers=None):  # TODO
+        raise B2Error()
+        return FileInfo()
+    def hideFile(self, filename):  # TODO
+        return FileNameInfo()
+    def getUploadUrl(self):  # TODO
+        raise B2Error()
+        return "foo"
+
+
+class UnknownTypeBucket(AbstractBucket):
+    def __init__(self, id_, name):
+        self.id_ = id_
+        self.name = name
+
+
+class Bucket(UnknownTypeBucket):
+    def __init__(self, id_, name, type_):
+        self.type_ = type_
+        super(Bucket, self).__init__(id_, name)
+
+
+class BucketFactory(object):  # TODO: put it somewhere else
+    @classmethod
+    def from_api_response(cls, response):
+        result = []
+        for bucket in response['buckets']:
+            bucket_name = bucket['bucketName']
+            bucket_id = bucket['bucketId']
+            type_ = BUCKET_TYPES.get(bucket['bucketType'])
+            if type_ is None:
+                raise UnrecognizedBucketType(bucket['bucketType'])
+            result.append(
+                Bucket(bucket_id, bucket_name, type_)
+            )
+        return result
+
+
+## DAO
+
+class FileInfo(object):
+    pass
+
+class FileNameInfo(object):
+    pass
+
+class FileVersion(object):
+    pass
+
+
+## Cache
+
+class AbstractCache(object):
+    __metaclass__ = ABCMeta
+    @abstractmethod
+    def set_bucket_name_cache(self, buckets):
+        pass
+    @abstractmethod
+    def get_bucket_id_or_none_from_bucket_name(self, name):
+        pass
+    def _name_id_iterator(self, buckets):
+        return ((bucket.name, bucket.id_) for bucket in buckets)
+
+
+class DummyCache(AbstractCache):
+    """ Cache that does nothing """
+    def set_bucket_name_cache(self, buckets):
+        pass
+    def get_bucket_id_or_none_from_bucket_name(self, name):
+        return None
+
+
+class InMemoryCache(AbstractCache):
+    """ Cache that stores the information in memory """
+    def __init__(self):
+        self.name_id_map = {}
+    def set_bucket_name_cache(self, buckets):
+        self.name_id_map = dict(self._name_id_iterator(buckets))
+    def get_bucket_id_or_none_from_bucket_name(self, name):
+        return self.name_id_map.get(name)
+
+
+class AuthInfoCache(AbstractCache):
+    """ Cache that stores data persistently in StoredAccountInfo """
+    def __init__(self, info):
+        self.info = info
+    def get_bucket_id_or_none_from_bucket_name(self, name):
+        return self.info.get_bucket_id_or_none_from_bucket_name(name)
+    def set_bucket_name_cache(self, buckets):
+        self.info.refresh_entire_bucket_name_cache(self._name_id_iterator(buckets))
+
+
+## B2Api
+
+class B2Api(object):
+    def __init__(self, authorizator, cache=None):
+        self.authorizator = authorizator
+        if cache is None:
+            cache = DummyCache()
+        self.cache = cache
+
+    # buckets
+    def create_bucket(self, name, type_):
+        return Bucket()
+    def get_bucket_by_id(self, bucket_id):
+        return Bucket()
+        raise B2Error()
+    def get_bucket_by_name(self, bucket_name):
+        """
+        Returns the bucket_id for the given bucket_name.
+
+        If we don't already know it from the cache, try fetching it from
+        the B2 service.
+        """
+        # If we can get it from the stored info, do that.
+        id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
+        if id_ is not None:
+            return UnknownTypeBucket(id_, bucket_name)
+
+        for bucket in self.list_buckets():
+            if bucket.name == bucket_name:
+                return bucket
+        raise NonExistentBucket(bucket_name)
+
+    def list_buckets(self):
+        """Calls b2_list_buckets and returns the JSON for *all* buckets.
+        """
+        account_id = self.authorizator.get_account_id()
+        auth_token = self.authorizator.get_account_auth_token()
+
+        url = url_for_api(self.authorizator, 'b2_list_buckets')
+        params = {'accountId': account_id}
+        response = post_json(url, params, auth_token)
+
+        buckets = BucketFactory.from_api_response(response)
+
+        self.cache.set_bucket_name_cache(buckets)
+        return buckets
+
+    # delete
+    def delete_file_version(self, filename, file_id):
+        pass
+
+    # download
+    def download_file_by_id(self, file_id, content_handler):
+        pass
+    def download_file_by_name(self, bucket_name, filename, content_handler):
+        pass
+
+    # other
+    def get_file_info(self, file_id):
+        return FileInfo()
+        raise B2Error()
+
+
+## v0.3.x functions
 
 def message_and_exit(message):
     """Prints a message, and exits with error status.
@@ -394,59 +601,6 @@ def authorize_account(args):
         )
 
 
-def call_list_buckets(info):
-    """Calls b2_list_buckets and returns the JSON for *all* buckets.
-    """
-    account_id = info.get_account_id()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_buckets')
-    params = {'accountId': account_id}
-    response = post_json(url, params, auth_token)
-    info.refresh_entire_bucket_name_cache(
-        (bucket['bucketName'], bucket['bucketId'])
-        for bucket in response['buckets']
-        )
-    return response
-
-
-def get_bucket_id_from_bucket_name(info, bucket_name):
-    """
-    Returns the bucket_id for the given bucket_name.
-
-    If we don't already know it from the info, try fetching it from
-    the B2 service.
-    """
-    # If we can get it from the stored info, do that.
-    result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
-    if result is not None:
-        return result
-
-    # Call list_buckets to get the IDs of *all* buckets for this
-    # account.
-    response = call_list_buckets(info)
-
-    result = info.get_bucket_id_or_none_from_bucket_name(bucket_name)
-    if result is None:
-        print 'No such bucket:', bucket_name
-        sys.exit(1)
-    return result
-
-
-def list_buckets(args):
-    if len(args) != 0:
-        usage_and_exit()
-
-    info = StoredAccountInfo()
-    response = call_list_buckets(info)
-
-    for bucket in response['buckets']:
-        bucket_name = bucket['bucketName']
-        bucket_id = bucket['bucketId']
-        bucket_type = bucket['bucketType']
-        print '%s  %-10s  %s' % (bucket_id, bucket_type, bucket_name)
-
-
 def create_bucket(args):
     if len(args) != 2:
         usage_and_exit()
@@ -473,16 +627,18 @@ def delete_bucket(args):
     if len(args) != 1:
         usage_and_exit()
 
-    info = StoredAccountInfo()
-    auth_token = info.get_account_auth_token()
-
     bucket_name = args[0]
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
 
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    bucket = api.get_bucket_by_name(bucket_name)
+
+    auth_token = info.get_account_auth_token()
     url = url_for_api(info, 'b2_delete_bucket')
     params = {
         'accountId' : info.get_account_id(),
-        'bucketId' : bucket_id
+        'bucketId' : bucket.id_,
         }
     response = post_json(url, params, auth_token)
 
@@ -494,18 +650,20 @@ def update_bucket(args):
         usage_and_exit()
 
     info = StoredAccountInfo()
-    account_id = info.get_account_id()
     bucket_name = args[0]
     bucket_type = args[1]
 
-    info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    account_id = info.get_account_id()
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
     url = url_for_api(info, 'b2_update_bucket')
     params = {
         'accountId' : account_id,
-        'bucketId' : bucket_id,
+        'bucketId' : bucket.id_,
         'bucketType' : bucket_type
     }
     response = post_json(url, params, auth_token)
@@ -527,13 +685,15 @@ def list_file_names(args):
     else:
         count = 100
 
-    info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
     url = url_for_api(info, 'b2_list_file_names')
     params = {
-        'bucketId' : bucket_id,
+        'bucketId' : bucket.id_,
         'startFileName' : firstFileName,
         'maxFileCount' : count
     }
@@ -560,13 +720,15 @@ def list_file_versions(args):
     else:
         count = 100
 
-    info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
     url = url_for_api(info, 'b2_list_file_versions')
     params = {
-        'bucketId' : bucket_id,
+        'bucketId' : bucket.id_,
         'startFileName' : firstFileName,
         'startFileId' : firstFileId,
         'maxFileCount' : count
@@ -629,13 +791,15 @@ def hide_file(args):
     bucket_name = args[0]
     file_name = args[1]
 
-    info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
     url = url_for_api(info, 'b2_hide_file')
     params = {
-        'bucketId' : bucket_id,
+        'bucketId' : bucket.id_,
         'fileName' : file_name
     }
     response = post_json(url, params, auth_token)
@@ -688,9 +852,11 @@ def upload_file(args):
     local_file = args[1]
     b2_file = args[2]
 
-    info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
-    bucket_upload_data = ensure_upload_data(bucket_id, info)
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    bucket = api.get_bucket_by_name(bucket_name)
+    bucket_upload_data = ensure_upload_data(bucket.id_, info)
 
     headers = {
         'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
@@ -829,9 +995,10 @@ def ls(args):
         if not prefix.endswith('/'):
             prefix += '/'
 
-    # Get authorization
-    info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.get_api()
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
     # Loop until all files in the named directory have been listed.
@@ -852,7 +1019,7 @@ def ls(args):
     while True:
         url = url_for_api(info, api_name)
         params = {
-            'bucketId' : bucket_id,
+            'bucketId' : bucket.id_,
             'startFileName' : start_file_name
             }
         if start_file_id is not None:
@@ -900,6 +1067,20 @@ def ls(args):
                 prefix + current_dir[:-1] + '0'
                 )
 
+class ConsoleTool(object):
+    def __init__(self, info=None):
+        if info is None:
+            info = StoredAccountInfo()
+        self.info = info
+    def get_api(self):
+        return B2Api(self.info, AuthInfoCache(self.info))
+    def list_buckets(self, args):
+        if len(args) != 0:
+            usage_and_exit()
+        api = self.get_api()
+        for b in api.list_buckets():
+            print '%s  %-10s  %s' % (b.id_, b.type_, b.name)
+
 
 def main():
     if len(sys.argv) < 2:
@@ -910,42 +1091,46 @@ def main():
     action = decoded_argv[1]
     args = decoded_argv[2:]
 
-    if action == 'authorize_account':
-        authorize_account(args)
-    elif action == 'clear_account':
-        clear_account(args)
-    elif action == 'create_bucket':
-        create_bucket(args)
-    elif action == 'delete_bucket':
-        delete_bucket(args)
-    elif action == 'delete_file_version':
-        delete_file_version(args)
-    elif action == 'download_file_by_id':
-        download_file_by_id(args)
-    elif action == 'download_file_by_name':
-        download_file_by_name(args)
-    elif action == 'get_file_info':
-        get_file_info(args)
-    elif action == 'hide_file':
-        hide_file(args)
-    elif action == 'list_buckets':
-        list_buckets(args)
-    elif action == 'list_file_names':
-        list_file_names(args)
-    elif action == 'list_file_versions':
-        list_file_versions(args)
-    elif action == 'ls':
-        ls(args)
-    elif action == 'make_url':
-        make_url(args)
-    elif action == 'update_bucket':
-        update_bucket(args)
-    elif action == 'upload_file':
-        upload_file(args)
-    elif action == 'version':
-        print 'b2 command line tool, version', VERSION
-    else:
-        usage_and_exit()
+    try:
+        if action == 'authorize_account':
+            authorize_account(args)
+        elif action == 'clear_account':
+            clear_account(args)
+        elif action == 'create_bucket':
+            create_bucket(args)
+        elif action == 'delete_bucket':
+            delete_bucket(args)
+        elif action == 'delete_file_version':
+            delete_file_version(args)
+        elif action == 'download_file_by_id':
+            download_file_by_id(args)
+        elif action == 'download_file_by_name':
+            download_file_by_name(args)
+        elif action == 'get_file_info':
+            get_file_info(args)
+        elif action == 'hide_file':
+            hide_file(args)
+        elif action == 'list_buckets':
+            ConsoleTool().list_buckets(args)
+        elif action == 'list_file_names':
+            list_file_names(args)
+        elif action == 'list_file_versions':
+            list_file_versions(args)
+        elif action == 'ls':
+            ls(args)
+        elif action == 'make_url':
+            make_url(args)
+        elif action == 'update_bucket':
+            update_bucket(args)
+        elif action == 'upload_file':
+            upload_file(args)
+        elif action == 'version':
+            print 'b2 command line tool, version', VERSION
+        else:
+            usage_and_exit()
+    except B2Error as e:  # TODO: put it somewhere else (decorator of AbstractConsoleCommand.handle()?)
+        print e
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
