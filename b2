@@ -253,10 +253,11 @@ class StoredAccountInfo(object):
         return names_to_ids.get(bucket_name)
 
     def _write_file(self):
-#       with open(self.filename, 'wb') as f:
-        with os.fdopen(os.open(self.filename, os.O_WRONLY | os.O_CREAT, 0600), 'wb') as f:
-            f.write(json.dumps(self.data, indent=4, sort_keys=True))
-            f.write('\n')
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        if os.name == 'nt':
+            flags |= os.O_BINARY
+        with os.fdopen(os.open(self.filename, flags, 0600), 'wb') as f:
+            json.dump(self.data, f, indent=4, sort_keys=True)
 
 
 class OpenUrl(object):
