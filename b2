@@ -190,9 +190,14 @@ class AbstractBucket(object):
         return "foo"
 
 
-class UnknownTypeBucket(AbstractBucket):
-    def __init__(self, id_, name):
+class IdOnlyBucket(AbstractBucket):
+    def __init__(self, id_):
         self.id_ = id_
+
+
+class UnknownTypeBucket(IdOnlyBucket):
+    def __init__(self, id_, name):
+        super(UnknownTypeBucket, self).__init__(id_)
         self.name = name
 
 
@@ -285,8 +290,7 @@ class B2Api(object):
     def create_bucket(self, name, type_):
         return Bucket()
     def get_bucket_by_id(self, bucket_id):
-        return Bucket()
-        raise B2Error()
+        return IdOnlyBucket(bucket_id)
     def get_bucket_by_name(self, bucket_name):
         """
         Returns the bucket_id for the given bucket_name.
