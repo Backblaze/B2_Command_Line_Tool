@@ -133,7 +133,7 @@ Usages:
 
 ## Enums
 
-class BucketType(object):
+class BucketType(object):  # TODO: isn't it better to just use the string type instead? What is the benefit in doing it like this?
     ALL_PUBLIC = 1001
     ALL_PRIVATE = 1002
 
@@ -165,11 +165,8 @@ class UnrecognizedBucketType(B2Error):
 
 ## Bucket
 
-class AbstractBucket(object):
+class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for anything?
     __metaclass__ = ABCMeta
-    def __init__(self, id_, name):
-        self.id_ = id_
-        self.name = name
     def delete(self):  # TODO
         pass
     def set_type(self, permissions):  # TODO
@@ -197,8 +194,8 @@ class IdOnlyBucket(AbstractBucket):
 
 class UnknownTypeBucket(IdOnlyBucket):
     def __init__(self, id_, name):
-        super(UnknownTypeBucket, self).__init__(id_)
         self.name = name
+        super(UnknownTypeBucket, self).__init__(id_)
 
 
 class Bucket(UnknownTypeBucket):
