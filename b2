@@ -24,7 +24,10 @@ import sys
 import urllib
 import urllib2
 
-VERSION = '0.3.5'
+# To avoid confusion between official Backblaze releases of this tool and
+# the versions on Github, we use the convention that the third number is
+# odd for Github, and even for Backblaze releases.
+VERSION = '0.3.7'
 
 USAGE = """This program provides command-line access to the B2 service.
 
@@ -437,6 +440,11 @@ class StoredAccountInfo(object):
     def get_bucket_upload_data(self, bucket_id):
         return self.data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
 
+    def clear_bucket_upload_data(self, bucket_id):
+        upload_data = self.data[self.BUCKET_UPLOAD_DATA]
+        if bucket_id in upload_data:
+            del upload_data[bucket_id]
+
     def save_bucket_name(self, bucket_name, bucket_id):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
         if bucket_name not in names_to_ids:
@@ -468,17 +476,29 @@ class StoredAccountInfo(object):
             json.dump(self.data, f, indent=4, sort_keys=True)
 
 
+def report_http_error_and_exit(e, url, data, headers):
+    print 'Error returned from server:'
+    print
+    print 'URL:', url
+    print 'Params:', data
+    print 'Headers:', headers
+    print
+    print e.read()
+    sys.exit(1)
+
+
 class OpenUrl(object):
     """
     Context manager that handles an open urllib2.Request, and provides
     the file-like object that is the response.
     """
 
-    def __init__(self, url, data, headers):
+    def __init__(self, url, data, headers, exit_on_error=True):
         self.url = url
         self.data = data
         self.headers = headers
         self.file = None
+        self.exit_on_error = exit_on_error
 
     def __enter__(self):
         try:
@@ -486,14 +506,10 @@ class OpenUrl(object):
             self.file = urllib2.urlopen(request)
             return self.file
         except urllib2.HTTPError as e:
-            print 'Error returned from server:'
-            print
-            print 'URL:', self.url
-            print 'Params:', self.data
-            print 'Headers:', self.headers
-            print
-            print e.read()
-            sys.exit(1)
+            if self.exit_on_error:
+                report_http_error_and_exit(e, self.url, self.data, self.headers)
+            else:
+                raise e
 
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
@@ -514,13 +530,13 @@ def post_json(url, params, auth_token=None):
         return json.loads(json_text)
 
 
-def post_file(url, headers, file_path):
+def post_file(url, headers, file_path, exit_on_error=True):
     """Posts the contents of the file to the URL.
     """
     with open(file_path, 'rb') as data_file:
         if 'Content-Length' not in headers:
             headers['Content-Length'] = str(os.path.getsize(file_path))
-        with OpenUrl(url, data_file, headers) as response_file:
+        with OpenUrl(url, data_file, headers, exit_on_error) as response_file:
             json_text = response_file.read()
             return json.loads(json_text)
 
@@ -738,6 +754,7 @@ def list_file_versions(args):
 
     print json.dumps(response, indent=2, sort_keys=True)
 
+
 def ensure_upload_data(bucket_id, info):
     """
     Makes sure that we have an upload URL and auth token for the given bucket and
@@ -755,6 +772,7 @@ def ensure_upload_data(bucket_id, info):
         info.set_bucket_upload_data(bucket_id, upload_url, upload_auth_token)
         upload_data = info.get_bucket_upload_data(bucket_id)
     return upload_data
+
 
 def get_file_info(args):
     if len(args) != 1:
@@ -857,22 +875,37 @@ def upload_file(args):
     info = console_tool.info
     api = console_tool.get_api()
     bucket = api.get_bucket_by_name(bucket_name)
-    bucket_upload_data = ensure_upload_data(bucket.id_, info)
 
-    headers = {
-        'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
-        'X-Bz-File-Name': b2_url_encode(b2_file),
-        'Content-Type': content_type,
-        'X-Bz-Content-Sha1': hex_sha1_of_file(local_file)
-        }
-    for (k, v) in file_infos.iteritems():
-        headers['X-Bz-Info-' + k] = b2_url_encode(v)
-    url = bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_URL]
-    response = post_file(url, headers, local_file)
-    print json.dumps(response, indent=4, sort_keys=True)
-    if 'fileId' in response:
-        print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" +  b2_file
-        print "URL by fileId: " + info.get_download_url() + "/b2api/v1/b2_download_file_by_id?fileId=" + response['fileId']
+    # Try 5 times to upload the file.  If one fails, get a different
+    # upload URL for the next try.
+    for i in xrange(5):
+        bucket_upload_data = ensure_upload_data(bucket.id_, info)
+        url = bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_URL]
+
+        headers = {
+            'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
+            'X-Bz-File-Name': b2_url_encode(b2_file),
+            'Content-Type': content_type,
+            'X-Bz-Content-Sha1': hex_sha1_of_file(local_file)
+            }
+        for (k, v) in file_infos.iteritems():
+            headers['X-Bz-Info-' + k] = b2_url_encode(v)
+
+        try:
+            response = post_file(url, headers, local_file, exit_on_error=False)
+            print json.dumps(response, indent=4, sort_keys=True)
+            if 'fileId' in response:
+                print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" + b2_file
+                print "URL by fileId: " + info.get_download_url() + "/b2api/v1/b2_download_file_by_id?fileId=" + response['fileId']
+            return
+        except urllib2.HTTPError as e:
+            if 500 <= e.code and e.code < 600:
+                info.clear_bucket_upload_data(bucket.id_)
+            else:
+                report_http_error_and_exit(e, url, None, headers)
+
+    print 'FAILED to upload after 5 tries'
+    sys.exit(1)
 
 
 def download_file_from_url(url, request_body, encoded_headers, local_file_name):
