@@ -137,19 +137,21 @@ Usages:
 ## Enums
 
 class BucketType(object):  # TODO: isn't it better to just use the string type instead? What is the benefit in doing it like this?
-    ALL_PUBLIC = 1001
-    ALL_PRIVATE = 1002
-
-BUCKET_TYPES = {
-    "allPrivate": BucketType.ALL_PRIVATE,
-    "allPublic": BucketType.ALL_PUBLIC,
-}
+    ALL_PUBLIC = 'allPublic'
+    ALL_PRIVATE = 'allPrivate'
 
 
 ## Exceptions
 
 class B2Error(Exception):
     pass
+
+
+class DuplicateBucketName(B2Error):
+    def __init__(self, bucket_name):
+        self.bucket_name = bucket_name
+    def __str__(self):
+        return 'Bucket name is already in use: %s' % (self.bucket_name,)
 
 
 class NonExistentBucket(B2Error):
@@ -205,22 +207,35 @@ class Bucket(UnknownTypeBucket):
     def __init__(self, id_, name, type_):
         self.type_ = type_
         super(Bucket, self).__init__(id_, name)
+    def __repr__(self):
+        return 'Bucket<%s,%s,%s>' % (self.name, self.id_, self.type_)
 
 
-class BucketFactory(object):  # TODO: put it somewhere else
+class BucketFactory(object):  # TODO: put it somewhere else or rename it?
     @classmethod
     def from_api_response(cls, response):
-        result = []
-        for bucket in response['buckets']:
-            bucket_name = bucket['bucketName']
-            bucket_id = bucket['bucketId']
-            type_ = BUCKET_TYPES.get(bucket['bucketType'])
-            if type_ is None:
-                raise UnrecognizedBucketType(bucket['bucketType'])
-            result.append(
-                Bucket(bucket_id, bucket_name, type_)
-            )
-        return result
+        return [
+            cls.from_api_bucket_dict(bucket_dict)
+            for bucket_dict in response['buckets']
+        ]
+    @classmethod
+    def from_api_bucket_dict(cls, bucket_dict):
+        """
+            turns this:
+            {
+                u'bucketType': u'allPrivate',
+                u'bucketId': u'a4ba6a39d8b6b5fd561f0010',
+                u'bucketName': u'zsdfrtsazsdfafr',
+                u'accountId': u'4aa9865d6f00'
+            }
+            into a Bucket object
+        """
+        bucket_name = bucket_dict['bucketName']
+        bucket_id = bucket_dict['bucketId']
+        type_ = bucket_dict['bucketType']
+        if type_ is None:
+            raise UnrecognizedBucketType(bucket_dict['bucketType'])
+        return Bucket(bucket_id, bucket_name, type_)
 
 
 ## DAO
@@ -240,10 +255,13 @@ class FileVersion(object):
 class AbstractCache(object):
     __metaclass__ = ABCMeta
     @abstractmethod
-    def set_bucket_name_cache(self, buckets):
+    def get_bucket_id_or_none_from_bucket_name(self, name):
         pass
     @abstractmethod
-    def get_bucket_id_or_none_from_bucket_name(self, name):
+    def save_bucket(self, bucket):
+        pass
+    @abstractmethod
+    def set_bucket_name_cache(self, buckets):
         pass
     def _name_id_iterator(self, buckets):
         return ((bucket.name, bucket.id_) for bucket in buckets)
@@ -251,20 +269,24 @@ class AbstractCache(object):
 
 class DummyCache(AbstractCache):
     """ Cache that does nothing """
-    def set_bucket_name_cache(self, buckets):
-        pass
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return None
+    def save_bucket(self, bucket):
+        pass
+    def set_bucket_name_cache(self, buckets):
+        pass
 
 
 class InMemoryCache(AbstractCache):
     """ Cache that stores the information in memory """
     def __init__(self):
         self.name_id_map = {}
-    def set_bucket_name_cache(self, buckets):
-        self.name_id_map = dict(self._name_id_iterator(buckets))
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.name_id_map.get(name)
+    def save_bucket(self, bucket):
+        pass
+    def set_bucket_name_cache(self, buckets):
+        self.name_id_map = dict(self._name_id_iterator(buckets))
 
 
 class AuthInfoCache(AbstractCache):
@@ -273,6 +295,8 @@ class AuthInfoCache(AbstractCache):
         self.info = info
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.info.get_bucket_id_or_none_from_bucket_name(name)
+    def save_bucket(self, bucket):
+        self.info.save_bucket(bucket)
     def set_bucket_name_cache(self, buckets):
         self.info.refresh_entire_bucket_name_cache(self._name_id_iterator(buckets))
 
@@ -288,7 +312,36 @@ class B2Api(object):
 
     # buckets
     def create_bucket(self, name, type_):
-        return Bucket()
+        account_id = self.authorizator.get_account_id()
+        auth_token = self.authorizator.get_account_auth_token()
+
+        url = url_for_api(self.authorizator, 'b2_create_bucket')
+        params = {
+            'accountId' : account_id,
+            'bucketName' : name,
+            'bucketType' : type_,
+            }
+        try:
+            response = post_json(url, params, auth_token, exit_on_error=False)
+        except urllib2.HTTPError as e:
+            error_content = e.read()
+            try:
+                error_dict = json.loads(error_content)
+            except ValueError:
+                self._display_error(error_content)
+            status = error_dict.get('status')
+            code = error_dict.get('code')
+            if status == 400 and code == "duplicate_bucket_name":
+                raise DuplicateBucketName(name)
+            else:
+                raise
+        bucket = BucketFactory.from_api_bucket_dict(response)
+        assert name == bucket.name, 'API created a bucket with different name\
+                                     than requested: %s != %s' % (name, bucket.name)
+        assert type_ == bucket.type_, 'API created a bucket with different type\
+                                     than requested: %s != %s' % (type_, bucket.type_)
+        self.cache.save_bucket(bucket)
+        return bucket
     def get_bucket_by_id(self, bucket_id):
         return IdOnlyBucket(bucket_id)
     def get_bucket_by_name(self, bucket_name):
@@ -445,10 +498,10 @@ class StoredAccountInfo(object):
         if bucket_id in upload_data:
             del upload_data[bucket_id]
 
-    def save_bucket_name(self, bucket_name, bucket_id):
+    def save_bucket(self, bucket):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
-        if bucket_name not in names_to_ids:
-            names_to_ids[bucket_name] = bucket_id
+        if names_to_ids.get(bucket.name) != bucket.id_:
+            names_to_ids[bucket.name] = bucket.id_
             self._write_file()
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
@@ -516,7 +569,7 @@ class OpenUrl(object):
             self.file.close()
 
 
-def post_json(url, params, auth_token=None):
+def post_json(url, params, auth_token=None, exit_on_error=True):
     """Coverts params to JSON and posts them to the given URL.
 
     Returns the resulting JSON, decoded into a dict.
@@ -525,7 +578,7 @@ def post_json(url, params, auth_token=None):
     headers = {}
     if auth_token is not None:
         headers['Authorization'] = auth_token
-    with OpenUrl(url, data, headers) as f:
+    with OpenUrl(url, data, headers, exit_on_error) as f:
         json_text = f.read()
         return json.loads(json_text)
 
@@ -616,28 +669,6 @@ def authorize_account(args):
         response['apiUrl'],
         response['downloadUrl']
         )
-
-
-def create_bucket(args):
-    if len(args) != 2:
-        usage_and_exit()
-
-    info = StoredAccountInfo()
-    auth_token = info.get_account_auth_token()
-
-    bucket_name = args[0]
-    bucket_type = args[1]
-
-    url = url_for_api(info, 'b2_create_bucket')
-    params = {
-        'accountId' : info.get_account_id(),
-        'bucketName' : bucket_name,
-        'bucketType' : bucket_type
-        }
-    response = post_json(url, params, auth_token)
-    print response['bucketId']
-
-    info.save_bucket_name(bucket_name, response['bucketId'])
 
 
 def delete_bucket(args):
@@ -1108,6 +1139,16 @@ class ConsoleTool(object):
         self.info = info
     def get_api(self):
         return B2Api(self.info, AuthInfoCache(self.info))
+
+    def create_bucket(self, args):
+        if len(args) != 2:
+            usage_and_exit()
+        bucket_name = args[0]
+        bucket_type = args[1]
+
+        api = self.get_api()
+        print api.create_bucket(bucket_name, bucket_type).id_
+
     def list_buckets(self, args):
         if len(args) != 0:
             usage_and_exit()
@@ -1125,13 +1166,14 @@ def main():
     action = decoded_argv[1]
     args = decoded_argv[2:]
 
+    ct = ConsoleTool()
     try:
         if action == 'authorize_account':
             authorize_account(args)
         elif action == 'clear_account':
             clear_account(args)
         elif action == 'create_bucket':
-            create_bucket(args)
+            ct.create_bucket(args)
         elif action == 'delete_bucket':
             delete_bucket(args)
         elif action == 'delete_file_version':
@@ -1145,7 +1187,7 @@ def main():
         elif action == 'hide_file':
             hide_file(args)
         elif action == 'list_buckets':
-            ConsoleTool().list_buckets(args)
+            ct.list_buckets(args)
         elif action == 'list_file_names':
             list_file_names(args)
         elif action == 'list_file_versions':
