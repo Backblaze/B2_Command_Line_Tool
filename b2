@@ -717,6 +717,11 @@ def upload_file(args):
     local_file = args[1]
     b2_file = args[2]
 
+    # Double check that the file is not too big.
+    if 5 * 1000 * 1000 * 1000 < os.path.getsize(local_file):
+        print 'ERROR: File is bigger that 5GB:', local_file
+        sys.exit(1)
+
     # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
     if sha1_sum is None:
         sha1_sum = hex_sha1_of_file(local_file)
