@@ -27,7 +27,7 @@ import urllib2
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
 # odd for Github, and even for Backblaze releases.
-VERSION = '0.3.7'
+VERSION = '0.3.9'
 
 USAGE = """This program provides command-line access to the B2 service.
 
@@ -118,10 +118,14 @@ Usages:
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
 
-    b2 upload_file [--contentType <contentType>] [--info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
+    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
+
+        By default, upload_file will compute the sha1 checksum of the file
+        to be uploaded.  But, you you already have it, you can provide it
+        on the command line to save a little time.
 
         Content type is optional.  If not set, it will be set based on the
         file extension.
@@ -881,9 +885,16 @@ def upload_file(args):
 
     content_type = 'b2/x-auto'
     file_infos = {}
+    sha1_sum = None
+
     while 0 < len(args) and args[0][0] == '-':
         option = args[0]
-        if option == '--contentType':
+        if option == '--sha1':
+            if len(args) < 2:
+                usage_and_exit()
+            sha1_sum = args[1]
+            args = args[2:]
+        elif option == '--contentType':
             if len(args) < 2:
                 usage_and_exit()
             content_type = args[1]
@@ -907,6 +918,15 @@ def upload_file(args):
     api = console_tool.get_api()
     bucket = api.get_bucket_by_name(bucket_name)
 
+    # Double check that the file is not too big.
+    if 5 * 1000 * 1000 * 1000 < os.path.getsize(local_file):
+        print 'ERROR: File is bigger that 5GB:', local_file
+        sys.exit(1)
+
+    # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
+    if sha1_sum is None:
+        sha1_sum = hex_sha1_of_file(local_file)
+
     # Try 5 times to upload the file.  If one fails, get a different
     # upload URL for the next try.
     for i in xrange(5):
@@ -917,7 +937,7 @@ def upload_file(args):
             'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
             'X-Bz-File-Name': b2_url_encode(b2_file),
             'Content-Type': content_type,
-            'X-Bz-Content-Sha1': hex_sha1_of_file(local_file)
+            'X-Bz-Content-Sha1': sha1_sum
             }
         for (k, v) in file_infos.iteritems():
             headers['X-Bz-Info-' + k] = b2_url_encode(v)

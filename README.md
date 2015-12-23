@@ -3,7 +3,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.3.7
+Version 0.3.9
 
 Usages:
 
@@ -92,10 +92,14 @@ Usages:
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
 
-    b2 upload_file [--contentType <contentType>] [--info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
+    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
+
+        By default, upload_file will compute the sha1 checksum of the file
+        to be uploaded.  But, you you already have it, you can provide it
+        on the command line to save a little time.
 
         Content type is optional.  If not set, it will be set based on the
         file extension.
