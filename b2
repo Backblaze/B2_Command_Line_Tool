@@ -368,6 +368,10 @@ class stream_with_progress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this kee
         self.update(len(data))
         return data
 
+    def write(self, data):
+        self.stream.write(data)
+        self.update(len(data))
+
 
 def post_file(url, headers, file_path, exit_on_error=True, progress_bar=False):
     """
@@ -812,7 +816,7 @@ def upload_file(args):
     sys.exit(1)
 
 
-def download_file_from_url(url, request_body, encoded_headers, local_file_name):
+def download_file_from_url(url, request_body, encoded_headers, local_file_name, progress_bar=False):
     with OpenUrl(url, request_body, encoded_headers) as response:
         info = response.info()
         file_size = int(info['content-length'])
@@ -827,7 +831,11 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
         block_size = 4096
         digest = hashlib.sha1()
         bytes_read = 0
-        with open(local_file_name, 'wb') as f:
+
+        stream = open(local_file_name, 'wb')
+        if progress_bar:
+            stream = stream_with_progress(stream, desc=local_file_name, total=file_size)
+        with stream as f:
             while True:
                 data = response.read(block_size)
                 if len(data) == 0:
@@ -843,6 +851,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
 
 
 def download_file_by_id(args):
+    progress_bar = PROGRESS_BAR_SUPPORT
     if len(args) != 2:
         usage_and_exit()
 
@@ -858,10 +867,11 @@ def download_file_by_id(args):
 
     request_body = json.dumps(params)
 
-    download_file_from_url(url, request_body, headers, local_file_name)
+    download_file_from_url(url, request_body, headers, local_file_name, progress_bar=progress_bar)
 
 
 def download_file_by_name(args):
+    progress_bar = PROGRESS_BAR_SUPPORT
     if len(args) != 3:
         usage_and_exit()
 
@@ -875,7 +885,7 @@ def download_file_by_name(args):
     url = info.get_download_url() + '/file/' + b2_url_encode(bucket_name) + '/' + b2_url_encode(file_name)
     headers = { 'Authorization' : auth_token }
 
-    download_file_from_url(url, None, headers, local_file_name)
+    download_file_from_url(url, None, headers, local_file_name, progress_bar=progress_bar)
 
 
 def make_url(args):
