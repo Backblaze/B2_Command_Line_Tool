@@ -308,22 +308,22 @@ class AuthInfoCache(AbstractCache):
 ## B2Api
 
 class B2Api(object):
-    def __init__(self, authorizator=None, cache=None):
-        if authorizator is None:
-            authorizator = StoredAccountInfo()
+    def __init__(self, account_info=None, cache=None):
+        if account_info is None:
+            account_info = StoredAccountInfo()
             if cache is None:
-                cache = AuthInfoCache(authorizator)
-        self.authorizator = authorizator
+                cache = AuthInfoCache(account_info)
+        self.account_info = account_info
         if cache is None:
             cache = DummyCache()
         self.cache = cache
 
     # buckets
     def create_bucket(self, name, type_):
-        account_id = self.authorizator.get_account_id()
-        auth_token = self.authorizator.get_account_auth_token()
+        account_id = self.account_info.get_account_id()
+        auth_token = self.account_info.get_account_auth_token()
 
-        url = url_for_api(self.authorizator, 'b2_create_bucket')
+        url = url_for_api(self.account_info, 'b2_create_bucket')
         params = {
             'accountId' : account_id,
             'bucketName' : name,
@@ -376,9 +376,9 @@ class B2Api(object):
         but API user should not rely on the response: if it doesn't raise
         an exception, it means that the operation was a success
         """
-        account_id = self.authorizator.get_account_id()
-        auth_token = self.authorizator.get_account_auth_token()
-        url = url_for_api(self.authorizator, 'b2_delete_bucket')
+        account_id = self.account_info.get_account_id()
+        auth_token = self.account_info.get_account_auth_token()
+        url = url_for_api(self.account_info, 'b2_delete_bucket')
         params = {
             'accountId' : account_id,
             'bucketId' : bucket.id_,
@@ -389,10 +389,10 @@ class B2Api(object):
         """
         Calls b2_list_buckets and returns the JSON for *all* buckets.
         """
-        account_id = self.authorizator.get_account_id()
-        auth_token = self.authorizator.get_account_auth_token()
+        account_id = self.account_info.get_account_id()
+        auth_token = self.account_info.get_account_auth_token()
 
-        url = url_for_api(self.authorizator, 'b2_list_buckets')
+        url = url_for_api(self.account_info, 'b2_list_buckets')
         params = {'accountId': account_id}
         response = post_json(url, params, auth_token)
 
@@ -417,7 +417,7 @@ class B2Api(object):
         returns a download url for given file_id
         """
         #bucket_id = file_id[3:27]
-        url = url_for_api(self.authorizator, 'b2_download_file_by_id')
+        url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
     def get_file_info(self, file_id):
         return FileInfo()
@@ -450,7 +450,7 @@ def decode_sys_argv():
     return [arg.decode(encoding) for arg in sys.argv]
 
 
-class AbstractAuthorizator(object):
+class AbstractAccountInfo(object):
     __metaclass__ = ABCMeta
     @abstractmethod
     def get_api_url(self):
@@ -460,7 +460,7 @@ class AbstractAuthorizator(object):
         pass
 
 
-class StoredAccountInfo(AbstractAuthorizator):
+class StoredAccountInfo(AbstractAccountInfo):
 
     """Manages the file that holds the account ID and stored auth tokens.
 
@@ -1195,7 +1195,7 @@ class ConsoleTool(object):
 
     @property
     def info(self):  # TODO: this is only temporary, remove it
-        return self.api.authorizator
+        return self.api.account_info
 
 
 def main():
