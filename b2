@@ -308,7 +308,11 @@ class AuthInfoCache(AbstractCache):
 ## B2Api
 
 class B2Api(object):
-    def __init__(self, authorizator, cache=None):
+    def __init__(self, authorizator=None, cache=None):
+        if authorizator is None:
+            authorizator = StoredAccountInfo()
+            if cache is None:
+                cache = AuthInfoCache(authorizator)
         self.authorizator = authorizator
         if cache is None:
             cache = DummyCache()
