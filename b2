@@ -412,6 +412,13 @@ class B2Api(object):
         pass
 
     # other
+    def make_url(self, file_id):
+        """
+        returns a download url for given file_id
+        """
+        #bucket_id = file_id[3:27]
+        url = url_for_api(self.authorizator, 'b2_download_file_by_id')
+        return '%s?fileId=%s' % (url, file_id)
     def get_file_info(self, file_id):
         return FileInfo()
         raise B2Error()
@@ -443,7 +450,17 @@ def decode_sys_argv():
     return [arg.decode(encoding) for arg in sys.argv]
 
 
-class StoredAccountInfo(object):
+class AbstractAuthorizator(object):
+    __metaclass__ = ABCMeta
+    @abstractmethod
+    def get_api_url(self):
+        pass
+    @abstractmethod
+    def get_download_url(self):
+        pass
+
+
+class StoredAccountInfo(AbstractAuthorizator):
 
     """Manages the file that holds the account ID and stored auth tokens.
 
@@ -1024,19 +1041,6 @@ def download_file_by_name(args):
     download_file_from_url(url, None, headers, local_file_name)
 
 
-def make_url(args):
-    if len(args) != 1:
-        usage_and_exit()
-
-    file_id = args[0]
-    bucket_id = file_id[3:27]
-
-    info = StoredAccountInfo()
-
-    url = url_for_api(info, 'b2_download_file_by_id')
-
-    print '%s?fileId=%s' % (url, file_id)
-
 def print_ls_entry(is_long, is_folder, name, file):
     # if not long, it's easy
     if not is_long:
@@ -1181,6 +1185,14 @@ class ConsoleTool(object):
         for b in self.api.list_buckets():
             print '%s  %-10s  %s' % (b.id_, b.type_, b.name)
 
+    def make_url(self, args):
+        if len(args) != 1:
+            usage_and_exit()
+
+        file_id = args[0]
+
+        print self.api.make_url(file_id)
+
     @property
     def info(self):  # TODO: this is only temporary, remove it
         return self.api.authorizator
@@ -1224,7 +1236,7 @@ def main():
         elif action == 'ls':
             ls(args)
         elif action == 'make_url':
-            make_url(args)
+            ct.make_url(args)
         elif action == 'update_bucket':
             update_bucket(args)
         elif action == 'upload_file':
