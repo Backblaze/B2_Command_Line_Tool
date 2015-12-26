@@ -1,4 +1,5 @@
-# B2_Command_Line_Tool
+# B2 Command Line Tool
+
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
 This program provides command-line access to the B2 service.
@@ -86,6 +87,17 @@ Usages:
 
         Prints an URL that can be used to download the given file, if
         it is public.
+
+    b2 sync [--delete] [--hide] <source> <destination>
+
+        Uploads or downloads multiple files from source to destination.
+        One of the paths must be a local file path, and the other must be
+        a B2 bucket path. Use "b2:<bucketName>/<prefix>" for B2 paths, e.g.
+        "b2:my-bucket-name/a/path/prefix/".
+
+        If the --delete or --hide flags are specified, destination files
+        are deleted or hidden if not present in the source path. Note that
+        files are matched only by name and size.
 
     b2 update_bucket <bucketName> <bucketType>
 
