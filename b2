@@ -13,6 +13,7 @@
 This is a B2 command-line tool.  See the USAGE message for details.
 """
 
+import base64
 import datetime
 import getpass
 import hashlib
@@ -21,7 +22,6 @@ import os.path
 import sys
 import urllib
 import urllib2
-import base64
 
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
