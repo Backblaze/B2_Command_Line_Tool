@@ -365,8 +365,25 @@ class B2Api(object):
                 return bucket
         raise NonExistentBucket(bucket_name)
 
+    def delete_bucket(self, bucket):
+        """
+        Deletes the bucket remotely.
+        For legacy reasons it returns whatever server sends in response,
+        but API user should not rely on the response: if it doesn't raise
+        an exception, it means that the operation was a success
+        """
+        account_id = self.authorizator.get_account_id()
+        auth_token = self.authorizator.get_account_auth_token()
+        url = url_for_api(self.authorizator, 'b2_delete_bucket')
+        params = {
+            'accountId' : account_id,
+            'bucketId' : bucket.id_,
+            }
+        return post_json(url, params, auth_token)
+
     def list_buckets(self):
-        """Calls b2_list_buckets and returns the JSON for *all* buckets.
+        """
+        Calls b2_list_buckets and returns the JSON for *all* buckets.
         """
         account_id = self.authorizator.get_account_id()
         auth_token = self.authorizator.get_account_auth_token()
@@ -673,28 +690,6 @@ def authorize_account(args):
         response['apiUrl'],
         response['downloadUrl']
         )
-
-
-def delete_bucket(args):
-    if len(args) != 1:
-        usage_and_exit()
-
-    bucket_name = args[0]
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.get_api()
-    bucket = api.get_bucket_by_name(bucket_name)
-
-    auth_token = info.get_account_auth_token()
-    url = url_for_api(info, 'b2_delete_bucket')
-    params = {
-        'accountId' : info.get_account_id(),
-        'bucketId' : bucket.id_,
-        }
-    response = post_json(url, params, auth_token)
-
-    print json.dumps(response, indent=4, sort_keys=True)
 
 
 def update_bucket(args):
@@ -1169,6 +1164,16 @@ class ConsoleTool(object):
         api = self.get_api()
         print api.create_bucket(bucket_name, bucket_type).id_
 
+    def delete_bucket(self, args):
+        if len(args) != 1:
+            usage_and_exit()
+        bucket_name = args[0]
+
+        api = self.get_api()
+        bucket = api.get_bucket_by_name(bucket_name)
+        response = api.delete_bucket(bucket)
+        print json.dumps(response, indent=4, sort_keys=True)
+
     def list_buckets(self, args):
         if len(args) != 0:
             usage_and_exit()
@@ -1195,7 +1200,7 @@ def main():
         elif action == 'create_bucket':
             ct.create_bucket(args)
         elif action == 'delete_bucket':
-            delete_bucket(args)
+            ct.delete_bucket(args)
         elif action == 'delete_file_version':
             delete_file_version(args)
         elif action == 'download_file_by_id':
