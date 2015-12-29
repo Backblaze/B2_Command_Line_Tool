@@ -224,11 +224,18 @@ def main():
     b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
 
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
+    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/1'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/2'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'c'])
+    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'd'])
 
-    b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\n')
+    b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
+
+    b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nd\n')
+    b2_tool.should_succeed(['ls', '--long', bucket_name], r'^4_z.*upload.*a\n.*-.*b/\n4_z.*upload.*d\n')
+    b2_tool.should_succeed(['ls', '--versions', bucket_name], r'^a\na\nb/\nc\nc\nd\n')
+    b2_tool.should_succeed(['ls', bucket_name, 'b'], r'^b/1\nb/2\n')
 
     print
     print "ALL OK"
