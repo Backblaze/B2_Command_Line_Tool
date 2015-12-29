@@ -342,7 +342,7 @@ def post_json(url, params, auth_token=None):
         return json.loads(json_text)
 
 
-class stream_with_progress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this keeps pyflakes calm, unlike tqdm=object
+class StreamWithProgress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this keeps pyflakes calm, unlike tqdm=object
     def __init__(self, stream, *args, **kwargs):
         self.stream = stream
         kwargs.update(
@@ -353,17 +353,17 @@ class stream_with_progress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this kee
                 'miniters': 1,
             }
         )
-        super(stream_with_progress, self).__init__(*args, **kwargs)
+        super(StreamWithProgress, self).__init__(*args, **kwargs)
 
     def __enter__(self):
-        super(stream_with_progress, self).__enter__()
+        super(StreamWithProgress, self).__enter__()
         self.stream.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         return any(
             (
-                super(stream_with_progress, self).__exit__(exc_type, exc_value, traceback),
+                super(StreamWithProgress, self).__exit__(exc_type, exc_value, traceback),
                 self.stream.__exit__(exc_type, exc_value, traceback),
             )
         )
@@ -386,7 +386,7 @@ def post_file(url, headers, file_path, exit_on_error=True, progress_bar=False):
         headers['Content-Length'] = str(os.path.getsize(file_path))
     stream = open(file_path, 'rb')
     if PROGRESS_BAR_SUPPORT and progress_bar:
-        stream = stream_with_progress(stream, desc=file_path, total=int(headers['Content-Length']))
+        stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
     with stream as data_file:
         with OpenUrl(url, data_file, headers, exit_on_error) as response_file:
             json_text = response_file.read()
@@ -835,7 +835,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name, 
 
         stream = open(local_file_name, 'wb')
         if PROGRESS_BAR_SUPPORT and progress_bar:
-            stream = stream_with_progress(stream, desc=local_file_name, total=file_size)
+            stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
         with stream as f:
             while True:
                 data = response.read(block_size)
