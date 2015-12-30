@@ -225,10 +225,10 @@ class BucketFactory(object):  # TODO: put it somewhere else or rename it?
         """
             turns this:
             {
-                u'bucketType': u'allPrivate',
-                u'bucketId': u'a4ba6a39d8b6b5fd561f0010',
-                u'bucketName': u'zsdfrtsazsdfafr',
-                u'accountId': u'4aa9865d6f00'
+                "bucketType": "allPrivate",
+                "bucketId": "a4ba6a39d8b6b5fd561f0010",
+                "bucketName": "zsdfrtsazsdfafr",
+                "accountId": "4aa9865d6f00"
             }
             into a Bucket object
         """
