@@ -158,11 +158,25 @@ class DuplicateBucketName(B2Error):
         return 'Bucket name is already in use: %s' % (self.bucket_name,)
 
 
+class FileAlreadyHidden(B2Error):
+    def __init__(self, file_name):
+        self.file_name = file_name
+    def __str__(self):
+        return 'File already hidden: %s' % (self.file_name,)
+
+
 class NonExistentBucket(B2Error):
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
     def __str__(self):
         return 'No such bucket: %s' % (self.bucket_name,)
+
+
+class FileNotPresent(B2Error):
+    def __init__(self, file_name):
+        self.file_name = file_name
+    def __str__(self):
+        return 'File not present: %s' % (self.file_name,)
 
 
 class UnrecognizedBucketType(B2Error):
@@ -187,8 +201,31 @@ class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for
     def upload_file(self, input_stream, remote_filename, mimeTypeOrNull=None, extra_headers=None):  # TODO
         raise B2Error()
         return FileInfo()
-    def hideFile(self, filename):  # TODO
-        return FileNameInfo()
+    def hide_file(self, file_name):
+        account_info = self.api.account_info
+        auth_token = account_info.get_account_auth_token()
+
+        url = url_for_api(account_info, 'b2_hide_file')
+        params = {
+            'bucketId' : self.id_,
+            'fileName' : file_name,
+        }
+        try:  # TODO: refactor the cloned exception handling
+            response = post_json(url, params, auth_token, exit_on_error=False)
+        except urllib2.HTTPError as e:
+            error_content = e.read()
+            try:
+                error_dict = json.loads(error_content)
+            except ValueError:
+                self._display_error(error_content)
+            status = error_dict.get('status')
+            code = error_dict.get('code')
+            if status == 400 and code == "already_hidden":
+                raise FileAlreadyHidden(file_name)
+            elif status == 400 and code == "no_such_file":
+                raise FileNotPresent(file_name)
+            raise
+        return FileVersionInfoFactory.from_api_response(response)
     def getUploadUrl(self):  # TODO
         raise B2Error()
         return "foo"
@@ -248,7 +285,34 @@ class FileInfo(object):
 
 
 class FileVersionInfo(object):
-    pass
+    def __init__(self, id_, file_name, size, upload_timestamp, action):
+        self.id_ = id_
+        self.file_name = file_name
+        self.size = size
+        self.upload_timestamp = upload_timestamp
+        self.action = action
+
+
+class FileVersionInfoFactory(object):  # TODO: put it somewhere else or rename it?
+    @classmethod
+    def from_api_response(cls, file_info_dict):
+        """
+            turns this:
+            {
+              "action": "hide",
+              "fileId": "4_zBucketName_f103b7ca31313c69c_d20151230_m030117_c001_v0001015_t0000",
+              "fileName": "randomdata",
+              "size": 0,
+              "uploadTimestamp": 1451444477000
+            }
+            into a FileInfo object
+        """
+        action = file_info_dict['action']  # "upload" or "hide"
+        file_name = file_info_dict['fileName']
+        id_ = file_info_dict['fileId']
+        size = file_info_dict['size']
+        upload_timestamp = file_info_dict['uploadTimestamp']
+        return FileVersionInfo(id_, file_name, size, upload_timestamp, action)
 
 
 ## Cache
@@ -851,28 +915,6 @@ def delete_file_version(args):
 
     print json.dumps(response, indent=2, sort_keys=True)
 
-def hide_file(args):
-    if len(args) != 2:
-        usage_and_exit()
-    bucket_name = args[0]
-    file_name = args[1]
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.api
-    bucket = api.get_bucket_by_name(bucket_name)
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_hide_file')
-    params = {
-        'bucketId' : bucket.id_,
-        'fileName' : file_name
-    }
-    response = post_json(url, params, auth_token)
-
-    print json.dumps(response, indent=2, sort_keys=True)
-
-
 def hex_sha1_of_file(path):
     with open(path, 'rb') as f:
         block_size = 1024 * 1024
@@ -1181,6 +1223,24 @@ class ConsoleTool(object):
         for b in self.api.list_buckets():
             print '%s  %-10s  %s' % (b.id_, b.type_, b.name)
 
+    def hide_file(self, args):
+        if len(args) != 2:
+            usage_and_exit()
+        bucket_name = args[0]
+        file_name = args[1]
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        file_info = bucket.hide_file(file_name)
+
+        response = {
+            "fileId": file_info.id_,
+            "fileName": file_info.file_name,
+            "size": file_info.size,
+            "uploadTimestamp": file_info.upload_timestamp,
+            "action": file_info.action,
+        }
+        print json.dumps(response, indent=2, sort_keys=True)
+
     def make_url(self, args):
         if len(args) != 1:
             usage_and_exit()
@@ -1222,7 +1282,7 @@ def main():
         elif action == 'get_file_info':
             get_file_info(args)
         elif action == 'hide_file':
-            hide_file(args)
+            ct.hide_file(args)
         elif action == 'list_buckets':
             ct.list_buckets(args)
         elif action == 'list_file_names':
