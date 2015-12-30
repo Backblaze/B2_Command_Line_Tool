@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 ######################################################################
 #
 # File: b2
@@ -8,6 +8,11 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+
+# Note on #! line: There doesn't seem to be one that works for
+# everybody.  Most users of this program are Mac users who use the
+# default Python installed in OSX, which is called "python" or
+# "python2.7", but not "python2".  So we don't use "python2".
 
 """
 This is a B2 command-line tool.  See the USAGE message for details.
@@ -23,6 +28,14 @@ import os.path
 import sys
 import urllib
 import urllib2
+
+
+try:
+    from tqdm import tqdm  # displays a nice progress bar
+    PROGRESS_BAR_SUPPORT = True
+except ImportError:
+    PROGRESS_BAR_SUPPORT = False
+
 
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
@@ -129,6 +142,9 @@ Usages:
 
         Content type is optional.  If not set, it will be set based on the
         file extension.
+
+        If `tqdm` library is installed, progress bar is displayed on stderr.
+        (use pip install tqdm to install it)
 
         Each fileInfo is of the form "a=b".
 
@@ -685,12 +701,52 @@ def post_json(url, params, auth_token=None, exit_on_error=True):
         return json.loads(json_text)
 
 
-def post_file(url, headers, file_path, exit_on_error=True):
-    """Posts the contents of the file to the URL.
+class StreamWithProgress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this keeps pyflakes calm, unlike tqdm=object
+    def __init__(self, stream, *args, **kwargs):
+        self.stream = stream
+        kwargs.update(
+            {
+                'unit': 'B',
+                'unit_scale': True,
+                'leave': True,
+                'miniters': 1,
+            }
+        )
+        super(StreamWithProgress, self).__init__(*args, **kwargs)
+
+    def __enter__(self):
+        super(StreamWithProgress, self).__enter__()
+        self.stream.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return any(
+            (
+                super(StreamWithProgress, self).__exit__(exc_type, exc_value, traceback),
+                self.stream.__exit__(exc_type, exc_value, traceback),
+            )
+        )
+
+    def read(self, size):
+        data = self.stream.read(size)
+        self.update(len(data))
+        return data
+
+    def write(self, data):
+        self.stream.write(data)
+        self.update(len(data))
+
+
+def post_file(url, headers, file_path, exit_on_error=True, progress_bar=False):
     """
-    with open(file_path, 'rb') as data_file:
-        if 'Content-Length' not in headers:
-            headers['Content-Length'] = str(os.path.getsize(file_path))
+    Posts the contents of the local file to the given URL.
+    """
+    if 'Content-Length' not in headers:
+        headers['Content-Length'] = str(os.path.getsize(file_path))
+    stream = open(file_path, 'rb')
+    if PROGRESS_BAR_SUPPORT and progress_bar:
+        stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
+    with stream as data_file:
         with OpenUrl(url, data_file, headers, exit_on_error) as response_file:
             json_text = response_file.read()
             return json.loads(json_text)
@@ -997,7 +1053,7 @@ def upload_file(args):
             headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
         try:
-            response = post_file(url, headers, local_file, exit_on_error=False)
+            response = post_file(url, headers, local_file, exit_on_error=False, progress_bar=True)
             print json.dumps(response, indent=4, sort_keys=True)
             if 'fileId' in response:
                 print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" + b2_file
@@ -1013,7 +1069,7 @@ def upload_file(args):
     sys.exit(1)
 
 
-def download_file_from_url(url, request_body, encoded_headers, local_file_name):
+def download_file_from_url(url, request_body, encoded_headers, local_file_name, progress_bar=False):
     with OpenUrl(url, request_body, encoded_headers) as response:
         info = response.info()
         file_size = int(info['content-length'])
@@ -1028,7 +1084,11 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name):
         block_size = 4096
         digest = hashlib.sha1()
         bytes_read = 0
-        with open(local_file_name, 'wb') as f:
+
+        stream = open(local_file_name, 'wb')
+        if PROGRESS_BAR_SUPPORT and progress_bar:
+            stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
+        with stream as f:
             while True:
                 data = response.read(block_size)
                 if len(data) == 0:
@@ -1059,7 +1119,7 @@ def download_file_by_id(args):
 
     request_body = json.dumps(params)
 
-    download_file_from_url(url, request_body, headers, local_file_name)
+    download_file_from_url(url, request_body, headers, local_file_name, progress_bar=True)
 
 
 def download_file_by_name(args):
@@ -1076,7 +1136,7 @@ def download_file_by_name(args):
     url = info.get_download_url() + '/file/' + b2_url_encode(bucket_name) + '/' + b2_url_encode(file_name)
     headers = { 'Authorization' : auth_token }
 
-    download_file_from_url(url, None, headers, local_file_name)
+    download_file_from_url(url, None, headers, local_file_name, progress_bar=True)
 
 
 def print_ls_entry(is_long, is_folder, name, file):
