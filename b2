@@ -176,16 +176,14 @@ class UnrecognizedBucketType(B2Error):
 
 class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for anything?
     __metaclass__ = ABCMeta
-    def delete(self):  # TODO
+    def delete_file(self):  # TODO
         pass
     def set_type(self, permissions):  # TODO
         return Bucket()
     def list_file_names(self, start_filename=None, max_entries=None):  # TODO
         return ["foo"]
     def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
-        return [FileVersion()]
-    def file_versions(self, start_filename=None, max_entries=None):  # TODO
-        yield FileNameInfo()
+        return [FileVersionInfo()]
     def upload_file(self, input_stream, remote_filename, mimeTypeOrNull=None, extra_headers=None):  # TODO
         raise B2Error()
         return FileInfo()
@@ -247,10 +245,8 @@ class BucketFactory(object):  # TODO: put it somewhere else or rename it?
 class FileInfo(object):
     pass
 
-class FileNameInfo(object):
-    pass
 
-class FileVersion(object):
+class FileVersionInfo(object):
     pass
 
 
