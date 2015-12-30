@@ -195,33 +195,34 @@ class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for
 
 
 class IdOnlyBucket(AbstractBucket):
-    def __init__(self, id_):
+    def __init__(self, api, id_):
         self.id_ = id_
+        self.api = api
 
 
 class UnknownTypeBucket(IdOnlyBucket):
-    def __init__(self, id_, name):
+    def __init__(self, api, id_, name):
         self.name = name
-        super(UnknownTypeBucket, self).__init__(id_)
+        super(UnknownTypeBucket, self).__init__(api, id_)
 
 
 class Bucket(UnknownTypeBucket):
-    def __init__(self, id_, name, type_):
+    def __init__(self, api, id_, name, type_):
         self.type_ = type_
-        super(Bucket, self).__init__(id_, name)
+        super(Bucket, self).__init__(api, id_, name)
     def __repr__(self):
         return 'Bucket<%s,%s,%s>' % (self.name, self.id_, self.type_)
 
 
 class BucketFactory(object):  # TODO: put it somewhere else or rename it?
     @classmethod
-    def from_api_response(cls, response):
+    def from_api_response(cls, api, response):
         return [
-            cls.from_api_bucket_dict(bucket_dict)
+            cls.from_api_bucket_dict(api, bucket_dict)
             for bucket_dict in response['buckets']
         ]
     @classmethod
-    def from_api_bucket_dict(cls, bucket_dict):
+    def from_api_bucket_dict(cls, api, bucket_dict):
         """
             turns this:
             {
@@ -237,7 +238,7 @@ class BucketFactory(object):  # TODO: put it somewhere else or rename it?
         type_ = bucket_dict['bucketType']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(bucket_id, bucket_name, type_)
+        return Bucket(api, bucket_id, bucket_name, type_)
 
 
 ## DAO
@@ -337,9 +338,8 @@ class B2Api(object):
             code = error_dict.get('code')
             if status == 400 and code == "duplicate_bucket_name":
                 raise DuplicateBucketName(name)
-            else:
-                raise
-        bucket = BucketFactory.from_api_bucket_dict(response)
+            raise
+        bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
         assert type_ == bucket.type_, 'API created a bucket with different type\
@@ -347,7 +347,7 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
     def get_bucket_by_id(self, bucket_id):
-        return IdOnlyBucket(bucket_id)
+        return IdOnlyBucket(self, bucket_id)
     def get_bucket_by_name(self, bucket_name):
         """
         Returns the bucket_id for the given bucket_name.
@@ -358,7 +358,7 @@ class B2Api(object):
         # If we can get it from the stored info, do that.
         id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
         if id_ is not None:
-            return UnknownTypeBucket(id_, bucket_name)
+            return UnknownTypeBucket(self, id_, bucket_name)
 
         for bucket in self.list_buckets():
             if bucket.name == bucket_name:
@@ -392,7 +392,7 @@ class B2Api(object):
         params = {'accountId': account_id}
         response = post_json(url, params, auth_token)
 
-        buckets = BucketFactory.from_api_response(response)
+        buckets = BucketFactory.from_api_response(self, response)
 
         self.cache.set_bucket_name_cache(buckets)
         return buckets
