@@ -9,8 +9,10 @@
 #
 ######################################################################
 
+import hashlib
 import json
 import os.path
+import random
 import re
 import subprocess
 import sys
@@ -39,6 +41,10 @@ def error_and_exit(message):
 def read_file(path):
     with open(path, 'rb') as f:
         return f.read()
+
+
+def random_hex(length):
+    return ''.join(random.choice('0123456789abcdef') for i in xrange(length))
 
 
 class StringReader(object):
@@ -85,6 +91,13 @@ def print_text_indented(text):
     """
     for line in text.split('\n'):
         print '   ', repr(line)[1:-1]
+
+
+def print_json_indented(value):
+    """
+    Converts the value to JSON, then prints it.
+    """
+    print_text_indented(json.dumps(value, indent=4, sort_keys=True))
 
 
 def print_output(status, stdout, stderr):
@@ -167,6 +180,18 @@ class TestCommandLine(unittest.TestCase):
     def test_stderr_patterns(self):
         progress_bar_line = './b2:   0%|          | 0.00/33.3K [00:00<?, ?B/s]\r./b2:  25%|\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8d       | 8.19K/33.3K [00:00<00:01, 21.7KB/s]\r./b2: 33.3KB [00:02, 12.1KB/s]'
         self.assertIsNotNone(CommandLine.PROGRESS_BAR_PATTERN.match(progress_bar_line))
+        progress_bar_line = '\r./b2:   0%|          | 0.00/33.3K [00:00<?, ?B/s]\r./b2:  25%|\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8d       | 8.19K/33.3K [00:00<00:01, 19.6KB/s]\r./b2: 33.3KB [00:02, 14.0KB/s]'
+        self.assertIsNotNone(CommandLine.PROGRESS_BAR_PATTERN.match(progress_bar_line))
+
+
+def should_equal(expected, actual):
+    print '  expected:'
+    print_json_indented(expected)
+    print '  actual:'
+    print_json_indented(actual)
+    if expected != actual:
+        print '  ERROR'
+        sys.exit(1)
 
 
 def delete_files_in_bucket(b2_tool, bucket_name):
@@ -179,7 +204,7 @@ def delete_files_in_bucket(b2_tool, bucket_name):
             b2_tool.should_succeed(['delete_file_version', file_info['fileName'], file_info['fileId']])
 
 
-def clean_bucket(b2_tool, bucket_name):
+def clean_buckets(b2_tool, bucket_name_prefix):
     """
     Removes the named bucket, if it's there.
 
@@ -195,9 +220,10 @@ def clean_bucket(b2_tool, bucket_name):
         (b_id, b_type, b_name) = words
         buckets[b_name] = b_id
 
-    if bucket_name in buckets:
-        delete_files_in_bucket(b2_tool, bucket_name)
-        b2_tool.should_succeed(['delete_bucket', bucket_name])
+    for bucket_name in buckets:
+        if bucket_name.startswith(bucket_name_prefix):
+            delete_files_in_bucket(b2_tool, bucket_name)
+            b2_tool.should_succeed(['delete_bucket', bucket_name])
 
 
 def main():
@@ -218,24 +244,60 @@ def main():
     b2_tool.should_fail(['authorize_account', account_id, bad_application_key], r'invalid authorization')
     b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
-    bucket_name = 'test-b2-command-line-' + account_id
-    clean_bucket(b2_tool, bucket_name)
+    bucket_name_prefix = 'test-b2-command-line-' + account_id
+    clean_buckets(b2_tool, bucket_name_prefix)
+    bucket_name = bucket_name_prefix + '-' + random_hex(8)
 
-    b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
+    b2_tool.should_succeed(['create_bucket', bucket_name, 'allPrivate'])
+    b2_tool.should_succeed(['update_bucket', bucket_name, 'allPublic'])
 
+    with open(path_to_script, 'rb') as f:
+        hex_sha1 = hashlib.sha1(f.read()).hexdigest()
+    # TODO(--quiet) uploaded_a =
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/1'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/2'])
-    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'c'])
-    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'd'])
+    b2_tool.should_succeed(['upload_file', '--sha1', hex_sha1, '--info', 'foo=bar', '--info', 'color=blue', bucket_name, path_to_script, 'c'])
+    b2_tool.should_succeed(['upload_file', '--contentType', 'text/plain', bucket_name, path_to_script, 'd'])
+
+    b2_tool.should_succeed(['download_file_by_name', bucket_name, 'b/1', '/dev/null'])
+    # TODO(--quiet) b2_tool.should_succeed(['download_file_by_id', uploaded_a['fileId'], '/dev/null'])
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
+
+    list_of_files = b2_tool.should_succeed_json(['list_file_names', bucket_name])
+    should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files['files']])
+    list_of_files = b2_tool.should_succeed_json(['list_file_names', bucket_name, 'b/2'])
+    should_equal(['b/2', 'd'], [f['fileName'] for f in list_of_files['files']])
+    list_of_files = b2_tool.should_succeed_json(['list_file_names', bucket_name, 'b', '2'])
+    should_equal(['b/1', 'b/2'], [f['fileName'] for f in list_of_files['files']])
+
+    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
+    should_equal(['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']])
+    should_equal(['upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'], [f['action'] for f in list_of_files['files']])
+    first_c_version = list_of_files['files'][4]
+    second_c_version = list_of_files['files'][5]
+    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c'])
+    should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']])
+    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c', second_c_version['fileId']])
+    should_equal(['c', 'd'], [f['fileName'] for f in list_of_files['files']])
+    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c', second_c_version['fileId'], '1'])
+    should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
 
     b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nd\n')
     b2_tool.should_succeed(['ls', '--long', bucket_name], r'^4_z.*upload.*a\n.*-.*b/\n4_z.*upload.*d\n')
     b2_tool.should_succeed(['ls', '--versions', bucket_name], r'^a\na\nb/\nc\nc\nd\n')
     b2_tool.should_succeed(['ls', bucket_name, 'b'], r'^b/1\nb/2\n')
+    b2_tool.should_succeed(['ls', bucket_name, 'b/'], r'^b/1\nb/2\n')
+
+    file_info = b2_tool.should_succeed_json(['get_file_info', second_c_version['fileId']])
+    should_equal({'color': 'blue', 'foo': 'bar'}, file_info['fileInfo'])
+
+    b2_tool.should_succeed(['delete_file_version', 'c', first_c_version['fileId']])
+    b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\nd\n')
+
+    b2_tool.should_succeed(['make_url', second_c_version['fileId']])
 
     print
     print "ALL OK"
