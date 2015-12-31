@@ -652,14 +652,15 @@ def list_file_versions(args):
     print json.dumps(response, indent=2, sort_keys=True)
 
 
-def ensure_upload_data(bucket_id, info):
+def ensure_upload_data(bucket_id, info, quiet):
     """
     Makes sure that we have an upload URL and auth token for the given bucket and
     returns it.
     """
     upload_data = info.get_bucket_upload_data(bucket_id)
     if upload_data is None:
-        print 'Getting upload URL...'
+        if not quiet:
+            print 'Getting upload URL...'
         auth_token = info.get_account_auth_token()
         url = url_for_api(info, 'b2_get_upload_url')
         params = { 'bucketId' : bucket_id }
@@ -746,6 +747,7 @@ def upload_file(args):
     content_type = 'b2/x-auto'
     file_infos = {}
     sha1_sum = None
+    quiet = False
 
     while 0 < len(args) and args[0][0] == '-':
         option = args[0]
@@ -764,6 +766,9 @@ def upload_file(args):
                 usage_and_exit()
             parse_file_info(args[1], file_infos)
             args = args[2:]
+        elif option == '--quiet':
+            quiet = True
+            args = args[1:]
         else:
             usage_and_exit()
 
@@ -788,7 +793,7 @@ def upload_file(args):
     # Try 5 times to upload the file.  If one fails, get a different
     # upload URL for the next try.
     for i in xrange(5):
-        bucket_upload_data = ensure_upload_data(bucket_id, info)
+        bucket_upload_data = ensure_upload_data(bucket_id, info, quiet)
         url = bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_URL]
 
         headers = {
@@ -801,9 +806,9 @@ def upload_file(args):
             headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
         try:
-            response = post_file(url, headers, local_file, exit_on_error=False, progress_bar=True)
+            response = post_file(url, headers, local_file, exit_on_error=False, progress_bar=(not quiet))
             print json.dumps(response, indent=4, sort_keys=True)
-            if 'fileId' in response:
+            if (not quiet) and ('fileId' in response):
                 print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" + b2_file
                 print "URL by fileId: " + info.get_download_url() + "/b2api/v1/b2_download_file_by_id?fileId=" + response['fileId']
             return

@@ -253,8 +253,7 @@ def main():
 
     with open(path_to_script, 'rb') as f:
         hex_sha1 = hashlib.sha1(f.read()).hexdigest()
-    # TODO(--quiet) uploaded_a =
-    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
+    uploaded_a = b2_tool.should_succeed_json(['upload_file', '--quiet', bucket_name, path_to_script, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/1'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/2'])
@@ -262,7 +261,7 @@ def main():
     b2_tool.should_succeed(['upload_file', '--contentType', 'text/plain', bucket_name, path_to_script, 'd'])
 
     b2_tool.should_succeed(['download_file_by_name', bucket_name, 'b/1', '/dev/null'])
-    # TODO(--quiet) b2_tool.should_succeed(['download_file_by_id', uploaded_a['fileId'], '/dev/null'])
+    b2_tool.should_succeed(['download_file_by_id', uploaded_a['fileId'], '/dev/null'])
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
 
