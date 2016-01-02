@@ -1029,6 +1029,30 @@ def ls(args):
                 prefix + current_dir[:-1] + '0'
                 )
 
+def iter_files(info, bucket_name, api='b2_list_file_names', start_name=None, count=1000):
+    info = StoredAccountInfo()
+    auth_token = info.get_account_auth_token()
+    url = url_for_api(info, api)
+    params = {
+        'bucketId': get_bucket_id_from_bucket_name(info, bucket_name),
+        'startFileName': start_name,
+        'maxFileCount': count
+    }
+    loop = True
+    while loop:
+        response = post_json(url, params, auth_token)
+        for file in response.get('files', []):
+            name = file['fileName']
+            if not start_name or name.startswith(start_name):
+                yield file
+            else:
+                loop = False
+        if response.get('nextFileId'):
+            params['startFileId'] = response['nextFileId']
+        elif response.get('nextFileName'):
+            params['startFileName'] = response['nextFileName']
+        else:
+            loop = False
 
 def sync(args):
     options = {'delete': False, 'hide': False}
@@ -1060,31 +1084,14 @@ def sync(args):
     # Find all matching files in B2
     remote_files = {}
     info = StoredAccountInfo()
-    bucket_id = get_bucket_id_from_bucket_name(info, bucket_name)
-    auth_token = info.get_account_auth_token()
-    start_file_name = bucket_prefix or None
-    while True:
-        url = url_for_api(info, 'b2_list_file_names')
-        params = {
-            'bucketId' : bucket_id
+    for file in iter_files(info, bucket_name, start_name=bucket_prefix or None):
+        name = file['fileName']
+        after_prefix = name[len(bucket_prefix):]
+        remote_files[after_prefix] = {
+            'fileName': after_prefix,
+            'fileId': file['fileId'],
+            'size': file['size']
         }
-        if start_file_name:
-            params['startFileName'] = start_file_name
-        response = post_json(url, params, auth_token)
-        for file in response['files']:
-            name = file['fileName']
-            if not name.startswith(bucket_prefix):
-                response['nextFileName'] = None
-                break
-            after_prefix = name[len(bucket_prefix):]
-            remote_files[after_prefix] = {
-                'fileName': after_prefix,
-                'fileId': file['fileId'],
-                'size': file['size']
-            }
-        if response['nextFileName'] is None:
-            break
-        start_file_name = response['nextFileName']
 
     # Find all matching local files
     local_files = {}
