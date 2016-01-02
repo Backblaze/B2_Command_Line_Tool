@@ -1110,7 +1110,7 @@ def sync(args):
         if is_b2_src and remote_file and not is_match:
             if not os.path.exists(dirpath):
                 os.makedirs(dirpath)
-            download_file_by_id([remote_file['fileId'], file_local_path])
+            download_file_by_id([remote_file['fileId'], filepath])
         elif is_b2_src and not remote_file and options['delete']:
             os.remove(filepath)
         elif not is_b2_src and local_file and not is_match:
