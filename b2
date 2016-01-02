@@ -833,24 +833,25 @@ def upload_file(args):
     sys.exit(1)
 
 
-def download_file_from_url(url, request_body, encoded_headers, local_file_name, progress_bar=False):
+def download_file_from_url(url, request_body, encoded_headers, local_file_name, print_progress=False):
     with OpenUrl(url, request_body, encoded_headers) as response:
         info = response.info()
         file_size = int(info['content-length'])
         file_sha1 = info['x-bz-content-sha1']
-        print 'File name:   ', info['x-bz-file-name']
-        print 'File size:   ', file_size
-        print 'Content type:', info['content-type']
-        print 'Content sha1:', file_sha1
+        if print_progress:
+            print 'File name:   ', info['x-bz-file-name']
+            print 'File size:   ', file_size
+            print 'Content type:', info['content-type']
+            print 'Content sha1:', file_sha1
         for name in info:
-            if name.startswith('x-bz-info-'):
+            if name.startswith('x-bz-info-') and print_progress:
                 print 'INFO', name[10:] + ':', info[name]
         block_size = 4096
         digest = hashlib.sha1()
         bytes_read = 0
 
         stream = open(local_file_name, 'wb')
-        if PROGRESS_BAR_SUPPORT and progress_bar:
+        if PROGRESS_BAR_SUPPORT and print_progress:
             stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
         with stream as f:
             while True:
@@ -867,7 +868,8 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name, 
             print 'ERROR: only %d of %d bytes read' % (bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
             print 'ERROR: sha1 checksum mismatch -- bad data'
-        print 'checksum matches'
+        if print_progress:
+            print 'checksum matches'
 
 
 def download_file_by_id(args):
@@ -886,7 +888,7 @@ def download_file_by_id(args):
 
     request_body = json.dumps(params)
 
-    download_file_from_url(url, request_body, headers, local_file_name, progress_bar=True)
+    download_file_from_url(url, request_body, headers, local_file_name, print_progress=True)
 
 
 def download_file_by_name(args):
@@ -903,7 +905,7 @@ def download_file_by_name(args):
     url = info.get_download_url() + '/file/' + b2_url_encode(bucket_name) + '/' + b2_url_encode(file_name)
     headers = { 'Authorization' : auth_token }
 
-    download_file_from_url(url, None, headers, local_file_name, progress_bar=True)
+    download_file_from_url(url, None, headers, local_file_name, print_progress=True)
 
 
 def make_url(args):
@@ -1085,8 +1087,8 @@ def sync(args):
         bucket_prefix += '/'
 
     # Find all matching files in B2
-    remote_files = {}
     info = StoredAccountInfo()
+    remote_files = {}
     for file in iter_files(info, bucket_name, start_name=bucket_prefix or None):
         name = file['fileName']
         after_prefix = name[len(bucket_prefix):]
@@ -1118,17 +1120,44 @@ def sync(args):
         remote_file = remote_files.get(filename)
         is_match = local_file and remote_file and local_file['size'] == remote_file['size']
         if is_b2_src and remote_file and not is_match:
+            print "+ %s" % filename
             if not os.path.exists(dirpath):
                 os.makedirs(dirpath)
-            download_file_by_id([remote_file['fileId'], filepath])
+            url = url_for_api(info, 'b2_download_file_by_id')
+            headers = { 'Authorization': info.get_account_auth_token() }
+            params = { 'fileId': remote_file['fileId'] }
+            download_file_from_url(url, json.dumps(params), headers, filepath)
         elif is_b2_src and not remote_file and options['delete']:
+            print "- %s" % filename
             os.remove(filepath)
         elif not is_b2_src and local_file and not is_match:
-            upload_file([bucket_name, filepath, b2_path])
+            print "+ %s" % filename
+            url = url_for_api(info, 'b2_get_upload_url')
+            params = { 'bucketId': get_bucket_id_from_bucket_name(info, bucket_name) }
+            response = post_json(url, params, info.get_account_auth_token())
+            upload_url = response['uploadUrl']
+            upload_auth_token = response['authorizationToken']
+            headers = {
+                'Authorization': upload_auth_token,
+                'Content-Type': 'b2/x-auto',
+                'X-Bz-File-Name': b2_url_encode(b2_path),
+                'X-Bz-Content-Sha1': hex_sha1_of_file(filepath),
+                'X-Bz-Info-src_last_modified_millis': int(os.path.getmtime(filepath) * 1000)
+            }
+            post_file(upload_url, headers, filepath)
         elif not is_b2_src and not local_file and options['delete']:
-            delete_file_version([b2_path, remote_file['fileId']])
+            print "- %s" % filename
+            url = url_for_api(info, 'b2_delete_file_version')
+            params = { 'fileName': b2_path, 'fileId': remote_file['fileId'] }
+            post_json(url, params, info.get_account_auth_token())
         elif not is_b2_src and not local_file and options['hide']:
-            hide_file([bucket_name, b2_path])
+            print ". %s" % filename
+            url = url_for_api(info, 'b2_hide_file')
+            params = {
+                'bucketId': get_bucket_id_from_bucket_name(info, bucket_name),
+                'fileName': b2_path
+            }
+            post_json(url, params, info.get_account_auth_token())
 
     # Remove empty local directories
     if is_b2_src and options['delete']:
