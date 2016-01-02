@@ -860,6 +860,9 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name, 
                 f.write(data)
                 digest.update(data)
                 bytes_read += len(data)
+        if info.get('x-bz-info-src_last_modified_millis'):
+            mtime = int(info['x-bz-info-src_last_modified_millis']) / 1000
+            os.utime(local_file_name, (mtime, mtime))
         if bytes_read != int(info['content-length']):
             print 'ERROR: only %d of %d bytes read' % (bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
