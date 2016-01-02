@@ -242,9 +242,6 @@ class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for
                 raise FileNotPresent(file_name)
             raise
         return FileVersionInfoFactory.from_api_response(response)
-    def getUploadUrl(self):  # TODO
-        raise B2Error()
-        return "foo"
 
 
 class IdOnlyBucket(AbstractBucket):
