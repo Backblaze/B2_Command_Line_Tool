@@ -780,13 +780,6 @@ def post_file(url, headers, file_path, exit_on_error=True, progress_bar=False):
             return json.loads(json_text)
 
 
-def clear_account(args):
-    if len(args) != 0:
-        usage_and_exit()
-    info = StoredAccountInfo()
-    info.clear()
-
-
 def url_for_api(info, api_name):
     if api_name in ['b2_download_file_by_id']:
         base = info.get_download_url()
@@ -1320,6 +1313,11 @@ class ConsoleTool(object):
 
         print self.api.make_url(file_id)
 
+    def clear_account(self, args):
+        if len(args) != 0:
+            usage_and_exit()
+        self.api.account_info.clear()
+
     @property
     def info(self):  # TODO: this is only temporary, remove it
         return self.api.account_info
@@ -1339,7 +1337,7 @@ def main():
         if action == 'authorize_account':
             authorize_account(args)
         elif action == 'clear_account':
-            clear_account(args)
+            ct.clear_account(args)
         elif action == 'create_bucket':
             ct.create_bucket(args)
         elif action == 'delete_bucket':
@@ -1367,7 +1365,7 @@ def main():
         elif action == 'update_bucket':
             ct.update_bucket(args)
         elif action == 'upload_file':
-            upload_file(args)
+            ct.upload_file(args)
         elif action == 'version':
             print 'b2 command line tool, version', VERSION
         else:
