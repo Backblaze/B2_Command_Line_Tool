@@ -375,7 +375,7 @@ class InMemoryCache(AbstractCache):
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.name_id_map.get(name)
     def save_bucket(self, bucket):
-        pass
+        self.name_id_map[bucket.name] = bucket.id_
     def set_bucket_name_cache(self, buckets):
         self.name_id_map = dict(self._name_id_iterator(buckets))
 
