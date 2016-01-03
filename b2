@@ -265,7 +265,7 @@ class Bucket(object):
         return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
 
 
-class BucketFactory(object):  # TODO: put it somewhere else or rename it?
+class BucketFactory(object):
     @classmethod
     def from_api_response(cls, api, response):
         return [
@@ -316,7 +316,7 @@ class FileVersionInfo(object):
         return result
 
 
-class FileVersionInfoFactory(object):  # TODO: put it somewhere else or rename it?
+class FileVersionInfoFactory(object):
     @classmethod
     def from_api_response(cls, file_info_dict, force_action=None):
         """
