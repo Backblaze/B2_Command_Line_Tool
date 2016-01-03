@@ -204,10 +204,26 @@ class UnrecognizedBucketType(B2Error):
 
 ## Bucket
 
-class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for anything?
+class Bucket(object):
     __metaclass__ = ABCMeta
-    def set_type(self, permissions):  # TODO
-        return Bucket()
+    def __init__(self, api, id_, name=None, type_=None):
+        self.api = api
+        self.id_ = id_
+        self.name = name
+        self.type_ = type_
+    def set_type(self, type_):
+        account_info = self.api.account_info
+        auth_token = account_info.get_account_auth_token()
+        account_id = account_info.get_account_id()
+
+        url = url_for_api(account_info, 'b2_update_bucket')
+        params = {
+            'accountId' : account_id,
+            'bucketId' : self.id_,
+            'bucketType' : type_,
+        }
+        response = post_json(url, params, auth_token)
+        return response
     def list_file_names(self, start_filename=None, max_entries=None):  # TODO
         return ["foo"]
     def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
@@ -242,26 +258,18 @@ class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for
                 raise FileNotPresent(file_name)
             raise
         return FileVersionInfoFactory.from_api_response(response)
-
-
-class IdOnlyBucket(AbstractBucket):
-    def __init__(self, api, id_):
-        self.id_ = id_
-        self.api = api
-
-
-class UnknownTypeBucket(IdOnlyBucket):
-    def __init__(self, api, id_, name):
-        self.name = name
-        super(UnknownTypeBucket, self).__init__(api, id_)
-
-
-class Bucket(UnknownTypeBucket):
-    def __init__(self, api, id_, name, type_):
-        self.type_ = type_
-        super(Bucket, self).__init__(api, id_, name)
+    def as_dict(self):  # TODO: refactor with other as_dict()
+        result = {
+            'accountId': self.api.account_info.get_account_id(),
+            'bucketId': self.id_,
+        }
+        if self.name is not None:
+            result['bucketName'] = self.name
+        if self.type_ is not None:
+            result['bucketType'] = self.type_
+        return result
     def __repr__(self):
-        return 'Bucket<%s,%s,%s>' % (self.name, self.id_, self.type_)
+        return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
 
 
 class BucketFactory(object):  # TODO: put it somewhere else or rename it?
@@ -436,7 +444,7 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
     def get_bucket_by_id(self, bucket_id):
-        return IdOnlyBucket(self, bucket_id)
+        return Bucket(self, bucket_id)
     def get_bucket_by_name(self, bucket_name):
         """
         Returns the bucket_id for the given bucket_name.
@@ -447,7 +455,7 @@ class B2Api(object):
         # If we can get it from the stored info, do that.
         id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
         if id_ is not None:
-            return UnknownTypeBucket(self, id_, bucket_name)
+            return Bucket(self, id_, name=bucket_name)
 
         for bucket in self.list_buckets():
             if bucket.name == bucket_name:
@@ -855,31 +863,6 @@ def authorize_account(args):
         response['downloadUrl']
         )
 
-
-def update_bucket(args):
-    if len(args) != 2:
-        usage_and_exit()
-
-    info = StoredAccountInfo()
-    bucket_name = args[0]
-    bucket_type = args[1]
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.api
-    account_id = info.get_account_id()
-    bucket = api.get_bucket_by_name(bucket_name)
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_update_bucket')
-    params = {
-        'accountId' : account_id,
-        'bucketId' : bucket.id_,
-        'bucketType' : bucket_type
-    }
-    response = post_json(url, params, auth_token)
-
-    print json.dumps(response, indent=4, sort_keys=True)
 
 def list_file_names(args):
 
@@ -1293,6 +1276,17 @@ class ConsoleTool(object):
 
         print json.dumps(response, indent=4, sort_keys=True)
 
+    def update_bucket(self, args):
+        if len(args) != 2:
+            usage_and_exit()
+        bucket_name = args[0]
+        bucket_type = args[1]
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        response = bucket.set_type(bucket_type)
+
+        print json.dumps(response, indent=4, sort_keys=True)
+
     def list_buckets(self, args):
         if len(args) != 0:
             usage_and_exit()
@@ -1378,7 +1372,7 @@ def main():
         elif action == 'make_url':
             ct.make_url(args)
         elif action == 'update_bucket':
-            update_bucket(args)
+            ct.update_bucket(args)
         elif action == 'upload_file':
             upload_file(args)
         elif action == 'version':
