@@ -154,13 +154,6 @@ Usages:
 """
 
 
-## Enums
-
-class BucketType(object):  # TODO: isn't it better to just use the string type instead? What is the benefit in doing it like this?
-    ALL_PUBLIC = 'allPublic'
-    ALL_PRIVATE = 'allPrivate'
-
-
 ## Exceptions
 
 class B2Error(Exception):
