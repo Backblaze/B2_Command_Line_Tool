@@ -214,7 +214,7 @@ class AbstractBucket(object):  # TODO: is all of this class hierarchy useful for
         return [FileVersionInfo()]
     def upload_file(self, input_stream, remote_filename, mimeTypeOrNull=None, extra_headers=None):  # TODO
         raise B2Error()
-        return FileInfo()
+        return FileVersionInfo()
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
@@ -293,10 +293,6 @@ class BucketFactory(object):  # TODO: put it somewhere else or rename it?
 
 ## DAO
 
-class FileInfo(object):
-    pass
-
-
 class FileVersionInfo(object):
     def __init__(self, id_, file_name, size, upload_timestamp, action):
         self.id_ = id_
@@ -331,7 +327,7 @@ class FileVersionInfoFactory(object):  # TODO: put it somewhere else or rename i
               "size": 0,
               "uploadTimestamp": 1451444477000
             }
-            into a FileInfo object
+            into a FileVersionInfo object
         """
         assert file_info_dict.get('action') is None or force_action is None, \
             'action was provided by both info_dict and function argument'
@@ -527,7 +523,7 @@ class B2Api(object):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
     def get_file_info(self, file_id):
-        return FileInfo()
+        return FileVersionInfo()
         raise B2Error()
 
 
