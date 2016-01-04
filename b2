@@ -651,16 +651,17 @@ class StoredAccountInfo(AbstractAccountInfo):
         self._write_file()
 
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        self.data[self.BUCKET_UPLOAD_DATA][bucket_id] = {self.BUCKET_UPLOAD_URL : upload_url, self.BUCKET_UPLOAD_AUTH_TOKEN : upload_auth_token}
+        self.data[self.BUCKET_UPLOAD_DATA][bucket_id] = {
+            self.BUCKET_UPLOAD_URL: upload_url,
+            self.BUCKET_UPLOAD_AUTH_TOKEN: upload_auth_token,
+        }
         self._write_file()
 
     def get_bucket_upload_data(self, bucket_id):
         return self.data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
 
     def clear_bucket_upload_data(self, bucket_id):
-        upload_data = self.data[self.BUCKET_UPLOAD_DATA]
-        if bucket_id in upload_data:
-            del upload_data[bucket_id]
+        self.data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
 
     def save_bucket(self, bucket):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
@@ -1262,6 +1263,8 @@ class ConsoleTool(object):
         info = StoredAccountInfo()
         self.api = B2Api(info, AuthInfoCache(info))
 
+    # bucket
+
     def create_bucket(self, args):
         if len(args) != 2:
             usage_and_exit()
@@ -1298,6 +1301,8 @@ class ConsoleTool(object):
         for b in self.api.list_buckets():
             print '%s  %-10s  %s' % (b.id_, b.type_, b.name)
 
+    # file
+
     def delete_file_version(self, args):
         if len(args) != 2:
             usage_and_exit()
@@ -1322,6 +1327,8 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         print json.dumps(response, indent=2, sort_keys=True)
+
+    # other
 
     def make_url(self, args):
         if len(args) != 1:
