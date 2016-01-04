@@ -188,6 +188,13 @@ class FileNotPresent(B2Error):
         return 'File not present: %s' % (self.file_name,)
 
 
+class MissingAccountData(B2Error):
+    def __init__(self, key):
+        self.key = key
+    def __str__(self):
+        return 'Missing account data: %s' % (self.key,)
+
+
 class UnrecognizedBucketType(B2Error):
     def __init__(self, type_):
         self.type_ = type_
@@ -633,7 +640,7 @@ class StoredAccountInfo(AbstractAccountInfo):
         """
         result = self.data.get(key)
         if result is None:
-            message_and_exit('ERROR: No account.  Use: b2 authorize_account')
+            raise MissingAccountData(key)
         return result
 
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
@@ -1381,7 +1388,10 @@ def main():
             print 'b2 command line tool, version', VERSION
         else:
             usage_and_exit()
-    except B2Error as e:  # TODO: put it somewhere else (decorator of AbstractConsoleCommand.handle()?)
+    except MissingAccountData:
+        print 'ERROR: Missing account.  Use: b2 authorize_account'
+        sys.exit(1)
+    except B2Error as e:
         print e
         sys.exit(1)
 
