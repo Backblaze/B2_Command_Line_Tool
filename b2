@@ -1365,7 +1365,7 @@ def main():
         elif action == 'update_bucket':
             ct.update_bucket(args)
         elif action == 'upload_file':
-            ct.upload_file(args)
+            upload_file(args)
         elif action == 'version':
             print 'b2 command line tool, version', VERSION
         else:
