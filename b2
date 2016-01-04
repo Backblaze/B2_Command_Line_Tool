@@ -252,6 +252,12 @@ class Bucket(object):
             response['authorizationToken'],
         )
         return account_info.get_bucket_upload_data(self.id_)
+    def get_download_url(self, filename):
+        return "%s/file/%s/%s" % (
+            self.api.account_info.get_download_url(),
+            b2_url_encode(self.name),
+            b2_url_encode(filename),
+        )
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
@@ -553,6 +559,11 @@ class B2Api(object):
         pass
     def download_file_by_name(self, bucket_name, filename, content_handler):
         pass
+    def get_download_url_for_fileid(self, file_id):
+        return "%s/b2api/v1/b2_download_file_by_id?fileId=%s" % (
+            self.account_info.get_download_url(),
+            file_id,
+        )
 
     # other
     def make_url(self, file_id):
@@ -1065,9 +1076,9 @@ def upload_file(args):
         try:
             response = post_file(url, headers, local_file, exit_on_error=False, progress_bar=(not quiet))
             print json.dumps(response, indent=4, sort_keys=True)
-            if (not quiet) and ('fileId' in response):
-                print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" + b2_file
-                print "URL by fileId: " + info.get_download_url() + "/b2api/v1/b2_download_file_by_id?fileId=" + response['fileId']
+            if not quiet:
+                print "URL by file name: " + bucket.get_download_url(b2_file)
+                print "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
             return
         except urllib2.HTTPError as e:
             if 500 <= e.code and e.code < 600:
@@ -1140,10 +1151,13 @@ def download_file_by_name(args):
     file_name = args[1]
     local_file_name = args[2]
 
-    info = StoredAccountInfo()
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.api
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
-    url = info.get_download_url() + '/file/' + b2_url_encode(bucket_name) + '/' + b2_url_encode(file_name)
+    url = bucket.get_download_url(file_name)
     headers = { 'Authorization' : auth_token }
 
     download_file_from_url(url, None, headers, local_file_name, progress_bar=True)
