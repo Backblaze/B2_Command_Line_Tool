@@ -231,6 +231,27 @@ class Bucket(object):
     def upload_file(self, input_stream, remote_filename, mimeTypeOrNull=None, extra_headers=None):  # TODO
         raise B2Error()
         return FileVersionInfo()
+    def _get_upload_data(self):
+        """
+        Makes sure that we have an upload URL and auth token for the given bucket and
+        returns it.
+        """
+        account_info = self.api.account_info
+        upload_url, upload_auth_token = account_info.get_bucket_upload_data(self.id_)
+        if None not in (upload_url, upload_auth_token):
+            return upload_url, upload_auth_token
+
+        auth_token = account_info.get_account_auth_token()
+        url = url_for_api(account_info, 'b2_get_upload_url')
+        params = { 'bucketId' : self.id_ }
+        response = post_json(url, params, auth_token)
+
+        account_info.set_bucket_upload_data(
+            self.id_,
+            response['uploadUrl'],
+            response['authorizationToken'],
+        )
+        return account_info.get_bucket_upload_data(self.id_)
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
@@ -658,7 +679,12 @@ class StoredAccountInfo(AbstractAccountInfo):
         self._write_file()
 
     def get_bucket_upload_data(self, bucket_id):
-        return self.data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
+        bucket_upload_data = self.data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
+        if bucket_upload_data is None:
+            return None, None
+        url = bucket_upload_data[self.BUCKET_UPLOAD_URL]
+        upload_auth_token = bucket_upload_data[self.BUCKET_UPLOAD_AUTH_TOKEN]
+        return url, upload_auth_token
 
     def clear_bucket_upload_data(self, bucket_id):
         self.data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
@@ -937,26 +963,6 @@ def list_file_versions(args):
     print json.dumps(response, indent=2, sort_keys=True)
 
 
-def ensure_upload_data(bucket_id, info, quiet):
-    """
-    Makes sure that we have an upload URL and auth token for the given bucket and
-    returns it.
-    """
-    upload_data = info.get_bucket_upload_data(bucket_id)
-    if upload_data is None:
-        if not quiet:
-            print 'Getting upload URL...'
-        auth_token = info.get_account_auth_token()
-        url = url_for_api(info, 'b2_get_upload_url')
-        params = { 'bucketId' : bucket_id }
-        response = post_json(url, params, auth_token)
-        upload_url = response['uploadUrl']
-        upload_auth_token = response['authorizationToken']
-        info.set_bucket_upload_data(bucket_id, upload_url, upload_auth_token)
-        upload_data = info.get_bucket_upload_data(bucket_id)
-    return upload_data
-
-
 def get_file_info(args):
     if len(args) != 1:
         usage_and_exit()
@@ -1045,11 +1051,10 @@ def upload_file(args):
     # Try 5 times to upload the file.  If one fails, get a different
     # upload URL for the next try.
     for i in xrange(5):
-        bucket_upload_data = ensure_upload_data(bucket.id_, info, quiet)
-        url = bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_URL]
+        url, upload_auth_token = bucket._get_upload_data()
 
         headers = {
-            'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
+            'Authorization': upload_auth_token,
             'X-Bz-File-Name': b2_url_encode(b2_file),
             'Content-Type': content_type,
             'X-Bz-Content-Sha1': sha1_sum
