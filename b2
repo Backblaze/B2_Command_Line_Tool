@@ -127,6 +127,19 @@ Usages:
         Prints an URL that can be used to download the given file, if
         it is public.
 
+    b2 sync [--delete] [--hide] <source> <destination>
+
+        UNDER DEVELOPMENT -- there may be changes coming to this command
+
+        Uploads or downloads multiple files from source to destination.
+        One of the paths must be a local file path, and the other must be
+        a B2 bucket path. Use "b2:<bucketName>/<prefix>" for B2 paths, e.g.
+        "b2:my-bucket-name/a/path/prefix/".
+
+        If the --delete or --hide flags are specified, destination files
+        are deleted or hidden if not present in the source path. Note that
+        files are matched only by name and size.
+
     b2 update_bucket <bucketName> <bucketType>
 
         Updates the bucketType of an existing bucket.  Prints the ID
@@ -279,15 +292,21 @@ Headers: %s
 ## Bucket
 
 class Bucket(object):
+
     __metaclass__ = ABCMeta
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
+
     def __init__(self, api, id_, name=None, type_=None):
         self.api = api
         self.id_ = id_
         self.name = name
         self.type_ = type_
+
+    def get_id(self):
+        return self.id_
+
     def set_type(self, type_):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
@@ -1120,24 +1139,26 @@ def parse_file_info(item, file_infos):
     file_infos[parts[0]] = parts[1]
 
 
-def download_file_from_url(url, request_body, encoded_headers, local_file_name, progress_bar=False):
+def download_file_from_url(url, request_body, encoded_headers, local_file_name,
+                           print_progress=False, set_last_modified=False):
     with OpenUrl(url, request_body, encoded_headers) as response:
         info = response.info()
         file_size = int(info['content-length'])
         file_sha1 = info['x-bz-content-sha1']
-        print 'File name:   ', info['x-bz-file-name']
-        print 'File size:   ', file_size
-        print 'Content type:', info['content-type']
-        print 'Content sha1:', file_sha1
-        for name in info:
-            if name.startswith('x-bz-info-'):
-                print 'INFO', name[10:] + ':', info[name]
+        if print_progress:
+            print 'File name:   ', info['x-bz-file-name']
+            print 'File size:   ', file_size
+            print 'Content type:', info['content-type']
+            print 'Content sha1:', file_sha1
+            for name in info:
+                if name.startswith('x-bz-info-') and print_progress:
+                    print 'INFO', name[10:] + ':', info[name]
         block_size = 4096
         digest = hashlib.sha1()
         bytes_read = 0
 
         stream = open(local_file_name, 'wb')
-        if PROGRESS_BAR_SUPPORT and progress_bar:
+        if PROGRESS_BAR_SUPPORT and print_progress:
             stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
         with stream as f:
             while True:
@@ -1147,11 +1168,15 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name, 
                 f.write(data)
                 digest.update(data)
                 bytes_read += len(data)
+        if set_last_modified and info.get('x-bz-info-src_last_modified_millis') is not None:
+            mtime = int(info['x-bz-info-src_last_modified_millis']) / 1000
+            os.utime(local_file_name, (mtime, mtime))
         if bytes_read != int(info['content-length']):
             print 'ERROR: only %d of %d bytes read' % (bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
             print 'ERROR: sha1 checksum mismatch -- bad data'
-        print 'checksum matches'
+        if print_progress:
+            print 'checksum matches'
 
 
 def download_file_by_id(args):
@@ -1170,7 +1195,7 @@ def download_file_by_id(args):
 
     request_body = json.dumps(params)
 
-    download_file_from_url(url, request_body, headers, local_file_name, progress_bar=True)
+    download_file_from_url(url, request_body, headers, local_file_name, print_progress=True)
 
 
 def download_file_by_name(args):
@@ -1190,7 +1215,7 @@ def download_file_by_name(args):
     url = bucket.get_download_url(file_name)
     headers = { 'Authorization' : auth_token }
 
-    download_file_from_url(url, None, headers, local_file_name, progress_bar=True)
+    download_file_from_url(url, None, headers, local_file_name, print_progress=True)
 
 
 def print_ls_entry(is_long, is_folder, name, file):
@@ -1447,6 +1472,148 @@ class ConsoleTool(object):
         return self.api.account_info
 
 
+    def iter_files(self, info, bucket_name, api='b2_list_file_names', start_name=None, count=1000):
+        # TODO: move into API layer?
+        # TODO: take bucket as arg, not bucket_name, since caller already has bucket.
+        # TODO: doc comment for this method
+        # TODO: fully take advantage of API class, instead of calling URLs directly.
+        info = StoredAccountInfo()
+        auth_token = info.get_account_auth_token()
+        url = url_for_api(info, api)
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+
+        params = {
+            'bucketId': bucket.get_id(),
+            'startFileName': start_name,
+            'maxFileCount': count
+        }
+        loop = True
+        while loop:
+            response = post_json(url, params, auth_token)
+            for file in response.get('files', []):
+                name = file['fileName']
+                if not start_name or name.startswith(start_name):
+                    yield file
+                else:
+                    loop = False
+            if response.get('nextFileId'):
+                params['startFileId'] = response['nextFileId']
+            elif response.get('nextFileName'):
+                params['startFileName'] = response['nextFileName']
+            else:
+                loop = False
+
+    def sync(self, args):
+        # TODO: break up this method.  it's too long
+        # maybe move into its own class?
+        options = {'delete': False, 'hide': False}
+        while args and args[0][0] == '-':
+            option = args[0]
+            args = args[1:]
+            if option == '--delete':
+                options['delete'] = True
+            elif option == '--hide':
+                options['hide'] = True
+            else:
+                message_and_exit('ERROR: unknown option: ' + option)
+        if len(args) != 2:
+            usage_and_exit()
+        src = args[0]
+        dst = args[1]
+        local_path = src if dst.startswith('b2:') else dst
+        b2_path = dst if dst.startswith('b2:') else src
+        is_b2_src = b2_path == src
+        if local_path.startswith('b2:') or not b2_path.startswith('b2:'):
+            message_and_exit('ERROR: one of the paths must be a "b2:<bucket>" URI')
+        elif not os.path.exists(local_path):
+            message_and_exit('ERROR: local path doesn\'t exist: ' + local_path)
+        bucket_name = b2_path[3:].split('/')[0]
+        bucket_prefix = '/'.join(b2_path[3:].split('/')[1:])
+        if bucket_prefix and not bucket_prefix.endswith('/'):
+            bucket_prefix += '/'
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+
+        # Find all matching files in B2
+        info = StoredAccountInfo()
+        remote_files = {}
+        for file in self.iter_files(info, bucket_name, start_name=bucket_prefix or None):
+            name = file['fileName']
+            after_prefix = name[len(bucket_prefix):]
+            remote_files[after_prefix] = {
+                'fileName': after_prefix,
+                'fileId': file['fileId'],
+                'size': file['size']
+            }
+
+        # Find all matching local files
+        local_files = {}
+        for dirpath, dirnames, filenames in os.walk(local_path):
+            for filename in filenames:
+                abspath = os.path.join(dirpath, filename)
+                relpath = os.path.relpath(abspath, local_path)
+                local_files[relpath] = {
+                    'fileName': relpath,
+                    'size': os.path.getsize(abspath)
+                }
+
+        # Process differences
+        local_fileset = set(local_files.keys())
+        remote_fileset = set(remote_files.keys())
+        for filename in local_fileset | remote_fileset:
+            filepath = os.path.join(local_path, filename)
+            dirpath = os.path.dirname(filepath)
+            b2_path = os.path.join(bucket_prefix, filename)
+            local_file = local_files.get(filename)
+            remote_file = remote_files.get(filename)
+            is_match = local_file and remote_file and local_file['size'] == remote_file['size']
+            if is_b2_src and remote_file and not is_match:
+                print "+ %s" % filename
+                if not os.path.exists(dirpath):
+                    os.makedirs(dirpath)
+                url = url_for_api(info, 'b2_download_file_by_id')
+                headers = { 'Authorization': info.get_account_auth_token() }
+                params = { 'fileId': remote_file['fileId'] }
+                download_file_from_url(url, json.dumps(params), headers, filepath)
+            elif is_b2_src and not remote_file and options['delete']:
+                print "- %s" % filename
+                os.remove(filepath)
+            elif not is_b2_src and local_file and not is_match:
+                print "+ %s" % filename
+                # TODO: use API layer, when upload_file is available
+                # TODO: don't get a new upload URL each time
+                # TODO: retry on upload failure
+                url = url_for_api(info, 'b2_get_upload_url')
+                params = { 'bucketId': bucket.get_id() }
+                response = post_json(url, params, info.get_account_auth_token())
+                upload_url = response['uploadUrl']
+                upload_auth_token = response['authorizationToken']
+                headers = {
+                    'Authorization': upload_auth_token,
+                    'Content-Type': 'b2/x-auto',
+                    'X-Bz-File-Name': b2_url_encode(b2_path),
+                    'X-Bz-Content-Sha1': hex_sha1_of_file(filepath),
+                    'X-Bz-Info-src_last_modified_millis': int(os.path.getmtime(filepath) * 1000)
+                }
+                post_file(upload_url, headers, filepath)
+            elif not is_b2_src and not local_file and options['delete']:
+                print "- %s" % filename
+                self.api.delete_file_version(remote_file['fileId'], b2_path)
+            elif not is_b2_src and not local_file and options['hide']:
+                print ". %s" % filename
+                bucket.hide_file(filename)
+
+        # Remove empty local directories
+        if is_b2_src and options['delete']:
+            for dirpath, dirnames, filenames in os.walk(local_path, topdown=False):
+                for name in dirnames:
+                    try:
+                        os.rmdir(os.path.join(dirpath, name))
+                    except:
+                        pass
+
+
 def main():
     if len(sys.argv) < 2:
         usage_and_exit()
@@ -1486,6 +1653,8 @@ def main():
             ls(args)
         elif action == 'make_url':
             ct.make_url(args)
+        elif action == 'sync':
+            ct.sync(args)
         elif action == 'update_bucket':
             ct.update_bucket(args)
         elif action == 'upload_file':
