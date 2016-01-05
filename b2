@@ -237,12 +237,9 @@ class MaxRetriesExceeded(B2Error):
         self.exception_info_list = exception_info_list
     def __str__(self):
         exceptions = '\n'.join(
-            traceback.format_exception(
-                (exc_type, exc_value, exc_traceback)
-                for exc_type, exc_value, exc_traceback in self.exception_info_list
-            )
+            wrapped_error.format_exception()
+            for wrapped_error in self.exception_info_list
         )
-
         return 'FAILED to upload after %s tries. Encountered exceptions: %s' % (
             self.limit,
             exceptions,
@@ -280,6 +277,50 @@ class WrappedHttpError(B2Error):
     @property
     def code(self):
         return self.exc_info[1].code
+    def format_exception(self):
+        """
+        example output:
+
+        Error returned from server:
+
+        URL: https://pod-000-1004-00.backblaze.com/b2api/v1/b2_upload_file/424242424242424242424242/c001_v0001004_t0028
+        Params: None
+        Headers: {'X-Bz-Content-Sha1': '753ca1c2d0f3e8748320b38f5da057767029a036', 'X-Bz-File-Name': 'LICENSE', 'Content-Type': 'b2/x-auto', 'Content-Length': '1350'}
+
+        {
+          "code": "internal_error",
+          "message": "Internal server error",
+          "status": 500
+        }
+
+        Traceback (most recent call last):
+          File "./b2", line 873, in __enter__
+            self.file = urllib2.urlopen(request)
+          File "/usr/lib/python2.7/urllib2.py", line 127, in urlopen
+            return _opener.open(url, data, timeout)
+          File "/usr/lib/python2.7/urllib2.py", line 410, in open
+            response = meth(req, response)
+          File "/usr/lib/python2.7/urllib2.py", line 523, in http_response
+            'http', request, response, code, msg, hdrs)
+          File "/usr/lib/python2.7/urllib2.py", line 448, in error
+            return self._call_chain(*args)
+          File "/usr/lib/python2.7/urllib2.py", line 382, in _call_chain
+            result = func(*args)
+          File "/usr/lib/python2.7/urllib2.py", line 531, in http_error_default
+            raise HTTPError(req.get_full_url(), code, msg, hdrs, fp)
+        HTTPError: HTTP Error 500: Internal server error
+        """
+        exc_type, exc_value, exc_traceback = self.exc_info
+        return '%s\n\n%s\n' % (
+            self,
+            "".join(
+                traceback.format_exception(
+                    exc_type,
+                    exc_value,
+                    exc_traceback,
+                )
+            )
+        )
     def __str__(self):
         return """Error returned from server:
 
@@ -365,13 +406,13 @@ class Bucket(object):
                     local_file,
                     progress_bar=not quiet,
                 )
+                return FileVersionInfoFactory.from_api_response(response)
             except WrappedHttpError as e:
                 if 500 <= e.code < 600:
                     exception_info_list.append(e)
                     account_info.clear_bucket_upload_data(self.id_)
                 else:
                     raise
-            return FileVersionInfoFactory.from_api_response(response)
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
     def _get_upload_data(self):
