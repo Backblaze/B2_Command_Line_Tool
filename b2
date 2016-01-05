@@ -26,6 +26,7 @@ import hashlib
 import json
 import os.path
 import sys
+import traceback
 import urllib
 import urllib2
 
@@ -173,6 +174,13 @@ class B2Error(Exception):
     pass
 
 
+class BadJson(B2Error):
+    def __init__(self, message):
+        self.message = message
+    def __str__(self):
+        return 'Generic api error ("bad_json"): %s' % (self.message,)
+
+
 class DuplicateBucketName(B2Error):
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
@@ -187,11 +195,20 @@ class FileAlreadyHidden(B2Error):
         return 'File already hidden: %s' % (self.file_name,)
 
 
-class NonExistentBucket(B2Error):
-    def __init__(self, bucket_name):
-        self.bucket_name = bucket_name
+class FatalError(B2Error):
+    def __init__(self, message, exception_tuples):
+        self.message = message
+        self.exception_tuples = exception_tuples
     def __str__(self):
-        return 'No such bucket: %s' % (self.bucket_name,)
+        return 'FATAL ERROR: %s\nstacktraces:\n%s' % (
+            self.message,
+            "\n\n".join(
+                "".join(
+                    traceback.format_exception(type_, value, tb)
+                )
+                for type_, value, tb in self.exception_tuples
+            ),
+        )
 
 
 class FileNotPresent(B2Error):
@@ -201,11 +218,46 @@ class FileNotPresent(B2Error):
         return 'File not present: %s' % (self.file_name,)
 
 
+class MaxFileSizeExceeded(B2Error):
+    def __init__(self, file_description, size, max_allowed_size):
+        self.file_description = file_description
+        self.size = size
+        self.max_allowed_size = max_allowed_size
+    def __str__(self):
+        return 'Allowed file size of exceeded for %s: %s > %s' % (
+            self.file_description,
+            self.size,
+            self.max_allowed_size,
+        )
+
+
+class MaxRetriesExceeded(B2Error):
+    def __init__(self, limit, exception_info_list):
+        self.limit = limit
+        self.exception_info_list = exception_info_list
+    def __str__(self):
+        exceptions = '\n'.join(
+            wrapped_error.format_exception()
+            for wrapped_error in self.exception_info_list
+        )
+        return 'FAILED to upload after %s tries. Encountered exceptions: %s' % (
+            self.limit,
+            exceptions,
+        )
+
+
 class MissingAccountData(B2Error):
     def __init__(self, key):
         self.key = key
     def __str__(self):
         return 'Missing account data: %s' % (self.key,)
+
+
+class NonExistentBucket(B2Error):
+    def __init__(self, bucket_name):
+        self.bucket_name = bucket_name
+    def __str__(self):
+        return 'No such bucket: %s' % (self.bucket_name,)
 
 
 class UnrecognizedBucketType(B2Error):
@@ -215,11 +267,77 @@ class UnrecognizedBucketType(B2Error):
         return 'Unrecognized bucket type: %s' % (self.type_,)
 
 
+class WrappedHttpError(B2Error):
+    def __init__(self, data, url, params, headers, exc_info):
+        self.data = data
+        self.url = url
+        self.params = params
+        self.headers = headers
+        self.exc_info = exc_info
+    @property
+    def code(self):
+        return self.exc_info[1].code
+    def format_exception(self):
+        """
+        example output:
+
+        Error returned from server:
+
+        URL: https://pod-000-1004-00.backblaze.com/b2api/v1/b2_upload_file/424242424242424242424242/c001_v0001004_t0028
+        Params: None
+        Headers: {'X-Bz-Content-Sha1': '753ca1c2d0f3e8748320b38f5da057767029a036', 'X-Bz-File-Name': 'LICENSE', 'Content-Type': 'b2/x-auto', 'Content-Length': '1350'}
+
+        {
+          "code": "internal_error",
+          "message": "Internal server error",
+          "status": 500
+        }
+
+        Traceback (most recent call last):
+          File "./b2", line 873, in __enter__
+            self.file = urllib2.urlopen(request)
+          File "/usr/lib/python2.7/urllib2.py", line 127, in urlopen
+            return _opener.open(url, data, timeout)
+          File "/usr/lib/python2.7/urllib2.py", line 410, in open
+            response = meth(req, response)
+          File "/usr/lib/python2.7/urllib2.py", line 523, in http_response
+            'http', request, response, code, msg, hdrs)
+          File "/usr/lib/python2.7/urllib2.py", line 448, in error
+            return self._call_chain(*args)
+          File "/usr/lib/python2.7/urllib2.py", line 382, in _call_chain
+            result = func(*args)
+          File "/usr/lib/python2.7/urllib2.py", line 531, in http_error_default
+            raise HTTPError(req.get_full_url(), code, msg, hdrs, fp)
+        HTTPError: HTTP Error 500: Internal server error
+        """
+        exc_type, exc_value, exc_traceback = self.exc_info
+        return '%s\n\n%s\n' % (
+            self,
+            "".join(
+                traceback.format_exception(
+                    exc_type,
+                    exc_value,
+                    exc_traceback,
+                )
+            )
+        )
+    def __str__(self):
+        return """Error returned from server:
+
+URL: %s
+Params: %s
+Headers: %s
+
+%s""" % (self.url, self.params, self.headers, self.data)
+
 ## Bucket
 
 class Bucket(object):
 
     __metaclass__ = ABCMeta
+    DEFAULT_CONTENT_TYPE = 'b2/x-auto'
+    MAX_UPLOAD_ATTEMPTS = 5
+    MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
 
     def __init__(self, api, id_, name=None, type_=None):
         self.api = api
@@ -247,9 +365,83 @@ class Bucket(object):
         return ["foo"]
     def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
         return [FileVersionInfo()]
-    def upload_file(self, input_stream, remote_filename, mimeTypeOrNull=None, extra_headers=None):  # TODO
-        raise B2Error()
-        return FileVersionInfo()
+    def upload_file(self, local_file, remote_filename, content_type=None,
+                    file_infos=None, sha1_sum=None, extra_headers=None,
+                    quiet=False):
+        if file_infos is None:
+            file_infos = {}
+        if content_type is None:
+            content_type = self.DEFAULT_CONTENT_TYPE
+        account_info = self.api.account_info
+
+        # Double check that the file is not too big.
+        size = os.path.getsize(local_file)
+        if size > self.MAX_UPLOADED_FILE_SIZE:  # TODO: rather than hardcoding the allowed
+                                                # file size in the client library, we
+                                                # should let the remote API handle it
+            raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
+
+        # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
+        if sha1_sum is None:
+            sha1_sum = hex_sha1_of_file(local_file)
+
+        exception_info_list = []
+        for i in xrange(self.MAX_UPLOAD_ATTEMPTS):
+            # refresh upload data in every attempt to work around a "busy storage pod"
+            upload_url, upload_auth_token = self._get_upload_data()
+
+            headers = {
+                'Authorization': upload_auth_token,
+                'X-Bz-File-Name': b2_url_encode(remote_filename),
+                'Content-Type': content_type,
+                'X-Bz-Content-Sha1': sha1_sum
+                }
+            for (k, v) in file_infos.iteritems():
+                headers['X-Bz-Info-' + k] = b2_url_encode(v)
+
+            try:
+                response = post_file(
+                    upload_url,
+                    headers,
+                    local_file,
+                    progress_bar=not quiet,
+                )
+                return FileVersionInfoFactory.from_api_response(response)
+            except WrappedHttpError as e:
+                if 500 <= e.code < 600:
+                    exception_info_list.append(e)
+                    account_info.clear_bucket_upload_data(self.id_)
+                else:
+                    raise
+
+        raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
+    def _get_upload_data(self):
+        """
+        Makes sure that we have an upload URL and auth token for the given bucket and
+        returns it.
+        """
+        account_info = self.api.account_info
+        upload_url, upload_auth_token = account_info.get_bucket_upload_data(self.id_)
+        if None not in (upload_url, upload_auth_token):
+            return upload_url, upload_auth_token
+
+        auth_token = account_info.get_account_auth_token()
+        url = url_for_api(account_info, 'b2_get_upload_url')
+        params = { 'bucketId' : self.id_ }
+        response = post_json(url, params, auth_token)
+
+        account_info.set_bucket_upload_data(
+            self.id_,
+            response['uploadUrl'],
+            response['authorizationToken'],
+        )
+        return account_info.get_bucket_upload_data(self.id_)
+    def get_download_url(self, filename):
+        return "%s/file/%s/%s" % (
+            self.api.account_info.get_download_url(),
+            b2_url_encode(self.name),
+            b2_url_encode(filename),
+        )
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
@@ -259,23 +451,7 @@ class Bucket(object):
             'bucketId' : self.id_,
             'fileName' : file_name,
         }
-        try:  # TODO: refactor the cloned exception handling
-            response = post_json(url, params, auth_token, exit_on_error=False)
-        except urllib2.HTTPError as e:
-            error_content = e.read()
-            try:
-                error_dict = json.loads(error_content)
-            except ValueError:
-                self._display_error(error_content)
-            status = error_dict.get('status')
-            code = error_dict.get('code')
-            if status == 400 and code == "already_hidden":
-                raise FileAlreadyHidden(file_name)
-            elif status == 400 and code in ("no_such_file", "file_not_present"):
-                # hide_file returns "no_such_file"
-                # delete_file_version returns "file_not_present"
-                raise FileNotPresent(file_name)
-            raise
+        response = post_json(url, params, auth_token)
         return FileVersionInfoFactory.from_api_response(response)
     def as_dict(self):  # TODO: refactor with other as_dict()
         result = {
@@ -453,19 +629,7 @@ class B2Api(object):
             'bucketName' : name,
             'bucketType' : type_,
             }
-        try:
-            response = post_json(url, params, auth_token, exit_on_error=False)
-        except urllib2.HTTPError as e:
-            error_content = e.read()
-            try:
-                error_dict = json.loads(error_content)
-            except ValueError:
-                self._display_error(error_content)
-            status = error_dict.get('status')
-            code = error_dict.get('code')
-            if status == 400 and code == "duplicate_bucket_name":
-                raise DuplicateBucketName(name)
-            raise
+        response = post_json(url, params, auth_token)
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
@@ -551,6 +715,11 @@ class B2Api(object):
         pass
     def download_file_by_name(self, bucket_name, filename, content_handler):
         pass
+    def get_download_url_for_fileid(self, file_id):
+        return "%s/b2api/v1/b2_download_file_by_id?fileId=%s" % (
+            self.account_info.get_download_url(),
+            file_id,
+        )
 
     # other
     def make_url(self, file_id):
@@ -677,7 +846,12 @@ class StoredAccountInfo(AbstractAccountInfo):
         self._write_file()
 
     def get_bucket_upload_data(self, bucket_id):
-        return self.data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
+        bucket_upload_data = self.data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
+        if bucket_upload_data is None:
+            return None, None
+        url = bucket_upload_data[self.BUCKET_UPLOAD_URL]
+        upload_auth_token = bucket_upload_data[self.BUCKET_UPLOAD_AUTH_TOKEN]
+        return url, upload_auth_token
 
     def clear_bucket_upload_data(self, bucket_id):
         self.data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
@@ -713,29 +887,17 @@ class StoredAccountInfo(AbstractAccountInfo):
             json.dump(self.data, f, indent=4, sort_keys=True)
 
 
-def report_http_error_and_exit(e, url, data, headers):
-    print 'Error returned from server:'
-    print
-    print 'URL:', url
-    print 'Params:', data
-    print 'Headers:', headers
-    print
-    print e.read()
-    sys.exit(1)
-
-
 class OpenUrl(object):
     """
     Context manager that handles an open urllib2.Request, and provides
     the file-like object that is the response.
     """
 
-    def __init__(self, url, data, headers, exit_on_error=True):
+    def __init__(self, url, data, headers):
         self.url = url
         self.data = data
         self.headers = headers
         self.file = None
-        self.exit_on_error = exit_on_error
 
     def __enter__(self):
         try:
@@ -743,28 +905,55 @@ class OpenUrl(object):
             self.file = urllib2.urlopen(request)
             return self.file
         except urllib2.HTTPError as e:
-            if self.exit_on_error:
-                report_http_error_and_exit(e, self.url, self.data, self.headers)
-            else:
-                raise e
+            data = e.read()
+            raise WrappedHttpError(data, self.url, None, self.headers, sys.exc_info())
 
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
             self.file.close()
 
 
-def post_json(url, params, auth_token=None, exit_on_error=True):
+def post_json(url, params, auth_token=None):
     """Coverts params to JSON and posts them to the given URL.
 
-    Returns the resulting JSON, decoded into a dict.
+    Returns the resulting JSON, decoded into a dict or an
+    exception, custom if possible, WrappedHttpError otherwise
     """
     data = json.dumps(params)
     headers = {}
     if auth_token is not None:
         headers['Authorization'] = auth_token
-    with OpenUrl(url, data, headers, exit_on_error) as f:
-        json_text = f.read()
-        return json.loads(json_text)
+    try:
+        with OpenUrl(url, data, headers) as f:
+            json_text = f.read()
+            return json.loads(json_text)
+    except WrappedHttpError as e:
+        # this  wrapper for api errors
+        # requires access to 'params'
+        e_backup = sys.exc_info()
+        try:
+            error_dict = json.loads(e.data)
+        except ValueError:
+            v = sys.exc_info()
+            error_dict = {'error_decoding_json': v}
+            print [e_backup, v]
+            raise FatalError(
+                'error decoding JSON when handling an exception',
+                [e_backup, v],
+            )
+        status = error_dict.get('status')
+        code = error_dict.get('code')
+        if status == 400 and code == "already_hidden":
+            raise FileAlreadyHidden(params['fileName'])
+        elif status == 400 and code == 'bad_json':
+            raise BadJson(error_dict.get('message'))
+        elif status == 400 and code in ("no_such_file", "file_not_present"):
+            # hide_file returns "no_such_file"
+            # delete_file_version returns "file_not_present"
+            raise FileNotPresent(params['fileName'])
+        elif status == 400 and code == "duplicate_bucket_name":
+            raise DuplicateBucketName(params['bucketName'])
+        raise
 
 
 class StreamWithProgress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this keeps pyflakes calm, unlike tqdm=object
@@ -803,7 +992,7 @@ class StreamWithProgress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this keeps
         self.update(len(data))
 
 
-def post_file(url, headers, file_path, exit_on_error=True, progress_bar=False):
+def post_file(url, headers, file_path, progress_bar=False):
     """
     Posts the contents of the local file to the given URL.
     """
@@ -813,7 +1002,7 @@ def post_file(url, headers, file_path, exit_on_error=True, progress_bar=False):
     if PROGRESS_BAR_SUPPORT and progress_bar:
         stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
     with stream as data_file:
-        with OpenUrl(url, data_file, headers, exit_on_error) as response_file:
+        with OpenUrl(url, data_file, headers) as response_file:
             json_text = response_file.read()
             return json.loads(json_text)
 
@@ -956,26 +1145,6 @@ def list_file_versions(args):
     print json.dumps(response, indent=2, sort_keys=True)
 
 
-def ensure_upload_data(bucket_id, info, quiet):
-    """
-    Makes sure that we have an upload URL and auth token for the given bucket and
-    returns it.
-    """
-    upload_data = info.get_bucket_upload_data(bucket_id)
-    if upload_data is None:
-        if not quiet:
-            print 'Getting upload URL...'
-        auth_token = info.get_account_auth_token()
-        url = url_for_api(info, 'b2_get_upload_url')
-        params = { 'bucketId' : bucket_id }
-        response = post_json(url, params, auth_token)
-        upload_url = response['uploadUrl']
-        upload_auth_token = response['authorizationToken']
-        info.set_bucket_upload_data(bucket_id, upload_url, upload_auth_token)
-        upload_data = info.get_bucket_upload_data(bucket_id)
-    return upload_data
-
-
 def get_file_info(args):
     if len(args) != 1:
         usage_and_exit()
@@ -1011,91 +1180,8 @@ def parse_file_info(item, file_infos):
     file_infos[parts[0]] = parts[1]
 
 
-def upload_file(args):
-
-    content_type = 'b2/x-auto'
-    file_infos = {}
-    sha1_sum = None
-    quiet = False
-
-    while 0 < len(args) and args[0][0] == '-':
-        option = args[0]
-        if option == '--sha1':
-            if len(args) < 2:
-                usage_and_exit()
-            sha1_sum = args[1]
-            args = args[2:]
-        elif option == '--contentType':
-            if len(args) < 2:
-                usage_and_exit()
-            content_type = args[1]
-            args = args[2:]
-        elif option == '--info':
-            if len(args) < 2:
-                usage_and_exit()
-            parse_file_info(args[1], file_infos)
-            args = args[2:]
-        elif option == '--quiet':
-            quiet = True
-            args = args[1:]
-        else:
-            usage_and_exit()
-
-    if len(args) != 3:
-        usage_and_exit()
-    bucket_name = args[0]
-    local_file = args[1]
-    b2_file = args[2]
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.api
-    bucket = api.get_bucket_by_name(bucket_name)
-
-    # Double check that the file is not too big.
-    if 5 * 1000 * 1000 * 1000 < os.path.getsize(local_file):
-        print 'ERROR: File is bigger that 5GB:', local_file
-        sys.exit(1)
-
-    # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
-    if sha1_sum is None:
-        sha1_sum = hex_sha1_of_file(local_file)
-
-    # Try 5 times to upload the file.  If one fails, get a different
-    # upload URL for the next try.
-    for i in xrange(5):
-        bucket_upload_data = ensure_upload_data(bucket.id_, info, quiet)
-        url = bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_URL]
-
-        headers = {
-            'Authorization': bucket_upload_data[StoredAccountInfo.BUCKET_UPLOAD_AUTH_TOKEN],
-            'X-Bz-File-Name': b2_url_encode(b2_file),
-            'Content-Type': content_type,
-            'X-Bz-Content-Sha1': sha1_sum
-            }
-        for (k, v) in file_infos.iteritems():
-            headers['X-Bz-Info-' + k] = b2_url_encode(v)
-
-        try:
-            response = post_file(url, headers, local_file, exit_on_error=False, progress_bar=(not quiet))
-            print json.dumps(response, indent=4, sort_keys=True)
-            if (not quiet) and ('fileId' in response):
-                print "URL by file name: " + info.get_download_url() + "/file/" + bucket_name + "/" + b2_file
-                print "URL by fileId: " + info.get_download_url() + "/b2api/v1/b2_download_file_by_id?fileId=" + response['fileId']
-            return
-        except urllib2.HTTPError as e:
-            if 500 <= e.code and e.code < 600:
-                info.clear_bucket_upload_data(bucket.id_)
-            else:
-                report_http_error_and_exit(e, url, None, headers)
-
-    print 'FAILED to upload after 5 tries'
-    sys.exit(1)
-
-
 def download_file_from_url(url, request_body, encoded_headers, local_file_name,
                            print_progress=False, set_last_modified=False):
-
     with OpenUrl(url, request_body, encoded_headers) as response:
         info = response.info()
         file_size = int(info['content-length'])
@@ -1161,10 +1247,13 @@ def download_file_by_name(args):
     file_name = args[1]
     local_file_name = args[2]
 
-    info = StoredAccountInfo()
+    console_tool = ConsoleTool()
+    info = console_tool.info
+    api = console_tool.api
+    bucket = api.get_bucket_by_name(bucket_name)
     auth_token = info.get_account_auth_token()
 
-    url = info.get_download_url() + '/file/' + b2_url_encode(bucket_name) + '/' + b2_url_encode(file_name)
+    url = bucket.get_download_url(file_name)
     headers = { 'Authorization' : auth_token }
 
     download_file_from_url(url, None, headers, local_file_name, print_progress=True)
@@ -1352,6 +1441,56 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
+        print json.dumps(response, indent=2, sort_keys=True)
+
+    def upload_file(self, args):
+        content_type = None
+        file_infos = {}
+        sha1_sum = None
+        quiet = False
+
+        while 0 < len(args) and args[0][0] == '-':
+            option = args[0]
+            if option == '--sha1':
+                if len(args) < 2:
+                    usage_and_exit()
+                sha1_sum = args[1]
+                args = args[2:]
+            elif option == '--contentType':
+                if len(args) < 2:
+                    usage_and_exit()
+                content_type = args[1]
+                args = args[2:]
+            elif option == '--info':
+                if len(args) < 2:
+                    usage_and_exit()
+                parse_file_info(args[1], file_infos)
+                args = args[2:]
+            elif option == '--quiet':
+                quiet = True
+                args = args[1:]
+            else:
+                usage_and_exit()
+
+        if len(args) != 3:
+            usage_and_exit()
+        bucket_name = args[0]
+        local_file = args[1]
+        remote_file = args[2]
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        file_info = bucket.upload_file(
+            local_file=local_file,
+            remote_filename=remote_file,
+            content_type=content_type,
+            file_infos=file_infos,
+            sha1_sum=sha1_sum,
+            quiet=quiet,
+        )
+        response = file_info.as_dict()
+        if not quiet:
+            print "URL by file name: " + bucket.get_download_url(remote_file)
+            print "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
         print json.dumps(response, indent=2, sort_keys=True)
 
     # other
@@ -1560,7 +1699,7 @@ def main():
         elif action == 'update_bucket':
             ct.update_bucket(args)
         elif action == 'upload_file':
-            upload_file(args)
+            ct.upload_file(args)
         elif action == 'version':
             print 'b2 command line tool, version', VERSION
         else:
