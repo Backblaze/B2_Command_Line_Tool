@@ -716,17 +716,6 @@ class B2Api(object):
     def download_file_by_name(self, bucket_name, filename, content_handler):
         pass
     def get_download_url_for_fileid(self, file_id):
-        return "%s/b2api/v1/b2_download_file_by_id?fileId=%s" % (
-            self.account_info.get_download_url(),
-            file_id,
-        )
-
-    # other
-    def make_url(self, file_id):
-        """
-        returns a download url for given file_id
-        """
-        #bucket_id = file_id[3:27]
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
     def get_file_info(self, file_id):
@@ -1501,7 +1490,7 @@ class ConsoleTool(object):
 
         file_id = args[0]
 
-        print self.api.make_url(file_id)
+        print self.api.get_download_url_for_fileid(file_id)
 
     def clear_account(self, args):
         if len(args) != 0:
