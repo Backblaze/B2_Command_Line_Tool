@@ -1720,7 +1720,7 @@ def main():
         print 'ERROR: Missing account.  Use: b2 authorize_account'
         sys.exit(1)
     except B2Error as e:
-        print e
+        print 'ERROR: %s' % (e,)
         sys.exit(1)
 
 if __name__ == '__main__':
