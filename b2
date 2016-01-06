@@ -181,6 +181,15 @@ class BadJson(B2Error):
         return 'Generic api error ("bad_json"): %s' % (self.message,)
 
 
+class ChecksumMismatch(B2Error):
+    def __init__(self, checksum_type, expected, actual):
+        self.checksum_type = checksum_type
+        self.expected = expected
+        self.actual = actual
+    def __str__(self):
+        return '%s checksum mismatch -- bad data' % (self.checksum_type,)
+
+
 class DuplicateBucketName(B2Error):
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
@@ -260,6 +269,17 @@ class NonExistentBucket(B2Error):
         return 'No such bucket: %s' % (self.bucket_name,)
 
 
+class TruncatedOutput(B2Error):
+    def __init__(self, bytes_read, file_size):
+        self.bytes_read = bytes_read
+        self.file_size = file_size
+    def __str__(self):
+        return 'only %d of %d bytes read' % (
+            self.bytes_read,
+            self.file_size,
+        )
+
+
 class UnrecognizedBucketType(B2Error):
     def __init__(self, type_):
         self.type_ = type_
@@ -329,6 +349,7 @@ Params: %s
 Headers: %s
 
 %s""" % (self.url, self.params, self.headers, self.data)
+
 
 ## Bucket
 
@@ -1181,7 +1202,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name,
             print 'Content type:', info['content-type']
             print 'Content sha1:', file_sha1
             for name in info:
-                if name.startswith('x-bz-info-') and print_progress:
+                if name.startswith('x-bz-info-'):
                     print 'INFO', name[10:] + ':', info[name]
         block_size = 4096
         digest = hashlib.sha1()
@@ -1191,20 +1212,22 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name,
         if PROGRESS_BAR_SUPPORT and print_progress:
             stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
         with stream as f:
-            while True:
+            while 1:
                 data = response.read(block_size)
                 if len(data) == 0:
                     break
                 f.write(data)
                 digest.update(data)
                 bytes_read += len(data)
-        if set_last_modified and info.get('x-bz-info-src_last_modified_millis') is not None:
-            mtime = int(info['x-bz-info-src_last_modified_millis']) / 1000
-            os.utime(local_file_name, (mtime, mtime))
+        if set_last_modified:
+            last_modified_millis = info.get('x-bz-info-src_last_modified_millis')
+            if last_modified_millis is not None:
+                mtime = int(last_modified_millis) / 1000
+                os.utime(local_file_name, (mtime, mtime))
         if bytes_read != int(info['content-length']):
-            print 'ERROR: only %d of %d bytes read' % (bytes_read, file_size)
+            raise TruncatedOutput(bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
-            print 'ERROR: sha1 checksum mismatch -- bad data'
+            raise ChecksumMismatch(checksum_type='sha1', expected=file_sha1, actual=digest.hexdigest())
         if print_progress:
             print 'checksum matches'
 
