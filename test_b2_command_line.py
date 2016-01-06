@@ -18,7 +18,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import threading
 import unittest
 
@@ -233,6 +232,7 @@ def should_equal(expected, actual):
     if expected != actual:
         print '  ERROR'
         sys.exit(1)
+    print
 
 
 def delete_files_in_bucket(b2_tool, bucket_name):
@@ -344,8 +344,6 @@ def sync_test(b2_tool, bucket_name):
             b2_tool.file_version_summary(bucket_name)
         )
 
-        time.sleep(1) # make sure mod time advances
-
         os.unlink(p('b'))
         write_file(p('c'), 'hello world')
 
@@ -353,6 +351,19 @@ def sync_test(b2_tool, bucket_name):
         should_equal(
             [
                 '+ sync/a',
+                '- sync/b',
+                '+ sync/b',
+                '+ sync/c',
+                '+ sync/c'
+            ],
+            b2_tool.file_version_summary(bucket_name)
+        )
+
+        os.unlink(p('a'))
+
+        b2_tool.should_succeed(['sync', '--delete', dir_path, b2_sync_point])
+        should_equal(
+            [
                 '- sync/b',
                 '+ sync/b',
                 '+ sync/c',
