@@ -1634,22 +1634,10 @@ class ConsoleTool(object):
                 os.remove(filepath)
             elif not is_b2_src and local_file and not is_match:
                 print "+ %s" % filename
-                # TODO: use API layer, when upload_file is available
-                # TODO: don't get a new upload URL each time
-                # TODO: retry on upload failure
-                url = url_for_api(info, 'b2_get_upload_url')
-                params = { 'bucketId': bucket.get_id() }
-                response = post_json(url, params, info.get_account_auth_token())
-                upload_url = response['uploadUrl']
-                upload_auth_token = response['authorizationToken']
-                headers = {
-                    'Authorization': upload_auth_token,
-                    'Content-Type': 'b2/x-auto',
-                    'X-Bz-File-Name': b2_url_encode(b2_path),
-                    'X-Bz-Content-Sha1': hex_sha1_of_file(filepath),
-                    'X-Bz-Info-src_last_modified_millis': int(os.path.getmtime(filepath) * 1000)
+                file_infos = {
+                    'src_last_modified_millis': str(int(os.path.getmtime(filepath) * 1000))
                 }
-                post_file(upload_url, headers, filepath)
+                bucket.upload_file(filepath, b2_path, file_infos=file_infos)
             elif not is_b2_src and not local_file and options['delete']:
                 print "- %s" % filename
                 self.api.delete_file_version(remote_file['fileId'], b2_path)

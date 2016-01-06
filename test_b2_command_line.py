@@ -146,7 +146,7 @@ def print_output(status, stdout, stderr):
 
 class CommandLine(object):
 
-    PROGRESS_BAR_PATTERN = re.compile(r'.*KB/s]$', re.DOTALL)
+    PROGRESS_BAR_PATTERN = re.compile(r'.*B/s]$', re.DOTALL)
 
     EXPECTED_STDERR_PATTERNS = [
         PROGRESS_BAR_PATTERN,
