@@ -1655,7 +1655,7 @@ class ConsoleTool(object):
                 self.api.delete_file_version(remote_file['fileId'], b2_path)
             elif not is_b2_src and not local_file and options['hide']:
                 print ". %s" % filename
-                bucket.hide_file(filename)
+                bucket.hide_file(b2_path)
 
         # Remove empty local directories
         if is_b2_src and options['delete']:

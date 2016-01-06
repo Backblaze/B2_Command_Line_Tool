@@ -14,8 +14,11 @@ import json
 import os.path
 import random
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import time
 import threading
 import unittest
 
@@ -51,8 +54,27 @@ def read_file(path):
         return f.read()
 
 
+def write_file(path, contents):
+    with open(path, 'wb') as f:
+        f.write(contents)
+
+
 def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for i in xrange(length))
+
+
+class TempDir(object):
+
+    def get_dir(self):
+        return self.dirpath
+
+    def __enter__(self):
+        self.dirpath = tempfile.mkdtemp()
+        return self.dirpath
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        shutil.rmtree(self.dirpath)
+
 
 
 class StringReader(object):
@@ -182,6 +204,17 @@ class CommandLine(object):
         if re.search(expected_pattern, stdout + stderr) is None:
             error_and_exit('did not match pattern: ' + expected_pattern)
 
+    def file_version_summary(self, bucket_name):
+        """
+        Returns a list of all of the file versions in the bucket, with '+ ' before uploads, and
+        '- ' before hidings.
+        """
+        list_of_files = self.should_succeed_json(['list_file_versions', bucket_name, 'b'])
+        return [
+            ('+ ' if (f['action'] == 'upload') else '- ') + f['fileName']
+            for f in list_of_files['files']
+            ]
+
 
 class TestCommandLine(unittest.TestCase):
 
@@ -287,7 +320,48 @@ def basic_test(b2_tool, bucket_name):
 
 
 def sync_test(b2_tool, bucket_name):
-    pass
+
+    with TempDir() as dir_path:
+
+        p = lambda fname: os.path.join(dir_path, fname)
+
+        b2_sync_point = 'b2:%s/sync' % bucket_name
+
+        b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        should_equal([], b2_tool.file_version_summary(bucket_name))
+
+        write_file(p('a'), 'hello')
+        write_file(p('b'), 'hello')
+        write_file(p('c'), 'hello')
+
+        b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        should_equal(
+            [
+                '+ sync/a',
+                '+ sync/b',
+                '+ sync/c'
+            ],
+            b2_tool.file_version_summary(bucket_name)
+        )
+
+        time.sleep(1) # make sure mod time advances
+
+        os.unlink(p('b'))
+        write_file(p('c'), 'hello world')
+
+        b2_tool.should_succeed(['sync', '--hide', dir_path, b2_sync_point])
+        should_equal(
+            [
+                '+ sync/a',
+                '- sync/b',
+                '+ sync/b',
+                '+ sync/c',
+                '+ sync/c'
+            ],
+            b2_tool.file_version_summary(bucket_name)
+        )
+
+
 
 
 def main():
