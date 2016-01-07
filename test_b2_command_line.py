@@ -14,8 +14,10 @@ import json
 import os.path
 import random
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 
@@ -23,8 +25,16 @@ import unittest
 USAGE = """
 This program tests the B2 command-line client.
 
-Usage:
-    {command} <path_to_b2_script> <accountId> <applicationKey>
+Usages:
+
+    {command} <path_to_b2_script> <accountId> <applicationKey> [basic | sync]
+
+        The optional last argument specifies which of the tests to run.  If not
+        specified, all test will run.
+
+    {command} test
+
+        Runs internal unit tests.
 """
 
 
@@ -43,8 +53,27 @@ def read_file(path):
         return f.read()
 
 
+def write_file(path, contents):
+    with open(path, 'wb') as f:
+        f.write(contents)
+
+
 def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for i in xrange(length))
+
+
+class TempDir(object):
+
+    def get_dir(self):
+        return self.dirpath
+
+    def __enter__(self):
+        self.dirpath = tempfile.mkdtemp()
+        return self.dirpath
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        shutil.rmtree(self.dirpath)
+
 
 
 class StringReader(object):
@@ -174,6 +203,17 @@ class CommandLine(object):
         if re.search(expected_pattern, stdout + stderr) is None:
             error_and_exit('did not match pattern: ' + expected_pattern)
 
+    def file_version_summary(self, bucket_name):
+        """
+        Returns a list of all of the file versions in the bucket, with '+ ' before uploads, and
+        '- ' before hidings.
+        """
+        list_of_files = self.should_succeed_json(['list_file_versions', bucket_name, 'b'])
+        return [
+            ('+ ' if (f['action'] == 'upload') else '- ') + f['fileName']
+            for f in list_of_files['files']
+            ]
+
 
 class TestCommandLine(unittest.TestCase):
 
@@ -192,6 +232,7 @@ def should_equal(expected, actual):
     if expected != actual:
         print '  ERROR'
         sys.exit(1)
+    print
 
 
 def delete_files_in_bucket(b2_tool, bucket_name):
@@ -226,30 +267,9 @@ def clean_buckets(b2_tool, bucket_name_prefix):
             b2_tool.should_succeed(['delete_bucket', bucket_name])
 
 
-def main():
+def basic_test(b2_tool, bucket_name):
 
-    if len(sys.argv) != 4:
-        usage_and_exit()
-    path_to_script = sys.argv[1]
-    account_id = sys.argv[2]
-    application_key = sys.argv[3]
-
-    b2_tool = CommandLine(path_to_script)
-
-    b2_tool.should_succeed(['clear_account'])
-    if '{}' != read_file(os.path.expanduser('~/.b2_account_info')):
-        error_and_exit('should have cleared ~/.b2_account_info')
-
-    bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
-    b2_tool.should_fail(['authorize_account', account_id, bad_application_key], r'invalid authorization')
-    b2_tool.should_succeed(['authorize_account', account_id, application_key])
-
-    bucket_name_prefix = 'test-b2-command-line-' + account_id
-    clean_buckets(b2_tool, bucket_name_prefix)
-    bucket_name = bucket_name_prefix + '-' + random_hex(8)
-
-    b2_tool.should_succeed(['create_bucket', bucket_name, 'allPrivate'])
-    b2_tool.should_succeed(['update_bucket', bucket_name, 'allPublic'])
+    path_to_script = b2_tool.path_to_script
 
     with open(path_to_script, 'rb') as f:
         hex_sha1 = hashlib.sha1(f.read()).hexdigest()
@@ -297,6 +317,118 @@ def main():
     b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\nd\n')
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
+
+
+def sync_test(b2_tool, bucket_name):
+
+    with TempDir() as dir_path:
+
+        p = lambda fname: os.path.join(dir_path, fname)
+
+        b2_sync_point = 'b2:%s/sync' % bucket_name
+
+        b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        should_equal([], b2_tool.file_version_summary(bucket_name))
+
+        write_file(p('a'), 'hello')
+        write_file(p('b'), 'hello')
+        write_file(p('c'), 'hello')
+
+        b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        should_equal(
+            [
+                '+ sync/a',
+                '+ sync/b',
+                '+ sync/c'
+            ],
+            b2_tool.file_version_summary(bucket_name)
+        )
+
+        os.unlink(p('b'))
+        write_file(p('c'), 'hello world')
+
+        b2_tool.should_succeed(['sync', '--hide', dir_path, b2_sync_point])
+        should_equal(
+            [
+                '+ sync/a',
+                '- sync/b',
+                '+ sync/b',
+                '+ sync/c',
+                '+ sync/c'
+            ],
+            b2_tool.file_version_summary(bucket_name)
+        )
+
+        os.unlink(p('a'))
+
+        b2_tool.should_succeed(['sync', '--delete', dir_path, b2_sync_point])
+        should_equal(
+            [
+                '- sync/b',
+                '+ sync/b',
+                '+ sync/c',
+                '+ sync/c'
+            ],
+            b2_tool.file_version_summary(bucket_name)
+        )
+
+
+
+
+def main():
+
+    if len(sys.argv) < 4:
+        usage_and_exit()
+    path_to_script = sys.argv[1]
+    account_id = sys.argv[2]
+    application_key = sys.argv[3]
+
+    all_tests = ['basic', 'sync']
+    if len(sys.argv) == 4:
+        tests_to_run = all_tests
+    else:
+        tests_to_run = sys.argv[4:]
+    for test_name in tests_to_run:
+        if test_name not in all_tests:
+            error_and_exit('unknown test: ' + test_name)
+
+    test_map = {
+        'basic': basic_test,
+        'sync': sync_test
+    }
+
+    b2_tool = CommandLine(path_to_script)
+
+    # Run each of the tests in its own empty bucket
+    for test_name in tests_to_run:
+
+        print '#'
+        print '# Cleaning and making bucket for:', test_name
+        print '#'
+        print
+
+        b2_tool.should_succeed(['clear_account'])
+        if '{}' != read_file(os.path.expanduser('~/.b2_account_info')):
+            error_and_exit('should have cleared ~/.b2_account_info')
+
+        bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
+        b2_tool.should_fail(['authorize_account', account_id, bad_application_key], r'invalid authorization')
+        b2_tool.should_succeed(['authorize_account', account_id, application_key])
+
+        bucket_name_prefix = 'test-b2-command-line-' + account_id
+        clean_buckets(b2_tool, bucket_name_prefix)
+        bucket_name = bucket_name_prefix + '-' + random_hex(8)
+
+        b2_tool.should_succeed(['create_bucket', bucket_name, 'allPrivate'])
+        b2_tool.should_succeed(['update_bucket', bucket_name, 'allPublic'])
+
+        print '#'
+        print '# Running test:', test_name
+        print '#'
+        print
+
+        test_fcn = test_map[test_name]
+        test_fcn(b2_tool, bucket_name)
 
     print
     print "ALL OK"
