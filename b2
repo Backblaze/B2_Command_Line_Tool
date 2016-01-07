@@ -35,7 +35,7 @@ import urllib2
 try:
     from tqdm import tqdm  # displays a nice progress bar
 except ImportError:
-    tqdm = None
+    tqdm = None  # noqa
 
 
 # To avoid confusion between official Backblaze releases of this tool and
@@ -993,7 +993,7 @@ class SimpleProgress(object):
             print '    DONE.'
 
 
-class StreamWithProgress(tqdm if (tqdm is not None) else SimpleProgress):
+class StreamWithProgress(tqdm or SimpleProgress):
     def __init__(self, stream, *args, **kwargs):
         self.stream = stream
         kwargs.update(
