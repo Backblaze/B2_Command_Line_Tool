@@ -26,6 +26,7 @@ import hashlib
 import json
 import os.path
 import sys
+import time
 import traceback
 import urllib
 import urllib2
@@ -33,9 +34,8 @@ import urllib2
 
 try:
     from tqdm import tqdm  # displays a nice progress bar
-    PROGRESS_BAR_SUPPORT = True
 except ImportError:
-    PROGRESS_BAR_SUPPORT = False
+    tqdm = None
 
 
 # To avoid confusion between official Backblaze releases of this tool and
@@ -386,6 +386,7 @@ class Bucket(object):
         return ["foo"]
     def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
         return [FileVersionInfo()]
+
     def upload_file(self, local_file, remote_filename, content_type=None,
                     file_infos=None, sha1_sum=None, extra_headers=None,
                     quiet=False):
@@ -966,7 +967,33 @@ def post_json(url, params, auth_token=None):
         raise
 
 
-class StreamWithProgress(PROGRESS_BAR_SUPPORT and tqdm or object):  # this keeps pyflakes calm, unlike tqdm=object
+class SimpleProgress(object):
+
+    def __init__(self, **kwargs):
+        self.desc = kwargs['desc']
+        self.total = kwargs['total']
+        self.complete = 0
+        self.last_time = time.time()
+        self.any_printed = False
+
+    def update(self, byte_count):
+        self.complete += byte_count
+        now = time.time()
+        elapsed = now - self.last_time
+        if 3 <= elapsed and self.total != 0:
+            print '     %d%%' % int(100.0 * self.complete / self.total)
+            self.last_time = now
+            self.any_printed = True
+
+    def __enter__(self):
+        print self.desc
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.any_printed:
+            print '    DONE.'
+
+
+class StreamWithProgress(tqdm if (tqdm is not None) else SimpleProgress):
     def __init__(self, stream, *args, **kwargs):
         self.stream = stream
         kwargs.update(
@@ -1009,7 +1036,7 @@ def post_file(url, headers, file_path, progress_bar=False):
     if 'Content-Length' not in headers:
         headers['Content-Length'] = str(os.path.getsize(file_path))
     stream = open(file_path, 'rb')
-    if PROGRESS_BAR_SUPPORT and progress_bar:
+    if progress_bar:
         stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
     with stream as data_file:
         with OpenUrl(url, data_file, headers) as response_file:
@@ -1209,7 +1236,7 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name,
         bytes_read = 0
 
         stream = open(local_file_name, 'wb')
-        if PROGRESS_BAR_SUPPORT and print_progress:
+        if print_progress:
             stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
         with stream as f:
             while 1:
