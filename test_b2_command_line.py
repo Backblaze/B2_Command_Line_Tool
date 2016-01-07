@@ -58,6 +58,10 @@ def write_file(path, contents):
         f.write(contents)
 
 
+def file_mod_time_millis(path):
+    return int(1000 * os.path.getmtime(path))
+
+
 def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for i in xrange(length))
 
@@ -142,7 +146,7 @@ def print_output(status, stdout, stderr):
 
 class CommandLine(object):
 
-    PROGRESS_BAR_PATTERN = re.compile(r'.*KB/s]$', re.DOTALL)
+    PROGRESS_BAR_PATTERN = re.compile(r'.*B/s]$', re.DOTALL)
 
     EXPECTED_STDERR_PATTERNS = [
         PROGRESS_BAR_PATTERN,
@@ -203,16 +207,8 @@ class CommandLine(object):
         if re.search(expected_pattern, stdout + stderr) is None:
             error_and_exit('did not match pattern: ' + expected_pattern)
 
-    def file_version_summary(self, bucket_name):
-        """
-        Returns a list of all of the file versions in the bucket, with '+ ' before uploads, and
-        '- ' before hidings.
-        """
-        list_of_files = self.should_succeed_json(['list_file_versions', bucket_name, 'b'])
-        return [
-            ('+ ' if (f['action'] == 'upload') else '- ') + f['fileName']
-            for f in list_of_files['files']
-            ]
+    def list_file_versions(self, bucket_name):
+        return self.should_succeed_json(['list_file_versions', bucket_name])['files']
 
 
 class TestCommandLine(unittest.TestCase):
@@ -319,6 +315,27 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
 
 
+def file_version_summary(list_of_files):
+    """
+    Given the result of list_file_versions, returns a list
+    of all file versions, with "+" for upload and "-" for
+    hide, looking like this:
+
+       ['+ photos/a.jpg', '- photos/b.jpg', '+ photos/c.jpg']
+    """
+    return [
+        ('+ ' if (f['action'] == 'upload') else '- ') + f['fileName']
+        for f in list_of_files
+        ]
+
+
+def find_file_id(list_of_files, file_name):
+    for file in list_of_files:
+        if file['fileName'] == file_name:
+            return file['fileId']
+    raise Exception('file not found: ', file_name)
+
+
 def sync_test(b2_tool, bucket_name):
 
     with TempDir() as dir_path:
@@ -328,26 +345,36 @@ def sync_test(b2_tool, bucket_name):
         b2_sync_point = 'b2:%s/sync' % bucket_name
 
         b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
-        should_equal([], b2_tool.file_version_summary(bucket_name))
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal([], file_version_summary(file_versions))
 
         write_file(p('a'), 'hello')
         write_file(p('b'), 'hello')
         write_file(p('c'), 'hello')
 
         b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
                 '+ sync/a',
                 '+ sync/b',
                 '+ sync/c'
             ],
-            b2_tool.file_version_summary(bucket_name)
+            file_version_summary(file_versions)
+        )
+
+        c_id = find_file_id(file_versions, 'sync/c')
+        file_info = b2_tool.should_succeed_json(['get_file_info', c_id])['fileInfo']
+        should_equal(
+            file_mod_time_millis(p('a')),
+            int(file_info['src_last_modified_millis'])
         )
 
         os.unlink(p('b'))
         write_file(p('c'), 'hello world')
 
         b2_tool.should_succeed(['sync', '--hide', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
                 '+ sync/a',
@@ -356,12 +383,13 @@ def sync_test(b2_tool, bucket_name):
                 '+ sync/c',
                 '+ sync/c'
             ],
-            b2_tool.file_version_summary(bucket_name)
+            file_version_summary(file_versions)
         )
 
         os.unlink(p('a'))
 
         b2_tool.should_succeed(['sync', '--delete', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
                 '- sync/b',
@@ -369,10 +397,8 @@ def sync_test(b2_tool, bucket_name):
                 '+ sync/c',
                 '+ sync/c'
             ],
-            b2_tool.file_version_summary(bucket_name)
+            file_version_summary(file_versions)
         )
-
-
 
 
 def main():
