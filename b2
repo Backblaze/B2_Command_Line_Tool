@@ -382,6 +382,72 @@ class Bucket(object):
         }
         response = post_json(url, params, auth_token)
         return response
+    def ls(self, prefix=None, show_versions=False, max_entries=None):
+        auth_token = self.api.account_info.get_account_auth_token()
+
+        # Loop until all files in the named directory have been listed.
+        # The starting point of the first list_file_names request is the
+        # prefix we're looking for.  The prefix ends with '/', which is
+        # now allowed for file names, so no file name will match exactly,
+        # but the first one after that point is the first file in that
+        # "folder".   If the first search doesn't produce enough results,
+        # then we keep calling list_file_names until we get all of the
+        # names in this "folder".
+        current_dir = None
+        if show_versions:
+            api_name = 'b2_list_file_versions'
+        else:
+            api_name = 'b2_list_file_names'
+        url = url_for_api(self.api.account_info, api_name)
+        start_file_name = prefix
+        start_file_id = None
+        while 1:
+            params = {
+                'bucketId': self.id_,
+                'startFileName': start_file_name,
+            }
+            if start_file_id is not None:
+                params['startFileId'] = start_file_id
+            response = post_json(url, params, auth_token)
+            for entry in response['files']:
+                file_version_info = FileVersionInfoFactory.from_api_response(entry)
+                if not file_version_info.file_name.startswith(prefix):
+                    # We're past the files we care about
+                    return
+                after_prefix = file_version_info.file_name[len(prefix):]
+                if '/' not in after_prefix:
+                    # This is not a folder, so we'll print it out and
+                    # continue on.
+                    yield file_version_info, None
+                    current_dir = None
+                else:
+                    # This is a folder.  If it's different than the folder
+                    # we're already in, then we can print it.  This check
+                    # is needed, because all of the files in the folder
+                    # will be in the list.
+                    folder_with_slash = after_prefix.split('/')[0] + '/'
+                    if folder_with_slash != current_dir:
+                        folder_name = prefix + folder_with_slash
+                        yield file_version_info, folder_name
+                        current_dir = folder_with_slash
+            if response['nextFileName'] is None:
+                # The response says there are no more files in the bucket,
+                # so we can stop.
+                return
+
+            # Now we need to set up the next search.  The response from
+            # B2 has the starting point to continue with the next file,
+            # but if we're in the middle of a "folder", we can skip ahead
+            # to the end of the folder.  The character after '/' is '0',
+            # so we'll replace the '/' with a '0' and start there.
+            if current_dir is None:
+                start_file_name = response.get('nextFileName')
+                start_file_id = response.get('nextFileId')
+            else:
+                start_file_name = max(
+                    response['nextFileName'],
+                    prefix + current_dir[:-1] + '0',
+                )
     def list_file_names(self, start_filename=None, max_entries=None):  # TODO
         return ["foo"]
     def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
@@ -1310,120 +1376,6 @@ def download_file_by_name(args):
     download_file_from_url(url, None, headers, local_file_name, print_progress=True)
 
 
-def print_ls_entry(is_long, is_folder, name, file):
-    # if not long, it's easy
-    if not is_long:
-        print name
-    else:
-        # order is file_id, action, date, time, size, name
-        format = '%83s  %6s  %10s  %8s  %9d  %s'
-        if is_folder:
-            print format % ('-', '-', '-', '-', 0, name)
-        else:
-            file_id = file['fileId']
-            action = file['action']
-            dt = datetime.datetime.utcfromtimestamp(file['uploadTimestamp'] / 1000)
-            date_str = dt.strftime('%Y-%m-%d')
-            time_str = dt.strftime('%H:%M:%S')
-            size = file['size']
-            print format % (file_id, action, date_str, time_str, size, name)
-
-def ls(args):
-    # Parse arguments
-    long_format = False
-    show_versions = False
-    while len(args) != 0 and args[0][0] == '-':
-        option = args[0]
-        args = args[1:]
-        if option == '--long':
-            long_format = True
-        elif option == '--versions':
-            show_versions = True
-        else:
-            print 'Unknown option:', option
-            usage_and_exit()
-    if len(args) < 1 or 2 < len(args):
-        usage_and_exit()
-    bucket_name = args[0]
-    if len(args) == 1:
-        prefix = ""
-    else:
-        prefix = args[1]
-        if not prefix.endswith('/'):
-            prefix += '/'
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.api
-    bucket = api.get_bucket_by_name(bucket_name)
-    auth_token = info.get_account_auth_token()
-
-    # Loop until all files in the named directory have been listed.
-    # The starting point of the first list_file_names request is the
-    # prefix we're looking for.  The prefix ends with '/', which is
-    # now allowed for file names, so no file name will match exactly,
-    # but the first one after that point is the first file in that
-    # "folder".   If the first search doesn't produce enough results,
-    # then we keep callig list_file_names until we get all of the
-    # names in this "folder".
-    current_dir = None
-    if show_versions:
-        api_name = 'b2_list_file_versions'
-    else:
-        api_name = 'b2_list_file_names'
-    start_file_name = prefix
-    start_file_id = None
-    while True:
-        url = url_for_api(info, api_name)
-        params = {
-            'bucketId' : bucket.id_,
-            'startFileName' : start_file_name
-            }
-        if start_file_id is not None:
-            params['startFileId'] = start_file_id
-        response = post_json(url, params, auth_token)
-        for file in response['files']:
-            name = file['fileName']
-            if not name.startswith(prefix):
-                # We're past the files we care about
-                return
-            after_prefix = name[len(prefix):]
-            if '/' not in after_prefix:
-                # This is not a folder, so we'll print it out and
-                # continue on.
-                file_id = file['fileId']
-                size = file['size']
-                print_ls_entry(long_format, False, name, file)
-                current_dir = None
-            else:
-                # This is a folder.  If it's different than the folder
-                # we're already in, then we can print it.  This check
-                # is needed, because all of the files in the folder
-                # will be in the list.
-                folder_with_slash = after_prefix.split('/')[0] + '/'
-                if folder_with_slash != current_dir:
-                    folder_name = prefix + folder_with_slash
-                    print_ls_entry(long_format, True, folder_name, file)
-                    current_dir = folder_with_slash
-        if response['nextFileName'] is None:
-            # The response says there are no more files in the bucket,
-            # so we can stop.
-            return
-
-        # Now we need to set up the next search.  The response from
-        # B2 has the starting point to continue with the next file,
-        # but if we're in the middle of a "folder", we can skip ahead
-        # to the end of the folder.  The character after '/' is '0',
-        # so we'll replace the '/' with a '0' and start there.
-        if current_dir is None:
-            start_file_name = response.get('nextFileName')
-            start_file_id = response.get('nextFileId')
-        else:
-            start_file_name = max(
-                response['nextFileName'],
-                prefix + current_dir[:-1] + '0'
-                )
-
 class ConsoleTool(object):
     def __init__(self):
         info = StoredAccountInfo()
@@ -1558,6 +1510,38 @@ class ConsoleTool(object):
         if len(args) != 0:
             usage_and_exit()
         self.api.account_info.clear()
+
+    def ls(self, args):
+        long_format = False
+        show_versions = False
+        while len(args) != 0 and args[0][0] == '-':
+            option = args[0]
+            args = args[1:]
+            if option == '--long':
+                long_format = True
+            elif option == '--versions':
+                show_versions = True
+            else:
+                print 'Unknown option:', option
+                usage_and_exit()
+        if len(args) < 1 or len(args) > 2:
+            usage_and_exit()
+        bucket_name = args[0]
+        if len(args) == 1:
+            prefix = ""
+        else:
+            prefix = args[1]
+            if not prefix.endswith('/'):
+                prefix += '/'
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        for file_version_info, folder_name in bucket.ls(prefix, show_versions):
+            if not long_format:
+                print folder_name or file_version_info.file_name
+            elif folder_name is not None:
+                print FileVersionInfo.format_folder_ls_entry(folder_name)
+            else:
+                print file_version_info.format_ls_entry()
 
     @property
     def info(self):  # TODO: this is only temporary, remove it
@@ -1730,7 +1714,7 @@ def main():
         elif action == 'list_file_versions':
             list_file_versions(args)
         elif action == 'ls':
-            ls(args)
+            ct.ls(args)
         elif action == 'make_url':
             ct.make_url(args)
         elif action == 'sync':
