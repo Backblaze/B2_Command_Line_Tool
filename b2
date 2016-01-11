@@ -269,6 +269,11 @@ class NonExistentBucket(B2Error):
         return 'No such bucket: %s' % (self.bucket_name,)
 
 
+class StorageCapExceeded(B2Error):
+    def __str__(self):
+        return 'Cannot upload files, storage cap exceeded.'
+
+
 class TruncatedOutput(B2Error):
     def __init__(self, bytes_read, file_size):
         self.bytes_read = bytes_read
@@ -964,6 +969,8 @@ def post_json(url, params, auth_token=None):
             raise FileNotPresent(params['fileName'])
         elif status == 400 and code == "duplicate_bucket_name":
             raise DuplicateBucketName(params['bucketName'])
+        elif status == 403 and code == "storage_cap_exceeded":
+            raise StorageCapExceeded()
         raise
 
 
