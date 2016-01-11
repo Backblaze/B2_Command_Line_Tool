@@ -458,9 +458,17 @@ class Bucket(object):
             'maxFileCount' : max_entries,
         }
         return post_json(url, params, auth_token)
-    def list_file_versions(self, start_filename=None, max_entries=None):  # TODO
-        return [FileVersionInfo()]
-
+    def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None):
+        """ legacy interface which just returns whatever remote API returns """
+        auth_token = self.api.account_info.get_account_auth_token()
+        url = url_for_api(self.api.account_info, 'b2_list_file_versions')
+        params = {
+            'bucketId' : self.id_,
+            'startFileName' : start_filename,
+            'startFileId' : start_file_id,
+            'maxFileCount' : max_entries,
+        }
+        return post_json(url, params, auth_token)
     def upload_file(self, local_file, remote_filename, content_type=None,
                     file_infos=None, sha1_sum=None, extra_headers=None,
                     quiet=False):
@@ -1200,43 +1208,6 @@ def authorize_account(args):
         )
 
 
-def list_file_versions(args):
-
-    if len(args) < 1 or 4 < len(args):
-        usage_and_exit()
-
-    bucket_name = args[0]
-    if 2 <= len(args):
-        firstFileName = args[1]
-    else:
-        firstFileName = None
-    if 3 <= len(args):
-        firstFileId = args[2]
-    else:
-        firstFileId = None
-    if 4 <= len(args):
-        count = int(args[3])
-    else:
-        count = 100
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.api
-    bucket = api.get_bucket_by_name(bucket_name)
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_list_file_versions')
-    params = {
-        'bucketId' : bucket.id_,
-        'startFileName' : firstFileName,
-        'startFileId' : firstFileId,
-        'maxFileCount' : count
-    }
-    response = post_json(url, params, auth_token)
-
-    print json.dumps(response, indent=2, sort_keys=True)
-
-
 def get_file_info(args):
     if len(args) != 1:
         usage_and_exit()
@@ -1507,6 +1478,29 @@ class ConsoleTool(object):
         response = bucket.list_file_names(first_file_name, count)
         print json.dumps(response, indent=2, sort_keys=True)
 
+    def list_file_versions(self, args):
+        if len(args) < 1 or 4 < len(args):
+            usage_and_exit()
+
+        bucket_name = args[0]
+        if 2 <= len(args):
+            first_file_name = args[1]
+        else:
+            first_file_name = None
+        if 3 <= len(args):
+            first_file_id = args[2]
+        else:
+            first_file_id = None
+        if 4 <= len(args):
+            count = int(args[3])
+        else:
+            count = 100
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+
+        response = bucket.list_file_versions(first_file_name, first_file_id, count)
+        print json.dumps(response, indent=2, sort_keys=True)
+
     def ls(self, args):
         long_format = False
         show_versions = False
@@ -1708,7 +1702,7 @@ def main():
         elif action == 'list_file_names':
             ct.list_file_names(args)
         elif action == 'list_file_versions':
-            list_file_versions(args)
+            ct.list_file_versions(args)
         elif action == 'ls':
             ct.ls(args)
         elif action == 'make_url':
