@@ -847,8 +847,13 @@ class B2Api(object):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
     def get_file_info(self, file_id):
-        return FileVersionInfo()
-        raise B2Error()
+        """ legacy interface which just returns whatever remote API returns """
+        auth_token = self.account_info.get_account_auth_token()
+
+        url = url_for_api(self.account_info, 'b2_get_file_info')
+        params = {'fileId': file_id}
+        response = post_json(url, params, auth_token)
+        return response
 
 
 ## v0.3.x functions
@@ -1221,22 +1226,6 @@ def authorize_account(args):
         response['downloadUrl']
         )
 
-
-def get_file_info(args):
-    if len(args) != 1:
-        usage_and_exit()
-    file_id = args[0]
-    bucket_id = file_id[3:27]
-
-    info = StoredAccountInfo()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_get_file_info')
-    params = { 'fileId' : file_id }
-    response = post_json(url, params, auth_token)
-
-    print json.dumps(response, indent=2, sort_keys=True)
-
 def hex_sha1_of_file(path):
     with open(path, 'rb') as f:
         block_size = 1024 * 1024
@@ -1384,6 +1373,15 @@ class ConsoleTool(object):
         file_info = self.api.delete_file_version(file_id, file_name)
 
         response = file_info.as_dict()
+
+        print json.dumps(response, indent=2, sort_keys=True)
+
+    def get_file_info(self, args):
+        if len(args) != 1:
+            usage_and_exit()
+        file_id = args[0]
+
+        response = self.api.get_file_info(file_id)
 
         print json.dumps(response, indent=2, sort_keys=True)
 
@@ -1670,7 +1668,7 @@ def main():
         elif action == 'download_file_by_name':
             download_file_by_name(args)
         elif action == 'get_file_info':
-            get_file_info(args)
+            ct.get_file_info(args)
         elif action == 'hide_file':
             ct.hide_file(args)
         elif action == 'list_buckets':
