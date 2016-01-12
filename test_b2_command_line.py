@@ -273,7 +273,8 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/1'])
     b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/2'])
-    b2_tool.should_succeed(['upload_file', '--sha1', hex_sha1, '--info', 'foo=bar', '--info', 'color=blue', bucket_name, path_to_script, 'c'])
+    b2_tool.should_succeed(['upload_file', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info', 'color=blue', bucket_name, path_to_script, 'c'])
+    b2_tool.should_fail(['upload_file', '--sha1', hex_sha1, '--info', 'foo-bar', '--info', 'color=blue', bucket_name, path_to_script, 'c'], r'ERROR: Bad file info: foo-bar')
     b2_tool.should_succeed(['upload_file', '--contentType', 'text/plain', bucket_name, path_to_script, 'd'])
 
     b2_tool.should_succeed(['download_file_by_name', bucket_name, 'b/1', '/dev/null'])
@@ -307,7 +308,7 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['ls', bucket_name, 'b/'], r'^b/1\nb/2\n')
 
     file_info = b2_tool.should_succeed_json(['get_file_info', second_c_version['fileId']])
-    should_equal({'color': 'blue', 'foo': 'bar'}, file_info['fileInfo'])
+    should_equal({'color': 'blue', 'foo': 'bar=baz'}, file_info['fileInfo'])
 
     b2_tool.should_succeed(['delete_file_version', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\nd\n')
