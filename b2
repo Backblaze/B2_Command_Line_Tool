@@ -181,6 +181,13 @@ class BadJson(B2Error):
         return 'Generic api error ("bad_json"): %s' % (self.message,)
 
 
+class BadFileInfo(B2Error):
+    def __init__(self, data):
+        self.data = data
+    def __str__(self):
+        return 'Bad file info: %s' % (self.data,)
+
+
 class ChecksumMismatch(B2Error):
     def __init__(self, checksum_type, expected, actual):
         self.checksum_type = checksum_type
@@ -1242,14 +1249,6 @@ def hex_sha1_of_file(path):
         return digest.hexdigest()
 
 
-def parse_file_info(item, file_infos):
-    parts = item.split('=')
-    if len(parts) != 2:
-        print >>sys.stdout, 'ERROR: bad file info:', item
-        sys.exit(1)
-    file_infos[parts[0]] = parts[1]
-
-
 def download_file_from_url(url, request_body, encoded_headers, local_file_name,
                            print_progress=False, set_last_modified=False):
     with OpenUrl(url, request_body, encoded_headers) as response:
@@ -1422,7 +1421,10 @@ class ConsoleTool(object):
             elif option == '--info':
                 if len(args) < 2:
                     usage_and_exit()
-                parse_file_info(args[1], file_infos)
+                parts = args[1].split('=', 1)
+                if len(parts) == 1:
+                    raise BadFileInfo(args[1])
+                file_infos[parts[0]] = parts[1]
                 args = args[2:]
             elif option == '--quiet':
                 quiet = True
