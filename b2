@@ -394,7 +394,7 @@ class Bucket(object):
         }
         response = post_json(url, params, auth_token)
         return response
-    def ls(self, prefix=None, show_versions=False, max_entries=None, recursive=False):
+    def ls(self, prefix='', show_versions=False, max_entries=None, recursive=False):
         auth_token = self.api.account_info.get_account_auth_token()
 
         # Loop until all files in the named directory have been listed.
@@ -1578,7 +1578,7 @@ class ConsoleTool(object):
         # Find all matching files in B2
         info = StoredAccountInfo()
         remote_files = {}
-        for file_info, __ in bucket.ls(prefix=bucket_prefix or None, max_entries=1000, recursive=True):
+        for file_info, __ in bucket.ls(prefix=bucket_prefix, max_entries=1000, recursive=True):
             name = file_info.file_name
             after_prefix = name[len(bucket_prefix):]
             remote_files[after_prefix] = {
