@@ -334,16 +334,29 @@ def find_file_id(list_of_files, file_name):
     for file in list_of_files:
         if file['fileName'] == file_name:
             return file['fileId']
-    raise Exception('file not found: ', file_name)
+    assert False, 'file not found: %s' % (file_name,)
 
 
 def sync_test(b2_tool, bucket_name):
+    _sync_test_using_dir(b2_tool, bucket_name, 'sync')
+
+
+def sync_test_no_prefix(b2_tool, bucket_name):
+    _sync_test_using_dir(b2_tool, bucket_name, '')
+
+
+def _sync_test_using_dir(b2_tool, bucket_name, dir_):
+    sync_point_parts = [bucket_name]
+    if dir_:
+        sync_point_parts.append(dir_)
+        prefix = dir_ + '/'
+    else:
+        prefix = ''
+    b2_sync_point = 'b2:' + '/'.join(sync_point_parts)
 
     with TempDir() as dir_path:
 
         p = lambda fname: os.path.join(dir_path, fname)
-
-        b2_sync_point = 'b2:%s/sync' % bucket_name
 
         b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
@@ -357,14 +370,14 @@ def sync_test(b2_tool, bucket_name):
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
-                '+ sync/a',
-                '+ sync/b',
-                '+ sync/c'
+                '+ ' + prefix + 'a',
+                '+ ' + prefix + 'b',
+                '+ ' + prefix + 'c',
             ],
             file_version_summary(file_versions)
         )
 
-        c_id = find_file_id(file_versions, 'sync/c')
+        c_id = find_file_id(file_versions, prefix + 'c')
         file_info = b2_tool.should_succeed_json(['get_file_info', c_id])['fileInfo']
         should_equal(
             file_mod_time_millis(p('a')),
@@ -378,11 +391,11 @@ def sync_test(b2_tool, bucket_name):
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
-                '+ sync/a',
-                '- sync/b',
-                '+ sync/b',
-                '+ sync/c',
-                '+ sync/c'
+                '+ ' + prefix + 'a',
+                '- ' + prefix + 'b',
+                '+ ' + prefix + 'b',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
             ],
             file_version_summary(file_versions)
         )
@@ -393,10 +406,10 @@ def sync_test(b2_tool, bucket_name):
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
-                '- sync/b',
-                '+ sync/b',
-                '+ sync/c',
-                '+ sync/c'
+                '- ' + prefix + 'b',
+                '+ ' + prefix + 'b',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
             ],
             file_version_summary(file_versions)
         )
@@ -410,19 +423,19 @@ def main():
     account_id = sys.argv[2]
     application_key = sys.argv[3]
 
-    all_tests = ['basic', 'sync']
-    if len(sys.argv) == 4:
-        tests_to_run = all_tests
-    else:
-        tests_to_run = sys.argv[4:]
-    for test_name in tests_to_run:
-        if test_name not in all_tests:
-            error_and_exit('unknown test: ' + test_name)
-
     test_map = {
         'basic': basic_test,
-        'sync': sync_test
+        'sync': sync_test,
+        'sync_no_prefix': sync_test_no_prefix,
     }
+
+    if len(sys.argv) >= 5:
+        tests_to_run = sys.argv[4:]
+    else:
+        tests_to_run = test_map.keys()
+    for test_name in tests_to_run:
+        if test_name not in test_map:
+            error_and_exit('unknown test: ' + test_name)
 
     b2_tool = CommandLine(path_to_script)
 
