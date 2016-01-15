@@ -25,6 +25,7 @@ import getpass
 import hashlib
 import json
 import os.path
+import stat
 import sys
 import time
 import traceback
@@ -930,7 +931,7 @@ class StoredAccountInfo(AbstractAccountInfo):
         try:
             with open(self.filename, 'rb') as f:
                 return json.loads(f.read())
-        except Exception as e:
+        except Exception:
             return {}
 
     def get_account_id(self):
@@ -1005,7 +1006,7 @@ class StoredAccountInfo(AbstractAccountInfo):
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
         if os.name == 'nt':
             flags |= os.O_BINARY
-        with os.fdopen(os.open(self.filename, flags, 0600), 'wb') as f:
+        with os.fdopen(os.open(self.filename, flags, stat.S_IRUSR | stat.S_IWUSR), 'wb') as f:
             json.dump(self.data, f, indent=4, sort_keys=True)
 
 
