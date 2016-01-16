@@ -1145,12 +1145,14 @@ class SimpleProgress(object):
         now = time.time()
         elapsed = now - self.last_time
         if 3 <= elapsed and self.total != 0:
+            if not self.any_printed:
+                print self.desc
             print '     %d%%' % int(100.0 * self.complete / self.total)
             self.last_time = now
             self.any_printed = True
 
     def __enter__(self):
-        print self.desc
+        pass
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.any_printed:
