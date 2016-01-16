@@ -763,10 +763,75 @@ class AuthInfoCache(AbstractCache):
         self.info.refresh_entire_bucket_name_cache(self._name_id_iterator(buckets))
 
 
+## B2RawApi
+
+
+class B2RawApi(object):
+
+    """
+    Provides access to the B2 web APIs, exactly as they are provided by B2.
+
+    Requires that you provide all necessary URLs and auth tokens for each call.
+
+    Each API call decodes the returned JSON and returns a dict.
+
+    For details on what each method does, see the B2 docs:
+        https://www.backblaze.com/b2/docs/
+
+    This class is intended to be a super-simple, very thin layer on top
+    of the HTTP calls.  It can be mocked-out for testing higher layers.
+    And this class can be tested by exercising each call just once,
+    which is relatively quick.
+    """
+
+    def authorize_account(self, realm_url, account_id, application_key):
+        auth = 'Basic '+ base64.b64encode('%s:%s' % (account_id, application_key))
+        url = self._build_url(realm_url, 'b2_authorize_account')
+        return post_json(url, {}, auth)
+
+    def create_bucket(self, api_url, account_id, account_auth_token, bucket_name, bucket_type):
+        url = self._build_url(api_url, 'b2_create_bucket')
+        params = {
+            'accountId' : account_id,
+            'bucketName' : bucket_name,
+            'bucketType' : bucket_type,
+            }
+        return post_json(url, params, account_auth_token)
+
+    # TODO: move the rest of the calls from B2Api
+
+    def _build_url(self, url_base, api_name):
+        return url_base + '/b2api/v1/' + api_name
+
 ## B2Api
 
 class B2Api(object):
+
+    """
+    Provides high-level access to the B2 API.
+
+    Adds an object-oriented layer on top of the raw API, so that
+    buckets and files returned are Python objects with accessor
+    methods.
+
+    Also,  keeps a cache of information needed to access the service,
+    such as auth tokens and upload URLs.
+    """
+
+    # TODO: move HTTP code out to B2RawApi
+    # TODO: ConsoleTool passes the account info cache into the constructor
+    # TODO: provide method to get the account info cache (so ConsoleTool can save it)
+
     def __init__(self, account_info=None, cache=None):
+        """
+        Initializes the API using the given account info.
+        :param account_info:
+        :param cache:
+        :return:
+        """
+        # TODO: merge account_info and cache into a single object
+        
+        self.raw_api = B2RawApi()
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:
@@ -777,17 +842,12 @@ class B2Api(object):
         self.cache = cache
 
     # buckets
+
     def create_bucket(self, name, type_):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        url = url_for_api(self.account_info, 'b2_create_bucket')
-        params = {
-            'accountId' : account_id,
-            'bucketName' : name,
-            'bucketType' : type_,
-            }
-        response = post_json(url, params, auth_token)
+        response = self.raw_api.create_bucket(self.account_info.get_api_url(), account_id, auth_token, name, type_)
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
@@ -795,6 +855,7 @@ class B2Api(object):
                                      than requested: %s != %s' % (type_, bucket.type_)
         self.cache.save_bucket(bucket)
         return bucket
+
     def get_bucket_by_id(self, bucket_id):
         return Bucket(self, bucket_id)
     def get_bucket_by_name(self, bucket_name):
@@ -932,10 +993,10 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         pass
-    def authorize(self, realm, account_id, application_key):
-        auth = 'Basic '+ base64.b64encode('%s:%s' % (account_id, application_key))
-        url = '%s/b2api/v1/b2_authorize_account' % (self.REALM_URLS[realm],)
-        response = post_json(url, {}, auth)
+
+    def authorize(self, url, account_id, application_key):
+        # TODO: move this call out to the B2Api class?
+        response = B2RawApi().authorize_account(url, account_id, application_key)
 
         self.clear()
         self.set_account_id_and_auth_token(
@@ -1329,6 +1390,17 @@ def download_file_by_name(args):
 
 
 class ConsoleTool(object):
+
+    """
+    Implements the commands available in the B2 command-line tool
+    using the B2Api library.
+
+    Responsible for storing cached account data in ~/.b2_account_info,
+    and creating the AccountInfo object that is passed into the B2Api.
+    """
+
+    # TODO: move all creation of StoredAccountInfo into this class.
+
     def __init__(self):
         info = StoredAccountInfo()
         self.api = B2Api(info, AuthInfoCache(info))
@@ -1488,7 +1560,7 @@ class ConsoleTool(object):
         else:
             application_key = getpass.getpass('Backblaze application key: ')
 
-        self.api.account_info.authorize(option, account_id, application_key)
+        self.api.account_info.authorize(url, account_id, application_key)
 
     def clear_account(self, args):
         if len(args) != 0:
