@@ -885,12 +885,36 @@ def decode_sys_argv():
 
 class AbstractAccountInfo(object):
     __metaclass__ = ABCMeta
+    REALM_URLS = {
+        'production': 'https://api.backblaze.com',
+        'dev': 'http://api.test.blaze:8180',
+        'staging': 'https://api.backblaze.net',
+    }
+    @abstractmethod
+    def clear(self):
+        """ Removes all stored information """
+        pass
     @abstractmethod
     def get_api_url(self):
         pass
     @abstractmethod
     def get_download_url(self):
         pass
+    @abstractmethod
+    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+        pass
+    def authorize(self, realm, account_id, application_key):
+        auth = 'Basic '+ base64.b64encode('%s:%s' % (account_id, application_key))
+        url = '%s/b2api/v1/b2_authorize_account' % (self.REALM_URLS[realm],)
+        response = post_json(url, {}, auth)
+
+        self.clear()
+        self.set_account_id_and_auth_token(
+            response['accountId'],
+            response['authorizationToken'],
+            response['apiUrl'],
+            response['downloadUrl'],
+        )
 
 
 class StoredAccountInfo(AbstractAccountInfo):
@@ -920,19 +944,16 @@ class StoredAccountInfo(AbstractAccountInfo):
         if self.BUCKET_NAMES_TO_IDS not in self.data:
             self.data[self.BUCKET_NAMES_TO_IDS] = {}
 
-    def clear(self):
-        """Removes all stored information.
-        """
-        self.data = {}
-        self._write_file()
-
-
     def _try_to_read_file(self):
         try:
             with open(self.filename, 'rb') as f:
                 return json.loads(f.read())
         except Exception:
             return {}
+
+    def clear(self):
+        self.data = {}
+        self._write_file()
 
     def get_account_id(self):
         return self._get_account_info_or_exit(self.ACCOUNT_ID)
@@ -1183,50 +1204,6 @@ def b2_url_decode(s):
     return urllib.unquote_plus(str(s)).decode('utf-8')
 
 
-def authorize_account(args):
-
-    auth_urls = {'--production':'https://api.backblaze.com','--dev':'http://api.test.blaze:8180','--staging':'https://api.backblaze.net'}
-
-    option = '--production'
-    url = auth_urls[option]
-    while 0 < len(args) and args[0][0] == '-':
-        option = args[0]
-        args = args[1:]
-        if option in auth_urls:
-            url = auth_urls[option]
-            break
-        else:
-            print 'ERROR: unknown option', option
-            usage_and_exit()
-
-    print 'Using %s' % url
-
-    if 2 < len(args):
-        usage_and_exit()
-    if 0 < len(args):
-        accountId = args[0]
-    else:
-        accountId = raw_input('Backblaze account ID: ')
-
-    if 1 < len(args):
-        applicationKey = args[1]
-    else:
-        applicationKey = getpass.getpass('Backblaze application key: ')
-
-    url += '/b2api/v1/b2_authorize_account'
-
-    auth = 'Basic '+ base64.b64encode('%s:%s' % (accountId, applicationKey))
-    response = post_json(url, {}, auth)
-
-    info = StoredAccountInfo()
-    info.clear()
-    info.set_account_id_and_auth_token(
-        response['accountId'],
-        response['authorizationToken'],
-        response['apiUrl'],
-        response['downloadUrl']
-        )
-
 def hex_sha1_of_file(path):
     with open(path, 'rb') as f:
         block_size = 1024 * 1024
@@ -1452,20 +1429,42 @@ class ConsoleTool(object):
             print "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
         print json.dumps(response, indent=2, sort_keys=True)
 
-    # other
+    # account
 
-    def make_url(self, args):
-        if len(args) != 1:
+    def authorize_account(self, args):
+        option = 'production'
+        while 0 < len(args) and args[0][0] == '-':
+            option = args[0][2:]
+            args = args[1:]
+            if option in self.api.account_info.REALM_URLS:
+                break
+            else:
+                print 'ERROR: unknown option', option
+                usage_and_exit()
+
+        url = self.api.account_info.REALM_URLS[option]
+        print 'Using %s' % url
+
+        if 2 < len(args):
             usage_and_exit()
+        if 0 < len(args):
+            account_id = args[0]
+        else:
+            account_id = raw_input('Backblaze account ID: ')
 
-        file_id = args[0]
+        if 1 < len(args):
+            application_key = args[1]
+        else:
+            application_key = getpass.getpass('Backblaze application key: ')
 
-        print self.api.get_download_url_for_fileid(file_id)
+        self.api.account_info.authorize(option, account_id, application_key)
 
     def clear_account(self, args):
         if len(args) != 0:
             usage_and_exit()
         self.api.account_info.clear()
+
+    # listing
 
     def list_file_names(self, args):
         if len(args) < 1 or 3 < len(args):
@@ -1540,6 +1539,16 @@ class ConsoleTool(object):
                 print FileVersionInfo.format_folder_ls_entry(folder_name)
             else:
                 print file_version_info.format_ls_entry()
+
+    # other
+
+    def make_url(self, args):
+        if len(args) != 1:
+            usage_and_exit()
+
+        file_id = args[0]
+
+        print self.api.get_download_url_for_fileid(file_id)
 
     @property
     def info(self):  # TODO: this is only temporary, remove it
@@ -1655,7 +1664,7 @@ def main():
     ct = ConsoleTool()
     try:
         if action == 'authorize_account':
-            authorize_account(args)
+            ct.authorize_account(args)
         elif action == 'clear_account':
             ct.clear_account(args)
         elif action == 'create_bucket':
