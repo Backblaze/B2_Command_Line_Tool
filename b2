@@ -395,8 +395,34 @@ class Bucket(object):
         }
         response = post_json(url, params, auth_token)
         return response
-    def ls(self, prefix='', show_versions=False, max_entries=None, recursive=False):
+
+    def ls(self, folder_to_list='', show_versions=False, max_entries=None, recursive=False):
+        """Pretends that folders exist, and yields the information about the files in a folder.
+
+        B2 has a flat namespace for the files in a bucket, but there is a convention
+        of using "/" as if there were folders.  This method searches through the
+        flat namespace to find the files and "folders" that live within a given
+        folder.
+
+        When the `recursive` flag is set, lists all of the files in the given
+        folder, and all of its sub-folders.
+
+        :param folder: The name of the folder to list.  Must not start with "/".
+                       Empty string means top-level folder.
+        :param show_versions: When true returns info about all versions of a file,
+                              when false, just returns info about the most recent
+                              versions.
+        :param max_entries: How many entries to return.  1 - 1000
+        :param recursive:
+        :return:
+        """
         auth_token = self.api.account_info.get_account_auth_token()
+
+        # Every file returned must have a name that starts with the
+        # folder name and a "/".
+        prefix = folder_to_list
+        if prefix != '' and not prefix.endswith('/'):
+            prefix += '/'
 
         # Loop until all files in the named directory have been listed.
         # The starting point of the first list_file_names request is the
@@ -414,10 +440,10 @@ class Bucket(object):
         url = url_for_api(self.api.account_info, api_name)
         start_file_name = prefix
         start_file_id = None
-        while 1:
+        while True:
             params = {
                 'bucketId': self.id_,
-                'startFileName': start_file_name,
+                'startFileName': start_file_name
             }
             if start_file_id is not None:
                 params['startFileId'] = start_file_id
@@ -453,6 +479,8 @@ class Bucket(object):
             # but if we're in the middle of a "folder", we can skip ahead
             # to the end of the folder.  The character after '/' is '0',
             # so we'll replace the '/' with a '0' and start there.
+            #
+            # When recursive is True, current_dir is always None.
             if current_dir is None:
                 start_file_name = response.get('nextFileName')
                 start_file_id = response.get('nextFileId')
@@ -461,6 +489,7 @@ class Bucket(object):
                     response['nextFileName'],
                     prefix + current_dir[:-1] + '0',
                 )
+
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.api.account_info.get_account_auth_token()
@@ -1588,7 +1617,7 @@ class ConsoleTool(object):
         # Find all matching files in B2
         info = StoredAccountInfo()
         remote_files = {}
-        for file_info, __ in bucket.ls(prefix=bucket_prefix, max_entries=1000, recursive=True):
+        for file_info, __ in bucket.ls(folder_to_list=bucket_prefix, max_entries=1000, recursive=True):
             name = file_info.file_name
             after_prefix = name[len(bucket_prefix):]
             remote_files[after_prefix] = {
