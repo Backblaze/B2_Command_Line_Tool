@@ -23,8 +23,10 @@ import base64
 import datetime
 import getpass
 import hashlib
+import httplib
 import json
 import os.path
+import socket
 import stat
 import sys
 import time
@@ -300,16 +302,14 @@ class UnrecognizedBucketType(B2Error):
         return 'Unrecognized bucket type: %s' % (self.type_,)
 
 
-class WrappedHttpError(B2Error):
+class AbstractWrappedError(B2Error):
+    __metaclass__ = ABCMeta
     def __init__(self, data, url, params, headers, exc_info):
         self.data = data
         self.url = url
         self.params = params
         self.headers = headers
         self.exc_info = exc_info
-    @property
-    def code(self):
-        return self.exc_info[1].code
     def format_exception(self):
         """
         example output:
@@ -354,6 +354,9 @@ class WrappedHttpError(B2Error):
                 )
             )
         )
+    @abstractmethod
+    def should_retry(self):
+        pass
     def __str__(self):
         return """Error returned from server:
 
@@ -362,6 +365,36 @@ Params: %s
 Headers: %s
 
 %s""" % (self.url, self.params, self.headers, self.data)
+
+
+class WrappedHttpError(AbstractWrappedError):
+    @property
+    def code(self):
+        return self.exc_info[1].code
+    def should_retry(self):
+        return 500 <= self.code < 600
+
+
+class WrappedHttplibError(AbstractWrappedError):
+    def should_retry(self):
+        return not isinstance(
+            self.exc_info[0],
+            httplib.InvalidURL
+        )  # raised if a port is given and is either non-numeric or empty
+
+
+class WrappedUrlError(AbstractWrappedError):
+    def should_retry(self):
+        """
+        common case is that self.data == (104, 'Connection reset by peer')
+        but there are others like timeout etc
+        """
+        return True
+
+
+class WrappedSocketError(AbstractWrappedError):
+    def should_retry(self):
+        return True
 
 
 ## Bucket
@@ -553,12 +586,11 @@ class Bucket(object):
                     progress_bar=not quiet,
                 )
                 return FileVersionInfoFactory.from_api_response(response)
-            except WrappedHttpError as e:
-                if 500 <= e.code < 600:
-                    exception_info_list.append(e)
-                    account_info.clear_bucket_upload_data(self.id_)
-                else:
+            except AbstractWrappedError as e:
+                if not e.should_retry():
                     raise
+                exception_info_list.append(e)
+                account_info.clear_bucket_upload_data(self.id_)
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
     def _get_upload_data(self):
@@ -1127,11 +1159,12 @@ class OpenUrl(object):
     the file-like object that is the response.
     """
 
-    def __init__(self, url, data, headers):
+    def __init__(self, url, data, headers, params=None):
         self.url = url
         self.data = data
         self.headers = headers
         self.file = None
+        self.params = None  # for debugging
 
     def __enter__(self):
         try:
@@ -1140,7 +1173,20 @@ class OpenUrl(object):
             return self.file
         except urllib2.HTTPError as e:
             data = e.read()
-            raise WrappedHttpError(data, self.url, None, self.headers, sys.exc_info())
+            raise WrappedHttpError(data, self.url, self.params, self.headers, sys.exc_info())
+        except urllib2.URLError as e:
+            raise WrappedUrlError(e.reason, self.url, self.params, self.headers, sys.exc_info())
+        except socket.error as e:  # includes socket.timeout
+            # reportedly socket errors are not wrapped in urllib2.URLError since Python 2.7
+            raise WrappedSocketError(
+                'errno=%s' % (e.errno,),
+                self.url,
+                self.params,
+                self.headers,
+                sys.exc_info(),
+            )
+        except httplib.HTTPException as e:  # includes httplib.BadStatusLine
+            raise WrappedHttplibError(str(e), self.url, self.params, self.headers, sys.exc_info())
 
     def __exit__(self, exception_type, exception, traceback):
         if self.file is not None:
@@ -1158,11 +1204,11 @@ def post_json(url, params, auth_token=None):
     if auth_token is not None:
         headers['Authorization'] = auth_token
     try:
-        with OpenUrl(url, data, headers) as f:
+        with OpenUrl(url, data, headers, params) as f:
             json_text = f.read()
             return json.loads(json_text)
     except WrappedHttpError as e:
-        # this  wrapper for api errors
+        # this wrapper for api errors
         # requires access to 'params'
         e_backup = sys.exc_info()
         try:
@@ -1170,7 +1216,6 @@ def post_json(url, params, auth_token=None):
         except ValueError:
             v = sys.exc_info()
             error_dict = {'error_decoding_json': v}
-            print [e_backup, v]
             raise FatalError(
                 'error decoding JSON when handling an exception',
                 [e_backup, v],
