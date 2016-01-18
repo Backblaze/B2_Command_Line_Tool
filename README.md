@@ -1,5 +1,9 @@
 # B2 Command Line Tool
 
+| CI type  | Status |
+| :------------ | :------------ |
+| Travis CI  | [![Build Status](https://travis-ci.org/Backblaze/B2_Command_Line_Tool.svg?branch=master)](https://travis-ci.org/Backblaze/B2_Command_Line_Tool)  |
+
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
 This program provides command-line access to the B2 service.
