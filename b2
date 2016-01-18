@@ -13,7 +13,6 @@
 # everybody.  Most users of this program are Mac users who use the
 # default Python installed in OSX, which is called "python" or
 # "python2.7", but not "python2".  So we don't use "python2".
-
 """
 This is a B2 command-line tool.  See the USAGE message for details.
 """
@@ -34,12 +33,10 @@ import traceback
 import urllib
 import urllib2
 
-
 try:
     from tqdm import tqdm  # displays a nice progress bar
 except ImportError:
     tqdm = None  # noqa
-
 
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
@@ -170,8 +167,8 @@ Usages:
         Echos the version number of this program.
 """
 
-
 ## Exceptions
+
 
 class B2Error(Exception):
     pass
@@ -180,6 +177,7 @@ class B2Error(Exception):
 class BadJson(B2Error):
     def __init__(self, message):
         self.message = message
+
     def __str__(self):
         return 'Generic api error ("bad_json"): %s' % (self.message,)
 
@@ -187,6 +185,7 @@ class BadJson(B2Error):
 class BadFileInfo(B2Error):
     def __init__(self, data):
         self.data = data
+
     def __str__(self):
         return 'Bad file info: %s' % (self.data,)
 
@@ -196,6 +195,7 @@ class ChecksumMismatch(B2Error):
         self.checksum_type = checksum_type
         self.expected = expected
         self.actual = actual
+
     def __str__(self):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
 
@@ -203,6 +203,7 @@ class ChecksumMismatch(B2Error):
 class DuplicateBucketName(B2Error):
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
+
     def __str__(self):
         return 'Bucket name is already in use: %s' % (self.bucket_name,)
 
@@ -210,6 +211,7 @@ class DuplicateBucketName(B2Error):
 class FileAlreadyHidden(B2Error):
     def __init__(self, file_name):
         self.file_name = file_name
+
     def __str__(self):
         return 'File already hidden: %s' % (self.file_name,)
 
@@ -218,13 +220,12 @@ class FatalError(B2Error):
     def __init__(self, message, exception_tuples):
         self.message = message
         self.exception_tuples = exception_tuples
+
     def __str__(self):
         return 'FATAL ERROR: %s\nstacktraces:\n%s' % (
             self.message,
             "\n\n".join(
-                "".join(
-                    traceback.format_exception(type_, value, tb)
-                )
+                "".join(traceback.format_exception(type_, value, tb))
                 for type_, value, tb in self.exception_tuples
             ),
         )
@@ -233,6 +234,7 @@ class FatalError(B2Error):
 class FileNotPresent(B2Error):
     def __init__(self, file_name):
         self.file_name = file_name
+
     def __str__(self):
         return 'File not present: %s' % (self.file_name,)
 
@@ -242,6 +244,7 @@ class MaxFileSizeExceeded(B2Error):
         self.file_description = file_description
         self.size = size
         self.max_allowed_size = max_allowed_size
+
     def __str__(self):
         return 'Allowed file size of exceeded for %s: %s > %s' % (
             self.file_description,
@@ -254,10 +257,10 @@ class MaxRetriesExceeded(B2Error):
     def __init__(self, limit, exception_info_list):
         self.limit = limit
         self.exception_info_list = exception_info_list
+
     def __str__(self):
         exceptions = '\n'.join(
-            wrapped_error.format_exception()
-            for wrapped_error in self.exception_info_list
+            wrapped_error.format_exception() for wrapped_error in self.exception_info_list
         )
         return 'FAILED to upload after %s tries. Encountered exceptions: %s' % (
             self.limit,
@@ -268,6 +271,7 @@ class MaxRetriesExceeded(B2Error):
 class MissingAccountData(B2Error):
     def __init__(self, key):
         self.key = key
+
     def __str__(self):
         return 'Missing account data: %s' % (self.key,)
 
@@ -275,6 +279,7 @@ class MissingAccountData(B2Error):
 class NonExistentBucket(B2Error):
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
+
     def __str__(self):
         return 'No such bucket: %s' % (self.bucket_name,)
 
@@ -288,28 +293,29 @@ class TruncatedOutput(B2Error):
     def __init__(self, bytes_read, file_size):
         self.bytes_read = bytes_read
         self.file_size = file_size
+
     def __str__(self):
-        return 'only %d of %d bytes read' % (
-            self.bytes_read,
-            self.file_size,
-        )
+        return 'only %d of %d bytes read' % (self.bytes_read, self.file_size,)
 
 
 class UnrecognizedBucketType(B2Error):
     def __init__(self, type_):
         self.type_ = type_
+
     def __str__(self):
         return 'Unrecognized bucket type: %s' % (self.type_,)
 
 
 class AbstractWrappedError(B2Error):
     __metaclass__ = ABCMeta
+
     def __init__(self, data, url, params, headers, exc_info):
         self.data = data
         self.url = url
         self.params = params
         self.headers = headers
         self.exc_info = exc_info
+
     def format_exception(self):
         """
         example output:
@@ -345,8 +351,7 @@ class AbstractWrappedError(B2Error):
         """
         exc_type, exc_value, exc_traceback = self.exc_info
         return '%s\n\n%s\n' % (
-            self,
-            "".join(
+            self, "".join(
                 traceback.format_exception(
                     exc_type,
                     exc_value,
@@ -354,9 +359,11 @@ class AbstractWrappedError(B2Error):
                 )
             )
         )
+
     @abstractmethod
     def should_retry(self):
         pass
+
     def __str__(self):
         return """Error returned from server:
 
@@ -371,6 +378,7 @@ class WrappedHttpError(AbstractWrappedError):
     @property
     def code(self):
         return self.exc_info[1].code
+
     def should_retry(self):
         return 500 <= self.code < 600
 
@@ -378,8 +386,7 @@ class WrappedHttpError(AbstractWrappedError):
 class WrappedHttplibError(AbstractWrappedError):
     def should_retry(self):
         return not isinstance(
-            self.exc_info[0],
-            httplib.InvalidURL
+            self.exc_info[0], httplib.InvalidURL
         )  # raised if a port is given and is either non-numeric or empty
 
 
@@ -396,8 +403,8 @@ class WrappedSocketError(AbstractWrappedError):
     def should_retry(self):
         return True
 
-
 ## Bucket
+
 
 class Bucket(object):
 
@@ -421,11 +428,7 @@ class Bucket(object):
         account_id = account_info.get_account_id()
 
         url = url_for_api(account_info, 'b2_update_bucket')
-        params = {
-            'accountId' : account_id,
-            'bucketId' : self.id_,
-            'bucketType' : type_,
-        }
+        params = {'accountId': account_id, 'bucketId': self.id_, 'bucketType': type_,}
         response = post_json(url, params, auth_token)
         return response
 
@@ -474,10 +477,7 @@ class Bucket(object):
         start_file_name = prefix
         start_file_id = None
         while True:
-            params = {
-                'bucketId': self.id_,
-                'startFileName': start_file_name
-            }
+            params = {'bucketId': self.id_, 'startFileName': start_file_name}
             if start_file_id is not None:
                 params['startFileId'] = start_file_id
             response = post_json(url, params, auth_token)
@@ -518,35 +518,41 @@ class Bucket(object):
                 start_file_name = response.get('nextFileName')
                 start_file_id = response.get('nextFileId')
             else:
-                start_file_name = max(
-                    response['nextFileName'],
-                    prefix + current_dir[:-1] + '0',
-                )
+                start_file_name = max(response['nextFileName'], prefix + current_dir[:-1] + '0',)
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.api.account_info.get_account_auth_token()
         url = url_for_api(self.api.account_info, 'b2_list_file_names')
         params = {
-            'bucketId' : self.id_,
-            'startFileName' : start_filename,
-            'maxFileCount' : max_entries,
+            'bucketId': self.id_,
+            'startFileName': start_filename,
+            'maxFileCount': max_entries,
         }
         return post_json(url, params, auth_token)
+
     def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.api.account_info.get_account_auth_token()
         url = url_for_api(self.api.account_info, 'b2_list_file_versions')
         params = {
-            'bucketId' : self.id_,
-            'startFileName' : start_filename,
-            'startFileId' : start_file_id,
-            'maxFileCount' : max_entries,
+            'bucketId': self.id_,
+            'startFileName': start_filename,
+            'startFileId': start_file_id,
+            'maxFileCount': max_entries,
         }
         return post_json(url, params, auth_token)
-    def upload_file(self, local_file, remote_filename, content_type=None,
-                    file_infos=None, sha1_sum=None, extra_headers=None,
-                    quiet=False):
+
+    def upload_file(
+        self,
+        local_file,
+        remote_filename,
+        content_type=None,
+        file_infos=None,
+        sha1_sum=None,
+        extra_headers=None,
+        quiet=False
+    ):
         if file_infos is None:
             file_infos = {}
         if content_type is None:
@@ -556,8 +562,8 @@ class Bucket(object):
         # Double check that the file is not too big.
         size = os.path.getsize(local_file)
         if size > self.MAX_UPLOADED_FILE_SIZE:  # TODO: rather than hardcoding the allowed
-                                                # file size in the client library, we
-                                                # should let the remote API handle it
+            # file size in the client library, we
+            # should let the remote API handle it
             raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
 
         # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
@@ -574,17 +580,12 @@ class Bucket(object):
                 'X-Bz-File-Name': b2_url_encode(remote_filename),
                 'Content-Type': content_type,
                 'X-Bz-Content-Sha1': sha1_sum
-                }
+            }
             for (k, v) in file_infos.iteritems():
                 headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
             try:
-                response = post_file(
-                    upload_url,
-                    headers,
-                    local_file,
-                    progress_bar=not quiet,
-                )
+                response = post_file(upload_url, headers, local_file, progress_bar=not quiet,)
                 return FileVersionInfoFactory.from_api_response(response)
             except AbstractWrappedError as e:
                 if not e.should_retry():
@@ -593,6 +594,7 @@ class Bucket(object):
                 account_info.clear_bucket_upload_data(self.id_)
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
+
     def _get_upload_data(self):
         """
         Makes sure that we have an upload URL and auth token for the given bucket and
@@ -605,7 +607,7 @@ class Bucket(object):
 
         auth_token = account_info.get_account_auth_token()
         url = url_for_api(account_info, 'b2_get_upload_url')
-        params = { 'bucketId' : self.id_ }
+        params = {'bucketId': self.id_}
         response = post_json(url, params, auth_token)
 
         account_info.set_bucket_upload_data(
@@ -614,33 +616,31 @@ class Bucket(object):
             response['authorizationToken'],
         )
         return account_info.get_bucket_upload_data(self.id_)
+
     def get_download_url(self, filename):
         return "%s/file/%s/%s" % (
             self.api.account_info.get_download_url(),
             b2_url_encode(self.name),
             b2_url_encode(filename),
         )
+
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
 
         url = url_for_api(account_info, 'b2_hide_file')
-        params = {
-            'bucketId' : self.id_,
-            'fileName' : file_name,
-        }
+        params = {'bucketId': self.id_, 'fileName': file_name,}
         response = post_json(url, params, auth_token)
         return FileVersionInfoFactory.from_api_response(response)
+
     def as_dict(self):  # TODO: refactor with other as_dict()
-        result = {
-            'accountId': self.api.account_info.get_account_id(),
-            'bucketId': self.id_,
-        }
+        result = {'accountId': self.api.account_info.get_account_id(), 'bucketId': self.id_,}
         if self.name is not None:
             result['bucketName'] = self.name
         if self.type_ is not None:
             result['bucketType'] = self.type_
         return result
+
     def __repr__(self):
         return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
 
@@ -648,10 +648,8 @@ class Bucket(object):
 class BucketFactory(object):
     @classmethod
     def from_api_response(cls, api, response):
-        return [
-            cls.from_api_bucket_dict(api, bucket_dict)
-            for bucket_dict in response['buckets']
-        ]
+        return [cls.from_api_bucket_dict(api, bucket_dict) for bucket_dict in response['buckets']]
+
     @classmethod
     def from_api_bucket_dict(cls, api, bucket_dict):
         """
@@ -671,22 +669,21 @@ class BucketFactory(object):
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
         return Bucket(api, bucket_id, bucket_name, type_)
 
-
 ## DAO
+
 
 class FileVersionInfo(object):
     LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'  # order is file_id, action, date, time, size, name
+
     def __init__(self, id_, file_name, size, upload_timestamp, action):
         self.id_ = id_
         self.file_name = file_name
         self.size = size  # can be None (unknown)
         self.upload_timestamp = upload_timestamp  # can be None (unknown)
         self.action = action  # "upload" or "hide" or "delete"
+
     def as_dict(self):
-        result = {
-            'fileId': self.id_,
-            'fileName': self.file_name,
-        }
+        result = {'fileId': self.id_, 'fileName': self.file_name,}
 
         if self.size is not None:
             result['size'] = self.size
@@ -695,14 +692,21 @@ class FileVersionInfo(object):
         if self.action is not None:
             result['action'] = self.action
         return result
+
     def format_ls_entry(self):
         dt = datetime.datetime.utcfromtimestamp(self.upload_timestamp / 1000)
         date_str = dt.strftime('%Y-%m-%d')
         time_str = dt.strftime('%H:%M:%S')
         size = self.size or 0  # required if self.action == 'hide'
         return self.LS_ENTRY_TEMPLATE % (
-            self.id_, self.action, date_str, time_str, size, self.file_name,
+            self.id_,
+            self.action,
+            date_str,
+            time_str,
+            size,
+            self.file_name,
         )
+
     @classmethod
     def format_folder_ls_entry(cls, name):
         return cls.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
@@ -743,63 +747,76 @@ class FileVersionInfoFactory(object):
 
         return FileVersionInfo(id_, file_name, size, upload_timestamp, action)
 
-
 ## Cache
+
 
 class AbstractCache(object):
     __metaclass__ = ABCMeta
+
     @abstractmethod
     def get_bucket_id_or_none_from_bucket_name(self, name):
         pass
+
     @abstractmethod
     def save_bucket(self, bucket):
         pass
+
     @abstractmethod
     def set_bucket_name_cache(self, buckets):
         pass
+
     def _name_id_iterator(self, buckets):
         return ((bucket.name, bucket.id_) for bucket in buckets)
 
 
 class DummyCache(AbstractCache):
     """ Cache that does nothing """
+
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return None
+
     def save_bucket(self, bucket):
         pass
+
     def set_bucket_name_cache(self, buckets):
         pass
 
 
 class InMemoryCache(AbstractCache):
     """ Cache that stores the information in memory """
+
     def __init__(self):
         self.name_id_map = {}
+
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.name_id_map.get(name)
+
     def save_bucket(self, bucket):
         self.name_id_map[bucket.name] = bucket.id_
+
     def set_bucket_name_cache(self, buckets):
         self.name_id_map = dict(self._name_id_iterator(buckets))
 
 
 class AuthInfoCache(AbstractCache):
     """ Cache that stores data persistently in StoredAccountInfo """
+
     def __init__(self, info):
         self.info = info
+
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.info.get_bucket_id_or_none_from_bucket_name(name)
+
     def save_bucket(self, bucket):
         self.info.save_bucket(bucket)
+
     def set_bucket_name_cache(self, buckets):
         self.info.refresh_entire_bucket_name_cache(self._name_id_iterator(buckets))
-
 
 ## B2RawApi
 
 
 class B2RawApi(object):
-
     """
     Provides access to the B2 web APIs, exactly as they are provided by B2.
 
@@ -817,17 +834,13 @@ class B2RawApi(object):
     """
 
     def authorize_account(self, realm_url, account_id, application_key):
-        auth = 'Basic '+ base64.b64encode('%s:%s' % (account_id, application_key))
+        auth = 'Basic ' + base64.b64encode('%s:%s' % (account_id, application_key))
         url = self._build_url(realm_url, 'b2_authorize_account')
         return post_json(url, {}, auth)
 
     def create_bucket(self, api_url, account_id, account_auth_token, bucket_name, bucket_type):
         url = self._build_url(api_url, 'b2_create_bucket')
-        params = {
-            'accountId' : account_id,
-            'bucketName' : bucket_name,
-            'bucketType' : bucket_type,
-            }
+        params = {'accountId': account_id, 'bucketName': bucket_name, 'bucketType': bucket_type,}
         return post_json(url, params, account_auth_token)
 
     # TODO: move the rest of the calls from B2Api
@@ -837,8 +850,8 @@ class B2RawApi(object):
 
 ## B2Api
 
-class B2Api(object):
 
+class B2Api(object):
     """
     Provides high-level access to the B2 API.
 
@@ -862,7 +875,7 @@ class B2Api(object):
         :return:
         """
         # TODO: merge account_info and cache into a single object
-        
+
         self.raw_api = B2RawApi()
         if account_info is None:
             account_info = StoredAccountInfo()
@@ -879,7 +892,9 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        response = self.raw_api.create_bucket(self.account_info.get_api_url(), account_id, auth_token, name, type_)
+        response = self.raw_api.create_bucket(
+            self.account_info.get_api_url(), account_id, auth_token, name, type_
+        )
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
@@ -890,6 +905,7 @@ class B2Api(object):
 
     def get_bucket_by_id(self, bucket_id):
         return Bucket(self, bucket_id)
+
     def get_bucket_by_name(self, bucket_name):
         """
         Returns the bucket_id for the given bucket_name.
@@ -917,10 +933,7 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
         url = url_for_api(self.account_info, 'b2_delete_bucket')
-        params = {
-            'accountId' : account_id,
-            'bucketId' : bucket.id_,
-            }
+        params = {'accountId': account_id, 'bucketId': bucket.id_,}
         return post_json(url, params, auth_token)
 
     def list_buckets(self):
@@ -941,21 +954,15 @@ class B2Api(object):
 
     # delete
     def delete_file_version(self, file_id, file_name):  # filename argument is not first,
-                                                        # because one day it may become
-                                                        # optional
+        # because one day it may become
+        # optional
         auth_token = self.account_info.get_account_auth_token()
 
         url = url_for_api(self.account_info, 'b2_delete_file_version')
 
-        params = {
-            'fileName': file_name,
-            'fileId': file_id,
-        }
+        params = {'fileName': file_name, 'fileId': file_id,}
         response = post_json(url, params, auth_token)
-        file_info = FileVersionInfoFactory.from_api_response(
-            response,
-            force_action='delete',
-        )
+        file_info = FileVersionInfoFactory.from_api_response(response, force_action='delete',)
         assert file_info.id_ == file_id
         assert file_info.file_name == file_name
         assert file_info.action == 'delete'
@@ -964,11 +971,14 @@ class B2Api(object):
     # download
     def download_file_by_id(self, file_id, content_handler):
         pass
+
     def download_file_by_name(self, bucket_name, filename, content_handler):
         pass
+
     def get_download_url_for_fileid(self, file_id):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
+
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.account_info.get_account_auth_token()
@@ -978,13 +988,13 @@ class B2Api(object):
         response = post_json(url, params, auth_token)
         return response
 
-
 ## v0.3.x functions
+
 
 def message_and_exit(message):
     """Prints a message, and exits with error status.
     """
-    print >>sys.stderr, message
+    print >> sys.stderr, message
     sys.exit(1)
 
 
@@ -1012,16 +1022,20 @@ class AbstractAccountInfo(object):
         'dev': 'http://api.test.blaze:8180',
         'staging': 'https://api.backblaze.net',
     }
+
     @abstractmethod
     def clear(self):
         """ Removes all stored information """
         pass
+
     @abstractmethod
     def get_api_url(self):
         pass
+
     @abstractmethod
     def get_download_url(self):
         pass
+
     @abstractmethod
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         pass
@@ -1040,7 +1054,6 @@ class AbstractAccountInfo(object):
 
 
 class StoredAccountInfo(AbstractAccountInfo):
-
     """Manages the file that holds the account ID and stored auth tokens.
 
     When an instance of this class is created, it reads the account
@@ -1216,10 +1229,7 @@ def post_json(url, params, auth_token=None):
         except ValueError:
             v = sys.exc_info()
             error_dict = {'error_decoding_json': v}
-            raise FatalError(
-                'error decoding JSON when handling an exception',
-                [e_backup, v],
-            )
+            raise FatalError('error decoding JSON when handling an exception', [e_backup, v],)
         status = error_dict.get('status')
         code = error_dict.get('code')
         if status == 400 and code == "already_hidden":
@@ -1238,7 +1248,6 @@ def post_json(url, params, auth_token=None):
 
 
 class SimpleProgress(object):
-
     def __init__(self, **kwargs):
         self.desc = kwargs['desc']
         self.total = kwargs['total']
@@ -1268,14 +1277,7 @@ class SimpleProgress(object):
 class StreamWithProgress(tqdm or SimpleProgress):
     def __init__(self, stream, *args, **kwargs):
         self.stream = stream
-        kwargs.update(
-            {
-                'unit': 'B',
-                'unit_scale': True,
-                'leave': True,
-                'miniters': 1,
-            }
-        )
+        kwargs.update({'unit': 'B', 'unit_scale': True, 'leave': True, 'miniters': 1,})
         super(StreamWithProgress, self).__init__(*args, **kwargs)
 
     def __enter__(self):
@@ -1353,8 +1355,14 @@ def hex_sha1_of_file(path):
         return digest.hexdigest()
 
 
-def download_file_from_url(url, request_body, encoded_headers, local_file_name,
-                           print_progress=False, set_last_modified=False):
+def download_file_from_url(
+    url,
+    request_body,
+    encoded_headers,
+    local_file_name,
+    print_progress=False,
+    set_last_modified=False
+):
     with OpenUrl(url, request_body, encoded_headers) as response:
         info = response.info()
         file_size = int(info['content-length'])
@@ -1390,7 +1398,11 @@ def download_file_from_url(url, request_body, encoded_headers, local_file_name,
         if bytes_read != int(info['content-length']):
             raise TruncatedOutput(bytes_read, file_size)
         if digest.hexdigest() != file_sha1:
-            raise ChecksumMismatch(checksum_type='sha1', expected=file_sha1, actual=digest.hexdigest())
+            raise ChecksumMismatch(
+                checksum_type='sha1',
+                expected=file_sha1,
+                actual=digest.hexdigest()
+            )
         if print_progress:
             print 'checksum matches'
 
@@ -1406,8 +1418,8 @@ def download_file_by_id(args):
     auth_token = info.get_account_auth_token()
 
     url = url_for_api(info, 'b2_download_file_by_id')
-    headers = { 'Authorization' : auth_token }
-    params = { 'fileId' : file_id }
+    headers = {'Authorization': auth_token}
+    params = {'fileId': file_id}
 
     request_body = json.dumps(params)
 
@@ -1429,13 +1441,12 @@ def download_file_by_name(args):
     auth_token = info.get_account_auth_token()
 
     url = bucket.get_download_url(file_name)
-    headers = { 'Authorization' : auth_token }
+    headers = {'Authorization': auth_token}
 
     download_file_from_url(url, None, headers, local_file_name, print_progress=True)
 
 
 class ConsoleTool(object):
-
     """
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
@@ -1736,7 +1747,11 @@ class ConsoleTool(object):
         # Find all matching files in B2
         info = StoredAccountInfo()
         remote_files = {}
-        for file_info, __ in bucket.ls(folder_to_list=bucket_prefix, max_entries=1000, recursive=True):
+        for file_info, __ in bucket.ls(
+            folder_to_list=bucket_prefix,
+            max_entries=1000,
+            recursive=True
+        ):
             name = file_info.file_name
             after_prefix = name[len(bucket_prefix):]
             remote_files[after_prefix] = {
@@ -1751,10 +1766,7 @@ class ConsoleTool(object):
             for filename in filenames:
                 abspath = os.path.join(dirpath, filename)
                 relpath = os.path.relpath(abspath, local_path)
-                local_files[relpath] = {
-                    'fileName': relpath,
-                    'size': os.path.getsize(abspath)
-                }
+                local_files[relpath] = {'fileName': relpath, 'size': os.path.getsize(abspath)}
 
         # Process differences
         local_fileset = set(local_files.keys())
@@ -1771,8 +1783,8 @@ class ConsoleTool(object):
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
                 url = url_for_api(info, 'b2_download_file_by_id')
-                headers = { 'Authorization': info.get_account_auth_token() }
-                params = { 'fileId': remote_file['fileId'] }
+                headers = {'Authorization': info.get_account_auth_token()}
+                params = {'fileId': remote_file['fileId']}
                 download_file_from_url(url, json.dumps(params), headers, filepath)
             elif is_b2_src and not remote_file and options['delete']:
                 print "- %s" % filename
@@ -1855,6 +1867,7 @@ def main():
     except B2Error as e:
         print 'ERROR: %s' % (e,)
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()
