@@ -970,20 +970,17 @@ class B2Api(object):
         return file_info
 
     # download
-    def download_file_by_id(self, file_id, output_stream, authorization=True, headers_received_cb=None):
-        url = self.get_download_url_for_fileid(file_id)
-        return self._download_file_from_url(
-            url,
-            output_stream,
-            authorization=authorization,
-            headers_received_cb=headers_received_cb,
-        )
-
     def get_download_url_for_fileid(self, file_id):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
 
-    def _download_file_from_url(self, url, output_stream, authorization, headers_received_cb=None):
+    def download_file_from_url(
+        self,
+        url,
+        output_stream,
+        authorization=True,
+        headers_received_cb=None,
+    ):
         """
         Downloads a file from given url and saves into output_stream.
         if headers_received_cb is not None, it is assumed to be a funciton that accepts one argument
@@ -1398,6 +1395,7 @@ def hex_sha1_of_file(path):
             digest.update(data)
         return digest.hexdigest()
 
+
 def _download_file_progress_callback(output_stream, print_info, headers_dict):
     file_size = int(headers_dict['content-length'])
     if print_info:
@@ -1413,7 +1411,7 @@ def _download_file_progress_callback(output_stream, print_info, headers_dict):
 
 def download_file_by_id_helper(
     api,
-    file_id,
+    url,
     local_file_name,
     authorization=True,
     print_progress=False,
@@ -1429,8 +1427,8 @@ def download_file_by_id_helper(
             output_stream,
             print_info,
         )
-    info = api.download_file_by_id(
-        file_id,
+    info = api.download_file_from_url(
+        url,
         output_stream,
         authorization=authorization,
         headers_received_cb=headers_received_cb,
@@ -1442,26 +1440,6 @@ def download_file_by_id_helper(
             os.utime(local_file_name, (mtime, mtime))
     if print_progress:
         print 'checksum matches'
-
-
-def download_file_by_name(args):
-    if len(args) != 3:
-        usage_and_exit()
-
-    bucket_name = args[0]
-    file_name = args[1]
-    local_file_name = args[2]
-
-    console_tool = ConsoleTool()
-    info = console_tool.info
-    api = console_tool.api
-    bucket = api.get_bucket_by_name(bucket_name)
-    auth_token = info.get_account_auth_token()
-
-    url = bucket.get_download_url(file_name)
-    headers = {'Authorization': auth_token}
-
-    download_file_from_url(url, None, headers, local_file_name, print_progress=True)
 
 
 class ConsoleTool(object):
@@ -1537,9 +1515,30 @@ class ConsoleTool(object):
         file_id = args[0]
         local_file_name = args[1]
 
+        url = self.api.get_download_url_for_fileid(file_id)
+
         download_file_by_id_helper(
             self.api,
-            file_id,
+            url,
+            local_file_name,
+            authorization=True,
+            print_progress=True,
+            print_info=True,
+        )
+
+    def download_file_by_name(self, args):
+        if len(args) != 3:
+            usage_and_exit()
+        bucket_name = args[0]
+        file_name = args[1]
+        local_file_name = args[2]
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        url = bucket.get_download_url(file_name)
+
+        download_file_by_id_helper(
+            self.api,
+            url,
             local_file_name,
             authorization=True,
             print_progress=True,
@@ -1778,7 +1777,6 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         # Find all matching files in B2
-        info = StoredAccountInfo()
         remote_files = {}
         for file_info, __ in bucket.ls(
             folder_to_list=bucket_prefix,
@@ -1815,7 +1813,12 @@ class ConsoleTool(object):
                 print "+ %s" % filename
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
-                download_file_by_id_helper(self.api, remote_file['fileId'], filepath, authorization=True)
+                download_file_by_id_helper(
+                    self.api,
+                    remote_file['fileId'],
+                    filepath,
+                    authorization=True,
+                )
             elif is_b2_src and not remote_file and options['delete']:
                 print "- %s" % filename
                 os.remove(filepath)
@@ -1866,7 +1869,7 @@ def main():
         elif action == 'download_file_by_id':
             ct.download_file_by_id(args)
         elif action == 'download_file_by_name':
-            download_file_by_name(args)
+            ct.download_file_by_name(args)
         elif action == 'get_file_info':
             ct.get_file_info(args)
         elif action == 'hide_file':
