@@ -1741,10 +1741,6 @@ class ConsoleTool(object):
 
         print self.api.get_download_url_for_fileid(file_id)
 
-    @property
-    def info(self):  # TODO: this is only temporary, remove it
-        return self.api.account_info
-
     def sync(self, args):
         # TODO: break up this method.  it's too long
         # maybe move into its own class?
