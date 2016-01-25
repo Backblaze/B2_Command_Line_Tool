@@ -20,6 +20,7 @@ This is a B2 command-line tool.  See the USAGE message for details.
 from abc import ABCMeta, abstractmethod
 import base64
 import datetime
+import functools
 import getpass
 import hashlib
 import httplib
@@ -969,16 +970,59 @@ class B2Api(object):
         return file_info
 
     # download
-    def download_file_by_id(self, file_id, content_handler):
-        pass
-
-    def download_file_by_name(self, bucket_name, filename, content_handler):
-        pass
+    def download_file_by_id(self, file_id, output_stream, authorization=True, headers_received_cb=None):
+        url = self.get_download_url_for_fileid(file_id)
+        return self._download_file_from_url(
+            url,
+            output_stream,
+            authorization=authorization,
+            headers_received_cb=headers_received_cb,
+        )
 
     def get_download_url_for_fileid(self, file_id):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
 
+    def _download_file_from_url(self, url, output_stream, authorization, headers_received_cb=None):
+        """
+        Downloads a file from given url and saves into output_stream.
+        if headers_received_cb is not None, it is assumed to be a funciton that accepts one argument
+        (dictionary of response headers) and is called after receiving headers, but before receiving
+        the payload.
+        """
+        request_headers = {}
+        if authorization:
+            request_headers['Authorization'] = self.account_info.get_account_auth_token()
+        with OpenUrl(url, None, request_headers) as response:
+            info = response.info()
+            if headers_received_cb is not None:
+                headers_received_cb(info)  # may raise an exception to abort
+
+            file_size = int(info['content-length'])
+            file_sha1 = info['x-bz-content-sha1']
+            block_size = 4096
+            digest = hashlib.sha1()
+            bytes_read = 0
+
+            with output_stream as f:
+                while 1:
+                    data = response.read(block_size)
+                    if len(data) == 0:
+                        break
+                    f.write(data)
+                    digest.update(data)
+                    bytes_read += len(data)
+            if bytes_read != int(info['content-length']):
+                raise TruncatedOutput(bytes_read, file_size)
+            if digest.hexdigest() != file_sha1:
+                raise ChecksumMismatch(
+                    checksum_type='sha1',
+                    expected=file_sha1,
+                    actual=digest.hexdigest()
+                )
+        return info
+
+    # other
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.account_info.get_account_auth_token()
@@ -1250,7 +1294,7 @@ def post_json(url, params, auth_token=None):
 class SimpleProgress(object):
     def __init__(self, **kwargs):
         self.desc = kwargs['desc']
-        self.total = kwargs['total']
+        self.total = kwargs.get('total', 1)
         self.complete = 0
         self.last_time = time.time()
         self.any_printed = False
@@ -1285,11 +1329,11 @@ class StreamWithProgress(tqdm or SimpleProgress):
         self.stream.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback_):
         return any(
             (
-                super(StreamWithProgress, self).__exit__(exc_type, exc_value, traceback),
-                self.stream.__exit__(exc_type, exc_value, traceback),
+                super(StreamWithProgress, self).__exit__(exc_type, exc_value, traceback_),
+                self.stream.__exit__(exc_type, exc_value, traceback_),
             )
         )
 
@@ -1354,76 +1398,50 @@ def hex_sha1_of_file(path):
             digest.update(data)
         return digest.hexdigest()
 
+def _download_file_progress_callback(output_stream, print_info, headers_dict):
+    file_size = int(headers_dict['content-length'])
+    if print_info:
+        print 'File name:   ', headers_dict['x-bz-file-name']
+        print 'File size:   ', file_size
+        print 'Content type:', headers_dict['content-type']
+        print 'Content sha1:', headers_dict['x-bz-content-sha1']
+        for name in headers_dict:
+            if name.startswith('x-bz-info-'):
+                print 'INFO', name[10:] + ':', headers_dict[name]
+    output_stream.total = file_size
 
-def download_file_from_url(
-    url,
-    request_body,
-    encoded_headers,
+
+def download_file_by_id_helper(
+    api,
+    file_id,
     local_file_name,
+    authorization=True,
     print_progress=False,
-    set_last_modified=False
+    print_info=False,
+    set_last_modified=False,
 ):
-    with OpenUrl(url, request_body, encoded_headers) as response:
-        info = response.info()
-        file_size = int(info['content-length'])
-        file_sha1 = info['x-bz-content-sha1']
-        if print_progress:
-            print 'File name:   ', info['x-bz-file-name']
-            print 'File size:   ', file_size
-            print 'Content type:', info['content-type']
-            print 'Content sha1:', file_sha1
-            for name in info:
-                if name.startswith('x-bz-info-'):
-                    print 'INFO', name[10:] + ':', info[name]
-        block_size = 4096
-        digest = hashlib.sha1()
-        bytes_read = 0
-
-        stream = open(local_file_name, 'wb')
-        if print_progress:
-            stream = StreamWithProgress(stream, desc=local_file_name, total=file_size)
-        with stream as f:
-            while 1:
-                data = response.read(block_size)
-                if len(data) == 0:
-                    break
-                f.write(data)
-                digest.update(data)
-                bytes_read += len(data)
-        if set_last_modified:
-            last_modified_millis = info.get('x-bz-info-src_last_modified_millis')
-            if last_modified_millis is not None:
-                mtime = int(last_modified_millis) / 1000
-                os.utime(local_file_name, (mtime, mtime))
-        if bytes_read != int(info['content-length']):
-            raise TruncatedOutput(bytes_read, file_size)
-        if digest.hexdigest() != file_sha1:
-            raise ChecksumMismatch(
-                checksum_type='sha1',
-                expected=file_sha1,
-                actual=digest.hexdigest()
-            )
-        if print_progress:
-            print 'checksum matches'
-
-
-def download_file_by_id(args):
-    if len(args) != 2:
-        usage_and_exit()
-
-    file_id = args[0]
-    local_file_name = args[1]
-
-    info = StoredAccountInfo()
-    auth_token = info.get_account_auth_token()
-
-    url = url_for_api(info, 'b2_download_file_by_id')
-    headers = {'Authorization': auth_token}
-    params = {'fileId': file_id}
-
-    request_body = json.dumps(params)
-
-    download_file_from_url(url, request_body, headers, local_file_name, print_progress=True)
+    output_stream = open(local_file_name, 'wb')
+    headers_received_cb = None
+    if print_progress:
+        output_stream = StreamWithProgress(output_stream, desc=local_file_name)
+        headers_received_cb = functools.partial(
+            _download_file_progress_callback,
+            output_stream,
+            print_info,
+        )
+    info = api.download_file_by_id(
+        file_id,
+        output_stream,
+        authorization=authorization,
+        headers_received_cb=headers_received_cb,
+    )
+    if set_last_modified:
+        last_modified_millis = info.get('x-bz-info-src_last_modified_millis')
+        if last_modified_millis is not None:
+            mtime = int(last_modified_millis) / 1000
+            os.utime(local_file_name, (mtime, mtime))
+    if print_progress:
+        print 'checksum matches'
 
 
 def download_file_by_name(args):
@@ -1512,6 +1530,21 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         print json.dumps(response, indent=2, sort_keys=True)
+
+    def download_file_by_id(self, args):
+        if len(args) != 2:
+            usage_and_exit()
+        file_id = args[0]
+        local_file_name = args[1]
+
+        download_file_by_id_helper(
+            self.api,
+            file_id,
+            local_file_name,
+            authorization=True,
+            print_progress=True,
+            print_info=True,
+        )
 
     def get_file_info(self, args):
         if len(args) != 1:
@@ -1782,10 +1815,7 @@ class ConsoleTool(object):
                 print "+ %s" % filename
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
-                url = url_for_api(info, 'b2_download_file_by_id')
-                headers = {'Authorization': info.get_account_auth_token()}
-                params = {'fileId': remote_file['fileId']}
-                download_file_from_url(url, json.dumps(params), headers, filepath)
+                download_file_by_id_helper(self.api, remote_file['fileId'], filepath, authorization=True)
             elif is_b2_src and not remote_file and options['delete']:
                 print "- %s" % filename
                 os.remove(filepath)
@@ -1834,7 +1864,7 @@ def main():
         elif action == 'delete_file_version':
             ct.delete_file_version(args)
         elif action == 'download_file_by_id':
-            download_file_by_id(args)
+            ct.download_file_by_id(args)
         elif action == 'download_file_by_name':
             download_file_by_name(args)
         elif action == 'get_file_info':
