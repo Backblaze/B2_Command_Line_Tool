@@ -25,7 +25,7 @@ import getpass
 import hashlib
 import httplib
 import json
-import os.path
+import os.path, os.environ
 import socket
 import stat
 import sys
