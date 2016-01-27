@@ -95,6 +95,8 @@ Usages:
 
     b2 sync [--delete] [--hide] <source> <destination>
 
+        UNDER DEVELOPMENT -- there may be changes coming to this command
+
         Uploads or downloads multiple files from source to destination.
         One of the paths must be a local file path, and the other must be
         a B2 bucket path. Use "b2:<bucketName>/<prefix>" for B2 paths, e.g.
@@ -120,6 +122,9 @@ Usages:
 
         Content type is optional.  If not set, it will be set based on the
         file extension.
+
+        If `tqdm` library is installed, progress bar is displayed on stderr.
+        (use pip install tqdm to install it)
 
         Each fileInfo is of the form "a=b".
 
