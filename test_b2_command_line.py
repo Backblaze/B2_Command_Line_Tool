@@ -262,6 +262,37 @@ def clean_buckets(b2_tool, bucket_name_prefix):
             delete_files_in_bucket(b2_tool, bucket_name)
             b2_tool.should_succeed(['delete_bucket', bucket_name])
 
+def setup_envvar_test(envvar_name, envvar_value):
+    """
+    Establish config for environment variable test.
+    The envvar_value names the new credential file
+    Create an environment variable with the given value
+    Copy the B2 credential file (~/.b2_account_info) and rename the existing copy
+    Extract and return the account_id and application_key from the credential file
+    """
+
+    src = os.path.expanduser('~/.b2_account_info')
+    dst = os.path.expanduser(envvar_value)
+    shutil.copyfile(src, dst)
+    shutil.move(src, src + '.bkup')
+    os.environ[envvar_name] = envvar_value
+
+def tearDown_envvar_test(envvar_name):
+    """
+    Clean up after running the environment variable test.
+    Delete the new B2 credential file (file contained in the
+    envvar_name environment variable.
+    Rename the backup of the original credential file back to
+    the standard name (~/.b2_account_info)
+    Delete the environment variable
+    """
+
+    os.remove(os.environ.get(envvar_name))
+    fname = os.path.expanduser('~/.b2_account_info')
+    shutil.move(fname + '.bkup', fname)
+    if os.environ.get(envvar_name) is not None:
+       del os.environ[envvar_name]
+
 
 def basic_test(b2_tool, bucket_name):
 
@@ -314,6 +345,16 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\nd\n')
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
+
+    new_creds = '/tmp/b2_account_info'
+    setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
+    b2_tool.should_succeed(['clear_account'])
+    if '{}' != read_file(os.path.expanduser(new_creds)):
+            error_and_exit('failed to clear ' + new_creds)
+    bad_application_key = sys.argv[3][:-8] + ''.join(reversed(sys.argv[3][-8:]))
+    b2_tool.should_fail(['authorize_account', sys.argv[2], bad_application_key], r'invalid authorization')
+    b2_tool.should_succeed(['authorize_account', sys.argv[2], sys.argv[3]])
+    tearDown_envvar_test('B2_ACCOUNT_INFO')
 
 
 def file_version_summary(list_of_files):
@@ -436,6 +477,9 @@ def main():
     for test_name in tests_to_run:
         if test_name not in test_map:
             error_and_exit('unknown test: ' + test_name)
+
+    if os.environ.get('B2_ACCOUNT_INFO') is not None:
+       del os.environ['B2_ACCOUNT_INFO']
 
     b2_tool = CommandLine(path_to_script)
 

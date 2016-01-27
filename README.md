@@ -23,7 +23,8 @@ Usages:
         The application key is a 40-digit hex number that you can get from
         your account page on backblaze.com.
 
-        Stores an account auth token in ~/.b2_account_info
+        Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
+        B2_ACCOUNT_INFO environment variable.
 
     b2 clear_account
 
