@@ -25,7 +25,7 @@ import getpass
 import hashlib
 import httplib
 import json
-import os.path
+import os
 import socket
 import stat
 import sys
@@ -59,7 +59,8 @@ Usages:
         The application key is a 40-digit hex number that you can get from
         your account page on backblaze.com.
 
-        Stores an account auth token in ~/.b2_account_info
+        Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
+        B2_ACCOUNT_INFO environment variable.
 
     b2 clear_account
 
@@ -1113,7 +1114,8 @@ class StoredAccountInfo(AbstractAccountInfo):
     DOWNLOAD_URL = 'download_url'
 
     def __init__(self):
-        self.filename = os.path.expanduser('~/.b2_account_info')
+        user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
+        self.filename = os.path.expanduser(user_account_info_path)
         self.data = self._try_to_read_file()
         if self.BUCKET_UPLOAD_DATA not in self.data:
             self.data[self.BUCKET_UPLOAD_DATA] = {}
