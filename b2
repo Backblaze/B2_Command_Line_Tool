@@ -1113,9 +1113,8 @@ class StoredAccountInfo(AbstractAccountInfo):
     DOWNLOAD_URL = 'download_url'
 
     def __init__(self):
-        account_info_filename = os.environ['B2_ACCOUNT_INFO']
-        if account_info_filename is None : account_info_filename = '~/.b2_account_info'
-        self.filename = os.path.expanduser(account_info_filename)
+        user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
+        self.filename = os.path.expanduser(user_account_info_path)
         self.data = self._try_to_read_file()
         if self.BUCKET_UPLOAD_DATA not in self.data:
             self.data[self.BUCKET_UPLOAD_DATA] = {}
