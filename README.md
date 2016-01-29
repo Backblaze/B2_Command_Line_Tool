@@ -10,7 +10,7 @@ This program provides command-line access to the B2 service.
 
 Version 0.3.11
 
-Usages:
+# Usage
 
     b2 authorize_account [--dev | --staging | --production] [accountId] [applicationKey]
 
@@ -131,3 +131,15 @@ Usages:
     b2 version
 
         Echos the version number of this program.
+
+
+## Contrib
+
+You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
+script in the `contrib` directory. You can install it for example with
+
+     [ ! -z $BASH_COMPLETION_DIR ] && sudo cp contrib/b2 $BASH_COMPLETION_DIR
+
+Once installed, you will be able to enter both commands and parameters just
+typing some (unambiguous) prefix of them and having the shell complete the
+rest by pressing the `tab` key.
