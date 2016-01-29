@@ -1,0 +1,70 @@
+have b2 &&
+_b2 () {
+    local _b2_subcommands=(
+        'authorize_account'
+        'clear_account'
+        'create_bucket'
+        'delete_bucket'
+        'delete_file_version'
+        'download_file_by_id'
+        'download_file_by_name'
+        'get_file_info'
+        'hide_file'
+        'list_buckets'
+        'list_file_names'
+        'list_file_versions'
+        'ls'
+        'make_url'
+        'update_bucket'
+        'upload_file'
+        'version'
+    )
+    local _b2_lsopts=(--long --version)
+    local _b2_bucket_types=(allPrivate allPublic)
+    _b2_buckets() {
+        b2 list_buckets  | cut -f1 -d' ';
+    }
+    _b2_files() {
+        b2 ls "$1"
+    }
+
+    local wants_bucket="@(delete_bucket|hide_file|list_file_names|list_file_versions|update_bucket|upload_file|hide_file|download_file_by_name)"
+    local wants_bucket_type="@(create_bucket|update_bucket)"
+    local wants_file="@(download_file_by_name|hide_file|list_file_names|list_file_versions)"
+
+    local cur prev words subcommand
+    _get_comp_words_by_ref cur prev words
+
+    subcommand="${words[1]}"
+
+    if [[ $COMP_CWORD -eq 1 ]]; then
+        COMPREPLY=($(compgen -W '${_b2_subcommands[@]}' -- "$cur"))
+    elif [[ $subcommand == ls ]]; then
+        if [[ $cur =~ ^- && $COMP_CWORD -eq 2 ]]; then
+            COMPREPLY=($(compgen -W '${_b2_lsopts[@]}' -- "$cur"))
+        elif [[ ( $prev =~ ^- && $COMP_CWORD -eq 3 ) || $COMP_CWORD -eq 2 ]]; then
+            COMPREPLY=($(compgen -W  '$(_b2_buckets)' -- "$cur"))
+        fi
+    elif [[ $subcommand == create_bucket && $COMP_CWORD -eq 3 ]]; then
+        COMPREPLY=($(compgen -W '${_b2_bucket_types[@]}' -- "$cur"))
+    elif [[ $subcommand == $wants_bucket && $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=($(compgen -W  '$(_b2_buckets)' -- "$cur"))
+    elif [[ $subcommand == $wants_bucket_type && $COMP_CWORD -eq 3 ]]; then
+        COMPREPLY=($(compgen -W '${_b2_bucket_types[@]}' -- "$cur"))
+    elif [[ $subcommand == upload_file && $COMP_CWORD -eq 3 ]]; then
+        _filedir
+    elif [[ $subcommand == $wants_file && $COMP_CWORD -eq 3 ]]; then
+        COMPREPLY=($(compgen -W  '$(_b2_files $prev)' -- "$cur"))
+    fi
+
+    # It's not clear how to complete fileName/fileId not having the bucket
+    # b2 delete_file_version <fileName> <fileId>
+    # b2 download_file_by_id <fileId> <localFileName>
+    # b2 get_file_info <fileId>
+    # b2 make_url <fileId>
+
+    unset -f _b2_buckets
+    unset -f _b2_files
+    return 0
+} &&
+complete -F _b2 b2
