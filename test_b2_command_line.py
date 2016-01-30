@@ -378,7 +378,7 @@ def find_file_id(list_of_files, file_name):
     assert False, 'file not found: %s' % (file_name,)
 
 
-def sync_test(b2_tool, bucket_name):
+def sync_up_test(b2_tool, bucket_name):
     _sync_test_using_dir(b2_tool, bucket_name, 'sync')
 
 
@@ -456,6 +456,33 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         )
 
 
+def sync_down_test(b2_tool, bucket_name):
+    sync_down_helper(b2_tool, bucket_name, 'sync')
+
+
+def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
+
+    b2_sync_point = 'b2:%s' % bucket_name
+    if folder_in_bucket:
+        b2_sync_point += '/' + folder_in_bucket
+        b2_file_prefix = folder_in_bucket + '/'
+    else:
+        b2_file_prefix = ''
+
+    path_to_script = b2_tool.path_to_script
+
+    with TempDir() as local_path:
+
+        # Sync from an empty "folder" as a source.
+        b2_tool.should_succeed(['sync', b2_sync_point, local_path])
+        should_equal([], sorted(os.listdir(local_path)))
+
+        # Put a couple files in B2, and sync them down
+        b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, b2_file_prefix + 'a'])
+        b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, b2_file_prefix + 'b'])
+        b2_tool.should_succeed(['sync', b2_sync_point, local_path])
+        should_equal(['a', 'b'], sorted(os.listdir(local_path)))
+
 def main():
 
     if len(sys.argv) < 4:
@@ -466,8 +493,9 @@ def main():
 
     test_map = {
         'basic': basic_test,
-        'sync': sync_test,
-        'sync_no_prefix': sync_test_no_prefix,
+        'sync_down': sync_down_test,
+        'sync_up': sync_up_test,
+        'sync_up_no_prefix': sync_test_no_prefix,
     }
 
     if len(sys.argv) >= 5:

@@ -1811,12 +1811,8 @@ class ConsoleTool(object):
                 print "+ %s" % filename
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
-                download_file_by_id_helper(
-                    self.api,
-                    remote_file['fileId'],
-                    filepath,
-                    authorization=True,
-                )
+                url = self.api.get_download_url_for_fileid(remote_file['fileId'])
+                download_file_by_id_helper(self.api, url, filepath, authorization=True,)
             elif is_b2_src and not remote_file and options['delete']:
                 print "- %s" % filename
                 os.remove(filepath)
