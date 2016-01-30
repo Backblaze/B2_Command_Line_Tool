@@ -378,7 +378,7 @@ def find_file_id(list_of_files, file_name):
     assert False, 'file not found: %s' % (file_name,)
 
 
-def sync_test(b2_tool, bucket_name):
+def sync_up_test(b2_tool, bucket_name):
     _sync_test_using_dir(b2_tool, bucket_name, 'sync')
 
 
@@ -466,8 +466,8 @@ def main():
 
     test_map = {
         'basic': basic_test,
-        'sync': sync_test,
-        'sync_no_prefix': sync_test_no_prefix,
+        'sync_up': sync_up_test,
+        'sync_up_no_prefix': sync_test_no_prefix,
     }
 
     if len(sys.argv) >= 5:
