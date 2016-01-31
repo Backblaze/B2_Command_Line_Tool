@@ -415,8 +415,9 @@ class Bucket(object):
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
 
-    def __init__(self, api, id_, name=None, type_=None):
-        self.api = api
+    def __init__(self, raw_api, account_info, id_, name=None, type_=None):
+        self.raw_api = raw_api
+        self.account_info = account_info
         self.id_ = id_
         self.name = name
         self.type_ = type_
@@ -425,14 +426,12 @@ class Bucket(object):
         return self.id_
 
     def set_type(self, type_):
-        account_info = self.api.account_info
-        auth_token = account_info.get_account_auth_token()
-        account_id = account_info.get_account_id()
+        auth_token = self.account_info.get_account_auth_token()
+        account_id = self.account_info.get_account_id()
 
-        url = url_for_api(account_info, 'b2_update_bucket')
-        params = {'accountId': account_id, 'bucketId': self.id_, 'bucketType': type_,}
-        response = post_json(url, params, auth_token)
-        return response
+        return self.raw_api.update_bucket(
+            self.account_info.get_api_url(), auth_token, account_id, self.id_, type_
+        )
 
     def ls(self, folder_to_list='', show_versions=False, max_entries=None, recursive=False):
         """Pretends that folders exist, and yields the information about the files in a folder.
@@ -454,7 +453,7 @@ class Bucket(object):
         :param recursive:
         :return:
         """
-        auth_token = self.api.account_info.get_account_auth_token()
+        auth_token = self.account_info.get_account_auth_token()
 
         # Every file returned must have a name that starts with the
         # folder name and a "/".
@@ -475,7 +474,7 @@ class Bucket(object):
             api_name = 'b2_list_file_versions'
         else:
             api_name = 'b2_list_file_names'
-        url = url_for_api(self.api.account_info, api_name)
+        url = url_for_api(self.account_info, api_name)
         start_file_name = prefix
         start_file_id = None
         while True:
@@ -524,8 +523,8 @@ class Bucket(object):
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
-        auth_token = self.api.account_info.get_account_auth_token()
-        url = url_for_api(self.api.account_info, 'b2_list_file_names')
+        auth_token = self.account_info.get_account_auth_token()
+        url = url_for_api(self.account_info, 'b2_list_file_names')
         params = {
             'bucketId': self.id_,
             'startFileName': start_filename,
@@ -535,8 +534,8 @@ class Bucket(object):
 
     def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
-        auth_token = self.api.account_info.get_account_auth_token()
-        url = url_for_api(self.api.account_info, 'b2_list_file_versions')
+        auth_token = self.account_info.get_account_auth_token()
+        url = url_for_api(self.account_info, 'b2_list_file_versions')
         params = {
             'bucketId': self.id_,
             'startFileName': start_filename,
@@ -559,7 +558,7 @@ class Bucket(object):
             file_infos = {}
         if content_type is None:
             content_type = self.DEFAULT_CONTENT_TYPE
-        account_info = self.api.account_info
+        account_info = self.account_info
 
         # Double check that the file is not too big.
         size = os.path.getsize(local_file)
@@ -602,7 +601,7 @@ class Bucket(object):
         Makes sure that we have an upload URL and auth token for the given bucket and
         returns it.
         """
-        account_info = self.api.account_info
+        account_info = self.account_info
         upload_url, upload_auth_token = account_info.get_bucket_upload_data(self.id_)
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
@@ -621,13 +620,13 @@ class Bucket(object):
 
     def get_download_url(self, filename):
         return "%s/file/%s/%s" % (
-            self.api.account_info.get_download_url(),
+            self.account_info.get_download_url(),
             b2_url_encode(self.name),
             b2_url_encode(filename),
         )
 
     def hide_file(self, file_name):
-        account_info = self.api.account_info
+        account_info = self.account_info
         auth_token = account_info.get_account_auth_token()
 
         url = url_for_api(account_info, 'b2_hide_file')
@@ -636,7 +635,7 @@ class Bucket(object):
         return FileVersionInfoFactory.from_api_response(response)
 
     def as_dict(self):  # TODO: refactor with other as_dict()
-        result = {'accountId': self.api.account_info.get_account_id(), 'bucketId': self.id_,}
+        result = {'accountId': self.account_info.get_account_id(), 'bucketId': self.id_,}
         if self.name is not None:
             result['bucketName'] = self.name
         if self.type_ is not None:
@@ -649,11 +648,12 @@ class Bucket(object):
 
 class BucketFactory(object):
     @classmethod
-    def from_api_response(cls, api, response):
-        return [cls.from_api_bucket_dict(api, bucket_dict) for bucket_dict in response['buckets']]
+    def from_api_response(cls, raw_api, account_info, response):
+        return [cls.from_api_bucket_dict(raw_api, account_info, bucket_dict)
+                for bucket_dict in response['buckets']]
 
     @classmethod
-    def from_api_bucket_dict(cls, api, bucket_dict):
+    def from_api_bucket_dict(cls, raw_api, account_info, bucket_dict):
         """
             turns this:
             {
@@ -669,7 +669,7 @@ class BucketFactory(object):
         type_ = bucket_dict['bucketType']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(api, bucket_id, bucket_name, type_)
+        return Bucket(raw_api, account_info, bucket_id, bucket_name, type_)
 
 ## DAO
 
@@ -833,6 +833,9 @@ class B2RawApi(object):
     of the HTTP calls.  It can be mocked-out for testing higher layers.
     And this class can be tested by exercising each call just once,
     which is relatively quick.
+
+    The convention for ordering arguments is: base URL, then auth token,
+    then the parameters to the API call.
     """
 
     def authorize_account(self, realm_url, account_id, application_key):
@@ -840,10 +843,28 @@ class B2RawApi(object):
         url = self._build_url(realm_url, 'b2_authorize_account')
         return post_json(url, {}, auth)
 
-    def create_bucket(self, api_url, account_id, account_auth_token, bucket_name, bucket_type):
+    def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
         url = self._build_url(api_url, 'b2_create_bucket')
-        params = {'accountId': account_id, 'bucketName': bucket_name, 'bucketType': bucket_type,}
+        params = {'accountId': account_id, 'bucketName': bucket_name, 'bucketType': bucket_type}
+        print url
+        print params
         return post_json(url, params, account_auth_token)
+
+    def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
+        url = self._build_url(api_url, 'b2_delete_bucket')
+        params = {'accountId': account_id, 'bucketID': bucket_id}
+        return post_json(url, params, account_auth_token)
+
+    def list_buckets(self, api_url, account_auth_token, account_id):
+        url = self._build_url(api_url, 'b2_list_buckets')
+        params = {'accountId': account_id}
+        return post_json(url, params, account_auth_token)
+
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+        url = self._build_url(api_url, 'b2_update_bucket')
+        params = {'accountId': account_id, 'bucketId': bucket_id, 'bucketType': bucket_type}
+        response = post_json(url, params, account_auth_token)
+        return response
 
     # TODO: move the rest of the calls from B2Api
 
@@ -895,9 +916,10 @@ class B2Api(object):
         auth_token = self.account_info.get_account_auth_token()
 
         response = self.raw_api.create_bucket(
-            self.account_info.get_api_url(), account_id, auth_token, name, type_
+            self.account_info.get_api_url(), auth_token, account_id, name, type_
         )
-        bucket = BucketFactory.from_api_bucket_dict(self, response)
+        print response
+        bucket = BucketFactory.from_api_bucket_dict(self.raw_api, self.account_info, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
         assert type_ == bucket.type_, 'API created a bucket with different type\
@@ -906,7 +928,7 @@ class B2Api(object):
         return bucket
 
     def get_bucket_by_id(self, bucket_id):
-        return Bucket(self, bucket_id)
+        return Bucket(self.raw_api, self.account_info, bucket_id)
 
     def get_bucket_by_name(self, bucket_name):
         """
@@ -918,7 +940,7 @@ class B2Api(object):
         # If we can get it from the stored info, do that.
         id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
         if id_ is not None:
-            return Bucket(self, id_, name=bucket_name)
+            return Bucket(self.raw_api, self.account_info, id_, name=bucket_name)
 
         for bucket in self.list_buckets():
             if bucket.name == bucket_name:
@@ -945,11 +967,10 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        url = url_for_api(self.account_info, 'b2_list_buckets')
-        params = {'accountId': account_id}
-        response = post_json(url, params, auth_token)
-
-        buckets = BucketFactory.from_api_response(self, response)
+        response = self.raw_api.list_buckets(
+            self.account_info.get_api_url(), auth_token, account_id
+        )
+        buckets = BucketFactory.from_api_response(self.raw_api, self.account_info, response)
 
         self.cache.set_bucket_name_cache(buckets)
         return buckets
