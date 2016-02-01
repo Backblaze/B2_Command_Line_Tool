@@ -428,8 +428,9 @@ class Bucket(object):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
         account_id = account_info.get_account_id()
-        return self.api.raw_api.update_bucket(account_info.get_api_url(), auth_token, account_id,
-                                              self.id_, type_)
+        return self.api.raw_api.update_bucket(
+            account_info.get_api_url(), auth_token, account_id, self.id_, type_
+        )
 
     def ls(self, folder_to_list='', show_versions=False, max_entries=None, recursive=False):
         """Pretends that folders exist, and yields the information about the files in a folder.
@@ -923,8 +924,9 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        response = self.raw_api.create_bucket(self.account_info.get_api_url(), auth_token,
-                                              account_id, name, type_)
+        response = self.raw_api.create_bucket(
+            self.account_info.get_api_url(), auth_token, account_id, name, type_
+        )
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
