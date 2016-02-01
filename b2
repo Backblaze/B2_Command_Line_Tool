@@ -428,11 +428,8 @@ class Bucket(object):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
         account_id = account_info.get_account_id()
-
-        url = url_for_api(account_info, 'b2_update_bucket')
-        params = {'accountId': account_id, 'bucketId': self.id_, 'bucketType': type_,}
-        response = post_json(url, params, auth_token)
-        return response
+        return self.api.raw_api.update_bucket(account_info.get_api_url(), auth_token, account_id,
+                                              self.id_, type_)
 
     def ls(self, folder_to_list='', show_versions=False, max_entries=None, recursive=False):
         """Pretends that folders exist, and yields the information about the files in a folder.
@@ -835,22 +832,54 @@ class B2RawApi(object):
     which is relatively quick.
     """
 
+    def _post_json(self, base_url, api_name, auth, **params):
+        """
+        Helper method for calling an API with the given auth and params.
+        :param base_url: Something like "https://api001.backblaze.com/"
+        :param auth: Passed in Authorization header.
+        :param api_name: Example: "b2_create_bucket"
+        :param args: The rest of the parameters are passed to B2.
+        :return:
+        """
+        url = base_url + '/b2api/v1/' + api_name
+        return post_json(url, params, auth)
+
     def authorize_account(self, realm_url, account_id, application_key):
         auth = 'Basic ' + base64.b64encode('%s:%s' % (account_id, application_key))
-        url = self._build_url(realm_url, 'b2_authorize_account')
-        return post_json(url, {}, auth)
+        return self._post_json(realm_url, 'b2_authorize_account', auth)
 
-    def create_bucket(self, api_url, account_id, account_auth_token, bucket_name, bucket_type):
-        url = self._build_url(api_url, 'b2_create_bucket')
-        params = {'accountId': account_id, 'bucketName': bucket_name, 'bucketType': bucket_type,}
-        return post_json(url, params, account_auth_token)
+    def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
+        return self._post_json(
+            api_url,
+            'b2_create_bucket',
+            account_auth_token,
+            accountId=account_id,
+            bucketName=bucket_name,
+            bucketType=bucket_type
+        )
+
+    def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
+        return self._post_json(
+            api_url,
+            'b2_delete_bucket',
+            account_auth_token,
+            accountId=account_id,
+            bucketId=bucket_id
+        )
+
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+        return self._post_json(
+            api_url,
+            'b2_update_bucket',
+            account_auth_token,
+            accountId=account_id,
+            bucketId=bucket_id,
+            bucketType=bucket_type
+        )
 
     # TODO: move the rest of the calls from B2Api
 
-    def _build_url(self, url_base, api_name):
-        return url_base + '/b2api/v1/' + api_name
-
-## B2Api
+    ## B2Api
 
 
 class B2Api(object):
@@ -894,9 +923,8 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        response = self.raw_api.create_bucket(
-            self.account_info.get_api_url(), account_id, auth_token, name, type_
-        )
+        response = self.raw_api.create_bucket(self.account_info.get_api_url(), auth_token,
+                                              account_id, name, type_)
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
@@ -934,9 +962,9 @@ class B2Api(object):
         """
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
-        url = url_for_api(self.account_info, 'b2_delete_bucket')
-        params = {'accountId': account_id, 'bucketId': bucket.id_,}
-        return post_json(url, params, auth_token)
+        return self.raw_api.delete_bucket(
+            self.account_info.get_api_url(), auth_token, account_id, bucket.id_
+        )
 
     def list_buckets(self):
         """
