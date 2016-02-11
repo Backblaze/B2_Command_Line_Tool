@@ -29,6 +29,12 @@ Version 0.3.13
     b2 clear_account
 
         Erases everything in ~/.b2_account_info
+        
+    b2 clear_bucket [--force] <bucketName>
+
+        Deletes all files in the named bucket.  The force argument will
+        suppress a prompt asking if the user is sure they wish to delete
+        all files.
 
     b2 create_bucket <bucketName> <bucketType>
 
