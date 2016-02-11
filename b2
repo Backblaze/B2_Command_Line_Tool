@@ -1518,7 +1518,9 @@ class ConsoleTool(object):
         bucket_name = args[0]
 
         while force_delete is False:
-            user_input = raw_input('Are you sure you want to delete all the files in this bucket? (Y/N) ').upper()
+            user_input = raw_input(
+                'Are you sure you want to delete all the files in this bucket? (Y/N) '
+            ).upper()
             if user_input in ['Y', 'YES']:
                 break
             elif user_input in ['N', 'NO']:
