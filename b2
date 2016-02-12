@@ -647,6 +647,36 @@ class Bucket(object):
             result['bucketType'] = self.type_
         return result
 
+    def clear_bucket(self):
+        last_file = None
+        api_responses = []
+
+        while True:
+            response = self.list_file_names(start_filename=last_file, max_entries=100)
+
+            if len(response['files']) == 0:
+                break
+
+            try:
+                del_files = tqdm(
+                    response['files'],
+                    desc='Deleting next batch of %s' % len(response['files'])
+                )
+                has_progress_bar = True
+            except TypeError:
+                has_progress_bar = False
+                del_files = response['files']
+
+            for file_data in del_files:
+                self.api.delete_file_version(file_data['fileId'], file_data['fileName'])
+                if has_progress_bar is False:
+                    print '- %s' % file_data['fileName']
+
+            last_file = response['nextFileName']
+            api_responses.append(response)
+
+        return api_responses
+
     def __repr__(self):
         return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
 
@@ -1527,20 +1557,8 @@ class ConsoleTool(object):
                 return
 
         bucket = self.api.get_bucket_by_name(bucket_name)
-        last_file = None
 
-        while True:
-            response = bucket.list_file_names(start_filename=last_file, max_entries=100)
-
-            if len(response['files']) == 0:
-                break
-
-            for file_data in response['files']:
-                self.delete_file_version([file_data['fileName'], file_data['fileId']])
-
-            last_file = response['nextFileName']
-
-        print '%s cleared of all files' % bucket_name
+        bucket.clear_bucket()
 
     def delete_bucket(self, args):
         if len(args) != 1:
