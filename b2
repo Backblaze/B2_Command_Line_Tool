@@ -66,6 +66,12 @@ Usages:
 
         Erases everything in ~/.b2_account_info
 
+    b2 clear_bucket [--force] <bucketName>
+
+        Deletes all files in the named bucket.  The force argument will
+        suppress a prompt asking if the user is sure they wish to delete
+        all files.
+
     b2 create_bucket <bucketName> <bucketType>
 
         Creates a new bucket.  Prints the ID of the bucket created.
@@ -640,6 +646,36 @@ class Bucket(object):
         if self.type_ is not None:
             result['bucketType'] = self.type_
         return result
+
+    def clear_bucket(self):
+        last_file = None
+        api_responses = []
+
+        while True:
+            response = self.list_file_names(start_filename=last_file, max_entries=100)
+
+            if len(response['files']) == 0:
+                break
+
+            try:
+                del_files = tqdm(
+                    response['files'],
+                    desc='Deleting next batch of %s' % len(response['files'])
+                )
+                has_progress_bar = True
+            except TypeError:
+                has_progress_bar = False
+                del_files = response['files']
+
+            for file_data in del_files:
+                self.api.delete_file_version(file_data['fileId'], file_data['fileName'])
+                if has_progress_bar is False:
+                    print '- %s' % file_data['fileName']
+
+            last_file = response['nextFileName']
+            api_responses.append(response)
+
+        return api_responses
 
     def __repr__(self):
         return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
@@ -1499,6 +1535,31 @@ class ConsoleTool(object):
 
         print self.api.create_bucket(bucket_name, bucket_type).id_
 
+    def clear_bucket(self, args):
+        if args[0] == '--force':
+            force_delete = True
+            args.pop(0)
+        else:
+            force_delete = False
+
+        if len(args) < 1:
+            usage_and_exit()
+
+        bucket_name = args[0]
+
+        while force_delete is False:
+            user_input = raw_input(
+                'Are you sure you want to delete all the files in this bucket? (Y/N) '
+            ).upper()
+            if user_input in ['Y', 'YES']:
+                break
+            elif user_input in ['N', 'NO']:
+                return
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+
+        bucket.clear_bucket()
+
     def delete_bucket(self, args):
         if len(args) != 1:
             usage_and_exit()
@@ -1886,6 +1947,8 @@ def main():
             ct.clear_account(args)
         elif action == 'create_bucket':
             ct.create_bucket(args)
+        elif action == 'clear_bucket':
+            ct.clear_bucket(args)
         elif action == 'delete_bucket':
             ct.delete_bucket(args)
         elif action == 'delete_file_version':
