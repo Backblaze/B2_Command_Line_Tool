@@ -16,6 +16,5 @@ before_install:
   - virtualenv --version
 
 script:
-  - yapf --diff b2
-  - pyflakes b2
-  - python b2 version
+  - for f in b2/*.py; do yapf --diff "$f"; pyflakes "$f"; done
+  - python b2/b2.py version

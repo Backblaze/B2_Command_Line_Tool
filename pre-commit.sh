@@ -9,34 +9,44 @@ function header
     echo
 }
 
+SOURCE_FILES=b2/b2.py
+
 header Checking Formatting
 
-if yapf b2 > b2.yapf.out
-then
-    echo "Formatting is good."
-    rm b2.yapf.out
-else
-    echo "Formatting updated:"
-    echo
-    diff b2 b2.yapf.out
-    mv b2.yapf.out b2
-    chmod +x b2
-fi
+for src_file in $SOURCE_FILES
+do
+    echo "$src_file"
+    if yapf "$src_file" > yapf.out
+    then
+        rm yapf.out
+    else
+        echo
+        echo "Formatting updated:"
+        echo
+        diff "$src_file" yapf.out
+        mv yapf.out "$src_file"
+    fi
+done
+chmod +x b2/b2.py
 
 header Pyflakes
 
-if pyflakes b2
-then
-    echo "Pyflakes passed"
-else
-    echo
-    echo "Pyflakes FAILED"
-    exit 1
-fi    
+for src_file in $SOURCE_FILES
+do
+    echo "$src_file"
+    if pyflakes "$src_file"
+    then
+        echo "Pyflakes passed"
+    else
+        echo
+        echo "Pyflakes FAILED"
+        exit 1
+    fi
+done
 
 header Tests
 
-if time python test_b2_command_line.py ./b2 $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
 then
     echo "Tests passed"
 else
