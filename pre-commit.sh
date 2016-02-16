@@ -15,16 +15,16 @@ header Checking Formatting
 
 for src_file in $SOURCE_FILES
 do
-    echo $src_file
-    if yapf $src_file > yapf.out
+    echo "$src_file"
+    if yapf "$src_file" > yapf.out
     then
         rm yapf.out
     else
         echo
         echo "Formatting updated:"
         echo
-        diff $src_file yapf.out
-        mv yapf.out $src_file
+        diff "$src_file" yapf.out
+        mv yapf.out "$src_file"
     fi
 done
 chmod +x b2/b2.py
@@ -33,8 +33,8 @@ header Pyflakes
 
 for src_file in $SOURCE_FILES
 do
-    echo $src_file
-    if pyflakes $src_file
+    echo "$src_file"
+    if pyflakes "$src_file"
     then
         echo "Pyflakes passed"
     else
