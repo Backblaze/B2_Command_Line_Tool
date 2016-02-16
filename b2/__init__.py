@@ -9,3 +9,5 @@
 ######################################################################
 
 from .b2 import main
+
+assert main  # silence pyflakes
