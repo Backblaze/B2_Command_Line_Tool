@@ -42,7 +42,7 @@ except ImportError:
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
 # odd for Github, and even for Backblaze releases.
-VERSION = '0.3.13'
+VERSION = '0.4.0'
 
 USAGE = """This program provides command-line access to the B2 service.
 
