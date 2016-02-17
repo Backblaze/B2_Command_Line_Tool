@@ -42,7 +42,7 @@ except ImportError:
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
 # odd for Github, and even for Backblaze releases.
-VERSION = '0.3.13'
+VERSION = '0.3.13-9000'
 
 USAGE = """This program provides command-line access to the B2 service.
 
@@ -569,6 +569,10 @@ class Bucket(object):
         # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
         if sha1_sum is None:
             sha1_sum = hex_sha1_of_file(local_file)
+
+        # Use forward slashes for remote
+        if os.sep != '/':
+            remote_filename = remote_filename.replace(os.sep, '/')
 
         exception_info_list = []
         for i in xrange(self.MAX_UPLOAD_ATTEMPTS):
