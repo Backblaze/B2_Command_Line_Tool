@@ -49,7 +49,7 @@ setup(
         # Indicate who your project is intended for
         # ??? What are the right classifiers for a command-line tool? ???
         'Intended Audience :: Developers',
-        'Topic :: Software Development :: Libraris',
+        'Topic :: Software Development :: Libraries',
 
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: MIT License',
