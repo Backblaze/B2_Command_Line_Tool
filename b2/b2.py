@@ -1263,7 +1263,7 @@ class OpenUrl(object):
                 return headers
         else:
             result = dict(headers)
-            result['User-Agent'] = 'b2_python_' + VERSION
+            result['User-Agent'] = 'backblaze-b2/' + VERSION
             return result
 
     def __enter__(self):
