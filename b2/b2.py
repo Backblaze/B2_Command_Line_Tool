@@ -1248,9 +1248,23 @@ class OpenUrl(object):
     def __init__(self, url, data, headers, params=None):
         self.url = url
         self.data = data
-        self.headers = headers
+        self.headers = self._add_user_agent(headers)
         self.file = None
         self.params = None  # for debugging
+
+    def _add_user_agent(self, headers):
+        """
+        Adds a User-Agent header if there isn't one already.
+
+        Reminder: HTTP header names are case-insensitive.
+        """
+        for k in headers.iterkeys():
+            if k.lower() == 'user-agent':
+                return headers
+        else:
+            result = dict(headers)
+            result['User-Agent'] = 'backblaze-b2/' + VERSION
+            return result
 
     def __enter__(self):
         try:
