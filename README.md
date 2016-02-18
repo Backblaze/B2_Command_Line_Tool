@@ -135,11 +135,7 @@ Version 0.4.1
 
 ## Contrib
 
+### bash completion
+
 You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
-script in the `contrib` directory. You can install it for example with
-
-     [ ! -z $BASH_COMPLETION_DIR ] && sudo cp contrib/b2 $BASH_COMPLETION_DIR
-
-Once installed, you will be able to enter both commands and parameters just
-typing some (unambiguous) prefix of them and having the shell complete the
-rest by pressing the `tab` key.
+script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
