@@ -570,6 +570,10 @@ class Bucket(object):
         if sha1_sum is None:
             sha1_sum = hex_sha1_of_file(local_file)
 
+        # Use forward slashes for remote
+        if os.sep != '/':
+            remote_filename = remote_filename.replace(os.sep, '/')
+
         exception_info_list = []
         for i in xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
