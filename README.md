@@ -138,4 +138,4 @@ Version 0.3.13
 ### bash completion
 
 You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
-script in the `contrib` directory. See `doc/bash_completion.md` for installation instructions.
+script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
