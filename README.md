@@ -1,8 +1,11 @@
 # B2 Command Line Tool
 
-| CI type  | Status |
-| :------------ | :------------ |
-| Travis CI  | [![Build Status](https://travis-ci.org/Backblaze/B2_Command_Line_Tool.svg?branch=master)](https://travis-ci.org/Backblaze/B2_Command_Line_Tool)  |
+| Status |
+| :------------ |
+| [![Travis CI](https://img.shields.io/travis/Backblaze/B2_Command_Line_Tool/master.svg?label=Travis%20CI)](https://travis-ci.org/Backblaze/B2_Command_Line_Tool) |
+| [![License](https://img.shields.io/pypi/l/b2.svg?label=License)](https://pypi.python.org/pypi/b2) |
+| [![python versions](https://img.shields.io/pypi/pyversions/b2.svg?label=python versions)](https://pypi.python.org/pypi/b2) |
+| [![PyPI version](https://img.shields.io/pypi/v/b2.svg?label=PyPI version)](https://pypi.python.org/pypi/b2) |
 
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
