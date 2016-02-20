@@ -9,6 +9,7 @@
 #
 ######################################################################
 
+from __future__ import print_function
 import hashlib
 import json
 import os.path
@@ -39,12 +40,12 @@ Usages:
 
 
 def usage_and_exit():
-    print >>sys.stderr, USAGE.format(command=sys.argv[0])
+    print(USAGE.format(command=sys.argv[0]), file=sys.stderr)
     sys.exit(1)
 
 
 def error_and_exit(message):
-    print 'ERROR:', message
+    print('ERROR:', message)
     sys.exit(1)
 
 
@@ -89,7 +90,7 @@ class StringReader(object):
         try:
             self.string = f.read()
         except Exception as e:
-            print e
+            print(e)
             self.string = str(e)
 
 
@@ -123,7 +124,7 @@ def print_text_indented(text):
     Prints text that may include weird characters, indented four spaces.
     """
     for line in text.split('\n'):
-        print '   ', repr(line)[1:-1]
+        print('   ', repr(line)[1:-1])
 
 
 def print_json_indented(value):
@@ -134,14 +135,14 @@ def print_json_indented(value):
 
 
 def print_output(status, stdout, stderr):
-    print '  status:', status
+    print('  status:', status)
     if stdout != '':
-        print '  stdout:'
+        print('  stdout:')
         print_text_indented(stdout)
     if stderr != '':
-        print '  stderr:'
+        print('  stderr:')
         print_text_indented(stderr)
-    print
+    print()
 
 
 class CommandLine(object):
@@ -163,21 +164,21 @@ class CommandLine(object):
         as as string.
         """
         command = [self.path_to_script] + args
-        print 'Running:', ' '.join(command)
+        print('Running:', ' '.join(command))
         (status, stdout, stderr) = run_command(command)
         print_output(status, stdout, stderr)
         if status != 0:
-            print 'FAILED with status', status
+            print('FAILED with status', status)
             sys.exit(1)
         if stderr != '':
             failed = False
             for line in map(lambda s: s.strip(), stderr.split('\n')):
                 if not any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS):
-                    print 'Unexpected stderr line:', repr(line)
+                    print('Unexpected stderr line:', repr(line))
                     failed = True
             if failed:
-                print 'FAILED because of stderr'
-                print stderr
+                print('FAILED because of stderr')
+                print(stderr)
                 sys.exit(1)
         if expected_pattern is not None:
             if re.search(expected_pattern, stdout) is None:
@@ -198,11 +199,11 @@ class CommandLine(object):
         to appear in stderr.
         """
         command = [self.path_to_script] + args
-        print 'Running:', ' '.join(command)
+        print('Running:', ' '.join(command))
         (status, stdout, stderr) = run_command(command)
         print_output(status, stdout, stderr)
         if status == 0:
-            print 'ERROR: should have failed'
+            print('ERROR: should have failed')
             sys.exit(1)
         if re.search(expected_pattern, stdout + stderr) is None:
             error_and_exit('did not match pattern: ' + expected_pattern)
@@ -221,14 +222,14 @@ class TestCommandLine(unittest.TestCase):
 
 
 def should_equal(expected, actual):
-    print '  expected:'
+    print('  expected:')
     print_json_indented(expected)
-    print '  actual:'
+    print('  actual:')
     print_json_indented(actual)
     if expected != actual:
-        print '  ERROR'
+        print('  ERROR')
         sys.exit(1)
-    print
+    print()
 
 
 def delete_files_in_bucket(b2_tool, bucket_name):
@@ -514,10 +515,10 @@ def main():
     # Run each of the tests in its own empty bucket
     for test_name in tests_to_run:
 
-        print '#'
-        print '# Cleaning and making bucket for:', test_name
-        print '#'
-        print
+        print('#')
+        print('# Cleaning and making bucket for:', test_name)
+        print('#')
+        print()
 
         b2_tool.should_succeed(['clear_account'])
         if '{}' != read_file(os.path.expanduser('~/.b2_account_info')):
@@ -534,16 +535,16 @@ def main():
         b2_tool.should_succeed(['create_bucket', bucket_name, 'allPrivate'])
         b2_tool.should_succeed(['update_bucket', bucket_name, 'allPublic'])
 
-        print '#'
-        print '# Running test:', test_name
-        print '#'
-        print
+        print('#')
+        print('# Running test:', test_name)
+        print('#')
+        print()
 
         test_fcn = test_map[test_name]
         test_fcn(b2_tool, bucket_name)
 
-    print
-    print "ALL OK"
+    print()
+    print("ALL OK")
 
 
 if __name__ == '__main__':

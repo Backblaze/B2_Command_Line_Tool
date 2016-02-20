@@ -17,6 +17,7 @@
 This is a B2 command-line tool.  See the USAGE message for details.
 """
 
+from __future__ import print_function
 from abc import ABCMeta, abstractmethod
 import base64
 import datetime
@@ -1070,7 +1071,7 @@ class B2Api(object):
 def message_and_exit(message):
     """Prints a message, and exits with error status.
     """
-    print >> sys.stderr, message
+    print(message, file=sys.stderr)
     sys.exit(1)
 
 
@@ -1352,8 +1353,8 @@ class SimpleProgress(object):
         elapsed = now - self.last_time
         if 3 <= elapsed and self.total != 0:
             if not self.any_printed:
-                print self.desc
-            print '     %d%%' % int(100.0 * self.complete / self.total)
+                print(self.desc)
+            print('     %d%%' % int(100.0 * self.complete / self.total))
             self.last_time = now
             self.any_printed = True
 
@@ -1362,7 +1363,7 @@ class SimpleProgress(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.any_printed:
-            print '    DONE.'
+            print('    DONE.')
 
 
 class StreamWithProgress(tqdm or SimpleProgress):
@@ -1449,13 +1450,13 @@ def hex_sha1_of_file(path):
 def _download_file_progress_callback(output_stream, print_info, headers_dict):
     file_size = int(headers_dict['content-length'])
     if print_info:
-        print 'File name:   ', headers_dict['x-bz-file-name']
-        print 'File size:   ', file_size
-        print 'Content type:', headers_dict['content-type']
-        print 'Content sha1:', headers_dict['x-bz-content-sha1']
+        print('File name:   ', headers_dict['x-bz-file-name'])
+        print('File size:   ', file_size)
+        print('Content type:', headers_dict['content-type'])
+        print('Content sha1:', headers_dict['x-bz-content-sha1'])
         for name in headers_dict:
             if name.startswith('x-bz-info-'):
-                print 'INFO', name[10:] + ':', headers_dict[name]
+                print('INFO', name[10:] + ':', headers_dict[name])
     output_stream.total = file_size
 
 
@@ -1489,7 +1490,7 @@ def download_file_by_id_helper(
             mtime = int(last_modified_millis) / 1000
             os.utime(local_file_name, (mtime, mtime))
     if print_progress:
-        print 'checksum matches'
+        print('checksum matches')
 
 
 class ConsoleTool(object):
@@ -1515,7 +1516,7 @@ class ConsoleTool(object):
         bucket_name = args[0]
         bucket_type = args[1]
 
-        print self.api.create_bucket(bucket_name, bucket_type).id_
+        print(self.api.create_bucket(bucket_name, bucket_type).id_)
 
     def delete_bucket(self, args):
         if len(args) != 1:
@@ -1525,7 +1526,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = self.api.delete_bucket(bucket)
 
-        print json.dumps(response, indent=4, sort_keys=True)
+        print(json.dumps(response, indent=4, sort_keys=True))
 
     def update_bucket(self, args):
         if len(args) != 2:
@@ -1536,14 +1537,14 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = bucket.set_type(bucket_type)
 
-        print json.dumps(response, indent=4, sort_keys=True)
+        print(json.dumps(response, indent=4, sort_keys=True))
 
     def list_buckets(self, args):
         if len(args) != 0:
             usage_and_exit()
 
         for b in self.api.list_buckets():
-            print '%s  %-10s  %s' % (b.id_, b.type_, b.name)
+            print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
 
     # file
 
@@ -1557,7 +1558,7 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def download_file_by_id(self, args):
         if len(args) != 2:
@@ -1602,7 +1603,7 @@ class ConsoleTool(object):
 
         response = self.api.get_file_info(file_id)
 
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def hide_file(self, args):
         if len(args) != 2:
@@ -1615,7 +1616,7 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def upload_file(self, args):
         content_type = None
@@ -1666,9 +1667,9 @@ class ConsoleTool(object):
         )
         response = file_info.as_dict()
         if not quiet:
-            print "URL by file name: " + bucket.get_download_url(remote_file)
-            print "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
-        print json.dumps(response, indent=2, sort_keys=True)
+            print("URL by file name: " + bucket.get_download_url(remote_file))
+            print("URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId']))
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     # account
 
@@ -1680,11 +1681,11 @@ class ConsoleTool(object):
             if option in self.api.account_info.REALM_URLS:
                 break
             else:
-                print 'ERROR: unknown option', option
+                print('ERROR: unknown option', option)
                 usage_and_exit()
 
         url = self.api.account_info.REALM_URLS[option]
-        print 'Using %s' % url
+        print('Using %s' % url)
 
         if 2 < len(args):
             usage_and_exit()
@@ -1724,7 +1725,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         response = bucket.list_file_names(first_file_name, count)
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def list_file_versions(self, args):
         if len(args) < 1 or 4 < len(args):
@@ -1747,7 +1748,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         response = bucket.list_file_versions(first_file_name, first_file_id, count)
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def ls(self, args):
         long_format = False
@@ -1760,7 +1761,7 @@ class ConsoleTool(object):
             elif option == '--versions':
                 show_versions = True
             else:
-                print 'Unknown option:', option
+                print('Unknown option:', option)
                 usage_and_exit()
         if len(args) < 1 or len(args) > 2:
             usage_and_exit()
@@ -1775,11 +1776,11 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         for file_version_info, folder_name in bucket.ls(prefix, show_versions):
             if not long_format:
-                print folder_name or file_version_info.file_name
+                print(folder_name or file_version_info.file_name)
             elif folder_name is not None:
-                print FileVersionInfo.format_folder_ls_entry(folder_name)
+                print(FileVersionInfo.format_folder_ls_entry(folder_name))
             else:
-                print file_version_info.format_ls_entry()
+                print(file_version_info.format_ls_entry())
 
     # other
 
@@ -1789,7 +1790,7 @@ class ConsoleTool(object):
 
         file_id = args[0]
 
-        print self.api.get_download_url_for_fileid(file_id)
+        print(self.api.get_download_url_for_fileid(file_id))
 
     def sync(self, args):
         # TODO: break up this method.  it's too long
@@ -1856,25 +1857,25 @@ class ConsoleTool(object):
             remote_file = remote_files.get(filename)
             is_match = local_file and remote_file and local_file['size'] == remote_file['size']
             if is_b2_src and remote_file and not is_match:
-                print "+ %s" % filename
+                print("+ %s" % filename)
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
                 url = self.api.get_download_url_for_fileid(remote_file['fileId'])
                 download_file_by_id_helper(self.api, url, filepath, authorization=True,)
             elif is_b2_src and not remote_file and options['delete']:
-                print "- %s" % filename
+                print("- %s" % filename)
                 os.remove(filepath)
             elif not is_b2_src and local_file and not is_match:
-                print "+ %s" % filename
+                print("+ %s" % filename)
                 file_infos = {
                     'src_last_modified_millis': str(int(os.path.getmtime(filepath) * 1000))
                 }
                 bucket.upload_file(filepath, b2_path, file_infos=file_infos)
             elif not is_b2_src and not local_file and options['delete']:
-                print "- %s" % filename
+                print("- %s" % filename)
                 self.api.delete_file_version(remote_file['fileId'], b2_path)
             elif not is_b2_src and not local_file and options['hide']:
-                print ". %s" % filename
+                print(". %s" % filename)
                 bucket.hide_file(b2_path)
 
         # Remove empty local directories
@@ -1933,14 +1934,14 @@ def main():
         elif action == 'upload_file':
             ct.upload_file(args)
         elif action == 'version':
-            print 'b2 command line tool, version', VERSION
+            print('b2 command line tool, version', VERSION)
         else:
             usage_and_exit()
     except MissingAccountData:
-        print 'ERROR: Missing account.  Use: b2 authorize_account'
+        print('ERROR: Missing account.  Use: b2 authorize_account')
         sys.exit(1)
     except B2Error as e:
-        print 'ERROR: %s' % (e,)
+        print('ERROR: %s' % (e,))
         sys.exit(1)
 
 
