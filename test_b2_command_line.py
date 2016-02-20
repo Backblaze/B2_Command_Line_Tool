@@ -173,7 +173,7 @@ class CommandLine(object):
             sys.exit(1)
         if stderr != '':
             failed = False
-            for line in map(lambda s: s.strip(), stderr.split('\n')):
+            for line in (s.strip() for s in stderr.split('\n')):
                 if not any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS):
                     print('Unexpected stderr line:', repr(line))
                     failed = True
@@ -502,11 +502,11 @@ def main():
 
     if len(sys.argv) >= 5:
         tests_to_run = sys.argv[4:]
+        for test_name in tests_to_run:
+            if test_name not in test_map:
+                error_and_exit('unknown test: ' + test_name)
     else:
-        tests_to_run = test_map.keys()
-    for test_name in tests_to_run:
-        if test_name not in test_map:
-            error_and_exit('unknown test: ' + test_name)
+        tests_to_run = list(six.iterkeys(test_map))
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
        del os.environ['B2_ACCOUNT_INFO']
