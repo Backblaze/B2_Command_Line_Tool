@@ -1690,7 +1690,7 @@ class ConsoleTool(object):
         if 0 < len(args):
             account_id = args[0]
         else:
-            account_id = raw_input('Backblaze account ID: ')
+            account_id = six.moves.input('Backblaze account ID: ')
 
         if 1 < len(args):
             application_key = args[1]
