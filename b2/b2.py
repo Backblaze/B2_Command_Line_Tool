@@ -585,7 +585,7 @@ class Bucket(object):
                 'Content-Type': content_type,
                 'X-Bz-Content-Sha1': sha1_sum
             }
-            for (k, v) in file_infos.iteritems():
+            for k, v in six.iteritems(file_infos):
                 headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
             try:
@@ -1261,7 +1261,7 @@ class OpenUrl(object):
 
         Reminder: HTTP header names are case-insensitive.
         """
-        for k in headers.iterkeys():
+        for k in headers:
             if k.lower() == 'user-agent':
                 return headers
         else:
