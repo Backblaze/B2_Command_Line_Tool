@@ -27,6 +27,7 @@ import hashlib
 import httplib
 import json
 import os
+import six
 import socket
 import stat
 import sys
@@ -309,9 +310,8 @@ class UnrecognizedBucketType(B2Error):
         return 'Unrecognized bucket type: %s' % (self.type_,)
 
 
+@six.add_metaclass(ABCMeta)
 class AbstractWrappedError(B2Error):
-    __metaclass__ = ABCMeta
-
     def __init__(self, data, url, params, headers, exc_info):
         self.data = data
         self.url = url
@@ -409,9 +409,8 @@ class WrappedSocketError(AbstractWrappedError):
 ## Bucket
 
 
+@six.add_metaclass(ABCMeta)
 class Bucket(object):
-
-    __metaclass__ = ABCMeta
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
@@ -755,9 +754,8 @@ class FileVersionInfoFactory(object):
 ## Cache
 
 
+@six.add_metaclass(ABCMeta)
 class AbstractCache(object):
-    __metaclass__ = ABCMeta
-
     @abstractmethod
     def get_bucket_id_or_none_from_bucket_name(self, name):
         pass
@@ -1092,8 +1090,8 @@ def decode_sys_argv():
     return [arg.decode(encoding) for arg in sys.argv]
 
 
+@six.add_metaclass(ABCMeta)
 class AbstractAccountInfo(object):
-    __metaclass__ = ABCMeta
     REALM_URLS = {
         'production': 'https://api.backblaze.com',
         'dev': 'http://api.test.blaze:8180',
