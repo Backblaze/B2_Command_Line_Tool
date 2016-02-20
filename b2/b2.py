@@ -575,7 +575,7 @@ class Bucket(object):
             remote_filename = remote_filename.replace(os.sep, '/')
 
         exception_info_list = []
-        for i in xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_data()
 

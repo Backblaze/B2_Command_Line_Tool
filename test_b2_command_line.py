@@ -16,6 +16,7 @@ import os.path
 import random
 import re
 import shutil
+import six
 import subprocess
 import sys
 import tempfile
@@ -64,7 +65,7 @@ def file_mod_time_millis(path):
 
 
 def random_hex(length):
-    return ''.join(random.choice('0123456789abcdef') for i in xrange(length))
+    return ''.join(random.choice('0123456789abcdef') for i in six.moves.xrange(length))
 
 
 class TempDir(object):
