@@ -200,9 +200,12 @@ class CommandLine(object):
         to appear in stderr.
         """
         command = [self.path_to_script] + args
-        interpreter = 'python'
-        if six.PY3:
+        if six.PY2:
+            interpreter = 'python'
+        elif six.PY3:
             interpreter = 'python3'
+        else:
+            assert False, 'unknown python version'
         command.insert(0, interpreter)
         print('Running:', ' '.join(command))
         (status, stdout, stderr) = run_command(command)
