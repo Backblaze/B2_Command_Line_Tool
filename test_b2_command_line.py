@@ -117,7 +117,7 @@ def run_command(command):
     p.wait()
     reader1.join()
     reader2.join()
-    return (p.returncode, stdout.get_string(), stderr.get_string())
+    return (p.returncode, stdout.get_string().decode('utf-8'), stderr.get_string().decode('utf-8'))
 
 
 def print_text_indented(text):
@@ -240,6 +240,11 @@ def should_equal(expected, actual):
     print()
 
 
+def check_if_account_info_file_is_clear(path):
+    if b'{}' != read_file(os.path.expanduser(path)):
+        error_and_exit('failure to clear account_info file: %s' % (path,))
+
+
 def delete_files_in_bucket(b2_tool, bucket_name):
     while True:
         data = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
@@ -358,8 +363,7 @@ def basic_test(b2_tool, bucket_name):
     new_creds = '/tmp/b2_account_info'
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear_account'])
-    if '{}' != read_file(os.path.expanduser(new_creds)):
-            error_and_exit('failed to clear ' + new_creds)
+    check_if_account_info_file_is_clear(new_creds)
     bad_application_key = sys.argv[3][:-8] + ''.join(reversed(sys.argv[3][-8:]))
     b2_tool.should_fail(['authorize_account', sys.argv[2], bad_application_key], r'invalid authorization')
     b2_tool.should_succeed(['authorize_account', sys.argv[2], sys.argv[3]])
@@ -412,9 +416,9 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
 
-        write_file(p('a'), 'hello')
-        write_file(p('b'), 'hello')
-        write_file(p('c'), 'hello')
+        write_file(p('a'), b'hello')
+        write_file(p('b'), b'hello')
+        write_file(p('c'), b'hello')
 
         b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
@@ -435,7 +439,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         )
 
         os.unlink(p('b'))
-        write_file(p('c'), 'hello world')
+        write_file(p('c'), b'hello world')
 
         b2_tool.should_succeed(['sync', '--hide', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
@@ -529,8 +533,7 @@ def main():
         print()
 
         b2_tool.should_succeed(['clear_account'])
-        if '{}' != read_file(os.path.expanduser('~/.b2_account_info')):
-            error_and_exit('should have cleared ~/.b2_account_info')
+        check_if_account_info_file_is_clear('~/.b2_account_info')
 
         bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
         b2_tool.should_fail(['authorize_account', account_id, bad_application_key], r'invalid authorization')
