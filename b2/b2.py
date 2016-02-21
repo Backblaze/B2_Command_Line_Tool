@@ -1085,7 +1085,9 @@ def decode_sys_argv():
     https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
     """
     encoding = sys.getfilesystemencoding()
-    return [arg.decode(encoding) for arg in sys.argv]
+    if six.PY2:
+        return [arg.decode(encoding) for arg in sys.argv]
+    return sys.argv
 
 
 @six.add_metaclass(ABCMeta)
