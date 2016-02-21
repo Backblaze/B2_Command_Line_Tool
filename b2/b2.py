@@ -24,17 +24,15 @@ import datetime
 import functools
 import getpass
 import hashlib
-import httplib
 import json
 import os
 import six
+from six.moves import urllib
 import socket
 import stat
 import sys
 import time
 import traceback
-import urllib
-import urllib2
 
 try:
     from tqdm import tqdm  # displays a nice progress bar
@@ -389,7 +387,7 @@ class WrappedHttpError(AbstractWrappedError):
 class WrappedHttplibError(AbstractWrappedError):
     def should_retry(self):
         return not isinstance(
-            self.exc_info[0], httplib.InvalidURL
+            self.exc_info[0], six.moves.http_client.InvalidURL
         )  # raised if a port is given and is either non-numeric or empty
 
 
@@ -1271,13 +1269,13 @@ class OpenUrl(object):
 
     def __enter__(self):
         try:
-            request = urllib2.Request(self.url, self.data, self.headers)
-            self.file = urllib2.urlopen(request)
+            request = urllib.request.Request(self.url, self.data, self.headers)
+            self.file = urllib.request.urlopen(request)
             return self.file
-        except urllib2.HTTPError as e:
+        except urllib.error.HTTPError as e:
             data = e.read()
             raise WrappedHttpError(data, self.url, self.params, self.headers, sys.exc_info())
-        except urllib2.URLError as e:
+        except urllib.error.URLError as e:
             raise WrappedUrlError(e.reason, self.url, self.params, self.headers, sys.exc_info())
         except socket.error as e:  # includes socket.timeout
             # reportedly socket errors are not wrapped in urllib2.URLError since Python 2.7
@@ -1288,7 +1286,7 @@ class OpenUrl(object):
                 self.headers,
                 sys.exc_info(),
             )
-        except httplib.HTTPException as e:  # includes httplib.BadStatusLine
+        except six.moves.http_client.HTTPException as e:  # includes httplib.BadStatusLine
             raise WrappedHttplibError(str(e), self.url, self.params, self.headers, sys.exc_info())
 
     def __exit__(self, exception_type, exception, traceback):
@@ -1419,7 +1417,7 @@ def url_for_api(info, api_name):
 def b2_url_encode(s):
     """URL-encodes a unicode string to be sent to B2 in an HTTP header.
     """
-    return urllib.quote(s.encode('utf-8'))
+    return urllib.parse.quote(s.encode('utf-8'))
 
 
 def b2_url_decode(s):
@@ -1430,7 +1428,7 @@ def b2_url_decode(s):
     # Use str() to make sure that the input to unquote is a str, not
     # unicode, which ensures that the result is a str, which allows
     # the decoding to work properly.
-    return urllib.unquote_plus(str(s)).decode('utf-8')
+    return urllib.parse.unquote_plus(str(s)).decode('utf-8')
 
 
 def hex_sha1_of_file(path):
