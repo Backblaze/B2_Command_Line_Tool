@@ -847,7 +847,9 @@ class B2RawApi(object):
         return post_json(url, params, auth)
 
     def authorize_account(self, realm_url, account_id, application_key):
-        auth = 'Basic ' + base64.b64encode('%s:%s' % (account_id, application_key))
+        auth = b'Basic ' + base64.b64encode(
+            six.b('%s:%s' % (account_id, application_key))
+        )
         return self._post_json(realm_url, 'b2_authorize_account', auth)
 
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
