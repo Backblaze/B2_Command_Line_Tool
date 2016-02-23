@@ -372,7 +372,7 @@ URL: %s
 Params: %s
 Headers: %s
 
-%s""" % (self.url, self.params, self.headers, self.data)
+%s""" % (self.url, self.params, self.headers, self.data.decode('utf-8'))
 
 
 class WrappedHttpError(AbstractWrappedError):
@@ -1317,7 +1317,7 @@ def post_json(url, params, auth_token=None):
         # requires access to 'params'
         e_backup = sys.exc_info()
         try:
-            error_dict = json.loads(e.data)
+            error_dict = json.loads(e.data.decode('utf-8'))
         except ValueError:
             v = sys.exc_info()
             error_dict = {'error_decoding_json': v}
