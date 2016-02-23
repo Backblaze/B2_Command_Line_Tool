@@ -1304,7 +1304,7 @@ def post_json(url, params, auth_token=None):
     Returns the resulting JSON, decoded into a dict or an
     exception, custom if possible, WrappedHttpError otherwise
     """
-    data = json.dumps(params)
+    data = six.b(json.dumps(params))
     headers = {}
     if auth_token is not None:
         headers['Authorization'] = auth_token
