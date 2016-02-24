@@ -17,22 +17,22 @@
 This is a B2 command-line tool.  See the USAGE message for details.
 """
 
+from __future__ import print_function
 from abc import ABCMeta, abstractmethod
 import base64
 import datetime
 import functools
 import getpass
 import hashlib
-import httplib
 import json
 import os
+import six
+from six.moves import urllib
 import socket
 import stat
 import sys
 import time
 import traceback
-import urllib
-import urllib2
 
 try:
     from tqdm import tqdm  # displays a nice progress bar
@@ -308,9 +308,8 @@ class UnrecognizedBucketType(B2Error):
         return 'Unrecognized bucket type: %s' % (self.type_,)
 
 
+@six.add_metaclass(ABCMeta)
 class AbstractWrappedError(B2Error):
-    __metaclass__ = ABCMeta
-
     def __init__(self, data, url, params, headers, exc_info):
         self.data = data
         self.url = url
@@ -373,7 +372,7 @@ URL: %s
 Params: %s
 Headers: %s
 
-%s""" % (self.url, self.params, self.headers, self.data)
+%s""" % (self.url, self.params, self.headers, self.data.decode('utf-8'))
 
 
 class WrappedHttpError(AbstractWrappedError):
@@ -388,7 +387,7 @@ class WrappedHttpError(AbstractWrappedError):
 class WrappedHttplibError(AbstractWrappedError):
     def should_retry(self):
         return not isinstance(
-            self.exc_info[0], httplib.InvalidURL
+            self.exc_info[0], six.moves.http_client.InvalidURL
         )  # raised if a port is given and is either non-numeric or empty
 
 
@@ -408,9 +407,8 @@ class WrappedSocketError(AbstractWrappedError):
 ## Bucket
 
 
+@six.add_metaclass(ABCMeta)
 class Bucket(object):
-
-    __metaclass__ = ABCMeta
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
@@ -575,7 +573,7 @@ class Bucket(object):
             remote_filename = remote_filename.replace(os.sep, '/')
 
         exception_info_list = []
-        for i in xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_data()
 
@@ -585,7 +583,7 @@ class Bucket(object):
                 'Content-Type': content_type,
                 'X-Bz-Content-Sha1': sha1_sum
             }
-            for (k, v) in file_infos.iteritems():
+            for k, v in six.iteritems(file_infos):
                 headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
             try:
@@ -754,9 +752,8 @@ class FileVersionInfoFactory(object):
 ## Cache
 
 
+@six.add_metaclass(ABCMeta)
 class AbstractCache(object):
-    __metaclass__ = ABCMeta
-
     @abstractmethod
     def get_bucket_id_or_none_from_bucket_name(self, name):
         pass
@@ -850,7 +847,7 @@ class B2RawApi(object):
         return post_json(url, params, auth)
 
     def authorize_account(self, realm_url, account_id, application_key):
-        auth = 'Basic ' + base64.b64encode('%s:%s' % (account_id, application_key))
+        auth = b'Basic ' + base64.b64encode(six.b('%s:%s' % (account_id, application_key)))
         return self._post_json(realm_url, 'b2_authorize_account', auth)
 
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
@@ -1070,7 +1067,7 @@ class B2Api(object):
 def message_and_exit(message):
     """Prints a message, and exits with error status.
     """
-    print >> sys.stderr, message
+    print(message, file=sys.stderr)
     sys.exit(1)
 
 
@@ -1088,11 +1085,13 @@ def decode_sys_argv():
     https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
     """
     encoding = sys.getfilesystemencoding()
-    return [arg.decode(encoding) for arg in sys.argv]
+    if six.PY2:
+        return [arg.decode(encoding) for arg in sys.argv]
+    return sys.argv
 
 
+@six.add_metaclass(ABCMeta)
 class AbstractAccountInfo(object):
-    __metaclass__ = ABCMeta
     REALM_URLS = {
         'production': 'https://api.backblaze.com',
         'dev': 'http://api.test.blaze:8180',
@@ -1262,7 +1261,7 @@ class OpenUrl(object):
 
         Reminder: HTTP header names are case-insensitive.
         """
-        for k in headers.iterkeys():
+        for k in headers:
             if k.lower() == 'user-agent':
                 return headers
         else:
@@ -1272,13 +1271,13 @@ class OpenUrl(object):
 
     def __enter__(self):
         try:
-            request = urllib2.Request(self.url, self.data, self.headers)
-            self.file = urllib2.urlopen(request)
+            request = urllib.request.Request(self.url, self.data, self.headers)
+            self.file = urllib.request.urlopen(request)
             return self.file
-        except urllib2.HTTPError as e:
+        except urllib.error.HTTPError as e:
             data = e.read()
             raise WrappedHttpError(data, self.url, self.params, self.headers, sys.exc_info())
-        except urllib2.URLError as e:
+        except urllib.error.URLError as e:
             raise WrappedUrlError(e.reason, self.url, self.params, self.headers, sys.exc_info())
         except socket.error as e:  # includes socket.timeout
             # reportedly socket errors are not wrapped in urllib2.URLError since Python 2.7
@@ -1289,7 +1288,7 @@ class OpenUrl(object):
                 self.headers,
                 sys.exc_info(),
             )
-        except httplib.HTTPException as e:  # includes httplib.BadStatusLine
+        except six.moves.http_client.HTTPException as e:  # includes httplib.BadStatusLine
             raise WrappedHttplibError(str(e), self.url, self.params, self.headers, sys.exc_info())
 
     def __exit__(self, exception_type, exception, traceback):
@@ -1303,7 +1302,7 @@ def post_json(url, params, auth_token=None):
     Returns the resulting JSON, decoded into a dict or an
     exception, custom if possible, WrappedHttpError otherwise
     """
-    data = json.dumps(params)
+    data = six.b(json.dumps(params))
     headers = {}
     if auth_token is not None:
         headers['Authorization'] = auth_token
@@ -1316,7 +1315,7 @@ def post_json(url, params, auth_token=None):
         # requires access to 'params'
         e_backup = sys.exc_info()
         try:
-            error_dict = json.loads(e.data)
+            error_dict = json.loads(e.data.decode('utf-8'))
         except ValueError:
             v = sys.exc_info()
             error_dict = {'error_decoding_json': v}
@@ -1352,8 +1351,8 @@ class SimpleProgress(object):
         elapsed = now - self.last_time
         if 3 <= elapsed and self.total != 0:
             if not self.any_printed:
-                print self.desc
-            print '     %d%%' % int(100.0 * self.complete / self.total)
+                print(self.desc)
+            print('     %d%%' % int(100.0 * self.complete / self.total))
             self.last_time = now
             self.any_printed = True
 
@@ -1362,7 +1361,7 @@ class SimpleProgress(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.any_printed:
-            print '    DONE.'
+            print('    DONE.')
 
 
 class StreamWithProgress(tqdm or SimpleProgress):
@@ -1420,7 +1419,7 @@ def url_for_api(info, api_name):
 def b2_url_encode(s):
     """URL-encodes a unicode string to be sent to B2 in an HTTP header.
     """
-    return urllib.quote(s.encode('utf-8'))
+    return urllib.parse.quote(s.encode('utf-8'))
 
 
 def b2_url_decode(s):
@@ -1431,7 +1430,7 @@ def b2_url_decode(s):
     # Use str() to make sure that the input to unquote is a str, not
     # unicode, which ensures that the result is a str, which allows
     # the decoding to work properly.
-    return urllib.unquote_plus(str(s)).decode('utf-8')
+    return urllib.parse.unquote_plus(str(s)).decode('utf-8')
 
 
 def hex_sha1_of_file(path):
@@ -1449,13 +1448,13 @@ def hex_sha1_of_file(path):
 def _download_file_progress_callback(output_stream, print_info, headers_dict):
     file_size = int(headers_dict['content-length'])
     if print_info:
-        print 'File name:   ', headers_dict['x-bz-file-name']
-        print 'File size:   ', file_size
-        print 'Content type:', headers_dict['content-type']
-        print 'Content sha1:', headers_dict['x-bz-content-sha1']
+        print('File name:   ', headers_dict['x-bz-file-name'])
+        print('File size:   ', file_size)
+        print('Content type:', headers_dict['content-type'])
+        print('Content sha1:', headers_dict['x-bz-content-sha1'])
         for name in headers_dict:
             if name.startswith('x-bz-info-'):
-                print 'INFO', name[10:] + ':', headers_dict[name]
+                print('INFO', name[10:] + ':', headers_dict[name])
     output_stream.total = file_size
 
 
@@ -1489,7 +1488,7 @@ def download_file_by_id_helper(
             mtime = int(last_modified_millis) / 1000
             os.utime(local_file_name, (mtime, mtime))
     if print_progress:
-        print 'checksum matches'
+        print('checksum matches')
 
 
 class ConsoleTool(object):
@@ -1515,7 +1514,7 @@ class ConsoleTool(object):
         bucket_name = args[0]
         bucket_type = args[1]
 
-        print self.api.create_bucket(bucket_name, bucket_type).id_
+        print(self.api.create_bucket(bucket_name, bucket_type).id_)
 
     def delete_bucket(self, args):
         if len(args) != 1:
@@ -1525,7 +1524,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = self.api.delete_bucket(bucket)
 
-        print json.dumps(response, indent=4, sort_keys=True)
+        print(json.dumps(response, indent=4, sort_keys=True))
 
     def update_bucket(self, args):
         if len(args) != 2:
@@ -1536,14 +1535,14 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = bucket.set_type(bucket_type)
 
-        print json.dumps(response, indent=4, sort_keys=True)
+        print(json.dumps(response, indent=4, sort_keys=True))
 
     def list_buckets(self, args):
         if len(args) != 0:
             usage_and_exit()
 
         for b in self.api.list_buckets():
-            print '%s  %-10s  %s' % (b.id_, b.type_, b.name)
+            print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
 
     # file
 
@@ -1557,7 +1556,7 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def download_file_by_id(self, args):
         if len(args) != 2:
@@ -1602,7 +1601,7 @@ class ConsoleTool(object):
 
         response = self.api.get_file_info(file_id)
 
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def hide_file(self, args):
         if len(args) != 2:
@@ -1615,7 +1614,7 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def upload_file(self, args):
         content_type = None
@@ -1666,9 +1665,9 @@ class ConsoleTool(object):
         )
         response = file_info.as_dict()
         if not quiet:
-            print "URL by file name: " + bucket.get_download_url(remote_file)
-            print "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
-        print json.dumps(response, indent=2, sort_keys=True)
+            print("URL by file name: " + bucket.get_download_url(remote_file))
+            print("URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId']))
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     # account
 
@@ -1680,18 +1679,18 @@ class ConsoleTool(object):
             if option in self.api.account_info.REALM_URLS:
                 break
             else:
-                print 'ERROR: unknown option', option
+                print('ERROR: unknown option', option)
                 usage_and_exit()
 
         url = self.api.account_info.REALM_URLS[option]
-        print 'Using %s' % url
+        print('Using %s' % url)
 
         if 2 < len(args):
             usage_and_exit()
         if 0 < len(args):
             account_id = args[0]
         else:
-            account_id = raw_input('Backblaze account ID: ')
+            account_id = six.moves.input('Backblaze account ID: ')
 
         if 1 < len(args):
             application_key = args[1]
@@ -1724,7 +1723,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         response = bucket.list_file_names(first_file_name, count)
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def list_file_versions(self, args):
         if len(args) < 1 or 4 < len(args):
@@ -1747,7 +1746,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         response = bucket.list_file_versions(first_file_name, first_file_id, count)
-        print json.dumps(response, indent=2, sort_keys=True)
+        print(json.dumps(response, indent=2, sort_keys=True))
 
     def ls(self, args):
         long_format = False
@@ -1760,7 +1759,7 @@ class ConsoleTool(object):
             elif option == '--versions':
                 show_versions = True
             else:
-                print 'Unknown option:', option
+                print('Unknown option:', option)
                 usage_and_exit()
         if len(args) < 1 or len(args) > 2:
             usage_and_exit()
@@ -1775,11 +1774,11 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         for file_version_info, folder_name in bucket.ls(prefix, show_versions):
             if not long_format:
-                print folder_name or file_version_info.file_name
+                print(folder_name or file_version_info.file_name)
             elif folder_name is not None:
-                print FileVersionInfo.format_folder_ls_entry(folder_name)
+                print(FileVersionInfo.format_folder_ls_entry(folder_name))
             else:
-                print file_version_info.format_ls_entry()
+                print(file_version_info.format_ls_entry())
 
     # other
 
@@ -1789,7 +1788,7 @@ class ConsoleTool(object):
 
         file_id = args[0]
 
-        print self.api.get_download_url_for_fileid(file_id)
+        print(self.api.get_download_url_for_fileid(file_id))
 
     def sync(self, args):
         # TODO: break up this method.  it's too long
@@ -1856,25 +1855,25 @@ class ConsoleTool(object):
             remote_file = remote_files.get(filename)
             is_match = local_file and remote_file and local_file['size'] == remote_file['size']
             if is_b2_src and remote_file and not is_match:
-                print "+ %s" % filename
+                print("+ %s" % filename)
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
                 url = self.api.get_download_url_for_fileid(remote_file['fileId'])
                 download_file_by_id_helper(self.api, url, filepath, authorization=True,)
             elif is_b2_src and not remote_file and options['delete']:
-                print "- %s" % filename
+                print("- %s" % filename)
                 os.remove(filepath)
             elif not is_b2_src and local_file and not is_match:
-                print "+ %s" % filename
+                print("+ %s" % filename)
                 file_infos = {
                     'src_last_modified_millis': str(int(os.path.getmtime(filepath) * 1000))
                 }
                 bucket.upload_file(filepath, b2_path, file_infos=file_infos)
             elif not is_b2_src and not local_file and options['delete']:
-                print "- %s" % filename
+                print("- %s" % filename)
                 self.api.delete_file_version(remote_file['fileId'], b2_path)
             elif not is_b2_src and not local_file and options['hide']:
-                print ". %s" % filename
+                print(". %s" % filename)
                 bucket.hide_file(b2_path)
 
         # Remove empty local directories
@@ -1933,14 +1932,14 @@ def main():
         elif action == 'upload_file':
             ct.upload_file(args)
         elif action == 'version':
-            print 'b2 command line tool, version', VERSION
+            print('b2 command line tool, version', VERSION)
         else:
             usage_and_exit()
     except MissingAccountData:
-        print 'ERROR: Missing account.  Use: b2 authorize_account'
+        print('ERROR: Missing account.  Use: b2 authorize_account')
         sys.exit(1)
     except B2Error as e:
-        print 'ERROR: %s' % (e,)
+        print('ERROR: %s' % (e,))
         sys.exit(1)
 
 
