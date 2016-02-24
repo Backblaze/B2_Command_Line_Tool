@@ -201,7 +201,7 @@ class CommandLine(object):
         """
         command = [self.path_to_script] + args
         if six.PY2:
-            interpreter = 'python'
+            interpreter = 'python2'
         elif six.PY3:
             interpreter = 'python3'
         else:
