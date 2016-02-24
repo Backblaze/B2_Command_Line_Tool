@@ -434,7 +434,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         c_id = find_file_id(file_versions, prefix + 'c')
         file_info = b2_tool.should_succeed_json(['get_file_info', c_id])['fileInfo']
         should_equal(
-            file_mod_time_millis(p('a')),
+            file_mod_time_millis(p('c')),
             int(file_info['src_last_modified_millis'])
         )
 
