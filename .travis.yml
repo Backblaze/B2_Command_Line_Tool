@@ -14,6 +14,13 @@ python:
   - pypy
   - pypy3
 
+matrix:
+  include:
+    - python: "2.7"
+      env: SCA=true
+    - python: "3.5"
+      env: SCA=true
+
 install:
   - pip install pyflakes
   - pip install yapf
@@ -25,5 +32,6 @@ before_install:
   - virtualenv --version
 
 script:
-  - for f in b2/*.py; do yapf --diff "$f"; pyflakes "$f"; done
+  - if [ -n "$SCA" ]; then yapf -r b2; fi
+  - if [ -n "$SCA" ]; then pyflakes b2; fi
   - python b2/b2.py version
