@@ -1383,6 +1383,11 @@ class StreamWithProgress(tqdm or SimpleProgress):
             )
         )
 
+    def update(self, n):
+        if n > 0:
+            # tqdm started raising an exception if n==0 in 3.8.0
+            super(StreamWithProgress, self).update(n)
+
     def read(self, size):
         data = self.stream.read(size)
         self.update(len(data))
