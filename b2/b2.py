@@ -153,7 +153,7 @@ Usages:
         of the local file, and assigns the given name to the B2 file.
 
         By default, upload_file will compute the sha1 checksum of the file
-        to be uploaded.  But, you you already have it, you can provide it
+        to be uploaded.  But, if you already have it, you can provide it
         on the command line to save a little time.
 
         Content type is optional.  If not set, it will be set based on the
