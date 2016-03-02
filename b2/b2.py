@@ -1158,7 +1158,9 @@ class StoredAccountInfo(AbstractAccountInfo):
     def _try_to_read_file(self):
         try:
             with open(self.filename, 'rb') as f:
-                return json.loads(f.read())
+                # is there a cleaner way to do this that works in both Python 2 and 3?
+                json_str = f.read().decode('utf-8')
+                return json.loads(json_str)
         except Exception:
             return {}
 
@@ -1239,7 +1241,9 @@ class StoredAccountInfo(AbstractAccountInfo):
         if os.name == 'nt':
             flags |= os.O_BINARY
         with os.fdopen(os.open(self.filename, flags, stat.S_IRUSR | stat.S_IWUSR), 'wb') as f:
-            json.dump(self.data, f, indent=4, sort_keys=True)
+            # is there a cleaner way to do this that works in both Python 2 and 3?
+            json_bytes = json.dumps(self.data, indent=4, sort_keys=True).encode('utf-8')
+            f.write(json_bytes)
 
 
 class OpenUrl(object):
@@ -1296,6 +1300,22 @@ class OpenUrl(object):
             self.file.close()
 
 
+def read_str_from_http_response(response):
+    """
+    This is an ugly hack.  I probably don't understand Python 2/3
+    compatibility well enough.
+
+    The read() method on urllib responses returns a str in Python 2,
+    and bytes in Python 3, so json.load() won't work in both. This
+    function converts the result into a str that json.loads() will
+    take.
+    """
+    if six.PY2:
+        return response.read()
+    else:
+        return response.read().decode('utf-8')
+
+
 def post_json(url, params, auth_token=None):
     """Coverts params to JSON and posts them to the given URL.
 
@@ -1308,7 +1328,7 @@ def post_json(url, params, auth_token=None):
         headers['Authorization'] = auth_token
     try:
         with OpenUrl(url, data, headers, params) as f:
-            json_text = f.read()
+            json_text = read_str_from_http_response(f)
             return json.loads(json_text)
     except WrappedHttpError as e:
         # this wrapper for api errors
@@ -1409,7 +1429,7 @@ def post_file(url, headers, file_path, progress_bar=False):
         stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
     with stream as data_file:
         with OpenUrl(url, data_file, headers) as response_file:
-            json_text = response_file.read()
+            json_text = read_str_from_http_response(response_file)
             return json.loads(json_text)
 
 
