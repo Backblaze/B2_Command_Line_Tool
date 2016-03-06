@@ -866,12 +866,10 @@ class B2RawApi(object):
         )
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
-        return self._post_json(
-            api_url,
-            'b2_get_upload_url',
-            account_auth_token,
-            bucketId=bucket_id
-        )
+        return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
+
+    def list_buckets(self, api_url, account_auth_token, account_id):
+        return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
 
     def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
         return self._post_json(
@@ -978,9 +976,7 @@ class B2Api(object):
         Gets a URL for uploading files.
         """
         auth_token = self.account_info.get_account_auth_token()
-        return self.raw_api.get_upload_url(
-            self.account_info.get_api_url(), auth_token, bucket_id
-        )
+        return self.raw_api.get_upload_url(self.account_info.get_api_url(), auth_token, bucket_id)
 
     def list_buckets(self):
         """
@@ -989,9 +985,9 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        url = url_for_api(self.account_info, 'b2_list_buckets')
-        params = {'accountId': account_id}
-        response = post_json(url, params, auth_token)
+        response = self.raw_api.list_buckets(
+            self.account_info.get_api_url(), auth_token, account_id
+        )
 
         buckets = BucketFactory.from_api_response(self, response)
 
