@@ -625,10 +625,12 @@ class Bucket(object):
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
-
-        url = url_for_api(account_info, 'b2_hide_file')
-        params = {'bucketId': self.id_, 'fileName': file_name,}
-        response = post_json(url, params, auth_token)
+        response = self.api.raw_api.hide_file(
+            self.api.account_info.get_api_url(),
+            auth_token,
+            self.id_,
+            file_name
+        )
         return FileVersionInfoFactory.from_api_response(response)
 
     def as_dict(self):  # TODO: refactor with other as_dict()
@@ -879,6 +881,9 @@ class B2RawApi(object):
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
+
+    def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
+        return self._post_json(api_url, 'b2_hide_file', account_auth_token, bucketId=bucket_id, fileName=file_name)
 
     def list_buckets(self, api_url, account_auth_token, account_id):
         return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
