@@ -467,18 +467,20 @@ class Bucket(object):
         # then we keep calling list_file_names until we get all of the
         # names in this "folder".
         current_dir = None
-        if show_versions:
-            api_name = 'b2_list_file_versions'
-        else:
-            api_name = 'b2_list_file_names'
-        url = url_for_api(self.api.account_info, api_name)
         start_file_name = prefix
         start_file_id = None
         while True:
             params = {'bucketId': self.id_, 'startFileName': start_file_name}
             if start_file_id is not None:
                 params['startFileId'] = start_file_id
-            response = post_json(url, params, auth_token)
+            raw_api = self.api.raw_api
+            api_url = self.api.account_info.get_api_url()
+            auth_token = self.api.account_info.get_account_auth_token()
+            if show_versions:
+                response = raw_api.list_file_versions(api_url, auth_token, self.id_,
+                                                      start_file_name, start_file_id)
+            else:
+                response = raw_api.list_file_names(api_url, auth_token, self.id_, start_file_name)
             for entry in response['files']:
                 file_version_info = FileVersionInfoFactory.from_api_response(entry)
                 if not file_version_info.file_name.startswith(prefix):
@@ -626,10 +628,7 @@ class Bucket(object):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
         response = self.api.raw_api.hide_file(
-            self.api.account_info.get_api_url(),
-            auth_token,
-            self.id_,
-            file_name
+            self.api.account_info.get_api_url(), auth_token, self.id_, file_name
         )
         return FileVersionInfoFactory.from_api_response(response)
 
@@ -883,10 +882,52 @@ class B2RawApi(object):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
 
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
-        return self._post_json(api_url, 'b2_hide_file', account_auth_token, bucketId=bucket_id, fileName=file_name)
+        return self._post_json(
+            api_url,
+            'b2_hide_file',
+            account_auth_token,
+            bucketId=bucket_id,
+            fileName=file_name
+        )
 
     def list_buckets(self, api_url, account_auth_token, account_id):
         return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
+
+    def list_file_names(
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=None,
+        max_file_count=None
+    ):
+        return self._post_json(
+            api_url,
+            'b2_list_file_names',
+            account_auth_token,
+            bucketId=bucket_id,
+            startFileName=start_file_name,
+            maxFileCount=max_file_count
+        )
+
+    def list_file_versions(
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=None,
+        start_file_id=None,
+        max_file_count=None
+    ):
+        return self._post_json(
+            api_url,
+            'b2_list_file_versions',
+            account_auth_token,
+            bucketId=bucket_id,
+            startFileName=start_file_name,
+            startFileId=start_file_id,
+            maxFileCount=max_file_count
+        )
 
     def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
         return self._post_json(
@@ -898,9 +939,7 @@ class B2RawApi(object):
             bucketType=bucket_type
         )
 
-    # TODO: move the rest of the calls from B2Api
-
-    ## B2Api
+## B2Api
 
 
 class B2Api(object):
