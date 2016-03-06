@@ -865,6 +865,15 @@ class B2RawApi(object):
             bucketId=bucket_id
         )
 
+    def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
+        return self._post_json(
+            api_url,
+            'b2_delete_file_version',
+            account_auth_token,
+            fileId=file_id,
+            fileName=file_name
+        )
+
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
 
@@ -995,15 +1004,12 @@ class B2Api(object):
         return buckets
 
     # delete
-    def delete_file_version(self, file_id, file_name):  # filename argument is not first,
-        # because one day it may become
-        # optional
+    def delete_file_version(self, file_id, file_name):
+        # filename argument is not first, because one day it may become optional
         auth_token = self.account_info.get_account_auth_token()
-
-        url = url_for_api(self.account_info, 'b2_delete_file_version')
-
-        params = {'fileName': file_name, 'fileId': file_id,}
-        response = post_json(url, params, auth_token)
+        response = self.raw_api.delete_file_version(
+            self.account_info.get_api_url(), auth_token, file_id, file_name
+        )
         file_info = FileVersionInfoFactory.from_api_response(response, force_action='delete',)
         assert file_info.id_ == file_id
         assert file_info.file_name == file_name
