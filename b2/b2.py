@@ -874,6 +874,9 @@ class B2RawApi(object):
             fileName=file_name
         )
 
+    def get_file_info(self, api_url, account_auth_token, file_id):
+        return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
+
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
 
@@ -1070,11 +1073,7 @@ class B2Api(object):
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.account_info.get_account_auth_token()
-
-        url = url_for_api(self.account_info, 'b2_get_file_info')
-        params = {'fileId': file_id}
-        response = post_json(url, params, auth_token)
-        return response
+        return self.raw_api.get_file_info(self.account_info.get_api_url(), auth_token, file_id)
 
 ## v0.3.x functions
 
