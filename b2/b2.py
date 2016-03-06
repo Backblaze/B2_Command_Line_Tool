@@ -607,11 +607,7 @@ class Bucket(object):
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
 
-        auth_token = account_info.get_account_auth_token()
-        url = url_for_api(account_info, 'b2_get_upload_url')
-        params = {'bucketId': self.id_}
-        response = post_json(url, params, auth_token)
-
+        response = self.api.get_upload_url(self.id_)
         account_info.set_bucket_upload_data(
             self.id_,
             response['uploadUrl'],
@@ -869,6 +865,14 @@ class B2RawApi(object):
             bucketId=bucket_id
         )
 
+    def get_upload_url(self, api_url, account_auth_token, bucket_id):
+        return self._post_json(
+            api_url,
+            'b2_get_upload_url',
+            account_auth_token,
+            bucketId=bucket_id
+        )
+
     def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
         return self._post_json(
             api_url,
@@ -967,6 +971,15 @@ class B2Api(object):
         auth_token = self.account_info.get_account_auth_token()
         return self.raw_api.delete_bucket(
             self.account_info.get_api_url(), auth_token, account_id, bucket.id_
+        )
+
+    def get_upload_url(self, bucket_id):
+        """
+        Gets a URL for uploading files.
+        """
+        auth_token = self.account_info.get_account_auth_token()
+        return self.raw_api.get_upload_url(
+            self.account_info.get_api_url(), auth_token, bucket_id
         )
 
     def list_buckets(self):
