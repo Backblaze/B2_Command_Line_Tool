@@ -477,8 +477,9 @@ class Bucket(object):
             api_url = self.api.account_info.get_api_url()
             auth_token = self.api.account_info.get_account_auth_token()
             if show_versions:
-                response = raw_api.list_file_versions(api_url, auth_token, self.id_,
-                                                      start_file_name, start_file_id)
+                response = raw_api.list_file_versions(
+                    api_url, auth_token, self.id_, start_file_name, start_file_id
+                )
             else:
                 response = raw_api.list_file_names(api_url, auth_token, self.id_, start_file_name)
             for entry in response['files']:
