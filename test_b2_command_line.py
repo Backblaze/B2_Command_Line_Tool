@@ -95,11 +95,22 @@ class StringReader(object):
             self.string = str(e)
 
 
-def run_command(command):
+def run_command(path_to_script, args):
     """
     :param command: A list of strings like ['ls', '-l', '/dev']
     :return: (status, stdout, stderr)
     """
+    if six.PY2:
+        interpreter = 'python2'
+    elif six.PY3:
+        interpreter = 'python3'
+    else:
+        assert False, 'unknown python version'
+    command = [interpreter, path_to_script]
+    command.extend(args)
+
+    print('Running:', ' '.join(command))
+
     stdout = StringReader()
     stderr = StringReader()
     p = subprocess.Popen(
@@ -117,7 +128,12 @@ def run_command(command):
     p.wait()
     reader1.join()
     reader2.join()
-    return (p.returncode, stdout.get_string().decode('utf-8'), stderr.get_string().decode('utf-8'))
+
+    stdout_decoded = stdout.get_string().decode('utf-8')
+    stderr_decoded = stderr.get_string().decode('utf-8')
+
+    print_output(p.returncode, stdout_decoded, stderr_decoded)
+    return p.returncode, stdout_decoded, stderr_decoded
 
 
 def print_text_indented(text):
@@ -164,10 +180,7 @@ class CommandLine(object):
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        command = [self.path_to_script] + args
-        print('Running:', ' '.join(command))
-        (status, stdout, stderr) = run_command(command)
-        print_output(status, stdout, stderr)
+        status, stdout, stderr = run_command(self.path_to_script, args)
         if status != 0:
             print('FAILED with status', status)
             sys.exit(1)
@@ -199,17 +212,7 @@ class CommandLine(object):
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        command = [self.path_to_script] + args
-        if six.PY2:
-            interpreter = 'python2'
-        elif six.PY3:
-            interpreter = 'python3'
-        else:
-            assert False, 'unknown python version'
-        command.insert(0, interpreter)
-        print('Running:', ' '.join(command))
-        (status, stdout, stderr) = run_command(command)
-        print_output(status, stdout, stderr)
+        status, stdout, stderr = run_command(self.path_to_script, args)
         if status == 0:
             print('ERROR: should have failed')
             sys.exit(1)
