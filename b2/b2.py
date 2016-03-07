@@ -961,11 +961,14 @@ class B2Session(object):
         proxy that supplies the correct api_url and account_auth_token to methods
         of underlying raw_api and reauthorizes if necessary
     """
+
     def __init__(self, account_info, raw_api):
         self.account_info = account_info  # for reauthorization
         self.raw_api = raw_api
+
     def __getattr__(self, name):
         f = getattr(self.raw_api, name)
+
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
             auth_failure_encountered = False
@@ -983,8 +986,8 @@ class B2Session(object):
                         # TODO: exception chaining could be added here
                         #       to help debug reauthorization failures
                     raise
-        return wrapper
 
+        return wrapper
 
 ## B2Api
 
