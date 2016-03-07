@@ -467,18 +467,21 @@ class Bucket(object):
         # then we keep calling list_file_names until we get all of the
         # names in this "folder".
         current_dir = None
-        if show_versions:
-            api_name = 'b2_list_file_versions'
-        else:
-            api_name = 'b2_list_file_names'
-        url = url_for_api(self.api.account_info, api_name)
         start_file_name = prefix
         start_file_id = None
+        raw_api = self.api.raw_api
+        api_url = self.api.account_info.get_api_url()
+        auth_token = self.api.account_info.get_account_auth_token()
         while True:
             params = {'bucketId': self.id_, 'startFileName': start_file_name}
             if start_file_id is not None:
                 params['startFileId'] = start_file_id
-            response = post_json(url, params, auth_token)
+            if show_versions:
+                response = raw_api.list_file_versions(
+                    api_url, auth_token, self.id_, start_file_name, start_file_id
+                )
+            else:
+                response = raw_api.list_file_names(api_url, auth_token, self.id_, start_file_name)
             for entry in response['files']:
                 file_version_info = FileVersionInfoFactory.from_api_response(entry)
                 if not file_version_info.file_name.startswith(prefix):
@@ -607,11 +610,9 @@ class Bucket(object):
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
 
-        auth_token = account_info.get_account_auth_token()
-        url = url_for_api(account_info, 'b2_get_upload_url')
-        params = {'bucketId': self.id_}
-        response = post_json(url, params, auth_token)
-
+        response = self.api.raw_api.get_upload_url(
+            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_
+        )
         account_info.set_bucket_upload_data(
             self.id_,
             response['uploadUrl'],
@@ -629,10 +630,9 @@ class Bucket(object):
     def hide_file(self, file_name):
         account_info = self.api.account_info
         auth_token = account_info.get_account_auth_token()
-
-        url = url_for_api(account_info, 'b2_hide_file')
-        params = {'bucketId': self.id_, 'fileName': file_name,}
-        response = post_json(url, params, auth_token)
+        response = self.api.raw_api.hide_file(
+            self.api.account_info.get_api_url(), auth_token, self.id_, file_name
+        )
         return FileVersionInfoFactory.from_api_response(response)
 
     def as_dict(self):  # TODO: refactor with other as_dict()
@@ -869,6 +869,69 @@ class B2RawApi(object):
             bucketId=bucket_id
         )
 
+    def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
+        return self._post_json(
+            api_url,
+            'b2_delete_file_version',
+            account_auth_token,
+            fileId=file_id,
+            fileName=file_name
+        )
+
+    def get_file_info(self, api_url, account_auth_token, file_id):
+        return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
+
+    def get_upload_url(self, api_url, account_auth_token, bucket_id):
+        return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
+
+    def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
+        return self._post_json(
+            api_url,
+            'b2_hide_file',
+            account_auth_token,
+            bucketId=bucket_id,
+            fileName=file_name
+        )
+
+    def list_buckets(self, api_url, account_auth_token, account_id):
+        return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
+
+    def list_file_names(
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=None,
+        max_file_count=None
+    ):
+        return self._post_json(
+            api_url,
+            'b2_list_file_names',
+            account_auth_token,
+            bucketId=bucket_id,
+            startFileName=start_file_name,
+            maxFileCount=max_file_count
+        )
+
+    def list_file_versions(
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=None,
+        start_file_id=None,
+        max_file_count=None
+    ):
+        return self._post_json(
+            api_url,
+            'b2_list_file_versions',
+            account_auth_token,
+            bucketId=bucket_id,
+            startFileName=start_file_name,
+            startFileId=start_file_id,
+            maxFileCount=max_file_count
+        )
+
     def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
         return self._post_json(
             api_url,
@@ -879,9 +942,7 @@ class B2RawApi(object):
             bucketType=bucket_type
         )
 
-    # TODO: move the rest of the calls from B2Api
-
-    ## B2Api
+## B2Api
 
 
 class B2Api(object):
@@ -976,9 +1037,9 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         auth_token = self.account_info.get_account_auth_token()
 
-        url = url_for_api(self.account_info, 'b2_list_buckets')
-        params = {'accountId': account_id}
-        response = post_json(url, params, auth_token)
+        response = self.raw_api.list_buckets(
+            self.account_info.get_api_url(), auth_token, account_id
+        )
 
         buckets = BucketFactory.from_api_response(self, response)
 
@@ -986,15 +1047,12 @@ class B2Api(object):
         return buckets
 
     # delete
-    def delete_file_version(self, file_id, file_name):  # filename argument is not first,
-        # because one day it may become
-        # optional
+    def delete_file_version(self, file_id, file_name):
+        # filename argument is not first, because one day it may become optional
         auth_token = self.account_info.get_account_auth_token()
-
-        url = url_for_api(self.account_info, 'b2_delete_file_version')
-
-        params = {'fileName': file_name, 'fileId': file_id,}
-        response = post_json(url, params, auth_token)
+        response = self.raw_api.delete_file_version(
+            self.account_info.get_api_url(), auth_token, file_id, file_name
+        )
         file_info = FileVersionInfoFactory.from_api_response(response, force_action='delete',)
         assert file_info.id_ == file_id
         assert file_info.file_name == file_name
@@ -1055,11 +1113,7 @@ class B2Api(object):
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
         auth_token = self.account_info.get_account_auth_token()
-
-        url = url_for_api(self.account_info, 'b2_get_file_info')
-        params = {'fileId': file_id}
-        response = post_json(url, params, auth_token)
-        return response
+        return self.raw_api.get_file_info(self.account_info.get_api_url(), auth_token, file_id)
 
 ## v0.3.x functions
 
