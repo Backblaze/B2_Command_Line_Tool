@@ -469,13 +469,13 @@ class Bucket(object):
         current_dir = None
         start_file_name = prefix
         start_file_id = None
+        raw_api = self.api.raw_api
+        api_url = self.api.account_info.get_api_url()
+        auth_token = self.api.account_info.get_account_auth_token()
         while True:
             params = {'bucketId': self.id_, 'startFileName': start_file_name}
             if start_file_id is not None:
                 params['startFileId'] = start_file_id
-            raw_api = self.api.raw_api
-            api_url = self.api.account_info.get_api_url()
-            auth_token = self.api.account_info.get_account_auth_token()
             if show_versions:
                 response = raw_api.list_file_versions(
                     api_url, auth_token, self.id_, start_file_name, start_file_id
