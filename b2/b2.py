@@ -241,6 +241,15 @@ class FileNotPresent(B2Error):
         return 'File not present: %s' % (self.file_name,)
 
 
+class InvalidAuthToken(B2Error):
+    def __init__(self, message, _type):
+        self.message = message
+        self._type = _type
+
+    def __str__(self):
+        return 'Invalid authorization token. Server said: %s (%s)' % (self.message, self._type)
+
+
 class MaxFileSizeExceeded(B2Error):
     def __init__(self, file_description, size, max_allowed_size):
         self.file_description = file_description
@@ -1406,6 +1415,8 @@ def post_json(url, params, auth_token=None):
             raise FileNotPresent(params['fileName'])
         elif status == 400 and code == "duplicate_bucket_name":
             raise DuplicateBucketName(params['bucketName'])
+        elif status == 401 and code in ("bad_auth_token", "expired_auth_token"):
+            raise InvalidAuthToken(error_dict.get('message'), code)
         elif status == 403 and code == "storage_cap_exceeded":
             raise StorageCapExceeded()
         raise
