@@ -11,6 +11,14 @@ function header
 
 SOURCE_FILES=b2/b2.py
 
+if yapf --version &> /dev/null
+then
+    echo "yapf is installed"
+else
+    echo "Please install yapf, then try again."
+    exit 1
+fi
+
 header Checking Formatting
 
 for src_file in $SOURCE_FILES
