@@ -44,6 +44,10 @@ except ImportError:
 # odd for Github, and even for Backblaze releases.
 VERSION = '0.4.5'
 
+PYTHON_VERSION = '.'.join(map(str, sys.version_info[:3]))  # something like: 2.7.11
+
+USER_AGENT = 'backblaze-b2/%s python/%s' % (VERSION, PYTHON_VERSION)
+
 USAGE = """This program provides command-line access to the B2 service.
 
 Usages:
@@ -1324,7 +1328,7 @@ class OpenUrl(object):
                 return headers
         else:
             result = dict(headers)
-            result['User-Agent'] = 'backblaze-b2/' + VERSION
+            result['User-Agent'] = USER_AGENT
             return result
 
     def __enter__(self):
