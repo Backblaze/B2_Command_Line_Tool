@@ -1781,7 +1781,7 @@ def next_or_none(iterator):
     Returns the next item from the iterator, or None if there are no more.
     """
     try:
-        return iterator.next()
+        return six.advance_iterator(iterator)
     except StopIteration:
         return None
 

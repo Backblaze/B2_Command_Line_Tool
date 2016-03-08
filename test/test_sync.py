@@ -13,6 +13,7 @@ from __future__ import print_function
 from b2 import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
 import os
 import tempfile
+from six.moves import map
 import shutil
 import sys
 import unittest
@@ -51,7 +52,7 @@ class TestLocalFolder(unittest.TestCase):
             create_files(dir, ['hello.', 'hello/a', 'hello/b', 'hello0'])
             folder = LocalFolder(dir)
             files = list(folder.all_files())
-            names = map(lambda f: f.name, files)
+            names = list(map(lambda f: f.name, files))
             self.assertEqual(['hello.', 'hello/a', 'hello/b', 'hello0'], names)
 
 
@@ -133,7 +134,7 @@ class TestMakeSyncActions(unittest.TestCase):
             [
                 "b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)",
                 "b2_upload(/dir/e.txt, e.txt, 300)"
-            ], map(str, actions)
+            ], list(map(str, actions))
         )
 
     def test_b2_to_local(self):
@@ -155,7 +156,7 @@ class TestMakeSyncActions(unittest.TestCase):
             [
                 "b2_download(a.txt, id_a_100)", "local_delete(/dir/b.txt)",
                 "b2_download(e.txt, id_e_300)"
-            ], map(str, actions)
+            ], list(map(str, actions))
         )
 
 
