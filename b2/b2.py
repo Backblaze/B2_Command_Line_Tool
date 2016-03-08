@@ -1574,13 +1574,13 @@ def download_file_by_id_helper(
         print('checksum matches')
 
 
-
 class File(object):
     """
     Holds information about one file in a folder.
 
     The name is relative to the folder in all cases.
     """
+
     def __init__(self, name, id, sha1, content_type, file_info):
         self.name = name
         self.id = id
@@ -1591,7 +1591,6 @@ class File(object):
 
 @six.add_metaclass(ABCMeta)
 class Folder(object):
-
     """
     Interface to a folder full of files, which might be a B2 bucket,
     a virtual folder in a B2 bucket, or a directory on a local file
@@ -1614,6 +1613,7 @@ class LocalFolder(Folder):
     """
     Folder interface to a directory on the local machine.
     """
+
     def __init__(self, root):
         self.root = os.path.abspath(root)
         self.relative_paths = self._get_all_relative_paths(self.root)
@@ -1636,13 +1636,13 @@ class LocalFolder(Folder):
         for dirpath, dirnames, filenames in os.walk(root_path):
             for filename in filenames:
                 full_path = os.path.join(dirpath, filename)
-                relative_path = full_path[len(root_path)+1:]
+                relative_path = full_path[len(root_path) + 1:]
                 result.append(relative_path)
         return sorted(result)
 
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
-        file_info = { 'src_src_last_modified_millis' : str(int(os.path.getmtime(full_path))) }
+        file_info = {'src_src_last_modified_millis': str(int(os.path.getmtime(full_path)))}
         return File(relative_path, full_path, 'dummy_sha1', 'dummy_content_type', file_info)
 
 
@@ -1652,7 +1652,6 @@ def sync_folders(source, dest, history_days):
     source is also in the destination.  Deletes any file versions
     in the destination older than history_days.
     """
-
 
 
 class ConsoleTool(object):
