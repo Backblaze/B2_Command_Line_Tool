@@ -1574,19 +1574,80 @@ def download_file_by_id_helper(
         print('checksum matches')
 
 
+@six.add_metaclass(ABCMeta)
+class Action(object):
+    """
+    An action to take, such as uploading, downloading, or deleting
+    a file.  Multi-threaded tasks create a sequence of Actions, which
+    are then run by a pool of threads.
+
+    An action can depend on other actions completing.  An example of
+    this is making sure a CreateBucketAction happens before an
+    UploadFileAction.
+    """
+
+    def __init__(self, prerequisites):
+        """
+        :param prerequisites: A list of tasks that must be completed
+         before this one can be run.
+        """
+        self.prerequisites = prerequisites
+        self.done = False
+
+    def run(self):
+        for prereq in self.prerequisites:
+            prereq.wait_until_done()
+        self.do_action()
+        self.done = True
+
+    def wait_until_done(self):
+        # TODO: better implementation
+        while not self.done:
+            time.sleep(1)
+
+    @abstractmethod
+    def do_action(self):
+        """
+        Performs the action, returning only after the action is completed.
+
+        Will not be called until all prerequisites are satisfied.
+        """
+
+
+class FileVersion(object):
+    """
+    Holds information about one version of a file:
+
+       id - The B2 file id, or the local full path name
+       mod_time - modification time, in seconds
+       action - "hide" or "upload" (never "start")
+    """
+
+    def __init__(self, id, mod_time, action):
+        self.id = id
+        self.mod_time = mod_time
+        self.action = action
+
+    def __repr__(self):
+        return 'FileVersion(%s, %s, %s)' % (repr(self.id), repr(self.mod_time), repr(self.action))
+
+
 class File(object):
     """
     Holds information about one file in a folder.
 
     The name is relative to the folder in all cases.
+
+    Files that have multiple versions (which only happens
+    in B2, not in local folders)
     """
 
-    def __init__(self, name, id, sha1, content_type, file_info):
+    def __init__(self, name, versions):
         self.name = name
-        self.id = id
-        self.sha1 = sha1
-        self.content_type = content_type
-        self.file_info = file_info
+        self.versions = versions
+
+    def __repr__(self):
+        return 'File(%s, [%s])' % (self.name, ', '.join(map(repr, self.versions)))
 
 
 @six.add_metaclass(ABCMeta)
@@ -1601,11 +1662,13 @@ class Folder(object):
     """
 
     @abstractmethod
-    def next_or_none(self):
+    def all_files(self):
         """
-        Returns the next file in the folder, or throws StopIteration
-        if there are no more.  This is not a standard next() method,
-        and returns None at the end, rather than raise StopIteration.
+        Returns an iterator over all of the files in the folder, in
+        the order that B2 uses.
+
+        No matter what the folder separator on the local file system
+        is, "/" is used in the returned file names.
         """
 
 
@@ -1617,15 +1680,10 @@ class LocalFolder(Folder):
     def __init__(self, root):
         self.root = os.path.abspath(root)
         self.relative_paths = self._get_all_relative_paths(self.root)
-        self.next_index = 0
 
-    def next_or_none(self):
-        if len(self.relative_paths) <= self.next_index:
-            return None
-        else:
-            result = self._make_file(self.relative_paths[self.next_index])
-            self.next_index += 1
-            return result
+    def all_files(self):
+        for relative_path in self.relative_paths:
+            yield self._make_file(relative_path)
 
     def _get_all_relative_paths(self, root_path):
         """
@@ -1642,8 +1700,55 @@ class LocalFolder(Folder):
 
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
-        file_info = {'src_src_last_modified_millis': str(int(os.path.getmtime(full_path)))}
-        return File(relative_path, full_path, 'dummy_sha1', 'dummy_content_type', file_info)
+        mod_time = os.path.getmtime(full_path)
+        slashes_path = '/'.join(relative_path.split(os.path.sep))
+        version = FileVersion(full_path, mod_time, "upload")
+        return File(slashes_path, [version])
+
+
+def next_or_none(iterator):
+    """
+    Returns the next item from the iterator, or None if there are no more.
+    """
+    try:
+        return iterator.next()
+    except StopIteration:
+        return None
+
+
+def zip_folders(folder_a, folder_b):
+    """
+    An iterator over all of the files in the union of two folders,
+    matching file names.
+
+    Each item is a pair (file_a, file_b) with the corresponding file
+    in both folders.  Either file (but not both) will be None if the
+    file is in only one folder.
+    :param folder_a: A Folder object.
+    :param folder_b: A Folder object.
+    """
+    iter_a = folder_a.all_files()
+    iter_b = folder_b.all_files()
+    current_a = next_or_none(iter_a)
+    current_b = next_or_none(iter_b)
+    while current_a is not None or current_b is not None:
+        if current_a is None:
+            yield (None, current_b)
+            current_b = next_or_none(iter_b)
+        elif current_b is None:
+            yield (current_a, None)
+            current_a = next_or_none(iter_a)
+        elif current_a.name < current_b.name:
+            yield (current_a, None)
+            current_a = next_or_none(iter_a)
+        elif current_b.name < current_a.name:
+            yield (None, current_b)
+            current_b = next_or_none(iter_b)
+        else:
+            assert current_a.name == current_b.name
+            yield (current_a, current_b)
+            current_a = next_or_none(iter_a)
+            current_b = next_or_none(iter_b)
 
 
 def sync_folders(source, dest, history_days):

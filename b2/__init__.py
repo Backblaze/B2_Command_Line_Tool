@@ -12,7 +12,6 @@ from .b2 import main
 
 # These are for tests.
 # TODO: find a way to make them avaible to tests, but not be public
-from .b2 import LocalFolder
+from .b2 import File, Folder, LocalFolder, FileVersion, zip_folders
 
-assert main  # silence pyflakes
-assert LocalFolder  # silence pyflakes
+assert main or File, FileVersion or Folder or LocalFolder or zip_folders  # silence pyflakes

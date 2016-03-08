@@ -10,11 +10,14 @@
 
 from __future__ import print_function
 
-from b2 import LocalFolder
+from b2 import File, FileVersion, Folder, LocalFolder, zip_folders
 import os
 import tempfile
 import shutil
+import sys
 import unittest
+
+IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
 
 def write_file(path, contents):
@@ -47,11 +50,46 @@ class TestLocalFolder(unittest.TestCase):
         with TempDir() as dir:
             create_files(dir, ['hello.', 'hello/a', 'hello/b', 'hello0'])
             folder = LocalFolder(dir)
-            self.assertEqual('hello.', folder.next_or_none().name)
-            self.assertEqual('hello/a', folder.next_or_none().name)
-            self.assertEqual('hello/b', folder.next_or_none().name)
-            self.assertEqual('hello0', folder.next_or_none().name)
-            self.assertEqual(None, folder.next_or_none())
+            files = list(folder.all_files())
+            names = map(lambda f: f.name, files)
+            self.assertEqual(['hello.', 'hello/a', 'hello/b', 'hello0'], names)
+
+
+class FakeFolder(Folder):
+    def __init__(self, files):
+        self.files = files
+
+    def all_files(self):
+        return iter(self.files)
+
+
+class TestZipFolders(unittest.TestCase):
+    def test_empty(self):
+        folder_a = FakeFolder([])
+        folder_b = FakeFolder([])
+        self.assertEqual([], list(zip_folders(folder_a, folder_b)))
+
+    def test_one_empty(self):
+        file_a1 = File("a.txt", [FileVersion("a", 100, "upload")])
+        folder_a = FakeFolder([file_a1])
+        folder_b = FakeFolder([])
+        self.assertEqual([(file_a1, None)], list(zip_folders(folder_a, folder_b)))
+
+    def test_two(self):
+        file_a1 = File("a.txt", [FileVersion("a", 100, "upload")])
+        file_a2 = File("b.txt", [FileVersion("b", 100, "upload")])
+        file_a3 = File("d.txt", [FileVersion("c", 100, "upload")])
+        file_a4 = File("f.txt", [FileVersion("f", 100, "upload")])
+        file_b1 = File("b.txt", [FileVersion("b", 200, "upload")])
+        file_b2 = File("e.txt", [FileVersion("e", 200, "upload")])
+        folder_a = FakeFolder([file_a1, file_a2, file_a3, file_a4])
+        folder_b = FakeFolder([file_b1, file_b2])
+        self.assertEqual(
+            [
+                (file_a1, None), (file_a2, file_b1), (file_a3, None), (None, file_b2),
+                (file_a4, None)
+            ], list(zip_folders(folder_a, folder_b))
+        )
 
 
 class TestSync(unittest.TestCase):

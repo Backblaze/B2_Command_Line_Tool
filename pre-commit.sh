@@ -42,7 +42,16 @@ header Pyflakes
 pyflakes b2
 pyflakes test
 
-header Tests
+header Unit Tests
+
+if PYTHONPATH=`pwd` nosetests -w test
+then
+    echo "Unit tests passed."
+else
+    exit 1
+fi
+
+header Integration Tests
 
 if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
 then
