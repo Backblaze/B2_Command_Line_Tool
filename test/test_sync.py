@@ -40,7 +40,7 @@ class TestLocalFolder(unittest.TestCase):
             write_file(os.path.join(dir, 'hello'), '')
             folder = LocalFolder(dir)
             self.assertEqual('hello', folder.next_or_none().name)
-            self.assertIsNone(folder.next_or_none())
+            self.assertEqual(None, folder.next_or_none())
 
 
 class TestSync(unittest.TestCase):
