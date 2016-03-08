@@ -32,19 +32,18 @@ def create_files(root_dir, relative_paths):
 
 
 class TempDir(object):
-
     def __enter__(self):
         self.dirpath = tempfile.mkdtemp()
         return self.dirpath
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         shutil.rmtree(self.dirpath)
-        return None # do not hide exception
+        return None  # do not hide exception
 
 
 class TestLocalFolder(unittest.TestCase):
-
-    def test_dir(self):
+    def test_slash_sorting(self):
+        # '/' should sort between '.' and '0'
         with TempDir() as dir:
             create_files(dir, ['hello.', 'hello/a', 'hello/b', 'hello0'])
             folder = LocalFolder(dir)
@@ -56,7 +55,6 @@ class TestLocalFolder(unittest.TestCase):
 
 
 class TestSync(unittest.TestCase):
-
     def test_sync_down(self):
         self.assertEqual(2, 2)
 

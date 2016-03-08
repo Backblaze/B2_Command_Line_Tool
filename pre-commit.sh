@@ -9,7 +9,7 @@ function header
     echo
 }
 
-SOURCE_FILES=b2/b2.py
+SOURCE_FILES="b2/*.py test/*.py"
 
 if yapf --version &> /dev/null
 then
@@ -39,18 +39,8 @@ chmod +x b2/b2.py
 
 header Pyflakes
 
-for src_file in $SOURCE_FILES
-do
-    echo "$src_file"
-    if pyflakes "$src_file"
-    then
-        echo "Pyflakes passed"
-    else
-        echo
-        echo "Pyflakes FAILED"
-        exit 1
-    fi
-done
+pyflakes b2
+pyflakes test
 
 header Tests
 
