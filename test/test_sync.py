@@ -130,8 +130,10 @@ class TestMakeSyncActions(unittest.TestCase):
 
         actions = list(make_folder_sync_actions(folder_a, folder_b, 1))
         self.assertEqual(
-            ["b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)", "b2_upload(/dir/e.txt, e.txt, 300)"],
-            map(str, actions)
+            [
+                "b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)",
+                "b2_upload(/dir/e.txt, e.txt, 300)"
+            ], map(str, actions)
         )
 
     def test_b2_to_local(self):
@@ -150,9 +152,12 @@ class TestMakeSyncActions(unittest.TestCase):
 
         actions = list(make_folder_sync_actions(folder_a, folder_b, 1))
         self.assertEqual(
-            ["b2_download(a.txt, id_a_100)", "local_delete(/dir/b.txt)", "b2_download(e.txt, id_e_300)"],
-            map(str, actions)
+            [
+                "b2_download(a.txt, id_a_100)", "local_delete(/dir/b.txt)",
+                "b2_download(e.txt, id_e_300)"
+            ], map(str, actions)
         )
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1821,7 +1821,9 @@ def zip_folders(folder_a, folder_b):
             current_b = next_or_none(iter_b)
 
 
-def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, history_days):
+def make_file_sync_actions(
+    sync_type, source_file, dest_file, source_folder, dest_folder, history_days
+):
     """
     Yields the sequence of actions needed to sync the two files
     """
@@ -1833,7 +1835,9 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
         dest_mod_time = dest_file.latest_version().mod_time
     if dest_mod_time < source_mod_time:
         if sync_type == 'local-to-b2':
-            yield B2UploadAction(dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time)
+            yield B2UploadAction(
+                dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
+            )
         else:
             yield B2DownloadAction(source_file.name, source_file.latest_version().id)
     if source_mod_time == 0 and dest_mod_time != 0:
@@ -1841,7 +1845,8 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
             yield B2DeleteAction(dest_file.name, dest_file.latest_version().id)
         else:
             yield LocalDeleteAction(dest_file.latest_version().id)
-    # TODO: cleaning up file history in B2
+    # TODO: clean up file history in B2
+    # TODO: do not delete local files for history_days days
 
 
 def make_folder_sync_actions(source_folder, dest_folder, history_days):
@@ -1852,10 +1857,14 @@ def make_folder_sync_actions(source_folder, dest_folder, history_days):
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
-    if (source_folder.folder_type(), dest_folder.folder_type()) not in [('b2', 'local'), ('local', 'b2')]:
+    if (source_folder.folder_type(), dest_folder.folder_type()) not in [
+        ('b2', 'local'), ('local', 'b2')
+    ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
-        for action in make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, history_days):
+        for action in make_file_sync_actions(
+            sync_type, source_file, dest_file, source_folder, dest_folder, history_days
+        ):
             yield action
 
 

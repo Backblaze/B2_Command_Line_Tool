@@ -11,7 +11,7 @@
 from .b2 import main
 
 # These are for tests.
-# TODO: find a way to make them avaible to tests, but not be public
+# TODO: find a way to make them available to tests, but not be public
 from .b2 import File, Folder, LocalFolder, FileVersion, make_folder_sync_actions, zip_folders
 
-assert main or File, FileVersion or Folder or LocalFolder or make_sync_actions or zip_folders  # silence pyflakes
+assert main or File, FileVersion or Folder or LocalFolder or make_folder_sync_actions or zip_folders  # silence pyflakes
