@@ -33,6 +33,7 @@ before_install:
   - virtualenv --version
 
 script:
+  - python setup.py install
   - nosetests -w test
   - if [ -n "$SCA" ]; then yapf -r b2; fi
   - if [ -n "$SCA" ]; then pyflakes b2; fi

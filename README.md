@@ -152,8 +152,8 @@ You'll need to have these packages installed:
 * six
 * yapf
 
-To run tests, you need to have nose installed:
+To run tests, you need to have nose installed.  Then you can do this:
 
-    nosetests -w test
+    PYTHONPATH=`pwd` nosetests -w test
     
    
