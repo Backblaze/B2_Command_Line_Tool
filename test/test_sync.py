@@ -10,7 +10,7 @@
 
 from __future__ import print_function
 
-from b2 import File, FileVersion, Folder, LocalFolder, zip_folders
+from b2 import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
 import os
 import tempfile
 import shutil
@@ -56,23 +56,30 @@ class TestLocalFolder(unittest.TestCase):
 
 
 class FakeFolder(Folder):
-    def __init__(self, files):
+    def __init__(self, f_type, files):
+        self.f_type = f_type
         self.files = files
 
     def all_files(self):
         return iter(self.files)
 
+    def folder_type(self):
+        return self.f_type
+
+    def make_full_path(self, name):
+        return "/dir/" + name
+
 
 class TestZipFolders(unittest.TestCase):
     def test_empty(self):
-        folder_a = FakeFolder([])
-        folder_b = FakeFolder([])
+        folder_a = FakeFolder('b2', [])
+        folder_b = FakeFolder('b2', [])
         self.assertEqual([], list(zip_folders(folder_a, folder_b)))
 
     def test_one_empty(self):
         file_a1 = File("a.txt", [FileVersion("a", 100, "upload")])
-        folder_a = FakeFolder([file_a1])
-        folder_b = FakeFolder([])
+        folder_a = FakeFolder('b2', [file_a1])
+        folder_b = FakeFolder('b2', [])
         self.assertEqual([(file_a1, None)], list(zip_folders(folder_a, folder_b)))
 
     def test_two(self):
@@ -82,8 +89,8 @@ class TestZipFolders(unittest.TestCase):
         file_a4 = File("f.txt", [FileVersion("f", 100, "upload")])
         file_b1 = File("b.txt", [FileVersion("b", 200, "upload")])
         file_b2 = File("e.txt", [FileVersion("e", 200, "upload")])
-        folder_a = FakeFolder([file_a1, file_a2, file_a3, file_a4])
-        folder_b = FakeFolder([file_b1, file_b2])
+        folder_a = FakeFolder('b2', [file_a1, file_a2, file_a3, file_a4])
+        folder_b = FakeFolder('b2', [file_b1, file_b2])
         self.assertEqual(
             [
                 (file_a1, None), (file_a2, file_b1), (file_a3, None), (None, file_b2),
@@ -92,10 +99,60 @@ class TestZipFolders(unittest.TestCase):
         )
 
 
-class TestSync(unittest.TestCase):
-    def test_sync_down(self):
-        self.assertEqual(2, 2)
+class TestMakeSyncActions(unittest.TestCase):
+    def test_illegal_cases(self):
+        if IS_27_OR_LATER:
+            with self.assertRaises(NotImplementedError):
+                b2_folder = FakeFolder('b2', [])
+                list(make_folder_sync_actions(b2_folder, b2_folder, 1))
+            with self.assertRaises(NotImplementedError):
+                local_folder = FakeFolder('local', [])
+                list(make_folder_sync_actions(local_folder, local_folder, 1))
 
+    def test_empty(self):
+        folder_a = FakeFolder('b2', [])
+        folder_b = FakeFolder('local', [])
+        self.assertEqual([], list(make_folder_sync_actions(folder_a, folder_b, 1)))
+
+    def test_local_to_b2(self):
+        file_a1 = File("a.txt", [FileVersion("/dir/a.txt", 100, "upload")])  # only in source
+        file_a2 = File("c.txt", [FileVersion("/dir/c.txt", 200, "upload")])  # mod time matches
+        file_a3 = File("d.txt", [FileVersion("/dir/d.txt", 100, "upload")])  # newer in dest
+        file_a4 = File("e.txt", [FileVersion("/dir/e.txt", 300, "upload")])  # newer in source
+
+        file_b1 = File("b.txt", [FileVersion("id_b_200", 200, "upload")])  # only in dest
+        file_b2 = File("c.txt", [FileVersion("id_c_200", 200, "upload")])  # mod time matches
+        file_b3 = File("d.txt", [FileVersion("id_d_200", 200, "upload")])  # newer in dest
+        file_b4 = File("e.txt", [FileVersion("id_e_200", 200, "upload")])  # newer in source
+
+        folder_a = FakeFolder('local', [file_a1, file_a2, file_a3, file_a4])
+        folder_b = FakeFolder('b2', [file_b1, file_b2, file_b3, file_b4])
+
+        actions = list(make_folder_sync_actions(folder_a, folder_b, 1))
+        self.assertEqual(
+            ["b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)", "b2_upload(/dir/e.txt, e.txt, 300)"],
+            map(str, actions)
+        )
+
+    def test_b2_to_local(self):
+        file_a1 = File("a.txt", [FileVersion("id_a_100", 100, "upload")])  # only in source
+        file_a2 = File("c.txt", [FileVersion("id_c_200", 200, "upload")])  # mod time matches
+        file_a3 = File("d.txt", [FileVersion("id_d_100", 100, "upload")])  # newer in dest
+        file_a4 = File("e.txt", [FileVersion("id_e_300", 300, "upload")])  # newer in source
+
+        file_b1 = File("b.txt", [FileVersion("/dir/b.txt", 200, "upload")])  # only in dest
+        file_b2 = File("c.txt", [FileVersion("/dir/c.txt", 200, "upload")])  # mod time matches
+        file_b3 = File("d.txt", [FileVersion("/dir/d.txt", 200, "upload")])  # newer in dest
+        file_b4 = File("e.txt", [FileVersion("/dir/e.txt", 200, "upload")])  # newer in source
+
+        folder_a = FakeFolder('b2', [file_a1, file_a2, file_a3, file_a4])
+        folder_b = FakeFolder('local', [file_b1, file_b2, file_b3, file_b4])
+
+        actions = list(make_folder_sync_actions(folder_a, folder_b, 1))
+        self.assertEqual(
+            ["b2_download(a.txt, id_a_100)", "local_delete(/dir/b.txt)", "b2_download(e.txt, id_e_300)"],
+            map(str, actions)
+        )
 
 if __name__ == '__main__':
     unittest.main()

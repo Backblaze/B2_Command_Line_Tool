@@ -1614,6 +1614,54 @@ class Action(object):
         """
 
 
+class B2UploadAction(Action):
+    def __init__(self, full_path, file_name, mod_time):
+        self.full_path = full_path
+        self.file_name = file_name
+        self.mod_time = mod_time
+
+    def do_action(self):
+        raise NotImplementedError()
+
+    def __str__(self):
+        return 'b2_upload(%s, %s, %s)' % (self.full_path, self.file_name, self.mod_time)
+
+
+class B2DownloadAction(Action):
+    def __init__(self, file_name, file_id):
+        self.file_name = file_name
+        self.file_id = file_id
+
+    def do_action(self):
+        raise NotImplementedError()
+
+    def __str__(self):
+        return 'b2_download(%s, %s)' % (self.file_name, self.file_id)
+
+
+class B2DeleteAction(Action):
+    def __init__(self, file_name, file_id):
+        self.file_name = file_name
+        self.file_id = file_id
+
+    def do_action(self):
+        raise NotImplementedError()
+
+    def __str__(self):
+        return 'b2_delete(%s, %s)' % (self.file_name, self.file_id)
+
+
+class LocalDeleteAction(Action):
+    def __init__(self, full_path):
+        self.full_path = full_path
+
+    def do_action(self):
+        raise NotImplementedError()
+
+    def __str__(self):
+        return 'local_delete(%s)' % (self.full_path)
+
+
 class FileVersion(object):
     """
     Holds information about one version of a file:
@@ -1639,12 +1687,16 @@ class File(object):
     The name is relative to the folder in all cases.
 
     Files that have multiple versions (which only happens
-    in B2, not in local folders)
+    in B2, not in local folders) include information about
+    all of the versions, most recent first.
     """
 
     def __init__(self, name, versions):
         self.name = name
         self.versions = versions
+
+    def latest_version(self):
+        return self.versions[0]
 
     def __repr__(self):
         return 'File(%s, [%s])' % (self.name, ', '.join(map(repr, self.versions)))
@@ -1671,6 +1723,18 @@ class Folder(object):
         is, "/" is used in the returned file names.
         """
 
+    @abstractmethod
+    def folder_type(self):
+        """
+        Returns one of:  'b2', 'local'
+        """
+
+    def make_full_path(self, file_name):
+        """
+        Only for local folders, returns the full path to the file.
+        """
+        raise NotImplementedError()
+
 
 class LocalFolder(Folder):
     """
@@ -1681,9 +1745,15 @@ class LocalFolder(Folder):
         self.root = os.path.abspath(root)
         self.relative_paths = self._get_all_relative_paths(self.root)
 
+    def folder_type(self):
+        return 'local'
+
     def all_files(self):
         for relative_path in self.relative_paths:
             yield self._make_file(relative_path)
+
+    def make_full_path(self, file_name):
+        return os.path.join(self.root, file_name.replace('/', os.path.sep))
 
     def _get_all_relative_paths(self, root_path):
         """
@@ -1749,6 +1819,44 @@ def zip_folders(folder_a, folder_b):
             yield (current_a, current_b)
             current_a = next_or_none(iter_a)
             current_b = next_or_none(iter_b)
+
+
+def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, history_days):
+    """
+    Yields the sequence of actions needed to sync the two files
+    """
+    source_mod_time = 0
+    if source_file is not None:
+        source_mod_time = source_file.latest_version().mod_time
+    dest_mod_time = 0
+    if dest_file is not None:
+        dest_mod_time = dest_file.latest_version().mod_time
+    if dest_mod_time < source_mod_time:
+        if sync_type == 'local-to-b2':
+            yield B2UploadAction(dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time)
+        else:
+            yield B2DownloadAction(source_file.name, source_file.latest_version().id)
+    if source_mod_time == 0 and dest_mod_time != 0:
+        if sync_type == 'local-to-b2':
+            yield B2DeleteAction(dest_file.name, dest_file.latest_version().id)
+        else:
+            yield LocalDeleteAction(dest_file.latest_version().id)
+    # TODO: cleaning up file history in B2
+
+
+def make_folder_sync_actions(source_folder, dest_folder, history_days):
+    """
+    Yields a sequence of actions that will sync the destination
+    folder to the source folder.
+    """
+    source_type = source_folder.folder_type()
+    dest_type = dest_folder.folder_type()
+    sync_type = '%s-to-%s' % (source_type, dest_type)
+    if (source_folder.folder_type(), dest_folder.folder_type()) not in [('b2', 'local'), ('local', 'b2')]:
+        raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
+    for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
+        for action in make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, history_days):
+            yield action
 
 
 def sync_folders(source, dest, history_days):
