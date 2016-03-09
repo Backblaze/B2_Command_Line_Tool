@@ -196,6 +196,11 @@ class BadFileInfo(B2Error):
         return 'Bad file info: %s' % (self.data,)
 
 
+class BadUploadUrl(B2Error):
+    def __str__(self):
+        return 'Bad uplod URL: %s' % (self.message,)
+
+
 class ChecksumMismatch(B2Error):
     def __init__(self, checksum_type, expected, actual):
         self.checksum_type = checksum_type
@@ -283,11 +288,11 @@ class MissingAccountData(B2Error):
 
 
 class NonExistentBucket(B2Error):
-    def __init__(self, bucket_name):
-        self.bucket_name = bucket_name
+    def __init__(self, bucket_name_or_id):
+        self.bucket_name_or_id = bucket_name_or_id
 
     def __str__(self):
-        return 'No such bucket: %s' % (self.bucket_name,)
+        return 'No such bucket: %s' % (self.bucket_name_or_id,)
 
 
 class StorageCapExceeded(B2Error):
@@ -409,6 +414,22 @@ class WrappedSocketError(AbstractWrappedError):
         return True
 
 ## Bucket
+
+
+class BytesIoContextManager(object):
+    """
+    A simple wrapper for a BytesIO that makes it look like
+    a file-like object that can be a context manager.
+    """
+
+    def __init__(self, byte_data):
+        self.byte_data = byte_data
+
+    def __enter__(self):
+        return six.BytesIO(self.byte_data)
+
+    def __exit__(self, type, value, traceback):
+        return None  # don't hide exception
 
 
 @six.add_metaclass(ABCMeta)
@@ -556,7 +577,7 @@ class Bucket(object):
         hex_sha1 = hashlib.sha1(data_bytes).hexdigest()
 
         def open_bytes():
-            return six.BytesIO(data_bytes)
+            return BytesIoContextManager(data_bytes)
 
         return self._upload(open_bytes, file_name, size, content_type, file_infos, hex_sha1)
 

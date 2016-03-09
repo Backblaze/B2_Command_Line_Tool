@@ -12,6 +12,7 @@ from __future__ import absolute_import
 
 from b2.b2 import AbstractAccountInfo, B2Api
 from b2.raw_simulator import RawSimulator
+import six
 import unittest
 
 
@@ -64,7 +65,8 @@ class TestLs(unittest.TestCase):
         self.assertEqual([], list(self.bucket.ls('foo')))
 
     def test_one_file_at_root(self):
-        #data = six.b('hello world')
-        #self.bucket.upload_bytes(data, 'hello.txt')
-        #self.assert_equal([expected_file], list(self.bucket.ls('')))
-        pass
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+        expected = [('hello.txt', 11, 'upload')]
+        actual = [(info.file_name, info.size, info.action) for (info, _) in self.bucket.ls('')]
+        self.assertEqual(expected, actual)
