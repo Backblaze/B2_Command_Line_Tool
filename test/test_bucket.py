@@ -43,3 +43,7 @@ class TestLs(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual([], list(self.bucket.ls('foo')))
+
+    def test_one_file(self):
+        # self.bucket.upload_file()
+        pass

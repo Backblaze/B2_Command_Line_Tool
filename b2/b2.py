@@ -555,7 +555,6 @@ class Bucket(object):
         content_type=None,
         file_infos=None,
         sha1_sum=None,
-        extra_headers=None,
         quiet=False
     ):
         if file_infos is None:
@@ -584,18 +583,17 @@ class Bucket(object):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_data()
 
-            headers = {
-                'Authorization': upload_auth_token,
-                'X-Bz-File-Name': b2_url_encode(remote_filename),
-                'Content-Type': content_type,
-                'X-Bz-Content-Sha1': sha1_sum
-            }
-            for k, v in six.iteritems(file_infos):
-                headers['X-Bz-Info-' + k] = b2_url_encode(v)
-
             try:
-                response = post_file(upload_url, headers, local_file, progress_bar=not quiet,)
-                return FileVersionInfoFactory.from_api_response(response)
+                stream = open(local_file, 'rb')
+                if not quiet:
+                    stream = StreamWithProgress(stream, desc=local_file, total=size)
+                with stream as data_stream:
+                    upload_response = self.api.raw_api.upload_file(
+                        upload_url, upload_auth_token, remote_filename, size, content_type,
+                        sha1_sum, file_infos, data_stream
+                    )
+                    return FileVersionInfoFactory.from_api_response(upload_response)
+
             except AbstractWrappedError as e:
                 if not e.should_retry():
                     raise
@@ -945,6 +943,37 @@ class B2RawApi(object):
             bucketId=bucket_id,
             bucketType=bucket_type
         )
+
+    def upload_file(
+        self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
+        file_infos, data_stream
+    ):
+        """
+        Uploads one small file to B2.
+
+        :param upload_url: The upload_url from b2_authorize_account
+        :param upload_auth_token: The auth token from b2_authorize_account
+        :param file_name: The name of the B2 file
+        :param content_length: Number of bytes in the file.
+        :param content_type: MIME type.
+        :param content_sha1: Hex SHA1 of the contents of the file
+        :param file_infos: Extra file info to upload
+        :param data_stream: A file like object from which the contents of the file can be read.
+        :return:
+        """
+        headers = {
+            'Authorization': upload_auth_token,
+            'Content-Length': str(content_length),
+            'X-Bz-File-Name': b2_url_encode(file_name),
+            'Content-Type': content_type,
+            'X-Bz-Content-Sha1': content_sha1
+        }
+        for k, v in six.iteritems(file_infos):
+            headers['X-Bz-Info-' + k] = b2_url_encode(v)
+
+        with OpenUrl(upload_url, data_stream, headers) as response_file:
+            json_text = read_str_from_http_response(response_file)
+            return json.loads(json_text)
 
 ## B2Api
 
@@ -1475,21 +1504,6 @@ class StreamWithProgress(tqdm or SimpleProgress):
     def write(self, data):
         self.stream.write(data)
         self.update(len(data))
-
-
-def post_file(url, headers, file_path, progress_bar=False):
-    """
-    Posts the contents of the local file to the given URL.
-    """
-    if 'Content-Length' not in headers:
-        headers['Content-Length'] = str(os.path.getsize(file_path))
-    stream = open(file_path, 'rb')
-    if progress_bar:
-        stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
-    with stream as data_file:
-        with OpenUrl(url, data_file, headers) as response_file:
-            json_text = read_str_from_http_response(response_file)
-            return json.loads(json_text)
 
 
 def url_for_api(info, api_name):
