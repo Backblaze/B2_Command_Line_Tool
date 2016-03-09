@@ -850,8 +850,8 @@ class AuthInfoCache(AbstractCache):
 
 ## B2RawApi
 
-
 # TODO: make an ABC for B2RawApi and RawSimulator
+
 
 class B2RawApi(object):
     """
