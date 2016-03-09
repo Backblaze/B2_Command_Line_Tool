@@ -1671,13 +1671,13 @@ class FileVersion(object):
        action - "hide" or "upload" (never "start")
     """
 
-    def __init__(self, id, mod_time, action):
-        self.id = id
+    def __init__(self, id_, mod_time, action):
+        self.id_ = id_
         self.mod_time = mod_time
         self.action = action
 
     def __repr__(self):
-        return 'FileVersion(%s, %s, %s)' % (repr(self.id), repr(self.mod_time), repr(self.action))
+        return 'FileVersion(%s, %s, %s)' % (repr(self.id_), repr(self.mod_time), repr(self.action))
 
 
 class File(object):
@@ -1839,12 +1839,12 @@ def make_file_sync_actions(
                 dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
             )
         else:
-            yield B2DownloadAction(source_file.name, source_file.latest_version().id)
+            yield B2DownloadAction(source_file.name, source_file.latest_version().id_)
     if source_mod_time == 0 and dest_mod_time != 0:
         if sync_type == 'local-to-b2':
-            yield B2DeleteAction(dest_file.name, dest_file.latest_version().id)
+            yield B2DeleteAction(dest_file.name, dest_file.latest_version().id_)
         else:
-            yield LocalDeleteAction(dest_file.latest_version().id)
+            yield LocalDeleteAction(dest_file.latest_version().id_)
     # TODO: clean up file history in B2
     # TODO: do not delete local files for history_days days
 

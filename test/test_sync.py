@@ -48,11 +48,11 @@ class TempDir(object):
 class TestLocalFolder(unittest.TestCase):
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
-        with TempDir() as dir:
-            create_files(dir, ['hello.', 'hello/a', 'hello/b', 'hello0'])
-            folder = LocalFolder(dir)
+        with TempDir() as tmpdir:
+            create_files(tmpdir, ['hello.', 'hello/a', 'hello/b', 'hello0'])
+            folder = LocalFolder(tmpdir)
             files = list(folder.all_files())
-            names = list(map(lambda f: f.name, files))
+            names = [f.name for f in files]
             self.assertEqual(['hello.', 'hello/a', 'hello/b', 'hello0'], names)
 
 
