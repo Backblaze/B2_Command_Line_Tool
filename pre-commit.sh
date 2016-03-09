@@ -33,6 +33,7 @@ do
         echo
         diff "$src_file" yapf.out
         mv yapf.out "$src_file"
+        sleep 5
     fi
 done
 chmod +x b2/b2.py

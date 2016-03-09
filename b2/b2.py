@@ -548,6 +548,18 @@ class Bucket(object):
         }
         return post_json(url, params, auth_token)
 
+    def upload_bytes(
+        self,
+        data_bytes,
+        remote_filename,
+        content_type=None,
+        file_infos=None,
+        quiet=False
+    ):
+        """
+        Upload bytes in memory to a B2 file
+        """
+
     def upload_file(
         self,
         local_file,
@@ -555,27 +567,49 @@ class Bucket(object):
         content_type=None,
         file_infos=None,
         sha1_sum=None,
-        extra_headers=None,
         quiet=False
     ):
+        """
+        Uploads a file on local disk to a B2 file.
+        """
+        # Get the number of bytes in the local file
+        size = os.path.getsize(local_file)
+        if size > self.MAX_UPLOADED_FILE_SIZE:
+            raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
+
+        # Compute the SHA1 sum if the data, if the caller didn't provide it.
+        if sha1_sum is None:
+            sha1_sum = hex_sha1_of_file(local_file)
+
+        # Make a function for opening the file, and wrapping it with
+        # a progress bar.
+        def open_file():
+            stream = open(local_file, 'rb')
+            if not quiet:
+                stream = StreamWithProgress(stream, desc=local_file, total=size)
+            return stream
+
+        # Upload the file
+        return self._upload(open_file, remote_filename, size, content_type, file_infos, sha1_sum)
+
+    def _upload(self, opener, remote_filename, size, content_type, file_infos, sha1_sum):
+        """
+        Uploads a file, retrying as needed.
+
+        The function `opener` should return a file-like object, and it
+        must be possible to call it more than once in case the upload
+        is retried.
+        """
+        assert sha1_sum is not None
         if file_infos is None:
             file_infos = {}
         if content_type is None:
             content_type = self.DEFAULT_CONTENT_TYPE
+
         account_info = self.api.account_info
 
-        # Double check that the file is not too big.
-        size = os.path.getsize(local_file)
-        if size > self.MAX_UPLOADED_FILE_SIZE:  # TODO: rather than hardcoding the allowed
-            # file size in the client library, we
-            # should let the remote API handle it
-            raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
-
-        # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
-        if sha1_sum is None:
-            sha1_sum = hex_sha1_of_file(local_file)
-
         # Use forward slashes for remote
+        # TODO: move this up a layer, to the ConsoleTool
         if os.sep != '/':
             remote_filename = remote_filename.replace(os.sep, '/')
 
@@ -584,18 +618,14 @@ class Bucket(object):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_data()
 
-            headers = {
-                'Authorization': upload_auth_token,
-                'X-Bz-File-Name': b2_url_encode(remote_filename),
-                'Content-Type': content_type,
-                'X-Bz-Content-Sha1': sha1_sum
-            }
-            for k, v in six.iteritems(file_infos):
-                headers['X-Bz-Info-' + k] = b2_url_encode(v)
-
             try:
-                response = post_file(upload_url, headers, local_file, progress_bar=not quiet,)
-                return FileVersionInfoFactory.from_api_response(response)
+                with opener() as data_stream:
+                    upload_response = self.api.raw_api.upload_file(
+                        upload_url, upload_auth_token, remote_filename, size, content_type,
+                        sha1_sum, file_infos, data_stream
+                    )
+                    return FileVersionInfoFactory.from_api_response(upload_response)
+
             except AbstractWrappedError as e:
                 if not e.should_retry():
                     raise
@@ -820,6 +850,8 @@ class AuthInfoCache(AbstractCache):
 
 ## B2RawApi
 
+# TODO: make an ABC for B2RawApi and RawSimulator
+
 
 class B2RawApi(object):
     """
@@ -946,6 +978,37 @@ class B2RawApi(object):
             bucketType=bucket_type
         )
 
+    def upload_file(
+        self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
+        file_infos, data_stream
+    ):
+        """
+        Uploads one small file to B2.
+
+        :param upload_url: The upload_url from b2_authorize_account
+        :param upload_auth_token: The auth token from b2_authorize_account
+        :param file_name: The name of the B2 file
+        :param content_length: Number of bytes in the file.
+        :param content_type: MIME type.
+        :param content_sha1: Hex SHA1 of the contents of the file
+        :param file_infos: Extra file info to upload
+        :param data_stream: A file like object from which the contents of the file can be read.
+        :return:
+        """
+        headers = {
+            'Authorization': upload_auth_token,
+            'Content-Length': str(content_length),
+            'X-Bz-File-Name': b2_url_encode(file_name),
+            'Content-Type': content_type,
+            'X-Bz-Content-Sha1': content_sha1
+        }
+        for k, v in six.iteritems(file_infos):
+            headers['X-Bz-Info-' + k] = b2_url_encode(v)
+
+        with OpenUrl(upload_url, data_stream, headers) as response_file:
+            json_text = read_str_from_http_response(response_file)
+            return json.loads(json_text)
+
 ## B2Api
 
 
@@ -965,7 +1028,7 @@ class B2Api(object):
     # TODO: ConsoleTool passes the account info cache into the constructor
     # TODO: provide method to get the account info cache (so ConsoleTool can save it)
 
-    def __init__(self, account_info=None, cache=None):
+    def __init__(self, account_info=None, cache=None, raw_api=None):
         """
         Initializes the API using the given account info.
         :param account_info:
@@ -974,7 +1037,7 @@ class B2Api(object):
         """
         # TODO: merge account_info and cache into a single object
 
-        self.raw_api = B2RawApi()
+        self.raw_api = raw_api or B2RawApi()
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:
@@ -983,6 +1046,13 @@ class B2Api(object):
         if cache is None:
             cache = DummyCache()
         self.cache = cache
+
+    def authorize_account(self, realm_url, account_id, application_key):
+        response = self.raw_api.authorize_account(realm_url, account_id, application_key)
+        self.account_info.set_account_id_and_auth_token(
+            response['accountId'], response['authorizationToken'], response['apiUrl'],
+            response['downloadUrl']
+        )
 
     # buckets
 
@@ -1150,6 +1220,9 @@ def decode_sys_argv():
 
 @six.add_metaclass(ABCMeta)
 class AbstractAccountInfo(object):
+    """
+    Holder for auth token, API URL, and download URL.
+    """
     REALM_URLS = {
         'production': 'https://api.backblaze.com',
         'dev': 'http://api.test.blaze:8180',
@@ -1172,18 +1245,6 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         pass
-
-    def authorize(self, url, account_id, application_key):
-        # TODO: move this call out to the B2Api class?
-        response = B2RawApi().authorize_account(url, account_id, application_key)
-
-        self.clear()
-        self.set_account_id_and_auth_token(
-            response['accountId'],
-            response['authorizationToken'],
-            response['apiUrl'],
-            response['downloadUrl'],
-        )
 
 
 class StoredAccountInfo(AbstractAccountInfo):
@@ -1474,21 +1535,6 @@ class StreamWithProgress(tqdm or SimpleProgress):
     def write(self, data):
         self.stream.write(data)
         self.update(len(data))
-
-
-def post_file(url, headers, file_path, progress_bar=False):
-    """
-    Posts the contents of the local file to the given URL.
-    """
-    if 'Content-Length' not in headers:
-        headers['Content-Length'] = str(os.path.getsize(file_path))
-    stream = open(file_path, 'rb')
-    if progress_bar:
-        stream = StreamWithProgress(stream, desc=file_path, total=int(headers['Content-Length']))
-    with stream as data_file:
-        with OpenUrl(url, data_file, headers) as response_file:
-            json_text = read_str_from_http_response(response_file)
-            return json.loads(json_text)
 
 
 def url_for_api(info, api_name):
@@ -2082,7 +2128,7 @@ class ConsoleTool(object):
         else:
             application_key = getpass.getpass('Backblaze application key: ')
 
-        self.api.account_info.authorize(url, account_id, application_key)
+        self.api.authorize_account(url, account_id, application_key)
 
     def clear_account(self, args):
         if len(args) != 0:
