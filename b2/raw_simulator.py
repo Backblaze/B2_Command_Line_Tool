@@ -10,6 +10,7 @@
 
 from .b2 import DuplicateBucketName
 
+
 class BucketSimulator(object):
     def __init__(self, account_id, bucket_name, bucket_type):
         assert bucket_type in ['allPrivate', 'allPublic']
@@ -25,6 +26,7 @@ class BucketSimulator(object):
             bucketId=self.bucket_id,
             bucketType=self.bucket_type
         )
+
 
 class RawSimulator(object):
     """
@@ -62,14 +64,17 @@ class RawSimulator(object):
         self.bucket_name_to_bucket[bucket_name] = bucket_sim
         return bucket_sim.bucket_json()
 
-    def list_file_names(self, api_url, account_auth, bucket_id, start_file_name=None, max_file_count=None):
+    def list_file_names(
+        self,
+        api_url,
+        account_auth,
+        bucket_id,
+        start_file_name=None,
+        max_file_count=None
+    ):
         return dict(files=[], nextFileName=None)
 
     def _assert_account_auth(self, api_url, account_auth_token, account_id):
         assert api_url == self.API_URL
         assert account_auth_token == 'AUTH:' + account_id
         assert account_id in self.authorized_accounts
-
-
-
-

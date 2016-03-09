@@ -10,7 +10,7 @@
 
 from __future__ import absolute_import
 
-from b2.b2 import Bucket, B2Api
+from b2.b2 import B2Api
 from b2.raw_simulator import RawSimulator
 import unittest
 
@@ -43,4 +43,3 @@ class TestLs(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual([], list(self.bucket.ls('foo')))
-
