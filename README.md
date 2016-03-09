@@ -136,9 +136,24 @@ Version 0.4.5
         Echos the version number of this program.
 
 
-## Contrib
+# Contrib
 
-### bash completion
+## bash completion
 
 You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
 script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
+
+# Developer Info
+
+You'll need to have these packages installed:
+
+* nose
+* pyflakes
+* six
+* yapf
+
+To run tests, you need to have nose installed.  Then you can do this:
+
+    PYTHONPATH=`pwd` nosetests -w test
+    
+   

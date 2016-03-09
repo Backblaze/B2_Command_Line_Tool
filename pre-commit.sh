@@ -9,7 +9,7 @@ function header
     echo
 }
 
-SOURCE_FILES=b2/b2.py
+SOURCE_FILES="b2/*.py test/*.py"
 
 if yapf --version &> /dev/null
 then
@@ -39,36 +39,48 @@ chmod +x b2/b2.py
 
 header Pyflakes
 
-for src_file in $SOURCE_FILES
+for d in b2 test
 do
-    echo "$src_file"
-    if pyflakes "$src_file"
+    if pyflakes $d
     then
-        echo "Pyflakes passed"
+        echo pyflakes passed on $d
     else
-        echo
-        echo "Pyflakes FAILED"
+        echo pyflakes FAILED on %d
         exit 1
     fi
 done
 
-header Tests
+header Unit Tests
 
-if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+if PYTHONPATH=`pwd` nosetests -w test
 then
-    echo "python tests passed"
+    echo "Unit tests passed."
 else
-    echo
-    echo "python tests FAILED"
     exit 1
 fi
 
-if time python3 test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+header Integration Tests
+
+if [[ $# -ne 0 && "$1" == quick ]]
 then
-    echo "python3 tests passed"
+    echo SKIPPED
 else
-    echo
-    echo "python3 tests FAILED"
-    exit 1
+    if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+    then
+        echo "python tests passed"
+    else
+        echo
+        echo "python tests FAILED"
+        exit 1
+    fi
+
+    if time python3 test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+    then
+        echo "python3 tests passed"
+    else
+        echo
+        echo "python3 tests FAILED"
+        exit 1
+    fi
 fi
 
