@@ -548,6 +548,18 @@ class Bucket(object):
         }
         return post_json(url, params, auth_token)
 
+    def upload_bytes(
+        self,
+        data_bytes,
+        remote_filename,
+        content_type=None,
+        file_infos=None,
+        quiet=False
+    ):
+        """
+        Upload bytes in memory to a B2 file
+        """
+
     def upload_file(
         self,
         local_file,
@@ -557,24 +569,47 @@ class Bucket(object):
         sha1_sum=None,
         quiet=False
     ):
+        """
+        Uploads a file on local disk to a B2 file.
+        """
+        # Get the number of bytes in the local file
+        size = os.path.getsize(local_file)
+        if size > self.MAX_UPLOADED_FILE_SIZE:
+            raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
+
+        # Compute the SHA1 sum if the data, if the caller didn't provide it.
+        if sha1_sum is None:
+            sha1_sum = hex_sha1_of_file(local_file)
+
+        # Make a function for opening the file, and wrapping it with
+        # a progress bar.
+        def open_file():
+            stream = open(local_file, 'rb')
+            if not quiet:
+                stream = StreamWithProgress(stream, desc=local_file, total=size)
+            return stream
+
+        # Upload the file
+        return self._upload(open_file, remote_filename, size, content_type, file_infos, sha1_sum)
+
+    def _upload(self, opener, remote_filename, size, content_type, file_infos, sha1_sum):
+        """
+        Uploads a file, retrying as needed.
+
+        The function `opener` should return a file-like object, and it
+        must be possible to call it more than once in case the upload
+        is retried.
+        """
+        assert sha1_sum is not None
         if file_infos is None:
             file_infos = {}
         if content_type is None:
             content_type = self.DEFAULT_CONTENT_TYPE
+
         account_info = self.api.account_info
 
-        # Double check that the file is not too big.
-        size = os.path.getsize(local_file)
-        if size > self.MAX_UPLOADED_FILE_SIZE:  # TODO: rather than hardcoding the allowed
-            # file size in the client library, we
-            # should let the remote API handle it
-            raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
-
-        # Compute the SHA1 of the file being uploaded, if it wasn't provided on the command line.
-        if sha1_sum is None:
-            sha1_sum = hex_sha1_of_file(local_file)
-
         # Use forward slashes for remote
+        # TODO: move this up a layer, to the ConsoleTool
         if os.sep != '/':
             remote_filename = remote_filename.replace(os.sep, '/')
 
@@ -584,10 +619,7 @@ class Bucket(object):
             upload_url, upload_auth_token = self._get_upload_data()
 
             try:
-                stream = open(local_file, 'rb')
-                if not quiet:
-                    stream = StreamWithProgress(stream, desc=local_file, total=size)
-                with stream as data_stream:
+                with opener() as data_stream:
                     upload_response = self.api.raw_api.upload_file(
                         upload_url, upload_auth_token, remote_filename, size, content_type,
                         sha1_sum, file_infos, data_stream
