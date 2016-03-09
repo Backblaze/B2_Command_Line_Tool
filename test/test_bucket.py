@@ -38,7 +38,7 @@ class TestLs(unittest.TestCase):
         self.simulator = RawSimulator()
         self.account_info = StubAccountInfo()
         self.api = B2Api(self.account_info, raw_api=RawSimulator())
-        self.api.authorize_account('http://realm.com', 'my-account', 'my-key')
+        self.api.authorize_account('http://realm.example.com', 'my-account', 'my-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
 
     def test_empty(self):

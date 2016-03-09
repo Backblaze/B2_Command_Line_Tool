@@ -37,8 +37,8 @@ class RawSimulator(object):
     built on top of B2RawApi.
     """
 
-    API_URL = 'http://api.com'
-    DOWNLOAD_URL = 'http://download.com'
+    API_URL = 'http://api.example.com'
+    DOWNLOAD_URL = 'http://download.example.com'
 
     MIN_PART_SIZE = 10000
 

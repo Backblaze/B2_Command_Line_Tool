@@ -851,6 +851,8 @@ class AuthInfoCache(AbstractCache):
 ## B2RawApi
 
 
+# TODO: make an ABC for B2RawApi and RawSimulator
+
 class B2RawApi(object):
     """
     Provides access to the B2 web APIs, exactly as they are provided by B2.
@@ -1035,10 +1037,7 @@ class B2Api(object):
         """
         # TODO: merge account_info and cache into a single object
 
-        if raw_api is None:
-            self.raw_api = B2RawApi()
-        else:
-            self.raw_api = raw_api
+        self.raw_api = raw_api or B2RawApi()
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:
