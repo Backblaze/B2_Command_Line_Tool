@@ -965,7 +965,7 @@ class B2Api(object):
     # TODO: ConsoleTool passes the account info cache into the constructor
     # TODO: provide method to get the account info cache (so ConsoleTool can save it)
 
-    def __init__(self, account_info=None, cache=None):
+    def __init__(self, account_info=None, cache=None, raw_api=None):
         """
         Initializes the API using the given account info.
         :param account_info:
@@ -974,7 +974,10 @@ class B2Api(object):
         """
         # TODO: merge account_info and cache into a single object
 
-        self.raw_api = B2RawApi()
+        if raw_api is None:
+            self.raw_api = B2RawApi()
+        else:
+            self.raw_api = raw_api
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:
@@ -983,6 +986,13 @@ class B2Api(object):
         if cache is None:
             cache = DummyCache()
         self.cache = cache
+
+    def authorize_account(self, realm_url, account_id, application_key):
+        response = self.raw_api.authorize_account(realm_url, account_id, application_key)
+        self.account_info.set_account_id_and_auth_token(
+            response['accountId'], response['authorizationToken'], response['apiUrl'],
+            response['downloadUrl']
+        )
 
     # buckets
 
@@ -1150,6 +1160,9 @@ def decode_sys_argv():
 
 @six.add_metaclass(ABCMeta)
 class AbstractAccountInfo(object):
+    """
+    Holder for auth token, API URL, and download URL.
+    """
     REALM_URLS = {
         'production': 'https://api.backblaze.com',
         'dev': 'http://api.test.blaze:8180',
@@ -1172,18 +1185,6 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         pass
-
-    def authorize(self, url, account_id, application_key):
-        # TODO: move this call out to the B2Api class?
-        response = B2RawApi().authorize_account(url, account_id, application_key)
-
-        self.clear()
-        self.set_account_id_and_auth_token(
-            response['accountId'],
-            response['authorizationToken'],
-            response['apiUrl'],
-            response['downloadUrl'],
-        )
 
 
 class StoredAccountInfo(AbstractAccountInfo):
@@ -2082,7 +2083,7 @@ class ConsoleTool(object):
         else:
             application_key = getpass.getpass('Backblaze application key: ')
 
-        self.api.account_info.authorize(url, account_id, application_key)
+        self.api.authorize_account(url, account_id, application_key)
 
     def clear_account(self, args):
         if len(args) != 0:
