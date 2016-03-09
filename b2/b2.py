@@ -548,22 +548,22 @@ class Bucket(object):
         }
         return post_json(url, params, auth_token)
 
-    def upload_bytes(
-        self,
-        data_bytes,
-        remote_filename,
-        content_type=None,
-        file_infos=None,
-        quiet=False
-    ):
+    def upload_bytes(self, data_bytes, file_name, content_type=None, file_infos=None):
         """
         Upload bytes in memory to a B2 file
         """
+        size = len(data_bytes)
+        hex_sha1 = hashlib.sha1(data_bytes).hexdigest()
+
+        def open_bytes():
+            return six.BytesIO(data_bytes)
+
+        return self._upload(open_bytes, file_name, size, content_type, file_infos, hex_sha1)
 
     def upload_file(
         self,
         local_file,
-        remote_filename,
+        file_name,
         content_type=None,
         file_infos=None,
         sha1_sum=None,
@@ -590,7 +590,7 @@ class Bucket(object):
             return stream
 
         # Upload the file
-        return self._upload(open_file, remote_filename, size, content_type, file_infos, sha1_sum)
+        return self._upload(open_file, file_name, size, content_type, file_infos, sha1_sum)
 
     def _upload(self, opener, remote_filename, size, content_type, file_infos, sha1_sum):
         """
@@ -1244,6 +1244,10 @@ class AbstractAccountInfo(object):
 
     @abstractmethod
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+        pass
+
+    @abstractmethod
+    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
         pass
 
 
@@ -2088,7 +2092,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         file_info = bucket.upload_file(
             local_file=local_file,
-            remote_filename=remote_file,
+            file_name=remote_file,
             content_type=content_type,
             file_infos=file_infos,
             sha1_sum=sha1_sum,
