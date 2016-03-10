@@ -21,7 +21,6 @@ from __future__ import print_function
 from abc import ABCMeta, abstractmethod
 import base64
 import datetime
-import functools
 import getpass
 import hashlib
 import json
@@ -213,6 +212,265 @@ def local_path_to_b2_path(path):
     """
     return path.replace(os.path.sep, '/')
 
+
+class BytesIoContextManager(object):
+    """
+    A simple wrapper for a BytesIO that makes it look like
+    a file-like object that can be a context manager.
+    """
+
+    def __init__(self, byte_data):
+        self.byte_data = byte_data
+
+    def __enter__(self):
+        return six.BytesIO(self.byte_data)
+
+    def __exit__(self, type, value, traceback):
+        return None  # don't hide exception
+
+
+@six.add_metaclass(ABCMeta)
+class UploadSource(object):
+    """
+    The source of data for uploading to B2.
+    """
+
+    @abstractmethod
+    def get_content_length(self):
+        """
+        Returns the number of bytes of data in the file.
+        """
+
+    @abstractmethod
+    def get_content_sha1(self):
+        """
+        Return a 40-character string containing the hex SHA1 checksum of the data in the file.
+        """
+
+    @abstractmethod
+    def open(self):
+        """
+        Returns a binary file-like object from which the
+        data can be read.
+        :return:
+        """
+
+
+class UploadSourceBytes(UploadSource):
+    def __init__(self, data_bytes):
+        self.data_bytes = data_bytes
+
+    def get_content_length(self):
+        return len(self.data_bytes)
+
+    def get_content_sha1(self):
+        return hashlib.sha1(self.data_bytes).hexdigest()
+
+    def open(self):
+        return BytesIoContextManager(self.data_bytes)
+
+
+class UploadSourceLocalFile(UploadSource):
+    def __init__(self, local_path, content_sha1=None):
+        self.local_path = local_path
+        self.content_length = os.path.getsize(local_path)
+        self.content_sha1 = content_sha1 or self._hex_sha1_of_file(local_path)
+
+    def get_content_length(self):
+        return self.content_length
+
+    def get_content_sha1(self):
+        return self.content_sha1
+
+    def open(self):
+        return open(self.local_path, 'rb')
+
+    def _hex_sha1_of_file(self, local_path):
+        with open(local_path, 'rb') as f:
+            block_size = 1024 * 1024
+            digest = hashlib.sha1()
+            while True:
+                data = f.read(block_size)
+                if len(data) == 0:
+                    break
+                digest.update(data)
+            return digest.hexdigest()
+
+
+@six.add_metaclass(ABCMeta)
+class DownloadDest(object):
+    """
+    Interface to a destination for a downloaded file.
+
+    This isn't an abstract base class because there is just
+    one kind of download destination so far: a local file.
+    """
+
+    @abstractmethod
+    def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
+        """
+        Returns a binary file-like object to use for writing the contents of
+        the file.
+
+        :param file_id: the B2 file ID from the headers
+        :param file_name: the B2 file name from the headers
+        :param content_type: the content type from the headers
+        :param content_sha1: the content sha1 from the headers (or "none" for large files)
+        :param file_info: the user file info from the headers
+        :return: None
+        """
+
+
+class DownloadDestLocalFile(DownloadDest):
+    def __init__(self, local_file_path, quiet):
+        self.local_file_path = local_file_path
+        self.quiet = quiet
+
+    def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
+        self.file_id = file_id
+        self.file_name = file_name
+        self.content_length = content_length
+        self.content_type = content_type
+        self.content_sha1 = content_sha1
+
+        return open(self.local_file_path, 'wb')
+
+
+@six.add_metaclass(ABCMeta)
+class ProgressListener(object):
+    """
+    Interface expected by B2Api upload and download methods to report
+    on progress.
+
+    This interface just accepts the number of bytes transferred so far.
+    Subclasses will need to know the total size if they want to report
+    a percent done.
+    """
+
+    @abstractmethod
+    def bytes_completed(self, byte_count):
+        """
+        Reports that the given number of bytes have been transferred
+        so far.  This is not a delta, it is the total number of bytes
+        transferred so far.
+        """
+
+    @abstractmethod
+    def __enter__(self):
+        """
+        standard context manager method
+        """
+
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        standard context manager method
+        """
+
+
+class TqdmProgressListener(ProgressListener):
+    def __init__(self, description, total):
+        self.tqdm = tqdm(
+            desc=description,
+            total=total,
+            unit='B',
+            unit_scale=True,
+            leave=True,
+            miniters=1
+        )
+        self.prev_value = 0
+        self.total = total
+
+    def __enter__(self):
+        self.tqdm.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self.tqdm.__exit__(exc_type, exc_val, exc_tb)
+
+    def bytes_completed(self, byte_count):
+        # tqdm doesn't support running the progress bar backwards,
+        # so on an upload retry, it just won't move until it gets
+        # past the point where it failed.
+        if self.prev_value < byte_count:
+            self.tqdm.update(byte_count - self.prev_value)
+            self.prev_value = byte_count
+
+
+class SimpleProgressListener(ProgressListener):
+    def __init__(self, description, total):
+        self.desc = description
+        self.total = total
+        self.complete = 0
+        self.last_time = time.time()
+        self.any_printed = False
+
+    def bytes_completed(self, byte_count):
+        now = time.time()
+        elapsed = now - self.last_time
+        if 3 <= elapsed and self.total != 0:
+            if not self.any_printed:
+                print(self.desc)
+            print('     %d%%' % int(100.0 * byte_count / self.total))
+            self.last_time = now
+            self.any_printed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.any_printed:
+            print('    DONE.')
+
+
+class DoNothingProgressListener(ProgressListener):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def bytes_completed(self, byte_count):
+        pass
+
+
+def make_progress_listener(description, total, quiet):
+    if quiet:
+        return DoNothingProgressListener()
+    elif tqdm is not None:
+        return TqdmProgressListener(description, total)
+    else:
+        return SimpleProgressListener(description, total)
+
+
+class StreamWithProgress(object):
+    """
+    Wraps a file-like object and updates a ProgressListener
+    as data is read and written.
+    """
+
+    def __init__(self, stream, progress_listener):
+        assert progress_listener is not None
+        self.stream = stream
+        self.progress_listener = progress_listener
+        self.bytes_completed = 0
+
+    def __enter__(self):
+        return self
+
+    def read(self, size=None):
+        data = self.stream.read(size)
+        self._update(len(data))
+        return data
+
+    def write(self, data):
+        self.stream.write(data)
+        self._update(len(data))
+
+    def _update(self, delta):
+        self.bytes_completed += delta
+        self.progress_listener.bytes_completed(self.bytes_completed)
+
 ## Exceptions
 
 
@@ -291,17 +549,12 @@ class FileNotPresent(B2Error):
 
 
 class MaxFileSizeExceeded(B2Error):
-    def __init__(self, file_description, size, max_allowed_size):
-        self.file_description = file_description
+    def __init__(self, size, max_allowed_size):
         self.size = size
         self.max_allowed_size = max_allowed_size
 
     def __str__(self):
-        return 'Allowed file size of exceeded for %s: %s > %s' % (
-            self.file_description,
-            self.size,
-            self.max_allowed_size,
-        )
+        return 'Allowed file size of exceeded: %s > %s' % (self.size, self.max_allowed_size,)
 
 
 class MaxRetriesExceeded(B2Error):
@@ -456,22 +709,6 @@ class WrappedSocketError(AbstractWrappedError):
 ## Bucket
 
 
-class BytesIoContextManager(object):
-    """
-    A simple wrapper for a BytesIO that makes it look like
-    a file-like object that can be a context manager.
-    """
-
-    def __init__(self, byte_data):
-        self.byte_data = byte_data
-
-    def __enter__(self):
-        return six.BytesIO(self.byte_data)
-
-    def __exit__(self, type, value, traceback):
-        return None  # don't hide exception
-
-
 @six.add_metaclass(ABCMeta)
 class Bucket(object):
     """
@@ -619,51 +856,60 @@ class Bucket(object):
         }
         return post_json(url, params, auth_token)
 
-    def upload_bytes(self, data_bytes, file_name, content_type=None, file_infos=None):
+    def upload_bytes(
+        self,
+        data_bytes,
+        file_name,
+        content_type=None,
+        file_infos=None,
+        progress_listener=None
+    ):
         """
         Upload bytes in memory to a B2 file
         """
-        size = len(data_bytes)
-        hex_sha1 = hashlib.sha1(data_bytes).hexdigest()
+        upload_source = UploadSourceBytes(data_bytes)
+        with DoNothingProgressListener() as progress_listener:
+            return self.upload(
+                upload_source, file_name, content_type, file_infos, progress_listener
+            )
 
-        def open_bytes():
-            return BytesIoContextManager(data_bytes)
-
-        return self._upload(open_bytes, file_name, size, content_type, file_infos, hex_sha1)
-
-    def upload_file(
+    def upload_local_file(
         self,
         local_file,
         file_name,
         content_type=None,
         file_infos=None,
         sha1_sum=None,
-        quiet=False
+        progress_listener=None
     ):
         """
         Uploads a file on local disk to a B2 file.
         """
-        # Get the number of bytes in the local file
-        size = os.path.getsize(local_file)
-        if size > self.MAX_UPLOADED_FILE_SIZE:
-            raise MaxFileSizeExceeded(local_file, size, self.MAX_UPLOADED_FILE_SIZE)
+        upload_source = UploadSourceLocalFile(local_path=local_file, content_sha1=sha1_sum)
+        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
 
-        # Compute the SHA1 sum if the data, if the caller didn't provide it.
-        if sha1_sum is None:
-            sha1_sum = hex_sha1_of_file(local_file)
+    def upload(
+        self,
+        upload_source,
+        file_name,
+        content_type=None,
+        file_infos=None,
+        progress_listener=None
+    ):
+        """
+        Uploads a file to B2, retrying as needed.
 
-        # Make a function for opening the file, and wrapping it with
-        # a progress bar.
-        def open_file():
-            stream = open(local_file, 'rb')
-            if not quiet:
-                stream = StreamWithProgress(stream, desc=local_file, total=size)
-            return stream
+        The source of the upload is an UploadSource object that can be used to
+        open (and re-open) the file.  The result of opening should be a binary
+        file whose read() method returns bytes.
 
-        # Upload the file
-        return self._upload(open_file, file_name, size, content_type, file_infos, sha1_sum)
-
-    def _upload(self, opener, remote_filename, size, content_type, file_infos, sha1_sum):
+        :param upload_source: an UploadSource object that opens the source of the upload
+        :param file_name: the file name of the new B2 file
+        :param content_type: the MIME type, or None to accept the default based on file extension of the B2 file name
+        :param file_infos: custom file info to be stored with the file
+        :param progress_listener: object to notify as data is transferred
+        :return:
+        """
         """
         Uploads a file, retrying as needed.
 
@@ -671,13 +917,16 @@ class Bucket(object):
         must be possible to call it more than once in case the upload
         is retried.
         """
-        validate_b2_file_name(remote_filename)
-        assert sha1_sum is not None
+        validate_b2_file_name(file_name)
 
-        if file_infos is None:
-            file_infos = {}
-        if content_type is None:
-            content_type = self.DEFAULT_CONTENT_TYPE
+        content_length = upload_source.get_content_length()
+        sha1_sum = upload_source.get_content_sha1()
+        file_infos = file_infos or {}
+        content_type = content_type or self.DEFAULT_CONTENT_TYPE
+        progress_listener = progress_listener or DoNothingProgressListener()
+
+        if content_length > self.MAX_UPLOADED_FILE_SIZE:
+            raise MaxFileSizeExceeded(content_length, self.MAX_UPLOADED_FILE_SIZE)
 
         account_info = self.api.account_info
 
@@ -687,10 +936,11 @@ class Bucket(object):
             upload_url, upload_auth_token = self._get_upload_data()
 
             try:
-                with opener() as data_stream:
+                with upload_source.open() as file:
+                    input_stream = StreamWithProgress(file, progress_listener)
                     upload_response = self.api.raw_api.upload_file(
-                        upload_url, upload_auth_token, remote_filename, size, content_type,
-                        sha1_sum, file_infos, data_stream
+                        upload_url, upload_auth_token, file_name, content_length, content_type,
+                        sha1_sum, file_infos, input_stream
                     )
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
@@ -779,10 +1029,14 @@ class BucketFactory(object):
 class FileVersionInfo(object):
     LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'  # order is file_id, action, date, time, size, name
 
-    def __init__(self, id_, file_name, size, upload_timestamp, action):
+    def __init__(self, id_, file_name, size, content_type, content_sha1, file_info,
+                 upload_timestamp, action):
         self.id_ = id_
         self.file_name = file_name
         self.size = size  # can be None (unknown)
+        self.content_type = content_type
+        self.content_sha1 = content_sha1
+        self.file_info = file_info or {}
         self.upload_timestamp = upload_timestamp  # can be None (unknown)
         self.action = action  # "upload" or "hide" or "delete"
 
@@ -848,8 +1102,12 @@ class FileVersionInfoFactory(object):
         id_ = file_info_dict['fileId']
         size = file_info_dict.get('size') or file_info_dict.get('contentLength')
         upload_timestamp = file_info_dict.get('uploadTimestamp')
+        content_type = file_info_dict.get('contentType')
+        content_sha1 = file_info_dict.get('contentSha1')
+        file_info = file_info_dict.get('fileInfo')
 
-        return FileVersionInfo(id_, file_name, size, upload_timestamp, action)
+        return FileVersionInfo(id_, file_name, size, content_type, content_sha1, file_info,
+                               upload_timestamp, action)
 
 ## Cache
 
@@ -1214,15 +1472,10 @@ class B2Api(object):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
 
-    def download_file_from_url(
-        self,
-        url,
-        output_stream,
-        authorization=True,
-        headers_received_cb=None,
-    ):
+    def download_file_from_url(self, url, download_destination, authorization=True):
         """
-        Downloads a file from given url and saves into output_stream.
+        Downloads a file from given url and stores it in the given download_destination.
+
         if headers_received_cb is not None, it is assumed to be a funciton that accepts one argument
         (dictionary of response headers) and is called after receiving headers, but before receiving
         the payload.
@@ -1230,34 +1483,55 @@ class B2Api(object):
         request_headers = {}
         if authorization:
             request_headers['Authorization'] = self.account_info.get_account_auth_token()
-        with OpenUrl(url, None, request_headers) as response:
-            info = response.info()
-            if headers_received_cb is not None:
-                headers_received_cb(info)  # may raise an exception to abort
 
-            file_size = int(info['content-length'])
-            file_sha1 = info['x-bz-content-sha1']
+        with OpenUrl(url, None, request_headers) as response:
+
+            info = response.info()
+
+            file_id = info['x-bz-file-id']
+            file_name = info['x-bz-file-name']
+            content_type = info['content-type']
+            content_length = int(info['content-length'])
+            content_sha1 = info['x-bz-content-sha1']
+            file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
+
             block_size = 4096
             digest = hashlib.sha1()
             bytes_read = 0
 
-            with output_stream as f:
-                while 1:
+            with download_destination.open(file_id, file_name, content_length, content_type,
+                                           content_sha1, file_info) as file:
+                quiet = False
+                progress_listener = make_progress_listener(
+                    download_destination.local_file_path, content_length, quiet
+                )
+                output_stream = StreamWithProgress(file, progress_listener)
+                while True:
                     data = response.read(block_size)
                     if len(data) == 0:
                         break
-                    f.write(data)
+                    output_stream.write(data)
                     digest.update(data)
                     bytes_read += len(data)
-            if bytes_read != int(info['content-length']):
-                raise TruncatedOutput(bytes_read, file_size)
-            if digest.hexdigest() != file_sha1:
-                raise ChecksumMismatch(
-                    checksum_type='sha1',
-                    expected=file_sha1,
-                    actual=digest.hexdigest()
+
+                if bytes_read != int(info['content-length']):
+                    raise TruncatedOutput(bytes_read, content_length)
+                if digest.hexdigest() != content_sha1:
+                    raise ChecksumMismatch(
+                        checksum_type='sha1',
+                        expected=content_length,
+                        actual=digest.hexdigest()
+                    )
+                return FileVersionInfoFactory.from_api_response(
+                    dict(
+                        fileId=file_id,
+                        fileName=file_name,
+                        contentType=content_type,
+                        contentLength=content_length,
+                        contentSha1=content_sha1,
+                        fileInfo=file_info
+                    )
                 )
-        return info
 
     # other
     def get_file_info(self, file_id):
@@ -1556,67 +1830,6 @@ def post_json(url, params, auth_token=None):
         raise
 
 
-class SimpleProgress(object):
-    def __init__(self, **kwargs):
-        self.desc = kwargs['desc']
-        self.total = kwargs.get('total', 1)
-        self.complete = 0
-        self.last_time = time.time()
-        self.any_printed = False
-
-    def update(self, byte_count):
-        self.complete += byte_count
-        now = time.time()
-        elapsed = now - self.last_time
-        if 3 <= elapsed and self.total != 0:
-            if not self.any_printed:
-                print(self.desc)
-            print('     %d%%' % int(100.0 * self.complete / self.total))
-            self.last_time = now
-            self.any_printed = True
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.any_printed:
-            print('    DONE.')
-
-
-class StreamWithProgress(tqdm or SimpleProgress):
-    def __init__(self, stream, *args, **kwargs):
-        self.stream = stream
-        kwargs.update({'unit': 'B', 'unit_scale': True, 'leave': True, 'miniters': 1,})
-        super(StreamWithProgress, self).__init__(*args, **kwargs)
-
-    def __enter__(self):
-        super(StreamWithProgress, self).__enter__()
-        self.stream.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback_):
-        return any(
-            (
-                super(StreamWithProgress, self).__exit__(exc_type, exc_value, traceback_),
-                self.stream.__exit__(exc_type, exc_value, traceback_),
-            )
-        )
-
-    def update(self, n):
-        if n > 0:
-            # tqdm started raising an exception if n==0 in 3.8.0
-            super(StreamWithProgress, self).update(n)
-
-    def read(self, size):
-        data = self.stream.read(size)
-        self.update(len(data))
-        return data
-
-    def write(self, data):
-        self.stream.write(data)
-        self.update(len(data))
-
-
 def url_for_api(info, api_name):
     if api_name in ['b2_download_file_by_id']:
         base = info.get_download_url()
@@ -1642,31 +1855,6 @@ def b2_url_decode(s):
     return urllib.parse.unquote_plus(str(s)).decode('utf-8')
 
 
-def hex_sha1_of_file(path):
-    with open(path, 'rb') as f:
-        block_size = 1024 * 1024
-        digest = hashlib.sha1()
-        while True:
-            data = f.read(block_size)
-            if len(data) == 0:
-                break
-            digest.update(data)
-        return digest.hexdigest()
-
-
-def _download_file_progress_callback(output_stream, print_info, headers_dict):
-    file_size = int(headers_dict['content-length'])
-    if print_info:
-        print('File name:   ', headers_dict['x-bz-file-name'])
-        print('File size:   ', file_size)
-        print('Content type:', headers_dict['content-type'])
-        print('Content sha1:', headers_dict['x-bz-content-sha1'])
-        for name in headers_dict:
-            if name.startswith('x-bz-info-'):
-                print('INFO', name[10:] + ':', headers_dict[name])
-    output_stream.total = file_size
-
-
 def download_file_by_id_helper(
     api,
     url,
@@ -1676,27 +1864,23 @@ def download_file_by_id_helper(
     print_info=False,
     set_last_modified=False,
 ):
-    output_stream = open(local_file_name, 'wb')
-    headers_received_cb = None
-    if print_progress:
-        output_stream = StreamWithProgress(output_stream, desc=local_file_name)
-        headers_received_cb = functools.partial(
-            _download_file_progress_callback,
-            output_stream,
-            print_info,
-        )
-    info = api.download_file_from_url(
-        url,
-        output_stream,
-        authorization=authorization,
-        headers_received_cb=headers_received_cb,
-    )
+    quiet = not print_progress
+    download_dest = DownloadDestLocalFile(local_file_name, quiet)
+    file_info = api.download_file_from_url(url, download_dest, authorization)
+
     if set_last_modified:
-        last_modified_millis = info.get('x-bz-info-src_last_modified_millis')
+        last_modified_millis = file_info.file_info.get('src_last_modified_millis')
         if last_modified_millis is not None:
-            mtime = int(last_modified_millis) / 1000
-            os.utime(local_file_name, (mtime, mtime))
-    if print_progress:
+            mod_time = int(last_modified_millis) / 1000
+            os.utime(local_file_name, (mod_time, mod_time))
+
+    if print_info:
+        print('File name:   ', file_info.file_name)
+        print('File size:   ', file_info.size)
+        print('Content type:', file_info.content_type)
+        print('Content sha1:', file_info.content_sha1)
+        for name in sorted(six.iterkeys(file_info.file_info)):
+            print('INFO', name + ':', file_info.file_info[name])
         print('checksum matches')
 
 
@@ -2166,14 +2350,17 @@ class ConsoleTool(object):
         remote_file = local_path_to_b2_path(args[2])
 
         bucket = self.api.get_bucket_by_name(bucket_name)
-        file_info = bucket.upload_file(
-            local_file=local_file,
-            file_name=remote_file,
-            content_type=content_type,
-            file_infos=file_infos,
-            sha1_sum=sha1_sum,
-            quiet=quiet,
-        )
+        with make_progress_listener(
+            local_file, os.path.getsize(local_file), quiet
+        ) as progress_listener:
+            file_info = bucket.upload_local_file(
+                local_file=local_file,
+                file_name=remote_file,
+                content_type=content_type,
+                file_infos=file_infos,
+                sha1_sum=sha1_sum,
+                progress_listener=progress_listener,
+            )
         response = file_info.as_dict()
         if not quiet:
             print("URL by file name: " + bucket.get_download_url(remote_file))
@@ -2379,7 +2566,7 @@ class ConsoleTool(object):
                 file_infos = {
                     'src_last_modified_millis': str(int(os.path.getmtime(filepath) * 1000))
                 }
-                bucket.upload_file(filepath, b2_path, file_infos=file_infos)
+                bucket.upload_local_file(filepath, b2_path, file_infos=file_infos)
             elif not is_b2_src and not local_file and options['delete']:
                 print("- %s" % filename)
                 self.api.delete_file_version(remote_file['fileId'], b2_path)
