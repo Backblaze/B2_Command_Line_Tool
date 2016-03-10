@@ -185,7 +185,7 @@ class RawSimulator(object):
         self._assert_account_auth(api_url, account_auth_token, account_id)
         if bucket_name in self.bucket_name_to_bucket:
             raise DuplicateBucketName(bucket_name)
-        bucket_id = 'bucket_' + str(self.bucket_id_counter.next())
+        bucket_id = 'bucket_' + str(six.next(self.bucket_id_counter))
         bucket = BucketSimulator(account_id, bucket_id, bucket_name, bucket_type)
         self.bucket_name_to_bucket[bucket_name] = bucket
         self.bucket_id_to_account[bucket_id] = account_id
