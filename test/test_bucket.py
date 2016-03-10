@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 from b2.b2 import AbstractAccountInfo, B2Api
 from b2.raw_simulator import RawSimulator
@@ -67,6 +67,68 @@ class TestLs(unittest.TestCase):
     def test_one_file_at_root(self):
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'hello.txt')
-        expected = [('hello.txt', 11, 'upload')]
-        actual = [(info.file_name, info.size, info.action) for (info, _) in self.bucket.ls('')]
+        expected = [('hello.txt', 11, 'upload', None)]
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls('')
+        ]
+        self.assertEqual(expected, actual)
+
+    def test_three_files_at_root(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'a')
+        self.bucket.upload_bytes(data, 'bb')
+        self.bucket.upload_bytes(data, 'ccc')
+        expected = [
+            ('a', 11, 'upload', None), ('bb', 11, 'upload', None), ('ccc', 11, 'upload', None)
+        ]
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls('')
+        ]
+        self.assertEqual(expected, actual)
+
+    def test_three_files_in_dir(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'a')
+        self.bucket.upload_bytes(data, 'bb/1')
+        self.bucket.upload_bytes(data, 'bb/2/sub1')
+        self.bucket.upload_bytes(data, 'bb/2/sub2')
+        self.bucket.upload_bytes(data, 'bb/3')
+        self.bucket.upload_bytes(data, 'ccc')
+        expected = [
+            ('bb/1', 11, 'upload', None), ('bb/2/sub1', 11, 'upload', 'bb/2/'),
+            ('bb/3', 11, 'upload', None)
+        ]
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls(
+                'bb',
+                fetch_count=1
+            )
+        ]
+        self.assertEqual(expected, actual)
+
+    def test_three_files_multiple_versions(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'a')
+        self.bucket.upload_bytes(data, 'bb/1')
+        self.bucket.upload_bytes(data, 'bb/2')
+        self.bucket.upload_bytes(data, 'bb/2')
+        self.bucket.upload_bytes(data, 'bb/2')
+        self.bucket.upload_bytes(data, 'bb/3')
+        self.bucket.upload_bytes(data, 'ccc')
+        expected = [
+            ('9998', 'bb/1', 11, 'upload', None), ('9995', 'bb/2', 11, 'upload', None),
+            ('9996', 'bb/2', 11, 'upload', None), ('9997', 'bb/2', 11, 'upload', None),
+            ('9994', 'bb/3', 11, 'upload', None)
+        ]
+        actual = [
+            (info.id_, info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls(
+                'bb',
+                show_versions=True,
+                fetch_count=1
+            )
+        ]
         self.assertEqual(expected, actual)

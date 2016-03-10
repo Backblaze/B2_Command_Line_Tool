@@ -78,7 +78,7 @@ class BucketSimulator(object):
         self.bucket_type = bucket_type
         self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
-        self.file_id_counter = iter(range(99999, 0, -1))
+        self.file_id_counter = iter(range(9999, 0, -1))
         self.file_id_to_file = dict()
         # It would be nice to use an OrderedDict for this, but 2.6 doesn't have it.
         self.file_name_and_id_to_file = dict()
@@ -110,9 +110,29 @@ class BucketSimulator(object):
                 if file.is_visible():
                     result_files.append(file.as_list_files_dict())
                     if len(result_files) == max_file_count:
-                        next_file_name = file.next_file_name()
+                        next_file_name = file.name + ' '
                         break
         return dict(files=result_files, nextFileName=next_file_name)
+
+    def list_file_versions(self, start_file_name=None, start_file_id=None, max_file_count=None):
+        start_file_name = start_file_name or ''
+        start_file_id = start_file_id or ''
+        max_file_count = max_file_count or 100
+        result_files = []
+        next_file_name = None
+        next_file_id = None
+        for key in sorted(six.iterkeys(self.file_name_and_id_to_file)):
+            (file_name, file_id) = key
+            if (start_file_name < file_name) or (
+                start_file_name == file_name and start_file_id <= file_id
+            ):
+                file = self.file_name_and_id_to_file[key]
+                result_files.append(file.as_list_files_dict())
+                if len(result_files) == max_file_count:
+                    next_file_name = file.name
+                    next_file_id = str(int(file_id) + 1)
+                    break
+        return dict(files=result_files, nextFileName=next_file_name, nextFileId=next_file_id)
 
     def upload_file(
         self, upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
@@ -187,6 +207,19 @@ class RawSimulator(object):
         bucket = self._get_bucket(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_names(start_file_name, max_file_count)
+
+    def list_file_versions(
+        self,
+        api_url,
+        account_auth,
+        bucket_id,
+        start_file_name=None,
+        start_file_id=None,
+        max_file_count=None
+    ):
+        bucket = self._get_bucket(bucket_id)
+        self._assert_account_auth(api_url, account_auth, bucket.account_id)
+        return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,

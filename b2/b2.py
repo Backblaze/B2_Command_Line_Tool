@@ -455,7 +455,14 @@ class Bucket(object):
             account_info.get_api_url(), auth_token, account_id, self.id_, type_
         )
 
-    def ls(self, folder_to_list='', show_versions=False, max_entries=None, recursive=False):
+    def ls(
+        self,
+        folder_to_list='',
+        show_versions=False,
+        max_entries=None,
+        recursive=False,
+        fetch_count=100
+    ):
         """Pretends that folders exist, and yields the information about the files in a folder.
 
         B2 has a flat namespace for the files in a bucket, but there is a convention
@@ -498,15 +505,14 @@ class Bucket(object):
         api_url = self.api.account_info.get_api_url()
         auth_token = self.api.account_info.get_account_auth_token()
         while True:
-            params = {'bucketId': self.id_, 'startFileName': start_file_name}
-            if start_file_id is not None:
-                params['startFileId'] = start_file_id
             if show_versions:
                 response = raw_api.list_file_versions(
-                    api_url, auth_token, self.id_, start_file_name, start_file_id
+                    api_url, auth_token, self.id_, start_file_name, start_file_id, fetch_count
                 )
             else:
-                response = raw_api.list_file_names(api_url, auth_token, self.id_, start_file_name)
+                response = raw_api.list_file_names(
+                    api_url, auth_token, self.id_, start_file_name, fetch_count
+                )
             for entry in response['files']:
                 file_version_info = FileVersionInfoFactory.from_api_response(entry)
                 if not file_version_info.file_name.startswith(prefix):
