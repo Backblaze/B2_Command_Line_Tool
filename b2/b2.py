@@ -196,6 +196,11 @@ class BadFileInfo(B2Error):
         return 'Bad file info: %s' % (self.data,)
 
 
+class BadUploadUrl(B2Error):
+    def __str__(self):
+        return 'Bad uplod URL: %s' % (self.message,)
+
+
 class ChecksumMismatch(B2Error):
     def __init__(self, checksum_type, expected, actual):
         self.checksum_type = checksum_type
@@ -283,11 +288,11 @@ class MissingAccountData(B2Error):
 
 
 class NonExistentBucket(B2Error):
-    def __init__(self, bucket_name):
-        self.bucket_name = bucket_name
+    def __init__(self, bucket_name_or_id):
+        self.bucket_name_or_id = bucket_name_or_id
 
     def __str__(self):
-        return 'No such bucket: %s' % (self.bucket_name,)
+        return 'No such bucket: %s' % (self.bucket_name_or_id,)
 
 
 class StorageCapExceeded(B2Error):
@@ -411,6 +416,22 @@ class WrappedSocketError(AbstractWrappedError):
 ## Bucket
 
 
+class BytesIoContextManager(object):
+    """
+    A simple wrapper for a BytesIO that makes it look like
+    a file-like object that can be a context manager.
+    """
+
+    def __init__(self, byte_data):
+        self.byte_data = byte_data
+
+    def __enter__(self):
+        return six.BytesIO(self.byte_data)
+
+    def __exit__(self, type, value, traceback):
+        return None  # don't hide exception
+
+
 @six.add_metaclass(ABCMeta)
 class Bucket(object):
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
@@ -434,7 +455,14 @@ class Bucket(object):
             account_info.get_api_url(), auth_token, account_id, self.id_, type_
         )
 
-    def ls(self, folder_to_list='', show_versions=False, max_entries=None, recursive=False):
+    def ls(
+        self,
+        folder_to_list='',
+        show_versions=False,
+        max_entries=None,
+        recursive=False,
+        fetch_count=100
+    ):
         """Pretends that folders exist, and yields the information about the files in a folder.
 
         B2 has a flat namespace for the files in a bucket, but there is a convention
@@ -477,15 +505,14 @@ class Bucket(object):
         api_url = self.api.account_info.get_api_url()
         auth_token = self.api.account_info.get_account_auth_token()
         while True:
-            params = {'bucketId': self.id_, 'startFileName': start_file_name}
-            if start_file_id is not None:
-                params['startFileId'] = start_file_id
             if show_versions:
                 response = raw_api.list_file_versions(
-                    api_url, auth_token, self.id_, start_file_name, start_file_id
+                    api_url, auth_token, self.id_, start_file_name, start_file_id, fetch_count
                 )
             else:
-                response = raw_api.list_file_names(api_url, auth_token, self.id_, start_file_name)
+                response = raw_api.list_file_names(
+                    api_url, auth_token, self.id_, start_file_name, fetch_count
+                )
             for entry in response['files']:
                 file_version_info = FileVersionInfoFactory.from_api_response(entry)
                 if not file_version_info.file_name.startswith(prefix):
@@ -548,22 +575,22 @@ class Bucket(object):
         }
         return post_json(url, params, auth_token)
 
-    def upload_bytes(
-        self,
-        data_bytes,
-        remote_filename,
-        content_type=None,
-        file_infos=None,
-        quiet=False
-    ):
+    def upload_bytes(self, data_bytes, file_name, content_type=None, file_infos=None):
         """
         Upload bytes in memory to a B2 file
         """
+        size = len(data_bytes)
+        hex_sha1 = hashlib.sha1(data_bytes).hexdigest()
+
+        def open_bytes():
+            return BytesIoContextManager(data_bytes)
+
+        return self._upload(open_bytes, file_name, size, content_type, file_infos, hex_sha1)
 
     def upload_file(
         self,
         local_file,
-        remote_filename,
+        file_name,
         content_type=None,
         file_infos=None,
         sha1_sum=None,
@@ -590,7 +617,7 @@ class Bucket(object):
             return stream
 
         # Upload the file
-        return self._upload(open_file, remote_filename, size, content_type, file_infos, sha1_sum)
+        return self._upload(open_file, file_name, size, content_type, file_infos, sha1_sum)
 
     def _upload(self, opener, remote_filename, size, content_type, file_infos, sha1_sum):
         """
@@ -1244,6 +1271,10 @@ class AbstractAccountInfo(object):
 
     @abstractmethod
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+        pass
+
+    @abstractmethod
+    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
         pass
 
 
@@ -2088,7 +2119,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         file_info = bucket.upload_file(
             local_file=local_file,
-            remote_filename=remote_file,
+            file_name=remote_file,
             content_type=content_type,
             file_infos=file_infos,
             sha1_sum=sha1_sum,
