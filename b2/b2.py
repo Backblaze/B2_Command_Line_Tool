@@ -173,6 +173,46 @@ Usages:
         Echos the version number of this program.
 """
 
+## Assorted Utilities
+
+
+def validate_b2_file_name(name):
+    """
+    Raises a ValueError if the name is not a valid B2 file name.
+
+    :param name: a string
+    :return: None
+    """
+    if not isinstance(name, six.string_types):
+        raise ValueError('file name must be a string, not bytes')
+    name_utf8 = name.encode('utf-8')
+    if len(name_utf8) < 1:
+        raise ValueError('file name too short (0 utf-8 bytes)')
+    if 1000 < len(name_utf8):
+        raise ValueError('file name too long (more than 1000 utf-8 bytes)')
+    if name[0] == '/':
+        raise ValueError("file names must not start with '/'")
+    if name[-1] == '/':
+        raise ValueError("file names must not end with '/'")
+    if '\\' in name:
+        raise ValueError("file names must not contain '\\'")
+    if '//' in name:
+        raise ValueError("file names must not contain '//'")
+    if chr(127) in name:
+        raise ValueError("file names must not contain DEL")
+    if any(250 < len(segment) for segment in name_utf8.split(six.b('/'))):
+        raise ValueError("file names segments (between '/') can be at most 250 utf-8 bytes")
+
+
+def local_path_to_b2_path(path):
+    """
+    Ensures that the separator in the path is '/', not '\'.
+
+    :param name: A path from the local file system
+    :return: A path that uses '/' as the separator.
+    """
+    return path.replace(os.path.sep, '/')
+
 ## Exceptions
 
 
@@ -434,6 +474,10 @@ class BytesIoContextManager(object):
 
 @six.add_metaclass(ABCMeta)
 class Bucket(object):
+    """
+    Provides access to a bucket in B2: listing files, uploading and downloading.
+    """
+
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
@@ -627,18 +671,15 @@ class Bucket(object):
         must be possible to call it more than once in case the upload
         is retried.
         """
+        validate_b2_file_name(remote_filename)
         assert sha1_sum is not None
+
         if file_infos is None:
             file_infos = {}
         if content_type is None:
             content_type = self.DEFAULT_CONTENT_TYPE
 
         account_info = self.api.account_info
-
-        # Use forward slashes for remote
-        # TODO: move this up a layer, to the ConsoleTool
-        if os.sep != '/':
-            remote_filename = remote_filename.replace(os.sep, '/')
 
         exception_info_list = []
         for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
@@ -2122,7 +2163,7 @@ class ConsoleTool(object):
             usage_and_exit()
         bucket_name = args[0]
         local_file = args[1]
-        remote_file = args[2]
+        remote_file = local_path_to_b2_path(args[2])
 
         bucket = self.api.get_bucket_by_name(bucket_name)
         file_info = bucket.upload_file(
@@ -2320,7 +2361,7 @@ class ConsoleTool(object):
         for filename in local_fileset | remote_fileset:
             filepath = os.path.join(local_path, filename)
             dirpath = os.path.dirname(filepath)
-            b2_path = os.path.join(bucket_prefix, filename)
+            b2_path = local_path_to_b2_path(os.path.join(bucket_prefix, filename))
             local_file = local_files.get(filename)
             remote_file = remote_files.get(filename)
             is_match = local_file and remote_file and local_file['size'] == remote_file['size']
