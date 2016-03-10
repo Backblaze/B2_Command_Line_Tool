@@ -1041,7 +1041,15 @@ class B2RawApi(object):
 
 class B2Api(object):
     """
-    Provides high-level access to the B2 API.
+    Provides file-level access to B2 services.
+
+    While B2RawApi provides direct access to the B2 web APIs, this
+    class handles several things that simplify the task of uploading
+    and downloading files:
+      - re-acquires authorization tokens when they expire
+      - retrying uploads when an upload URL is busy
+      - breaking large files into parts
+      - emulating a directory structure (B2 buckets are flat)
 
     Adds an object-oriented layer on top of the raw API, so that
     buckets and files returned are Python objects with accessor
