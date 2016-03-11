@@ -10,7 +10,10 @@
 
 from __future__ import absolute_import, print_function
 
-from b2.b2 import AbstractAccountInfo, AbstractWrappedError, B2Api, DownloadDestBytes, MaxRetriesExceeded
+from b2.b2 import (
+    AbstractAccountInfo, AbstractWrappedError, B2Api, DownloadDestBytes, FileVersionInfo,
+    MaxRetriesExceeded
+)
 from b2.raw_simulator import RawSimulator
 import os
 import shutil
@@ -46,13 +49,16 @@ class StubAccountInfo(AbstractAccountInfo):
         self.auth_token = None
         self.api_url = None
         self.download_url = None
+        self.minimum_part_size = None
         self.buckets = {}
 
     def clear_bucket_upload_data(self, bucket_id):
         if bucket_id in self.buckets:
             del self.buckets[bucket_id]
 
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url, minimum_part_size):
+    def set_account_id_and_auth_token(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    ):
         self.account_id = account_id
         self.auth_token = auth_token
         self.api_url = api_url
@@ -73,6 +79,9 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_download_url(self):
         return self.download_url
+
+    def get_minimum_part_size(self):
+        return self.minimum_part_size
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))
@@ -174,7 +183,8 @@ class CanRetry(AbstractWrappedError):
 class TestUpload(TestCaseWithBucket):
     def test_upload_bytes(self):
         data = six.b('hello world')
-        self.bucket.upload_bytes(data, 'file1')
+        file_info = self.bucket.upload_bytes(data, 'file1')
+        self.assertTrue(isinstance(file_info, FileVersionInfo))
 
     def test_upload_local_file(self):
         with TempDir() as d:

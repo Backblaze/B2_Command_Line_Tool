@@ -864,13 +864,19 @@ class Bucket(object):
 
         # We don't upload any large files unless all of the parts can be at least
         # the minimum part size.
-        min_large_file_size = self.api.account_info.minimum_part_size * 2
+        min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
         if upload_source.get_content_length() < min_large_file_size:
-            self.upload_small_file(upload_source, file_name, content_type, file_info, progress_listener)
+            return self.upload_small_file(
+                upload_source, file_name, content_type, file_info, progress_listener
+            )
         else:
-            self.upload_large_file(upload_source, file_name, content_type, file_info, progress_listener)
+            return self.upload_large_file(
+                upload_source, file_name, content_type, file_info, progress_listener
+            )
 
-    def upload_small_file(self, upload_source, file_name, content_type, file_info, progress_listener):
+    def upload_small_file(
+        self, upload_source, file_name, content_type, file_info, progress_listener
+    ):
         content_length = upload_source.get_content_length()
         sha1_sum = upload_source.get_content_sha1()
         exception_info_list = []
@@ -896,7 +902,9 @@ class Bucket(object):
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
 
-    def upload_large_file(self, upload_source, file_name, content_type, file_info, progress_listener):
+    def upload_large_file(
+        self, upload_source, file_name, content_type, file_info, progress_listener
+    ):
         raise NotImplementedError()
 
     def _get_upload_data(self):
@@ -1565,7 +1573,9 @@ class AbstractAccountInfo(object):
         pass
 
     @abstractmethod
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url, minimum_part_size):
+    def set_account_id_and_auth_token(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    ):
         pass
 
     @abstractmethod
@@ -1642,7 +1652,9 @@ class StoredAccountInfo(AbstractAccountInfo):
             raise MissingAccountData(key)
         return result
 
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url, minimum_part_size):
+    def set_account_id_and_auth_token(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    ):
         self.data[self.ACCOUNT_ID] = account_id
         self.data[self.ACCOUNT_AUTH_TOKEN] = auth_token
         self.data[self.API_URL] = api_url
