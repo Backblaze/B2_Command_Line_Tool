@@ -340,7 +340,7 @@ class OpenLocalFileForWriting(object):
         self.progress_listener.close()
         result = self.file.__exit__(exc_type, exc_val, exc_tb)
         if self.mod_time_millis is not None:
-            mod_time = int(self.mod_time_millis) / 1000
+            mod_time = int(self.mod_time_millis) / 1000.0
             os.utime(self.local_path_name, (mod_time, mod_time))
         return result
 
@@ -832,7 +832,7 @@ class Bucket(object):
         upload_source,
         file_name,
         content_type=None,
-        file_infos=None,
+        file_info=None,
         progress_listener=None
     ):
         """
@@ -856,19 +856,23 @@ class Bucket(object):
         must be possible to call it more than once in case the upload
         is retried.
         """
-        validate_b2_file_name(file_name)
 
-        content_length = upload_source.get_content_length()
-        sha1_sum = upload_source.get_content_sha1()
-        file_infos = file_infos or {}
+        validate_b2_file_name(file_name)
+        file_info = file_info or {}
         content_type = content_type or self.DEFAULT_CONTENT_TYPE
         progress_listener = progress_listener or DoNothingProgressListener()
 
-        if content_length > self.MAX_UPLOADED_FILE_SIZE:
-            raise MaxFileSizeExceeded(content_length, self.MAX_UPLOADED_FILE_SIZE)
+        # We don't upload any large files unless all of the parts can be at least
+        # the minimum part size.
+        min_large_file_size = self.api.account_info.minimum_part_size * 2
+        if upload_source.get_content_length() < min_large_file_size:
+            self.upload_small_file(upload_source, file_name, content_type, file_info, progress_listener)
+        else:
+            self.upload_large_file(upload_source, file_name, content_type, file_info, progress_listener)
 
-        account_info = self.api.account_info
-
+    def upload_small_file(self, upload_source, file_name, content_type, file_info, progress_listener):
+        content_length = upload_source.get_content_length()
+        sha1_sum = upload_source.get_content_sha1()
         exception_info_list = []
         for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
@@ -880,7 +884,7 @@ class Bucket(object):
                     input_stream = StreamWithProgress(file, progress_listener)
                     upload_response = self.api.raw_api.upload_file(
                         upload_url, upload_auth_token, file_name, content_length, content_type,
-                        sha1_sum, file_infos, input_stream
+                        sha1_sum, file_info, input_stream
                     )
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
@@ -888,9 +892,12 @@ class Bucket(object):
                 if not e.should_retry():
                     raise
                 exception_info_list.append(e)
-                account_info.clear_bucket_upload_data(self.id_)
+                self.api.account_info.clear_bucket_upload_data(self.id_)
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
+
+    def upload_large_file(self, upload_source, file_name, content_type, file_info, progress_listener):
+        raise NotImplementedError()
 
     def _get_upload_data(self):
         """
@@ -1398,7 +1405,7 @@ class B2Api(object):
         response = self.raw_api.authorize_account(realm_url, account_id, application_key)
         self.account_info.set_account_id_and_auth_token(
             response['accountId'], response['authorizationToken'], response['apiUrl'],
-            response['downloadUrl']
+            response['downloadUrl'], response['minimumPartSize']
         )
 
     # buckets
@@ -1558,7 +1565,7 @@ class AbstractAccountInfo(object):
         pass
 
     @abstractmethod
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url, minimum_part_size):
         pass
 
     @abstractmethod
@@ -1583,6 +1590,7 @@ class StoredAccountInfo(AbstractAccountInfo):
     BUCKET_UPLOAD_URL = 'bucket_upload_url'
     BUCKET_UPLOAD_AUTH_TOKEN = 'bucket_upload_auth_token'
     DOWNLOAD_URL = 'download_url'
+    MINIMUM_PART_SIZE = 'minimum_part_size'
 
     def __init__(self):
         user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
@@ -1598,7 +1606,12 @@ class StoredAccountInfo(AbstractAccountInfo):
             with open(self.filename, 'rb') as f:
                 # is there a cleaner way to do this that works in both Python 2 and 3?
                 json_str = f.read().decode('utf-8')
-                return json.loads(json_str)
+                data = json.loads(json_str)
+                # newer version of this tool require minimumPartSize.
+                # if it's not there, we need to refresh
+                if self.MINIMUM_PART_SIZE not in data:
+                    data = {}
+                return data
         except Exception:
             return {}
 
@@ -1618,6 +1631,9 @@ class StoredAccountInfo(AbstractAccountInfo):
     def get_download_url(self):
         return self._get_account_info_or_exit(self.DOWNLOAD_URL)
 
+    def get_minimum_part_size(self):
+        return self._get_account_info_or_exit(self.MINIMUM_PART_SIZE)
+
     def _get_account_info_or_exit(self, key):
         """Returns the named field from the account data, or errors and exits.
         """
@@ -1626,11 +1642,12 @@ class StoredAccountInfo(AbstractAccountInfo):
             raise MissingAccountData(key)
         return result
 
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url, minimum_part_size):
         self.data[self.ACCOUNT_ID] = account_id
         self.data[self.ACCOUNT_AUTH_TOKEN] = auth_token
         self.data[self.API_URL] = api_url
         self.data[self.DOWNLOAD_URL] = download_url
+        self.data[self.MINIMUM_PART_SIZE] = minimum_part_size
         self._write_file()
 
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):

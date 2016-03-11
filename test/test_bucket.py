@@ -52,11 +52,12 @@ class StubAccountInfo(AbstractAccountInfo):
         if bucket_id in self.buckets:
             del self.buckets[bucket_id]
 
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url, minimum_part_size):
         self.account_id = account_id
         self.auth_token = auth_token
         self.api_url = api_url
         self.download_url = download_url
+        self.minimum_part_size = minimum_part_size
 
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
         self.buckets[bucket_id] = (upload_url, upload_auth_token)
@@ -181,9 +182,7 @@ class TestUpload(TestCaseWithBucket):
             data = six.b('hello world')
             write_file(path, data)
             self.bucket.upload_local_file(path, 'file1')
-            download = DownloadDestBytes()
-            self.bucket.download_file_by_name('file1', download)
-            self.assertEqual(data, download.bytes_io.getvalue())
+            self._check_file_contents('file1', data)
 
     def test_upload_one_retryable_error(self):
         self.simulator.set_upload_errors([CanRetry(True)])
@@ -203,3 +202,14 @@ class TestUpload(TestCaseWithBucket):
             data = six.b('hello world')
             with self.assertRaises(MaxRetriesExceeded):
                 self.bucket.upload_bytes(data, 'file1')
+
+    def test_upload_large(self):
+        pass
+        #data = six.b('hello world') * (self.simulator.MIN_PART_SIZE * 3)
+        #self.bucket.upload_bytes(data, 'file1')
+        #self._check_file_contents('file'', data)
+
+    def _check_file_contents(self, file_name, expected_contents):
+        download = DownloadDestBytes()
+        self.bucket.download_file_by_name(file_name, download)
+        self.assertEqual(expected_contents, download.bytes_io.getvalue())
