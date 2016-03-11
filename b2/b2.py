@@ -317,20 +317,32 @@ class DownloadDest(object):
         """
 
 
-class SetModTimeOnClose(object):
-    def __init__(self, local_path_name, mod_time_millis=None):
+class OpenLocalFileForWriting(object):
+    """
+    Context manager that opens a local file for writing,
+    tracks progress as it's written, and sets the modification
+    time when it's done.
+
+    Takes care of opening/closing the file, and closing the
+    progress listener.
+    """
+
+    def __init__(self, local_path_name, progress_listener, mod_time_millis=None):
         self.local_path_name = local_path_name
+        self.progress_listener = progress_listener
         self.mod_time_millis = mod_time_millis
 
     def __enter__(self):
         self.file = open(self.local_path_name, 'wb')
-        return self.file
+        return StreamWithProgress(self.file.__enter__(), self.progress_listener)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.file.close()
+        self.progress_listener.close()
+        result = self.file.__exit__(exc_type, exc_val, exc_tb)
         if self.mod_time_millis is not None:
             mod_time = int(self.mod_time_millis) / 1000
             os.utime(self.local_path_name, (mod_time, mod_time))
+        return result
 
 
 class DownloadDestLocalFile(DownloadDest):
@@ -338,8 +350,9 @@ class DownloadDestLocalFile(DownloadDest):
     Stores a downloaded file into a local file and sets its modification time.
     """
 
-    def __init__(self, local_file_path):
+    def __init__(self, local_file_path, progress_listener):
         self.local_file_path = local_file_path
+        self.progress_listener = progress_listener
 
     def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
         self.file_id = file_id
@@ -349,8 +362,11 @@ class DownloadDestLocalFile(DownloadDest):
         self.content_sha1 = content_sha1
         self.file_info = file_info
 
-        return SetModTimeOnClose(
-            self.local_file_path, file_info.get('x-bz-info-src_last_modified_millis')
+        self.progress_listener.set_total_bytes(content_length)
+
+        return OpenLocalFileForWriting(
+            self.local_file_path, self.progress_listener,
+            file_info.get('x-bz-info-src_last_modified_millis')
         )
 
 ## Exceptions
@@ -618,14 +634,14 @@ class Bucket(object):
             account_info.get_api_url(), auth_token, account_id, self.id_, type_
         )
 
-    def download_file_by_id(self, file_id, download_dest, progress_listener):
-        self.api.download_file_by_id(file_id, download_dest, progress_listener)
+    def download_file_by_id(self, file_id, download_dest):
+        self.api.download_file_by_id(file_id, download_dest)
 
-    def download_file_by_name(self, file_name, download_dest, progress_listener):
+    def download_file_by_name(self, file_name, download_dest):
         account_info = self.api.account_info
         self.api.raw_api.download_file_by_name(
             account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
-            file_name, download_dest, progress_listener
+            file_name, download_dest
         )
 
     def ls(
@@ -829,6 +845,7 @@ class Bucket(object):
 
             try:
                 with upload_source.open() as file:
+                    progress_listener.set_total_bytes(content_length)
                     input_stream = StreamWithProgress(file, progress_listener)
                     upload_response = self.api.raw_api.upload_file(
                         upload_url, upload_auth_token, file_name, content_length, content_type,
@@ -1135,24 +1152,23 @@ class B2RawApi(object):
         )
 
     def download_file_by_id(
-        self, download_url, account_auth_token_or_none, file_id, download_dest, progress_listener
+        self, download_url, account_auth_token_or_none, file_id, download_dest
     ):
         url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
         return self._download_file_from_url(
-            url, account_auth_token_or_none, download_dest, progress_listener
+            url, account_auth_token_or_none, download_dest
         )
 
     def download_file_by_name(
-        self, download_url, account_auth_token_or_none, bucket_id, file_name, download_dest,
-        progress_listener
+        self, download_url, account_auth_token_or_none, bucket_id, file_name, download_dest
     ):
         url = download_url + '/file/' + bucket_id + '/' + b2_url_encode(file_name)
         return self._download_file_from_url(
-            url, account_auth_token_or_none, download_dest, progress_listener
+            url, account_auth_token_or_none, download_dest
         )
 
     def _download_file_from_url(
-        self, url, account_auth_token_or_none, download_dest, progress_listener
+        self, url, account_auth_token_or_none, download_dest
     ):
         """
         Downloads a file from given url and stores it in the given download_destination.
@@ -1194,7 +1210,6 @@ class B2RawApi(object):
                     file.write(data)
                     digest.update(data)
                     bytes_read += len(data)
-                    progress_listener.bytes_completed(bytes_read)
 
                 if bytes_read != int(info['content-length']):
                     raise TruncatedOutput(bytes_read, content_length)
@@ -1380,10 +1395,10 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
 
-    def download_file_by_id(self, file_id, download_dest, progress_listener):
+    def download_file_by_id(self, file_id, download_dest):
         self.raw_api.download_file_by_id(
             self.account_info.get_download_url(), self.account_info.get_account_auth_token(),
-            file_id, download_dest, progress_listener
+            file_id, download_dest
         )
 
     def get_bucket_by_id(self, bucket_id):
@@ -2150,11 +2165,9 @@ class ConsoleTool(object):
         file_id = args[0]
         local_file_name = args[1]
 
-        download_dest = DownloadDestLocalFile(local_file_name)
-        progress_listener = make_progress_listener(
-            local_file_name, 100, False
-        )  # TODO: where does length come from?
-        self.api.download_file_by_id(file_id, download_dest, progress_listener)
+        progress_listener = make_progress_listener(local_file_name, False)
+        download_dest = DownloadDestLocalFile(local_file_name, progress_listener)
+        self.api.download_file_by_id(file_id, download_dest)
         self._print_download_info(download_dest)
 
     def download_file_by_name(self, args):
@@ -2165,16 +2178,14 @@ class ConsoleTool(object):
         local_file_name = args[2]
 
         bucket = self.api.get_bucket_by_name(bucket_name)
-
-        download_dest = DownloadDestLocalFile(local_file_name)
-        progress_listener = make_progress_listener(
-            local_file_name, 100, False
-        )  # TODO: where does length come from?
-        bucket.download_file_by_name(file_name, download_dest, progress_listener)
+        progress_listener = make_progress_listener(local_file_name, False)
+        download_dest = DownloadDestLocalFile(local_file_name, progress_listener)
+        bucket.download_file_by_name(file_name, download_dest)
         self._print_download_info(download_dest)
 
     def _print_download_info(self, download_dest):
         print('File name:   ', download_dest.file_name)
+        print('File id:     ', download_dest.file_id)
         print('File size:   ', download_dest.content_length)
         print('Content type:', download_dest.content_type)
         print('Content sha1:', download_dest.content_sha1)
@@ -2243,9 +2254,7 @@ class ConsoleTool(object):
         remote_file = local_path_to_b2_path(args[2])
 
         bucket = self.api.get_bucket_by_name(bucket_name)
-        with make_progress_listener(
-            local_file, os.path.getsize(local_file), quiet
-        ) as progress_listener:
+        with make_progress_listener(local_file, quiet) as progress_listener:
             file_info = bucket.upload_local_file(
                 local_file=local_file,
                 file_name=remote_file,
@@ -2449,10 +2458,8 @@ class ConsoleTool(object):
                 print("+ %s" % filename)
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
-                download_dest = DownloadDestLocalFile(filepath)
-                self.api.download_file_by_id(
-                    remote_file['fileId'], download_dest, DoNothingProgressListener()
-                )
+                download_dest = DownloadDestLocalFile(filepath, DoNothingProgressListener())
+                self.api.download_file_by_id(remote_file['fileId'], download_dest)
             elif is_b2_src and not remote_file and options['delete']:
                 print("- %s" % filename)
                 os.remove(filepath)

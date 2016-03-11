@@ -30,6 +30,14 @@ class ProgressListener(object):
     """
 
     @abstractmethod
+    def set_total_bytes(self, total_byte_count):
+        """
+        Always called before __enter__ to set the expected total number of bytes.
+
+        May be called more than once if an upload is retried.
+        """
+
+    @abstractmethod
     def bytes_completed(self, byte_count):
         """
         Reports that the given number of bytes have been transferred
@@ -38,37 +46,40 @@ class ProgressListener(object):
         """
 
     @abstractmethod
+    def close(self):
+        """
+        Must be called when you're done with the listener.
+        """
+
     def __enter__(self):
         """
         standard context manager method
         """
-
-    @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """
-        standard context manager method
-        """
-
-
-class TqdmProgressListener(ProgressListener):
-    def __init__(self, description, total):
-        self.tqdm = tqdm(
-            desc=description,
-            total=total,
-            unit='B',
-            unit_scale=True,
-            leave=True,
-            miniters=1
-        )
-        self.prev_value = 0
-        self.total = total
-
-    def __enter__(self):
-        self.tqdm.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        return self.tqdm.__exit__(exc_type, exc_val, exc_tb)
+        """
+        standard context manager method
+        """
+        self.close()
+
+
+class TqdmProgressListener(ProgressListener):
+    def __init__(self, description):
+        self.description = description
+        self.tqdm = None  # set in set_total_bytes()
+        self.prev_value = 0
+
+    def set_total_bytes(self, total_byte_count):
+        if self.tqdm is None:
+            self.tqdm = tqdm(
+                desc=self.description,
+                total=total_byte_count,
+                unit='B',
+                unit_scale=True,
+                leave=True,
+                miniters=1
+            )
 
     def bytes_completed(self, byte_count):
         # tqdm doesn't support running the progress bar backwards,
@@ -78,14 +89,20 @@ class TqdmProgressListener(ProgressListener):
             self.tqdm.update(byte_count - self.prev_value)
             self.prev_value = byte_count
 
+    def close(self):
+        if self.tqdm is not None:
+            self.tqdm.close()
+
 
 class SimpleProgressListener(ProgressListener):
-    def __init__(self, description, total):
+    def __init__(self, description):
         self.desc = description
-        self.total = total
         self.complete = 0
         self.last_time = time.time()
         self.any_printed = False
+
+    def set_total_bytes(self, total_byte_count):
+        self.total = total_byte_count
 
     def bytes_completed(self, byte_count):
         now = time.time()
@@ -97,32 +114,29 @@ class SimpleProgressListener(ProgressListener):
             self.last_time = now
             self.any_printed = True
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
+    def close(self):
         if self.any_printed:
             print('    DONE.')
 
 
 class DoNothingProgressListener(ProgressListener):
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def set_total_bytes(self, total_byte_count):
         pass
 
     def bytes_completed(self, byte_count):
         pass
 
+    def close(self):
+        pass
 
-def make_progress_listener(description, total, quiet):
+
+def make_progress_listener(description, quiet):
     if quiet:
         return DoNothingProgressListener()
     elif tqdm is not None:
-        return TqdmProgressListener(description, total)
+        return TqdmProgressListener(description)
     else:
-        return SimpleProgressListener(description, total)
+        return SimpleProgressListener(description)
 
 
 class StreamWithProgress(object):
