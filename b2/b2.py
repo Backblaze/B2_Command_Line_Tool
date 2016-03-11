@@ -23,6 +23,7 @@ import base64
 import datetime
 import getpass
 import hashlib
+from .utils import choose_part_ranges
 import json
 import os
 from .progress import DoNothingProgressListener, make_progress_listener, StreamWithProgress
@@ -905,6 +906,11 @@ class Bucket(object):
     def upload_large_file(
         self, upload_source, file_name, content_type, file_info, progress_listener
     ):
+        content_length = upload_source.get_content_length()
+        minimum_part_size = self.api.account_info.get_minimum_part_size()
+        part_ranges = choose_part_ranges(content_length, minimum_part_size)
+
+        # Decide what size the parts will be
         raise NotImplementedError()
 
     def _get_upload_data(self):
