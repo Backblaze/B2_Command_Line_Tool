@@ -10,10 +10,28 @@
 
 from __future__ import absolute_import, print_function
 
-from b2.b2 import AbstractAccountInfo, B2Api
+from b2.b2 import AbstractAccountInfo, B2Api, DownloadDestBytes
 from b2.raw_simulator import RawSimulator
+import os
+import shutil
 import six
+import tempfile
 import unittest
+
+
+class TempDir(object):
+    def __enter__(self):
+        self.dirpath = tempfile.mkdtemp()
+        return self.dirpath
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        shutil.rmtree(self.dirpath)
+        return None  # do not hide exception
+
+
+def write_file(path, data):
+    with open(path, 'wb') as f:
+        f.write(data)
 
 
 class StubAccountInfo(AbstractAccountInfo):
@@ -52,7 +70,7 @@ class StubAccountInfo(AbstractAccountInfo):
         return self.buckets.get(bucket_id, (None, None))
 
 
-class TestLs(unittest.TestCase):
+class TestCaseWithBucket(unittest.TestCase):
     def setUp(self):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()
@@ -61,6 +79,8 @@ class TestLs(unittest.TestCase):
         self.api.authorize_account('http://realm.example.com', 'my-account', 'my-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
 
+
+class TestLs(TestCaseWithBucket):
     def test_empty(self):
         self.assertEqual([], list(self.bucket.ls('foo')))
 
@@ -132,3 +152,19 @@ class TestLs(unittest.TestCase):
             )
         ]
         self.assertEqual(expected, actual)
+
+
+class TestUpload(TestCaseWithBucket):
+    def test_upload_bytes(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'file1')
+
+    def test_upload_file(self):
+        with TempDir() as d:
+            path = os.path.join(d, 'file1')
+            data = six.b('hello world')
+            write_file(path, data)
+            self.bucket.upload_local_file(path, 'file1')
+            download = DownloadDestBytes()
+            self.bucket.download_file_by_name('file1', download)
+            self.assertEqual(data, download.bytes_io.getvalue())

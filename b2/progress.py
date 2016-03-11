@@ -155,7 +155,10 @@ class StreamWithProgress(object):
         return self
 
     def read(self, size=None):
-        data = self.stream.read(size)
+        if size is None:
+            data = self.stream.read()
+        else:
+            data = self.stream.read(size)
         self._update(len(data))
         return data
 

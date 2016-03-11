@@ -369,6 +369,37 @@ class DownloadDestLocalFile(DownloadDest):
             file_info.get('x-bz-info-src_last_modified_millis')
         )
 
+
+class BytesCapture(six.BytesIO):
+    """
+    The BytesIO class discards the data on close().  We don't want to do that.
+    """
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class DownloadDestBytes(DownloadDest):
+    """
+    Stores a downloaded file into bytes in memory.
+    """
+
+    def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
+        self.file_id = file_id
+        self.file_name = file_name
+        self.content_length = content_length
+        self.content_type = content_type
+        self.content_sha1 = content_sha1
+        self.file_info = file_info
+        self.bytes_io = BytesCapture()
+        return self.bytes_io
+
 ## Exceptions
 
 

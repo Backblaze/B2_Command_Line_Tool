@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from .b2 import BadUploadUrl, DuplicateBucketName, NonExistentBucket
+from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, NonExistentBucket
 import re
 import six
 from six.moves import range
@@ -25,6 +25,7 @@ class FileSimulator(object):
         self.file_id = file_id
         self.action = action
         self.name = name
+        self.content_length = len(data_bytes)
         self.content_type = content_type
         self.content_sha1 = content_sha1
         self.file_info = file_info
@@ -90,6 +91,20 @@ class BucketSimulator(object):
             bucketId=self.bucket_id,
             bucketType=self.bucket_type
         )
+
+    def download_file_by_name(self, file_name, download_dest):
+        files = self.list_file_names(file_name, 1)['files']
+        if len(files) == 0:
+            raise FileNotPresent(file_name)
+        file_dict = files[0]
+        if file_dict['fileName'] != file_name or file_dict['action'] != 'upload':
+            raise FileNotPresent(file_name)
+        file_sim = self.file_name_and_id_to_file[(file_name, file_dict['fileId'])]
+        with download_dest.open(
+            file_sim.file_id, file_sim.name, file_sim.content_length, file_sim.content_type,
+            file_sim.content_sha1, file_sim.file_info
+        ) as f:
+            f.write(file_sim.data_bytes)
 
     def get_upload_url(self):
         upload_id = six.next(self.upload_url_counter)
@@ -192,9 +207,21 @@ class RawSimulator(object):
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_json()
 
+    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest):
+        url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
+
+    def download_file_by_name(
+        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest
+    ):
+        assert download_url == self.DOWNLOAD_URL
+        # TODO: check auth token if bucket is not public
+        bucket = self._get_bucket_by_name(bucket_name)
+        bucket.download_file_by_name(file_name, download_dest)
+
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
-        return self._get_bucket(bucket_id).get_upload_url()
+        return self._get_bucket_by_id(bucket_id).get_upload_url()
 
     def list_file_names(
         self,
@@ -204,7 +231,7 @@ class RawSimulator(object):
         start_file_name=None,
         max_file_count=None
     ):
-        bucket = self._get_bucket(bucket_id)
+        bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_names(start_file_name, max_file_count)
 
@@ -217,7 +244,7 @@ class RawSimulator(object):
         start_file_id=None,
         max_file_count=None
     ):
-        bucket = self._get_bucket(bucket_id)
+        bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
@@ -230,7 +257,7 @@ class RawSimulator(object):
         if url_match is None:
             raise BadUploadUrl(upload_url)
         bucket_id, upload_id = url_match.groups()
-        return self._get_bucket(bucket_id).upload_file(
+        return self._get_bucket_by_id(bucket_id).upload_file(
             upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
             file_infos, data_stream
         )
@@ -240,7 +267,12 @@ class RawSimulator(object):
         assert account_auth_token == 'AUTH:' + account_id
         assert account_id in self.authorized_accounts
 
-    def _get_bucket(self, bucket_id):
+    def _get_bucket_by_id(self, bucket_id):
         if bucket_id not in self.bucket_id_to_bucket:
             raise NonExistentBucket(bucket_id)
         return self.bucket_id_to_bucket[bucket_id]
+
+    def _get_bucket_by_name(self, bucket_name):
+        if bucket_name not in self.bucket_name_to_bucket:
+            raise NonExistentBucket(bucket_name)
+        return self.bucket_name_to_bucket[bucket_name]
