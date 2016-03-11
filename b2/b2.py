@@ -1151,25 +1151,17 @@ class B2RawApi(object):
             fileName=file_name
         )
 
-    def download_file_by_id(
-        self, download_url, account_auth_token_or_none, file_id, download_dest
-    ):
+    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest):
         url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
-        return self._download_file_from_url(
-            url, account_auth_token_or_none, download_dest
-        )
+        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
 
     def download_file_by_name(
         self, download_url, account_auth_token_or_none, bucket_id, file_name, download_dest
     ):
         url = download_url + '/file/' + bucket_id + '/' + b2_url_encode(file_name)
-        return self._download_file_from_url(
-            url, account_auth_token_or_none, download_dest
-        )
+        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
 
-    def _download_file_from_url(
-        self, url, account_auth_token_or_none, download_dest
-    ):
+    def _download_file_from_url(self, url, account_auth_token_or_none, download_dest):
         """
         Downloads a file from given url and stores it in the given download_destination.
 
