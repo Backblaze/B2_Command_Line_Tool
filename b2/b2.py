@@ -1539,8 +1539,15 @@ class AbstractAccountInfo(object):
 
     @abstractmethod
     def clear(self):
-        """ Removes all stored information """
-        pass
+        """
+        Removes all stored information
+        """
+
+    @abstractmethod
+    def clear_bucket_upload_data(self, bucket_id):
+        """
+        Removes all upload URLs for the given bucket.
+        """
 
     @abstractmethod
     def get_api_url(self):

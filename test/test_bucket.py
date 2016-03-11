@@ -10,13 +10,16 @@
 
 from __future__ import absolute_import, print_function
 
-from b2.b2 import AbstractAccountInfo, B2Api, DownloadDestBytes
+from b2.b2 import AbstractAccountInfo, AbstractWrappedError, B2Api, DownloadDestBytes, MaxRetriesExceeded
 from b2.raw_simulator import RawSimulator
 import os
 import shutil
 import six
+import sys
 import tempfile
 import unittest
+
+IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
 
 class TempDir(object):
@@ -44,6 +47,10 @@ class StubAccountInfo(AbstractAccountInfo):
         self.api_url = None
         self.download_url = None
         self.buckets = {}
+
+    def clear_bucket_upload_data(self, bucket_id):
+        if bucket_id in self.buckets:
+            del self.buckets[bucket_id]
 
     def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
         self.account_id = account_id
@@ -75,7 +82,7 @@ class TestCaseWithBucket(unittest.TestCase):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()
         self.account_info = StubAccountInfo()
-        self.api = B2Api(self.account_info, raw_api=RawSimulator())
+        self.api = B2Api(self.account_info, raw_api=self.simulator)
         self.api.authorize_account('http://realm.example.com', 'my-account', 'my-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
 
@@ -154,12 +161,21 @@ class TestLs(TestCaseWithBucket):
         self.assertEqual(expected, actual)
 
 
+class CanRetry(AbstractWrappedError):
+    def __init__(self, can_retry):
+        super(CanRetry, self).__init__(None, None, None, None, None)
+        self.can_retry = can_retry
+
+    def should_retry(self):
+        return self.can_retry
+
+
 class TestUpload(TestCaseWithBucket):
     def test_upload_bytes(self):
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'file1')
 
-    def test_upload_file(self):
+    def test_upload_local_file(self):
         with TempDir() as d:
             path = os.path.join(d, 'file1')
             data = six.b('hello world')
@@ -168,3 +184,22 @@ class TestUpload(TestCaseWithBucket):
             download = DownloadDestBytes()
             self.bucket.download_file_by_name('file1', download)
             self.assertEqual(data, download.bytes_io.getvalue())
+
+    def test_upload_one_retryable_error(self):
+        self.simulator.set_upload_errors([CanRetry(True)])
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'file1')
+
+    def test_upload_file_one_fatal_error(self):
+        if IS_27_OR_LATER:
+            self.simulator.set_upload_errors([CanRetry(False)])
+            data = six.b('hello world')
+            with self.assertRaises(CanRetry):
+                self.bucket.upload_bytes(data, 'file1')
+
+    def test_upload_file_too_many_retryable_errors(self):
+        if IS_27_OR_LATER:
+            self.simulator.set_upload_errors([CanRetry(True)] * 6)
+            data = six.b('hello world')
+            with self.assertRaises(MaxRetriesExceeded):
+                self.bucket.upload_bytes(data, 'file1')

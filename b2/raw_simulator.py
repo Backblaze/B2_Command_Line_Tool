@@ -185,6 +185,16 @@ class RawSimulator(object):
         self.bucket_id_to_account = dict()
         self.bucket_id_to_bucket = dict()
         self.bucket_id_counter = iter(range(100))
+        self.upload_errors = []
+
+    def set_upload_errors(self, errors):
+        """
+        Stores a sequence of exceptions to raise on upload.  Each one will
+        be raised in turn, until they are all gone.  Then the next upload
+        will succeed.
+        """
+        assert len(self.upload_errors) == 0
+        self.upload_errors = errors
 
     def authorize_account(self, _realm_url, account_id, _application_key):
         self.authorized_accounts.add(account_id)
@@ -256,6 +266,8 @@ class RawSimulator(object):
         url_match = re.match(r'https://upload.example.com/([^/]*)/([^/]*)', upload_url)
         if url_match is None:
             raise BadUploadUrl(upload_url)
+        if len(self.upload_errors) != 0:
+            raise self.upload_errors.pop(0)
         bucket_id, upload_id = url_match.groups()
         return self._get_bucket_by_id(bucket_id).upload_file(
             upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
