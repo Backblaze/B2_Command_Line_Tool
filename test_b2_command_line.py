@@ -100,13 +100,13 @@ def run_command(path_to_script, args):
     :param command: A list of strings like ['ls', '-l', '/dev']
     :return: (status, stdout, stderr)
     """
-    if six.PY2:
-        interpreter = 'python2'
-    elif six.PY3:
-        interpreter = 'python3'
-    else:
-        assert False, 'unknown python version'
-    command = [interpreter, path_to_script]
+
+    # We'll run the b2 command-line by running the b2 module from
+    # the current directory.  Python 2.6 doesn't support using
+    # '-m' with a package, so we explicitly say to run the module
+    # b2.__main__
+    os.environ['PYTHONPATH'] = '.'
+    command = ['python', '-m', 'b2.__main__']
     command.extend(args)
 
     print('Running:', ' '.join(command))
@@ -313,17 +313,17 @@ def tearDown_envvar_test(envvar_name):
 
 def basic_test(b2_tool, bucket_name):
 
-    path_to_script = b2_tool.path_to_script
+    file_to_upload = 'README.md'
 
-    with open(path_to_script, 'rb') as f:
+    with open(file_to_upload, 'rb') as f:
         hex_sha1 = hashlib.sha1(f.read()).hexdigest()
-    uploaded_a = b2_tool.should_succeed_json(['upload_file', '--quiet', bucket_name, path_to_script, 'a'])
-    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'a'])
-    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/1'])
-    b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, 'b/2'])
-    b2_tool.should_succeed(['upload_file', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info', 'color=blue', bucket_name, path_to_script, 'c'])
-    b2_tool.should_fail(['upload_file', '--sha1', hex_sha1, '--info', 'foo-bar', '--info', 'color=blue', bucket_name, path_to_script, 'c'], r'ERROR: Bad file info: foo-bar')
-    b2_tool.should_succeed(['upload_file', '--contentType', 'text/plain', bucket_name, path_to_script, 'd'])
+    uploaded_a = b2_tool.should_succeed_json(['upload_file', '--quiet', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'b/1'])
+    b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'b/2'])
+    b2_tool.should_succeed(['upload_file', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info', 'color=blue', bucket_name, file_to_upload, 'c'])
+    b2_tool.should_fail(['upload_file', '--sha1', hex_sha1, '--info', 'foo-bar', '--info', 'color=blue', bucket_name, file_to_upload, 'c'], r'ERROR: Bad file info: foo-bar')
+    b2_tool.should_succeed(['upload_file', '--contentType', 'text/plain', bucket_name, file_to_upload, 'd'])
 
     b2_tool.should_succeed(['download_file_by_name', bucket_name, 'b/1', '/dev/null'])
     b2_tool.should_succeed(['download_file_by_id', uploaded_a['fileId'], '/dev/null'])
@@ -367,9 +367,9 @@ def basic_test(b2_tool, bucket_name):
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear_account'])
     check_if_account_info_file_is_clear(new_creds)
-    bad_application_key = sys.argv[3][:-8] + ''.join(reversed(sys.argv[3][-8:]))
-    b2_tool.should_fail(['authorize_account', sys.argv[2], bad_application_key], r'invalid authorization')
-    b2_tool.should_succeed(['authorize_account', sys.argv[2], sys.argv[3]])
+    bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
+    b2_tool.should_fail(['authorize_account', sys.argv[1], bad_application_key], r'nvalid authorization')
+    b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
 
@@ -478,6 +478,8 @@ def sync_down_test(b2_tool, bucket_name):
 
 def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
 
+    file_to_upload = 'README.md'
+
     b2_sync_point = 'b2:%s' % bucket_name
     if folder_in_bucket:
         b2_sync_point += '/' + folder_in_bucket
@@ -494,18 +496,18 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         should_equal([], sorted(os.listdir(local_path)))
 
         # Put a couple files in B2, and sync them down
-        b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, b2_file_prefix + 'a'])
-        b2_tool.should_succeed(['upload_file', bucket_name, path_to_script, b2_file_prefix + 'b'])
+        b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, b2_file_prefix + 'a'])
+        b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, b2_file_prefix + 'b'])
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
 def main():
 
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 3:
         usage_and_exit()
-    path_to_script = sys.argv[1]
-    account_id = sys.argv[2]
-    application_key = sys.argv[3]
+    path_to_script = 'b2'
+    account_id = sys.argv[1]
+    application_key = sys.argv[2]
 
     test_map = {
         'basic': basic_test,
@@ -514,13 +516,13 @@ def main():
         'sync_up_no_prefix': sync_test_no_prefix,
     }
 
-    if len(sys.argv) >= 5:
-        tests_to_run = sys.argv[4:]
+    if len(sys.argv) >= 4:
+        tests_to_run = sys.argv[3:]
         for test_name in tests_to_run:
             if test_name not in test_map:
                 error_and_exit('unknown test: ' + test_name)
     else:
-        tests_to_run = list(six.iterkeys(test_map))
+        tests_to_run = sorted(six.iterkeys(test_map))
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
        del os.environ['B2_ACCOUNT_INFO']

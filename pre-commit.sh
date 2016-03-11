@@ -1,4 +1,4 @@
-#!/bin/bash -u
+#!/bin/bash
 
 function header 
 {
@@ -9,8 +9,6 @@ function header
     echo
 }
 
-SOURCE_FILES="b2/*.py test/*.py"
-
 if yapf --version &> /dev/null
 then
     echo "yapf is installed"
@@ -19,7 +17,13 @@ else
     exit 1
 fi
 
+header Unit Tests
+
+make test
+
 header Checking Formatting
+
+SOURCE_FILES="b2/*.py test/*.py"
 
 for src_file in $SOURCE_FILES
 do
@@ -51,37 +55,37 @@ do
     fi
 done
 
-header Unit Tests
-
-if PYTHONPATH=`pwd` nosetests -w test
-then
-    echo "Unit tests passed."
-else
-    exit 1
-fi
-
-header Integration Tests
-
 if [[ $# -ne 0 && "$1" == quick ]]
 then
-    echo SKIPPED
-else
-    if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
-    then
-        echo "python tests passed"
-    else
-        echo
-        echo "python tests FAILED"
-        exit 1
-    fi
+    header QUICK
+    echo Skipping integration tests in quick mode.
+    echo
+    exit 0
+fi
 
-    if time python3 test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+function run_integration_tests
+{
+    if time python test_b2_command_line.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
     then
-        echo "python3 tests passed"
+        echo "integration tests passed"
     else
         echo
-        echo "python3 tests FAILED"
+        echo "integration tests FAILED"
         exit 1
     fi
+}
+
+
+if [[ -z "$PYTHON_VIRTUAL_ENVS" ]]
+then
+    run_integration_tests
+else
+    for virtual_env in $PYTHON_VIRTUAL_ENVS
+    do
+        header Integration tests in: $virtual_env
+        source $virtual_env/bin/activate
+        run_integration_tests
+    done
+
 fi
 

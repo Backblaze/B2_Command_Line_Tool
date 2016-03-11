@@ -37,4 +37,4 @@ script:
   - nosetests -w test
   - if [ -n "$SCA" ]; then yapf -r b2; fi
   - if [ -n "$SCA" ]; then pyflakes b2; fi
-  - python b2/b2.py version
+  - python -m b2.__main__ version
