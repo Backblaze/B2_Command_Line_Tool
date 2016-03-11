@@ -100,7 +100,13 @@ def run_command(path_to_script, args):
     :param command: A list of strings like ['ls', '-l', '/dev']
     :return: (status, stdout, stderr)
     """
-    command = [path_to_script]
+
+    # We'll run the b2 command-line by running the b2 module from
+    # the current directory.  Python 2.6 doesn't support using
+    # '-m' with a package, so we explicitly say to run the module
+    # b2.__main__
+    os.environ['PYTHONPATH'] = '.'
+    command = ['python', '-m', 'b2.__main__']
     command.extend(args)
 
     print('Running:', ' '.join(command))
@@ -497,7 +503,6 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
 
 def main():
 
-    print(repr(sys.argv))
     if len(sys.argv) < 3:
         usage_and_exit()
     path_to_script = 'b2'
