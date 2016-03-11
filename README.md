@@ -152,8 +152,19 @@ You'll need to have these packages installed:
 * six
 * yapf
 
-To run tests, you need to have nose installed.  Then you can do this:
+To run unit tests, you need to have nose installed.  Then you can do this:
 
     PYTHONPATH=`pwd` nosetests -w test
+    
+Before checking in, use the pre-commit.sh script to check code formatting, run
+unit tests, and run integration tests.
+
+The integration tests require an environment variable `B2_VIRTUAL_ENVS` to hold
+a list of the virtual environments to test in.  We recommend one for 2.7 and
+one for 3.5.  You'll also need a file in your home directory called `.b2_auth`
+that contains two lines with nothing on them but your account ID and application key:
+ 
+     accountId
+     applicationKey
     
    

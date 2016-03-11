@@ -60,28 +60,42 @@ else
     exit 1
 fi
 
-header Integration Tests
-
-if [[ $# -ne 0 && "$1" == quick ]]
+if [[ -z "$B2_VIRTUAL_ENVS" ]]
 then
-    echo SKIPPED
-else
-    if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+    echo "Please set environment variable B2_VIRTUAL_ENVS to the list of"
+    echo "virtual environments to test the b2 command line in."
+    exit 1
+fi
+
+PS1=""  # virtual env activate needs this because we have -u set
+
+for virtual_env in $B2_VIRTUAL_ENVS
+do
+
+    header Activate $virtual_env
+
+    . $virtual_env/bin/activate
+
+    header Install in $virtual_env
+
+    python setup.py install
+
+    header Integration Tests
+
+    if [[ $# -ne 0 && "$1" == quick ]]
     then
-        echo "python tests passed"
+        echo SKIPPED
     else
-        echo
-        echo "python tests FAILED"
-        exit 1
+        echo python test_b2_command_line.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+        if time python test_b2_command_line.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+        then
+            echo "python tests passed"
+        else
+            echo
+            echo "python tests FAILED"
+            exit 1
+        fi
     fi
 
-    if time python3 test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
-    then
-        echo "python3 tests passed"
-    else
-        echo
-        echo "python3 tests FAILED"
-        exit 1
-    fi
-fi
+done
 
