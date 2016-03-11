@@ -317,10 +317,29 @@ class DownloadDest(object):
         """
 
 
+class SetModTimeOnClose(object):
+    def __init__(self, local_path_name, mod_time_millis=None):
+        self.local_path_name = local_path_name
+        self.mod_time_millis = mod_time_millis
+
+    def __enter__(self):
+        self.file = open(self.local_path_name, 'wb')
+        return self.file
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.file.close()
+        if self.mod_time_millis is not None:
+            mod_time = int(self.mod_time_millis) / 1000
+            os.utime(self.local_path_name, (mod_time, mod_time))
+
+
 class DownloadDestLocalFile(DownloadDest):
-    def __init__(self, local_file_path, quiet):
+    """
+    Stores a downloaded file into a local file and sets its modification time.
+    """
+
+    def __init__(self, local_file_path):
         self.local_file_path = local_file_path
-        self.quiet = quiet
 
     def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
         self.file_id = file_id
@@ -328,8 +347,11 @@ class DownloadDestLocalFile(DownloadDest):
         self.content_length = content_length
         self.content_type = content_type
         self.content_sha1 = content_sha1
+        self.file_info = file_info
 
-        return open(self.local_file_path, 'wb')
+        return SetModTimeOnClose(
+            self.local_file_path, file_info.get('x-bz-info-src_last_modified_millis')
+        )
 
 ## Exceptions
 
@@ -594,6 +616,16 @@ class Bucket(object):
         account_id = account_info.get_account_id()
         return self.api.raw_api.update_bucket(
             account_info.get_api_url(), auth_token, account_id, self.id_, type_
+        )
+
+    def download_file_by_id(self, file_id, download_dest, progress_listener):
+        self.api.download_file_by_id(file_id, download_dest, progress_listener)
+
+    def download_file_by_name(self, file_name, download_dest, progress_listener):
+        account_info = self.api.account_info
+        self.api.raw_api.download_file_by_name(
+            account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
+            file_name, download_dest, progress_listener
         )
 
     def ls(
@@ -1102,6 +1134,87 @@ class B2RawApi(object):
             fileName=file_name
         )
 
+    def download_file_by_id(
+        self, download_url, account_auth_token_or_none, file_id, download_dest, progress_listener
+    ):
+        url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+        return self._download_file_from_url(
+            url, account_auth_token_or_none, download_dest, progress_listener
+        )
+
+    def download_file_by_name(
+        self, download_url, account_auth_token_or_none, bucket_id, file_name, download_dest,
+        progress_listener
+    ):
+        url = download_url + '/file/' + bucket_id + '/' + b2_url_encode(file_name)
+        return self._download_file_from_url(
+            url, account_auth_token_or_none, download_dest, progress_listener
+        )
+
+    def _download_file_from_url(
+        self, url, account_auth_token_or_none, download_dest, progress_listener
+    ):
+        """
+        Downloads a file from given url and stores it in the given download_destination.
+
+        Returns a dict containing all of the file info from the headers in the reply.
+
+        :param url: The full URL to download from
+        :param account_auth_token_or_none: an optional account auth token to pass in
+        :param download_dest: where to put the file when it is downloaded
+        :param progress_listener: where to notify about progress downloading
+        :return:
+        """
+        request_headers = {}
+        if account_auth_token_or_none is not None:
+            request_headers['Authorization'] = account_auth_token_or_none
+
+        with OpenUrl(url, None, request_headers) as response:
+
+            info = response.info()
+
+            file_id = info['x-bz-file-id']
+            file_name = info['x-bz-file-name']
+            content_type = info['content-type']
+            content_length = int(info['content-length'])
+            content_sha1 = info['x-bz-content-sha1']
+            file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
+
+            block_size = 4096
+            digest = hashlib.sha1()
+            bytes_read = 0
+
+            with download_dest.open(
+                file_id, file_name, content_length, content_type, content_sha1, file_info
+            ) as file:
+                while True:
+                    data = response.read(block_size)
+                    if len(data) == 0:
+                        break
+                    file.write(data)
+                    digest.update(data)
+                    bytes_read += len(data)
+                    progress_listener.bytes_completed(bytes_read)
+
+                if bytes_read != int(info['content-length']):
+                    raise TruncatedOutput(bytes_read, content_length)
+
+                if digest.hexdigest() != content_sha1:
+                    raise ChecksumMismatch(
+                        checksum_type='sha1',
+                        expected=content_length,
+                        actual=digest.hexdigest()
+                    )
+
+            return dict(
+                fileId=file_id,
+                fileName=file_name,
+                contentType=content_type,
+                contentLength=content_length,
+                contentSha1=content_sha1,
+                fileInfo=file_info
+            )
+
     def get_file_info(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
 
@@ -1267,6 +1380,12 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
 
+    def download_file_by_id(self, file_id, download_dest, progress_listener):
+        self.raw_api.download_file_by_id(
+            self.account_info.get_download_url(), self.account_info.get_account_auth_token(),
+            file_id, download_dest, progress_listener
+        )
+
     def get_bucket_by_id(self, bucket_id):
         return Bucket(self, bucket_id)
 
@@ -1333,68 +1452,6 @@ class B2Api(object):
     def get_download_url_for_fileid(self, file_id):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
-
-    def download_file_from_url(self, url, download_destination, authorization=True):
-        """
-        Downloads a file from given url and stores it in the given download_destination.
-
-        if headers_received_cb is not None, it is assumed to be a funciton that accepts one argument
-        (dictionary of response headers) and is called after receiving headers, but before receiving
-        the payload.
-        """
-        request_headers = {}
-        if authorization:
-            request_headers['Authorization'] = self.account_info.get_account_auth_token()
-
-        with OpenUrl(url, None, request_headers) as response:
-
-            info = response.info()
-
-            file_id = info['x-bz-file-id']
-            file_name = info['x-bz-file-name']
-            content_type = info['content-type']
-            content_length = int(info['content-length'])
-            content_sha1 = info['x-bz-content-sha1']
-            file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
-
-            block_size = 4096
-            digest = hashlib.sha1()
-            bytes_read = 0
-
-            with download_destination.open(
-                file_id, file_name, content_length, content_type, content_sha1, file_info
-            ) as file:
-                quiet = False
-                progress_listener = make_progress_listener(
-                    download_destination.local_file_path, content_length, quiet
-                )
-                output_stream = StreamWithProgress(file, progress_listener)
-                while True:
-                    data = response.read(block_size)
-                    if len(data) == 0:
-                        break
-                    output_stream.write(data)
-                    digest.update(data)
-                    bytes_read += len(data)
-
-                if bytes_read != int(info['content-length']):
-                    raise TruncatedOutput(bytes_read, content_length)
-                if digest.hexdigest() != content_sha1:
-                    raise ChecksumMismatch(
-                        checksum_type='sha1',
-                        expected=content_length,
-                        actual=digest.hexdigest()
-                    )
-                return FileVersionInfoFactory.from_api_response(
-                    dict(
-                        fileId=file_id,
-                        fileName=file_name,
-                        contentType=content_type,
-                        contentLength=content_length,
-                        contentSha1=content_sha1,
-                        fileInfo=file_info
-                    )
-                )
 
     # other
     def get_file_info(self, file_id):
@@ -1716,35 +1773,6 @@ def b2_url_decode(s):
     # unicode, which ensures that the result is a str, which allows
     # the decoding to work properly.
     return urllib.parse.unquote_plus(str(s)).decode('utf-8')
-
-
-def download_file_by_id_helper(
-    api,
-    url,
-    local_file_name,
-    authorization=True,
-    print_progress=False,
-    print_info=False,
-    set_last_modified=False,
-):
-    quiet = not print_progress
-    download_dest = DownloadDestLocalFile(local_file_name, quiet)
-    file_info = api.download_file_from_url(url, download_dest, authorization)
-
-    if set_last_modified:
-        last_modified_millis = file_info.file_info.get('src_last_modified_millis')
-        if last_modified_millis is not None:
-            mod_time = int(last_modified_millis) / 1000
-            os.utime(local_file_name, (mod_time, mod_time))
-
-    if print_info:
-        print('File name:   ', file_info.file_name)
-        print('File size:   ', file_info.size)
-        print('Content type:', file_info.content_type)
-        print('Content sha1:', file_info.content_sha1)
-        for name in sorted(six.iterkeys(file_info.file_info)):
-            print('INFO', name + ':', file_info.file_info[name])
-        print('checksum matches')
 
 
 @six.add_metaclass(ABCMeta)
@@ -2122,16 +2150,12 @@ class ConsoleTool(object):
         file_id = args[0]
         local_file_name = args[1]
 
-        url = self.api.get_download_url_for_fileid(file_id)
-
-        download_file_by_id_helper(
-            self.api,
-            url,
-            local_file_name,
-            authorization=True,
-            print_progress=True,
-            print_info=True,
-        )
+        download_dest = DownloadDestLocalFile(local_file_name)
+        progress_listener = make_progress_listener(
+            local_file_name, 100, False
+        )  # TODO: where does length come from?
+        self.api.download_file_by_id(file_id, download_dest, progress_listener)
+        self._print_download_info(download_dest)
 
     def download_file_by_name(self, args):
         if len(args) != 3:
@@ -2141,16 +2165,22 @@ class ConsoleTool(object):
         local_file_name = args[2]
 
         bucket = self.api.get_bucket_by_name(bucket_name)
-        url = bucket.get_download_url(file_name)
 
-        download_file_by_id_helper(
-            self.api,
-            url,
-            local_file_name,
-            authorization=True,
-            print_progress=True,
-            print_info=True,
-        )
+        download_dest = DownloadDestLocalFile(local_file_name)
+        progress_listener = make_progress_listener(
+            local_file_name, 100, False
+        )  # TODO: where does length come from?
+        bucket.download_file_by_name(file_name, download_dest, progress_listener)
+        self._print_download_info(download_dest)
+
+    def _print_download_info(self, download_dest):
+        print('File name:   ', download_dest.file_name)
+        print('File size:   ', download_dest.content_length)
+        print('Content type:', download_dest.content_type)
+        print('Content sha1:', download_dest.content_sha1)
+        for name in sorted(six.iterkeys(download_dest.file_info)):
+            print('INFO', name + ':', download_dest.file_info[name])
+        print('checksum matches')
 
     def get_file_info(self, args):
         if len(args) != 1:
@@ -2419,8 +2449,10 @@ class ConsoleTool(object):
                 print("+ %s" % filename)
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
-                url = self.api.get_download_url_for_fileid(remote_file['fileId'])
-                download_file_by_id_helper(self.api, url, filepath, authorization=True,)
+                download_dest = DownloadDestLocalFile(filepath)
+                self.api.download_file_by_id(
+                    remote_file['fileId'], download_dest, DoNothingProgressListener()
+                )
             elif is_b2_src and not remote_file and options['delete']:
                 print("- %s" % filename)
                 os.remove(filepath)
@@ -2502,7 +2534,3 @@ def main():
     except B2Error as e:
         print('ERROR: %s' % (e,))
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
