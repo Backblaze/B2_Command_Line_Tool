@@ -1,4 +1,4 @@
-#!/bin/bash -u
+#!/bin/bash
 
 function header 
 {
@@ -9,9 +9,21 @@ function header
     echo
 }
 
-SOURCE_FILES=b2/b2.py
+if yapf --version &> /dev/null
+then
+    echo "yapf is installed"
+else
+    echo "Please install yapf, then try again."
+    exit 1
+fi
+
+header Unit Tests
+
+make test
 
 header Checking Formatting
+
+SOURCE_FILES="b2/*.py test/*.py"
 
 for src_file in $SOURCE_FILES
 do
@@ -25,42 +37,55 @@ do
         echo
         diff "$src_file" yapf.out
         mv yapf.out "$src_file"
+        sleep 5
     fi
 done
 chmod +x b2/b2.py
 
 header Pyflakes
 
-for src_file in $SOURCE_FILES
+for d in b2 test
 do
-    echo "$src_file"
-    if pyflakes "$src_file"
+    if pyflakes $d
     then
-        echo "Pyflakes passed"
+        echo pyflakes passed on $d
     else
-        echo
-        echo "Pyflakes FAILED"
+        echo pyflakes FAILED on %d
         exit 1
     fi
 done
 
-header Tests
-
-if time python test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+if [[ $# -ne 0 && "$1" == quick ]]
 then
-    echo "python tests passed"
-else
+    header QUICK
+    echo Skipping integration tests in quick mode.
     echo
-    echo "python tests FAILED"
-    exit 1
+    exit 0
 fi
 
-if time python3 test_b2_command_line.py ./b2/b2.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+function run_integration_tests
+{
+    if time python test_b2_command_line.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+    then
+        echo "integration tests passed"
+    else
+        echo
+        echo "integration tests FAILED"
+        exit 1
+    fi
+}
+
+
+if [[ -z "$PYTHON_VIRTUAL_ENVS" ]]
 then
-    echo "python3 tests passed"
+    run_integration_tests
 else
-    echo
-    echo "python3 tests FAILED"
-    exit 1
+    for virtual_env in $PYTHON_VIRTUAL_ENVS
+    do
+        header Integration tests in: $virtual_env
+        source $virtual_env/bin/activate
+        run_integration_tests
+    done
+
 fi
 

@@ -136,9 +136,37 @@ Version 0.4.5
         Echos the version number of this program.
 
 
-## Contrib
+# Contrib
 
-### bash completion
+## bash completion
 
 You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
 script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
+
+# Developer Info
+
+You'll need to have these packages installed:
+
+* nose
+* pyflakes
+* six
+* yapf
+
+There is a Makefile with a rule to run the unit tests using the currently active Python:
+
+    make test
+    
+To test in multiple python virtual environments, set the enviroment variable PYTHON_VIRTUAL_ENVS
+to be a space-separated list of their root directories.  When set, the makefile will run the
+unit tests in each of the environments.
+    
+Before checking in, use the pre-commit.sh script to check code formatting, run
+unit tests, and run integration tests.
+
+The integration tests need a file in your home directory called `.b2_auth`
+that contains two lines with nothing on them but your account ID and application key:
+ 
+     accountId
+     applicationKey
+    
+   

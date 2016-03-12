@@ -22,9 +22,10 @@ matrix:
       env: SCA=true
 
 install:
+  - pip install nose
   - pip install pyflakes
-  - pip install yapf
   - pip install six==1.10
+  - pip install yapf
 
 before_install:
   - uname -a
@@ -32,6 +33,8 @@ before_install:
   - virtualenv --version
 
 script:
+  - python setup.py install
+  - nosetests -w test
   - if [ -n "$SCA" ]; then yapf -r b2; fi
   - if [ -n "$SCA" ]; then pyflakes b2; fi
-  - python b2/b2.py version
+  - python -m b2.__main__ version
