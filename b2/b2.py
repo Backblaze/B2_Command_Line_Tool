@@ -1893,8 +1893,10 @@ class StoredAccountInfo(AbstractAccountInfo):
             raise MissingAccountData(key)
         return result
 
-    def set_auth_data(self, account_id, auth_token, api_url, download_url, minimum_part_size,
-                      application_key, realm):
+    def set_auth_data(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
+        realm
+    ):
         self.data[self.ACCOUNT_ID] = account_id
         self.data[self.ACCOUNT_AUTH_TOKEN] = auth_token
         self.data[self.API_URL] = api_url
