@@ -29,10 +29,10 @@ This program tests the B2 command-line client.
 
 Usages:
 
-    {command} <path_to_b2_script> <accountId> <applicationKey> [basic | sync]
+    {command} <accountId> <applicationKey> [basic | sync]
 
         The optional last argument specifies which of the tests to run.  If not
-        specified, all test will run.
+        specified, all test will run.  Runs the b2 package in the current directory.
 
     {command} test
 

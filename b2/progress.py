@@ -145,17 +145,27 @@ class StreamWithProgress(object):
     as data is read and written.
     """
 
-    def __init__(self, stream, progress_listener):
+    def __init__(self, stream, progress_listener, offset=0):
+        """
+
+        :param stream: the stream to read from or write to
+        :param progress_listener: the listener that we tell about progress
+        :param offset: the starting byte offset in the file
+        :return: None
+        """
         assert progress_listener is not None
         self.stream = stream
         self.progress_listener = progress_listener
-        self.bytes_completed = 0
+        self.bytes_completed = offset
 
     def __enter__(self):
         return self
 
     def read(self, size=None):
-        data = self.stream.read(size)
+        if size is None:
+            data = self.stream.read()
+        else:
+            data = self.stream.read(size)
         self._update(len(data))
         return data
 

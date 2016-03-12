@@ -19,7 +19,13 @@ fi
 
 header Unit Tests
 
-make test
+if make test
+then
+    echo "Unit tests PASSED"
+else
+    echo "Unit tests FAILED"
+    exit 1
+fi
 
 header Checking Formatting
 

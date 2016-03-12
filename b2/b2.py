@@ -18,21 +18,25 @@ This is a B2 command-line tool.  See the USAGE message for details.
 """
 
 from __future__ import print_function
-from abc import ABCMeta, abstractmethod
+
 import base64
 import datetime
 import getpass
 import hashlib
 import json
 import os
-from .progress import DoNothingProgressListener, make_progress_listener, StreamWithProgress
-import six
-from six.moves import urllib
 import socket
 import stat
 import sys
 import time
 import traceback
+from abc import ABCMeta, abstractmethod
+
+import six
+from six.moves import urllib
+
+from .progress import DoNothingProgressListener, make_progress_listener, StreamWithProgress
+from .utils import choose_part_ranges, hex_sha1_of_stream
 
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
@@ -283,14 +287,7 @@ class UploadSourceLocalFile(UploadSource):
 
     def _hex_sha1_of_file(self, local_path):
         with open(local_path, 'rb') as f:
-            block_size = 1024 * 1024
-            digest = hashlib.sha1()
-            while True:
-                data = f.read(block_size)
-                if len(data) == 0:
-                    break
-                digest.update(data)
-            return digest.hexdigest()
+            return hex_sha1_of_stream(f, self.content_length)
 
 
 @six.add_metaclass(ABCMeta)
@@ -340,7 +337,7 @@ class OpenLocalFileForWriting(object):
         self.progress_listener.close()
         result = self.file.__exit__(exc_type, exc_val, exc_tb)
         if self.mod_time_millis is not None:
-            mod_time = int(self.mod_time_millis) / 1000
+            mod_time = int(self.mod_time_millis) / 1000.0
             os.utime(self.local_path_name, (mod_time, mod_time))
         return result
 
@@ -368,6 +365,37 @@ class DownloadDestLocalFile(DownloadDest):
             self.local_file_path, self.progress_listener,
             file_info.get('x-bz-info-src_last_modified_millis')
         )
+
+
+class BytesCapture(six.BytesIO):
+    """
+    The BytesIO class discards the data on close().  We don't want to do that.
+    """
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class DownloadDestBytes(DownloadDest):
+    """
+    Stores a downloaded file into bytes in memory.
+    """
+
+    def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
+        self.file_id = file_id
+        self.file_name = file_name
+        self.content_length = content_length
+        self.content_type = content_type
+        self.content_sha1 = content_sha1
+        self.file_info = file_info
+        self.bytes_io = BytesCapture()
+        return self.bytes_io
 
 ## Exceptions
 
@@ -478,12 +506,28 @@ class MissingAccountData(B2Error):
         return 'Missing account data: %s' % (self.key,)
 
 
+class MissingPart(B2Error):
+    def __init__(self, key):
+        self.key = key
+
+    def __str__(self):
+        return 'Part number has not been uploaded: %s' % (self.key,)
+
+
 class NonExistentBucket(B2Error):
     def __init__(self, bucket_name_or_id):
         self.bucket_name_or_id = bucket_name_or_id
 
     def __str__(self):
         return 'No such bucket: %s' % (self.bucket_name_or_id,)
+
+
+class PartSha1Mismatch(B2Error):
+    def __init__(self, key):
+        self.key = key
+
+    def __str__(self):
+        return 'Part number %s has wrong SHA1' % (self.key,)
 
 
 class StorageCapExceeded(B2Error):
@@ -615,7 +659,7 @@ class Bucket(object):
 
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
-    MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
+    MAX_LARGE_FILE_SIZE = 1000 * 1000 * 1000 * 1000  # 1TB
 
     def __init__(self, api, id_, name=None, type_=None):
         self.api = api
@@ -776,10 +820,7 @@ class Bucket(object):
         Upload bytes in memory to a B2 file
         """
         upload_source = UploadSourceBytes(data_bytes)
-        with DoNothingProgressListener() as progress_listener:
-            return self.upload(
-                upload_source, file_name, content_type, file_infos, progress_listener
-            )
+        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
 
     def upload_local_file(
         self,
@@ -801,7 +842,7 @@ class Bucket(object):
         upload_source,
         file_name,
         content_type=None,
-        file_infos=None,
+        file_info=None,
         progress_listener=None
     ):
         """
@@ -825,19 +866,29 @@ class Bucket(object):
         must be possible to call it more than once in case the upload
         is retried.
         """
-        validate_b2_file_name(file_name)
 
-        content_length = upload_source.get_content_length()
-        sha1_sum = upload_source.get_content_sha1()
-        file_infos = file_infos or {}
+        validate_b2_file_name(file_name)
+        file_info = file_info or {}
         content_type = content_type or self.DEFAULT_CONTENT_TYPE
         progress_listener = progress_listener or DoNothingProgressListener()
 
-        if content_length > self.MAX_UPLOADED_FILE_SIZE:
-            raise MaxFileSizeExceeded(content_length, self.MAX_UPLOADED_FILE_SIZE)
+        # We don't upload any large files unless all of the parts can be at least
+        # the minimum part size.
+        min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
+        if upload_source.get_content_length() < min_large_file_size:
+            return self._upload_small_file(
+                upload_source, file_name, content_type, file_info, progress_listener
+            )
+        else:
+            return self._upload_large_file(
+                upload_source, file_name, content_type, file_info, progress_listener
+            )
 
-        account_info = self.api.account_info
-
+    def _upload_small_file(
+        self, upload_source, file_name, content_type, file_info, progress_listener
+    ):
+        content_length = upload_source.get_content_length()
+        sha1_sum = upload_source.get_content_sha1()
         exception_info_list = []
         for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
@@ -849,7 +900,7 @@ class Bucket(object):
                     input_stream = StreamWithProgress(file, progress_listener)
                     upload_response = self.api.raw_api.upload_file(
                         upload_url, upload_auth_token, file_name, content_length, content_type,
-                        sha1_sum, file_infos, input_stream
+                        sha1_sum, file_info, input_stream
                     )
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
@@ -857,7 +908,72 @@ class Bucket(object):
                 if not e.should_retry():
                     raise
                 exception_info_list.append(e)
-                account_info.clear_bucket_upload_data(self.id_)
+                self.api.account_info.clear_bucket_upload_data(self.id_)
+
+        raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
+
+    def _upload_large_file(
+        self, upload_source, file_name, content_type, file_info, progress_listener
+    ):
+        content_length = upload_source.get_content_length()
+        progress_listener.set_total_bytes(content_length)
+        if self.MAX_LARGE_FILE_SIZE < content_length:
+            raise MaxFileSizeExceeded(content_length, self.MAX_LARGE_FILE_SIZE)
+        minimum_part_size = self.api.account_info.get_minimum_part_size()
+
+        # Select the part boundaries
+        part_ranges = choose_part_ranges(content_length, minimum_part_size)
+
+        # Tell B2 we're going to upload a file
+        start_info = self.api.raw_api.start_large_file(
+            self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
+            self.id_, file_name, content_type, file_info
+        )
+        file_id = start_info['fileId']
+
+        # Upload each of the parts
+        part_sha1_array = []
+        for (part_index, part_range) in enumerate(part_ranges):
+            part_number = part_index + 1
+            upload_response = self._upload_part(
+                file_id, part_number, part_range, upload_source, progress_listener
+            )
+            part_sha1_array.append(upload_response['contentSha1'])
+
+        # Finish the large file
+        return self.api.raw_api.finish_large_file(
+            self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
+            file_id, part_sha1_array
+        )
+
+    def _upload_part(self, file_id, part_number, part_range, upload_source, progress_listener):
+        # Compute the SHA1 of the part
+        (offset, content_length) = part_range
+        with upload_source.open() as f:
+            sha1_sum = hex_sha1_of_stream(f, content_length)
+
+        # Retry the upload as needed
+        exception_info_list = []
+        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+            # refresh upload data in every attempt to work around a "busy storage pod"
+            upload_url, upload_auth_token = self._get_upload_part_data(file_id)
+
+            try:
+                with upload_source.open() as file:
+                    file.seek(offset)
+                    input_stream = StreamWithProgress(file, progress_listener, offset=offset)
+                    response = self.api.raw_api.upload_part(
+                        upload_url, upload_auth_token, part_number, content_length, sha1_sum,
+                        input_stream
+                    )
+                    assert sha1_sum == response['contentSha1']
+                    return response
+
+            except AbstractWrappedError as e:
+                if not e.should_retry():
+                    raise
+                exception_info_list.append(e)
+                self.api.account_info.clear_bucket_upload_data(self.id_)
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
 
@@ -880,6 +996,26 @@ class Bucket(object):
             response['authorizationToken'],
         )
         return account_info.get_bucket_upload_data(self.id_)
+
+    def _get_upload_part_data(self, file_id):
+        """
+        Makes sure that we have an upload URL and auth token for the given bucket and
+        returns it.
+        """
+        account_info = self.api.account_info
+        upload_url, upload_auth_token = account_info.get_large_file_upload_data(file_id)
+        if None not in (upload_url, upload_auth_token):
+            return upload_url, upload_auth_token
+
+        response = self.api.raw_api.get_upload_part_url(
+            account_info.get_api_url(), account_info.get_account_auth_token(), file_id
+        )
+        account_info.set_large_file_upload_data(
+            file_id,
+            response['uploadUrl'],
+            response['authorizationToken'],
+        )
+        return account_info.get_large_file_upload_data(file_id)
 
     def get_download_url(self, filename):
         return "%s/file/%s/%s" % (
@@ -1087,10 +1223,35 @@ class AuthInfoCache(AbstractCache):
 
 ## B2RawApi
 
-# TODO: make an ABC for B2RawApi and RawSimulator
+
+@six.add_metaclass(ABCMeta)
+class RawApi(object):
+    """
+    Direct access to the B2 web apis.
+    """
+
+    @abstractmethod
+    def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
+        pass
+
+    @abstractmethod
+    def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        pass
+
+    @abstractmethod
+    def start_large_file(
+        self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
+    ):
+        pass
+
+    @abstractmethod
+    def upload_part(
+        self, upload_url, upload_auth_token, part_number, content_length, sha1_sum, input_stream
+    ):
+        pass
 
 
-class B2RawApi(object):
+class B2RawApi(RawApi):
     """
     Provides access to the B2 web APIs, exactly as they are provided by B2.
 
@@ -1222,11 +1383,19 @@ class B2RawApi(object):
                 fileInfo=file_info
             )
 
+    def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
+        return self._post_json(
+            api_url, 'b2_finish_large_file', account_auth_token, file_id, part_sha1_array
+        )
+
     def get_file_info(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
+
+    def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, fileId=file_id)
 
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         return self._post_json(
@@ -1276,6 +1445,18 @@ class B2RawApi(object):
             maxFileCount=max_file_count
         )
 
+    def start_large_file(
+        self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
+    ):
+        return self._post_json(
+            api_url,
+            'b2_start_large_file',
+            account_auth_token,
+            bucketId=bucket_id,
+            fileName=file_name,
+            contentType=content_type
+        )
+
     def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
         return self._post_json(
             api_url,
@@ -1312,6 +1493,20 @@ class B2RawApi(object):
         }
         for k, v in six.iteritems(file_infos):
             headers['X-Bz-Info-' + k] = b2_url_encode(v)
+
+        with OpenUrl(upload_url, data_stream, headers) as response_file:
+            json_text = read_str_from_http_response(response_file)
+            return json.loads(json_text)
+
+    def upload_part(
+        self, upload_url, upload_auth_token, part_number, content_length, content_sha1, data_stream
+    ):
+        headers = {
+            'Authorization': upload_auth_token,
+            'Content-Length': str(content_length),
+            'X-Bz-Part-Number': str(part_number),
+            'X-Bz-Content-Sha1': content_sha1
+        }
 
         with OpenUrl(upload_url, data_stream, headers) as response_file:
             json_text = read_str_from_http_response(response_file)
@@ -1367,7 +1562,7 @@ class B2Api(object):
         response = self.raw_api.authorize_account(realm_url, account_id, application_key)
         self.account_info.set_account_id_and_auth_token(
             response['accountId'], response['authorizationToken'], response['apiUrl'],
-            response['downloadUrl']
+            response['downloadUrl'], response['minimumPartSize']
         )
 
     # buckets
@@ -1508,8 +1703,15 @@ class AbstractAccountInfo(object):
 
     @abstractmethod
     def clear(self):
-        """ Removes all stored information """
-        pass
+        """
+        Removes all stored information
+        """
+
+    @abstractmethod
+    def clear_bucket_upload_data(self, bucket_id):
+        """
+        Removes all upload URLs for the given bucket.
+        """
 
     @abstractmethod
     def get_api_url(self):
@@ -1520,11 +1722,25 @@ class AbstractAccountInfo(object):
         pass
 
     @abstractmethod
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+    def set_account_id_and_auth_token(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    ):
         pass
 
     @abstractmethod
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
+        pass
+
+    @abstractmethod
+    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
+        pass
+
+    @abstractmethod
+    def get_large_file_upload_data(self, file_id):
+        pass
+
+    @abstractmethod
+    def clear_large_file_upload_data(self, file_id):
         pass
 
 
@@ -1545,6 +1761,7 @@ class StoredAccountInfo(AbstractAccountInfo):
     BUCKET_UPLOAD_URL = 'bucket_upload_url'
     BUCKET_UPLOAD_AUTH_TOKEN = 'bucket_upload_auth_token'
     DOWNLOAD_URL = 'download_url'
+    MINIMUM_PART_SIZE = 'minimum_part_size'
 
     def __init__(self):
         user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
@@ -1554,13 +1771,20 @@ class StoredAccountInfo(AbstractAccountInfo):
             self.data[self.BUCKET_UPLOAD_DATA] = {}
         if self.BUCKET_NAMES_TO_IDS not in self.data:
             self.data[self.BUCKET_NAMES_TO_IDS] = {}
+        # We don't keep large file upload URLs across a reload
+        self.large_file_uploads = {}
 
     def _try_to_read_file(self):
         try:
             with open(self.filename, 'rb') as f:
                 # is there a cleaner way to do this that works in both Python 2 and 3?
                 json_str = f.read().decode('utf-8')
-                return json.loads(json_str)
+                data = json.loads(json_str)
+                # newer version of this tool require minimumPartSize.
+                # if it's not there, we need to refresh
+                if self.MINIMUM_PART_SIZE not in data:
+                    data = {}
+                return data
         except Exception:
             return {}
 
@@ -1580,6 +1804,9 @@ class StoredAccountInfo(AbstractAccountInfo):
     def get_download_url(self):
         return self._get_account_info_or_exit(self.DOWNLOAD_URL)
 
+    def get_minimum_part_size(self):
+        return self._get_account_info_or_exit(self.MINIMUM_PART_SIZE)
+
     def _get_account_info_or_exit(self, key):
         """Returns the named field from the account data, or errors and exits.
         """
@@ -1588,11 +1815,14 @@ class StoredAccountInfo(AbstractAccountInfo):
             raise MissingAccountData(key)
         return result
 
-    def set_account_id_and_auth_token(self, account_id, auth_token, api_url, download_url):
+    def set_account_id_and_auth_token(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    ):
         self.data[self.ACCOUNT_ID] = account_id
         self.data[self.ACCOUNT_AUTH_TOKEN] = auth_token
         self.data[self.API_URL] = api_url
         self.data[self.DOWNLOAD_URL] = download_url
+        self.data[self.MINIMUM_PART_SIZE] = minimum_part_size
         self._write_file()
 
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
@@ -1612,6 +1842,16 @@ class StoredAccountInfo(AbstractAccountInfo):
 
     def clear_bucket_upload_data(self, bucket_id):
         self.data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
+
+    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
+        self.large_file_uploads[file_id] = (upload_url, upload_auth_token)
+
+    def get_large_file_upload_data(self, file_id):
+        return self.large_file_uploads.get(file_id, (None, None))
+
+    def clear_large_file_upload_data(self, file_id):
+        if file_id in self.large_file_uploads:
+            del self.large_file_uploads[file_id]
 
     def save_bucket(self, bucket):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
@@ -1752,6 +1992,10 @@ def post_json(url, params, auth_token=None):
             raise FileNotPresent(params['fileName'])
         elif status == 400 and code == "duplicate_bucket_name":
             raise DuplicateBucketName(params['bucketName'])
+        elif status == 400 and code == "missing_part":
+            raise MissingPart(params['fileId'])
+        elif status == 400 and code == "part_sha1_mismatch":
+            raise PartSha1Mismatch(params['fileId'])
         elif status == 403 and code == "storage_cap_exceeded":
             raise StorageCapExceeded()
         raise
