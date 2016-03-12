@@ -9,6 +9,7 @@
 ######################################################################
 
 from __future__ import division
+import hashlib
 import six
 
 
@@ -40,3 +41,23 @@ def choose_part_ranges(content_length, minimum_part_size):
     parts.append(last_part)
 
     return parts
+
+
+def hex_sha1_of_stream(input_stream, content_length):
+    """
+    Returns the 40-character hex SHA1 checksum of the first content_length
+    bytes in the input stream.
+    """
+    remaining = content_length
+    block_size = 1024 * 1024
+    digest = hashlib.sha1()
+    while remaining != 0:
+        to_read = min(remaining, block_size)
+        data = input_stream.read(to_read)
+        if len(data) != to_read:
+            raise ValueError(
+                'content_length(%s) is more than the size of the file' % content_length
+            )
+        digest.update(data)
+        remaining -= to_read
+    return digest.hexdigest()

@@ -16,7 +16,10 @@ import time
 
 
 class PartSimulator(object):
-    pass
+    def __init__(self, part_number, content_sha1, part_data):
+        self.part_number = part_number
+        self.content_sha1 = content_sha1
+        self.part_data = part_data
 
 
 class FileSimulator(object):
@@ -85,6 +88,11 @@ class FileSimulator(object):
             fileInfo=self.file_info
         )
 
+    def add_part(self, part_number, part):
+        while len(self.parts) < part_number + 1:
+            self.parts.append(None)
+        self.parts[part_number] = part
+
     def is_visible(self):
         """
         Does this file show up in b2_list_file_names?
@@ -133,6 +141,10 @@ class BucketSimulator(object):
         upload_url = 'https://upload.example.com/%s/%s' % (self.bucket_id, upload_id)
         return dict(bucketId=self.bucket_id, uploadUrl=upload_url, authorizationToken=upload_url)
 
+    def get_upload_part_url(self, file_id):
+        upload_url = 'https://upload.example.com/part/%s' % (file_id,)
+        return dict(bucketId=self.bucket_id, uploadUrl=upload_url, authorizationToken=upload_url)
+
     def list_file_names(self, start_file_name=None, max_file_count=None):
         start_file_name = start_file_name or ''
         max_file_count = max_file_count or 100
@@ -174,7 +186,7 @@ class BucketSimulator(object):
     def start_large_file(self, file_name, content_type, file_info):
         file_id = self._next_file_id()
         file = FileSimulator(
-            self.account_id, self.bucket_id, file_id, 'upload', file_name, content_type, 'none',
+            self.account_id, self.bucket_id, file_id, 'start', file_name, content_type, 'none',
             file_info, None
         )
         self.file_id_to_file[file_id] = file
@@ -195,6 +207,13 @@ class BucketSimulator(object):
         self.file_id_to_file[file_id] = file
         self.file_name_and_id_to_file[file.sort_key()] = file
         return file.as_upload_result()
+
+    def upload_part(self, file_id, part_number, content_length, sha1_sum, input_stream):
+        file = self.file_id_to_file[file_id]
+        part_data = input_stream.read(content_length)
+        assert len(part_data) == content_length
+        part = PartSimulator(part_number, sha1_sum, part_data)
+        file.add_part(part_number, part)
 
     def _next_file_id(self):
         return str(six.next(self.file_id_counter))
@@ -220,6 +239,7 @@ class RawSimulator(RawApi):
         self.bucket_id_to_account = dict()
         self.bucket_id_to_bucket = dict()
         self.bucket_id_counter = iter(range(100))
+        self.file_id_to_bucket_id = {}
         self.upload_errors = []
 
     def set_upload_errors(self, errors):
@@ -268,6 +288,11 @@ class RawSimulator(RawApi):
         self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
         return self._get_bucket_by_id(bucket_id).get_upload_url()
 
+    def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
+        return self._get_bucket_by_id(bucket_id).get_upload_part_url(file_id)
+
     def list_file_names(
         self,
         api_url,
@@ -298,7 +323,9 @@ class RawSimulator(RawApi):
     ):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        return bucket.start_large_file(file_name, content_type, file_info)
+        result = bucket.start_large_file(file_name, content_type, file_info)
+        self.file_id_to_bucket_id[result['fileId']] = bucket_id
+        return result
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
@@ -315,6 +342,18 @@ class RawSimulator(RawApi):
             upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
             file_infos, data_stream
         )
+
+    def upload_part(
+        self, upload_url, upload_auth_token, part_number, content_length, sha1_sum, input_stream
+    ):
+        re.compile('https://upload.example.com/part/([^/]*)')
+        url_match = re.match('https://upload.example.com/part/([^/]*)', upload_url)
+        if url_match is None:
+            raise BadUploadUrl(upload_url)
+        file_id = url_match.group(1)
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        bucket.upload_part(file_id, part_number, content_length, sha1_sum, input_stream)
 
     def _assert_account_auth(self, api_url, account_auth_token, account_id):
         assert api_url == self.API_URL

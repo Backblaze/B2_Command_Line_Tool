@@ -51,6 +51,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.download_url = None
         self.minimum_part_size = None
         self.buckets = {}
+        self.large_file_uploads = {}
 
     def clear_bucket_upload_data(self, bucket_id):
         if bucket_id in self.buckets:
@@ -85,6 +86,16 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))
+
+    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
+        self.large_file_uploads[file_id] = (upload_url, upload_auth_token)
+
+    def get_large_file_upload_data(self, file_id):
+        return self.large_file_uploads.get(file_id, (None, None))
+
+    def clear_large_file_upload_data(self, file_id):
+        if file_id in self.large_file_uploads:
+            del self.large_file_uploads[file_id]
 
 
 class TestCaseWithBucket(unittest.TestCase):

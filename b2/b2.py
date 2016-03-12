@@ -18,22 +18,25 @@ This is a B2 command-line tool.  See the USAGE message for details.
 """
 
 from __future__ import print_function
-from abc import ABCMeta, abstractmethod
+
 import base64
 import datetime
 import getpass
 import hashlib
-from .utils import choose_part_ranges
 import json
 import os
-from .progress import DoNothingProgressListener, make_progress_listener, StreamWithProgress
-import six
-from six.moves import urllib
 import socket
 import stat
 import sys
 import time
 import traceback
+from abc import ABCMeta, abstractmethod
+
+import six
+from six.moves import urllib
+
+from .progress import DoNothingProgressListener, make_progress_listener, StreamWithProgress
+from .utils import choose_part_ranges, hex_sha1_of_stream
 
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
@@ -284,14 +287,7 @@ class UploadSourceLocalFile(UploadSource):
 
     def _hex_sha1_of_file(self, local_path):
         with open(local_path, 'rb') as f:
-            block_size = 1024 * 1024
-            digest = hashlib.sha1()
-            while True:
-                data = f.read(block_size)
-                if len(data) == 0:
-                    break
-                digest.update(data)
-            return digest.hexdigest()
+            return hex_sha1_of_stream(f, self.content_length)
 
 
 @six.add_metaclass(ABCMeta)
@@ -907,6 +903,7 @@ class Bucket(object):
         self, upload_source, file_name, content_type, file_info, progress_listener
     ):
         content_length = upload_source.get_content_length()
+        progress_listener.set_total_bytes(content_length)
         if self.MAX_LARGE_FILE_SIZE < content_length:
             raise MaxFileSizeExceeded(content_length, self.MAX_LARGE_FILE_SIZE)
         minimum_part_size = self.api.account_info.get_minimum_part_size()
@@ -922,14 +919,41 @@ class Bucket(object):
         file_id = start_info['fileId']
 
         # Upload each of the parts
-        for part_range in part_ranges:
-            self._upload_part(file_id, part_range, upload_source)
+        for (part_index, part_range) in enumerate(part_ranges):
+            part_number = part_index + 1
+            self._upload_part(file_id, part_number, part_range, upload_source, progress_listener)
 
         # Finish the large file
         # self.api.raw_api.finish_large_file()
 
-    def _upload_part(self, file_id, part_range, upload_source):
-        pass
+    def _upload_part(self, file_id, part_number, part_range, upload_source, progress_listener):
+        # Compute the SHA1 of the part
+        (offset, content_length) = part_range
+        with upload_source.open() as f:
+            sha1_sum = hex_sha1_of_stream(f, content_length)
+
+        # Retry the upload as needed
+        exception_info_list = []
+        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+            # refresh upload data in every attempt to work around a "busy storage pod"
+            upload_url, upload_auth_token = self._get_upload_part_data(file_id)
+
+            try:
+                with upload_source.open() as file:
+                    file.seek(offset)
+                    input_stream = StreamWithProgress(file, progress_listener)
+                    return self.api.raw_api.upload_part(
+                        upload_url, upload_auth_token, part_number, content_length, sha1_sum,
+                        input_stream
+                    )
+
+            except AbstractWrappedError as e:
+                if not e.should_retry():
+                    raise
+                exception_info_list.append(e)
+                self.api.account_info.clear_bucket_upload_data(self.id_)
+
+        raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
 
     def _get_upload_data(self):
         """
@@ -950,6 +974,26 @@ class Bucket(object):
             response['authorizationToken'],
         )
         return account_info.get_bucket_upload_data(self.id_)
+
+    def _get_upload_part_data(self, file_id):
+        """
+        Makes sure that we have an upload URL and auth token for the given bucket and
+        returns it.
+        """
+        account_info = self.api.account_info
+        upload_url, upload_auth_token = account_info.get_large_file_upload_data(file_id)
+        if None not in (upload_url, upload_auth_token):
+            return upload_url, upload_auth_token
+
+        response = self.api.raw_api.get_upload_part_url(
+            account_info.get_api_url(), account_info.get_account_auth_token(), file_id
+        )
+        account_info.set_large_file_upload_data(
+            file_id,
+            response['uploadUrl'],
+            response['authorizationToken'],
+        )
+        return account_info.get_large_file_upload_data(file_id)
 
     def get_download_url(self, filename):
         return "%s/file/%s/%s" % (
@@ -1165,8 +1209,18 @@ class RawApi(object):
     """
 
     @abstractmethod
+    def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        pass
+
+    @abstractmethod
     def start_large_file(
         self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
+    ):
+        pass
+
+    @abstractmethod
+    def upload_part(
+        self, upload_url, upload_auth_token, part_number, content_length, sha1_sum, input_stream
     ):
         pass
 
@@ -1309,6 +1363,9 @@ class B2RawApi(RawApi):
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
 
+    def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, fileId=file_id)
+
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         return self._post_json(
             api_url,
@@ -1405,6 +1462,20 @@ class B2RawApi(RawApi):
         }
         for k, v in six.iteritems(file_infos):
             headers['X-Bz-Info-' + k] = b2_url_encode(v)
+
+        with OpenUrl(upload_url, data_stream, headers) as response_file:
+            json_text = read_str_from_http_response(response_file)
+            return json.loads(json_text)
+
+    def upload_part(
+        self, upload_url, upload_auth_token, part_number, content_length, content_sha1, data_stream
+    ):
+        headers = {
+            'Authorization': upload_auth_token,
+            'Content-Length': str(content_length),
+            'X-Bz-Part-Number': str(part_number),
+            'X-Bz-Content-Sha1': content_sha1
+        }
 
         with OpenUrl(upload_url, data_stream, headers) as response_file:
             json_text = read_str_from_http_response(response_file)
@@ -1629,6 +1700,18 @@ class AbstractAccountInfo(object):
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
         pass
 
+    @abstractmethod
+    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
+        pass
+
+    @abstractmethod
+    def get_large_file_upload_data(self, file_id):
+        pass
+
+    @abstractmethod
+    def clear_large_file_upload_data(self, file_id):
+        pass
+
 
 class StoredAccountInfo(AbstractAccountInfo):
     """Manages the file that holds the account ID and stored auth tokens.
@@ -1657,6 +1740,8 @@ class StoredAccountInfo(AbstractAccountInfo):
             self.data[self.BUCKET_UPLOAD_DATA] = {}
         if self.BUCKET_NAMES_TO_IDS not in self.data:
             self.data[self.BUCKET_NAMES_TO_IDS] = {}
+        # We don't keep large file upload URLs across a reload
+        self.large_file_uploads = {}
 
     def _try_to_read_file(self):
         try:
@@ -1726,6 +1811,16 @@ class StoredAccountInfo(AbstractAccountInfo):
 
     def clear_bucket_upload_data(self, bucket_id):
         self.data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
+
+    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
+        self.large_file_uploads[file_id] = (upload_url, upload_auth_token)
+
+    def get_large_file_upload_data(self, file_id):
+        return self.large_file_uploads.get(file_id, (None, None))
+
+    def clear_large_file_upload_data(self, file_id):
+        if file_id in self.large_file_uploads:
+            del self.large_file_uploads[file_id]
 
     def save_bucket(self, bucket):
         names_to_ids = self.data[self.BUCKET_NAMES_TO_IDS]
