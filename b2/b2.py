@@ -647,7 +647,7 @@ class Bucket(object):
 
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
-    MAX_UPLOADED_FILE_SIZE = 5 * 1000 * 1000 * 1000
+    MAX_LARGE_FILE_SIZE = 1000 * 1000 * 1000 * 1000  # 1TB
 
     def __init__(self, api, id_, name=None, type_=None):
         self.api = api
@@ -867,15 +867,15 @@ class Bucket(object):
         # the minimum part size.
         min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
         if upload_source.get_content_length() < min_large_file_size:
-            return self.upload_small_file(
+            return self._upload_small_file(
                 upload_source, file_name, content_type, file_info, progress_listener
             )
         else:
-            return self.upload_large_file(
+            return self._upload_large_file(
                 upload_source, file_name, content_type, file_info, progress_listener
             )
 
-    def upload_small_file(
+    def _upload_small_file(
         self, upload_source, file_name, content_type, file_info, progress_listener
     ):
         content_length = upload_source.get_content_length()
@@ -903,15 +903,33 @@ class Bucket(object):
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
 
-    def upload_large_file(
+    def _upload_large_file(
         self, upload_source, file_name, content_type, file_info, progress_listener
     ):
         content_length = upload_source.get_content_length()
+        if self.MAX_LARGE_FILE_SIZE < content_length:
+            raise MaxFileSizeExceeded(content_length, self.MAX_LARGE_FILE_SIZE)
         minimum_part_size = self.api.account_info.get_minimum_part_size()
+
+        # Select the part boundaries
         part_ranges = choose_part_ranges(content_length, minimum_part_size)
 
-        # Decide what size the parts will be
-        raise NotImplementedError()
+        # Tell B2 we're going to upload a file
+        start_info = self.api.raw_api.start_large_file(
+            self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
+            self.id_, file_name, content_type, file_info
+        )
+        file_id = start_info['fileId']
+
+        # Upload each of the parts
+        for part_range in part_ranges:
+            self._upload_part(file_id, part_range, upload_source)
+
+        # Finish the large file
+        # self.api.raw_api.finish_large_file()
+
+    def _upload_part(self, file_id, part_range, upload_source):
+        pass
 
     def _get_upload_data(self):
         """
@@ -1139,10 +1157,21 @@ class AuthInfoCache(AbstractCache):
 
 ## B2RawApi
 
-# TODO: make an ABC for B2RawApi and RawSimulator
+
+@six.add_metaclass(ABCMeta)
+class RawApi(object):
+    """
+    Direct access to the B2 web apis.
+    """
+
+    @abstractmethod
+    def start_large_file(
+        self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
+    ):
+        pass
 
 
-class B2RawApi(object):
+class B2RawApi(RawApi):
     """
     Provides access to the B2 web APIs, exactly as they are provided by B2.
 
@@ -1326,6 +1355,18 @@ class B2RawApi(object):
             startFileName=start_file_name,
             startFileId=start_file_id,
             maxFileCount=max_file_count
+        )
+
+    def start_large_file(
+        self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
+    ):
+        return self._post_json(
+            api_url,
+            'b2_start_large_file',
+            account_auth_token,
+            bucketId=bucket_id,
+            fileName=file_name,
+            contentType=content_type
         )
 
     def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):

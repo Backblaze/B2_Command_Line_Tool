@@ -214,9 +214,8 @@ class TestUpload(TestCaseWithBucket):
                 self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_large(self):
-        pass
-        #data = six.b('hello world') * (self.simulator.MIN_PART_SIZE * 3)
-        #self.bucket.upload_bytes(data, 'file1')
+        data = six.b('hello world') * (self.simulator.MIN_PART_SIZE * 3)
+        self.bucket.upload_bytes(data, 'file1')
         #self._check_file_contents('file'', data)
 
     def _check_file_contents(self, file_name, expected_contents):

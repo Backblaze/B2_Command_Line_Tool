@@ -8,14 +8,22 @@
 #
 ######################################################################
 
-from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, NonExistentBucket
+from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, NonExistentBucket, RawApi
 import re
 import six
 from six.moves import range
 import time
 
 
+class PartSimulator(object):
+    pass
+
+
 class FileSimulator(object):
+    """
+    One of: an unfinished large file, a finished file, or a deletion marker
+    """
+
     def __init__(
         self, account_id, bucket_id, file_id, action, name, content_type, content_sha1, file_info,
         data_bytes
@@ -25,12 +33,16 @@ class FileSimulator(object):
         self.file_id = file_id
         self.action = action
         self.name = name
-        self.content_length = len(data_bytes)
+        if data_bytes is not None:
+            self.content_length = len(data_bytes)
         self.content_type = content_type
         self.content_sha1 = content_sha1
         self.file_info = file_info
         self.data_bytes = data_bytes
         self.upload_timestamp = int(time.time() * 1000)
+
+        if action == 'start':
+            self.parts = []
 
     def sort_key(self):
         """
@@ -61,6 +73,16 @@ class FileSimulator(object):
             fileInfo=self.file_info,
             action=self.action,
             uploadTimestamp=self.upload_timestamp
+        )
+
+    def as_start_large_file_result(self):
+        return dict(
+            fileId=self.file_id,
+            fileName=self.name,
+            accountId=self.account_id,
+            bucketId=self.bucket_id,
+            contentType=self.content_type,
+            fileInfo=self.file_info
         )
 
     def is_visible(self):
@@ -149,13 +171,23 @@ class BucketSimulator(object):
                     break
         return dict(files=result_files, nextFileName=next_file_name, nextFileId=next_file_id)
 
+    def start_large_file(self, file_name, content_type, file_info):
+        file_id = self._next_file_id()
+        file = FileSimulator(
+            self.account_id, self.bucket_id, file_id, 'upload', file_name, content_type, 'none',
+            file_info, None
+        )
+        self.file_id_to_file[file_id] = file
+        self.file_name_and_id_to_file[file.sort_key()] = file
+        return file.as_start_large_file_result()
+
     def upload_file(
         self, upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
         file_infos, data_stream
     ):
         data_bytes = data_stream.read()
-        file_id = str(six.next(self.file_id_counter))
         assert len(data_bytes) == content_length
+        file_id = self._next_file_id()
         file = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'upload', file_name, content_type,
             content_sha1, file_infos, data_bytes
@@ -164,8 +196,11 @@ class BucketSimulator(object):
         self.file_name_and_id_to_file[file.sort_key()] = file
         return file.as_upload_result()
 
+    def _next_file_id(self):
+        return str(six.next(self.file_id_counter))
 
-class RawSimulator(object):
+
+class RawSimulator(RawApi):
     """
     Implements the same interface as B2RawApi by simulating all of the
     calls and keeping state in memory.
@@ -257,6 +292,13 @@ class RawSimulator(object):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
+
+    def start_large_file(
+        self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
+    ):
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.start_large_file(file_name, content_type, file_info)
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
