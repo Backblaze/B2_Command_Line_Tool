@@ -823,7 +823,7 @@ class Bucket(object):
             )
             for file_dict in batch['files']:
                 yield UnfinishedLargeFile(file_dict)
-            start_file_id = batch['nextFileId']
+            start_file_id = batch.get('nextFileId')
             if start_file_id is None:
                 break
 
