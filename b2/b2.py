@@ -645,7 +645,7 @@ class Bucket(object):
 
     def download_file_by_name(self, file_name, download_dest):
         account_info = self.api.account_info
-        self.api.session.download_file_by_name(
+        self.api.raw_api.download_file_by_name(
             account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
             file_name, download_dest
         )
@@ -847,7 +847,7 @@ class Bucket(object):
                 with upload_source.open() as file:
                     progress_listener.set_total_bytes(content_length)
                     input_stream = StreamWithProgress(file, progress_listener)
-                    upload_response = self.api.session.upload_file(
+                    upload_response = self.api.raw_api.upload_file(
                         upload_url, upload_auth_token, file_name, content_length, content_type,
                         sha1_sum, file_infos, input_stream
                     )
@@ -1019,6 +1019,9 @@ class FileVersionInfoFactory(object):
 
 @six.add_metaclass(ABCMeta)
 class AbstractCache(object):
+    def clear(self):
+        self.set_bucket_name_cache(tuple())
+
     @abstractmethod
     def get_bucket_id_or_none_from_bucket_name(self, name):
         pass
@@ -1389,7 +1392,7 @@ class B2Api(object):
             account_info = StoredAccountInfo()
             if cache is None:
                 cache = AuthInfoCache(account_info)
-        self.session = B2Session(account_info, raw_api)
+        self.session = B2Session(account_info, self.raw_api)
         self.account_info = account_info
         if cache is None:
             cache = DummyCache()
@@ -1407,10 +1410,17 @@ class B2Api(object):
         return True
 
     def authorize_account(self, realm, account_id, application_key):
-        realm_url = self.REALM_URLS[realm]
+        try:
+            old_account_id = self.account_info.get_account_id()
+            old_realm = self.account_info.get_realm()
+            if account_id != old_account_id or realm != old_realm:
+                self.cache.clear()
+        except MissingAccountData:
+            self.cache.clear()
+
+        realm_url = self.account_info.REALM_URLS[realm]
         response = self.raw_api.authorize_account(realm_url, account_id, application_key)
 
-        self.clear()
         self.account_info.set_auth_data(
             response['accountId'],
             response['authorizationToken'],
@@ -1435,7 +1445,7 @@ class B2Api(object):
         return bucket
 
     def download_file_by_id(self, file_id, download_dest):
-        self.session.download_file_by_id(
+        self.raw_api.download_file_by_id(
             self.account_info.get_download_url(), self.account_info.get_account_auth_token(),
             file_id, download_dest
         )
