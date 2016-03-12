@@ -21,6 +21,7 @@ from __future__ import print_function
 from abc import ABCMeta, abstractmethod
 import base64
 import datetime
+import functools
 import getpass
 import hashlib
 import json
@@ -636,19 +637,15 @@ class Bucket(object):
         return self.id_
 
     def set_type(self, type_):
-        account_info = self.api.account_info
-        auth_token = account_info.get_account_auth_token()
-        account_id = account_info.get_account_id()
-        return self.api.raw_api.update_bucket(
-            account_info.get_api_url(), auth_token, account_id, self.id_, type_
-        )
+        account_id = self.api.account_info.get_account_id()
+        return self.api.session.update_bucket(account_id, self.id_, type_)
 
     def download_file_by_id(self, file_id, download_dest):
         self.api.download_file_by_id(file_id, download_dest)
 
     def download_file_by_name(self, file_name, download_dest):
         account_info = self.api.account_info
-        self.api.raw_api.download_file_by_name(
+        self.api.session.download_file_by_name(
             account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
             file_name, download_dest
         )
@@ -680,8 +677,6 @@ class Bucket(object):
         :param recursive:
         :return:
         """
-        auth_token = self.api.account_info.get_account_auth_token()
-
         # Every file returned must have a name that starts with the
         # folder name and a "/".
         prefix = folder_to_list
@@ -699,18 +694,14 @@ class Bucket(object):
         current_dir = None
         start_file_name = prefix
         start_file_id = None
-        raw_api = self.api.raw_api
-        api_url = self.api.account_info.get_api_url()
-        auth_token = self.api.account_info.get_account_auth_token()
+        session = self.api.session
         while True:
             if show_versions:
-                response = raw_api.list_file_versions(
-                    api_url, auth_token, self.id_, start_file_name, start_file_id, fetch_count
+                response = session.list_file_versions(
+                    self.id_, start_file_name, start_file_id, fetch_count
                 )
             else:
-                response = raw_api.list_file_names(
-                    api_url, auth_token, self.id_, start_file_name, fetch_count
-                )
+                response = session.list_file_names(self.id_, start_file_name, fetch_count)
             for entry in response['files']:
                 file_version_info = FileVersionInfoFactory.from_api_response(entry)
                 if not file_version_info.file_name.startswith(prefix):
@@ -856,7 +847,7 @@ class Bucket(object):
                 with upload_source.open() as file:
                     progress_listener.set_total_bytes(content_length)
                     input_stream = StreamWithProgress(file, progress_listener)
-                    upload_response = self.api.raw_api.upload_file(
+                    upload_response = self.api.session.upload_file(
                         upload_url, upload_auth_token, file_name, content_length, content_type,
                         sha1_sum, file_infos, input_stream
                     )
@@ -880,9 +871,7 @@ class Bucket(object):
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
 
-        response = self.api.raw_api.get_upload_url(
-            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_
-        )
+        response = self.api.session.get_upload_url(self.id_)
         account_info.set_bucket_upload_data(
             self.id_,
             response['uploadUrl'],
@@ -898,11 +887,7 @@ class Bucket(object):
         )
 
     def hide_file(self, file_name):
-        account_info = self.api.account_info
-        auth_token = account_info.get_account_auth_token()
-        response = self.api.raw_api.hide_file(
-            self.api.account_info.get_api_url(), auth_token, self.id_, file_name
-        )
+        response = self.api.session.hide_file(self.id_, file_name)
         return FileVersionInfoFactory.from_api_response(response)
 
     def as_dict(self):  # TODO: refactor with other as_dict()
@@ -1333,7 +1318,7 @@ class B2RawApi(object):
 
 class B2Session(object):
     """
-        proxy that supplies the correct api_url and account_auth_token to methods
+        Facade that supplies the correct api_url and account_auth_token to methods
         of underlying raw_api and reauthorizes if necessary
     """
 
@@ -1363,7 +1348,6 @@ class B2Session(object):
                     raise
 
         return wrapper
-
 
 ## B2Api
 
@@ -1400,14 +1384,12 @@ class B2Api(object):
         :param raw_api:
         :return:
         """
-        # TODO: merge account_info and cache into a single object
-
         self.raw_api = raw_api or B2RawApi()
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:
                 cache = AuthInfoCache(account_info)
-        self.raw_api = B2Session(account_info, raw_api)
+        self.session = B2Session(account_info, raw_api)
         self.account_info = account_info
         if cache is None:
             cache = DummyCache()
@@ -1425,9 +1407,8 @@ class B2Api(object):
         return True
 
     def authorize_account(self, realm, account_id, application_key):
-        # TODO: move this call out to the B2Api class?
-        url = self.REALM_URLS[realm]
-        response = self.raw_api.authorize_account(url, account_id, application_key)
+        realm_url = self.REALM_URLS[realm]
+        response = self.raw_api.authorize_account(realm_url, account_id, application_key)
 
         self.clear()
         self.account_info.set_auth_data(
@@ -1444,7 +1425,7 @@ class B2Api(object):
     def create_bucket(self, name, type_):
         account_id = self.account_info.get_account_id()
 
-        response = self.raw_api.create_bucket(account_id, name, type_)
+        response = self.session.create_bucket(account_id, name, type_)
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
@@ -1454,7 +1435,7 @@ class B2Api(object):
         return bucket
 
     def download_file_by_id(self, file_id, download_dest):
-        self.raw_api.download_file_by_id(
+        self.session.download_file_by_id(
             self.account_info.get_download_url(), self.account_info.get_account_auth_token(),
             file_id, download_dest
         )
@@ -1487,7 +1468,7 @@ class B2Api(object):
         an exception, it means that the operation was a success
         """
         account_id = self.account_info.get_account_id()
-        return self.raw_api.delete_bucket(account_id, bucket.id_)
+        return self.session.delete_bucket(account_id, bucket.id_)
 
     def list_buckets(self):
         """
@@ -1495,7 +1476,7 @@ class B2Api(object):
         """
         account_id = self.account_info.get_account_id()
 
-        response = self.raw_api.list_buckets(account_id)
+        response = self.session.list_buckets(account_id)
 
         buckets = BucketFactory.from_api_response(self, response)
 
@@ -1505,10 +1486,7 @@ class B2Api(object):
     # delete
     def delete_file_version(self, file_id, file_name):
         # filename argument is not first, because one day it may become optional
-        auth_token = self.account_info.get_account_auth_token()
-        response = self.raw_api.delete_file_version(
-            self.account_info.get_api_url(), auth_token, file_id, file_name
-        )
+        response = self.session.delete_file_version(file_id, file_name)
         file_info = FileVersionInfoFactory.from_api_response(response, force_action='delete',)
         assert file_info.id_ == file_id
         assert file_info.file_name == file_name
@@ -1523,8 +1501,7 @@ class B2Api(object):
     # other
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
-        auth_token = self.account_info.get_account_auth_token()
-        return self.raw_api.get_file_info(self.account_info.get_api_url(), auth_token, file_id)
+        return self.session.get_file_info(file_id)
 
 ## v0.3.x functions
 
