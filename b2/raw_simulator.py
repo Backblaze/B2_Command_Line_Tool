@@ -119,6 +119,13 @@ class FileSimulator(object):
 
 
 class BucketSimulator(object):
+
+    # File IDs start at 9999 and count down, so they sort in the order
+    # returned by list_file_versions.  The IDs are strings.
+    FIRST_FILE_NUMBER = 9999
+
+    FIRST_FILE_ID = str(FIRST_FILE_NUMBER)
+
     def __init__(self, account_id, bucket_id, bucket_name, bucket_type):
         assert bucket_type in ['allPrivate', 'allPublic']
         self.account_id = account_id
@@ -127,7 +134,7 @@ class BucketSimulator(object):
         self.bucket_type = bucket_type
         self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
-        self.file_id_counter = iter(range(9999, 0, -1))
+        self.file_id_counter = iter(range(self.FIRST_FILE_NUMBER, 0, -1))
         self.file_id_to_file = dict()
         # It would be nice to use an OrderedDict for this, but 2.6 doesn't have it.
         self.file_name_and_id_to_file = dict()
@@ -204,6 +211,32 @@ class BucketSimulator(object):
                     next_file_id = str(int(file_id) + 1)
                     break
         return dict(files=result_files, nextFileName=next_file_name, nextFileId=next_file_id)
+
+    def list_unfinished_large_files(self, start_file_id=None, max_file_count=None):
+        start_file_id = start_file_id or self.FIRST_FILE_ID
+        max_file_count = max_file_count or 100
+        all_unfinished_ids = set(
+            k
+            for (k, v) in six.iteritems(self.file_id_to_file)
+            if v.action == 'start' and k <= start_file_id
+        )
+        ids_in_order = sorted(all_unfinished_ids, reverse=True)
+        file_dict_list = [
+            dict(
+                fileId=file.file_id,
+                fileName=file.name,
+                accountId=file.account_id,
+                bucketId=file.bucket_id,
+                contentType=file.content_type,
+                fileInfo=file.file_info
+            ) for file in (
+                self.file_id_to_file[file_id] for file_id in ids_in_order[:max_file_count]
+            )
+        ]
+        next_file_id = None
+        if len(file_dict_list) == max_file_count:
+            next_file_id = str(int(file_dict_list[-1]['fileId']) - 1)
+        return dict(files=file_dict_list, nextFileId=next_file_id)
 
     def start_large_file(self, file_name, content_type, file_info):
         file_id = self._next_file_id()
@@ -352,6 +385,20 @@ class RawSimulator(RawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
+
+    def list_unfinished_large_files(
+        self,
+        api_url,
+        account_auth,
+        bucket_id,
+        start_file_id=None,
+        max_file_count=None
+    ):
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth, bucket.account_id)
+        start_file_id = start_file_id or ''
+        max_file_count = max_file_count or 100
+        return bucket.list_unfinished_large_files(start_file_id, max_file_count)
 
     def start_large_file(
         self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
