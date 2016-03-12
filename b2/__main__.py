@@ -87,6 +87,3 @@ def main():
     except B2Error as e:
         print('ERROR: %s' % (e,))
         sys.exit(1)
-
-
-main()

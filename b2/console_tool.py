@@ -182,6 +182,9 @@ class ConsoleTool(object):
         """
         self._message_and_exit(USAGE)
 
+    def _print(self, *args):
+        print(*args, file=self.stdout)
+
     # bucket
 
     def create_bucket(self, args):
@@ -190,7 +193,7 @@ class ConsoleTool(object):
         bucket_name = args[0]
         bucket_type = args[1]
 
-        print(self.api.create_bucket(bucket_name, bucket_type).id_)
+        self._print(self.api.create_bucket(bucket_name, bucket_type).id_)
 
     def delete_bucket(self, args):
         if len(args) != 1:
@@ -200,7 +203,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = self.api.delete_bucket(bucket)
 
-        print(json.dumps(response, indent=4, sort_keys=True))
+        self._print(json.dumps(response, indent=4, sort_keys=True))
 
     def update_bucket(self, args):
         if len(args) != 2:
@@ -211,14 +214,14 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = bucket.set_type(bucket_type)
 
-        print(json.dumps(response, indent=4, sort_keys=True))
+        self._print(json.dumps(response, indent=4, sort_keys=True))
 
     def list_buckets(self, args):
         if len(args) != 0:
             self._usage_and_exit()
 
         for b in self.api.list_buckets():
-            print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
+            self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
 
     # file
 
@@ -232,7 +235,7 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
-        print(json.dumps(response, indent=2, sort_keys=True))
+        self._print(json.dumps(response, indent=2, sort_keys=True))
 
     def download_file_by_id(self, args):
         if len(args) != 2:
@@ -259,14 +262,14 @@ class ConsoleTool(object):
         self._print_download_info(download_dest)
 
     def _print_download_info(self, download_dest):
-        print('File name:   ', download_dest.file_name)
-        print('File id:     ', download_dest.file_id)
-        print('File size:   ', download_dest.content_length)
-        print('Content type:', download_dest.content_type)
-        print('Content sha1:', download_dest.content_sha1)
+        self._print('File name:   ', download_dest.file_name)
+        self._print('File id:     ', download_dest.file_id)
+        self._print('File size:   ', download_dest.content_length)
+        self._print('Content type:', download_dest.content_type)
+        self._print('Content sha1:', download_dest.content_sha1)
         for name in sorted(six.iterkeys(download_dest.file_info)):
-            print('INFO', name + ':', download_dest.file_info[name])
-        print('checksum matches')
+            self._print('INFO', name + ':', download_dest.file_info[name])
+        self._print('checksum matches')
 
     def get_file_info(self, args):
         if len(args) != 1:
@@ -275,7 +278,7 @@ class ConsoleTool(object):
 
         response = self.api.get_file_info(file_id)
 
-        print(json.dumps(response, indent=2, sort_keys=True))
+        self._print(json.dumps(response, indent=2, sort_keys=True))
 
     def hide_file(self, args):
         if len(args) != 2:
@@ -288,7 +291,7 @@ class ConsoleTool(object):
 
         response = file_info.as_dict()
 
-        print(json.dumps(response, indent=2, sort_keys=True))
+        self._print(json.dumps(response, indent=2, sort_keys=True))
 
     def upload_file(self, args):
         content_type = None
@@ -340,9 +343,9 @@ class ConsoleTool(object):
             )
         response = file_info.as_dict()
         if not quiet:
-            print("URL by file name: " + bucket.get_download_url(remote_file))
-            print("URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId']))
-        print(json.dumps(response, indent=2, sort_keys=True))
+            self._print("URL by file name: " + bucket.get_download_url(remote_file))
+            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId']))
+        self._print(json.dumps(response, indent=2, sort_keys=True))
 
     # account
 
@@ -354,11 +357,11 @@ class ConsoleTool(object):
             if realm in self.api.account_info.REALM_URLS:
                 break
             else:
-                print('ERROR: unknown option', realm)
+                self._print('ERROR: unknown option', realm)
                 self._usage_and_exit()
 
         url = self.api.account_info.REALM_URLS[realm]
-        print('Using %s' % url)
+        self._print('Using %s' % url)
 
         if 2 < len(args):
             self._usage_and_exit()
@@ -398,7 +401,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         response = bucket.list_file_names(first_file_name, count)
-        print(json.dumps(response, indent=2, sort_keys=True))
+        self._print(json.dumps(response, indent=2, sort_keys=True))
 
     def list_file_versions(self, args):
         if len(args) < 1 or 4 < len(args):
@@ -421,7 +424,7 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
 
         response = bucket.list_file_versions(first_file_name, first_file_id, count)
-        print(json.dumps(response, indent=2, sort_keys=True))
+        self._print(json.dumps(response, indent=2, sort_keys=True))
 
     def ls(self, args):
         long_format = False
@@ -434,7 +437,7 @@ class ConsoleTool(object):
             elif option == '--versions':
                 show_versions = True
             else:
-                print('Unknown option:', option)
+                self._print('Unknown option:', option)
                 self._usage_and_exit()
         if len(args) < 1 or len(args) > 2:
             self._usage_and_exit()
@@ -449,11 +452,11 @@ class ConsoleTool(object):
         bucket = self.api.get_bucket_by_name(bucket_name)
         for file_version_info, folder_name in bucket.ls(prefix, show_versions):
             if not long_format:
-                print(folder_name or file_version_info.file_name)
+                self._print(folder_name or file_version_info.file_name)
             elif folder_name is not None:
-                print(FileVersionInfo.format_folder_ls_entry(folder_name))
+                self._print(FileVersionInfo.format_folder_ls_entry(folder_name))
             else:
-                print(file_version_info.format_ls_entry())
+                self._print(file_version_info.format_ls_entry())
 
     # other
 
@@ -463,7 +466,7 @@ class ConsoleTool(object):
 
         file_id = args[0]
 
-        print(self.api.get_download_url_for_fileid(file_id))
+        self._print(self.api.get_download_url_for_fileid(file_id))
 
     def sync(self, args):
         # TODO: break up this method.  it's too long
@@ -530,25 +533,25 @@ class ConsoleTool(object):
             remote_file = remote_files.get(filename)
             is_match = local_file and remote_file and local_file['size'] == remote_file['size']
             if is_b2_src and remote_file and not is_match:
-                print("+ %s" % filename)
+                self._print("+ %s" % filename)
                 if not os.path.exists(dirpath):
                     os.makedirs(dirpath)
                 download_dest = DownloadDestLocalFile(filepath, DoNothingProgressListener())
                 self.api.download_file_by_id(remote_file['fileId'], download_dest)
             elif is_b2_src and not remote_file and options['delete']:
-                print("- %s" % filename)
+                self._print("- %s" % filename)
                 os.remove(filepath)
             elif not is_b2_src and local_file and not is_match:
-                print("+ %s" % filename)
+                self._print("+ %s" % filename)
                 file_infos = {
                     'src_last_modified_millis': str(int(os.path.getmtime(filepath) * 1000))
                 }
                 bucket.upload_local_file(filepath, b2_path, file_infos=file_infos)
             elif not is_b2_src and not local_file and options['delete']:
-                print("- %s" % filename)
+                self._print("- %s" % filename)
                 self.api.delete_file_version(remote_file['fileId'], b2_path)
             elif not is_b2_src and not local_file and options['hide']:
-                print(". %s" % filename)
+                self._print(". %s" % filename)
                 bucket.hide_file(b2_path)
 
         # Remove empty local directories
@@ -561,4 +564,4 @@ class ConsoleTool(object):
                         pass
 
     def version(self):
-        print('b2 command line tool, version', VERSION, file=self.stdout)
+        self._print('b2 command line tool, version', VERSION)
