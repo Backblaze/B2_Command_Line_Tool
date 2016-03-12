@@ -144,6 +144,19 @@ class StubProgressListener(ProgressListener):
         pass
 
 
+class CanRetry(AbstractWrappedError):
+    """
+    An exception that can be retryable, or not.
+    """
+
+    def __init__(self, can_retry):
+        super(CanRetry, self).__init__(None, None, None, None, None)
+        self.can_retry = can_retry
+
+    def should_retry(self):
+        return self.can_retry
+
+
 class TestCaseWithBucket(unittest.TestCase):
     def setUp(self):
         self.bucket_name = 'my-bucket'
@@ -152,6 +165,27 @@ class TestCaseWithBucket(unittest.TestCase):
         self.api = B2Api(self.account_info, raw_api=self.simulator)
         self.api.authorize_account('test_realm', 'my-account', 'my-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
+
+
+class TestListUnfinished(TestCaseWithBucket):
+    def test_empty(self):
+        self.assertEqual([], list(self.bucket.list_unfinished_large_files()))
+
+    def test_one(self):
+        file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
+        self.assertEqual([file1], list(self.bucket.list_unfinished_large_files()))
+
+    def test_three(self):
+        file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
+        file2 = self.bucket.start_large_file('file2.txt', 'text/plain', {})
+        file3 = self.bucket.start_large_file('file3.txt', 'text/plain', {})
+        self.assertEqual(
+            [file1, file2, file3],
+            list(self.bucket.list_unfinished_large_files(batch_size=1))
+        )
+
+    def _make_file(self, file_id, file_name):
+        return self.bucket.start_large_file(file_name, 'text/plain', {})
 
 
 class TestLs(TestCaseWithBucket):
@@ -226,15 +260,6 @@ class TestLs(TestCaseWithBucket):
             )
         ]
         self.assertEqual(expected, actual)
-
-
-class CanRetry(AbstractWrappedError):
-    def __init__(self, can_retry):
-        super(CanRetry, self).__init__(None, None, None, None, None)
-        self.can_retry = can_retry
-
-    def should_retry(self):
-        return self.can_retry
 
 
 class TestUpload(TestCaseWithBucket):

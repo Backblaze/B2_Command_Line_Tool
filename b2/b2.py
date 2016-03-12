@@ -808,6 +808,34 @@ class Bucket(object):
         }
         return post_json(url, params, auth_token)
 
+    def list_unfinished_large_files(self, start_file_id=None, batch_size=None):
+        """
+        A generator that yields an UnfinishedLargeFile for each
+        unfinished large file in the bucket, starting at the
+        given file.
+        """
+        account_info = self.api.account_info
+        batch_size = batch_size or 100
+        while True:
+            batch = self.api.raw_api.list_unfinished_large_files(
+                account_info.get_api_url(), account_info.get_account_auth_token(), self.id_,
+                start_file_id, batch_size
+            )
+            for file_dict in batch['files']:
+                yield UnfinishedLargeFile(file_dict)
+            start_file_id = batch.get('nextFileId')
+            if start_file_id is None:
+                break
+
+    def start_large_file(self, file_name, content_type, file_info):
+        account_info = self.api.account_info
+        return UnfinishedLargeFile(
+            self.api.raw_api.start_large_file(
+                account_info.get_api_url(), account_info.get_account_auth_token(
+                ), self.id_, file_name, content_type, file_info
+            )
+        )
+
     def upload_bytes(
         self,
         data_bytes,
@@ -925,11 +953,8 @@ class Bucket(object):
         part_ranges = choose_part_ranges(content_length, minimum_part_size)
 
         # Tell B2 we're going to upload a file
-        start_info = self.api.raw_api.start_large_file(
-            self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
-            self.id_, file_name, content_type, file_info
-        )
-        file_id = start_info['fileId']
+        unfinished_file = self.start_large_file(file_name, content_type, file_info)
+        file_id = unfinished_file.file_id
 
         # Upload each of the parts
         part_sha1_array = []
@@ -1150,6 +1175,32 @@ class FileVersionInfoFactory(object):
             id_, file_name, size, content_type, content_sha1, file_info, upload_timestamp, action
         )
 
+
+class UnfinishedLargeFile(object):
+    def __init__(self, file_dict):
+        """
+        Initializes from one file returned by b2_start_large_file,
+        or b2_list_unfinished_large_files.
+        """
+        self.file_id = file_dict['fileId']
+        self.file_name = file_dict['fileName']
+        self.account_id = file_dict['accountId']
+        self.bucket_id = file_dict['bucketId']
+        self.content_type = file_dict['contentType']
+        self.file_info = file_dict['fileInfo']
+
+    def __str__(self):
+        return '<%s %s %s>' % (self.__class__.__name__, self.bucket_id, self.file_name)
+
+    def __repr__(self):
+        return str(self)
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def __ne__(self, other):
+        return not (self == other)
+
 ## Cache
 
 
@@ -1233,6 +1284,17 @@ class RawApi(object):
 
     @abstractmethod
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        pass
+
+    @abstractmethod
+    def list_unfinished_large_files(
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_id=None,
+        max_file_count=None
+    ):
         pass
 
     @abstractmethod
@@ -1446,6 +1508,23 @@ class B2RawApi(RawApi):
             maxFileCount=max_file_count
         )
 
+    def list_unfinished_large_files(
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_id=None,
+        max_file_count=None
+    ):
+        return self._post_json(
+            api_url,
+            'b2_list_unfinished_large_files',
+            account_auth_token,
+            bucketId=bucket_id,
+            startFileId=start_file_id,
+            maxFileCount=max_file_count
+        )
+
     def start_large_file(
         self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
     ):
@@ -1625,6 +1704,9 @@ class B2Api(object):
             application_key,
             realm,
         )
+
+    def get_account_id(self):
+        return self.account_info.get_account_id()
 
     # buckets
 
