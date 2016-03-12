@@ -1794,19 +1794,6 @@ class B2Api(object):
 ## v0.3.x functions
 
 
-def message_and_exit(message):
-    """Prints a message, and exits with error status.
-    """
-    print(message, file=sys.stderr)
-    sys.exit(1)
-
-
-def usage_and_exit():
-    """Prints a usage message, and exits with an error status.
-    """
-    message_and_exit(USAGE)
-
-
 def decode_sys_argv():
     """
     Returns the command-line arguments as unicode strings, decoding
@@ -2504,15 +2491,28 @@ class ConsoleTool(object):
 
     # TODO: move all creation of StoredAccountInfo into this class.
 
-    def __init__(self):
+    def __init__(self, stdout, stderr):
         info = StoredAccountInfo()
         self.api = B2Api(info, AuthInfoCache(info))
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def _message_and_exit(self, message):
+        """Prints a message, and exits with error status.
+        """
+        print(message, file=self.stderr)
+        sys.exit(1)
+
+    def usage_and_exit(self):
+        """Prints a usage message, and exits with an error status.
+        """
+        self._message_and_exit(USAGE)
 
     # bucket
 
     def create_bucket(self, args):
         if len(args) != 2:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
         bucket_type = args[1]
 
@@ -2520,7 +2520,7 @@ class ConsoleTool(object):
 
     def delete_bucket(self, args):
         if len(args) != 1:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
 
         bucket = self.api.get_bucket_by_name(bucket_name)
@@ -2530,7 +2530,7 @@ class ConsoleTool(object):
 
     def update_bucket(self, args):
         if len(args) != 2:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
         bucket_type = args[1]
 
@@ -2541,7 +2541,7 @@ class ConsoleTool(object):
 
     def list_buckets(self, args):
         if len(args) != 0:
-            usage_and_exit()
+            self._usage_and_exit()
 
         for b in self.api.list_buckets():
             print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
@@ -2550,7 +2550,7 @@ class ConsoleTool(object):
 
     def delete_file_version(self, args):
         if len(args) != 2:
-            usage_and_exit()
+            self._usage_and_exit()
         file_name = args[0]
         file_id = args[1]
 
@@ -2562,7 +2562,7 @@ class ConsoleTool(object):
 
     def download_file_by_id(self, args):
         if len(args) != 2:
-            usage_and_exit()
+            self._usage_and_exit()
         file_id = args[0]
         local_file_name = args[1]
 
@@ -2573,7 +2573,7 @@ class ConsoleTool(object):
 
     def download_file_by_name(self, args):
         if len(args) != 3:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
         file_name = args[1]
         local_file_name = args[2]
@@ -2596,7 +2596,7 @@ class ConsoleTool(object):
 
     def get_file_info(self, args):
         if len(args) != 1:
-            usage_and_exit()
+            self._usage_and_exit()
         file_id = args[0]
 
         response = self.api.get_file_info(file_id)
@@ -2605,7 +2605,7 @@ class ConsoleTool(object):
 
     def hide_file(self, args):
         if len(args) != 2:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
         file_name = args[1]
 
@@ -2626,17 +2626,17 @@ class ConsoleTool(object):
             option = args[0]
             if option == '--sha1':
                 if len(args) < 2:
-                    usage_and_exit()
+                    self._usage_and_exit()
                 sha1_sum = args[1]
                 args = args[2:]
             elif option == '--contentType':
                 if len(args) < 2:
-                    usage_and_exit()
+                    self._usage_and_exit()
                 content_type = args[1]
                 args = args[2:]
             elif option == '--info':
                 if len(args) < 2:
-                    usage_and_exit()
+                    self._usage_and_exit()
                 parts = args[1].split('=', 1)
                 if len(parts) == 1:
                     raise BadFileInfo(args[1])
@@ -2646,10 +2646,10 @@ class ConsoleTool(object):
                 quiet = True
                 args = args[1:]
             else:
-                usage_and_exit()
+                self._usage_and_exit()
 
         if len(args) != 3:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
         local_file = args[1]
         remote_file = local_path_to_b2_path(args[2])
@@ -2681,13 +2681,13 @@ class ConsoleTool(object):
                 break
             else:
                 print('ERROR: unknown option', realm)
-                usage_and_exit()
+                self._usage_and_exit()
 
         url = self.api.account_info.REALM_URLS[realm]
         print('Using %s' % url)
 
         if 2 < len(args):
-            usage_and_exit()
+            self._usage_and_exit()
         if 0 < len(args):
             account_id = args[0]
         else:
@@ -2702,14 +2702,14 @@ class ConsoleTool(object):
 
     def clear_account(self, args):
         if len(args) != 0:
-            usage_and_exit()
+            self._usage_and_exit()
         self.api.account_info.clear()
 
     # listing
 
     def list_file_names(self, args):
         if len(args) < 1 or 3 < len(args):
-            usage_and_exit()
+            self._usage_and_exit()
 
         bucket_name = args[0]
         if 2 <= len(args):
@@ -2728,7 +2728,7 @@ class ConsoleTool(object):
 
     def list_file_versions(self, args):
         if len(args) < 1 or 4 < len(args):
-            usage_and_exit()
+            self._usage_and_exit()
 
         bucket_name = args[0]
         if 2 <= len(args):
@@ -2761,9 +2761,9 @@ class ConsoleTool(object):
                 show_versions = True
             else:
                 print('Unknown option:', option)
-                usage_and_exit()
+                self._usage_and_exit()
         if len(args) < 1 or len(args) > 2:
-            usage_and_exit()
+            self._usage_and_exit()
         bucket_name = args[0]
         if len(args) == 1:
             prefix = ""
@@ -2785,7 +2785,7 @@ class ConsoleTool(object):
 
     def make_url(self, args):
         if len(args) != 1:
-            usage_and_exit()
+            self._usage_and_exit()
 
         file_id = args[0]
 
@@ -2803,18 +2803,18 @@ class ConsoleTool(object):
             elif option == '--hide':
                 options['hide'] = True
             else:
-                message_and_exit('ERROR: unknown option: ' + option)
+                self._message_and_exit('ERROR: unknown option: ' + option)
         if len(args) != 2:
-            usage_and_exit()
+            self._usage_and_exit()
         src = args[0]
         dst = args[1]
         local_path = src if dst.startswith('b2:') else dst
         b2_path = dst if dst.startswith('b2:') else src
         is_b2_src = b2_path == src
         if local_path.startswith('b2:') or not b2_path.startswith('b2:'):
-            message_and_exit('ERROR: one of the paths must be a "b2:<bucket>" URI')
+            self._message_and_exit('ERROR: one of the paths must be a "b2:<bucket>" URI')
         elif not os.path.exists(local_path):
-            message_and_exit('ERROR: local path doesn\'t exist: ' + local_path)
+            self._message_and_exit('ERROR: local path doesn\'t exist: ' + local_path)
         bucket_name = b2_path[3:].split('/')[0]
         bucket_prefix = '/'.join(b2_path[3:].split('/')[1:])
         if bucket_prefix and not bucket_prefix.endswith('/'):
@@ -2886,17 +2886,21 @@ class ConsoleTool(object):
                     except:
                         pass
 
+    def version(self):
+        print('b2 command line tool, version', VERSION, file=self.stdout)
+
 
 def main():
+    ct = ConsoleTool(stdout=sys.stdout, stderr=sys.stderr)
+
     if len(sys.argv) < 2:
-        usage_and_exit()
+        ct._usage_and_exit()
 
     decoded_argv = decode_sys_argv()
 
     action = decoded_argv[1]
     args = decoded_argv[2:]
 
-    ct = ConsoleTool()
     try:
         if action == 'authorize_account':
             ct.authorize_account(args)
@@ -2933,9 +2937,9 @@ def main():
         elif action == 'upload_file':
             ct.upload_file(args)
         elif action == 'version':
-            print('b2 command line tool, version', VERSION)
+            ct.version()
         else:
-            usage_and_exit()
+            ct._usage_and_exit()
     except MissingAccountData:
         print('ERROR: Missing account.  Use: b2 authorize_account')
         sys.exit(1)
