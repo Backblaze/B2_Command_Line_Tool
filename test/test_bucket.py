@@ -8,12 +8,13 @@
 #
 ######################################################################
 
-from __future__ import absolute_import, print_function
+from __future__ import absolute_import, division, print_function
 
 from b2.b2 import (
     AbstractAccountInfo, AbstractWrappedError, B2Api, DownloadDestBytes, FileVersionInfo,
     MaxRetriesExceeded
 )
+from b2.progress import ProgressListener
 from b2.raw_simulator import RawSimulator
 import os
 import shutil
@@ -96,6 +97,37 @@ class StubAccountInfo(AbstractAccountInfo):
     def clear_large_file_upload_data(self, file_id):
         if file_id in self.large_file_uploads:
             del self.large_file_uploads[file_id]
+
+
+class StubProgressListener(ProgressListener):
+    """
+    Implementation of a progress listener that remembers what calls were made,
+    and returns them as a short string to use in unit tests.
+
+    For a total byte count of 100, and updates at 33 and 66, the returned
+    string looks like: "100: 33 66"
+    """
+    def __init__(self):
+        self.history = []
+
+    def get_history(self):
+        return ' '.join(self.history)
+
+    def set_total_bytes(self, total_byte_count):
+        assert len(self.history) == 0
+        self.history.append('%d:' % (total_byte_count, ))
+
+    def bytes_completed(self, byte_count):
+        self.history.append(str(byte_count))
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return this
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class TestCaseWithBucket(unittest.TestCase):
@@ -225,9 +257,11 @@ class TestUpload(TestCaseWithBucket):
                 self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_large(self):
-        data = six.b('hello world') * (self.simulator.MIN_PART_SIZE * 3)
-        self.bucket.upload_bytes(data, 'file1')
-        #self._check_file_contents('file'', data)
+        data = six.b('hello world') * (self.simulator.MIN_PART_SIZE * 3 // 10)
+        progress_listener = StubProgressListener()
+        self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
+        self._check_file_contents('file1', data)
+        self.assertEqual("660: 220 440 660", progress_listener.get_history())
 
     def _check_file_contents(self, file_name, expected_contents):
         download = DownloadDestBytes()

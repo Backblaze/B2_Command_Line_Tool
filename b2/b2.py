@@ -506,12 +506,28 @@ class MissingAccountData(B2Error):
         return 'Missing account data: %s' % (self.key,)
 
 
+class MissingPart(B2Error):
+    def __init__(self, key):
+        self.key = key
+
+    def __str__(self):
+        return 'Part number has not been uploaded: %s' % (self.key,)
+
+
 class NonExistentBucket(B2Error):
     def __init__(self, bucket_name_or_id):
         self.bucket_name_or_id = bucket_name_or_id
 
     def __str__(self):
         return 'No such bucket: %s' % (self.bucket_name_or_id,)
+
+
+class PartSha1Mismatch(B2Error):
+    def __init__(self, key):
+        self.key = key
+
+    def __str__(self):
+        return 'Part number %s has wrong SHA1' % (self.key,)
 
 
 class StorageCapExceeded(B2Error):
@@ -804,10 +820,9 @@ class Bucket(object):
         Upload bytes in memory to a B2 file
         """
         upload_source = UploadSourceBytes(data_bytes)
-        with DoNothingProgressListener() as progress_listener:
-            return self.upload(
-                upload_source, file_name, content_type, file_infos, progress_listener
-            )
+        return self.upload(
+            upload_source, file_name, content_type, file_infos, progress_listener
+        )
 
     def upload_local_file(
         self,
@@ -919,12 +934,19 @@ class Bucket(object):
         file_id = start_info['fileId']
 
         # Upload each of the parts
+        part_sha1_array = []
         for (part_index, part_range) in enumerate(part_ranges):
             part_number = part_index + 1
-            self._upload_part(file_id, part_number, part_range, upload_source, progress_listener)
+            upload_response = self._upload_part(
+                file_id, part_number, part_range, upload_source, progress_listener
+            )
+            part_sha1_array.append(upload_response['contentSha1'])
 
         # Finish the large file
-        # self.api.raw_api.finish_large_file()
+        return self.api.raw_api.finish_large_file(
+            self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
+            file_id, part_sha1_array
+        )
 
     def _upload_part(self, file_id, part_number, part_range, upload_source, progress_listener):
         # Compute the SHA1 of the part
@@ -941,11 +963,13 @@ class Bucket(object):
             try:
                 with upload_source.open() as file:
                     file.seek(offset)
-                    input_stream = StreamWithProgress(file, progress_listener)
-                    return self.api.raw_api.upload_part(
+                    input_stream = StreamWithProgress(file, progress_listener, offset=offset)
+                    response = self.api.raw_api.upload_part(
                         upload_url, upload_auth_token, part_number, content_length, sha1_sum,
                         input_stream
                     )
+                    assert sha1_sum == response['contentSha1']
+                    return response
 
             except AbstractWrappedError as e:
                 if not e.should_retry():
@@ -1209,6 +1233,10 @@ class RawApi(object):
     """
 
     @abstractmethod
+    def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
+        pass
+
+    @abstractmethod
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
         pass
 
@@ -1356,6 +1384,10 @@ class B2RawApi(RawApi):
                 contentSha1=content_sha1,
                 fileInfo=file_info
             )
+
+    def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
+        return self._post_json(api_url, 'b2_finish_large_file', account_auth_token, file_id,
+                               part_sha1_array)
 
     def get_file_info(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
@@ -1961,6 +1993,10 @@ def post_json(url, params, auth_token=None):
             raise FileNotPresent(params['fileName'])
         elif status == 400 and code == "duplicate_bucket_name":
             raise DuplicateBucketName(params['bucketName'])
+        elif status == 400 and code == "missing_part":
+            raise MissingPart(params['fileId'])
+        elif status == 400 and code == "part_sha1_mismatch":
+            raise PartSha1Mismatch(params['fileId'])
         elif status == 403 and code == "storage_cap_exceeded":
             raise StorageCapExceeded()
         raise

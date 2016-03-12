@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, NonExistentBucket, RawApi
+from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, MissingPart, NonExistentBucket, RawApi
 import re
 import six
 from six.moves import range
@@ -93,6 +93,24 @@ class FileSimulator(object):
             self.parts.append(None)
         self.parts[part_number] = part
 
+    def finish(self, part_sha1_array):
+        last_part_number = max(part.part_number for part in self.parts if part is not None)
+        for part_number in six.moves.range(1, last_part_number + 1):
+            if self.parts[part_number] is None:
+                raise MissingPart(part_number)
+        my_part_sha1_array = [
+            self.parts[part_number].content_sha1
+            for part_number in six.moves.range(1, last_part_number + 1)
+        ]
+        if part_sha1_array != my_part_sha1_array:
+            raise
+        self.data_bytes = six.b('').join(
+            self.parts[part_number].part_data
+            for part_number in six.moves.range(1, last_part_number + 1)
+        )
+        self.content_length = len(self.data_bytes)
+        self.action = 'upload'
+
     def is_visible(self):
         """
         Does this file show up in b2_list_file_names?
@@ -135,6 +153,10 @@ class BucketSimulator(object):
             file_sim.content_sha1, file_sim.file_info
         ) as f:
             f.write(file_sim.data_bytes)
+
+    def finish_large_file(self, file_id, part_sha1_array):
+        file_sim = self.file_id_to_file[file_id]
+        file_sim.finish(part_sha1_array)
 
     def get_upload_url(self):
         upload_id = six.next(self.upload_url_counter)
@@ -214,6 +236,12 @@ class BucketSimulator(object):
         assert len(part_data) == content_length
         part = PartSimulator(part_number, sha1_sum, part_data)
         file.add_part(part_number, part)
+        return dict(
+            fileId=file_id,
+            partNumber=part_number,
+            contentLength=content_length,
+            contentSha1=sha1_sum
+        )
 
     def _next_file_id(self):
         return str(six.next(self.file_id_counter))
@@ -231,7 +259,7 @@ class RawSimulator(RawApi):
     API_URL = 'http://api.example.com'
     DOWNLOAD_URL = 'http://download.example.com'
 
-    MIN_PART_SIZE = 10000
+    MIN_PART_SIZE = 200
 
     def __init__(self):
         self.authorized_accounts = set()
@@ -283,6 +311,13 @@ class RawSimulator(RawApi):
         # TODO: check auth token if bucket is not public
         bucket = self._get_bucket_by_name(bucket_name)
         bucket.download_file_by_name(file_name, download_dest)
+
+    def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        account_id = self.bucket_id_to_account[bucket_id]
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+        bucket = self._get_bucket_by_id(bucket_id)
+        bucket.finish_large_file(file_id, part_sha1_array)
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
@@ -338,7 +373,8 @@ class RawSimulator(RawApi):
         if len(self.upload_errors) != 0:
             raise self.upload_errors.pop(0)
         bucket_id, upload_id = url_match.groups()
-        return self._get_bucket_by_id(bucket_id).upload_file(
+        bucket = self._get_bucket_by_id(bucket_id)
+        return bucket.upload_file(
             upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
             file_infos, data_stream
         )
@@ -353,7 +389,7 @@ class RawSimulator(RawApi):
         file_id = url_match.group(1)
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
-        bucket.upload_part(file_id, part_number, content_length, sha1_sum, input_stream)
+        return bucket.upload_part(file_id, part_number, content_length, sha1_sum, input_stream)
 
     def _assert_account_auth(self, api_url, account_auth_token, account_id):
         assert api_url == self.API_URL
