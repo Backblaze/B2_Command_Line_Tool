@@ -112,7 +112,7 @@ setup(
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
         'console_scripts': [
-            'b2=b2.__main__:main',
+            'b2=b2.console_tool:main',
         ],
     },
 )

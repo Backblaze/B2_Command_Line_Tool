@@ -17,7 +17,7 @@ import sys
 
 import six
 
-from .b2 import AuthInfoCache, BadFileInfo, B2Api, DownloadDestLocalFile, FileVersionInfo, StoredAccountInfo, VERSION
+from .b2 import AuthInfoCache, B2Api, B2Error, BadFileInfo, DownloadDestLocalFile, FileVersionInfo, MissingAccountData, StoredAccountInfo, VERSION
 from .progress import make_progress_listener, DoNothingProgressListener
 
 USAGE = """This program provides command-line access to the B2 service.
@@ -165,11 +165,64 @@ class ConsoleTool(object):
     ~/.b2_account_info between runs.
     """
 
-    def __init__(self, stdout, stderr):
-        info = StoredAccountInfo()
-        self.api = B2Api(info, AuthInfoCache(info))
+    def __init__(self, b2_api, stdout, stderr):
+        self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
+
+    def run_command(self, argv):
+        if len(argv) < 2:
+            self._usage_and_exit()
+
+        action = argv[1]
+        args = argv[2:]
+
+        try:
+            if action == 'authorize_account':
+                self.authorize_account(args)
+            elif action == 'clear_account':
+                self.clear_account(args)
+            elif action == 'create_bucket':
+                self.create_bucket(args)
+            elif action == 'delete_bucket':
+                self.delete_bucket(args)
+            elif action == 'delete_file_version':
+                self.delete_file_version(args)
+            elif action == 'download_file_by_id':
+                self.download_file_by_id(args)
+            elif action == 'download_file_by_name':
+                self.download_file_by_name(args)
+            elif action == 'get_file_info':
+                self.get_file_info(args)
+            elif action == 'hide_file':
+                self.hide_file(args)
+            elif action == 'list_buckets':
+                self.list_buckets(args)
+            elif action == 'list_file_names':
+                self.list_file_names(args)
+            elif action == 'list_file_versions':
+                self.list_file_versions(args)
+            elif action == 'ls':
+                self.ls(args)
+            elif action == 'make_url':
+                self.make_url(args)
+            elif action == 'sync':
+                self.sync(args)
+            elif action == 'update_bucket':
+                self.update_bucket(args)
+            elif action == 'upload_file':
+                self.upload_file(args)
+            elif action == 'version':
+                self.version()
+            else:
+                self._usage_and_exit()
+            return 0
+        except MissingAccountData:
+            print('ERROR: Missing account.  Use: b2 authorize_account')
+            return 1
+        except B2Error as e:
+            print('ERROR: %s' % (e,))
+            return 1
 
     def _message_and_exit(self, message):
         """Prints a message, and exits with error status.
@@ -344,7 +397,13 @@ class ConsoleTool(object):
         response = file_info.as_dict()
         if not quiet:
             self._print("URL by file name: " + bucket.get_download_url(remote_file))
-            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId']))
+            self._print(
+                "URL by fileId: " + self.api.get_download_url_for_fileid(
+                    response[
+                        'fileId'
+                    ]
+                )
+            )
         self._print(json.dumps(response, indent=2, sort_keys=True))
 
     # account
@@ -565,3 +624,25 @@ class ConsoleTool(object):
 
     def version(self):
         self._print('b2 command line tool, version', VERSION)
+
+
+def decode_sys_argv():
+    """
+    Returns the command-line arguments as unicode strings, decoding
+    whatever format they are in.
+
+    https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
+    """
+    if six.PY2:
+        encoding = sys.getfilesystemencoding()
+        return [arg.decode(encoding) for arg in sys.argv]
+    return sys.argv
+
+
+def main():
+    info = StoredAccountInfo()
+    b2_api = B2Api(info, AuthInfoCache(info))
+    ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
+    decoded_argv = decode_sys_argv()
+    exit_status = ct.run_command(decoded_argv)
+    sys.exit(exit_status)
