@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import base64
 import datetime
+import functools
 import getpass
 import hashlib
 import json
@@ -474,6 +475,15 @@ class FileNotPresent(B2Error):
         return 'File not present: %s' % (self.file_name,)
 
 
+class InvalidAuthToken(B2Error):
+    def __init__(self, message, _type):
+        self.message = message
+        self._type = _type
+
+    def __str__(self):
+        return 'Invalid authorization token. Server said: %s (%s)' % (self.message, self._type)
+
+
 class MaxFileSizeExceeded(B2Error):
     def __init__(self, size, max_allowed_size):
         self.size = size
@@ -671,12 +681,8 @@ class Bucket(object):
         return self.id_
 
     def set_type(self, type_):
-        account_info = self.api.account_info
-        auth_token = account_info.get_account_auth_token()
-        account_id = account_info.get_account_id()
-        return self.api.raw_api.update_bucket(
-            account_info.get_api_url(), auth_token, account_id, self.id_, type_
-        )
+        account_id = self.api.account_info.get_account_id()
+        return self.api.session.update_bucket(account_id, self.id_, type_)
 
     def download_file_by_id(self, file_id, download_dest):
         self.api.download_file_by_id(file_id, download_dest)
@@ -715,8 +721,6 @@ class Bucket(object):
         :param recursive:
         :return:
         """
-        auth_token = self.api.account_info.get_account_auth_token()
-
         # Every file returned must have a name that starts with the
         # folder name and a "/".
         prefix = folder_to_list
@@ -734,18 +738,14 @@ class Bucket(object):
         current_dir = None
         start_file_name = prefix
         start_file_id = None
-        raw_api = self.api.raw_api
-        api_url = self.api.account_info.get_api_url()
-        auth_token = self.api.account_info.get_account_auth_token()
+        session = self.api.session
         while True:
             if show_versions:
-                response = raw_api.list_file_versions(
-                    api_url, auth_token, self.id_, start_file_name, start_file_id, fetch_count
+                response = session.list_file_versions(
+                    self.id_, start_file_name, start_file_id, fetch_count
                 )
             else:
-                response = raw_api.list_file_names(
-                    api_url, auth_token, self.id_, start_file_name, fetch_count
-                )
+                response = session.list_file_names(self.id_, start_file_name, fetch_count)
             for entry in response['files']:
                 file_version_info = FileVersionInfoFactory.from_api_response(entry)
                 if not file_version_info.file_name.startswith(prefix):
@@ -987,9 +987,7 @@ class Bucket(object):
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
 
-        response = self.api.raw_api.get_upload_url(
-            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_
-        )
+        response = self.api.session.get_upload_url(self.id_)
         account_info.set_bucket_upload_data(
             self.id_,
             response['uploadUrl'],
@@ -1025,11 +1023,7 @@ class Bucket(object):
         )
 
     def hide_file(self, file_name):
-        account_info = self.api.account_info
-        auth_token = account_info.get_account_auth_token()
-        response = self.api.raw_api.hide_file(
-            self.api.account_info.get_api_url(), auth_token, self.id_, file_name
-        )
+        response = self.api.session.hide_file(self.id_, file_name)
         return FileVersionInfoFactory.from_api_response(response)
 
     def as_dict(self):  # TODO: refactor with other as_dict()
@@ -1161,6 +1155,9 @@ class FileVersionInfoFactory(object):
 
 @six.add_metaclass(ABCMeta)
 class AbstractCache(object):
+    def clear(self):
+        self.set_bucket_name_cache(tuple())
+
     @abstractmethod
     def get_bucket_id_or_none_from_bucket_name(self, name):
         pass
@@ -1266,6 +1263,10 @@ class B2RawApi(RawApi):
     of the HTTP calls.  It can be mocked-out for testing higher layers.
     And this class can be tested by exercising each call just once,
     which is relatively quick.
+
+    All public methods of this class except authorize_account shall accept
+    api_url and account_info as first two positional arguments. This is needed
+    for B2Session magic.
     """
 
     def _post_json(self, base_url, api_name, auth, **params):
@@ -1512,6 +1513,40 @@ class B2RawApi(RawApi):
             json_text = read_str_from_http_response(response_file)
             return json.loads(json_text)
 
+
+class B2Session(object):
+    """
+        Facade that supplies the correct api_url and account_auth_token to methods
+        of underlying raw_api and reauthorizes if necessary
+    """
+
+    def __init__(self, account_info, raw_api):
+        self.account_info = account_info  # for reauthorization
+        self.raw_api = raw_api
+
+    def __getattr__(self, name):
+        f = getattr(self.raw_api, name)
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            auth_failure_encountered = False
+            while 1:
+                api_url = self.account_info.get_api_url()
+                account_auth_token = self.account_info.get_account_auth_token()
+                try:
+                    return f(api_url, account_auth_token, *args, **kwargs)
+                except InvalidAuthToken:
+                    if not auth_failure_encountered:
+                        auth_failure_encountered = True
+                        reauthorization_success = self.account_info.authorize_automatically()
+                        if reauthorization_success:
+                            continue
+                        # TODO: exception chaining could be added here
+                        #       to help debug reauthorization failures
+                    raise
+
+        return wrapper
+
 ## B2Api
 
 
@@ -1544,36 +1579,59 @@ class B2Api(object):
         Initializes the API using the given account info.
         :param account_info:
         :param cache:
+        :param raw_api:
         :return:
         """
-        # TODO: merge account_info and cache into a single object
-
         self.raw_api = raw_api or B2RawApi()
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:
                 cache = AuthInfoCache(account_info)
+        self.session = B2Session(account_info, self.raw_api)
         self.account_info = account_info
         if cache is None:
             cache = DummyCache()
         self.cache = cache
 
-    def authorize_account(self, realm_url, account_id, application_key):
+    def authorize_automatically(self):
+        try:
+            self.authorize(
+                self.account_info.get_realm(),
+                self.account_info.get_account_id(),
+                self.account_info.get_application_key(),
+            )
+        except MissingAccountData:
+            return False
+        return True
+
+    def authorize_account(self, realm, account_id, application_key):
+        try:
+            old_account_id = self.account_info.get_account_id()
+            old_realm = self.account_info.get_realm()
+            if account_id != old_account_id or realm != old_realm:
+                self.cache.clear()
+        except MissingAccountData:
+            self.cache.clear()
+
+        realm_url = self.account_info.REALM_URLS[realm]
         response = self.raw_api.authorize_account(realm_url, account_id, application_key)
-        self.account_info.set_account_id_and_auth_token(
-            response['accountId'], response['authorizationToken'], response['apiUrl'],
-            response['downloadUrl'], response['minimumPartSize']
+
+        self.account_info.set_auth_data(
+            response['accountId'],
+            response['authorizationToken'],
+            response['apiUrl'],
+            response['downloadUrl'],
+            response['minimumPartSize'],
+            application_key,
+            realm,
         )
 
     # buckets
 
     def create_bucket(self, name, type_):
         account_id = self.account_info.get_account_id()
-        auth_token = self.account_info.get_account_auth_token()
 
-        response = self.raw_api.create_bucket(
-            self.account_info.get_api_url(), auth_token, account_id, name, type_
-        )
+        response = self.session.create_bucket(account_id, name, type_)
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
@@ -1616,21 +1674,15 @@ class B2Api(object):
         an exception, it means that the operation was a success
         """
         account_id = self.account_info.get_account_id()
-        auth_token = self.account_info.get_account_auth_token()
-        return self.raw_api.delete_bucket(
-            self.account_info.get_api_url(), auth_token, account_id, bucket.id_
-        )
+        return self.session.delete_bucket(account_id, bucket.id_)
 
     def list_buckets(self):
         """
         Calls b2_list_buckets and returns the JSON for *all* buckets.
         """
         account_id = self.account_info.get_account_id()
-        auth_token = self.account_info.get_account_auth_token()
 
-        response = self.raw_api.list_buckets(
-            self.account_info.get_api_url(), auth_token, account_id
-        )
+        response = self.session.list_buckets(account_id)
 
         buckets = BucketFactory.from_api_response(self, response)
 
@@ -1640,10 +1692,7 @@ class B2Api(object):
     # delete
     def delete_file_version(self, file_id, file_name):
         # filename argument is not first, because one day it may become optional
-        auth_token = self.account_info.get_account_auth_token()
-        response = self.raw_api.delete_file_version(
-            self.account_info.get_api_url(), auth_token, file_id, file_name
-        )
+        response = self.session.delete_file_version(file_id, file_name)
         file_info = FileVersionInfoFactory.from_api_response(response, force_action='delete',)
         assert file_info.id_ == file_id
         assert file_info.file_name == file_name
@@ -1658,8 +1707,7 @@ class B2Api(object):
     # other
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
-        auth_token = self.account_info.get_account_auth_token()
-        return self.raw_api.get_file_info(self.account_info.get_api_url(), auth_token, file_id)
+        return self.session.get_file_info(file_id)
 
 ## v0.3.x functions
 
@@ -1714,17 +1762,37 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    def get_account_id(self):
+        """ returns account_id or raises MissingAccountData exception """
+        pass
+
+    @abstractmethod
+    def get_account_auth_token(self):
+        """ returns account_auth_token or raises MissingAccountData exception """
+        pass
+
+    @abstractmethod
     def get_api_url(self):
+        """ returns api_url or raises MissingAccountData exception """
+        pass
+
+    @abstractmethod
+    def get_application_key(self):
+        """ returns application_key or raises MissingAccountData exception """
         pass
 
     @abstractmethod
     def get_download_url(self):
+        """ returns download_url or raises MissingAccountData exception """
         pass
 
     @abstractmethod
-    def set_account_id_and_auth_token(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size
-    ):
+    def get_realm(self):
+        """ returns realm or raises MissingAccountData exception """
+        pass
+
+    @abstractmethod
+    def set_auth_data(self, account_id, auth_token, api_url, download_url, application_key, realm):
         pass
 
     @abstractmethod
@@ -1755,6 +1823,7 @@ class StoredAccountInfo(AbstractAccountInfo):
 
     ACCOUNT_AUTH_TOKEN = 'account_auth_token'
     ACCOUNT_ID = 'account_id'
+    APPLICATION_KEY = 'application_key'
     API_URL = 'api_url'
     BUCKET_NAMES_TO_IDS = 'bucket_names_to_ids'
     BUCKET_UPLOAD_DATA = 'bucket_upload_data'
@@ -1762,11 +1831,15 @@ class StoredAccountInfo(AbstractAccountInfo):
     BUCKET_UPLOAD_AUTH_TOKEN = 'bucket_upload_auth_token'
     DOWNLOAD_URL = 'download_url'
     MINIMUM_PART_SIZE = 'minimum_part_size'
+    REALM = 'realm'
 
     def __init__(self):
         user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
         self.filename = os.path.expanduser(user_account_info_path)
         self.data = self._try_to_read_file()
+        self._set_defaults()
+
+    def _set_defaults(self):
         if self.BUCKET_UPLOAD_DATA not in self.data:
             self.data[self.BUCKET_UPLOAD_DATA] = {}
         if self.BUCKET_NAMES_TO_IDS not in self.data:
@@ -1791,6 +1864,7 @@ class StoredAccountInfo(AbstractAccountInfo):
     def clear(self):
         self.data = {}
         self._write_file()
+        self._set_defaults()
 
     def get_account_id(self):
         return self._get_account_info_or_exit(self.ACCOUNT_ID)
@@ -1801,26 +1875,33 @@ class StoredAccountInfo(AbstractAccountInfo):
     def get_api_url(self):
         return self._get_account_info_or_exit(self.API_URL)
 
+    def get_application_key(self):
+        return self._get_account_info_or_exit(self.APPLICATION_KEY)
+
     def get_download_url(self):
         return self._get_account_info_or_exit(self.DOWNLOAD_URL)
 
     def get_minimum_part_size(self):
         return self._get_account_info_or_exit(self.MINIMUM_PART_SIZE)
 
+    def get_realm(self):
+        return self._get_account_info_or_exit(self.REALM)
+
     def _get_account_info_or_exit(self, key):
-        """Returns the named field from the account data, or errors and exits.
-        """
         result = self.data.get(key)
         if result is None:
             raise MissingAccountData(key)
         return result
 
-    def set_account_id_and_auth_token(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    def set_auth_data(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
+        realm
     ):
         self.data[self.ACCOUNT_ID] = account_id
         self.data[self.ACCOUNT_AUTH_TOKEN] = auth_token
         self.data[self.API_URL] = api_url
+        self.data[self.APPLICATION_KEY] = application_key
+        self.data[self.REALM] = realm
         self.data[self.DOWNLOAD_URL] = download_url
         self.data[self.MINIMUM_PART_SIZE] = minimum_part_size
         self._write_file()
@@ -1996,6 +2077,8 @@ def post_json(url, params, auth_token=None):
             raise MissingPart(params['fileId'])
         elif status == 400 and code == "part_sha1_mismatch":
             raise PartSha1Mismatch(params['fileId'])
+        elif status == 401 and code in ("bad_auth_token", "expired_auth_token"):
+            raise InvalidAuthToken(error_dict.get('message'), code)
         elif status == 403 and code == "storage_cap_exceeded":
             raise StorageCapExceeded()
         raise
@@ -2508,17 +2591,17 @@ class ConsoleTool(object):
     # account
 
     def authorize_account(self, args):
-        option = 'production'
+        realm = 'production'
         while 0 < len(args) and args[0][0] == '-':
-            option = args[0][2:]
+            realm = args[0][2:]
             args = args[1:]
-            if option in self.api.account_info.REALM_URLS:
+            if realm in self.api.account_info.REALM_URLS:
                 break
             else:
-                print('ERROR: unknown option', option)
+                print('ERROR: unknown option', realm)
                 usage_and_exit()
 
-        url = self.api.account_info.REALM_URLS[option]
+        url = self.api.account_info.REALM_URLS[realm]
         print('Using %s' % url)
 
         if 2 < len(args):
@@ -2533,7 +2616,7 @@ class ConsoleTool(object):
         else:
             application_key = getpass.getpass('Backblaze application key: ')
 
-        self.api.authorize_account(url, account_id, application_key)
+        self.api.authorize_account(realm, account_id, application_key)
 
     def clear_account(self, args):
         if len(args) != 0:

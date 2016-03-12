@@ -42,6 +42,8 @@ def write_file(path, data):
 
 
 class StubAccountInfo(AbstractAccountInfo):
+    REALM_URLS = {'test_realm': 'http://realm.example.com'}
+
     def __init__(self):
         self.clear()
 
@@ -51,6 +53,8 @@ class StubAccountInfo(AbstractAccountInfo):
         self.api_url = None
         self.download_url = None
         self.minimum_part_size = None
+        self.application_key = None
+        self.realm = None
         self.buckets = {}
         self.large_file_uploads = {}
 
@@ -58,14 +62,17 @@ class StubAccountInfo(AbstractAccountInfo):
         if bucket_id in self.buckets:
             del self.buckets[bucket_id]
 
-    def set_account_id_and_auth_token(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size
+    def set_auth_data(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
+        realm
     ):
         self.account_id = account_id
         self.auth_token = auth_token
         self.api_url = api_url
         self.download_url = download_url
         self.minimum_part_size = minimum_part_size
+        self.application_key = application_key
+        self.realm = realm
 
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
         self.buckets[bucket_id] = (upload_url, upload_auth_token)
@@ -79,11 +86,17 @@ class StubAccountInfo(AbstractAccountInfo):
     def get_api_url(self):
         return self.api_url
 
+    def get_application_key(self):
+        return self.application_key
+
     def get_download_url(self):
         return self.download_url
 
     def get_minimum_part_size(self):
         return self.minimum_part_size
+
+    def get_realm(self):
+        return self.realm
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))
@@ -137,7 +150,7 @@ class TestCaseWithBucket(unittest.TestCase):
         self.simulator = RawSimulator()
         self.account_info = StubAccountInfo()
         self.api = B2Api(self.account_info, raw_api=self.simulator)
-        self.api.authorize_account('http://realm.example.com', 'my-account', 'my-key')
+        self.api.authorize_account('test_realm', 'my-account', 'my-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
 
 
