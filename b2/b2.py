@@ -1630,8 +1630,8 @@ class StoredAccountInfo(AbstractAccountInfo):
 
     def clear(self):
         self.data = {}
-        self._set_defaults()
         self._write_file()
+        self._set_defaults()
 
     def get_account_id(self):
         return self._get_account_info_or_exit(self.ACCOUNT_ID)
