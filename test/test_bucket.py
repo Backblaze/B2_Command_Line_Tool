@@ -107,6 +107,7 @@ class StubProgressListener(ProgressListener):
     For a total byte count of 100, and updates at 33 and 66, the returned
     string looks like: "100: 33 66"
     """
+
     def __init__(self):
         self.history = []
 
@@ -115,7 +116,7 @@ class StubProgressListener(ProgressListener):
 
     def set_total_bytes(self, total_byte_count):
         assert len(self.history) == 0
-        self.history.append('%d:' % (total_byte_count, ))
+        self.history.append('%d:' % (total_byte_count,))
 
     def bytes_completed(self, byte_count):
         self.history.append(str(byte_count))
@@ -124,7 +125,7 @@ class StubProgressListener(ProgressListener):
         pass
 
     def __enter__(self):
-        return this
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass

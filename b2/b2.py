@@ -820,9 +820,7 @@ class Bucket(object):
         Upload bytes in memory to a B2 file
         """
         upload_source = UploadSourceBytes(data_bytes)
-        return self.upload(
-            upload_source, file_name, content_type, file_infos, progress_listener
-        )
+        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
 
     def upload_local_file(
         self,
@@ -1386,8 +1384,9 @@ class B2RawApi(RawApi):
             )
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
-        return self._post_json(api_url, 'b2_finish_large_file', account_auth_token, file_id,
-                               part_sha1_array)
+        return self._post_json(
+            api_url, 'b2_finish_large_file', account_auth_token, file_id, part_sha1_array
+        )
 
     def get_file_info(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
