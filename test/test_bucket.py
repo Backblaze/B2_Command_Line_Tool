@@ -94,7 +94,7 @@ class TestCaseWithBucket(unittest.TestCase):
         self.simulator = RawSimulator()
         self.account_info = StubAccountInfo()
         self.api = B2Api(self.account_info, raw_api=self.simulator)
-        self.api.authorize_account('production', 'my-account', 'my-key')
+        self.api.authorize_account('production', 'my-account', 'good-app-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
 
 

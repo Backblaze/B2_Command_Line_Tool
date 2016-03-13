@@ -17,7 +17,10 @@ import sys
 
 import six
 
-from .b2 import AuthInfoCache, B2Api, B2Error, BadFileInfo, DownloadDestLocalFile, FileVersionInfo, MissingAccountData, StoredAccountInfo, VERSION
+from .b2 import (
+    AuthInfoCache, B2Api, B2Error, BadFileInfo, DownloadDestLocalFile, FileVersionInfo,
+    MissingAccountData, StoredAccountInfo, VERSION
+)
 from .progress import make_progress_listener, DoNothingProgressListener
 
 USAGE = """This program provides command-line access to the B2 service.
@@ -238,6 +241,9 @@ class ConsoleTool(object):
     def _print(self, *args):
         print(*args, file=self.stdout)
 
+    def _print_stderr(self, *args):
+        print(*args, file=self.stderr)
+
     # bucket
 
     def create_bucket(self, args):
@@ -444,8 +450,12 @@ class ConsoleTool(object):
         else:
             application_key = getpass.getpass('Backblaze application key: ')
 
-        self.api.authorize_account(realm, account_id, application_key)
-        return 0
+        try:
+            self.api.authorize_account(realm, account_id, application_key)
+            return 0
+        except B2Error as e:
+            self._print_stderr('ERROR: unable to authorize account: ' + e.message)
+            return 1
 
     def clear_account(self, args):
         if len(args) != 0:

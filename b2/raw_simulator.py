@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, MissingPart, NonExistentBucket, RawApi
+from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart, NonExistentBucket, RawApi
 import re
 import six
 from six.moves import range
@@ -314,7 +314,9 @@ class RawSimulator(RawApi):
 
     def authorize_account(self, realm_url, account_id, application_key):
         assert realm_url == 'http://production.example.com'
-        # TODO: validate application key
+        if application_key != 'good-app-key':
+            raise InvalidAuthToken('invalid application key: %s' %
+                                   (application_key,), 'bad_auth_token')
         self.authorized_accounts.add(account_id)
         return dict(
             accountId=account_id,

@@ -29,7 +29,21 @@ class TestConsoleTool(unittest.TestCase):
         # Initial condition
         assert (self.account_info.get_account_auth_token() is None)
 
-        # Authorize an account with the wrong api key.
+        # Authorize an account with a bad api key.
+        expected_stdout = '''
+        Using http://production.example.com
+        '''
+
+        expected_stderr = '''
+        ERROR: unable to authorize account: invalid application key: bad-app-key
+        '''
+
+        self._run_command(
+            ['b2', 'authorize_account', 'my-account', 'bad-app-key'], expected_stdout,
+            expected_stderr, 1
+        )
+
+        # Authorize an account with a good api key.
         expected_stdout = """
         Using http://production.example.com
         """
@@ -37,10 +51,21 @@ class TestConsoleTool(unittest.TestCase):
         self._run_command(
             ['b2', 'authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
         )
+        assert (self.account_info.get_account_auth_token() is not None)
+
+        # Clearing the account should remove the auth token
+        # from the account info.
+        self._run_command(['b2', 'clear_account'], '', '', 0)
+        assert (self.account_info.get_account_auth_token() is None)
 
     def _run_command(self, argv, expected_stdout='', expected_stderr='', expected_status=0):
-        # The ConsoleTool is stateless, so we can make a new one for each
-        # call, with a fresh stdout and stderr
+        """
+        Runs one command using the ConsoleTool, checking stdout, stderr, and
+        the returned status code.
+
+        The ConsoleTool is stateless, so we can make a new one for each
+        call, with a fresh stdout and stderr
+        """
         stdout = six.StringIO()
         stderr = six.StringIO()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
