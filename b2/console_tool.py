@@ -172,50 +172,50 @@ class ConsoleTool(object):
 
     def run_command(self, argv):
         if len(argv) < 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
 
         action = argv[1]
         args = argv[2:]
 
         try:
             if action == 'authorize_account':
-                self.authorize_account(args)
+                return self.authorize_account(args)
             elif action == 'clear_account':
-                self.clear_account(args)
+                return self.clear_account(args)
             elif action == 'create_bucket':
-                self.create_bucket(args)
+                return self.create_bucket(args)
             elif action == 'delete_bucket':
-                self.delete_bucket(args)
+                return self.delete_bucket(args)
             elif action == 'delete_file_version':
-                self.delete_file_version(args)
+                return self.delete_file_version(args)
             elif action == 'download_file_by_id':
-                self.download_file_by_id(args)
+                return self.download_file_by_id(args)
             elif action == 'download_file_by_name':
-                self.download_file_by_name(args)
+                return self.download_file_by_name(args)
             elif action == 'get_file_info':
-                self.get_file_info(args)
+                return self.get_file_info(args)
             elif action == 'hide_file':
-                self.hide_file(args)
+                return self.hide_file(args)
             elif action == 'list_buckets':
-                self.list_buckets(args)
+                return self.list_buckets(args)
             elif action == 'list_file_names':
-                self.list_file_names(args)
+                return self.list_file_names(args)
             elif action == 'list_file_versions':
-                self.list_file_versions(args)
+                return self.list_file_versions(args)
             elif action == 'ls':
-                self.ls(args)
+                return self.ls(args)
             elif action == 'make_url':
-                self.make_url(args)
+                return self.make_url(args)
             elif action == 'sync':
-                self.sync(args)
+                return self.sync(args)
             elif action == 'update_bucket':
-                self.update_bucket(args)
+                return self.update_bucket(args)
             elif action == 'upload_file':
-                self.upload_file(args)
+                return self.upload_file(args)
             elif action == 'version':
-                self.version()
+                return self.version()
             else:
-                self._usage_and_exit()
+                return self._usage_and_fail()
             return 0
         except MissingAccountData:
             print('ERROR: Missing account.  Use: b2 authorize_account')
@@ -224,16 +224,16 @@ class ConsoleTool(object):
             print('ERROR: %s' % (e,))
             return 1
 
-    def _message_and_exit(self, message):
+    def _message_and_fail(self, message):
         """Prints a message, and exits with error status.
         """
         print(message, file=self.stderr)
-        sys.exit(1)
+        return 1
 
-    def _usage_and_exit(self):
+    def _usage_and_fail(self):
         """Prints a usage message, and exits with an error status.
         """
-        self._message_and_exit(USAGE)
+        return self._message_and_fail(USAGE)
 
     def _print(self, *args):
         print(*args, file=self.stdout)
@@ -242,25 +242,26 @@ class ConsoleTool(object):
 
     def create_bucket(self, args):
         if len(args) != 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
         bucket_type = args[1]
-
         self._print(self.api.create_bucket(bucket_name, bucket_type).id_)
+        return 0
 
     def delete_bucket(self, args):
         if len(args) != 1:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
 
         bucket = self.api.get_bucket_by_name(bucket_name)
         response = self.api.delete_bucket(bucket)
 
         self._print(json.dumps(response, indent=4, sort_keys=True))
+        return 0
 
     def update_bucket(self, args):
         if len(args) != 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
         bucket_type = args[1]
 
@@ -268,19 +269,21 @@ class ConsoleTool(object):
         response = bucket.set_type(bucket_type)
 
         self._print(json.dumps(response, indent=4, sort_keys=True))
+        return 0
 
     def list_buckets(self, args):
         if len(args) != 0:
-            self._usage_and_exit()
+            return self._usage_and_fail()
 
         for b in self.api.list_buckets():
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
+        return 0
 
     # file
 
     def delete_file_version(self, args):
         if len(args) != 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         file_name = args[0]
         file_id = args[1]
 
@@ -289,10 +292,11 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
 
     def download_file_by_id(self, args):
         if len(args) != 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         file_id = args[0]
         local_file_name = args[1]
 
@@ -300,10 +304,11 @@ class ConsoleTool(object):
         download_dest = DownloadDestLocalFile(local_file_name, progress_listener)
         self.api.download_file_by_id(file_id, download_dest)
         self._print_download_info(download_dest)
+        return 0
 
     def download_file_by_name(self, args):
         if len(args) != 3:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
         file_name = args[1]
         local_file_name = args[2]
@@ -313,6 +318,7 @@ class ConsoleTool(object):
         download_dest = DownloadDestLocalFile(local_file_name, progress_listener)
         bucket.download_file_by_name(file_name, download_dest)
         self._print_download_info(download_dest)
+        return 0
 
     def _print_download_info(self, download_dest):
         self._print('File name:   ', download_dest.file_name)
@@ -323,19 +329,21 @@ class ConsoleTool(object):
         for name in sorted(six.iterkeys(download_dest.file_info)):
             self._print('INFO', name + ':', download_dest.file_info[name])
         self._print('checksum matches')
+        return 0
 
     def get_file_info(self, args):
         if len(args) != 1:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         file_id = args[0]
 
         response = self.api.get_file_info(file_id)
 
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
 
     def hide_file(self, args):
         if len(args) != 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
         file_name = args[1]
 
@@ -345,6 +353,7 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
 
     def upload_file(self, args):
         content_type = None
@@ -356,17 +365,17 @@ class ConsoleTool(object):
             option = args[0]
             if option == '--sha1':
                 if len(args) < 2:
-                    self._usage_and_exit()
+                    return self._usage_and_fail()
                 sha1_sum = args[1]
                 args = args[2:]
             elif option == '--contentType':
                 if len(args) < 2:
-                    self._usage_and_exit()
+                    return self._usage_and_fail()
                 content_type = args[1]
                 args = args[2:]
             elif option == '--info':
                 if len(args) < 2:
-                    self._usage_and_exit()
+                    return self._usage_and_fail()
                 parts = args[1].split('=', 1)
                 if len(parts) == 1:
                     raise BadFileInfo(args[1])
@@ -376,10 +385,10 @@ class ConsoleTool(object):
                 quiet = True
                 args = args[1:]
             else:
-                self._usage_and_exit()
+                return self._usage_and_fail()
 
         if len(args) != 3:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
         local_file = args[1]
         remote_file = local_path_to_b2_path(args[2])
@@ -405,6 +414,7 @@ class ConsoleTool(object):
                 )
             )
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
 
     # account
 
@@ -417,13 +427,13 @@ class ConsoleTool(object):
                 break
             else:
                 self._print('ERROR: unknown option', realm)
-                self._usage_and_exit()
+                return self._usage_and_fail()
 
         url = self.api.account_info.REALM_URLS[realm]
         self._print('Using %s' % url)
 
         if 2 < len(args):
-            self._usage_and_exit()
+            return self._usage_and_fail()
         if 0 < len(args):
             account_id = args[0]
         else:
@@ -435,17 +445,19 @@ class ConsoleTool(object):
             application_key = getpass.getpass('Backblaze application key: ')
 
         self.api.authorize_account(realm, account_id, application_key)
+        return 0
 
     def clear_account(self, args):
         if len(args) != 0:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         self.api.account_info.clear()
+        return 0
 
     # listing
 
     def list_file_names(self, args):
         if len(args) < 1 or 3 < len(args):
-            self._usage_and_exit()
+            return self._usage_and_fail()
 
         bucket_name = args[0]
         if 2 <= len(args):
@@ -461,10 +473,11 @@ class ConsoleTool(object):
 
         response = bucket.list_file_names(first_file_name, count)
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
 
     def list_file_versions(self, args):
         if len(args) < 1 or 4 < len(args):
-            self._usage_and_exit()
+            return self._usage_and_fail()
 
         bucket_name = args[0]
         if 2 <= len(args):
@@ -484,6 +497,7 @@ class ConsoleTool(object):
 
         response = bucket.list_file_versions(first_file_name, first_file_id, count)
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
 
     def ls(self, args):
         long_format = False
@@ -497,9 +511,9 @@ class ConsoleTool(object):
                 show_versions = True
             else:
                 self._print('Unknown option:', option)
-                self._usage_and_exit()
+                return self._usage_and_fail()
         if len(args) < 1 or len(args) > 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         bucket_name = args[0]
         if len(args) == 1:
             prefix = ""
@@ -517,15 +531,18 @@ class ConsoleTool(object):
             else:
                 self._print(file_version_info.format_ls_entry())
 
+        return 0
+
     # other
 
     def make_url(self, args):
         if len(args) != 1:
-            self._usage_and_exit()
+            return self._usage_and_fail()
 
         file_id = args[0]
 
         self._print(self.api.get_download_url_for_fileid(file_id))
+        return 0
 
     def sync(self, args):
         # TODO: break up this method.  it's too long
@@ -539,18 +556,18 @@ class ConsoleTool(object):
             elif option == '--hide':
                 options['hide'] = True
             else:
-                self._message_and_exit('ERROR: unknown option: ' + option)
+                return self._message_and_fail('ERROR: unknown option: ' + option)
         if len(args) != 2:
-            self._usage_and_exit()
+            return self._usage_and_fail()
         src = args[0]
         dst = args[1]
         local_path = src if dst.startswith('b2:') else dst
         b2_path = dst if dst.startswith('b2:') else src
         is_b2_src = b2_path == src
         if local_path.startswith('b2:') or not b2_path.startswith('b2:'):
-            self._message_and_exit('ERROR: one of the paths must be a "b2:<bucket>" URI')
+            return self._message_and_fail('ERROR: one of the paths must be a "b2:<bucket>" URI')
         elif not os.path.exists(local_path):
-            self._message_and_exit('ERROR: local path doesn\'t exist: ' + local_path)
+            return self._message_and_fail('ERROR: local path doesn\'t exist: ' + local_path)
         bucket_name = b2_path[3:].split('/')[0]
         bucket_prefix = '/'.join(b2_path[3:].split('/')[1:])
         if bucket_prefix and not bucket_prefix.endswith('/'):
@@ -622,8 +639,11 @@ class ConsoleTool(object):
                     except Exception:
                         pass
 
+        return 0
+
     def version(self):
         self._print('b2 command line tool, version', VERSION)
+        return 0
 
 
 def decode_sys_argv():

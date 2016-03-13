@@ -312,7 +312,9 @@ class RawSimulator(RawApi):
         assert len(self.upload_errors) == 0
         self.upload_errors = errors
 
-    def authorize_account(self, _realm_url, account_id, _application_key):
+    def authorize_account(self, realm_url, account_id, application_key):
+        assert realm_url == 'http://production.example.com'
+        # TODO: validate application key
         self.authorized_accounts.add(account_id)
         return dict(
             accountId=account_id,
