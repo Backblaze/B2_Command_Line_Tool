@@ -27,11 +27,7 @@ class TestConsoleTool(unittest.TestCase):
         self.raw_api = RawSimulator()
         self.b2_api = B2Api(self.account_info, self.cache, self.raw_api)
 
-    def test_authorize_and_clear_account(self):
-        # Initial condition
-        assert self.account_info.get_account_auth_token() is None
-
-        # Authorize an account with a bad api key.
+    def test_authorize_with_bad_key(self):
         expected_stdout = '''
         Using http://production.example.com
         '''
@@ -44,6 +40,10 @@ class TestConsoleTool(unittest.TestCase):
             ['authorize_account', 'my-account', 'bad-app-key'], expected_stdout, expected_stderr, 1
         )
 
+    def test_authorize_with_good_key(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
         # Authorize an account with a good api key.
         expected_stdout = """
         Using http://production.example.com
@@ -52,6 +52,13 @@ class TestConsoleTool(unittest.TestCase):
         self._run_command(
             ['authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
         )
+
+        # Auth token should be in account info now
+        assert self.account_info.get_account_auth_token() is not None
+
+    def test_clear_account(self):
+        # Initial condition
+        self._authorize_account()
         assert self.account_info.get_account_auth_token() is not None
 
         # Clearing the account should remove the auth token
