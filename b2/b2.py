@@ -651,18 +651,12 @@ class Bucket(object):
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
-        account_info = self.api.account_info
-        return self.api.raw_api.list_file_names(
-            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_,
-            start_filename, max_entries
-        )
+        return self.api.session.list_file_names(self.id_, start_filename, max_entries)
 
     def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
-        account_info = self.api.account_info
-        return self.api.raw_api.list_file_versions(
-            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_,
-            start_filename, start_file_id, max_entries
+        return self.api.session.list_file_versions(
+            self.id_, start_filename, start_file_id, max_entries
         )
 
     def list_unfinished_large_files(self, start_file_id=None, batch_size=None):

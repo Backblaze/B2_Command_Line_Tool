@@ -29,7 +29,7 @@ class TestConsoleTool(unittest.TestCase):
 
     def test_authorize_and_clear_account(self):
         # Initial condition
-        assert (self.account_info.get_account_auth_token() is None)
+        assert self.account_info.get_account_auth_token() is None
 
         # Authorize an account with a bad api key.
         expected_stdout = '''
@@ -52,12 +52,12 @@ class TestConsoleTool(unittest.TestCase):
         self._run_command(
             ['authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
         )
-        assert (self.account_info.get_account_auth_token() is not None)
+        assert self.account_info.get_account_auth_token() is not None
 
         # Clearing the account should remove the auth token
         # from the account info.
         self._run_command(['clear_account'], '', '', 0)
-        assert (self.account_info.get_account_auth_token() is None)
+        assert self.account_info.get_account_auth_token() is None
 
     def test_buckets(self):
         self._authorize_account()
