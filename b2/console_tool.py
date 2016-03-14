@@ -221,16 +221,16 @@ class ConsoleTool(object):
                 return self._usage_and_fail()
             return 0
         except MissingAccountData:
-            print('ERROR: Missing account.  Use: b2 authorize_account')
+            self._print_stderr('ERROR: Missing account.  Use: b2 authorize_account')
             return 1
         except B2Error as e:
-            print('ERROR: %s' % (e,))
+            self._print_stderr('ERROR: %s' % (e,))
             return 1
 
     def _message_and_fail(self, message):
         """Prints a message, and exits with error status.
         """
-        print(message, file=self.stderr)
+        self._print_stderr(message)
         return 1
 
     def _usage_and_fail(self):

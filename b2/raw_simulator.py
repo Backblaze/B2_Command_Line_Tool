@@ -8,7 +8,10 @@
 #
 ######################################################################
 
-from .b2 import BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart, NonExistentBucket, RawApi
+from .b2 import (
+    BadJson, BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart,
+    NonExistentBucket, RawApi
+)
 import re
 import six
 from six.moves import range
@@ -139,7 +142,7 @@ class BucketSimulator(object):
         # It would be nice to use an OrderedDict for this, but 2.6 doesn't have it.
         self.file_name_and_id_to_file = dict()
 
-    def bucket_json(self):
+    def bucket_dict(self):
         return dict(
             accountId=self.account_id,
             bucketName=self.bucket_name,
@@ -248,6 +251,10 @@ class BucketSimulator(object):
         self.file_name_and_id_to_file[file.sort_key()] = file
         return file.as_start_large_file_result()
 
+    def update_bucket(self, bucket_type):
+        self.bucket_type = bucket_type
+        return self.bucket_dict()
+
     def upload_file(
         self, upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
         file_infos, data_stream
@@ -315,8 +322,9 @@ class RawSimulator(RawApi):
     def authorize_account(self, realm_url, account_id, application_key):
         assert realm_url == 'http://production.example.com'
         if application_key != 'good-app-key':
-            raise InvalidAuthToken('invalid application key: %s' %
-                                   (application_key,), 'bad_auth_token')
+            raise InvalidAuthToken(
+                'invalid application key: %s' % (application_key,), 'bad_auth_token'
+            )
         self.authorized_accounts.add(account_id)
         return dict(
             accountId=account_id,
@@ -327,6 +335,8 @@ class RawSimulator(RawApi):
         )
 
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
+        if not re.match(r'^[-a-zA-Z]*$', bucket_name):
+            raise BadJson('illegal bucket name: ' + bucket_name)
         self._assert_account_auth(api_url, account_auth_token, account_id)
         if bucket_name in self.bucket_name_to_bucket:
             raise DuplicateBucketName(bucket_name)
@@ -335,7 +345,15 @@ class RawSimulator(RawApi):
         self.bucket_name_to_bucket[bucket_name] = bucket
         self.bucket_id_to_account[bucket_id] = account_id
         self.bucket_id_to_bucket[bucket_id] = bucket
-        return bucket.bucket_json()
+        return bucket.bucket_dict()
+
+    def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+        bucket = self._get_bucket_by_id(bucket_id)
+        del self.bucket_id_to_account[bucket_id]
+        del self.bucket_name_to_bucket[bucket.bucket_name]
+        del self.bucket_id_to_bucket[bucket_id]
+        return bucket.bucket_dict()
 
     def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest):
         url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
@@ -364,6 +382,15 @@ class RawSimulator(RawApi):
         bucket_id = self.file_id_to_bucket_id[file_id]
         self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
         return self._get_bucket_by_id(bucket_id).get_upload_part_url(file_id)
+
+    def list_buckets(self, api_url, account_auth_token, account_id):
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+        sorted_buckets = [
+            self.bucket_name_to_bucket[bucket_name]
+            for bucket_name in sorted(six.iterkeys(self.bucket_name_to_bucket))
+        ]
+        bucket_list = [bucket.bucket_dict() for bucket in sorted_buckets]
+        return dict(buckets=bucket_list)
 
     def list_file_names(
         self,
@@ -412,6 +439,11 @@ class RawSimulator(RawApi):
         result = bucket.start_large_file(file_name, content_type, file_info)
         self.file_id_to_bucket_id[result['fileId']] = bucket_id
         return result
+
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.update_bucket(bucket_type)
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,

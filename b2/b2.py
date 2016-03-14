@@ -274,7 +274,7 @@ class BadJson(B2Error):
         self.message = message
 
     def __str__(self):
-        return 'Generic api error ("bad_json"): %s' % (self.message,)
+        return 'Bad request: %s' % (self.message,)
 
 
 class BadFileInfo(B2Error):
@@ -1143,6 +1143,10 @@ class RawApi(object):
     """
 
     @abstractmethod
+    def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
+        pass
+
+    @abstractmethod
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         pass
 
@@ -1165,6 +1169,10 @@ class RawApi(object):
     def start_large_file(
         self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
     ):
+        pass
+
+    @abstractmethod
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
         pass
 
     @abstractmethod

@@ -39,8 +39,7 @@ class TestConsoleTool(unittest.TestCase):
         '''
 
         self._run_command(
-            ['b2', 'authorize_account', 'my-account', 'bad-app-key'], expected_stdout,
-            expected_stderr, 1
+            ['authorize_account', 'my-account', 'bad-app-key'], expected_stdout, expected_stderr, 1
         )
 
         # Authorize an account with a good api key.
@@ -49,14 +48,64 @@ class TestConsoleTool(unittest.TestCase):
         """
 
         self._run_command(
-            ['b2', 'authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+            ['authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
         )
         assert (self.account_info.get_account_auth_token() is not None)
 
         # Clearing the account should remove the auth token
         # from the account info.
-        self._run_command(['b2', 'clear_account'], '', '', 0)
+        self._run_command(['clear_account'], '', '', 0)
         assert (self.account_info.get_account_auth_token() is None)
+
+    def test_create_update_delete_list_bucket(self):
+        self._authorize_account()
+
+        # Make a bucket with an illegal name
+        expected_stdout = 'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
+        self._run_command(['create_bucket', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1)
+
+        # Make two buckets
+        self._run_command(['create_bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['create_bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
+
+        # Update one of them
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic"
+        }
+        '''
+
+        self._run_command(['update_bucket', 'my-bucket', 'allPublic'], expected_stdout, '', 0)
+
+        # Make sure they are there
+        expected_stdout = '''
+        bucket_0  allPublic   my-bucket
+        bucket_1  allPrivate  your-bucket
+        '''
+
+        self._run_command(['list_buckets'], expected_stdout, '', 0)
+
+        # Delete one
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_1",
+            "bucketName": "your-bucket",
+            "bucketType": "allPrivate"
+        }
+        '''
+
+        self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+
+    def _authorize_account(self):
+        """
+        Prepare for a test by authorizing an account and getting an
+        account auth token
+        """
+        self._run_command_no_checks(['authorize_account', 'my-account', 'good-app-key'])
 
     def _run_command(self, argv, expected_stdout='', expected_stderr='', expected_status=0):
         """
@@ -66,13 +115,30 @@ class TestConsoleTool(unittest.TestCase):
         The ConsoleTool is stateless, so we can make a new one for each
         call, with a fresh stdout and stderr
         """
+        expected_stdout = self._trim_leading_spaces(expected_stdout)
+        expected_stderr = self._trim_leading_spaces(expected_stderr)
         stdout = six.StringIO()
         stderr = six.StringIO()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        actual_status = console_tool.run_command(argv)
+        actual_status = console_tool.run_command(['b2'] + argv)
+
+        # The json module in Python 2.6 includes trailing spaces.  Later version of Python don't.
+        actual_stdout = self._trim_trailing_spaces(stdout.getvalue())
+        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
+
+        if expected_stdout != actual_stdout:
+            print(repr(expected_stdout))
+            print(repr(actual_stdout))
+        if expected_stderr != actual_stderr:
+            print(repr(expected_stderr))
+            print(repr(actual_stderr))
+
+        self.assertEqual(expected_stdout, actual_stdout, 'stdout')
+        self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
-        self.assertEqual(self._trim_leading_spaces(expected_stdout), stdout.getvalue(), 'stdout')
-        self.assertEqual(self._trim_leading_spaces(expected_stderr), stderr.getvalue(), 'stderr')
+
+    def _run_command_no_checks(self, argv):
+        ConsoleTool(self.b2_api, six.StringIO(), six.StringIO()).run_command(['b2'] + argv)
 
     def _trim_leading_spaces(self, s):
         """
@@ -90,9 +156,12 @@ class TestConsoleTool(unittest.TestCase):
         while 0 < len(lines) and space_count < len(lines[0]) and lines[0][space_count] == ' ':
             space_count += 1
 
-        # Remove the leading spaces from each line
+        # Remove the leading spaces from each line.
         leading_spaces = ' ' * space_count
         assert all(
             line.startswith(leading_spaces) for line in lines
         ), 'all lines have leading spaces'
         return '\n'.join(line[space_count:] for line in lines)
+
+    def _trim_trailing_spaces(self, s):
+        return '\n'.join(line.rstrip() for line in s.split('\n'))
