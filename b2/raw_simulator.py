@@ -304,7 +304,6 @@ class RawSimulator(RawApi):
     def __init__(self):
         self.authorized_accounts = set()
         self.bucket_name_to_bucket = dict()
-        self.bucket_id_to_account = dict()
         self.bucket_id_to_bucket = dict()
         self.bucket_id_counter = iter(range(100))
         self.file_id_to_bucket_id = {}
@@ -343,14 +342,12 @@ class RawSimulator(RawApi):
         bucket_id = 'bucket_' + str(six.next(self.bucket_id_counter))
         bucket = BucketSimulator(account_id, bucket_id, bucket_name, bucket_type)
         self.bucket_name_to_bucket[bucket_name] = bucket
-        self.bucket_id_to_account[bucket_id] = account_id
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_dict()
 
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
         self._assert_account_auth(api_url, account_auth_token, account_id)
         bucket = self._get_bucket_by_id(bucket_id)
-        del self.bucket_id_to_account[bucket_id]
         del self.bucket_name_to_bucket[bucket.bucket_name]
         del self.bucket_id_to_bucket[bucket_id]
         return bucket.bucket_dict()
@@ -369,18 +366,19 @@ class RawSimulator(RawApi):
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         bucket_id = self.file_id_to_bucket_id[file_id]
-        account_id = self.bucket_id_to_account[bucket_id]
-        self._assert_account_auth(api_url, account_auth_token, account_id)
         bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         bucket.finish_large_file(file_id, part_sha1_array)
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
-        self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return self._get_bucket_by_id(bucket_id).get_upload_url()
 
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
-        self._assert_account_auth(api_url, account_auth_token, self.bucket_id_to_account[bucket_id])
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return self._get_bucket_by_id(bucket_id).get_upload_part_url(file_id)
 
     def list_buckets(self, api_url, account_auth_token, account_id):
