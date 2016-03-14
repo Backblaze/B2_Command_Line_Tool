@@ -203,6 +203,17 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
+            # Delete one file version
+            expected_stdout = '''
+            {
+              "action": "delete",
+              "fileId": "9998",
+              "fileName": "file1.txt"
+            }
+            '''
+
+            self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an

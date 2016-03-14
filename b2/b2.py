@@ -1140,6 +1140,10 @@ class RawApi(object):
         pass
 
     @abstractmethod
+    def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
+        pass
+
+    @abstractmethod
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         pass
 

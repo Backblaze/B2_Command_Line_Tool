@@ -152,6 +152,11 @@ class BucketSimulator(object):
             bucketType=self.bucket_type
         )
 
+    def delete_file_version(self, file_id, file_name):
+        key = (file_name, file_id)
+        del self.file_name_and_id_to_file[key]
+        return dict(fileId=file_id, fileName=file_name)
+
     def download_file_by_id(self, file_id, download_dest):
         file_sim = self.file_id_to_file[file_id]
         self._download_file_sim(download_dest, file_sim)
@@ -364,6 +369,12 @@ class RawSimulator(RawApi):
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_dict()
 
+    def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.delete_file_version(file_id, file_name)
+
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
         self._assert_account_auth(api_url, account_auth_token, account_id)
         bucket = self._get_bucket_by_id(bucket_id)
@@ -405,7 +416,9 @@ class RawSimulator(RawApi):
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        return bucket.hide_file(file_name)
+        response = bucket.hide_file(file_name)
+        self.file_id_to_bucket_id[response['fileId']] = bucket_id
+        return response
 
     def list_buckets(self, api_url, account_auth_token, account_id):
         self._assert_account_auth(api_url, account_auth_token, account_id)
