@@ -219,7 +219,6 @@ class ConsoleTool(object):
                 return self.version()
             else:
                 return self._usage_and_fail()
-            return 0
         except MissingAccountData:
             self._print_stderr('ERROR: Missing account.  Use: b2 authorize_account')
             return 1

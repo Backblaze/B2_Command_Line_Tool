@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import os
 import unittest
 
 import six
@@ -16,6 +17,7 @@ from b2.b2 import B2Api, InMemoryCache
 from b2.console_tool import ConsoleTool
 from b2.raw_simulator import RawSimulator
 from b2.stub_account_info import StubAccountInfo
+from b2.utils import TempDir
 
 
 class TestConsoleTool(unittest.TestCase):
@@ -57,7 +59,7 @@ class TestConsoleTool(unittest.TestCase):
         self._run_command(['clear_account'], '', '', 0)
         assert (self.account_info.get_account_auth_token() is None)
 
-    def test_create_update_delete_list_bucket(self):
+    def test_buckets(self):
         self._authorize_account()
 
         # Make a bucket with an illegal name
@@ -99,6 +101,29 @@ class TestConsoleTool(unittest.TestCase):
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+
+    def test_files(self):
+
+        self._authorize_account()
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+
+            # Upload a file
+            expected_stdout = '''
+            URL by file name: http://download.example.com/file/my-bucket/file1.txt
+            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
+            {
+              "fileId": "9999",
+              "fileName": "file1.txt",
+              "size": 11
+            }
+            '''
+
+            self._run_command(
+                ['upload_file', 'my-bucket', local_file1, 'file1.txt'], expected_stdout, '', 0
+            )
 
     def _authorize_account(self):
         """
@@ -165,3 +190,9 @@ class TestConsoleTool(unittest.TestCase):
 
     def _trim_trailing_spaces(self, s):
         return '\n'.join(line.rstrip() for line in s.split('\n'))
+
+    def _make_local_file(self, temp_dir, file_name):
+        local_path = os.path.join(temp_dir, file_name)
+        with open(local_path, 'wb') as f:
+            f.write(six.b('hello world'))
+        return local_path

@@ -9,7 +9,11 @@
 ######################################################################
 
 from __future__ import division
+
 import hashlib
+import shutil
+import tempfile
+
 import six
 
 
@@ -61,3 +65,17 @@ def hex_sha1_of_stream(input_stream, content_length):
         digest.update(data)
         remaining -= to_read
     return digest.hexdigest()
+
+
+class TempDir(object):
+    """
+    Context manager that creates and destroys a temporary directory.
+    """
+
+    def __enter__(self):
+        self.dirpath = tempfile.mkdtemp()
+        return self.dirpath
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        shutil.rmtree(self.dirpath)
+        return None  # do not hide exception

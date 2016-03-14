@@ -11,9 +11,7 @@
 from __future__ import absolute_import, division, print_function
 
 import os
-import shutil
 import sys
-import tempfile
 import unittest
 
 import six
@@ -24,18 +22,9 @@ from b2.b2 import (
 from b2.progress import ProgressListener
 from b2.raw_simulator import RawSimulator
 from b2.stub_account_info import StubAccountInfo
+from b2.utils import TempDir
 
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
-
-
-class TempDir(object):
-    def __enter__(self):
-        self.dirpath = tempfile.mkdtemp()
-        return self.dirpath
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        shutil.rmtree(self.dirpath)
-        return None  # do not hide exception
 
 
 def write_file(path, data):

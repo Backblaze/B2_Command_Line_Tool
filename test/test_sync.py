@@ -10,13 +10,14 @@
 
 from __future__ import print_function
 
-from b2 import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
 import os
-import tempfile
-from six.moves import map
-import shutil
 import sys
 import unittest
+
+from six.moves import map
+
+from b2 import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
+from b2.utils import TempDir
 
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
@@ -33,16 +34,6 @@ def create_files(root_dir, relative_paths):
     for relative_path in relative_paths:
         full_path = os.path.join(root_dir, relative_path)
         write_file(full_path, b'')
-
-
-class TempDir(object):
-    def __enter__(self):
-        self.dirpath = tempfile.mkdtemp()
-        return self.dirpath
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        shutil.rmtree(self.dirpath)
-        return None  # do not hide exception
 
 
 class TestLocalFolder(unittest.TestCase):
