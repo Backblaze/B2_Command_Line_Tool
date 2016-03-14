@@ -651,26 +651,19 @@ class Bucket(object):
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
-        auth_token = self.api.account_info.get_account_auth_token()
-        url = url_for_api(self.api.account_info, 'b2_list_file_names')
-        params = {
-            'bucketId': self.id_,
-            'startFileName': start_filename,
-            'maxFileCount': max_entries,
-        }
-        return post_json(url, params, auth_token)
+        account_info = self.api.account_info
+        return self.api.raw_api.list_file_names(
+            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_,
+            start_filename, max_entries
+        )
 
     def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
-        auth_token = self.api.account_info.get_account_auth_token()
-        url = url_for_api(self.api.account_info, 'b2_list_file_versions')
-        params = {
-            'bucketId': self.id_,
-            'startFileName': start_filename,
-            'startFileId': start_file_id,
-            'maxFileCount': max_entries,
-        }
-        return post_json(url, params, auth_token)
+        account_info = self.api.account_info
+        return self.api.raw_api.list_file_versions(
+            account_info.get_api_url(), account_info.get_account_auth_token(), self.id_,
+            start_filename, start_file_id, max_entries
+        )
 
     def list_unfinished_large_files(self, start_file_id=None, batch_size=None):
         """
@@ -1152,6 +1145,10 @@ class RawApi(object):
 
     @abstractmethod
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
+        pass
+
+    @abstractmethod
+    def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         pass
 
     @abstractmethod

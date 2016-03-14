@@ -125,6 +125,84 @@ class TestConsoleTool(unittest.TestCase):
                 ['upload_file', 'my-bucket', local_file1, 'file1.txt'], expected_stdout, '', 0
             )
 
+            # Download by name
+            local_download1 = os.path.join(temp_dir, 'download1.txt')
+            expected_stdout = '''
+            File name:    file1.txt
+            File id:      9999
+            File size:    11
+            Content type: b2/x-auto
+            Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            checksum matches
+            '''
+
+            self._run_command(
+                [
+                    'download_file_by_name', 'my-bucket', 'file1.txt', local_download1
+                ], expected_stdout, '', 0
+            )
+            self.assertEquals(six.b('hello world'), self._read_file(local_download1))
+
+            # Download file by ID.  (Same expected output as downloading by name)
+            local_download2 = os.path.join(temp_dir, 'download2.txt')
+            self._run_command(
+                ['download_file_by_id', '9999', local_download2], expected_stdout, '', 0
+            )
+            self.assertEquals(six.b('hello world'), self._read_file(local_download2))
+
+            # Hide the file
+            expected_stdout = '''
+            {
+              "fileId": "9998",
+              "fileName": "file1.txt",
+              "size": 0
+            }
+            '''
+
+            self._run_command(['hide_file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
+
+            # List the file versions
+            expected_stdout = '''
+            {
+              "files": [
+                {
+                  "action": "hide",
+                  "contentSha1": "none",
+                  "contentType": null,
+                  "fileId": "9998",
+                  "fileInfo": {},
+                  "fileName": "file1.txt",
+                  "size": 0,
+                  "uploadTimestamp": 5001
+                },
+                {
+                  "action": "upload",
+                  "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                  "contentType": "b2/x-auto",
+                  "fileId": "9999",
+                  "fileInfo": {},
+                  "fileName": "file1.txt",
+                  "size": 11,
+                  "uploadTimestamp": 5000
+                }
+              ],
+              "nextFileId": null,
+              "nextFileName": null
+            }
+            '''
+
+            self._run_command(['list_file_versions', 'my-bucket'], expected_stdout, '', 0)
+
+            # List the file names
+            expected_stdout = '''
+            {
+              "files": [],
+              "nextFileName": null
+            }
+            '''
+
+            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
@@ -196,3 +274,7 @@ class TestConsoleTool(unittest.TestCase):
         with open(local_path, 'wb') as f:
             f.write(six.b('hello world'))
         return local_path
+
+    def _read_file(self, local_path):
+        with open(local_path, 'rb') as f:
+            return f.read()

@@ -8,14 +8,15 @@
 #
 ######################################################################
 
+import re
+
+import six
+from six.moves import range
+
 from .b2 import (
     BadJson, BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart,
     NonExistentBucket, RawApi
 )
-import re
-import six
-from six.moves import range
-import time
 
 
 class PartSimulator(object):
@@ -32,7 +33,7 @@ class FileSimulator(object):
 
     def __init__(
         self, account_id, bucket_id, file_id, action, name, content_type, content_sha1, file_info,
-        data_bytes
+        data_bytes, upload_timestamp
     ):
         self.account_id = account_id
         self.bucket_id = bucket_id
@@ -45,7 +46,7 @@ class FileSimulator(object):
         self.content_sha1 = content_sha1
         self.file_info = file_info
         self.data_bytes = data_bytes
-        self.upload_timestamp = int(time.time() * 1000)
+        self.upload_timestamp = upload_timestamp
 
         if action == 'start':
             self.parts = []
@@ -138,6 +139,7 @@ class BucketSimulator(object):
         self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
         self.file_id_counter = iter(range(self.FIRST_FILE_NUMBER, 0, -1))
+        self.upload_timestamp_counter = iter(range(5000, 9999))
         self.file_id_to_file = dict()
         # It would be nice to use an OrderedDict for this, but 2.6 doesn't have it.
         self.file_name_and_id_to_file = dict()
@@ -150,6 +152,10 @@ class BucketSimulator(object):
             bucketType=self.bucket_type
         )
 
+    def download_file_by_id(self, file_id, download_dest):
+        file_sim = self.file_id_to_file[file_id]
+        self._download_file_sim(download_dest, file_sim)
+
     def download_file_by_name(self, file_name, download_dest):
         files = self.list_file_names(file_name, 1)['files']
         if len(files) == 0:
@@ -158,6 +164,9 @@ class BucketSimulator(object):
         if file_dict['fileName'] != file_name or file_dict['action'] != 'upload':
             raise FileNotPresent(file_name)
         file_sim = self.file_name_and_id_to_file[(file_name, file_dict['fileId'])]
+        self._download_file_sim(download_dest, file_sim)
+
+    def _download_file_sim(self, download_dest, file_sim):
         with download_dest.open(
             file_sim.file_id, file_sim.name, file_sim.content_length, file_sim.content_type,
             file_sim.content_sha1, file_sim.file_info
@@ -176,6 +185,16 @@ class BucketSimulator(object):
     def get_upload_part_url(self, file_id):
         upload_url = 'https://upload.example.com/part/%s' % (file_id,)
         return dict(bucketId=self.bucket_id, uploadUrl=upload_url, authorizationToken=upload_url)
+
+    def hide_file(self, file_name):
+        file_id = self._next_file_id()
+        file = FileSimulator(
+            self.account_id, self.bucket_id, file_id, 'hide', file_name, None, "none", {},
+            six.b(''), six.next(self.upload_timestamp_counter)
+        )
+        self.file_id_to_file[file_id] = file
+        self.file_name_and_id_to_file[file.sort_key()] = file
+        return file.as_upload_result()
 
     def list_file_names(self, start_file_name=None, max_file_count=None):
         start_file_name = start_file_name or ''
@@ -245,7 +264,7 @@ class BucketSimulator(object):
         file_id = self._next_file_id()
         file = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'start', file_name, content_type, 'none',
-            file_info, None
+            file_info, None, six.next(self.upload_timestamp_counter)
         )
         self.file_id_to_file[file_id] = file
         self.file_name_and_id_to_file[file.sort_key()] = file
@@ -264,7 +283,7 @@ class BucketSimulator(object):
         file_id = self._next_file_id()
         file = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'upload', file_name, content_type,
-            content_sha1, file_infos, data_bytes
+            content_sha1, file_infos, data_bytes, six.next(self.upload_timestamp_counter)
         )
         self.file_id_to_file[file_id] = file
         self.file_name_and_id_to_file[file.sort_key()] = file
@@ -353,8 +372,10 @@ class RawSimulator(RawApi):
         return bucket.bucket_dict()
 
     def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest):
-        url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
+        # TODO: check auth token if bucket is not public
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        bucket.download_file_by_id(file_id, download_dest)
 
     def download_file_by_name(
         self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest
@@ -380,6 +401,11 @@ class RawSimulator(RawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return self._get_bucket_by_id(bucket_id).get_upload_part_url(file_id)
+
+    def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.hide_file(file_name)
 
     def list_buckets(self, api_url, account_auth_token, account_id):
         self._assert_account_auth(api_url, account_auth_token, account_id)
@@ -455,10 +481,13 @@ class RawSimulator(RawApi):
             raise self.upload_errors.pop(0)
         bucket_id, upload_id = url_match.groups()
         bucket = self._get_bucket_by_id(bucket_id)
-        return bucket.upload_file(
+        response = bucket.upload_file(
             upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
             file_infos, data_stream
         )
+        file_id = response['fileId']
+        self.file_id_to_bucket_id[file_id] = bucket_id
+        return response
 
     def upload_part(
         self, upload_url, upload_auth_token, part_number, content_length, sha1_sum, input_stream

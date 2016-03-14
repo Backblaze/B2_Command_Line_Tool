@@ -223,7 +223,7 @@ class ConsoleTool(object):
             self._print_stderr('ERROR: Missing account.  Use: b2 authorize_account')
             return 1
         except B2Error as e:
-            self._print_stderr('ERROR: %s' % (e,))
+            self._print_stderr('ERROR: %s' % (str(e),))
             return 1
 
     def _message_and_fail(self, message):
