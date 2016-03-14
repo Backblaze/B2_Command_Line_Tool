@@ -37,7 +37,7 @@ class TestConsoleTool(unittest.TestCase):
         '''
 
         expected_stderr = '''
-        ERROR: unable to authorize account: invalid application key: bad-app-key
+        ERROR: unable to authorize account: Invalid authorization token. Server said: invalid application key: bad-app-key (bad_auth_token)
         '''
 
         self._run_command(

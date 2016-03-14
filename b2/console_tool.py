@@ -453,7 +453,7 @@ class ConsoleTool(object):
             self.api.authorize_account(realm, account_id, application_key)
             return 0
         except B2Error as e:
-            self._print_stderr('ERROR: unable to authorize account: ' + e.message)
+            self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
 
     def clear_account(self, args):
