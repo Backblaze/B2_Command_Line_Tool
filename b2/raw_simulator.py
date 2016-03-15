@@ -13,11 +13,11 @@ import re
 import six
 from six.moves import range
 
-from .b2 import RawApi
 from .exception import (
     BadJson, BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart,
     NonExistentBucket
 )
+from .raw_api import RawApi
 
 
 class PartSimulator(object):
