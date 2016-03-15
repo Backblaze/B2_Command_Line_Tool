@@ -16,7 +16,7 @@ import unittest
 
 from six.moves import map
 
-from b2 import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
+from b2.sync import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
