@@ -16,9 +16,10 @@ import unittest
 
 import six
 
-from b2.b2 import (
-    AbstractWrappedError, B2Api, DownloadDestBytes, FileVersionInfo, MaxRetriesExceeded
-)
+from b2.b2 import (B2Api)
+from b2.download_dest import (DownloadDestBytes)
+from b2.exception import (AbstractWrappedError, MaxRetriesExceeded)
+from b2.file_version import (FileVersionInfo)
 from b2.progress import ProgressListener
 from b2.raw_simulator import RawSimulator
 from b2.stub_account_info import StubAccountInfo

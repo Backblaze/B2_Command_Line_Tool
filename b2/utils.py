@@ -15,6 +15,24 @@ import shutil
 import tempfile
 
 import six
+from six.moves import urllib
+
+
+def b2_url_encode(s):
+    """URL-encodes a unicode string to be sent to B2 in an HTTP header.
+    """
+    return urllib.parse.quote(s.encode('utf-8'))
+
+
+def b2_url_decode(s):
+    """Decodes a Unicode string returned from B2 in an HTTP header.
+
+    Returns a Python unicode string.
+    """
+    # Use str() to make sure that the input to unquote is a str, not
+    # unicode, which ensures that the result is a str, which allows
+    # the decoding to work properly.
+    return urllib.parse.unquote_plus(str(s)).decode('utf-8')
 
 
 def choose_part_ranges(content_length, minimum_part_size):
@@ -65,6 +83,50 @@ def hex_sha1_of_stream(input_stream, content_length):
         digest.update(data)
         remaining -= to_read
     return digest.hexdigest()
+
+
+def validate_b2_file_name(name):
+    """
+    Raises a ValueError if the name is not a valid B2 file name.
+
+    :param name: a string
+    :return: None
+    """
+    if not isinstance(name, six.string_types):
+        raise ValueError('file name must be a string, not bytes')
+    name_utf8 = name.encode('utf-8')
+    if len(name_utf8) < 1:
+        raise ValueError('file name too short (0 utf-8 bytes)')
+    if 1000 < len(name_utf8):
+        raise ValueError('file name too long (more than 1000 utf-8 bytes)')
+    if name[0] == '/':
+        raise ValueError("file names must not start with '/'")
+    if name[-1] == '/':
+        raise ValueError("file names must not end with '/'")
+    if '\\' in name:
+        raise ValueError("file names must not contain '\\'")
+    if '//' in name:
+        raise ValueError("file names must not contain '//'")
+    if chr(127) in name:
+        raise ValueError("file names must not contain DEL")
+    if any(250 < len(segment) for segment in name_utf8.split(six.b('/'))):
+        raise ValueError("file names segments (between '/') can be at most 250 utf-8 bytes")
+
+
+class BytesIoContextManager(object):
+    """
+    A simple wrapper for a BytesIO that makes it look like
+    a file-like object that can be a context manager.
+    """
+
+    def __init__(self, byte_data):
+        self.byte_data = byte_data
+
+    def __enter__(self):
+        return six.BytesIO(self.byte_data)
+
+    def __exit__(self, type, value, traceback):
+        return None  # don't hide exception
 
 
 class TempDir(object):
