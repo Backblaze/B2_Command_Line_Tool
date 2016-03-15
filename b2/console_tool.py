@@ -18,9 +18,10 @@ import sys
 import six
 
 from .b2 import (
-    AuthInfoCache, B2Api, B2Error, BadFileInfo, DownloadDestLocalFile, FileVersionInfo,
-    MissingAccountData, StoredAccountInfo, VERSION
+    AuthInfoCache, B2Api, DownloadDestLocalFile, FileVersionInfo, MissingAccountData,
+    StoredAccountInfo, VERSION
 )
+from .exception import B2Error, BadFileInfo
 from .progress import make_progress_listener, DoNothingProgressListener
 
 USAGE = """This program provides command-line access to the B2 service.

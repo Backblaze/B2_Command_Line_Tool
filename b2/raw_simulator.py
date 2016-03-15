@@ -13,9 +13,10 @@ import re
 import six
 from six.moves import range
 
-from .b2 import (
+from .b2 import RawApi
+from .exception import (
     BadJson, BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart,
-    NonExistentBucket, RawApi
+    NonExistentBucket
 )
 
 
