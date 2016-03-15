@@ -21,7 +21,7 @@ from b2.api import (B2Api)
 from b2.download_dest import (DownloadDestBytes)
 from b2.exception import (AbstractWrappedError, MaxRetriesExceeded)
 from b2.file_version import (FileVersionInfo)
-from b2.progress import ProgressListener
+from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
 from b2.utils import TempDir
 
@@ -34,7 +34,7 @@ def write_file(path, data):
         f.write(data)
 
 
-class StubProgressListener(ProgressListener):
+class StubProgressListener(AbstractProgressListener):
     """
     Implementation of a progress listener that remembers what calls were made,
     and returns them as a short string to use in unit tests.
