@@ -14,7 +14,7 @@ import unittest
 import six
 
 from b2.account_info import StubAccountInfo
-from b2.b2 import B2Api
+from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
 from b2.raw_simulator import RawSimulator

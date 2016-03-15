@@ -1,17 +1,12 @@
 ######################################################################
 #
-# File: b2
+# File: b2/api.py
 #
 # Copyright 2016 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-"""
-This is a B2 command-line tool.  See the USAGE message for details.
-"""
-
-from __future__ import print_function
 
 from .account_info import (StoredAccountInfo)
 from .bucket import (Bucket, BucketFactory)
@@ -21,9 +16,13 @@ from .file_version import (FileVersionInfoFactory)
 from .raw_api import (B2RawApi)
 from .session import (B2Session)
 
-## Cache
 
-## B2Api
+def url_for_api(info, api_name):
+    if api_name in ['b2_download_file_by_id']:
+        base = info.get_download_url()
+    else:
+        base = info.get_api_url()
+    return base + '/b2api/v1/' + api_name
 
 
 class B2Api(object):
@@ -187,11 +186,3 @@ class B2Api(object):
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
         return self.session.get_file_info(file_id)
-
-
-def url_for_api(info, api_name):
-    if api_name in ['b2_download_file_by_id']:
-        base = info.get_download_url()
-    else:
-        base = info.get_api_url()
-    return base + '/b2api/v1/' + api_name

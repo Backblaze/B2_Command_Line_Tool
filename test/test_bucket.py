@@ -17,7 +17,7 @@ import unittest
 import six
 
 from b2.account_info import StubAccountInfo
-from b2.b2 import (B2Api)
+from b2.api import (B2Api)
 from b2.download_dest import (DownloadDestBytes)
 from b2.exception import (AbstractWrappedError, MaxRetriesExceeded)
 from b2.file_version import (FileVersionInfo)
