@@ -17,7 +17,7 @@ from .progress import (StreamWithProgress)
 
 
 @six.add_metaclass(ABCMeta)
-class DownloadDest(object):
+class AbstractDownloadDestination(object):
     """
     Interface to a destination for a downloaded file.
 
@@ -68,7 +68,7 @@ class OpenLocalFileForWriting(object):
         return result
 
 
-class DownloadDestLocalFile(DownloadDest):
+class DownloadDestLocalFile(AbstractDownloadDestination):
     """
     Stores a downloaded file into a local file and sets its modification time.
     """
@@ -108,7 +108,7 @@ class BytesCapture(six.BytesIO):
         pass
 
 
-class DownloadDestBytes(DownloadDest):
+class DownloadDestBytes(AbstractDownloadDestination):
     """
     Stores a downloaded file into bytes in memory.
     """

@@ -18,7 +18,7 @@ from .utils import (BytesIoContextManager, hex_sha1_of_stream)
 
 
 @six.add_metaclass(ABCMeta)
-class UploadSource(object):
+class AbstractUploadSource(object):
     """
     The source of data for uploading to B2.
     """
@@ -44,7 +44,7 @@ class UploadSource(object):
         """
 
 
-class UploadSourceBytes(UploadSource):
+class UploadSourceBytes(AbstractUploadSource):
     def __init__(self, data_bytes):
         self.data_bytes = data_bytes
 
@@ -58,7 +58,7 @@ class UploadSourceBytes(UploadSource):
         return BytesIoContextManager(self.data_bytes)
 
 
-class UploadSourceLocalFile(UploadSource):
+class UploadSourceLocalFile(AbstractUploadSource):
     def __init__(self, local_path, content_sha1=None):
         self.local_path = local_path
         self.content_length = os.path.getsize(local_path)

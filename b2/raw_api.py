@@ -122,7 +122,7 @@ def post_json(url, params, auth_token=None):
 
 
 @six.add_metaclass(ABCMeta)
-class RawApi(object):
+class AbstractRawApi(object):
     """
     Direct access to the B2 web apis.
     """
@@ -175,7 +175,7 @@ class RawApi(object):
         pass
 
 
-class B2RawApi(RawApi):
+class B2RawApi(AbstractRawApi):
     """
     Provides access to the B2 web APIs, exactly as they are provided by B2.
 

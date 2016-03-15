@@ -16,7 +16,7 @@ import six
 
 
 @six.add_metaclass(ABCMeta)
-class Action(object):
+class AbstractAction(object):
     """
     An action to take, such as uploading, downloading, or deleting
     a file.  Multi-threaded tasks create a sequence of Actions, which
@@ -55,7 +55,7 @@ class Action(object):
         """
 
 
-class B2UploadAction(Action):
+class B2UploadAction(AbstractAction):
     def __init__(self, full_path, file_name, mod_time):
         self.full_path = full_path
         self.file_name = file_name
@@ -68,7 +68,7 @@ class B2UploadAction(Action):
         return 'b2_upload(%s, %s, %s)' % (self.full_path, self.file_name, self.mod_time)
 
 
-class B2DownloadAction(Action):
+class B2DownloadAction(AbstractAction):
     def __init__(self, file_name, file_id):
         self.file_name = file_name
         self.file_id = file_id
@@ -80,7 +80,7 @@ class B2DownloadAction(Action):
         return 'b2_download(%s, %s)' % (self.file_name, self.file_id)
 
 
-class B2DeleteAction(Action):
+class B2DeleteAction(AbstractAction):
     def __init__(self, file_name, file_id):
         self.file_name = file_name
         self.file_id = file_id
@@ -92,7 +92,7 @@ class B2DeleteAction(Action):
         return 'b2_delete(%s, %s)' % (self.file_name, self.file_id)
 
 
-class LocalDeleteAction(Action):
+class LocalDeleteAction(AbstractAction):
     def __init__(self, full_path):
         self.full_path = full_path
 
@@ -144,7 +144,7 @@ class File(object):
 
 
 @six.add_metaclass(ABCMeta)
-class Folder(object):
+class AbstractFolder(object):
     """
     Interface to a folder full of files, which might be a B2 bucket,
     a virtual folder in a B2 bucket, or a directory on a local file
@@ -177,7 +177,7 @@ class Folder(object):
         raise NotImplementedError()
 
 
-class LocalFolder(Folder):
+class LocalFolder(AbstractFolder):
     """
     Folder interface to a directory on the local machine.
     """

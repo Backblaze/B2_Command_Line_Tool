@@ -17,7 +17,7 @@ from .exception import (
     BadJson, BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart,
     NonExistentBucket
 )
-from .raw_api import RawApi
+from .raw_api import AbstractRawApi
 
 
 class PartSimulator(object):
@@ -312,7 +312,7 @@ class BucketSimulator(object):
         return str(six.next(self.file_id_counter))
 
 
-class RawSimulator(RawApi):
+class RawSimulator(AbstractRawApi):
     """
     Implements the same interface as B2RawApi by simulating all of the
     calls and keeping state in memory.
