@@ -13,10 +13,10 @@ import unittest
 
 import six
 
+from b2.account_info import StubAccountInfo
 from b2.b2 import B2Api, InMemoryCache
 from b2.console_tool import ConsoleTool
 from b2.raw_simulator import RawSimulator
-from b2.stub_account_info import StubAccountInfo
 from b2.utils import TempDir
 
 
