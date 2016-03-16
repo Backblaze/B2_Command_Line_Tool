@@ -209,6 +209,8 @@ class ConsoleTool(object):
                 return self.list_file_names(args)
             elif action == 'list_file_versions':
                 return self.list_file_versions(args)
+            elif action == 'list_unfinished_large_files':
+                return self.list_unfinished_large_files(args)
             elif action == 'ls':
                 return self.ls(args)
             elif action == 'make_url':
@@ -371,6 +373,22 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+
+    def list_unfinished_large_files(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        bucket_name = args[0]
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        for unfinished in bucket.list_unfinished_large_files():
+            file_info_text = six.u(' ').join(
+                '%s=%s' % (k, unfinished.file_info[k])
+                for k in sorted(six.iterkeys(unfinished.file_info))
+            )
+            self._print(
+                '%s %s %s %s' %
+                (unfinished.file_id, unfinished.file_name, unfinished.content_type, file_info_text)
+            )
         return 0
 
     def upload_file(self, args):

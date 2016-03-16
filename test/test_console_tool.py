@@ -222,12 +222,38 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
+    def test_list_unfinished_large_files_with_none(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        self._run_command(['list_unfinished_large_files', 'my-bucket'], '', '', 0)
+
+    def test_list_unfinished_large_files_with_some(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        api_url = self.account_info.get_api_url()
+        auth_token = self.account_info.get_account_auth_token()
+        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
+        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file2', 'text/plain',
+                                      {'color': 'blue'})
+        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file3', 'application/json',
+                                      {})
+        expected_stdout = '''
+        9999 file1 text/plain
+        9998 file2 text/plain color=blue
+        9997 file3 application/json
+        '''
+
+        self._run_command(['list_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
         account auth token
         """
         self._run_command_no_checks(['authorize_account', 'my-account', 'good-app-key'])
+
+    def _create_my_bucket(self):
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
     def _run_command(self, argv, expected_stdout='', expected_stderr='', expected_status=0):
         """
