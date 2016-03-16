@@ -359,6 +359,9 @@ class RawSimulator(AbstractRawApi):
             minimumPartSize=self.MIN_PART_SIZE
         )
 
+    def cancel_large_file(self, api_url, account_auth_token, file_id):
+        raise NotImplementedError()
+
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):
             raise BadJson('illegal bucket name: ' + bucket_name)

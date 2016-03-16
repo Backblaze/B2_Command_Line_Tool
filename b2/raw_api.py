@@ -223,12 +223,7 @@ class B2RawApi(AbstractRawApi):
         return self._post_json(realm_url, 'b2_authorize_account', auth)
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
-        return self._post_json(
-            api_url,
-            'b2_cancel_large_file',
-            account_auth_token,
-            fileId=file_id
-        )
+        return self._post_json(api_url, 'b2_cancel_large_file', account_auth_token, fileId=file_id)
 
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
         return self._post_json(
@@ -503,7 +498,7 @@ def test_raw_api():
         test_raw_api_helper(raw_api)
         return 0
     except Exception as e:
-        print('Caught exception: %s' % (repr(e), ), file=sys.stdout)
+        print('Caught exception: %s' % (repr(e),), file=sys.stdout)
         return 1
 
 
@@ -537,7 +532,9 @@ def test_raw_api_helper(raw_api):
     # other accounts.
     print('b2_create_bucket')
     bucket_name = '%s-%d-%d' % (account_id, int(time.time()), random.randint(1000, 9999))
-    bucket_dict = raw_api.create_bucket(api_url, account_auth_token, account_id, bucket_name, 'allPublic')
+    bucket_dict = raw_api.create_bucket(
+        api_url, account_auth_token, account_id, bucket_name, 'allPublic'
+    )
     bucket_id = bucket_dict['bucketId']
 
     # b2_list_buckets
@@ -555,7 +552,10 @@ def test_raw_api_helper(raw_api):
     file_name = 'test.txt'
     file_contents = six.b('hello world')
     file_sha1 = hex_sha1_of_stream(six.BytesIO(file_contents), len(file_contents))
-    file_dict = raw_api.upload_file(upload_url, upload_auth_token, file_name, len(file_contents), 'text/plain', file_sha1, {'color': 'blue'}, six.BytesIO(file_contents))
+    file_dict = raw_api.upload_file(
+        upload_url, upload_auth_token, file_name, len(file_contents), 'text/plain', file_sha1,
+        {'color': 'blue'}, six.BytesIO(file_contents)
+    )
     file_id = file_dict['fileId']
 
     # b2_download_file_by_id with auth
@@ -573,7 +573,9 @@ def test_raw_api_helper(raw_api):
     # b2_download_file_by_name with auth
     print('b2_download_file_by_name (auth)')
     download_dest = DownloadDestBytes()
-    raw_api.download_file_by_name(download_url, account_auth_token, bucket_name, file_name, download_dest)
+    raw_api.download_file_by_name(
+        download_url, account_auth_token, bucket_name, file_name, download_dest
+    )
     assert file_contents == download_dest.bytes_io.getvalue()
 
     # b2_download_file_by_name no auth
@@ -589,7 +591,13 @@ def test_raw_api_helper(raw_api):
 
     # b2_list_file_names (start, count)
     print('b2_list_file_names (start, count)')
-    list_names_dict = raw_api.list_file_names(api_url, account_auth_token, bucket_id, start_file_name=file_name, max_file_count=5)
+    list_names_dict = raw_api.list_file_names(
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=file_name,
+        max_file_count=5
+    )
     assert [file_name] == [file_dict['fileName'] for file_dict in list_names_dict['files']]
 
     # b2_hide_file
@@ -605,7 +613,9 @@ def test_raw_api_helper(raw_api):
     if False:
         # b2_start_large_file
         print('b2_start_large_file')
-        large_info = raw_api.start_large_file(api_url, account_auth_token, bucket_id, file_name, 'text/plain', {})
+        large_info = raw_api.start_large_file(
+            api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
+        )
         large_file_id = large_info['fileId']
 
         # b2_get_upload_part_url
@@ -618,10 +628,15 @@ def test_raw_api_helper(raw_api):
         print('b2_upload_part')
         part_contents = six.b('hello part')
         part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
-        raw_api.upload_part(upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1, six.BytesIO(part_contents))
+        raw_api.upload_part(
+            upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
+            six.BytesIO(part_contents)
+        )
 
         # b2_list_unfinished_large_files
-        unfinished_list = raw_api.list_unfinished_large_files(api_url, account_auth_token, bucket_id)
+        unfinished_list = raw_api.list_unfinished_large_files(
+            api_url, account_auth_token, bucket_id
+        )
         assert [file_name] == [file_dict['fileName'] for file_dict in unfinished_list['files']]
 
         # b2_finish_large_file
@@ -636,7 +651,7 @@ def test_raw_api_helper(raw_api):
 
     # b2_update_bucket
     print('b2_update_bucket')
-    raw_api.update_bucket(api_url,account_auth_token, account_id, bucket_id, 'allPrivate')
+    raw_api.update_bucket(api_url, account_auth_token, account_id, bucket_id, 'allPrivate')
 
     # clean up this test
     _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
@@ -652,7 +667,9 @@ def test_raw_api_helper(raw_api):
 
 def _start_large_file(raw_api, api_url, account_auth_token, bucket_id, file_name):
     print('b2_start_large_file')
-    large_info = raw_api.start_large_file(api_url, account_auth_token, bucket_id, file_name, 'text/plain', {})
+    large_info = raw_api.start_large_file(
+        api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
+    )
     large_file_id = large_info['fileId']
 
     print('b2_get_upload_part_url')
@@ -663,7 +680,10 @@ def _start_large_file(raw_api, api_url, account_auth_token, bucket_id, file_name
     print('b2_upload_part')
     part_contents = six.b('hello part')
     part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
-    raw_api.upload_part(upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1, six.BytesIO(part_contents))
+    raw_api.upload_part(
+        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
+        six.BytesIO(part_contents)
+    )
 
     return large_file_id
 
@@ -672,7 +692,7 @@ def _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, b
     # Delete the files.  This test never creates more than a few files,
     # so one call to list_file_versions should get them all.
     versions_dict = raw_api.list_file_versions(api_url, account_auth_token, bucket_id)
-    for version_dict  in versions_dict['files']:
+    for version_dict in versions_dict['files']:
         file_id = version_dict['fileId']
         file_name = version_dict['fileName']
         action = version_dict['action']
@@ -696,4 +716,3 @@ def _bucket_more_than_an_hour_old(bucket_name):
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 36 <= now
-
