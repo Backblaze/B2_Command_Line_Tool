@@ -715,4 +715,4 @@ def _bucket_more_than_an_hour_old(bucket_name):
     assert match is not None
     bucket_time = int(match.group(1))
     now = time.time()
-    return bucket_time + 36 <= now
+    return bucket_time + 3600 <= now
