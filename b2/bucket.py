@@ -334,7 +334,11 @@ class Bucket(object):
                 with upload_source.open() as file:
                     file.seek(offset)
                     range_stream = RangeOfInputStream(file, offset, content_length)
-                    input_stream = StreamWithProgress(range_stream, progress_listener, offset=offset)
+                    input_stream = StreamWithProgress(
+                        range_stream,
+                        progress_listener,
+                        offset=offset
+                    )
                     response = self.api.raw_api.upload_part(
                         upload_url, upload_auth_token, part_number, content_length, sha1_sum,
                         input_stream
