@@ -24,6 +24,7 @@ from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo, MissingAccountData)
 from .file_version import (FileVersionInfo)
 from .progress import (make_progress_listener, DoNothingProgressListener)
+from .raw_api import (test_raw_api)
 from .version import (VERSION)
 
 USAGE = """This program provides command-line access to the B2 service.
@@ -214,6 +215,8 @@ class ConsoleTool(object):
                 return self.make_url(args)
             elif action == 'sync':
                 return self.sync(args)
+            elif action == 'test_raw_api':
+                return self.test_raw_api(args)
             elif action == 'update_bucket':
                 return self.update_bucket(args)
             elif action == 'upload_file':
@@ -245,6 +248,13 @@ class ConsoleTool(object):
 
     def _print_stderr(self, *args):
         print(*args, file=self.stderr)
+
+    # testing
+
+    def test_raw_api(self, args):
+        if len(args) != 0:
+            return self._usage_and_fail()
+        test_raw_api()
 
     # bucket
 
