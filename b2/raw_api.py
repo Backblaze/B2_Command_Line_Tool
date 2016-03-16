@@ -8,22 +8,29 @@
 #
 ######################################################################
 
+from __future__ import print_function
+
 import base64
 import hashlib
 import json
+import os
+import random
+import re
 import socket
 import sys
+import time
 from abc import (ABCMeta, abstractmethod)
 
 import six
 from six.moves import urllib
 
+from .download_dest import DownloadDestBytes
 from .exception import (
     map_error_dict_to_exception, ChecksumMismatch, FatalError, TruncatedOutput, WrappedHttpError,
     WrappedHttplibError, WrappedSocketError, WrappedUrlError
 )
-from .utils import (b2_url_encode)
-from .version import (USER_AGENT)
+from .utils import b2_url_encode, hex_sha1_of_stream
+from .version import USER_AGENT
 
 
 class OpenUrl(object):
@@ -128,6 +135,10 @@ class AbstractRawApi(object):
     """
 
     @abstractmethod
+    def cancel_large_file(self, api_url, account_auth_token, file_id):
+        pass
+
+    @abstractmethod
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
         pass
 
@@ -212,6 +223,9 @@ class B2RawApi(AbstractRawApi):
         auth = b'Basic ' + base64.b64encode(six.b('%s:%s' % (account_id, application_key)))
         return self._post_json(realm_url, 'b2_authorize_account', auth)
 
+    def cancel_large_file(self, api_url, account_auth_token, file_id):
+        return self._post_json(api_url, 'b2_cancel_large_file', account_auth_token, fileId=file_id)
+
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
         return self._post_json(
             api_url,
@@ -245,9 +259,9 @@ class B2RawApi(AbstractRawApi):
         return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
 
     def download_file_by_name(
-        self, download_url, account_auth_token_or_none, bucket_id, file_name, download_dest
+        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest
     ):
-        url = download_url + '/file/' + bucket_id + '/' + b2_url_encode(file_name)
+        url = download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
         return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
 
     def _download_file_from_url(self, url, account_auth_token_or_none, download_dest):
@@ -465,3 +479,247 @@ class B2RawApi(AbstractRawApi):
         with OpenUrl(upload_url, data_stream, headers) as response_file:
             json_text = read_str_from_http_response(response_file)
             return json.loads(json_text)
+
+
+def test_raw_api():
+    """
+    Exercises the code in B2RawApi by making each call once, just
+    to make sure the parameters are passed in, and the result is
+    passed back.
+
+    The goal is to be a complete test of B2RawApi, so the tests for
+    the rest of the code can use the simulator.
+
+    Prints to stdout if things go wrong.
+
+    :return: 0 on success, non-zero on failure.
+    """
+    try:
+        raw_api = B2RawApi()
+        test_raw_api_helper(raw_api)
+        return 0
+    except Exception as e:
+        print('Caught exception: %s' % (repr(e),), file=sys.stdout)
+        return 1
+
+
+def test_raw_api_helper(raw_api):
+    """
+    Tries each of the calls to the raw api.  Raises an
+    except if anything goes wrong.
+
+    This uses a Backblaze account that is just for this test.
+    The account uses the free level of service, which should
+    be enough to run this test a reasonable number of times
+    each day.  If somebody abuses the account for other things,
+    this test will break and we'll have to do something about
+    it.
+    """
+
+    account_id = os.environ.get('TEST_ACCOUNT_ID', None)
+    if account_id is None:
+        print('TEST_ACCOUNT_ID is not set.', file=sys.stderr)
+        sys.exit(1)
+    application_key = os.environ.get('TEST_APPLICATION_KEY', None)
+    if application_key is None:
+        print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
+        sys.exit(1)
+
+    # b2_authorize_account
+    print('b2_authorize_account')
+    realm_url = 'https://api.backblaze.com'
+    auth_dict = raw_api.authorize_account(realm_url, account_id, application_key)
+    account_auth_token = auth_dict['authorizationToken']
+    api_url = auth_dict['apiUrl']
+    download_url = auth_dict['downloadUrl']
+
+    # b2_create_bucket, with a unique bucket name
+    # Include the account ID in the bucket name to be
+    # sure it doesn't collide with bucket names from
+    # other accounts.
+    print('b2_create_bucket')
+    bucket_name = '%s-%d-%d' % (account_id, int(time.time()), random.randint(1000, 9999))
+    bucket_dict = raw_api.create_bucket(
+        api_url, account_auth_token, account_id, bucket_name, 'allPublic'
+    )
+    bucket_id = bucket_dict['bucketId']
+
+    # b2_list_buckets
+    print('b2_list_buckets')
+    bucket_list_dict = raw_api.list_buckets(api_url, account_auth_token, account_id)
+
+    # b2_get_upload_url
+    print('b2_get_upload_url')
+    upload_url_dict = raw_api.get_upload_url(api_url, account_auth_token, bucket_id)
+    upload_url = upload_url_dict['uploadUrl']
+    upload_auth_token = upload_url_dict['authorizationToken']
+
+    # b2_upload_file
+    print('b2_upload_file')
+    file_name = 'test.txt'
+    file_contents = six.b('hello world')
+    file_sha1 = hex_sha1_of_stream(six.BytesIO(file_contents), len(file_contents))
+    file_dict = raw_api.upload_file(
+        upload_url, upload_auth_token, file_name, len(file_contents), 'text/plain', file_sha1,
+        {'color': 'blue'}, six.BytesIO(file_contents)
+    )
+    file_id = file_dict['fileId']
+
+    # b2_download_file_by_id with auth
+    print('b2_download_file_by_id (auth)')
+    download_dest = DownloadDestBytes()
+    raw_api.download_file_by_id(download_url, account_auth_token, file_id, download_dest)
+    assert file_contents == download_dest.bytes_io.getvalue()
+
+    # b2_download_file_by_id no auth
+    print('b2_download_file_by_id (no auth)')
+    download_dest = DownloadDestBytes()
+    raw_api.download_file_by_id(download_url, None, file_id, download_dest)
+    assert file_contents == download_dest.bytes_io.getvalue()
+
+    # b2_download_file_by_name with auth
+    print('b2_download_file_by_name (auth)')
+    download_dest = DownloadDestBytes()
+    raw_api.download_file_by_name(
+        download_url, account_auth_token, bucket_name, file_name, download_dest
+    )
+    assert file_contents == download_dest.bytes_io.getvalue()
+
+    # b2_download_file_by_name no auth
+    print('b2_download_file_by_name (no auth)')
+    download_dest = DownloadDestBytes()
+    raw_api.download_file_by_name(download_url, None, bucket_name, file_name, download_dest)
+    assert file_contents == download_dest.bytes_io.getvalue()
+
+    # b2_list_file_names
+    print('b2_list_file_names')
+    list_names_dict = raw_api.list_file_names(api_url, account_auth_token, bucket_id)
+    assert [file_name] == [f_dict['fileName'] for f_dict in list_names_dict['files']]
+
+    # b2_list_file_names (start, count)
+    print('b2_list_file_names (start, count)')
+    list_names_dict = raw_api.list_file_names(
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=file_name,
+        max_file_count=5
+    )
+    assert [file_name] == [f_dict['fileName'] for f_dict in list_names_dict['files']]
+
+    # b2_hide_file
+    print('b2_hide_file')
+    raw_api.hide_file(api_url, account_auth_token, bucket_id, file_name)
+
+    # b2_get_file_info
+    print('b2_get_file_info')
+    file_info_dict = raw_api.get_file_info(api_url, account_auth_token, file_id)
+    assert file_info_dict['fileName'] == file_name
+
+    # TODO: large files not enabled in production yet
+    if False:
+        # b2_start_large_file
+        print('b2_start_large_file')
+        large_info = raw_api.start_large_file(
+            api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
+        )
+        large_file_id = large_info['fileId']
+
+        # b2_get_upload_part_url
+        print('b2_get_upload_part_url')
+        upload_part_dict = raw_api.get_upload_part_url(api_url, account_auth_token, large_file_id)
+        upload_part_url = upload_part_dict['uploadUrl']
+        upload_path_auth = upload_part_dict['authorizationToken']
+
+        # b2_upload_part
+        print('b2_upload_part')
+        part_contents = six.b('hello part')
+        part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
+        raw_api.upload_part(
+            upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
+            six.BytesIO(part_contents)
+        )
+
+        # b2_list_unfinished_large_files
+        unfinished_list = raw_api.list_unfinished_large_files(
+            api_url, account_auth_token, bucket_id
+        )
+        assert [file_name] == [f_dict['fileName'] for f_dict in unfinished_list['files']]
+
+        # b2_finish_large_file
+        # We don't upload enough data to actually finish on, so we'll just
+        # check that the right error is returned.
+        print('b2_finish_large_file')
+        try:
+            raw_api.finish_large_file(api_url, account_auth_token, large_file_id, [part_sha1])
+            raise Exception('finish should have failed')
+        except Exception as e:
+            assert 'large files must have at least 2 parts' in str(e)
+
+    # b2_update_bucket
+    print('b2_update_bucket')
+    raw_api.update_bucket(api_url, account_auth_token, account_id, bucket_id, 'allPrivate')
+
+    # clean up this test
+    _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
+
+    # Clean up from old tests.  Empty and delete any buckets more than an hour old.
+    for bucket_dict in bucket_list_dict['buckets']:
+        bucket_id = bucket_dict['bucketId']
+        bucket_name = bucket_dict['bucketName']
+        if _bucket_more_than_an_hour_old(bucket_name):
+            print('cleaning up old bucket: ' + bucket_name)
+            _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
+
+
+def _start_large_file(raw_api, api_url, account_auth_token, bucket_id, file_name):
+    print('b2_start_large_file')
+    large_info = raw_api.start_large_file(
+        api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
+    )
+    large_file_id = large_info['fileId']
+
+    print('b2_get_upload_part_url')
+    upload_part_dict = raw_api.get_upload_part_url(api_url, account_auth_token, large_file_id)
+    upload_part_url = upload_part_dict['uploadUrl']
+    upload_path_auth = upload_part_dict['authorizationToken']
+
+    print('b2_upload_part')
+    part_contents = six.b('hello part')
+    part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
+    raw_api.upload_part(
+        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
+        six.BytesIO(part_contents)
+    )
+
+    return large_file_id
+
+
+def _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id):
+    # Delete the files.  This test never creates more than a few files,
+    # so one call to list_file_versions should get them all.
+    versions_dict = raw_api.list_file_versions(api_url, account_auth_token, bucket_id)
+    for version_dict in versions_dict['files']:
+        file_id = version_dict['fileId']
+        file_name = version_dict['fileName']
+        action = version_dict['action']
+        if action in ['hide', 'upload']:
+            print('b2_delete_file', file_name, action)
+            raw_api.delete_file_version(api_url, account_auth_token, file_id, file_name)
+        else:
+            print('b2_cancel_large_file', file_name)
+            raw_api.cancel_large_file(api_url, account_auth_token, file_id)
+
+    # Delete the bucket
+    print('b2_delete_bucket', bucket_id)
+    raw_api.delete_bucket(api_url, account_auth_token, account_id, bucket_id)
+
+
+def _bucket_more_than_an_hour_old(bucket_name):
+    match = re.match(r'^[a-f0-9]+-([0-9]+)-([0-9]+)', bucket_name)
+    if match is None:
+        print('no match for bucket', bucket_name)
+    assert match is not None
+    bucket_time = int(match.group(1))
+    now = time.time()
+    return bucket_time + 3600 <= now

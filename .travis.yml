@@ -35,6 +35,6 @@ before_install:
 script:
   - python setup.py install
   - nosetests -w test
+  - python -m b2.__main__ test_raw_api
   - if [ -n "$SCA" ]; then yapf -r b2; fi
   - if [ -n "$SCA" ]; then pyflakes b2; fi
-  - python -m b2.__main__ version
