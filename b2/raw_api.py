@@ -587,7 +587,7 @@ def test_raw_api_helper(raw_api):
     # b2_list_file_names
     print('b2_list_file_names')
     list_names_dict = raw_api.list_file_names(api_url, account_auth_token, bucket_id)
-    assert [file_name] == [file_dict['fileName'] for file_dict in list_names_dict['files']]
+    assert [file_name] == [f_dict['fileName'] for f_dict in list_names_dict['files']]
 
     # b2_list_file_names (start, count)
     print('b2_list_file_names (start, count)')
@@ -598,7 +598,7 @@ def test_raw_api_helper(raw_api):
         start_file_name=file_name,
         max_file_count=5
     )
-    assert [file_name] == [file_dict['fileName'] for file_dict in list_names_dict['files']]
+    assert [file_name] == [f_dict['fileName'] for f_dict in list_names_dict['files']]
 
     # b2_hide_file
     print('b2_hide_file')
@@ -637,7 +637,7 @@ def test_raw_api_helper(raw_api):
         unfinished_list = raw_api.list_unfinished_large_files(
             api_url, account_auth_token, bucket_id
         )
-        assert [file_name] == [file_dict['fileName'] for file_dict in unfinished_list['files']]
+        assert [file_name] == [f_dict['fileName'] for f_dict in unfinished_list['files']]
 
         # b2_finish_large_file
         # We don't upload enough data to actually finish on, so we'll just
