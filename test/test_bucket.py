@@ -218,13 +218,29 @@ class TestUpload(TestCaseWithBucket):
                 self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_large(self):
-        data = six.b('hello world') * (self.simulator.MIN_PART_SIZE * 3 // 10)
+        data = self._make_data(self.simulator.MIN_PART_SIZE * 3);
         progress_listener = StubProgressListener()
         self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
         self._check_file_contents('file1', data)
-        self.assertEqual("660: 220 440 660", progress_listener.get_history())
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
 
     def _check_file_contents(self, file_name, expected_contents):
         download = DownloadDestBytes()
         self.bucket.download_file_by_name(file_name, download)
         self.assertEqual(expected_contents, download.bytes_io.getvalue())
+
+    def _make_data(self, approximate_length):
+        """
+        Generate a sequence of bytes to use in testing an upload.
+        Don't repeat a short pattern, so we're sure that the different
+        parts of a large file are actually different.
+
+        Returns bytes.
+        """
+        fragments = []
+        so_far = 0
+        while so_far < approximate_length:
+            fragment = ('%d:' % so_far).encode('utf-8')
+            so_far += len(fragment)
+            fragments.append(fragment)
+        return six.b('').join(fragments)

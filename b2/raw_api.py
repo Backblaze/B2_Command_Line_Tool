@@ -313,7 +313,7 @@ class B2RawApi(AbstractRawApi):
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         return self._post_json(
-            api_url, 'b2_finish_large_file', account_auth_token, file_id, part_sha1_array
+            api_url, 'b2_finish_large_file', account_auth_token, fileId=file_id, partSha1Array=part_sha1_array
         )
 
     def get_file_info(self, api_url, account_auth_token, file_id):
@@ -323,7 +323,7 @@ class B2RawApi(AbstractRawApi):
         return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, bucketId=bucket_id)
 
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
-        return self._post_json(api_url, 'b2_get_upload_url', account_auth_token, fileId=file_id)
+        return self._post_json(api_url, 'b2_get_upload_part_url', account_auth_token, fileId=file_id)
 
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         return self._post_json(
