@@ -16,7 +16,7 @@ import unittest
 
 from six.moves import map
 
-from b2 import File, FileVersion, Folder, LocalFolder, make_folder_sync_actions, zip_folders
+from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
@@ -47,7 +47,7 @@ class TestLocalFolder(unittest.TestCase):
             self.assertEqual(['hello.', 'hello/a', 'hello/b', 'hello0'], names)
 
 
-class FakeFolder(Folder):
+class FakeFolder(AbstractFolder):
     def __init__(self, f_type, files):
         self.f_type = f_type
         self.files = files

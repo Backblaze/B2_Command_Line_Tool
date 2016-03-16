@@ -19,7 +19,7 @@ except ImportError:
 
 
 @six.add_metaclass(ABCMeta)
-class ProgressListener(object):
+class AbstractProgressListener(object):
     """
     Interface expected by B2Api upload and download methods to report
     on progress.
@@ -64,7 +64,7 @@ class ProgressListener(object):
         self.close()
 
 
-class TqdmProgressListener(ProgressListener):
+class TqdmProgressListener(AbstractProgressListener):
     def __init__(self, description):
         self.description = description
         self.tqdm = None  # set in set_total_bytes()
@@ -94,7 +94,7 @@ class TqdmProgressListener(ProgressListener):
             self.tqdm.close()
 
 
-class SimpleProgressListener(ProgressListener):
+class SimpleProgressListener(AbstractProgressListener):
     def __init__(self, description):
         self.desc = description
         self.complete = 0
@@ -119,7 +119,7 @@ class SimpleProgressListener(ProgressListener):
             print('    DONE.')
 
 
-class DoNothingProgressListener(ProgressListener):
+class DoNothingProgressListener(AbstractProgressListener):
     def set_total_bytes(self, total_byte_count):
         pass
 

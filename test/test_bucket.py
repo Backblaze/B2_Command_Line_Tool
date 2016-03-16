@@ -16,14 +16,16 @@ import unittest
 
 import six
 
-from b2.b2 import (
-    AbstractWrappedError, B2Api, DownloadDestBytes, FileVersionInfo, MaxRetriesExceeded
-)
-from b2.progress import ProgressListener
+from b2.account_info import StubAccountInfo
+from b2.api import (B2Api)
+from b2.download_dest import (DownloadDestBytes)
+from b2.exception import (AbstractWrappedError, MaxRetriesExceeded)
+from b2.file_version import (FileVersionInfo)
+from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
-from b2.stub_account_info import StubAccountInfo
 from b2.utils import TempDir
 
+# The assertRaises context manager isn't in 2.6, so we don't bother running those tests there
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
 
@@ -32,7 +34,7 @@ def write_file(path, data):
         f.write(data)
 
 
-class StubProgressListener(ProgressListener):
+class StubProgressListener(AbstractProgressListener):
     """
     Implementation of a progress listener that remembers what calls were made,
     and returns them as a short string to use in unit tests.
