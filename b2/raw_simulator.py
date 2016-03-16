@@ -182,6 +182,7 @@ class BucketSimulator(object):
     def finish_large_file(self, file_id, part_sha1_array):
         file_sim = self.file_id_to_file[file_id]
         file_sim.finish(part_sha1_array)
+        return file_sim.as_upload_result()
 
     def get_upload_url(self):
         upload_id = six.next(self.upload_url_counter)
@@ -401,7 +402,7 @@ class RawSimulator(AbstractRawApi):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        bucket.finish_large_file(file_id, part_sha1_array)
+        return bucket.finish_large_file(file_id, part_sha1_array)
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         bucket = self._get_bucket_by_id(bucket_id)

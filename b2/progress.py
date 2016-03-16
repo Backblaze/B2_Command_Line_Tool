@@ -139,6 +139,34 @@ def make_progress_listener(description, quiet):
         return SimpleProgressListener(description)
 
 
+class RangeOfInputStream(object):
+    """
+    Wraps a file-like object (read only) and reads the selected
+    range of the file.
+    """
+
+    def __init__(self, stream, offset, length):
+        self.stream = stream
+        self.offset = offset
+        self.remaining = length
+
+    def __enter__(self):
+        self.stream.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self.stream.__exit__(exc_type, exc_val, exc_tb)
+
+    def read(self, size=None):
+        if size is None:
+            to_read = self.remaining
+        else:
+            to_read = min(size, self.remaining)
+        data = self.stream.read(to_read)
+        self.remaining -= len(data)
+        return data
+
+
 class StreamWithProgress(object):
     """
     Wraps a file-like object and updates a ProgressListener
@@ -156,7 +184,8 @@ class StreamWithProgress(object):
         assert progress_listener is not None
         self.stream = stream
         self.progress_listener = progress_listener
-        self.bytes_completed = offset
+        self.bytes_completed = 0
+        self.offset = offset
 
     def __enter__(self):
         return self
@@ -175,4 +204,4 @@ class StreamWithProgress(object):
 
     def _update(self, delta):
         self.bytes_completed += delta
-        self.progress_listener.bytes_completed(self.bytes_completed)
+        self.progress_listener.bytes_completed(self.bytes_completed + self.offset)

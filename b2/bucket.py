@@ -14,7 +14,7 @@ from .exception import (
     AbstractWrappedError, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
 from .file_version import (FileVersionInfoFactory)
-from .progress import (DoNothingProgressListener, StreamWithProgress)
+from .progress import (DoNothingProgressListener, RangeOfInputStream, StreamWithProgress)
 from .unfinished_large_file import (UnfinishedLargeFile)
 from .upload_source import (UploadSourceBytes, UploadSourceLocalFile)
 from .utils import (b2_url_encode, choose_part_ranges, hex_sha1_of_stream, validate_b2_file_name)
@@ -311,15 +311,17 @@ class Bucket(object):
             part_sha1_array.append(upload_response['contentSha1'])
 
         # Finish the large file
-        return self.api.raw_api.finish_large_file(
+        response = self.api.raw_api.finish_large_file(
             self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
             file_id, part_sha1_array
         )
+        return FileVersionInfoFactory.from_api_response(response)
 
     def _upload_part(self, file_id, part_number, part_range, upload_source, progress_listener):
         # Compute the SHA1 of the part
         (offset, content_length) = part_range
         with upload_source.open() as f:
+            f.seek(offset)
             sha1_sum = hex_sha1_of_stream(f, content_length)
 
         # Retry the upload as needed
@@ -331,7 +333,12 @@ class Bucket(object):
             try:
                 with upload_source.open() as file:
                     file.seek(offset)
-                    input_stream = StreamWithProgress(file, progress_listener, offset=offset)
+                    range_stream = RangeOfInputStream(file, offset, content_length)
+                    input_stream = StreamWithProgress(
+                        range_stream,
+                        progress_listener,
+                        offset=offset
+                    )
                     response = self.api.raw_api.upload_part(
                         upload_url, upload_auth_token, part_number, content_length, sha1_sum,
                         input_stream
