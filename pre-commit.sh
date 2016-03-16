@@ -61,6 +61,15 @@ do
     fi
 done
 
+header test_raw_api
+
+if [[ -n "$TEST_ACCOUNT_ID" && -n "$TEST_APPLICATION_KEY" ]]
+then
+    python -m b2.__main__ test_raw_api
+else
+    echo "Skipping because TEST_ACCOUNT_ID and TEST_APPLICATION_KEY are not set"
+fi
+
 if [[ $# -ne 0 && "$1" == quick ]]
 then
     header QUICK

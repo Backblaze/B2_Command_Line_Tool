@@ -13,6 +13,7 @@ from __future__ import print_function
 import base64
 import hashlib
 import json
+import os
 import random
 import re
 import socket
@@ -515,12 +516,18 @@ def test_raw_api_helper(raw_api):
     it.
     """
 
+    account_id = os.environ.get('TEST_ACCOUNT_ID', None)
+    if account_id is None:
+        print('TEST_ACCOUNT_ID is not set.', file=sys.stderr)
+        sys.exit(1)
+    application_key = os.environ.get('TEST_APPLICATION_KEY', None)
+    if application_key is None:
+        print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
+        sys.exit(1)
+
     # b2_authorize_account
     print('b2_authorize_account')
-    account_id = 'c7b22d0b0ad7'
-    application_key = '001a4e59524dbd8d2215b9e9f29b6c9df9df267dd1'
     realm_url = 'https://api.backblaze.com'
-
     auth_dict = raw_api.authorize_account(realm_url, account_id, application_key)
     account_auth_token = auth_dict['authorizationToken']
     api_url = auth_dict['apiUrl']
