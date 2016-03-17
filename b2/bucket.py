@@ -13,11 +13,12 @@ import six
 from .exception import (
     AbstractWrappedError, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
-from .file_version import (FileVersionInfoFactory)
-from .progress import (DoNothingProgressListener, RangeOfInputStream, StreamWithProgress)
-from .unfinished_large_file import (UnfinishedLargeFile)
-from .upload_source import (UploadSourceBytes, UploadSourceLocalFile)
-from .utils import (b2_url_encode, choose_part_ranges, hex_sha1_of_stream, validate_b2_file_name)
+from .file_version import FileVersionInfoFactory
+from .part import PartFactory
+from .progress import DoNothingProgressListener, RangeOfInputStream, StreamWithProgress
+from .unfinished_large_file import UnfinishedLargeFile
+from .upload_source import UploadSourceBytes, UploadSourceLocalFile
+from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, validate_b2_file_name
 
 
 class Bucket(object):
@@ -51,6 +52,23 @@ class Bucket(object):
             account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
             file_name, download_dest
         )
+
+    def list_parts(self, file_id, start_part_number=None, batch_size=None):
+        """
+        Generator that yields a Part for each of the parts that have been uploaded.
+
+        :param file_id: the ID of the large file that is not finished
+        :param start_part_number: the first part number to return.  defaults to the first part.
+        :param batch_size: the number of parts to fetch at a time from the server
+        """
+        batch_size = batch_size or 100
+        while True:
+            response = self.api.session.list_parts(file_id, start_part_number, batch_size)
+            for part_dict in response['parts']:
+                yield PartFactory.from_list_parts_dict(part_dict)
+            start_part_number = response.get('nextPartNumber')
+            if start_part_number is None:
+                break
 
     def ls(
         self,

@@ -233,10 +233,12 @@ class TestConsoleTool(unittest.TestCase):
         api_url = self.account_info.get_api_url()
         auth_token = self.account_info.get_account_auth_token()
         self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
-        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file2', 'text/plain',
-                                      {'color': 'blue'})
-        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file3', 'application/json',
-                                      {})
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+        )
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
+        )
         expected_stdout = '''
         9999 file1 text/plain
         9998 file2 text/plain color=blue
