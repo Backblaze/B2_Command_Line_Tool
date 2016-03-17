@@ -112,6 +112,13 @@ class TestConsoleTool(unittest.TestCase):
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
 
+    def test_cancel_large_file(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = bucket.start_large_file('file1', 'text/plain', {})
+        self._run_command(['cancel_large_file', file.file_id], '9999 canceled\n', '', 0)
+
     def test_files(self):
 
         self._authorize_account()

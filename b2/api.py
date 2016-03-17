@@ -185,7 +185,11 @@ class B2Api(object):
             if start_part_number is None:
                 break
 
-    # delete
+    # delete/cancel
+    def cancel_large_file(self, file_id):
+        response = self.session.cancel_large_file(file_id)
+        return FileVersionInfoFactory.from_cancel_large_file_response(response)
+
     def delete_file_version(self, file_id, file_name):
         # filename argument is not first, because one day it may become optional
         response = self.session.delete_file_version(file_id, file_name)

@@ -177,9 +177,22 @@ class BucketSimulator(object):
             bucketType=self.bucket_type
         )
 
+    def cancel_large_file(self, file_id):
+        file = self.file_id_to_file[file_id]
+        key = (file.name, file_id)
+        del self.file_name_and_id_to_file[key]
+        del self.file_id_to_file[file_id]
+        return dict(
+            accountId=self.account_id,
+            bucketId=self.bucket_id,
+            fileId=file_id,
+            fileName=file.name
+        )
+
     def delete_file_version(self, file_id, file_name):
         key = (file_name, file_id)
         del self.file_name_and_id_to_file[key]
+        del self.file_id_to_file[file_id]
         return dict(fileId=file_id, fileName=file_name)
 
     def download_file_by_id(self, file_id, download_dest):
@@ -388,7 +401,10 @@ class RawSimulator(AbstractRawApi):
         )
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
-        raise NotImplementedError()
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.cancel_large_file(file_id)
 
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):

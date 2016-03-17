@@ -45,6 +45,11 @@ Usages:
         Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
         B2_ACCOUNT_INFO environment variable.
 
+    b2 cancel_large_file [fileId]
+
+        Deletes all of the parts that have been uploaded for the
+        file, as well as the file itself.
+
     b2 clear_account
 
         Erases everything in ~/.b2_account_info
@@ -198,6 +203,8 @@ class ConsoleTool(object):
         try:
             if action == 'authorize_account':
                 return self.authorize_account(args)
+            elif action == 'cancel_large_file':
+                return self.cancel_large_file(args)
             elif action == 'clear_account':
                 return self.clear_account(args)
             elif action == 'create_bucket':
@@ -272,6 +279,14 @@ class ConsoleTool(object):
         test_raw_api()
 
     # bucket
+
+    def cancel_large_file(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        file_id = args[0]
+        self.api.cancel_large_file(file_id)
+        self._print(file_id, 'canceled')
+        return 0
 
     def create_bucket(self, args):
         if len(args) != 2:
