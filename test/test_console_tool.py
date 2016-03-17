@@ -17,7 +17,9 @@ from b2.account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
+from b2.progress import DoNothingProgressListener
 from b2.raw_simulator import RawSimulator
+from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
 
 
@@ -222,6 +224,32 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
+    def test_list_parts_with_none(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = bucket.start_large_file('file', 'text/plain', {})
+        self._run_command(['list_parts', file.file_id], '', '', 0)
+
+    def test_list_parts_with_parts(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = bucket.start_large_file('file', 'text/plain', {})
+        content = six.b('hello world')
+        bucket._upload_part(
+            file.file_id, 1, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        bucket._upload_part(
+            file.file_id, 3, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        expected_stdout = '''
+            1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+        '''
+
+        self._run_command(['list_parts', file.file_id], expected_stdout, '', 0)
+
     def test_list_unfinished_large_files_with_none(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -300,18 +328,25 @@ class TestConsoleTool(unittest.TestCase):
         lines = s.split('\n')
         if lines[0] == '':
             lines = lines[1:]
+        if len(lines) == 0:
+            return ''
 
         # Count the leading spaces
-        space_count = 0
-        while 0 < len(lines) and space_count < len(lines[0]) and lines[0][space_count] == ' ':
-            space_count += 1
+        space_count = min(self._leading_spaces(line) for line in lines)
 
-        # Remove the leading spaces from each line.
+        # Remove the leading spaces from each line, based on the line
+        # with the fewest leading spaces
         leading_spaces = ' ' * space_count
         assert all(
             line.startswith(leading_spaces) for line in lines
         ), 'all lines have leading spaces'
         return '\n'.join(line[space_count:] for line in lines)
+
+    def _leading_spaces(self, s):
+        space_count = 0
+        while space_count < len(s) and s[space_count] == ' ':
+            space_count += 1
+        return space_count
 
     def _trim_trailing_spaces(self, s):
         return '\n'.join(line.rstrip() for line in s.split('\n'))

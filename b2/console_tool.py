@@ -91,6 +91,17 @@ Usages:
         Lists the names of the files in a bucket, starting at the
         given point.
 
+    b2 list_unfinished_large_files <bucketName>
+
+        Lists all of the large files in the bucket that were started,
+        but not finished or canceled.
+
+    b2 list_parts <largeFileId>
+
+        Lists all of the parts that have been uploaded for the given
+        large file, which must be a file that was started but not
+        finished or canceled.
+
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
 
         Using the file naming convention that "/" separates folder
@@ -209,6 +220,8 @@ class ConsoleTool(object):
                 return self.list_file_names(args)
             elif action == 'list_file_versions':
                 return self.list_file_versions(args)
+            elif action == 'list_parts':
+                return self.list_parts(args)
             elif action == 'list_unfinished_large_files':
                 return self.list_unfinished_large_files(args)
             elif action == 'ls':
@@ -373,6 +386,14 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+
+    def list_parts(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        file_id = args[0]
+        for part in self.api.list_parts(file_id):
+            self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
         return 0
 
     def list_unfinished_large_files(self, args):
