@@ -119,6 +119,18 @@ class TestConsoleTool(unittest.TestCase):
         file = bucket.start_large_file('file1', 'text/plain', {})
         self._run_command(['cancel_large_file', file.file_id], '9999 canceled\n', '', 0)
 
+    def test_cancel_all_large_file(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.start_large_file('file1', 'text/plain', {})
+        bucket.start_large_file('file1', 'text/plain', {})
+        expected_stdout = '''
+        9999 canceled
+        9998 canceled
+        '''
+        self._run_command(['cancel_all_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0)
+
     def test_files(self):
 
         self._authorize_account()

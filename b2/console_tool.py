@@ -45,6 +45,10 @@ Usages:
         Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
         B2_ACCOUNT_INFO environment variable.
 
+    b2 cancel_all_unfinished_large_files [bucketName]
+
+        Cancels ALL unfinished large files in the bucket.
+
     b2 cancel_large_file [fileId]
 
         Deletes all of the parts that have been uploaded for the
@@ -203,6 +207,8 @@ class ConsoleTool(object):
         try:
             if action == 'authorize_account':
                 return self.authorize_account(args)
+            elif action == 'cancel_all_unfinished_large_files':
+                return self.cancel_all_unfinished_large_files(args)
             elif action == 'cancel_large_file':
                 return self.cancel_large_file(args)
             elif action == 'clear_account':
@@ -279,6 +285,16 @@ class ConsoleTool(object):
         test_raw_api()
 
     # bucket
+
+    def cancel_all_unfinished_large_files(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        bucket_name = args[0]
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        for file in bucket.list_unfinished_large_files():
+            bucket.cancel_large_file(file.file_id)
+            self._print(file.file_id, 'canceled')
+        return 0
 
     def cancel_large_file(self, args):
         if len(args) != 1:

@@ -42,6 +42,9 @@ class Bucket(object):
         account_id = self.api.account_info.get_account_id()
         return self.api.session.update_bucket(account_id, self.id_, type_)
 
+    def cancel_large_file(self, file_id):
+        return self.api.cancel_large_file(file_id)
+
     def download_file_by_id(self, file_id, download_dest):
         self.api.download_file_by_id(file_id, download_dest)
 
