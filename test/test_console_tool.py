@@ -129,7 +129,10 @@ class TestConsoleTool(unittest.TestCase):
         9999 canceled
         9998 canceled
         '''
-        self._run_command(['cancel_all_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0)
+
+        self._run_command(
+            ['cancel_all_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0
+        )
 
     def test_files(self):
 
