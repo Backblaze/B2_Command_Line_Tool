@@ -124,7 +124,7 @@ class TestConsoleTool(unittest.TestCase):
         self._create_my_bucket()
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         bucket.start_large_file('file1', 'text/plain', {})
-        bucket.start_large_file('file1', 'text/plain', {})
+        bucket.start_large_file('file2', 'text/plain', {})
         expected_stdout = '''
         9999 canceled
         9998 canceled

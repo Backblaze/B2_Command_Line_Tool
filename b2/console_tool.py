@@ -291,9 +291,9 @@ class ConsoleTool(object):
             return self._usage_and_fail()
         bucket_name = args[0]
         bucket = self.api.get_bucket_by_name(bucket_name)
-        for file in bucket.list_unfinished_large_files():
-            bucket.cancel_large_file(file.file_id)
-            self._print(file.file_id, 'canceled')
+        for file_version in bucket.list_unfinished_large_files():
+            bucket.cancel_large_file(file_version.file_id)
+            self._print(file_version.file_id, 'canceled')
         return 0
 
     def cancel_large_file(self, args):

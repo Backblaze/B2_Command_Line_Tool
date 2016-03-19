@@ -25,14 +25,11 @@ class Part(object):
         self.content_length = content_length
         self.content_sha1 = content_sha1
 
-    def __str__(self):
+    def __repr__(self):
         return '<%s %s %s %s %s>' % (
             self.__class__.__name__, self.file_id, self.part_number, self.content_length,
             self.content_sha1
         )
-
-    def __repr__(self):
-        return str(self)
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
