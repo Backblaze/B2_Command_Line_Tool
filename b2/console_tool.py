@@ -45,6 +45,15 @@ Usages:
         Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
         B2_ACCOUNT_INFO environment variable.
 
+    b2 cancel_all_unfinished_large_files [bucketName]
+
+        Cancels ALL unfinished large files in the bucket.
+
+    b2 cancel_large_file [fileId]
+
+        Deletes all of the parts that have been uploaded for the
+        file, as well as the file itself.
+
     b2 clear_account
 
         Erases everything in ~/.b2_account_info
@@ -90,6 +99,17 @@ Usages:
 
         Lists the names of the files in a bucket, starting at the
         given point.
+
+    b2 list_unfinished_large_files <bucketName>
+
+        Lists all of the large files in the bucket that were started,
+        but not finished or canceled.
+
+    b2 list_parts <largeFileId>
+
+        Lists all of the parts that have been uploaded for the given
+        large file, which must be a file that was started but not
+        finished or canceled.
 
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
 
@@ -187,6 +207,10 @@ class ConsoleTool(object):
         try:
             if action == 'authorize_account':
                 return self.authorize_account(args)
+            elif action == 'cancel_all_unfinished_large_files':
+                return self.cancel_all_unfinished_large_files(args)
+            elif action == 'cancel_large_file':
+                return self.cancel_large_file(args)
             elif action == 'clear_account':
                 return self.clear_account(args)
             elif action == 'create_bucket':
@@ -209,6 +233,10 @@ class ConsoleTool(object):
                 return self.list_file_names(args)
             elif action == 'list_file_versions':
                 return self.list_file_versions(args)
+            elif action == 'list_parts':
+                return self.list_parts(args)
+            elif action == 'list_unfinished_large_files':
+                return self.list_unfinished_large_files(args)
             elif action == 'ls':
                 return self.ls(args)
             elif action == 'make_url':
@@ -257,6 +285,24 @@ class ConsoleTool(object):
         test_raw_api()
 
     # bucket
+
+    def cancel_all_unfinished_large_files(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        bucket_name = args[0]
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        for file_version in bucket.list_unfinished_large_files():
+            bucket.cancel_large_file(file_version.file_id)
+            self._print(file_version.file_id, 'canceled')
+        return 0
+
+    def cancel_large_file(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        file_id = args[0]
+        self.api.cancel_large_file(file_id)
+        self._print(file_id, 'canceled')
+        return 0
 
     def create_bucket(self, args):
         if len(args) != 2:
@@ -371,6 +417,30 @@ class ConsoleTool(object):
         response = file_info.as_dict()
 
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+
+    def list_parts(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        file_id = args[0]
+        for part in self.api.list_parts(file_id):
+            self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
+        return 0
+
+    def list_unfinished_large_files(self, args):
+        if len(args) != 1:
+            return self._usage_and_fail()
+        bucket_name = args[0]
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        for unfinished in bucket.list_unfinished_large_files():
+            file_info_text = six.u(' ').join(
+                '%s=%s' % (k, unfinished.file_info[k])
+                for k in sorted(six.iterkeys(unfinished.file_info))
+            )
+            self._print(
+                '%s %s %s %s' %
+                (unfinished.file_id, unfinished.file_name, unfinished.content_type, file_info_text)
+            )
         return 0
 
     def upload_file(self, args):

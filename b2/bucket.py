@@ -13,11 +13,11 @@ import six
 from .exception import (
     AbstractWrappedError, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
-from .file_version import (FileVersionInfoFactory)
-from .progress import (DoNothingProgressListener, RangeOfInputStream, StreamWithProgress)
-from .unfinished_large_file import (UnfinishedLargeFile)
-from .upload_source import (UploadSourceBytes, UploadSourceLocalFile)
-from .utils import (b2_url_encode, choose_part_ranges, hex_sha1_of_stream, validate_b2_file_name)
+from .file_version import FileVersionInfoFactory
+from .progress import DoNothingProgressListener, RangeOfInputStream, StreamWithProgress
+from .unfinished_large_file import UnfinishedLargeFile
+from .upload_source import UploadSourceBytes, UploadSourceLocalFile
+from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, validate_b2_file_name
 
 
 class Bucket(object):
@@ -42,6 +42,9 @@ class Bucket(object):
         account_id = self.api.account_info.get_account_id()
         return self.api.session.update_bucket(account_id, self.id_, type_)
 
+    def cancel_large_file(self, file_id):
+        return self.api.cancel_large_file(file_id)
+
     def download_file_by_id(self, file_id, download_dest):
         self.api.download_file_by_id(file_id, download_dest)
 
@@ -51,6 +54,9 @@ class Bucket(object):
             account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
             file_name, download_dest
         )
+
+    def list_parts(self, file_id, start_part_number=None, batch_size=None):
+        return self.api.list_parts(file_id, start_part_number, batch_size)
 
     def ls(
         self,

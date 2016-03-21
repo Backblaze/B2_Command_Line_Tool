@@ -22,11 +22,8 @@ class UnfinishedLargeFile(object):
         self.content_type = file_dict['contentType']
         self.file_info = file_dict['fileInfo']
 
-    def __str__(self):
-        return '<%s %s %s>' % (self.__class__.__name__, self.bucket_id, self.file_name)
-
     def __repr__(self):
-        return str(self)
+        return '<%s %s %s>' % (self.__class__.__name__, self.bucket_id, self.file_name)
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__

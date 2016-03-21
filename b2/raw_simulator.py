@@ -21,10 +21,20 @@ from .raw_api import AbstractRawApi
 
 
 class PartSimulator(object):
-    def __init__(self, part_number, content_sha1, part_data):
+    def __init__(self, file_id, part_number, content_length, content_sha1, part_data):
+        self.file_id = file_id
         self.part_number = part_number
+        self.content_length = content_length
         self.content_sha1 = content_sha1
         self.part_data = part_data
+
+    def as_list_parts_dict(self):
+        return dict(
+            fileId=self.file_id,
+            partNumber=self.part_number,
+            contentLength=self.content_length,
+            contentSha1=self.content_sha1
+        )
 
 
 class FileSimulator(object):
@@ -122,6 +132,20 @@ class FileSimulator(object):
         """
         return self.action == 'upload'
 
+    def list_parts(self, start_part_number, max_part_count):
+        start_part_number = start_part_number or 1
+        max_part_count = max_part_count or 100
+        parts = [
+            part.as_list_parts_dict()
+            for part in self.parts if part is not None and start_part_number <= part.part_number
+        ]
+        if len(parts) <= max_part_count:
+            next_part_number = None
+        else:
+            next_part_number = parts[max_part_count]['partNumber']
+            parts = parts[:max_part_count]
+        return dict(parts=parts, nextPartNumber=next_part_number)
+
 
 class BucketSimulator(object):
 
@@ -153,9 +177,22 @@ class BucketSimulator(object):
             bucketType=self.bucket_type
         )
 
+    def cancel_large_file(self, file_id):
+        file_sim = self.file_id_to_file[file_id]
+        key = (file_sim.name, file_id)
+        del self.file_name_and_id_to_file[key]
+        del self.file_id_to_file[file_id]
+        return dict(
+            accountId=self.account_id,
+            bucketId=self.bucket_id,
+            fileId=file_id,
+            fileName=file_sim.name
+        )
+
     def delete_file_version(self, file_id, file_name):
         key = (file_name, file_id)
         del self.file_name_and_id_to_file[key]
+        del self.file_id_to_file[file_id]
         return dict(fileId=file_id, fileName=file_name)
 
     def download_file_by_id(self, file_id, download_dest):
@@ -195,13 +232,13 @@ class BucketSimulator(object):
 
     def hide_file(self, file_name):
         file_id = self._next_file_id()
-        file = FileSimulator(
+        file_sim = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'hide', file_name, None, "none", {},
             six.b(''), six.next(self.upload_timestamp_counter)
         )
-        self.file_id_to_file[file_id] = file
-        self.file_name_and_id_to_file[file.sort_key()] = file
-        return file.as_upload_result()
+        self.file_id_to_file[file_id] = file_sim
+        self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
+        return file_sim.as_upload_result()
 
     def list_file_names(self, start_file_name=None, max_file_count=None):
         start_file_name = start_file_name or ''
@@ -213,11 +250,11 @@ class BucketSimulator(object):
             (file_name, file_id) = key
             if start_file_name <= file_name and file_name != prev_file_name:
                 prev_file_name = file_name
-                file = self.file_name_and_id_to_file[key]
-                if file.is_visible():
-                    result_files.append(file.as_list_files_dict())
+                file_sim = self.file_name_and_id_to_file[key]
+                if file_sim.is_visible():
+                    result_files.append(file_sim.as_list_files_dict())
                     if len(result_files) == max_file_count:
-                        next_file_name = file.name + ' '
+                        next_file_name = file_sim.name + ' '
                         break
         return dict(files=result_files, nextFileName=next_file_name)
 
@@ -233,13 +270,17 @@ class BucketSimulator(object):
             if (start_file_name < file_name) or (
                 start_file_name == file_name and start_file_id <= file_id
             ):
-                file = self.file_name_and_id_to_file[key]
-                result_files.append(file.as_list_files_dict())
+                file_sim = self.file_name_and_id_to_file[key]
+                result_files.append(file_sim.as_list_files_dict())
                 if len(result_files) == max_file_count:
-                    next_file_name = file.name
+                    next_file_name = file_sim.name
                     next_file_id = str(int(file_id) + 1)
                     break
         return dict(files=result_files, nextFileName=next_file_name, nextFileId=next_file_id)
+
+    def list_parts(self, file_id, start_part_number, max_part_count):
+        file_sim = self.file_id_to_file[file_id]
+        return file_sim.list_parts(start_part_number, max_part_count)
 
     def list_unfinished_large_files(self, start_file_id=None, max_file_count=None):
         start_file_id = start_file_id or self.FIRST_FILE_ID
@@ -252,13 +293,14 @@ class BucketSimulator(object):
         ids_in_order = sorted(all_unfinished_ids, reverse=True)
         file_dict_list = [
             dict(
-                fileId=file.file_id,
-                fileName=file.name,
-                accountId=file.account_id,
-                bucketId=file.bucket_id,
-                contentType=file.content_type,
-                fileInfo=file.file_info
-            ) for file in (
+                fileId=file_sim.file_id,
+                fileName=file_sim.name,
+                accountId=file_sim.account_id,
+                bucketId=file_sim.bucket_id,
+                contentType=file_sim.content_type,
+                fileInfo=file_sim.file_info
+            )
+            for file_sim in (
                 self.file_id_to_file[file_id] for file_id in ids_in_order[:max_file_count]
             )
         ]
@@ -269,13 +311,13 @@ class BucketSimulator(object):
 
     def start_large_file(self, file_name, content_type, file_info):
         file_id = self._next_file_id()
-        file = FileSimulator(
+        file_sim = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'start', file_name, content_type, 'none',
             file_info, None, six.next(self.upload_timestamp_counter)
         )
-        self.file_id_to_file[file_id] = file
-        self.file_name_and_id_to_file[file.sort_key()] = file
-        return file.as_start_large_file_result()
+        self.file_id_to_file[file_id] = file_sim
+        self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
+        return file_sim.as_start_large_file_result()
 
     def update_bucket(self, bucket_type):
         self.bucket_type = bucket_type
@@ -288,20 +330,20 @@ class BucketSimulator(object):
         data_bytes = data_stream.read()
         assert len(data_bytes) == content_length
         file_id = self._next_file_id()
-        file = FileSimulator(
+        file_sim = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'upload', file_name, content_type,
             content_sha1, file_infos, data_bytes, six.next(self.upload_timestamp_counter)
         )
-        self.file_id_to_file[file_id] = file
-        self.file_name_and_id_to_file[file.sort_key()] = file
-        return file.as_upload_result()
+        self.file_id_to_file[file_id] = file_sim
+        self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
+        return file_sim.as_upload_result()
 
     def upload_part(self, file_id, part_number, content_length, sha1_sum, input_stream):
-        file = self.file_id_to_file[file_id]
+        file_sim = self.file_id_to_file[file_id]
         part_data = input_stream.read(content_length)
         assert len(part_data) == content_length
-        part = PartSimulator(part_number, sha1_sum, part_data)
-        file.add_part(part_number, part)
+        part = PartSimulator(file_sim.file_id, part_number, content_length, sha1_sum, part_data)
+        file_sim.add_part(part_number, part)
         return dict(
             fileId=file_id,
             partNumber=part_number,
@@ -360,7 +402,10 @@ class RawSimulator(AbstractRawApi):
         )
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
-        raise NotImplementedError()
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.cancel_large_file(file_id)
 
     def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):
@@ -458,6 +503,12 @@ class RawSimulator(AbstractRawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
+
+    def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return bucket.list_parts(file_id, start_part_number, max_part_count)
 
     def list_unfinished_large_files(
         self,

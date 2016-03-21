@@ -17,7 +17,9 @@ from b2.account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
+from b2.progress import DoNothingProgressListener
 from b2.raw_simulator import RawSimulator
+from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
 
 
@@ -109,6 +111,28 @@ class TestConsoleTool(unittest.TestCase):
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+
+    def test_cancel_large_file(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = bucket.start_large_file('file1', 'text/plain', {})
+        self._run_command(['cancel_large_file', file.file_id], '9999 canceled\n', '', 0)
+
+    def test_cancel_all_large_file(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.start_large_file('file1', 'text/plain', {})
+        bucket.start_large_file('file2', 'text/plain', {})
+        expected_stdout = '''
+        9999 canceled
+        9998 canceled
+        '''
+
+        self._run_command(
+            ['cancel_all_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0
+        )
 
     def test_files(self):
 
@@ -222,12 +246,66 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
+    def test_list_parts_with_none(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = bucket.start_large_file('file', 'text/plain', {})
+        self._run_command(['list_parts', file.file_id], '', '', 0)
+
+    def test_list_parts_with_parts(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = bucket.start_large_file('file', 'text/plain', {})
+        content = six.b('hello world')
+        bucket._upload_part(
+            file.file_id, 1, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        bucket._upload_part(
+            file.file_id, 3, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        expected_stdout = '''
+            1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+        '''
+
+        self._run_command(['list_parts', file.file_id], expected_stdout, '', 0)
+
+    def test_list_unfinished_large_files_with_none(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        self._run_command(['list_unfinished_large_files', 'my-bucket'], '', '', 0)
+
+    def test_list_unfinished_large_files_with_some(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        api_url = self.account_info.get_api_url()
+        auth_token = self.account_info.get_account_auth_token()
+        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+        )
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
+        )
+        expected_stdout = '''
+        9999 file1 text/plain
+        9998 file2 text/plain color=blue
+        9997 file3 application/json
+        '''
+
+        self._run_command(['list_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
         account auth token
         """
         self._run_command_no_checks(['authorize_account', 'my-account', 'good-app-key'])
+
+    def _create_my_bucket(self):
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
     def _run_command(self, argv, expected_stdout='', expected_stderr='', expected_status=0):
         """
@@ -272,18 +350,25 @@ class TestConsoleTool(unittest.TestCase):
         lines = s.split('\n')
         if lines[0] == '':
             lines = lines[1:]
+        if len(lines) == 0:
+            return ''
 
         # Count the leading spaces
-        space_count = 0
-        while 0 < len(lines) and space_count < len(lines[0]) and lines[0][space_count] == ' ':
-            space_count += 1
+        space_count = min(self._leading_spaces(line) for line in lines)
 
-        # Remove the leading spaces from each line.
+        # Remove the leading spaces from each line, based on the line
+        # with the fewest leading spaces
         leading_spaces = ' ' * space_count
         assert all(
             line.startswith(leading_spaces) for line in lines
         ), 'all lines have leading spaces'
         return '\n'.join(line[space_count:] for line in lines)
+
+    def _leading_spaces(self, s):
+        space_count = 0
+        while space_count < len(s) and s[space_count] == ' ':
+            space_count += 1
+        return space_count
 
     def _trim_trailing_spaces(self, s):
         return '\n'.join(line.rstrip() for line in s.split('\n'))

@@ -159,6 +159,10 @@ class AbstractRawApi(object):
         pass
 
     @abstractmethod
+    def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
+        pass
+
+    @abstractmethod
     def list_unfinished_large_files(
         self,
         api_url,
@@ -396,6 +400,16 @@ class B2RawApi(AbstractRawApi):
             maxFileCount=max_file_count
         )
 
+    def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
+        return self._post_json(
+            api_url,
+            'b2_list_parts',
+            account_auth_token,
+            fileId=file_id,
+            startPartNumber=start_part_number,
+            maxPartCount=max_part_count
+        )
+
     def list_unfinished_large_files(
         self,
         api_url,
@@ -516,18 +530,18 @@ def test_raw_api_helper(raw_api):
     it.
     """
 
-    account_id = os.environ.get('TEST_ACCOUNT_ID', None)
+    account_id = os.environ.get('TEST_ACCOUNT_ID')
     if account_id is None:
         print('TEST_ACCOUNT_ID is not set.', file=sys.stderr)
         sys.exit(1)
-    application_key = os.environ.get('TEST_APPLICATION_KEY', None)
+    application_key = os.environ.get('TEST_APPLICATION_KEY')
     if application_key is None:
         print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
         sys.exit(1)
+    realm_url = 'https://api.backblaze.com'
 
     # b2_authorize_account
     print('b2_authorize_account')
-    realm_url = 'https://api.backblaze.com'
     auth_dict = raw_api.authorize_account(realm_url, account_id, application_key)
     account_auth_token = auth_dict['authorizationToken']
     api_url = auth_dict['apiUrl']
@@ -640,6 +654,11 @@ def test_raw_api_helper(raw_api):
             six.BytesIO(part_contents)
         )
 
+        # b2_list_parts
+        print('b2_list_parts')
+        parts_response = raw_api.list_parts(api_url, account_auth_token, large_file_id, 1, 100)
+        assert [1] == [part['partNumber'] for part in parts_response['parts']]
+
         # b2_list_unfinished_large_files
         unfinished_list = raw_api.list_unfinished_large_files(
             api_url, account_auth_token, bucket_id
@@ -670,29 +689,6 @@ def test_raw_api_helper(raw_api):
         if _bucket_more_than_an_hour_old(bucket_name):
             print('cleaning up old bucket: ' + bucket_name)
             _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
-
-
-def _start_large_file(raw_api, api_url, account_auth_token, bucket_id, file_name):
-    print('b2_start_large_file')
-    large_info = raw_api.start_large_file(
-        api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
-    )
-    large_file_id = large_info['fileId']
-
-    print('b2_get_upload_part_url')
-    upload_part_dict = raw_api.get_upload_part_url(api_url, account_auth_token, large_file_id)
-    upload_part_url = upload_part_dict['uploadUrl']
-    upload_path_auth = upload_part_dict['authorizationToken']
-
-    print('b2_upload_part')
-    part_contents = six.b('hello part')
-    part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
-    raw_api.upload_part(
-        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
-        six.BytesIO(part_contents)
-    )
-
-    return large_file_id
 
 
 def _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id):

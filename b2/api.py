@@ -8,13 +8,14 @@
 #
 ######################################################################
 
-from .account_info import (StoredAccountInfo)
-from .bucket import (Bucket, BucketFactory)
-from .cache import (AuthInfoCache, DummyCache)
-from .exception import (MissingAccountData, NonExistentBucket)
-from .file_version import (FileVersionInfoFactory)
-from .raw_api import (B2RawApi)
-from .session import (B2Session)
+from .account_info import StoredAccountInfo
+from .bucket import Bucket, BucketFactory
+from .cache import AuthInfoCache, DummyCache
+from .exception import MissingAccountData, NonExistentBucket
+from .file_version import FileVersionInfoFactory
+from .part import PartFactory
+from .raw_api import B2RawApi
+from .session import B2Session
 
 
 def url_for_api(info, api_name):
@@ -167,7 +168,28 @@ class B2Api(object):
         self.cache.set_bucket_name_cache(buckets)
         return buckets
 
-    # delete
+    def list_parts(self, file_id, start_part_number=None, batch_size=None):
+        """
+        Generator that yields a Part for each of the parts that have been uploaded.
+
+        :param file_id: the ID of the large file that is not finished
+        :param start_part_number: the first part number to return.  defaults to the first part.
+        :param batch_size: the number of parts to fetch at a time from the server
+        """
+        batch_size = batch_size or 100
+        while True:
+            response = self.session.list_parts(file_id, start_part_number, batch_size)
+            for part_dict in response['parts']:
+                yield PartFactory.from_list_parts_dict(part_dict)
+            start_part_number = response.get('nextPartNumber')
+            if start_part_number is None:
+                break
+
+    # delete/cancel
+    def cancel_large_file(self, file_id):
+        response = self.session.cancel_large_file(file_id)
+        return FileVersionInfoFactory.from_cancel_large_file_response(response)
+
     def delete_file_version(self, file_id, file_name):
         # filename argument is not first, because one day it may become optional
         response = self.session.delete_file_version(file_id, file_name)

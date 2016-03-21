@@ -95,3 +95,16 @@ class FileVersionInfoFactory(object):
         return FileVersionInfo(
             id_, file_name, size, content_type, content_sha1, file_info, upload_timestamp, action
         )
+
+    @classmethod
+    def from_cancel_large_file_response(cls, response):
+        return FileVersionInfo(
+            response['fileId'],
+            response['fileName'],
+            0,  # size
+            'unknown',
+            'none',
+            {},
+            0,  # upload timestamp
+            'cancel'
+        )

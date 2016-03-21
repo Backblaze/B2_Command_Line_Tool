@@ -85,6 +85,14 @@ def hex_sha1_of_stream(input_stream, content_length):
     return digest.hexdigest()
 
 
+def hex_sha1_of_bytes(data):
+    """
+    Returns the 40-character hex SHA1 checksum of the first content_length
+    bytes in the input stream.
+    """
+    return hashlib.sha1(data).hexdigest()
+
+
 def validate_b2_file_name(name):
     """
     Raises a ValueError if the name is not a valid B2 file name.

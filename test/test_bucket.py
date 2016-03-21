@@ -17,13 +17,15 @@ import unittest
 import six
 
 from b2.account_info import StubAccountInfo
-from b2.api import (B2Api)
-from b2.download_dest import (DownloadDestBytes)
-from b2.exception import (AbstractWrappedError, MaxRetriesExceeded)
-from b2.file_version import (FileVersionInfo)
-from b2.progress import AbstractProgressListener
+from b2.api import B2Api
+from b2.download_dest import DownloadDestBytes
+from b2.exception import AbstractWrappedError, MaxRetriesExceeded
+from b2.file_version import FileVersionInfo
+from b2.part import Part
+from b2.progress import AbstractProgressListener, DoNothingProgressListener
 from b2.raw_simulator import RawSimulator
-from b2.utils import TempDir
+from b2.upload_source import UploadSourceBytes
+from b2.utils import hex_sha1_of_bytes, TempDir
 
 # The assertRaises context manager isn't in 2.6, so we don't bother running those tests there
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
@@ -84,9 +86,37 @@ class TestCaseWithBucket(unittest.TestCase):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()
         self.account_info = StubAccountInfo()
+        self.api_url = self.account_info.get_api_url()
+        self.account_auth_token = self.account_info.get_account_auth_token()
         self.api = B2Api(self.account_info, raw_api=self.simulator)
         self.api.authorize_account('production', 'my-account', 'good-app-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
+
+
+class TestListParts(TestCaseWithBucket):
+    def testEmpty(self):
+        file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
+        self.assertEqual([], list(self.bucket.list_parts(file1.file_id, batch_size=1)))
+
+    def testThree(self):
+        file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
+        content = six.b('hello world')
+        content_sha1 = hex_sha1_of_bytes(content)
+        self.bucket._upload_part(
+            file1.file_id, 1, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        self.bucket._upload_part(
+            file1.file_id, 2, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        self.bucket._upload_part(
+            file1.file_id, 3, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+        )
+        expected_parts = [
+            Part('9999', 1, 11, content_sha1),
+            Part('9999', 2, 11, content_sha1),
+            Part('9999', 3, 11, content_sha1),
+        ]
+        self.assertEqual(expected_parts, list(self.bucket.list_parts(file1.file_id, batch_size=1)))
 
 
 class TestListUnfinished(TestCaseWithBucket):
