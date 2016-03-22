@@ -69,7 +69,7 @@ class OpenUrl(object):
             data = e.read()
             raise WrappedHttpError(data, self.url, self.params, self.headers, sys.exc_info())
         except urllib.error.URLError as e:
-            raise WrappedUrlError(e.reason, self.url, self.params, self.headers, sys.exc_info())
+            raise WrappedUrlError(str(e.reason).encode('utf-8'), self.url, self.params, self.headers, sys.exc_info())
         except socket.error as e:  # includes socket.timeout
             # reportedly socket errors are not wrapped in urllib2.URLError since Python 2.7
             raise WrappedSocketError(
