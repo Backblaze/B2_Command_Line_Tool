@@ -11,11 +11,11 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.4.5
+Version 0.4.6
 
 # Usage
 
-    b2 authorize_account [--dev | --staging | --production] [accountId] [applicationKey]
+    b2 authorize_account [accountId] [applicationKey]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
         on the command line).
@@ -28,6 +28,15 @@ Version 0.4.5
 
         Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
         B2_ACCOUNT_INFO environment variable.
+
+    b2 cancel_all_unfinished_large_files [bucketName]
+
+        Cancels ALL unfinished large files in the bucket.
+
+    b2 cancel_large_file [fileId]
+
+        Deletes all of the parts that have been uploaded for the
+        file, as well as the file itself.
 
     b2 clear_account
 
@@ -75,6 +84,17 @@ Version 0.4.5
         Lists the names of the files in a bucket, starting at the
         given point.
 
+    b2 list_unfinished_large_files <bucketName>
+
+        Lists all of the large files in the bucket that were started,
+        but not finished or canceled.
+
+    b2 list_parts <largeFileId>
+
+        Lists all of the parts that have been uploaded for the given
+        large file, which must be a file that was started but not
+        finished or canceled.
+
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
 
         Using the file naming convention that "/" separates folder
@@ -120,7 +140,7 @@ Version 0.4.5
         of the local file, and assigns the given name to the B2 file.
 
         By default, upload_file will compute the sha1 checksum of the file
-        to be uploaded.  But, you you already have it, you can provide it
+        to be uploaded.  But, if you already have it, you can provide it
         on the command line to save a little time.
 
         Content type is optional.  If not set, it will be set based on the

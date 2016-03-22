@@ -31,7 +31,7 @@ USAGE = """This program provides command-line access to the B2 service.
 
 Usages:
 
-    b2 authorize_account [--dev | --staging | --production] [accountId] [applicationKey]
+    b2 authorize_account [accountId] [applicationKey]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
         on the command line).
