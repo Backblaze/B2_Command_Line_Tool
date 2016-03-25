@@ -9,4 +9,3 @@
   - `rm -rf dist ; python setup.py sdist`
   - `twine upload dist/*`
 - Bump the version number to an odd number and commit.
-

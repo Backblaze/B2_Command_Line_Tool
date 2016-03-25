@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+import os
+
 import six
 
 from .exception import (
@@ -253,8 +255,10 @@ class Bucket(object):
 
         # We don't upload any large files unless all of the parts can be at least
         # the minimum part size.
+        # TODO: enable large files when the feature is enabled
+        use_large_files = os.environ.get('USE_LARGE_FILES') is not None
         min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
-        if upload_source.get_content_length() < min_large_file_size:
+        if (not use_large_files) or (upload_source.get_content_length() < min_large_file_size):
             return self._upload_small_file(
                 upload_source, file_name, content_type, file_info, progress_listener
             )

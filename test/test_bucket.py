@@ -252,7 +252,9 @@ class TestUpload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
         self._check_file_contents('file1', data)
-        self.assertEqual("600: 200 400 600", progress_listener.get_history())
+        # TODO: put test back when large files are enabled
+        # self.assertEqual("600: 200 400 600", progress_listener.get_history())
+        self.assertEqual("600: 600", progress_listener.get_history())
 
     def _check_file_contents(self, file_name, expected_contents):
         download = DownloadDestBytes()
