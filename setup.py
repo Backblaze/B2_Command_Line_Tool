@@ -81,7 +81,11 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['six>=1.10.0'],
+    #
+    # We would like a more recent version of six, but that makes installation
+    # on OSX El Capitan fail.  OSX has version 1.4.1 built in, and even as
+    # sudo you're not allowed to change the package.  It's locked down.
+    install_requires=['six>=1.4.1'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
