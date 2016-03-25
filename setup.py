@@ -85,6 +85,7 @@ setup(
     # We would like a more recent version of six, but that makes installation
     # on OSX El Capitan fail.  OSX has version 1.4.1 built in, and even as
     # sudo you're not allowed to change the package.  It's locked down.
+    # https://github.com/pypa/pip/issues/3165
     install_requires=['six>=1.4.1'],
 
     # List additional groups of dependencies here (e.g. development
