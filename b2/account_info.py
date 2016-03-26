@@ -144,10 +144,20 @@ class StoredAccountInfo(AbstractAccountInfo):
                 return {}
 
     def _exclusive_lock(self):
-        return portalocker.Lock(self._lock_filename, timeout=self._lock_timeout, flags=portalocker.LOCK_SH)  # TODO: repackage timeout?
+        # TODO: repackage timeout?
+        return portalocker.Lock(
+            self._lock_filename,
+            timeout=self._lock_timeout,
+            flags=portalocker.LOCK_EX,
+        )
 
     def _shared_lock(self):
-        return portalocker.Lock(self._lock_filename, timeout=self._lock_timeout, flags=portalocker.LOCK_SH)  # TODO: repackage timeout?
+        # TODO: repackage timeout?
+        return portalocker.Lock(
+            self._lock_filename,
+            timeout=self._lock_timeout,
+            flags=portalocker.LOCK_SH,
+        )
 
     def clear(self):
         with self._exclusive_lock:
