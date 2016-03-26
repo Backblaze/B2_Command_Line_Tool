@@ -160,7 +160,7 @@ class StoredAccountInfo(AbstractAccountInfo):
         )
 
     def clear(self):
-        with self._exclusive_lock:
+        with self._exclusive_lock():
             self._write_file({})
 
     def get_account_id(self):
