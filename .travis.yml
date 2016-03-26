@@ -32,7 +32,6 @@ install:
   - pip install pyflakes
   - if [ -n "$OLD_SIX" ]; then pip install six==1.4.1; else pip install six==1.10; fi
   - pip install yapf
-  - pip freeze
 
 before_install:
   - uname -a
@@ -40,6 +39,7 @@ before_install:
   - virtualenv --version
 
 script:
+  - pip freeze
   - python setup.py install
   - nosetests -w test
   - python -m b2.__main__ test_raw_api
