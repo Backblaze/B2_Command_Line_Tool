@@ -160,8 +160,7 @@ class StoredAccountInfo(AbstractAccountInfo):
         )
 
     def clear(self):
-        with self._exclusive_lock():
-            self._write_file({})
+        self._write_file({})
 
     def get_account_id(self):
         return self._get_account_info_or_exit(self.ACCOUNT_ID)
@@ -194,25 +193,23 @@ class StoredAccountInfo(AbstractAccountInfo):
         self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
         realm
     ):
-        with self._exclusive_lock():
-            data = self._get_data()
-            data[self.ACCOUNT_ID] = account_id
-            data[self.ACCOUNT_AUTH_TOKEN] = auth_token
-            data[self.API_URL] = api_url
-            data[self.APPLICATION_KEY] = application_key
-            data[self.REALM] = realm
-            data[self.DOWNLOAD_URL] = download_url
-            data[self.MINIMUM_PART_SIZE] = minimum_part_size
-            self._write_file(data)
+        data = self._get_data()
+        data[self.ACCOUNT_ID] = account_id
+        data[self.ACCOUNT_AUTH_TOKEN] = auth_token
+        data[self.API_URL] = api_url
+        data[self.APPLICATION_KEY] = application_key
+        data[self.REALM] = realm
+        data[self.DOWNLOAD_URL] = download_url
+        data[self.MINIMUM_PART_SIZE] = minimum_part_size
+        self._write_file(data)
 
     def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        with self._exclusive_lock():
-            data = self._get_data()
-            data[self.BUCKET_UPLOAD_DATA][bucket_id] = {
-                self.BUCKET_UPLOAD_URL: upload_url,
-                self.BUCKET_UPLOAD_AUTH_TOKEN: upload_auth_token,
-            }
-            self._write_file(data)
+        data = self._get_data()
+        data[self.BUCKET_UPLOAD_DATA][bucket_id] = {
+            self.BUCKET_UPLOAD_URL: upload_url,
+            self.BUCKET_UPLOAD_AUTH_TOKEN: upload_auth_token,
+        }
+        self._write_file(data)
 
     def get_bucket_upload_data(self, bucket_id):
         data = self._get_data()
@@ -224,11 +221,10 @@ class StoredAccountInfo(AbstractAccountInfo):
         return url, upload_auth_token
 
     def clear_bucket_upload_data(self, bucket_id):
-        with self._exclusive_lock():
-            data = self._get_data()
-            bucket_upload_data = data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
-            if bucket_upload_data is not None:
-                self._write_file(data)
+        data = self._get_data()
+        bucket_upload_data = data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
+        if bucket_upload_data is not None:
+            self._write_file(data)
 
     def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
         self._large_file_uploads[file_id] = (upload_url, upload_auth_token)
@@ -241,29 +237,26 @@ class StoredAccountInfo(AbstractAccountInfo):
             del self._large_file_uploads[file_id]
 
     def save_bucket(self, bucket):
-        with self._exclusive_lock():
-            data = self._get_data()
-            names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
-            if names_to_ids.get(bucket.name) != bucket.id_:
-                names_to_ids[bucket.name] = bucket.id_
-                self._write_file(data)
+        data = self._get_data()
+        names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
+        if names_to_ids.get(bucket.name) != bucket.id_:
+            names_to_ids[bucket.name] = bucket.id_
+            self._write_file(data)
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         new_cache = dict(name_id_iterable)
-        with self._exclusive_lock():
-            data = self._get_data()
-            old_cache = data[self.BUCKET_NAMES_TO_IDS]
-            if old_cache != new_cache:
-                data[self.BUCKET_NAMES_TO_IDS] = new_cache
-                self._write_file(data)
+        data = self._get_data()
+        old_cache = data[self.BUCKET_NAMES_TO_IDS]
+        if old_cache != new_cache:
+            data[self.BUCKET_NAMES_TO_IDS] = new_cache
+            self._write_file(data)
 
     def remove_bucket_name(self, bucket_name):
-        with self._exclusive_lock():
-            data = self._get_data()
-            names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
-            if bucket_name in names_to_ids:
-                del names_to_ids[bucket_name]
-                self._write_file(data)
+        data = self._get_data()
+        names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
+        if bucket_name in names_to_ids:
+            del names_to_ids[bucket_name]
+            self._write_file(data)
 
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
         data = self._get_data()
@@ -271,14 +264,18 @@ class StoredAccountInfo(AbstractAccountInfo):
         return names_to_ids.get(bucket_name)
 
     def _write_file(self, data):
-        # this method assumes that an exclusive lock has been acquired!
+        """
+        makes sure the file is consistent for read and not corrupted by multiple writers
+        by using an inteprocess lock
+        """
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
         if os.name == 'nt':
             flags |= os.O_BINARY
-        with os.fdopen(os.open(self.filename, flags, stat.S_IRUSR | stat.S_IWUSR), 'wb') as f:
-            # is there a cleaner way to do this that works in both Python 2 and 3?
-            json_bytes = json.dumps(data, indent=4, sort_keys=True).encode('utf-8')
-            f.write(json_bytes)
+        with self._exclusive_lock():
+            with os.fdopen(os.open(self.filename, flags, stat.S_IRUSR | stat.S_IWUSR), 'wb') as f:
+                # is there a cleaner way to do this that works in both Python 2 and 3?
+                json_bytes = json.dumps(data, indent=4, sort_keys=True).encode('utf-8')
+                f.write(json_bytes)
 
 
 class StubAccountInfo(AbstractAccountInfo):
