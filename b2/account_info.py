@@ -97,7 +97,7 @@ class StoredAccountInfo(AbstractAccountInfo):
     """Manages the file that holds the account ID and stored auth tokens.
 
     It assumes many processes are accessing the same account info file,
-    so nothing can be cached
+    so not everything can be cached in memory.
     """
 
     ACCOUNT_AUTH_TOKEN = 'account_auth_token'
@@ -118,6 +118,7 @@ class StoredAccountInfo(AbstractAccountInfo):
         self._lock_filename = self.filename + '.lock'
         self._lock_timeout = internal_lock_timeout
         self._large_file_uploads = {}  # We don't keep large file upload URLs across a reload
+        self._bucket_names_to_ids = {}  # for in-memory cache
 
     def _get_data(self):
         data = self._try_to_read_file()
@@ -130,6 +131,7 @@ class StoredAccountInfo(AbstractAccountInfo):
             data[self.BUCKET_UPLOAD_DATA] = {}
         if self.BUCKET_NAMES_TO_IDS not in data:
             data[self.BUCKET_NAMES_TO_IDS] = {}
+        self._bucket_names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
         return data
 
     def _try_to_read_file(self):
@@ -161,6 +163,7 @@ class StoredAccountInfo(AbstractAccountInfo):
 
     def clear(self):
         self._write_file({})
+        self._bucket_names_to_ids = {}
 
     def get_account_id(self):
         return self._get_account_info_or_exit(self.ACCOUNT_ID)
@@ -237,6 +240,7 @@ class StoredAccountInfo(AbstractAccountInfo):
             del self._large_file_uploads[file_id]
 
     def save_bucket(self, bucket):
+        self._bucket_names_to_ids[bucket.name] = bucket.id_
         data = self._get_data()
         names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
         if names_to_ids.get(bucket.name) != bucket.id_:
@@ -245,6 +249,7 @@ class StoredAccountInfo(AbstractAccountInfo):
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         new_cache = dict(name_id_iterable)
+        self._bucket_names_to_ids = new_cache
         data = self._get_data()
         old_cache = data[self.BUCKET_NAMES_TO_IDS]
         if old_cache != new_cache:
@@ -252,6 +257,7 @@ class StoredAccountInfo(AbstractAccountInfo):
             self._write_file(data)
 
     def remove_bucket_name(self, bucket_name):
+        del self._bucket_names_to_ids[bucket_name]
         data = self._get_data()
         names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
         if bucket_name in names_to_ids:
@@ -259,6 +265,9 @@ class StoredAccountInfo(AbstractAccountInfo):
             self._write_file(data)
 
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
+        bucket_id = self._bucket_names_to_ids.get(bucket_name)
+        if bucket_id is not None:
+            return bucket_id
         data = self._get_data()
         names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
         return names_to_ids.get(bucket_name)
