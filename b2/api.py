@@ -63,7 +63,7 @@ class B2Api(object):
             account_info = StoredAccountInfo()
             if cache is None:
                 cache = AuthInfoCache(account_info)
-        self.session = B2Session(account_info, self.raw_api)
+        self.session = B2Session(self, self.raw_api)
         self.account_info = account_info
         if cache is None:
             cache = DummyCache()
@@ -71,7 +71,7 @@ class B2Api(object):
 
     def authorize_automatically(self):
         try:
-            self.authorize(
+            self.authorize_account(
                 self.account_info.get_realm(),
                 self.account_info.get_account_id(),
                 self.account_info.get_application_key(),
