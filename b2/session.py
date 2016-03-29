@@ -19,8 +19,8 @@ class B2Session(object):
         of underlying raw_api and reauthorizes if necessary
     """
 
-    def __init__(self, account_info, raw_api):
-        self.account_info = account_info  # for reauthorization
+    def __init__(self, api, raw_api):
+        self._api = api  # for reauthorization
         self.raw_api = raw_api
 
     def __getattr__(self, name):
@@ -30,14 +30,14 @@ class B2Session(object):
         def wrapper(*args, **kwargs):
             auth_failure_encountered = False
             while 1:
-                api_url = self.account_info.get_api_url()
-                account_auth_token = self.account_info.get_account_auth_token()
+                api_url = self._api.account_info.get_api_url()
+                account_auth_token = self._api.account_info.get_account_auth_token()
                 try:
                     return f(api_url, account_auth_token, *args, **kwargs)
                 except InvalidAuthToken:
                     if not auth_failure_encountered:
                         auth_failure_encountered = True
-                        reauthorization_success = self.account_info.authorize_automatically()
+                        reauthorization_success = self._api.authorize_automatically()
                         if reauthorization_success:
                             continue
                         # TODO: exception chaining could be added here
