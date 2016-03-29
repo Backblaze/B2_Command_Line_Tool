@@ -19,7 +19,7 @@ import six
 from b2.account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.download_dest import DownloadDestBytes
-from b2.exception import AbstractWrappedError, MaxRetriesExceeded
+from b2.exception import AbstractWrappedError, InvalidAuthToken, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener, DoNothingProgressListener
@@ -91,6 +91,24 @@ class TestCaseWithBucket(unittest.TestCase):
         self.api = B2Api(self.account_info, raw_api=self.simulator)
         self.api.authorize_account('production', 'my-account', 'good-app-key')
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
+
+
+class TestReauthorization(TestCaseWithBucket):
+    def testCreateBucket(self):
+        class InvalidAuthTokenWrapper(object):
+            def __init__(self, original_function):
+                self.__original_function = original_function
+                self.__name__ = original_function.__name__
+                self.__called = False
+            def __call__(self, *args, **kwargs):
+                print('fake', self, self.__called)
+                print(self.__call__)
+                if self.__called:
+                    return self.__original_function(*args, **kwargs)
+                self.__called = True
+                raise InvalidAuthToken('message', 401)
+        self.simulator.create_bucket = InvalidAuthTokenWrapper(self.simulator.create_bucket)
+        self.bucket = self.api.create_bucket('your-bucket', 'allPublic')
 
 
 class TestListParts(TestCaseWithBucket):
