@@ -60,7 +60,15 @@ def _translate_errors(fcn):
     Calls the given function, turning any exception raised into a WebApiError.
     """
     try:
-        return fcn()
+        response = fcn()
+        if response.status_code not in [200, 206]:
+            # Decode the error object returned by the service
+            error = json.loads(response.content.decode('utf-8'))
+            raise WebApiError(int(error['status']), error['code'], error['message'])
+        return response
+
+    except WebApiError:
+        raise # pass through exceptions from just above
 
     except requests.ConnectionError as e0:
         e1 = e0.args[0]
@@ -119,6 +127,15 @@ def _test():
     during building.  Run the test by hand to exercise the code.  Be sure
     to run in both Python 2 and Python 3.
     """
+
+    # Error from B2
+    print('TEST: error object from B2')
+    try:
+        post('https://api.backblaze.com/b2api/v1/b2_get_file_info', {}, six.b('{}'))
+        assert False, 'should have failed with bad json'
+    except WebApiError as e:
+        assert e == WebApiError(400, 'bad_json', 'required field fileId is missing')
+
     # Successful get
     print('TEST: get')
     r = get('https://api.backblaze.com/test/echo_zeros?length=10', {})
@@ -154,3 +171,5 @@ def _test():
         assert False, 'should have failed with broken pipe'
     except WebApiError as e:
         assert e == WebApiError(503, 'connection_error', 'unable to connect')
+
+_test()
