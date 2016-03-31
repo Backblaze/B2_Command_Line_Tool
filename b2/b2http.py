@@ -10,6 +10,7 @@
 
 from __future__ import print_function
 
+import functools
 import json
 import requests
 import six
@@ -37,12 +38,6 @@ class WebApiError(Exception):
 
     def __repr__(self):
         return "WebApiError(%d, '%s', '%s')" % (self.status, self.code, self.message)
-
-    def __eq__(self, other):
-        return repr(self) == repr(other)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
 
 def _print_exception(e, indent=''):
@@ -88,13 +83,12 @@ def _translate_errors(fcn):
                     # Broken pipes are usually caused by the service rejecting
                     # an upload request for cause, so we use a 400 Bad Request
                     # code.
-                    raise WebApiError(503, 'broken_pipe', 'unable to send entire request')
+                    raise WebApiError(400, 'broken_pipe', 'unable to send entire request')
         raise WebApiError(503, 'connection_error', 'unable to connect')
 
     except Exception as e:
         # Don't expect this to happen.  To get lots of info for
-        # debugging, call print_exception.
-        # print_exception(e)
+        # debugging, call print_exception: print_exception(e)
         raise WebApiError(500, 'unknown', repr(e))
 
 
@@ -107,7 +101,7 @@ def post(url, headers, data):
     :param data: Data to send: should be bytes.
     :return: A requests object with the response.
     """
-    return _translate_errors(lambda: requests.post(url, headers=headers, data=data))
+    return _translate_errors(functools.partial(requests.post, url, headers=headers, data=data))
 
 
 def get(url, headers):
@@ -118,7 +112,7 @@ def get(url, headers):
     :param headers: Headers to send.
     :return: A requests object with the response.
     """
-    return _translate_errors(lambda: requests.get(url, headers=headers))
+    return _translate_errors(functools.partial(requests.get, url, headers=headers))
 
 
 def _test():
@@ -136,7 +130,7 @@ def _test():
         post('https://api.backblaze.com/b2api/v1/b2_get_file_info', {}, six.b('{}'))
         assert False, 'should have failed with bad json'
     except WebApiError as e:
-        assert e == WebApiError(400, 'bad_json', 'required field fileId is missing')
+        assert e.code == 'bad_json'
 
     # Successful get
     print('TEST: get')
@@ -156,7 +150,7 @@ def _test():
         post('https://unknown.backblaze.com', {}, six.b(''))
         assert False, 'should have failed with unknown host'
     except WebApiError as e:
-        assert e == WebApiError(503, 'unknown_host', 'unable to locate host')
+        assert e.code == 'unknown_host'
 
     # Broken pipe
     print('TEST: broken pipe')
@@ -164,7 +158,7 @@ def _test():
         post('https://api.backblaze.com/bad_url', {}, six.b(chr(0)) * 10000000)
         assert False, 'should have failed with broken pipe'
     except WebApiError as e:
-        assert e == WebApiError(503, 'broken_pipe', 'unable to send entire request')
+        assert e.code == 'broken_pipe'
 
     # Generic connection error
     print('TEST: generic connection error')
@@ -172,7 +166,7 @@ def _test():
         post('https://api.backblaze.com:6666/bad_port', {}, six.b(chr(0)) * 10000000)
         assert False, 'should have failed with broken pipe'
     except WebApiError as e:
-        assert e == WebApiError(503, 'connection_error', 'unable to connect')
+        assert e.code == 'connection_error'
 
 
 _test()
