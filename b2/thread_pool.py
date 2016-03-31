@@ -15,7 +15,7 @@ from six.moves import range
 from six.moves.queue import Queue
 
 # this is added to the task queue to tell the threads to stop
-SHUT_DOWN_TOKEN = 'shut_down'
+SHUT_DOWN_TOKEN = object()
 
 
 class ThreadInThreadPool(threading.Thread):
@@ -55,6 +55,8 @@ class ThreadPool(object):
         pool.add_task(new MyTask())
         pool.join_all()
         errors = pool.get_exceptions()
+
+    Once you call join_all() you may not add any more tasks.
     """
 
     def __init__(self, thread_count=10, queue_capacity=1000):
@@ -62,16 +64,16 @@ class ThreadPool(object):
         Initializes a new thread pool, starts the threads running,
         and gets ready to accept tasks.
         """
-        self.queue = Queue(maxsize=queue_capacity)
-        self.threads = [self._start_thread() for i in range(thread_count)]
-        self.lock = threading.Lock()  # controls self.exceptions
-        self.exceptions = []
+        self._queue = Queue(maxsize=queue_capacity)
+        self._threads = [self._start_thread() for i in range(thread_count)]
+        self._lock = threading.Lock()  # controls self.exceptions
+        self._exceptions = []
 
     def add_task(self, task):
         """
         Adds a task to the queue, blocking until there is room.
         """
-        self.queue.put(task)
+        self._queue.put(task)
 
     def join_all(self):
         """
@@ -79,34 +81,36 @@ class ThreadPool(object):
         """
         # Tell each of the threads to stop.  Each thread will consume
         # one of the tokens and then exit.
-        for i in range(len(self.threads)):
-            self.queue.put(SHUT_DOWN_TOKEN)
-        self.queue = None
+        for _ in self._threads:
+            self._queue.put(SHUT_DOWN_TOKEN)
+
+        # Nobody can add any tasks any more.
+        self._queue = None
 
         # Wait for the threads to be done.
-        for thread in self.threads:
+        for thread in self._threads:
             thread.join()
-        self.threads = None
+        self._threads = None
 
     def get_exceptions(self):
         """
         Returns a list of all of the exceptions that happened.
         The list contains two-tuples: (task, exception)
         """
-        with self.lock:
-            return self.exceptions
+        with self._lock:
+            return self._exceptions
 
     def _add_exception(self, exception):
         """
         Called by a thread to add an exception to the list.
         """
-        with self.lock:
-            self.exceptions.append(exception)
+        with self._lock:
+            self._exceptions.append(exception)
 
     def _start_thread(self):
         """
         Starts one thread that runs until it gets a SHUT_DOWN_TOKEN.
         """
-        thread = ThreadInThreadPool(self, self.queue)
+        thread = ThreadInThreadPool(self, self._queue)
         thread.start()
         return thread
