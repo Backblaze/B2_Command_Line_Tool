@@ -16,6 +16,7 @@ import unittest
 from b2.thread_pool import ThreadPool
 from six.moves import range
 
+
 class Counter(object):
     def __init__(self):
         self.lock = threading.Lock()
@@ -29,6 +30,7 @@ class Counter(object):
     def get(self):
         with self.lock:
             return self.count
+
 
 class TestTask(object):
     def __init__(self, index, counter):
@@ -57,7 +59,3 @@ class TestThreadPool(unittest.TestCase):
         self.assertEqual(20, counter.get())
         self.assertEqual(1, len(exceptions))
         self.assertEqual(('five',), exceptions[0][1].args)
-
-
-
-

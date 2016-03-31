@@ -17,10 +17,12 @@ from six.moves.queue import Queue
 # this is added to the task queue to tell the threads to stop
 SHUT_DOWN_TOKEN = 'shut_down'
 
+
 class ThreadInThreadPool(threading.Thread):
     """
     Runs tasks from the queue until getting a SHUT_DOWN_TOKEN.
     """
+
     def __init__(self, pool, queue):
         super(ThreadInThreadPool, self).__init__()
         self.pool = pool
@@ -108,7 +110,3 @@ class ThreadPool(object):
         thread = ThreadInThreadPool(self, self.queue)
         thread.start()
         return thread
-
-
-
-
