@@ -15,6 +15,7 @@ import requests
 import six
 import socket
 
+
 class WebApiError(Exception):
     """
     Holds information extracted from a call to a B2 API.
@@ -27,6 +28,7 @@ class WebApiError(Exception):
             "message" : "bucket name is too long"
         }
     """
+
     def __init__(self, status, code, message):
         super(WebApiError, self).__init__(status, code, message)
         self.status = status
@@ -68,7 +70,7 @@ def _translate_errors(fcn):
         return response
 
     except WebApiError:
-        raise # pass through exceptions from just above
+        raise  # pass through exceptions from just above
 
     except requests.ConnectionError as e0:
         e1 = e0.args[0]
@@ -171,5 +173,6 @@ def _test():
         assert False, 'should have failed with broken pipe'
     except WebApiError as e:
         assert e == WebApiError(503, 'connection_error', 'unable to connect')
+
 
 _test()

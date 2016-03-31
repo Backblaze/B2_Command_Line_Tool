@@ -100,6 +100,7 @@ class TestReauthorization(TestCaseWithBucket):
                 self.__original_function = original_function
                 self.__name__ = original_function.__name__
                 self.__called = False
+
             def __call__(self, *args, **kwargs):
                 print('fake', self, self.__called)
                 print(self.__call__)
@@ -107,6 +108,7 @@ class TestReauthorization(TestCaseWithBucket):
                     return self.__original_function(*args, **kwargs)
                 self.__called = True
                 raise InvalidAuthToken('message', 401)
+
         self.simulator.create_bucket = InvalidAuthTokenWrapper(self.simulator.create_bucket)
         self.bucket = self.api.create_bucket('your-bucket', 'allPublic')
 
