@@ -108,21 +108,6 @@ class B2Http(object):
             ...
         except B2Error as e:
             ...
-
-
-    get_content() returns a context manager object that returns
-    an object that acts like requests.Response.
-
-        try:
-            with b2_http.get_content(url, headers) as response:
-                for byte_data in response.iter_content(chunk_size=1024):
-                    ...
-        except B2Error as e:
-            ...
-
-    The response object is only guarantee to have:
-        - headers
-        - iter_content()
     """
 
     def __init__(self, requests_module=None):
@@ -134,10 +119,18 @@ class B2Http(object):
 
     def post_content_return_json(self, url, headers, data):
         """
+        Use like this:
+
+            try:
+                response_dict = b2_http.post_content_return_json(url, headers, data)
+                ...
+            except B2Error as e:
+                ...
+
         :param url: URL to call
         :param headers: Headers to send.
-        :param data: bytes (Python 3) or str (Python 2) to send
-        :return:
+        :param data: bytes (Python 3) or str (Python 2), or a file-like object, to send
+        :return: a dict that is the decoded JSON
         """
         headers['User-Agent'] = USER_AGENT
         response = _translate_errors(
@@ -149,22 +142,47 @@ class B2Http(object):
             )
         )
         try:
+            # We only get here if the status is 200 OK, and it
+            # that case the body is *always* JSON.
             return json.loads(response.content.decode('utf-8'))
         finally:
             response.close()
 
     def post_json_return_json(self, url, headers, params):
         """
+        Use like this:
+
+            try:
+                response_dict = b2_http.post_json_return_json(url, headers, params)
+                ...
+            except B2Error as e:
+                ...
+
         :param url: URL to call
         :param headers: Headers to send.
         :param params: A dict that will be converted to JSON
-        :return:
+        :return: a dict that is the decoded JSON
         """
         data = six.b(json.dumps(params))
         return self.post_content_return_json(url, headers, data)
 
     def get_content(self, url, headers):
         """
+        Fetches content from a URL.
+
+        Use like this:
+
+            try:
+                with b2_http.get_content(url, headers) as response:
+                    for byte_data in response.iter_content(chunk_size=1024):
+                        ...
+            except B2Error as e:
+                ...
+
+        The response object is only guarantee to have:
+            - headers
+            - iter_content()
+
         :param url: URL to call
         :param headers: Headers to send
         :return: Context manager that returns an object that supports iter_content()

@@ -123,7 +123,7 @@ class B2RawApi(AbstractRawApi):
         :return:
         """
         url = base_url + '/b2api/v1/' + api_name
-        headers = dict(Authorization=auth)
+        headers = {'Authorization': auth}
         return self.b2_http.post_json_return_json(url, headers, params)
 
     def authorize_account(self, realm_url, account_id, application_key):
