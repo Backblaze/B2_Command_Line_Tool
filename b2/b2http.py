@@ -15,29 +15,7 @@ import json
 import requests
 import six
 import socket
-
-
-class WebApiError(Exception):
-    """
-    Holds information extracted from a call to a B2 API.
-
-    When an error happens, B2 returns an error JSON that looks like this:
-
-        {
-            "status" : 400,
-            "code" : "invalid_bucket_name",
-            "message" : "bucket name is too long"
-        }
-    """
-
-    def __init__(self, status, code, message):
-        super(WebApiError, self).__init__(status, code, message)
-        self.status = status
-        self.code = code
-        self.message = message
-
-    def __repr__(self):
-        return "WebApiError(%d, '%s', '%s')" % (self.status, self.code, self.message)
+from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
 
 
 def _print_exception(e, indent=''):
@@ -54,17 +32,18 @@ def _print_exception(e, indent=''):
 
 def _translate_errors(fcn):
     """
-    Calls the given function, turning any exception raised into a WebApiError.
+    Calls the given function, turning any exception raised into the right
+    kind of B2Error.
     """
     try:
         response = fcn()
         if response.status_code not in [200, 206]:
             # Decode the error object returned by the service
             error = json.loads(response.content.decode('utf-8'))
-            raise WebApiError(int(error['status']), error['code'], error['message'])
+            raise interpret_b2_error(int(error['status']), error['code'], error['message'])
         return response
 
-    except WebApiError:
+    except B2Error:
         raise  # pass through exceptions from just above
 
     except requests.ConnectionError as e0:
@@ -75,7 +54,7 @@ def _translate_errors(fcn):
                 # Unknown host, or DNS failing.  In the context of calling
                 # B2, this means that something is down between here and
                 # Backblaze, so we treat it like 503 Service Unavailable.
-                raise WebApiError(503, 'unknown_host', 'unable to locate host')
+                raise UnknownHost()
         elif isinstance(e1, requests.packages.urllib3.exceptions.ProtocolError):
             e2 = e1.args[1]
             if isinstance(e2, socket.error):
@@ -83,39 +62,104 @@ def _translate_errors(fcn):
                     # Broken pipes are usually caused by the service rejecting
                     # an upload request for cause, so we use a 400 Bad Request
                     # code.
-                    raise WebApiError(400, 'broken_pipe', 'unable to send entire request')
-        raise WebApiError(503, 'connection_error', 'unable to connect')
+                    raise BrokenPipe()
+        raise ConnectionError(str(e0.args))
 
     except Exception as e:
         # Don't expect this to happen.  To get lots of info for
         # debugging, call print_exception: print_exception(e)
-        raise WebApiError(500, 'unknown', repr(e))
+        raise UnknownError(repr(e))
 
 
-def post(url, headers, data):
+class ResponseContextManager(object):
     """
-    Posts to the given URL, translating any errors into a raised WebApiError.
-
-    :param url: The URL to post to.
-    :param headers: Headers to send.
-    :param data: Data to send: should be bytes.
-    :return: A requests object with the response.
+    Context manager that closes a requests.Response when done.
     """
-    return _translate_errors(functools.partial(requests.post, url, headers=headers, data=data))
+
+    def __init__(self, response):
+        self.response = response
+
+    def __enter__(self):
+        return self.response
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.response.close()
 
 
-def get(url, headers):
+class B2Http(object):
     """
-    Posts to the given URL, translating any errors into a raised WebApiError.
+    A wrapper for the requests module.  Provides the operations
+    needed to access B2, and handles retrying when the returned
+    status is 503 Service Unavailable or 429 Too Many Requests.
 
-    :param url: The URL to post to.
-    :param headers: Headers to send.
-    :return: A requests object with the response.
+    The operations supported are:
+       - post_json_return_json
+       - post_content_return_json
+       - get_content
+
+    The methods that return JSON either return a Python dict  or
+    raise a subclass of B2Error.  They can be used like this:
+
+        try:
+            response_dict = b2_http.post_json_return_json(url, headers, params)
+            ...
+        except B2Error as e:
+            ...
+
+
+    get_content() returns a context manager object that returns an
+    object that supports the iter_content() method like a requests.Response
+    object does.  That's the only method you can count on it supporting.
+
+        try:
+            with b2_http.get_content(url, headers) as response:
+                for byte_data in response.iter_content(chunk_size=1024):
+                    ...
+        except B2Error as e:
+            ...
     """
-    return _translate_errors(functools.partial(requests.get, url, headers=headers))
+
+    def post_content_return_json(self, url, headers, data):
+        """
+        :param url: URL to call
+        :param headers: Headers to send.
+        :param data: bytes (Python 3) or str (Python 2) to send
+        :return:
+        """
+        response = _translate_errors(
+            functools.partial(
+                requests.post,
+                url,
+                headers=headers,
+                data=data
+            )
+        )
+        try:
+            return json.loads(response.content.decode('utf-8'))
+        finally:
+            response.close()
+
+    def post_json_return_json(self, url, headers, params):
+        """
+        :param url: URL to call
+        :param headers: Headers to send.
+        :param params: A dict that will be converted to JSON
+        :return:
+        """
+        data = six.b(json.dumps(params))
+        return self.post_content_return_json(url, headers, data)
+
+    def get_content(self, url, headers):
+        """
+        :param url: URL to call
+        :param headers: Headers to send
+        :return: Context manager that returns an object that supports iter_content()
+        """
+        response = _translate_errors(functools.partial(requests.get, url, headers=headers))
+        return ResponseContextManager(response)
 
 
-def _test():
+def test_http():
     """
     Runs a few tests on error diagnosis.
 
@@ -124,49 +168,54 @@ def _test():
     to run in both Python 2 and Python 3.
     """
 
+    from .exception import BadJson
+
+    b2_http = B2Http()
+
     # Error from B2
     print('TEST: error object from B2')
     try:
-        post('https://api.backblaze.com/b2api/v1/b2_get_file_info', {}, six.b('{}'))
+        b2_http.post_json_return_json('https://api.backblaze.com/b2api/v1/b2_get_file_info', {}, {})
         assert False, 'should have failed with bad json'
-    except WebApiError as e:
-        assert e.code == 'bad_json'
+    except BadJson as e:
+        assert str(e) == 'Bad request: required field fileId is missing'
 
     # Successful get
     print('TEST: get')
-    r = get('https://api.backblaze.com/test/echo_zeros?length=10', {})
-    assert r.status_code == 200
-    assert r.content == six.b(chr(0) * 10)
+    with b2_http.get_content('https://api.backblaze.com/test/echo_zeros?length=10', {}) as response:
+        assert response.status_code == 200
+        response_data = six.b('').join(response.iter_content())
+        assert response_data == six.b(chr(0) * 10)
 
     # Successful post
     print('TEST: post')
-    r = post('https://api.backblaze.com/test/echo_zeros', {}, six.b(json.dumps(dict(length=10))))
-    assert r.status_code == 200
-    assert r.content == six.b(chr(0) * 10)
+    response_dict = b2_http.post_json_return_json(
+        'https://api.backblaze.com/api/build_version', {}, {}
+    )
+    assert 'timestamp' in response_dict
 
     # Unknown host
     print('TEST: unknown host')
     try:
-        post('https://unknown.backblaze.com', {}, six.b(''))
+        b2_http.post_json_return_json('https://unknown.backblaze.com', {}, {})
         assert False, 'should have failed with unknown host'
-    except WebApiError as e:
-        assert e.code == 'unknown_host'
+    except UnknownHost as e:
+        pass
 
     # Broken pipe
     print('TEST: broken pipe')
     try:
-        post('https://api.backblaze.com/bad_url', {}, six.b(chr(0)) * 10000000)
+        b2_http.post_content_return_json(
+            'https://api.backblaze.com/bad_url', {}, six.b(chr(0)) * 10000000
+        )
         assert False, 'should have failed with broken pipe'
-    except WebApiError as e:
-        assert e.code == 'broken_pipe'
+    except BrokenPipe as e:
+        pass
 
     # Generic connection error
     print('TEST: generic connection error')
     try:
-        post('https://api.backblaze.com:6666/bad_port', {}, six.b(chr(0)) * 10000000)
-        assert False, 'should have failed with broken pipe'
-    except WebApiError as e:
-        assert e.code == 'connection_error'
-
-
-_test()
+        with b2_http.get_content('https://www.backblaze.com:80/bad_url', {}) as _:
+            assert False, 'should have failed with connection error'
+    except ConnectionError as e:
+        pass

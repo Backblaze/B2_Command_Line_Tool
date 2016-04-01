@@ -35,7 +35,12 @@ class BadFileInfo(B2Error):
 
 class BadUploadUrl(B2Error):
     def __str__(self):
-        return 'Bad uplod URL: %s' % (self.message,)
+        return 'Bad upload URL: %s' % (self.message,)
+
+
+class BrokenPipe(B2Error):
+    def __str__(self):
+        return 'Broken pipe: unable to send entire request'
 
 
 class ChecksumMismatch(B2Error):
@@ -46,6 +51,11 @@ class ChecksumMismatch(B2Error):
 
     def __str__(self):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
+
+
+class ConnectionError(B2Error):
+    def __str__(self):
+        return 'Connection error: %s' % (str(self),)
 
 
 class DuplicateBucketName(B2Error):
@@ -166,6 +176,19 @@ class TruncatedOutput(B2Error):
         return 'only %d of %d bytes read' % (self.bytes_read, self.file_size,)
 
 
+class UnknownError(B2Error):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return 'unknown error: %s' % (self.message,)
+
+
+class UnknownHost(B2Error):
+    def __str__(self):
+        return 'unknown host'
+
+
 class UnrecognizedBucketType(B2Error):
     def __init__(self, type_):
         self.type_ = type_
@@ -274,10 +297,16 @@ class WrappedSocketError(AbstractWrappedError):
 def map_error_dict_to_exception(wrapped_exception, error_dict, post_params):
     status = error_dict.get('status')
     code = error_dict.get('code')
+    message = error_dict.get('message')
+    return interpret_b2_error(status, code, message, post_params)
+
+
+def interpret_b2_error(status, code, message, post_params=None):
+    post_params = post_params or {}
     if status == 400 and code == "already_hidden":
         return FileAlreadyHidden(post_params['fileName'])
     elif status == 400 and code == 'bad_json':
-        return BadJson(error_dict.get('message'))
+        return BadJson(message)
     elif status == 400 and code in ("no_such_file", "file_not_present"):
         # hide_file returns "no_such_file"
         # delete_file_version returns "file_not_present"
@@ -289,8 +318,8 @@ def map_error_dict_to_exception(wrapped_exception, error_dict, post_params):
     elif status == 400 and code == "part_sha1_mismatch":
         return PartSha1Mismatch(post_params['fileId'])
     elif status == 401 and code in ("bad_auth_token", "expired_auth_token"):
-        return InvalidAuthToken(error_dict.get('message'), code)
+        return InvalidAuthToken(message, code)
     elif status == 403 and code == "storage_cap_exceeded":
         return StorageCapExceeded()
     else:
-        return wrapped_exception
+        return UnknownError('%d %s %s' % (status, code, message))
