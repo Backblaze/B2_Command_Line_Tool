@@ -12,25 +12,13 @@ from __future__ import print_function
 
 import functools
 import json
+import socket
+
 import requests
 import six
-import socket
-import sys
+
 from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
-
-# Pythons prior to 2.7.9 do not have the latest, most secure SSL.
-# https://stackoverflow.com/questions/29099404/ssl-insecureplatform-error-when-using-requests-package
-#
-# When the warning is not disabled, it prints this:
-#   SNIMissingWarning: An HTTPS request has been made, but the SNI (Subject Name Indication)
-#   extension to TLS is not available on this platform. This may cause the server to present
-#   an incorrect TLS certificate, which can cause validation failures. For more information,
-#   see https://urllib3.readthedocs.org/en/latest/security.html#snimissingwarning.
-#
-if sys.version_info < (2, 7, 9):
-    requests.packages.urllib3.disable_warnings()
-
 
 def _print_exception(e, indent=''):
     """
