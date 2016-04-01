@@ -54,8 +54,11 @@ class ChecksumMismatch(B2Error):
 
 
 class ConnectionError(B2Error):
+    def __init__(self, message):
+        self.message = message
+
     def __str__(self):
-        return 'Connection error: %s' % (str(self),)
+        return 'Connection error: %s' % (self.message,)
 
 
 class DuplicateBucketName(B2Error):

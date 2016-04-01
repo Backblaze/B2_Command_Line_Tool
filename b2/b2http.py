@@ -15,7 +15,21 @@ import json
 import requests
 import six
 import socket
+import sys
 from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
+from .version import USER_AGENT
+
+# Pythons prior to 2.7.9 do not have the latest, most secure SSL.
+# https://stackoverflow.com/questions/29099404/ssl-insecureplatform-error-when-using-requests-package
+#
+# When the warning is not disabled, it prints this:
+#   SNIMissingWarning: An HTTPS request has been made, but the SNI (Subject Name Indication)
+#   extension to TLS is not available on this platform. This may cause the server to present
+#   an incorrect TLS certificate, which can cause validation failures. For more information,
+#   see https://urllib3.readthedocs.org/en/latest/security.html#snimissingwarning.
+#
+if sys.version_info < (2, 7, 9):
+    requests.packages.urllib3.disable_warnings()
 
 
 def _print_exception(e, indent=''):
@@ -107,9 +121,8 @@ class B2Http(object):
             ...
 
 
-    get_content() returns a context manager object that returns an
-    object that supports the iter_content() method like a requests.Response
-    object does.  That's the only method you can count on it supporting.
+    get_content() returns a context manager object that returns
+    an object that acts like requests.Response.
 
         try:
             with b2_http.get_content(url, headers) as response:
@@ -117,6 +130,10 @@ class B2Http(object):
                     ...
         except B2Error as e:
             ...
+
+    The response object is only guarantee to have:
+        - headers
+        - iter_content()
     """
 
     def post_content_return_json(self, url, headers, data):
@@ -126,6 +143,7 @@ class B2Http(object):
         :param data: bytes (Python 3) or str (Python 2) to send
         :return:
         """
+        headers['User-Agent'] = USER_AGENT
         response = _translate_errors(
             functools.partial(
                 requests.post,
@@ -155,6 +173,7 @@ class B2Http(object):
         :param headers: Headers to send
         :return: Context manager that returns an object that supports iter_content()
         """
+        headers['User-Agent'] = USER_AGENT
         response = _translate_errors(functools.partial(requests.get, url, headers=headers))
         return ResponseContextManager(response)
 
@@ -215,7 +234,8 @@ def test_http():
     # Generic connection error
     print('TEST: generic connection error')
     try:
-        with b2_http.get_content('https://www.backblaze.com:80/bad_url', {}) as _:
+        with b2_http.get_content('https://www.backblaze.com:80/bad_url', {}) as response:
             assert False, 'should have failed with connection error'
+            response.iter_content()  # make pyflakes happy
     except ConnectionError as e:
         pass
