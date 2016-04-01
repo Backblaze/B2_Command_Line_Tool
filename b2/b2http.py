@@ -66,7 +66,7 @@ def _translate_errors(fcn):
                     # an upload request for cause, so we use a 400 Bad Request
                     # code.
                     raise BrokenPipe()
-        raise ConnectionError(str(e0.args))
+        raise ConnectionError(str(e0))
 
     except Exception as e:
         # Don't expect this to happen.  To get lots of info for
@@ -125,6 +125,13 @@ class B2Http(object):
         - iter_content()
     """
 
+    def __init__(self, requests_module=None):
+        """
+        Initialize with a reference to the requests module, which makes
+        it easy to mock for testing.
+        """
+        self.requests = requests_module or requests
+
     def post_content_return_json(self, url, headers, data):
         """
         :param url: URL to call
@@ -135,7 +142,7 @@ class B2Http(object):
         headers['User-Agent'] = USER_AGENT
         response = _translate_errors(
             functools.partial(
-                requests.post,
+                self.requests.post,
                 url,
                 headers=headers,
                 data=data
@@ -163,7 +170,7 @@ class B2Http(object):
         :return: Context manager that returns an object that supports iter_content()
         """
         headers['User-Agent'] = USER_AGENT
-        response = _translate_errors(functools.partial(requests.get, url, headers=headers))
+        response = _translate_errors(functools.partial(self.requests.get, url, headers=headers))
         return ResponseContextManager(response)
 
 
