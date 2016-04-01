@@ -20,6 +20,7 @@ import six
 from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 
+
 def _print_exception(e, indent=''):
     """
     Used for debugging to print out nested exception structures.
