@@ -40,11 +40,13 @@ class ThreadInThreadPool(threading.Thread):
         while True:
             task = self.queue.get()
             if task is SHUT_DOWN_TOKEN:
+                self.queue.task_done()
                 return
             try:
                 task.run()
             except Exception as e:
                 self.pool._add_exception((task, e))
+            self.queue.task_done()
 
 
 class ThreadPool(object):
@@ -59,12 +61,18 @@ class ThreadPool(object):
 
     Usage:
         pool = ThreadPool(thread_count=10, queue_capacity=1000)
-        pool.add_task(new MyTask())
-        pool.add_task(new MyTask())
-        pool.join_all()
+        pool.add_task(MyTask(1))
+        pool.add_task(MyTask(2))
+        pool.join()
+
+        pool.add_task(MyTask(3))
+        pool.join()
+
+        pool.shut_down()
+
         errors = pool.get_exceptions()
 
-    Once you call join_all() you may not add any more tasks.
+    This class is THREAD SAFE, so that tasks can add more tasks as they are running.
     """
 
     def __init__(self, thread_count=10, queue_capacity=1000):
@@ -72,33 +80,28 @@ class ThreadPool(object):
         Initializes a new thread pool, starts the threads running,
         and gets ready to accept tasks.
         """
+        self._lock = threading.Lock()  # controls all state
         self._queue = Queue(maxsize=queue_capacity)
         self._threads = [self._start_thread() for i in range(thread_count)]
-        self._lock = threading.Lock()  # controls self.exceptions
         self._exceptions = []
 
     def add_task(self, task):
         """
         Adds a task to the queue, blocking until there is room.
         """
-        self._queue.put(task)
+        with self._lock:
+            self._queue.put(task)
 
-    def join_all(self):
+    def join(self):
         """
         Waits until all tasks are completed and then shuts down the threads.
         """
-        # Tell each of the threads to stop.  Each thread will consume
-        # one of the tokens and then exit.
-        for _ in self._threads:
-            self._queue.put(SHUT_DOWN_TOKEN)
+        # grab the queue in a thread-safe way
+        with self._lock:
+            queue = self._queue
 
-        # Nobody can add any tasks any more.
-        self._queue = None
-
-        # Wait for the threads to be done.
-        for thread in self._threads:
-            thread.join()
-        self._threads = None
+        # wait while not holding the lock, so tasks can add more tasks.
+        queue.join()
 
     def get_exceptions(self):
         """
@@ -107,6 +110,21 @@ class ThreadPool(object):
         """
         with self._lock:
             return self._exceptions
+
+    def shut_down(self):
+        # Nobody can add any tasks any more.
+        with self._lock:
+            queue = self._queue
+            self._queue = None
+
+        # Tell each of the threads to stop.  Each thread will consume
+        # one of the tokens and then exit.
+        for _ in self._threads:
+            queue.put(SHUT_DOWN_TOKEN)
+
+        # Wait for the threads to finish
+        for t in self._threads:
+            t.join()
 
     def _add_exception(self, exception):
         """
