@@ -242,6 +242,9 @@ class ConsoleTool(object):
                 return self.ls(args)
             elif action == 'make_url':
                 return self.make_url(args)
+            elif action == 'six_version':  # temporary for testing mac install
+                print(six.__version__)
+                return 0
             elif action == 'sync':
                 return self.sync(args)
             elif action == 'test_http':
