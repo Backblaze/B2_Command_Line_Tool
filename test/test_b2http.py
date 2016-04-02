@@ -17,7 +17,7 @@ import socket
 import sys
 import unittest
 
-if six.PY2:
+if sys.version_info < (3,3):
     from mock import MagicMock
 else:
     from unittest.mock import MagicMock
