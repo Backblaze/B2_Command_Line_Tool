@@ -19,34 +19,36 @@ import unittest
 
 # This is seriously ugly.  The version of six that exists on OS X (1.4.1) does not
 # meet the needs of mock, which requires >=1.7.
-six_version = map(int, six.__version__.split('.'))
-if six_version < (1,7):
-    MagicMock = None
+six_version = tuple(int(n) for n in six.__version__.split('.'))
+if six_version < (1, 7):
+    HAVE_MOCK = False
 else:
-    if sys.version_info < (3,3):
+    HAVE_MOCK = True
+    if sys.version_info < (3, 3):
         from mock import MagicMock
     else:
         from unittest.mock import MagicMock
 
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
+
 class TestTranslateErrors(unittest.TestCase):
     def test_ok(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
             response = MagicMock()
             response.status_code = 200
             actual = _translate_errors(lambda: response)
             self.assertIs(response, actual)
 
     def test_partial_content(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
             response = MagicMock()
             response.status_code = 206
             actual = _translate_errors(lambda: response)
             self.assertIs(response, actual)
 
     def test_b2_error(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
             response = MagicMock()
             response.status_code = 503
             response.content = six.b('{"status": 503, "code": "server_busy", "message": "busy"}')
@@ -54,7 +56,8 @@ class TestTranslateErrors(unittest.TestCase):
                 _translate_errors(lambda: response)
 
     def test_broken_pipe(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
+
             def fcn():
                 raise requests.ConnectionError(
                     requests.packages.urllib3.exceptions.ProtocolError(
@@ -65,7 +68,8 @@ class TestTranslateErrors(unittest.TestCase):
                 _translate_errors(fcn)
 
     def test_unknown_host(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
+
             def fcn():
                 raise requests.ConnectionError(
                     requests.packages.urllib3.exceptions.MaxRetryError(
@@ -76,14 +80,16 @@ class TestTranslateErrors(unittest.TestCase):
                 _translate_errors(fcn)
 
     def test_connection_error(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
+
             def fcn():
                 raise requests.ConnectionError('a message')
             with self.assertRaises(ConnectionError):
                 _translate_errors(fcn)
 
     def test_unknown_error(self):
-        if IS_27_OR_LATER and MagicMock is not None:
+        if IS_27_OR_LATER and HAVE_MOCK:
+
             def fcn():
                 raise Exception('a message')
             with self.assertRaises(UnknownError):
@@ -99,13 +105,13 @@ class TestB2Http(unittest.TestCase):
     PARAMS_JSON_BYTES = six.b('{"fileSize": 100}')
 
     def setUp(self):
-        if MagicMock is not None:
+        if HAVE_MOCK:
             self.requests = MagicMock()
             self.response = MagicMock()
             self.b2_http = B2Http(self.requests)
 
     def test_post_json_return_json(self):
-        if MagicMock is not None:
+        if HAVE_MOCK:
             self.requests.post.return_value = self.response
             self.response.status_code = 200
             self.response.content = six.b('{"color": "blue"}')
@@ -118,7 +124,7 @@ class TestB2Http(unittest.TestCase):
             )
 
     def test_get_content(self):
-        if MagicMock is not None:
+        if HAVE_MOCK:
             self.requests.get.return_value = self.response
             self.response.status_code = 200
             with self.b2_http.get_content(self.URL, self.HEADERS) as r:
