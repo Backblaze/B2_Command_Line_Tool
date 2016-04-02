@@ -36,5 +36,5 @@ script:
   - python setup.py install
   - nosetests -w test
   - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; fi
-  - if [ -n "$SCA" ]; then yapf --diff --recursive b2; fi
+  - if [ -n "$SCA" ]; then yapf --recursive --diff b2; fi
   - if [ -n "$SCA" ]; then pyflakes b2; fi
