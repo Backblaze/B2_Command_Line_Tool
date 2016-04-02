@@ -10,15 +10,16 @@
 
 from __future__ import print_function
 
-import functools
 import json
 import socket
 
 import requests
 import six
+import time
 
 from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
+from six.moves import range
 
 
 def _print_exception(e, indent=''):
@@ -74,7 +75,23 @@ def _translate_errors(fcn):
         raise UnknownError(repr(e))
 
 
-def _translate_and_retry(fcn):
+def _translate_and_retry(fcn, try_count):
+    """
+    Try calling fcn try_count times, retrying only if
+    the exception is a retryable B2Error.
+    """
+    # For all but the last try, catch the exception.
+    wait_time = 1.0
+    for _ in range(try_count - 1):
+        try:
+            return _translate_errors(fcn)
+        except B2Error as e:
+            if not e.should_retry_http():
+                raise
+            time.sleep(wait_time)
+            wait_time *= 1.5
+
+    # If the last try gets an exception, it will be raised.
     return _translate_errors(fcn)
 
 
@@ -121,7 +138,7 @@ class B2Http(object):
         """
         self.requests = requests_module or requests
 
-    def post_content_return_json(self, url, headers, data):
+    def post_content_return_json(self, url, headers, data, try_count=1):
         """
         Use like this:
 
@@ -146,7 +163,8 @@ class B2Http(object):
         def do_post():
             data.seek(0)
             return self.requests.post(url, headers=headers, data=data)
-        response = _translate_and_retry(do_post)
+
+        response = _translate_and_retry(do_post, try_count)
 
         # Decode the JSON that came back.  If we've gotten this far,
         # we know we have a status of 200 OK.  In this case, the body
@@ -157,7 +175,7 @@ class B2Http(object):
         finally:
             response.close()
 
-    def post_json_return_json(self, url, headers, params):
+    def post_json_return_json(self, url, headers, params, try_count=1):
         """
         Use like this:
 
@@ -173,9 +191,9 @@ class B2Http(object):
         :return: a dict that is the decoded JSON
         """
         data = six.BytesIO(six.b(json.dumps(params)))
-        return self.post_content_return_json(url, headers, data)
+        return self.post_content_return_json(url, headers, data, try_count)
 
-    def get_content(self, url, headers):
+    def get_content(self, url, headers, try_count=1):
         """
         Fetches content from a URL.
 
@@ -204,7 +222,8 @@ class B2Http(object):
         # Do the HTTP GET.
         def do_get():
             return self.requests.get(url, headers=headers)
-        response = _translate_and_retry(do_get)
+
+        response = _translate_and_retry(do_get, try_count)
         return ResponseContextManager(response)
 
 

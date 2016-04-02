@@ -8,8 +8,8 @@
 #
 ######################################################################
 
-from b2.b2http import _translate_errors, B2Http
-from b2.exception import BrokenPipe, ConnectionError, ServiceError, UnknownError, UnknownHost
+from b2.b2http import _translate_and_retry, _translate_errors, B2Http
+from b2.exception import BadJson, BrokenPipe, ConnectionError, ServiceError, UnknownError, UnknownHost
 from b2.version import USER_AGENT
 import requests
 import six
@@ -18,9 +18,9 @@ import sys
 import unittest
 
 if sys.version_info < (3, 3):
-    from mock import MagicMock
+    from mock import call, MagicMock, patch
 else:
-    from unittest.mock import MagicMock
+    from unittest.mock import call, MagicMock, patch
 
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
@@ -87,6 +87,47 @@ class TestTranslateErrors(unittest.TestCase):
                 raise Exception('a message')
             with self.assertRaises(UnknownError):
                 _translate_errors(fcn)
+
+
+class TestTranslateAndRetry(unittest.TestCase):
+    def setUp(self):
+        if IS_27_OR_LATER:
+            self.response = MagicMock()
+            self.response.status_code = 200
+
+    def test_works_first_try(self):
+        if IS_27_OR_LATER:
+            fcn = MagicMock()
+            fcn.side_effect = [self.response]
+            self.assertIs(self.response, _translate_and_retry(fcn, 3))
+
+    def test_non_retryable(self):
+        if IS_27_OR_LATER:
+            with patch('time.sleep') as mock_time:
+                fcn = MagicMock()
+                fcn.side_effect = [BadJson('a'), self.response]
+                with self.assertRaises(BadJson):
+                    _translate_and_retry(fcn, 3)
+                self.assertEqual([], mock_time.mock_calls)
+
+    def test_works_second_try(self):
+        if IS_27_OR_LATER:
+            with patch('time.sleep') as mock_time:
+                fcn = MagicMock()
+                fcn.side_effect = [ServiceError('a'), self.response]
+                self.assertIs(self.response, _translate_and_retry(fcn, 3))
+                self.assertEqual([call(1.0)], mock_time.mock_calls)
+
+    def test_never_works(self):
+        if IS_27_OR_LATER:
+            with patch('time.sleep') as mock_time:
+                fcn = MagicMock()
+                fcn.side_effect = [
+                    ServiceError('a'), ServiceError('a'), ServiceError('a'), self.response
+                ]
+                with self.assertRaises(ServiceError):
+                    _translate_and_retry(fcn, 3)
+                self.assertEqual([call(1.0), call(1.5)], mock_time.mock_calls)
 
 
 class TestB2Http(unittest.TestCase):

@@ -10,6 +10,13 @@
 
 
 class B2Error(Exception):
+    def should_retry_http(self):
+        """
+        Returns true if this is an error that can cause an HTTP
+        call to be retried.
+        """
+        return False
+
     def should_retry_upload(self):
         """
         Returns true if this is an error that should tell the upload
@@ -63,6 +70,9 @@ class ConnectionError(B2Error):
 
     def __str__(self):
         return 'Connection error: %s' % (self.message,)
+
+    def should_retry_http(self):
+        return True
 
     def should_retry_upload(self):
         return True
@@ -167,6 +177,9 @@ class ServiceError(B2Error):
 
     def __str__(self):
         return self.message
+
+    def should_retry_http(self):
+        return True
 
     def should_retry_upload(self):
         return True
