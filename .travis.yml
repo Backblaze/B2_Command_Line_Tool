@@ -16,10 +16,6 @@ python:
 
 matrix:
   include:
-    # OS X on Macs include six=1.4.1, and cannot be upgraded
-    # without expertise, so we support it there.
-    - python: "2.7"
-      env: OLD_SIX=true
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
     - python: "2.7"
@@ -31,7 +27,6 @@ install:
   - pip install mock
   - pip install nose
   - pip install pyflakes
-  - if [ -n "$OLD_SIX" ]; then pip install six==1.4.1; else pip install six==1.10; fi
   - pip install yapf
 
 before_install:
