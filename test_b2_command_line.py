@@ -95,6 +95,14 @@ class StringReader(object):
             self.string = str(e)
 
 
+def remove_insecure_platform_warnings(text):
+    return '\n'.join(
+        line
+        for line in text.split('\n')
+        if ('SNIMissingWarning' not in line) and ('InsecurePlatformWarning' not in line)
+    )
+
+
 def run_command(path_to_script, args):
     """
     :param command: A list of strings like ['ls', '-l', '/dev']
@@ -129,8 +137,8 @@ def run_command(path_to_script, args):
     reader1.join()
     reader2.join()
 
-    stdout_decoded = stdout.get_string().decode('utf-8')
-    stderr_decoded = stderr.get_string().decode('utf-8')
+    stdout_decoded = remove_insecure_platform_warnings(stdout.get_string().decode('utf-8'))
+    stderr_decoded = remove_insecure_platform_warnings(stderr.get_string().decode('utf-8'))
 
     print_output(p.returncode, stdout_decoded, stderr_decoded)
     return p.returncode, stdout_decoded, stderr_decoded
@@ -500,6 +508,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, b2_file_prefix + 'b'])
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
+
 
 def main():
 

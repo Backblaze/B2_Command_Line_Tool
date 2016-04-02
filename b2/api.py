@@ -9,6 +9,7 @@
 ######################################################################
 
 from .account_info import StoredAccountInfo
+from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
 from .exception import MissingAccountData, NonExistentBucket
@@ -58,7 +59,7 @@ class B2Api(object):
         :param raw_api:
         :return:
         """
-        self.raw_api = raw_api or B2RawApi()
+        self.raw_api = raw_api or B2RawApi(B2Http())
         if account_info is None:
             account_info = StoredAccountInfo()
             if cache is None:

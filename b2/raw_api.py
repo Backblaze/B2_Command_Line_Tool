@@ -12,122 +12,19 @@ from __future__ import print_function
 
 import base64
 import hashlib
-import json
 import os
 import random
 import re
-import socket
 import sys
 import time
 from abc import (ABCMeta, abstractmethod)
 
 import six
-from six.moves import urllib
 
+from .b2http import (B2Http)
 from .download_dest import DownloadDestBytes
-from .exception import (
-    map_error_dict_to_exception, ChecksumMismatch, FatalError, TruncatedOutput, WrappedHttpError,
-    WrappedHttplibError, WrappedSocketError, WrappedUrlError
-)
+from .exception import (ChecksumMismatch, TruncatedOutput)
 from .utils import b2_url_encode, hex_sha1_of_stream
-from .version import USER_AGENT
-
-
-class OpenUrl(object):
-    """
-    Context manager that handles an open urllib2.Request, and provides
-    the file-like object that is the response.
-    """
-
-    def __init__(self, url, data, headers, params=None):
-        self.url = url
-        self.data = data
-        self.headers = self._add_user_agent(headers)
-        self.file = None
-        self.params = None  # for debugging
-
-    def _add_user_agent(self, headers):
-        """
-        Adds a User-Agent header if there isn't one already.
-
-        Reminder: HTTP header names are case-insensitive.
-        """
-        for k in headers:
-            if k.lower() == 'user-agent':
-                return headers
-        else:
-            result = dict(headers)
-            result['User-Agent'] = USER_AGENT
-            return result
-
-    def __enter__(self):
-        try:
-            request = urllib.request.Request(self.url, self.data, self.headers)
-            self.file = urllib.request.urlopen(request)
-            return self.file
-        except urllib.error.HTTPError as e:
-            data = e.read()
-            raise WrappedHttpError(data, self.url, self.params, self.headers, sys.exc_info())
-        except urllib.error.URLError as e:
-            raise WrappedUrlError(
-                str(e.reason).encode('utf-8'), self.url, self.params, self.headers, sys.exc_info()
-            )
-        except socket.error as e:  # includes socket.timeout
-            # reportedly socket errors are not wrapped in urllib2.URLError since Python 2.7
-            raise WrappedSocketError(
-                'errno=%s' % (e.errno,),
-                self.url,
-                self.params,
-                self.headers,
-                sys.exc_info(),
-            )
-        except six.moves.http_client.HTTPException as e:  # includes httplib.BadStatusLine
-            raise WrappedHttplibError(str(e), self.url, self.params, self.headers, sys.exc_info())
-
-    def __exit__(self, exception_type, exception, traceback):
-        if self.file is not None:
-            self.file.close()
-
-
-def read_str_from_http_response(response):
-    """
-    This is an ugly hack.  I probably don't understand Python 2/3
-    compatibility well enough.
-
-    The read() method on urllib responses returns a str in Python 2,
-    and bytes in Python 3, so json.load() won't work in both. This
-    function converts the result into a str that json.loads() will
-    take.
-    """
-    if six.PY2:
-        return response.read()
-    else:
-        return response.read().decode('utf-8')
-
-
-def post_json(url, params, auth_token=None):
-    """Coverts params to JSON and posts them to the given URL.
-
-    Returns the resulting JSON, decoded into a dict or an
-    exception, custom if possible, WrappedHttpError otherwise
-    """
-    data = six.b(json.dumps(params))
-    headers = {}
-    if auth_token is not None:
-        headers['Authorization'] = auth_token
-    try:
-        with OpenUrl(url, data, headers, params) as f:
-            json_text = read_str_from_http_response(f)
-            return json.loads(json_text)
-    except WrappedHttpError as e:
-        e_backup = sys.exc_info()
-        try:
-            error_dict = json.loads(e.data.decode('utf-8'))
-            raise map_error_dict_to_exception(e, error_dict, params)
-        except ValueError:
-            v = sys.exc_info()
-            error_dict = {'error_decoding_json': v}
-            raise FatalError('error decoding JSON when handling an exception', [e_backup, v],)
 
 
 @six.add_metaclass(ABCMeta)
@@ -213,6 +110,9 @@ class B2RawApi(AbstractRawApi):
     for B2Session magic.
     """
 
+    def __init__(self, b2_http):
+        self.b2_http = b2_http
+
     def _post_json(self, base_url, api_name, auth, **params):
         """
         Helper method for calling an API with the given auth and params.
@@ -223,7 +123,8 @@ class B2RawApi(AbstractRawApi):
         :return:
         """
         url = base_url + '/b2api/v1/' + api_name
-        return post_json(url, params, auth)
+        headers = {'Authorization': auth}
+        return self.b2_http.post_json_return_json(url, headers, params)
 
     def authorize_account(self, realm_url, account_id, application_key):
         auth = b'Basic ' + base64.b64encode(six.b('%s:%s' % (account_id, application_key)))
@@ -286,9 +187,9 @@ class B2RawApi(AbstractRawApi):
         if account_auth_token_or_none is not None:
             request_headers['Authorization'] = account_auth_token_or_none
 
-        with OpenUrl(url, None, request_headers) as response:
+        with self.b2_http.get_content(url, request_headers) as response:
 
-            info = response.info()
+            info = response.headers
 
             file_id = info['x-bz-file-id']
             file_name = info['x-bz-file-name']
@@ -304,10 +205,7 @@ class B2RawApi(AbstractRawApi):
             with download_dest.open(
                 file_id, file_name, content_length, content_type, content_sha1, file_info
             ) as file:
-                while True:
-                    data = response.read(block_size)
-                    if len(data) == 0:
-                        break
+                for data in response.iter_content(chunk_size=block_size):
                     file.write(data)
                     digest.update(data)
                     bytes_read += len(data)
@@ -478,9 +376,7 @@ class B2RawApi(AbstractRawApi):
         for k, v in six.iteritems(file_infos):
             headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
-        with OpenUrl(upload_url, data_stream, headers) as response_file:
-            json_text = read_str_from_http_response(response_file)
-            return json.loads(json_text)
+        return self.b2_http.post_content_return_json(upload_url, headers, data_stream)
 
     def upload_part(
         self, upload_url, upload_auth_token, part_number, content_length, content_sha1, data_stream
@@ -492,9 +388,7 @@ class B2RawApi(AbstractRawApi):
             'X-Bz-Content-Sha1': content_sha1
         }
 
-        with OpenUrl(upload_url, data_stream, headers) as response_file:
-            json_text = read_str_from_http_response(response_file)
-            return json.loads(json_text)
+        return self.b2_http.post_content_return_json(upload_url, headers, data_stream)
 
 
 def test_raw_api():
@@ -511,7 +405,7 @@ def test_raw_api():
     :return: 0 on success, non-zero on failure.
     """
     try:
-        raw_api = B2RawApi()
+        raw_api = B2RawApi(B2Http())
         test_raw_api_helper(raw_api)
         return 0
     except Exception as e:

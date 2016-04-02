@@ -19,7 +19,7 @@ import six
 from b2.account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.download_dest import DownloadDestBytes
-from b2.exception import AbstractWrappedError, InvalidAuthToken, MaxRetriesExceeded
+from b2.exception import B2Error, InvalidAuthToken, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener, DoNothingProgressListener
@@ -68,7 +68,7 @@ class StubProgressListener(AbstractProgressListener):
         pass
 
 
-class CanRetry(AbstractWrappedError):
+class CanRetry(B2Error):
     """
     An exception that can be retryable, or not.
     """
@@ -77,7 +77,7 @@ class CanRetry(AbstractWrappedError):
         super(CanRetry, self).__init__(None, None, None, None, None)
         self.can_retry = can_retry
 
-    def should_retry(self):
+    def should_retry_upload(self):
         return self.can_retry
 
 
@@ -102,8 +102,6 @@ class TestReauthorization(TestCaseWithBucket):
                 self.__called = False
 
             def __call__(self, *args, **kwargs):
-                print('fake', self, self.__called)
-                print(self.__call__)
                 if self.__called:
                     return self.__original_function(*args, **kwargs)
                 self.__called = True
