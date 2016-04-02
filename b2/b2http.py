@@ -74,6 +74,10 @@ def _translate_errors(fcn):
         raise UnknownError(repr(e))
 
 
+def _translate_and_retry(fcn):
+    return _translate_errors(fcn)
+
+
 class ResponseContextManager(object):
     """
     Context manager that closes a requests.Response when done.
@@ -132,18 +136,23 @@ class B2Http(object):
         :param data: bytes (Python 3) or str (Python 2), or a file-like object, to send
         :return: a dict that is the decoded JSON
         """
+        # Make the headers we'll send by adding User-Agent to what
+        # the caller provided.  Make a copy before modifying.
+        headers = dict(headers)  # make copy before modifying
         headers['User-Agent'] = USER_AGENT
-        response = _translate_errors(
-            functools.partial(
-                self.requests.post,
-                url,
-                headers=headers,
-                data=data
-            )
-        )
+
+        # Do the HTTP POST.  This may retry, so each post needs to
+        # rewind the data back to the beginning.
+        def do_post():
+            data.seek(0)
+            return self.requests.post(url, headers=headers, data=data)
+        response = _translate_and_retry(do_post)
+
+        # Decode the JSON that came back.  If we've gotten this far,
+        # we know we have a status of 200 OK.  In this case, the body
+        # of the response is always JSON, so we don't need to handle
+        # it being something else.
         try:
-            # We only get here if the status is 200 OK, and it
-            # that case the body is *always* JSON.
             return json.loads(response.content.decode('utf-8'))
         finally:
             response.close()
@@ -163,7 +172,7 @@ class B2Http(object):
         :param params: A dict that will be converted to JSON
         :return: a dict that is the decoded JSON
         """
-        data = six.b(json.dumps(params))
+        data = six.BytesIO(six.b(json.dumps(params)))
         return self.post_content_return_json(url, headers, data)
 
     def get_content(self, url, headers):
@@ -187,8 +196,15 @@ class B2Http(object):
         :param headers: Headers to send
         :return: Context manager that returns an object that supports iter_content()
         """
+        # Make the headers we'll send by adding User-Agent to what
+        # the caller provided.  Make a copy before modifying.
+        headers = dict(headers)  # make copy before modifying
         headers['User-Agent'] = USER_AGENT
-        response = _translate_errors(functools.partial(self.requests.get, url, headers=headers))
+
+        # Do the HTTP GET.
+        def do_get():
+            return self.requests.get(url, headers=headers)
+        response = _translate_and_retry(do_get)
         return ResponseContextManager(response)
 
 

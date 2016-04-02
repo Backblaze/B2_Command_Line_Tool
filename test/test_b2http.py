@@ -108,11 +108,12 @@ class TestB2Http(unittest.TestCase):
         self.response.content = six.b('{"color": "blue"}')
         response_dict = self.b2_http.post_json_return_json(self.URL, self.HEADERS, self.PARAMS)
         self.assertEqual({'color': 'blue'}, response_dict)
-        self.requests.post.assert_called_with(
-            self.URL,
-            headers=self.EXPECTED_HEADERS,
-            data=self.PARAMS_JSON_BYTES
-        )
+        (pos_args, kw_args) = self.requests.post.call_args
+        self.assertEqual(self.URL, pos_args[0])
+        self.assertEqual(self.EXPECTED_HEADERS, kw_args['headers'])
+        actual_data = kw_args['data']
+        actual_data.seek(0)
+        self.assertEqual(self.PARAMS_JSON_BYTES, actual_data.read())
 
     def test_get_content(self):
         self.requests.get.return_value = self.response
