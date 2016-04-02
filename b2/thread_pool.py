@@ -11,8 +11,16 @@
 from __future__ import print_function
 
 import threading
+
+import six
 from six.moves import range
-from six.moves.queue import Queue
+
+# The version of six on OS X (six==1.4.1) does not have queue
+# from six.moves.queue import Queue
+if six.PY2:
+    from Queue import Queue
+else:
+    from queue import Queue
 
 # this is added to the task queue to tell the threads to stop
 SHUT_DOWN_TOKEN = object()
