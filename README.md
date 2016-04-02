@@ -13,6 +13,18 @@ This program provides command-line access to the B2 service.
 
 Version 0.4.9
 
+# Installation
+
+This tool can be installed with:
+
+    pip install b2
+    
+If you see a message saying that the `six` library cannot be installed, which
+happens if you're installing with the system python on OS X El Capitan, try
+this:
+
+    pip install --ignore-installed b2
+
 # Usage
 
     b2 authorize_account [accountId] [applicationKey]
