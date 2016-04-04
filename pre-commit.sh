@@ -46,7 +46,6 @@ do
         sleep 5
     fi
 done
-chmod +x b2/b2.py
 
 header Pyflakes
 

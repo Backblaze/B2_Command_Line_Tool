@@ -12,9 +12,7 @@ import os
 
 import six
 
-from .exception import (
-    AbstractWrappedError, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
-)
+from .exception import (B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType)
 from .file_version import FileVersionInfoFactory
 from .progress import DoNothingProgressListener, RangeOfInputStream, StreamWithProgress
 from .unfinished_large_file import UnfinishedLargeFile
@@ -273,7 +271,7 @@ class Bucket(object):
         content_length = upload_source.get_content_length()
         sha1_sum = upload_source.get_content_sha1()
         exception_info_list = []
-        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_data()
 
@@ -287,8 +285,8 @@ class Bucket(object):
                     )
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
-            except AbstractWrappedError as e:
-                if not e.should_retry():
+            except B2Error as e:
+                if not e.should_retry_upload():
                     raise
                 exception_info_list.append(e)
                 self.api.account_info.clear_bucket_upload_data(self.id_)
@@ -356,8 +354,8 @@ class Bucket(object):
                     assert sha1_sum == response['contentSha1']
                     return response
 
-            except AbstractWrappedError as e:
-                if not e.should_retry():
+            except B2Error as e:
+                if not e.should_retry_upload():
                     raise
                 exception_info_list.append(e)
                 self.api.account_info.clear_bucket_upload_data(self.id_)

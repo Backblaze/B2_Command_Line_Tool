@@ -19,6 +19,7 @@ import six
 
 from .account_info import (StoredAccountInfo)
 from .api import (B2Api)
+from .b2http import (test_http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo, MissingAccountData)
@@ -243,6 +244,8 @@ class ConsoleTool(object):
                 return self.make_url(args)
             elif action == 'sync':
                 return self.sync(args)
+            elif action == 'test_http':
+                return self.test_http(args)
             elif action == 'test_raw_api':
                 return self.test_raw_api(args)
             elif action == 'update_bucket':
@@ -283,6 +286,11 @@ class ConsoleTool(object):
         if len(args) != 0:
             return self._usage_and_fail()
         test_raw_api()
+
+    def test_http(self, args):
+        if len(args) != 0:
+            return self._usage_and_fail()
+        test_http()
 
     # bucket
 
