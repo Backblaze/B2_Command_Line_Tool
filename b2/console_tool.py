@@ -400,7 +400,8 @@ class ConsoleTool(object):
         self._print('Content sha1:', download_dest.content_sha1)
         for name in sorted(six.iterkeys(download_dest.file_info)):
             self._print('INFO', name + ':', download_dest.file_info[name])
-        self._print('checksum matches')
+        if download_dest.content_sha1 != 'none':
+            self._print('checksum matches')
         return 0
 
     def get_file_info(self, args):
