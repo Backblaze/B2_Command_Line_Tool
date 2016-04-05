@@ -252,7 +252,7 @@ def should_equal(expected, actual):
 
 
 def check_if_account_info_file_is_clear(path):
-    if b'{}' != read_file(os.path.expanduser(path)):
+    if b'auth' in read_file(os.path.expanduser(path)):
         error_and_exit('failure to clear account_info file: %s' % (path,))
 
 
