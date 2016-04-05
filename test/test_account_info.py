@@ -69,18 +69,29 @@ class TestStoredAccountInfo(unittest.TestCase):
             pass
 
     def test_bucket_upload_data(self):
-        self.account_info.set_bucket_upload_data('bucket-0', 'http://bucket-0', 'bucket-0_auth')
+        self.account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
         self.assertEqual(
             ('http://bucket-0', 'bucket-0_auth'),
-            self.account_info.get_bucket_upload_data('bucket-0')
+            self.account_info.take_bucket_upload_url('bucket-0')
         )
         self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'),
-            self._fresh_info().get_bucket_upload_data('bucket-0')
+            (None, None),
+            self._fresh_info().take_bucket_upload_url('bucket-0')
         )
+        self.account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
+        self.assertEqual(
+            ('http://bucket-0', 'bucket-0_auth'),
+            self._fresh_info().take_bucket_upload_url('bucket-0')
+        )
+        self.assertEqual(
+            (None, None),
+            self.account_info.take_bucket_upload_url('bucket-0')
+        )
+
+    def test_clear_bucket_upload_data(self):
+        self.account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
         self.account_info.clear_bucket_upload_data('bucket-0')
-        self.assertEqual((None, None), self.account_info.get_bucket_upload_data('bucket-0'))
-        self.assertEqual((None, None), self._fresh_info().get_bucket_upload_data('bucket-0'))
+        self.assertEqual((None, None), self.account_info.take_bucket_upload_url('bucket-0'))
 
     def test_large_file_upload_data(self):
         self.account_info.set_large_file_upload_data('file_0', 'http://file_0', 'auth_0')

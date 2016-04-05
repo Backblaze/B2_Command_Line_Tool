@@ -85,8 +85,19 @@ class AbstractAccountInfo(object):
         pass
 
     @abstractmethod
-    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        pass
+    def take_bucket_upload_url(self, bucket_id):
+        """
+        Returns a pair (upload_url, upload_auth_token) that has been removed
+        from the pool for this bucket, or (None, None) if there are no more
+        left.
+        """
+
+    @abstractmethod
+    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
+        """
+        Add an (upload_url, upload_auth_token) pair to the pool available for
+        the bucket.
+        """
 
     @abstractmethod
     def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
@@ -112,20 +123,24 @@ class StoredAccountInfo(AbstractAccountInfo):
     large file upload is done as a single task in one process.
     """
 
+    # Keys in top-level data dict:
     ACCOUNT_AUTH_TOKEN = 'account_auth_token'
     ACCOUNT_ID = 'account_id'
     APPLICATION_KEY = 'application_key'
     API_URL = 'api_url'
     BUCKET_NAMES_TO_IDS = 'bucket_names_to_ids'
-    BUCKET_UPLOAD_DATA = 'bucket_upload_data'
-    BUCKET_UPLOAD_URL = 'bucket_upload_url'
-    BUCKET_UPLOAD_AUTH_TOKEN = 'bucket_upload_auth_token'
+    BUCKET_UPLOAD_URLS = 'bucket_upload_urls'
     DOWNLOAD_URL = 'download_url'
     MINIMUM_PART_SIZE = 'minimum_part_size'
     REALM = 'realm'
     VERSION = 'version'
 
-    CURRENT_VERSION = 1
+    # Keys in each entry in BUCKET_UPLOAD_URLS
+    URL = 'url'
+    AUTH_TOKEN = 'auth_token'
+
+    # Value of the VERSION field.
+    CURRENT_VERSION = 2
 
     def __init__(self, file_name=None, internal_lock_timeout=120):
         if file_name is None:
@@ -183,28 +198,30 @@ class StoredAccountInfo(AbstractAccountInfo):
 
         self._update_data(update_fcn)
 
-    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
+    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
         def update_fcn(data):
-            data[self.BUCKET_UPLOAD_DATA][bucket_id] = {
-                self.BUCKET_UPLOAD_URL: upload_url,
-                self.BUCKET_UPLOAD_AUTH_TOKEN: upload_auth_token,
-            }
-
+            upload_urls = data[self.BUCKET_UPLOAD_URLS].get(bucket_id, [])
+            upload_urls.append({
+                self.URL: upload_url,
+                self.AUTH_TOKEN: upload_auth_token
+            })
+            data[self.BUCKET_UPLOAD_URLS][bucket_id] = upload_urls
         self._update_data(update_fcn)
 
-    def get_bucket_upload_data(self, bucket_id):
-        data = self._read_data()
-        bucket_upload_data = data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
-        if bucket_upload_data is None:
-            return None, None
-        url = bucket_upload_data[self.BUCKET_UPLOAD_URL]
-        upload_auth_token = bucket_upload_data[self.BUCKET_UPLOAD_AUTH_TOKEN]
-        return url, upload_auth_token
+    def take_bucket_upload_url(self, bucket_id):
+        result_holder = [(None, None)]
+        def update_fcn(data):
+            upload_urls = data[self.BUCKET_UPLOAD_URLS].get(bucket_id, [])
+            if len(upload_urls) != 0:
+                first = upload_urls[0]
+                result_holder[0] = (first[self.URL], first[self.AUTH_TOKEN])
+                data[self.BUCKET_UPLOAD_URLS][bucket_id] = upload_urls[1:]
+        self._update_data(update_fcn)
+        return result_holder[0]
 
     def clear_bucket_upload_data(self, bucket_id):
         def update_fcn(data):
-            data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
-
+            data[self.BUCKET_UPLOAD_URLS].pop(bucket_id, None)
         self._update_data(update_fcn)
 
     def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
@@ -289,8 +306,8 @@ class StoredAccountInfo(AbstractAccountInfo):
         if data.get(self.VERSION, 0) != self.CURRENT_VERSION:
             data = {self.VERSION: self.CURRENT_VERSION}
 
-        if self.BUCKET_UPLOAD_DATA not in data:
-            data[self.BUCKET_UPLOAD_DATA] = {}
+        if self.BUCKET_UPLOAD_URLS not in data:
+            data[self.BUCKET_UPLOAD_URLS] = {}
 
         if self.BUCKET_NAMES_TO_IDS not in data:
             data[self.BUCKET_NAMES_TO_IDS] = {}

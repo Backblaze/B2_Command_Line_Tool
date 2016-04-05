@@ -283,6 +283,7 @@ class Bucket(object):
                         upload_url, upload_auth_token, file_name, content_length, content_type,
                         sha1_sum, file_info, input_stream
                     )
+                    self.api.account_info.put_bucket_upload_url(self.id_, upload_url, upload_auth_token)
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
             except B2Error as e:
@@ -364,21 +365,16 @@ class Bucket(object):
 
     def _get_upload_data(self):
         """
-        Makes sure that we have an upload URL and auth token for the given bucket and
+        Takes ownership of an upload URL / auth token for the bucket and
         returns it.
         """
         account_info = self.api.account_info
-        upload_url, upload_auth_token = account_info.get_bucket_upload_data(self.id_)
+        upload_url, upload_auth_token = account_info.take_bucket_upload_url(self.id_)
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
 
         response = self.api.session.get_upload_url(self.id_)
-        account_info.set_bucket_upload_data(
-            self.id_,
-            response['uploadUrl'],
-            response['authorizationToken'],
-        )
-        return account_info.get_bucket_upload_data(self.id_)
+        return response['uploadUrl'], response['authorizationToken']
 
     def _get_upload_part_data(self, file_id):
         """
