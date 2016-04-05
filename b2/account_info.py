@@ -104,8 +104,12 @@ class AbstractAccountInfo(object):
 class StoredAccountInfo(AbstractAccountInfo):
     """Manages the file that holds the account ID and stored auth tokens.
 
-    It assumes many processes are accessing the same account info file,
-    so not everything can be cached in memory.
+    Bucket upload URLs are treated as a pool, from which threads can
+    borrow an URL, use it, and then put it back.
+
+    Large file upload URLs are also a pool, but are not stored in the file.
+    They are kept in memory, and lost on process exit.  Typically, a
+    large file upload is done as a single task in one process.
     """
 
     ACCOUNT_AUTH_TOKEN = 'account_auth_token'
@@ -138,27 +142,27 @@ class StoredAccountInfo(AbstractAccountInfo):
         self._update_data(lambda d: self._scrub_data({}))
 
     def get_account_id(self):
-        return self._get_account_info_or_exit(self.ACCOUNT_ID)
+        return self._get_account_info_or_raise(self.ACCOUNT_ID)
 
     def get_account_auth_token(self):
-        return self._get_account_info_or_exit(self.ACCOUNT_AUTH_TOKEN)
+        return self._get_account_info_or_raise(self.ACCOUNT_AUTH_TOKEN)
 
     def get_api_url(self):
-        return self._get_account_info_or_exit(self.API_URL)
+        return self._get_account_info_or_raise(self.API_URL)
 
     def get_application_key(self):
-        return self._get_account_info_or_exit(self.APPLICATION_KEY)
+        return self._get_account_info_or_raise(self.APPLICATION_KEY)
 
     def get_download_url(self):
-        return self._get_account_info_or_exit(self.DOWNLOAD_URL)
+        return self._get_account_info_or_raise(self.DOWNLOAD_URL)
 
     def get_minimum_part_size(self):
-        return self._get_account_info_or_exit(self.MINIMUM_PART_SIZE)
+        return self._get_account_info_or_raise(self.MINIMUM_PART_SIZE)
 
     def get_realm(self):
-        return self._get_account_info_or_exit(self.REALM)
+        return self._get_account_info_or_raise(self.REALM)
 
-    def _get_account_info_or_exit(self, key):
+    def _get_account_info_or_raise(self, key):
         result = self._read_data().get(key)
         if result is None:
             raise MissingAccountData(key)
