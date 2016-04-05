@@ -10,15 +10,16 @@
 
 from __future__ import print_function
 
-import functools
 import json
 import socket
 
 import requests
 import six
+import time
 
 from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
+from six.moves import range
 
 
 def _print_exception(e, indent=''):
@@ -74,6 +75,26 @@ def _translate_errors(fcn):
         raise UnknownError(repr(e))
 
 
+def _translate_and_retry(fcn, try_count):
+    """
+    Try calling fcn try_count times, retrying only if
+    the exception is a retryable B2Error.
+    """
+    # For all but the last try, catch the exception.
+    wait_time = 1.0
+    for _ in range(try_count - 1):
+        try:
+            return _translate_errors(fcn)
+        except B2Error as e:
+            if not e.should_retry_http():
+                raise
+            time.sleep(wait_time)
+            wait_time *= 1.5
+
+    # If the last try gets an exception, it will be raised.
+    return _translate_errors(fcn)
+
+
 class ResponseContextManager(object):
     """
     Context manager that closes a requests.Response when done.
@@ -117,7 +138,7 @@ class B2Http(object):
         """
         self.requests = requests_module or requests
 
-    def post_content_return_json(self, url, headers, data):
+    def post_content_return_json(self, url, headers, data, try_count=1):
         """
         Use like this:
 
@@ -132,23 +153,29 @@ class B2Http(object):
         :param data: bytes (Python 3) or str (Python 2), or a file-like object, to send
         :return: a dict that is the decoded JSON
         """
+        # Make the headers we'll send by adding User-Agent to what
+        # the caller provided.  Make a copy before modifying.
+        headers = dict(headers)  # make copy before modifying
         headers['User-Agent'] = USER_AGENT
-        response = _translate_errors(
-            functools.partial(
-                self.requests.post,
-                url,
-                headers=headers,
-                data=data
-            )
-        )
+
+        # Do the HTTP POST.  This may retry, so each post needs to
+        # rewind the data back to the beginning.
+        def do_post():
+            data.seek(0)
+            return self.requests.post(url, headers=headers, data=data)
+
+        response = _translate_and_retry(do_post, try_count)
+
+        # Decode the JSON that came back.  If we've gotten this far,
+        # we know we have a status of 200 OK.  In this case, the body
+        # of the response is always JSON, so we don't need to handle
+        # it being something else.
         try:
-            # We only get here if the status is 200 OK, and it
-            # that case the body is *always* JSON.
             return json.loads(response.content.decode('utf-8'))
         finally:
             response.close()
 
-    def post_json_return_json(self, url, headers, params):
+    def post_json_return_json(self, url, headers, params, try_count=1):
         """
         Use like this:
 
@@ -163,10 +190,10 @@ class B2Http(object):
         :param params: A dict that will be converted to JSON
         :return: a dict that is the decoded JSON
         """
-        data = six.b(json.dumps(params))
-        return self.post_content_return_json(url, headers, data)
+        data = six.BytesIO(six.b(json.dumps(params)))
+        return self.post_content_return_json(url, headers, data, try_count)
 
-    def get_content(self, url, headers):
+    def get_content(self, url, headers, try_count=1):
         """
         Fetches content from a URL.
 
@@ -187,8 +214,16 @@ class B2Http(object):
         :param headers: Headers to send
         :return: Context manager that returns an object that supports iter_content()
         """
+        # Make the headers we'll send by adding User-Agent to what
+        # the caller provided.  Make a copy before modifying.
+        headers = dict(headers)  # make copy before modifying
         headers['User-Agent'] = USER_AGENT
-        response = _translate_errors(functools.partial(self.requests.get, url, headers=headers))
+
+        # Do the HTTP GET.
+        def do_get():
+            return self.requests.get(url, headers=headers)
+
+        response = _translate_and_retry(do_get, try_count)
         return ResponseContextManager(response)
 
 
