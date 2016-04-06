@@ -201,27 +201,28 @@ class StoredAccountInfo(AbstractAccountInfo):
     def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
         def update_fcn(data):
             upload_urls = data[self.BUCKET_UPLOAD_URLS].get(bucket_id, [])
-            upload_urls.append({
-                self.URL: upload_url,
-                self.AUTH_TOKEN: upload_auth_token
-            })
+            upload_urls.append({self.URL: upload_url, self.AUTH_TOKEN: upload_auth_token})
             data[self.BUCKET_UPLOAD_URLS][bucket_id] = upload_urls
+
         self._update_data(update_fcn)
 
     def take_bucket_upload_url(self, bucket_id):
         result_holder = [(None, None)]
+
         def update_fcn(data):
             upload_urls = data[self.BUCKET_UPLOAD_URLS].get(bucket_id, [])
             if len(upload_urls) != 0:
                 first = upload_urls[0]
                 result_holder[0] = (first[self.URL], first[self.AUTH_TOKEN])
                 data[self.BUCKET_UPLOAD_URLS][bucket_id] = upload_urls[1:]
+
         self._update_data(update_fcn)
         return result_holder[0]
 
     def clear_bucket_upload_data(self, bucket_id):
         def update_fcn(data):
             data[self.BUCKET_UPLOAD_URLS].pop(bucket_id, None)
+
         self._update_data(update_fcn)
 
     def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
@@ -403,8 +404,11 @@ class StubAccountInfo(AbstractAccountInfo):
         self.application_key = application_key
         self.realm = realm
 
-    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        self.buckets[bucket_id] = (upload_url, upload_auth_token)
+    def take_bucket_upload_url(self, bucket_id):
+        return (None, None)
+
+    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
+        pass
 
     def get_account_id(self):
         return self.account_id

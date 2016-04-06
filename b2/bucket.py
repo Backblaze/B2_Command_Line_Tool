@@ -283,7 +283,9 @@ class Bucket(object):
                         upload_url, upload_auth_token, file_name, content_length, content_type,
                         sha1_sum, file_info, input_stream
                     )
-                    self.api.account_info.put_bucket_upload_url(self.id_, upload_url, upload_auth_token)
+                    self.api.account_info.put_bucket_upload_url(
+                        self.id_, upload_url, upload_auth_token
+                    )
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
             except B2Error as e:

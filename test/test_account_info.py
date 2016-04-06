@@ -74,19 +74,13 @@ class TestStoredAccountInfo(unittest.TestCase):
             ('http://bucket-0', 'bucket-0_auth'),
             self.account_info.take_bucket_upload_url('bucket-0')
         )
-        self.assertEqual(
-            (None, None),
-            self._fresh_info().take_bucket_upload_url('bucket-0')
-        )
+        self.assertEqual((None, None), self._fresh_info().take_bucket_upload_url('bucket-0'))
         self.account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
         self.assertEqual(
             ('http://bucket-0', 'bucket-0_auth'),
             self._fresh_info().take_bucket_upload_url('bucket-0')
         )
-        self.assertEqual(
-            (None, None),
-            self.account_info.take_bucket_upload_url('bucket-0')
-        )
+        self.assertEqual((None, None), self.account_info.take_bucket_upload_url('bucket-0'))
 
     def test_clear_bucket_upload_data(self):
         self.account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
