@@ -157,6 +157,9 @@ class RangeOfInputStream(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         return self.stream.__exit__(exc_type, exc_val, exc_tb)
 
+    def seek(self, pos):
+        self.stream.seek(self.offset + pos)
+
     def read(self, size=None):
         if size is None:
             to_read = self.remaining
