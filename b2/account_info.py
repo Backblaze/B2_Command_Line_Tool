@@ -22,8 +22,16 @@ from .exception import (MissingAccountData)
 @six.add_metaclass(ABCMeta)
 class AbstractAccountInfo(object):
     """
-    Holder for auth token, API URL, and download URL.
+    Holder for all account-related information that needs to be kept
+    between API calls, and between invocations of the command-line
+    tool.  This includes: account id, application key, auth tokens,
+    API URL, download URL, and uploads URLs.
+
+    This class must be THREAD SAFE because it may be used by multiple
+    threads running in the same Python process.  It also needs to be
+    safe against multiple processes running at the same time.
     """
+
     REALM_URLS = {
         'production': 'https://api.backblaze.com',
         'dev': 'http://api.test.blaze:8180',
@@ -77,8 +85,19 @@ class AbstractAccountInfo(object):
         pass
 
     @abstractmethod
-    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        pass
+    def take_bucket_upload_url(self, bucket_id):
+        """
+        Returns a pair (upload_url, upload_auth_token) that has been removed
+        from the pool for this bucket, or (None, None) if there are no more
+        left.
+        """
+
+    @abstractmethod
+    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
+        """
+        Add an (upload_url, upload_auth_token) pair to the pool available for
+        the bucket.
+        """
 
     @abstractmethod
     def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
@@ -96,98 +115,70 @@ class AbstractAccountInfo(object):
 class StoredAccountInfo(AbstractAccountInfo):
     """Manages the file that holds the account ID and stored auth tokens.
 
-    It assumes many processes are accessing the same account info file,
-    so not everything can be cached in memory.
+    Bucket upload URLs are treated as a pool, from which threads can
+    borrow an URL, use it, and then put it back.
+
+    Large file upload URLs are also a pool, but are not stored in the file.
+    They are kept in memory, and lost on process exit.  Typically, a
+    large file upload is done as a single task in one process.
     """
 
+    # Keys in top-level data dict:
     ACCOUNT_AUTH_TOKEN = 'account_auth_token'
     ACCOUNT_ID = 'account_id'
     APPLICATION_KEY = 'application_key'
     API_URL = 'api_url'
     BUCKET_NAMES_TO_IDS = 'bucket_names_to_ids'
-    BUCKET_UPLOAD_DATA = 'bucket_upload_data'
-    BUCKET_UPLOAD_URL = 'bucket_upload_url'
-    BUCKET_UPLOAD_AUTH_TOKEN = 'bucket_upload_auth_token'
+    BUCKET_UPLOAD_URLS = 'bucket_upload_urls'
     DOWNLOAD_URL = 'download_url'
     MINIMUM_PART_SIZE = 'minimum_part_size'
     REALM = 'realm'
+    VERSION = 'version'
 
-    def __init__(self, internal_lock_timeout=120):
-        user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
-        self.filename = os.path.expanduser(user_account_info_path)
+    # Keys in each entry in BUCKET_UPLOAD_URLS
+    URL = 'url'
+    AUTH_TOKEN = 'auth_token'
+
+    # Value of the VERSION field.
+    CURRENT_VERSION = 2
+
+    def __init__(self, file_name=None, internal_lock_timeout=120):
+        if file_name is None:
+            user_account_info_path = os.environ.get('B2_ACCOUNT_INFO', '~/.b2_account_info')
+            self.filename = os.path.expanduser(user_account_info_path)
+        else:
+            self.filename = file_name
         self._lock_filename = self.filename + '.lock'
         self._lock_timeout = internal_lock_timeout
         self._large_file_uploads = {}  # We don't keep large file upload URLs across a reload
         self._bucket_names_to_ids = {}  # for in-memory cache
 
-    def _get_data(self):
-        data = self._try_to_read_file()
-        # newer version of this tool require minimumPartSize.
-        # if it's not there, we need to refresh
-        if self.MINIMUM_PART_SIZE not in data:
-            data = {}
-
-        if self.BUCKET_UPLOAD_DATA not in data:
-            data[self.BUCKET_UPLOAD_DATA] = {}
-        if self.BUCKET_NAMES_TO_IDS not in data:
-            data[self.BUCKET_NAMES_TO_IDS] = {}
-        self._bucket_names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
-        return data
-
-    def _try_to_read_file(self):
-        with self._shared_lock():
-            try:
-                with open(self.filename, 'rb') as f:
-                    # is there a cleaner way to do this that works in both Python 2 and 3?
-                    json_str = f.read().decode('utf-8')
-                    data = json.loads(json_str)
-                    return data
-            except Exception:
-                return {}
-
-    def _exclusive_lock(self):
-        # TODO: repackage timeout?
-        return portalocker.Lock(
-            self._lock_filename,
-            timeout=self._lock_timeout,
-            flags=portalocker.LOCK_EX,
-        )
-
-    def _shared_lock(self):
-        # TODO: repackage timeout?
-        return portalocker.Lock(
-            self._lock_filename,
-            timeout=self._lock_timeout,
-            flags=portalocker.LOCK_SH,
-        )
-
     def clear(self):
-        self._write_file({})
-        self._bucket_names_to_ids = {}
+        self._update_data(lambda d: self._scrub_data({}))
 
     def get_account_id(self):
-        return self._get_account_info_or_exit(self.ACCOUNT_ID)
+        return self._get_account_info_or_raise(self.ACCOUNT_ID)
 
     def get_account_auth_token(self):
-        return self._get_account_info_or_exit(self.ACCOUNT_AUTH_TOKEN)
+        return self._get_account_info_or_raise(self.ACCOUNT_AUTH_TOKEN)
 
     def get_api_url(self):
-        return self._get_account_info_or_exit(self.API_URL)
+        return self._get_account_info_or_raise(self.API_URL)
 
     def get_application_key(self):
-        return self._get_account_info_or_exit(self.APPLICATION_KEY)
+        return self._get_account_info_or_raise(self.APPLICATION_KEY)
 
     def get_download_url(self):
-        return self._get_account_info_or_exit(self.DOWNLOAD_URL)
+        return self._get_account_info_or_raise(self.DOWNLOAD_URL)
 
     def get_minimum_part_size(self):
-        return self._get_account_info_or_exit(self.MINIMUM_PART_SIZE)
+        return self._get_account_info_or_raise(self.MINIMUM_PART_SIZE)
 
     def get_realm(self):
-        return self._get_account_info_or_exit(self.REALM)
+        return self._get_account_info_or_raise(self.REALM)
 
-    def _get_account_info_or_exit(self, key):
-        result = self._get_data().get(key)
+    def _get_account_info_or_raise(self, key):
+        result = self._read_data().get(key)
         if result is None:
             raise MissingAccountData(key)
         return result
@@ -196,38 +187,43 @@ class StoredAccountInfo(AbstractAccountInfo):
         self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
         realm
     ):
-        data = self._get_data()
-        data[self.ACCOUNT_ID] = account_id
-        data[self.ACCOUNT_AUTH_TOKEN] = auth_token
-        data[self.API_URL] = api_url
-        data[self.APPLICATION_KEY] = application_key
-        data[self.REALM] = realm
-        data[self.DOWNLOAD_URL] = download_url
-        data[self.MINIMUM_PART_SIZE] = minimum_part_size
-        self._write_file(data)
+        def update_fcn(data):
+            data[self.ACCOUNT_ID] = account_id
+            data[self.ACCOUNT_AUTH_TOKEN] = auth_token
+            data[self.API_URL] = api_url
+            data[self.APPLICATION_KEY] = application_key
+            data[self.REALM] = realm
+            data[self.DOWNLOAD_URL] = download_url
+            data[self.MINIMUM_PART_SIZE] = minimum_part_size
 
-    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        data = self._get_data()
-        data[self.BUCKET_UPLOAD_DATA][bucket_id] = {
-            self.BUCKET_UPLOAD_URL: upload_url,
-            self.BUCKET_UPLOAD_AUTH_TOKEN: upload_auth_token,
-        }
-        self._write_file(data)
+        self._update_data(update_fcn)
 
-    def get_bucket_upload_data(self, bucket_id):
-        data = self._get_data()
-        bucket_upload_data = data[self.BUCKET_UPLOAD_DATA].get(bucket_id)
-        if bucket_upload_data is None:
-            return None, None
-        url = bucket_upload_data[self.BUCKET_UPLOAD_URL]
-        upload_auth_token = bucket_upload_data[self.BUCKET_UPLOAD_AUTH_TOKEN]
-        return url, upload_auth_token
+    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
+        def update_fcn(data):
+            upload_urls = data[self.BUCKET_UPLOAD_URLS].get(bucket_id, [])
+            upload_urls.append({self.URL: upload_url, self.AUTH_TOKEN: upload_auth_token})
+            data[self.BUCKET_UPLOAD_URLS][bucket_id] = upload_urls
+
+        self._update_data(update_fcn)
+
+    def take_bucket_upload_url(self, bucket_id):
+        result_holder = [(None, None)]
+
+        def update_fcn(data):
+            upload_urls = data[self.BUCKET_UPLOAD_URLS].get(bucket_id, [])
+            if len(upload_urls) != 0:
+                first = upload_urls[0]
+                result_holder[0] = (first[self.URL], first[self.AUTH_TOKEN])
+                data[self.BUCKET_UPLOAD_URLS][bucket_id] = upload_urls[1:]
+
+        self._update_data(update_fcn)
+        return result_holder[0]
 
     def clear_bucket_upload_data(self, bucket_id):
-        data = self._get_data()
-        bucket_upload_data = data[self.BUCKET_UPLOAD_DATA].pop(bucket_id, None)
-        if bucket_upload_data is not None:
-            self._write_file(data)
+        def update_fcn(data):
+            data[self.BUCKET_UPLOAD_URLS].pop(bucket_id, None)
+
+        self._update_data(update_fcn)
 
     def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
         self._large_file_uploads[file_id] = (upload_url, upload_auth_token)
@@ -240,51 +236,139 @@ class StoredAccountInfo(AbstractAccountInfo):
             del self._large_file_uploads[file_id]
 
     def save_bucket(self, bucket):
-        self._bucket_names_to_ids[bucket.name] = bucket.id_
-        data = self._get_data()
-        names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
-        if names_to_ids.get(bucket.name) != bucket.id_:
-            names_to_ids[bucket.name] = bucket.id_
-            self._write_file(data)
+        def update_fcn(data):
+            names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
+            if names_to_ids.get(bucket.name) != bucket.id_:
+                names_to_ids[bucket.name] = bucket.id_
+
+        self._update_data(update_fcn)
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
-        new_cache = dict(name_id_iterable)
-        self._bucket_names_to_ids = new_cache
-        data = self._get_data()
-        old_cache = data[self.BUCKET_NAMES_TO_IDS]
-        if old_cache != new_cache:
-            data[self.BUCKET_NAMES_TO_IDS] = new_cache
-            self._write_file(data)
+        def update_fcn(data):
+            data[self.BUCKET_NAMES_TO_IDS] = dict(name_id_iterable)
+
+        self._update_data(update_fcn)
 
     def remove_bucket_name(self, bucket_name):
-        del self._bucket_names_to_ids[bucket_name]
-        data = self._get_data()
-        names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
-        if bucket_name in names_to_ids:
-            del names_to_ids[bucket_name]
-            self._write_file(data)
+        def update_fcn(data):
+            names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
+            if bucket_name in names_to_ids:
+                del names_to_ids[bucket_name]
+
+        self._update_data(update_fcn)
 
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
         bucket_id = self._bucket_names_to_ids.get(bucket_name)
         if bucket_id is not None:
             return bucket_id
-        data = self._get_data()
+        data = self._read_data()
         names_to_ids = data[self.BUCKET_NAMES_TO_IDS]
         return names_to_ids.get(bucket_name)
 
-    def _write_file(self, data):
+    def _read_data(self):
         """
-        makes sure the file is consistent for read and not corrupted by multiple writers
-        by using an inteprocess lock
+        Returns the data currently in the file, then releases the lock.
+
+        There is no guarantee that the data in the file won't change.
         """
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        if os.name == 'nt':
-            flags |= os.O_BINARY
-        with self._exclusive_lock():
-            with os.fdopen(os.open(self.filename, flags, stat.S_IRUSR | stat.S_IWUSR), 'wb') as f:
-                # is there a cleaner way to do this that works in both Python 2 and 3?
-                json_bytes = json.dumps(data, indent=4, sort_keys=True).encode('utf-8')
-                f.write(json_bytes)
+        with _shared_lock(self._lock_filename, self._lock_timeout):
+            self._data = self._scrub_data(_read_file_while_locked(self.filename))
+            return self._data
+
+    def _update_data(self, update_fcn):
+        """
+        Locks the file, applies the update_fcn to the data in the file,
+        and then writes the results back to disk.
+
+        self._data is updated to contain the modified data.
+
+        The update function takes the existing data as a parameter, and
+        returns the updated data to store.  The function is allowed to
+        modify the existing dictionary in place if it wants; returning
+        None says to use the existing dictionary that was modified in
+        place.
+        """
+        with _exclusive_lock(self._lock_filename, self._lock_timeout):
+            old_data = self._scrub_data(_read_file_while_locked(self.filename))
+            new_data = update_fcn(old_data)
+            if new_data is None:
+                new_data = old_data  # data was modified in place
+            _write_file_while_locked(new_data, self.filename)
+            self._data = new_data
+            self._bucket_names_to_ids = new_data[self.BUCKET_NAMES_TO_IDS]
+
+    def _scrub_data(self, data):
+        """
+        Takes the data read from disk, and cleans it for use, making sure it
+        matches the structure we are expecting.
+        """
+        # newer version of this tool require minimumPartSize.
+        # if it's not there, we need to refresh
+        if data.get(self.VERSION, 0) != self.CURRENT_VERSION:
+            data = {self.VERSION: self.CURRENT_VERSION}
+
+        if self.BUCKET_UPLOAD_URLS not in data:
+            data[self.BUCKET_UPLOAD_URLS] = {}
+
+        if self.BUCKET_NAMES_TO_IDS not in data:
+            data[self.BUCKET_NAMES_TO_IDS] = {}
+
+        # This is an ugly thing with the side-effect of updating the
+        # state of this object.  Takes advantage of the knowledge that
+        # this _scrub_data method is called every time data is loaded
+        # from disk.
+        return data
+
+
+def _exclusive_lock(lock_file, timeout):
+    return portalocker.Lock(
+        lock_file,
+        timeout=timeout,
+        fail_when_locked=False,
+        flags=portalocker.LOCK_EX
+    )
+
+
+def _shared_lock(lock_file, timeout):
+    return portalocker.Lock(
+        lock_file,
+        timeout=timeout,
+        fail_when_locked=False,
+        flags=portalocker.LOCK_SH
+    )
+
+
+def _read_file_while_locked(file_name):
+    """
+    Returns the contents of the file, if present, after converting
+    it to JSON and running the result through the data_scrubber.
+
+    Assumes that the caller has done all necessary locking to make
+    sure that nobody else is writing the file while we are reading.
+    """
+    # Read the contents of the file.
+    try:
+        with open(file_name, 'rb') as f:
+            json_str = f.read().decode('utf-8')
+            return json.loads(json_str)
+    except Exception:
+        return {}
+
+
+def _write_file_while_locked(data, file_name):
+    """
+    Converts a dict to JSON and writes it to the given file.
+
+    Assumes that the caller has done all necessary locking to make
+    sure that nobody else is reading or writing the file at the
+    same time.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if os.name == 'nt':
+        flags |= os.O_BINARY
+    with os.fdopen(os.open(file_name, flags, stat.S_IRUSR | stat.S_IWUSR), 'wb') as f:
+        json_bytes = json.dumps(data, indent=4, sort_keys=True).encode('utf-8')
+        f.write(json_bytes)
 
 
 class StubAccountInfo(AbstractAccountInfo):
@@ -320,8 +404,11 @@ class StubAccountInfo(AbstractAccountInfo):
         self.application_key = application_key
         self.realm = realm
 
-    def set_bucket_upload_data(self, bucket_id, upload_url, upload_auth_token):
-        self.buckets[bucket_id] = (upload_url, upload_auth_token)
+    def take_bucket_upload_url(self, bucket_id):
+        return (None, None)
+
+    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
+        pass
 
     def get_account_id(self):
         return self.account_id
