@@ -8,8 +8,6 @@
 #
 ######################################################################
 
-import os
-
 import six
 
 from .exception import (B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType)
