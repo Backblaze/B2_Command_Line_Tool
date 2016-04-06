@@ -27,7 +27,7 @@ class Bucket(object):
 
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
-    MAX_LARGE_FILE_SIZE = 1000 * 1000 * 1000 * 1000  # 1TB
+    MAX_LARGE_FILE_SIZE = 10 * 1000 * 1000 * 1000 * 1000  # 10 TB
 
     def __init__(self, api, id_, name=None, type_=None):
         self.api = api
