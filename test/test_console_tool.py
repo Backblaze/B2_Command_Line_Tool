@@ -17,10 +17,14 @@ from b2.account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
-from b2.progress import DoNothingProgressListener
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
+
+try:
+    import unittest.mock as mock
+except:
+    import mock
 
 
 class TestConsoleTool(unittest.TestCase):
@@ -259,11 +263,13 @@ class TestConsoleTool(unittest.TestCase):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = bucket.start_large_file('file', 'text/plain', {})
         content = six.b('hello world')
+        large_file_upload_state = mock.MagicMock()
+        large_file_upload_state.has_error.return_value = False
         bucket._upload_part(
-            file.file_id, 1, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+            file.file_id, 1, (0, 11), UploadSourceBytes(content), large_file_upload_state
         )
         bucket._upload_part(
-            file.file_id, 3, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+            file.file_id, 3, (0, 11), UploadSourceBytes(content), large_file_upload_state
         )
         expected_stdout = '''
             1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed

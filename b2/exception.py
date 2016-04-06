@@ -25,6 +25,14 @@ class B2Error(Exception):
         return False
 
 
+class AlreadyFailed(B2Error):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return 'Already failed: %s' % (self.message,)
+
+
 class BadJson(B2Error):
     def __init__(self, message):
         self.message = message
