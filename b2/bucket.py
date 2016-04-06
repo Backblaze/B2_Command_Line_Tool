@@ -27,7 +27,7 @@ class Bucket(object):
 
     DEFAULT_CONTENT_TYPE = 'b2/x-auto'
     MAX_UPLOAD_ATTEMPTS = 5
-    MAX_LARGE_FILE_SIZE = 1000 * 1000 * 1000 * 1000  # 1TB
+    MAX_LARGE_FILE_SIZE = 10 * 1000 * 1000 * 1000 * 1000  # 10 TB
 
     def __init__(self, api, id_, name=None, type_=None):
         self.api = api
@@ -253,10 +253,8 @@ class Bucket(object):
 
         # We don't upload any large files unless all of the parts can be at least
         # the minimum part size.
-        # TODO: enable large files when the feature is enabled
-        use_large_files = os.environ.get('USE_LARGE_FILES') is not None
         min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
-        if (not use_large_files) or (upload_source.get_content_length() < min_large_file_size):
+        if upload_source.get_content_length() < min_large_file_size:
             return self._upload_small_file(
                 upload_source, file_name, content_type, file_info, progress_listener
             )
