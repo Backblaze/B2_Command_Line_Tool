@@ -213,7 +213,7 @@ class B2RawApi(AbstractRawApi):
                 if bytes_read != int(info['content-length']):
                     raise TruncatedOutput(bytes_read, content_length)
 
-                if digest.hexdigest() != content_sha1:
+                if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
                     raise ChecksumMismatch(
                         checksum_type='sha1',
                         expected=content_length,
