@@ -311,7 +311,6 @@ class Bucket(object):
         part_sha1_array = []
         for (part_index, part_range) in enumerate(part_ranges):
             part_number = part_index + 1
-            print('upload part', part_range)
             upload_response = self._upload_part(
                 file_id, part_number, part_range, upload_source, progress_listener
             )
