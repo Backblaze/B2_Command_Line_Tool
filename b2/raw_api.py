@@ -526,50 +526,46 @@ def test_raw_api_helper(raw_api):
     file_info_dict = raw_api.get_file_info(api_url, account_auth_token, file_id)
     assert file_info_dict['fileName'] == file_name
 
-    # TODO: large files not enabled in production yet
-    if False:
-        # b2_start_large_file
-        print('b2_start_large_file')
-        large_info = raw_api.start_large_file(
-            api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
-        )
-        large_file_id = large_info['fileId']
+    # b2_start_large_file
+    print('b2_start_large_file')
+    large_info = raw_api.start_large_file(
+        api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
+    )
+    large_file_id = large_info['fileId']
 
-        # b2_get_upload_part_url
-        print('b2_get_upload_part_url')
-        upload_part_dict = raw_api.get_upload_part_url(api_url, account_auth_token, large_file_id)
-        upload_part_url = upload_part_dict['uploadUrl']
-        upload_path_auth = upload_part_dict['authorizationToken']
+    # b2_get_upload_part_url
+    print('b2_get_upload_part_url')
+    upload_part_dict = raw_api.get_upload_part_url(api_url, account_auth_token, large_file_id)
+    upload_part_url = upload_part_dict['uploadUrl']
+    upload_path_auth = upload_part_dict['authorizationToken']
 
-        # b2_upload_part
-        print('b2_upload_part')
-        part_contents = six.b('hello part')
-        part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
-        raw_api.upload_part(
-            upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
-            six.BytesIO(part_contents)
-        )
+    # b2_upload_part
+    print('b2_upload_part')
+    part_contents = six.b('hello part')
+    part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
+    raw_api.upload_part(
+        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
+        six.BytesIO(part_contents)
+    )
 
-        # b2_list_parts
-        print('b2_list_parts')
-        parts_response = raw_api.list_parts(api_url, account_auth_token, large_file_id, 1, 100)
-        assert [1] == [part['partNumber'] for part in parts_response['parts']]
+    # b2_list_parts
+    print('b2_list_parts')
+    parts_response = raw_api.list_parts(api_url, account_auth_token, large_file_id, 1, 100)
+    assert [1] == [part['partNumber'] for part in parts_response['parts']]
 
-        # b2_list_unfinished_large_files
-        unfinished_list = raw_api.list_unfinished_large_files(
-            api_url, account_auth_token, bucket_id
-        )
-        assert [file_name] == [f_dict['fileName'] for f_dict in unfinished_list['files']]
+    # b2_list_unfinished_large_files
+    unfinished_list = raw_api.list_unfinished_large_files(api_url, account_auth_token, bucket_id)
+    assert [file_name] == [f_dict['fileName'] for f_dict in unfinished_list['files']]
 
-        # b2_finish_large_file
-        # We don't upload enough data to actually finish on, so we'll just
-        # check that the right error is returned.
-        print('b2_finish_large_file')
-        try:
-            raw_api.finish_large_file(api_url, account_auth_token, large_file_id, [part_sha1])
-            raise Exception('finish should have failed')
-        except Exception as e:
-            assert 'large files must have at least 2 parts' in str(e)
+    # b2_finish_large_file
+    # We don't upload enough data to actually finish on, so we'll just
+    # check that the right error is returned.
+    print('b2_finish_large_file')
+    try:
+        raw_api.finish_large_file(api_url, account_auth_token, large_file_id, [part_sha1])
+        raise Exception('finish should have failed')
+    except Exception as e:
+        assert 'large files must have at least 2 parts' in str(e)
 
     # b2_update_bucket
     print('b2_update_bucket')
@@ -582,7 +578,7 @@ def test_raw_api_helper(raw_api):
     for bucket_dict in bucket_list_dict['buckets']:
         bucket_id = bucket_dict['bucketId']
         bucket_name = bucket_dict['bucketName']
-        if _bucket_more_than_an_hour_old(bucket_name):
+        if _should_delete_bucket(bucket_name):
             print('cleaning up old bucket: ' + bucket_name)
             _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
 
@@ -607,11 +603,14 @@ def _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, b
     raw_api.delete_bucket(api_url, account_auth_token, account_id, bucket_id)
 
 
-def _bucket_more_than_an_hour_old(bucket_name):
+def _should_delete_bucket(bucket_name):
+    # Bucket names for this test look like: c7b22d0b0ad7-1460060364-5670
+    # Other buckets should not be deleted.
     match = re.match(r'^[a-f0-9]+-([0-9]+)-([0-9]+)', bucket_name)
     if match is None:
-        print('no match for bucket', bucket_name)
-    assert match is not None
+        return False
+
+    # Is it more than an hour old?
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 3600 <= now

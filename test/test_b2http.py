@@ -171,5 +171,5 @@ class TestB2Http(unittest.TestCase):
         self.response.status_code = 200
         with self.b2_http.get_content(self.URL, self.HEADERS) as r:
             self.assertTrue(self.response is r)  # no assertIs until 2.7
-        self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS)
+        self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
         self.response.close.assert_called_with()
