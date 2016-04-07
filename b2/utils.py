@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from __future__ import division
+from __future__ import division, print_function
 
 import hashlib
 import shutil
@@ -16,6 +16,38 @@ import tempfile
 
 import six
 from six.moves import urllib
+
+try:
+    import concurrent.futures as futures
+except:
+    import futures
+
+# Global variable that says whether the app is shutting down
+_shutting_down = False
+
+
+def set_shutting_down():
+    global _shutting_down
+    _shutting_down = True
+
+
+def raise_if_shutting_down():
+    if _shutting_down:
+        raise KeyboardInterrupt()
+
+
+def interruptible_get_result(future):
+    """
+    Waits for the result of a future in a way that can be interrupted
+    by a KeyboardInterrupt.
+
+    This is not necessary in Python 3, but is needed for Python 2.
+    """
+    while True:
+        try:
+            return future.result(timeout=1.0)
+        except futures.TimeoutError:
+            pass
 
 
 def b2_url_encode(s):

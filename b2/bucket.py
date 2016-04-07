@@ -18,7 +18,7 @@ from .file_version import FileVersionInfoFactory
 from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
-from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, validate_b2_file_name
+from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
 
 
 class LargeFileUploadState(object):
@@ -387,7 +387,7 @@ class Bucket(object):
         # Collect the sha1 checksums of the parts as the uploads finish.
         # If any of them raised an exception, that same exception will
         # be raised here by result()
-        part_sha1_array = [f.result()['contentSha1'] for f in part_futures]
+        part_sha1_array = [interruptible_get_result(f)['contentSha1'] for f in part_futures]
 
         # Finish the large file
         response = self.api.raw_api.finish_large_file(

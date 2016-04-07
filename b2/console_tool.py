@@ -26,6 +26,7 @@ from .exception import (B2Error, BadFileInfo, MissingAccountData)
 from .file_version import (FileVersionInfo)
 from .progress import (make_progress_listener, DoNothingProgressListener)
 from .raw_api import (test_raw_api)
+from .utils import (set_shutting_down)
 from .version import (VERSION)
 
 USAGE = """This program provides command-line access to the B2 service.
@@ -265,6 +266,8 @@ class ConsoleTool(object):
         except B2Error as e:
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
+        except KeyboardInterrupt:
+            set_shutting_down()
 
     def _message_and_fail(self, message):
         """Prints a message, and exits with error status.
