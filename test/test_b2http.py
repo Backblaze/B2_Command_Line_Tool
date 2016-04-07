@@ -22,112 +22,122 @@ if sys.version_info < (3, 3):
 else:
     from unittest.mock import call, MagicMock, patch
 
-IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
-
 
 class TestTranslateErrors(unittest.TestCase):
     def test_ok(self):
-        if IS_27_OR_LATER:
-            response = MagicMock()
-            response.status_code = 200
-            actual = _translate_errors(lambda: response)
-            self.assertIs(response, actual)
+        response = MagicMock()
+        response.status_code = 200
+        actual = _translate_errors(lambda: response)
+        self.assertTrue(response is actual)  # no assertIs until 2.7
 
     def test_partial_content(self):
-        if IS_27_OR_LATER:
-            response = MagicMock()
-            response.status_code = 206
-            actual = _translate_errors(lambda: response)
-            self.assertIs(response, actual)
+        response = MagicMock()
+        response.status_code = 206
+        actual = _translate_errors(lambda: response)
+        self.assertTrue(response is actual)  # no assertIs until 2.7
 
     def test_b2_error(self):
-        if IS_27_OR_LATER:
-            response = MagicMock()
-            response.status_code = 503
-            response.content = six.b('{"status": 503, "code": "server_busy", "message": "busy"}')
-            with self.assertRaises(ServiceError):
-                _translate_errors(lambda: response)
+        response = MagicMock()
+        response.status_code = 503
+        response.content = six.b('{"status": 503, "code": "server_busy", "message": "busy"}')
+        # no assertRaises until 2.7
+        try:
+            _translate_errors(lambda: response)
+            self.fail('should have raised ServiceError')
+        except ServiceError:
+            pass
 
     def test_broken_pipe(self):
-        if IS_27_OR_LATER:
-
-            def fcn():
-                raise requests.ConnectionError(
-                    requests.packages.urllib3.exceptions.ProtocolError(
-                        "dummy", socket.error(20, 'Broken pipe')
-                    )
+        def fcn():
+            raise requests.ConnectionError(
+                requests.packages.urllib3.exceptions.ProtocolError(
+                    "dummy", socket.error(20, 'Broken pipe')
                 )
-            with self.assertRaises(BrokenPipe):
-                _translate_errors(fcn)
+            )
+        # no assertRaises until 2.7
+        try:
+            _translate_errors(fcn)
+            self.fail('should have raised BrokenPipe')
+        except BrokenPipe:
+            pass
 
     def test_unknown_host(self):
-        if IS_27_OR_LATER:
-
-            def fcn():
-                raise requests.ConnectionError(
-                    requests.packages.urllib3.exceptions.MaxRetryError(
-                        'AAA nodename nor servname provided, or not known AAA', 'http://example.com'
-                    )
+        def fcn():
+            raise requests.ConnectionError(
+                requests.packages.urllib3.exceptions.MaxRetryError(
+                    'AAA nodename nor servname provided, or not known AAA', 'http://example.com'
                 )
-            with self.assertRaises(UnknownHost):
-                _translate_errors(fcn)
+            )
+        # no assertRaises until 2.7
+        try:
+            _translate_errors(fcn)
+            self.fail('should have raised UnknownHost')
+        except UnknownHost:
+            pass
 
     def test_connection_error(self):
-        if IS_27_OR_LATER:
-
-            def fcn():
-                raise requests.ConnectionError('a message')
-            with self.assertRaises(ConnectionError):
-                _translate_errors(fcn)
+        def fcn():
+            raise requests.ConnectionError('a message')
+        # no assertRaises until 2.7
+        try:
+            _translate_errors(fcn)
+            self.fail('should have raised ConnectionError')
+        except ConnectionError:
+            pass
 
     def test_unknown_error(self):
-        if IS_27_OR_LATER:
-
-            def fcn():
-                raise Exception('a message')
-            with self.assertRaises(UnknownError):
-                _translate_errors(fcn)
+        def fcn():
+            raise Exception('a message')
+        # no assertRaises until 2.7
+        try:
+            _translate_errors(fcn)
+            self.fail('should have raised UnknownError')
+        except UnknownError:
+            pass
 
 
 class TestTranslateAndRetry(unittest.TestCase):
     def setUp(self):
-        if IS_27_OR_LATER:
-            self.response = MagicMock()
-            self.response.status_code = 200
+        self.response = MagicMock()
+        self.response.status_code = 200
 
     def test_works_first_try(self):
-        if IS_27_OR_LATER:
-            fcn = MagicMock()
-            fcn.side_effect = [self.response]
-            self.assertIs(self.response, _translate_and_retry(fcn, 3))
+        fcn = MagicMock()
+        fcn.side_effect = [self.response]
+        self.assertTrue(self.response is _translate_and_retry(fcn, 3))  # no assertIs until 2.7
 
     def test_non_retryable(self):
-        if IS_27_OR_LATER:
-            with patch('time.sleep') as mock_time:
-                fcn = MagicMock()
-                fcn.side_effect = [BadJson('a'), self.response]
-                with self.assertRaises(BadJson):
-                    _translate_and_retry(fcn, 3)
-                self.assertEqual([], mock_time.mock_calls)
+        with patch('time.sleep') as mock_time:
+            fcn = MagicMock()
+            fcn.side_effect = [BadJson('a'), self.response]
+            # no assertRaises until 2.7
+            try:
+                _translate_and_retry(fcn, 3)
+                self.fail('should have raised BadJson')
+            except BadJson:
+                pass
+            self.assertEqual([], mock_time.mock_calls)
 
     def test_works_second_try(self):
-        if IS_27_OR_LATER:
-            with patch('time.sleep') as mock_time:
-                fcn = MagicMock()
-                fcn.side_effect = [ServiceError('a'), self.response]
-                self.assertIs(self.response, _translate_and_retry(fcn, 3))
-                self.assertEqual([call(1.0)], mock_time.mock_calls)
+        with patch('time.sleep') as mock_time:
+            fcn = MagicMock()
+            fcn.side_effect = [ServiceError('a'), self.response]
+            self.assertTrue(self.response is _translate_and_retry(fcn, 3))  # no assertIs until 2.7
+            self.assertEqual([call(1.0)], mock_time.mock_calls)
 
     def test_never_works(self):
-        if IS_27_OR_LATER:
-            with patch('time.sleep') as mock_time:
-                fcn = MagicMock()
-                fcn.side_effect = [
-                    ServiceError('a'), ServiceError('a'), ServiceError('a'), self.response
-                ]
-                with self.assertRaises(ServiceError):
-                    _translate_and_retry(fcn, 3)
-                self.assertEqual([call(1.0), call(1.5)], mock_time.mock_calls)
+        with patch('time.sleep') as mock_time:
+            fcn = MagicMock()
+            fcn.side_effect = [
+                ServiceError('a'), ServiceError('a'), ServiceError('a'), self.response
+            ]
+            # no assertRaises until 2.7
+            try:
+                _translate_and_retry(fcn, 3)
+                self.fail('should have raised ServiceError')
+            except ServiceError:
+                pass
+            self.assertEqual([call(1.0), call(1.5)], mock_time.mock_calls)
 
 
 class TestB2Http(unittest.TestCase):
@@ -160,7 +170,6 @@ class TestB2Http(unittest.TestCase):
         self.requests.get.return_value = self.response
         self.response.status_code = 200
         with self.b2_http.get_content(self.URL, self.HEADERS) as r:
-            if IS_27_OR_LATER:
-                self.assertIs(self.response, r)
+            self.assertTrue(self.response is r)  # no assertIs until 2.7
         self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
         self.response.close.assert_called_with()
