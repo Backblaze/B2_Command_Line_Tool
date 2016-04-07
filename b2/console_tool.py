@@ -268,6 +268,7 @@ class ConsoleTool(object):
             return 1
         except KeyboardInterrupt:
             set_shutting_down()
+            raise
 
     def _message_and_fail(self, message):
         """Prints a message, and exits with error status.
