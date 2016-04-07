@@ -121,6 +121,7 @@ class SimpleProgressListener(AbstractProgressListener):
             self.any_printed = True
 
     def close(self):
+        raise_if_shutting_down()
         if self.any_printed:
             print('    DONE.')
 
