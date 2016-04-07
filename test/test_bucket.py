@@ -22,10 +22,15 @@ from b2.download_dest import DownloadDestBytes
 from b2.exception import B2Error, InvalidAuthToken, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
-from b2.progress import AbstractProgressListener, DoNothingProgressListener
+from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import hex_sha1_of_bytes, TempDir
+
+try:
+    import unittest.mock as mock
+except:
+    import mock
 
 # The assertRaises context manager isn't in 2.6, so we don't bother running those tests there
 IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
@@ -120,14 +125,16 @@ class TestListParts(TestCaseWithBucket):
         file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
         content = six.b('hello world')
         content_sha1 = hex_sha1_of_bytes(content)
+        large_file_upload_state = mock.MagicMock()
+        large_file_upload_state.has_error.return_value = False
         self.bucket._upload_part(
-            file1.file_id, 1, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+            file1.file_id, 1, (0, 11), UploadSourceBytes(content), large_file_upload_state
         )
         self.bucket._upload_part(
-            file1.file_id, 2, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+            file1.file_id, 2, (0, 11), UploadSourceBytes(content), large_file_upload_state
         )
         self.bucket._upload_part(
-            file1.file_id, 3, (0, 11), UploadSourceBytes(content), DoNothingProgressListener()
+            file1.file_id, 3, (0, 11), UploadSourceBytes(content), large_file_upload_state
         )
         expected_parts = [
             Part('9999', 1, 11, content_sha1),

@@ -25,6 +25,14 @@ class B2Error(Exception):
         return False
 
 
+class AlreadyFailed(B2Error):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return 'Already failed: %s' % (self.message,)
+
+
 class BadJson(B2Error):
     def __init__(self, message):
         self.message = message
@@ -126,9 +134,7 @@ class MaxRetriesExceeded(B2Error):
         self.exception_info_list = exception_info_list
 
     def __str__(self):
-        exceptions = '\n'.join(
-            wrapped_error.format_exception() for wrapped_error in self.exception_info_list
-        )
+        exceptions = '\n'.join(str(wrapped_error) for wrapped_error in self.exception_info_list)
         return 'FAILED to upload after %s tries. Encountered exceptions: %s' % (
             self.limit,
             exceptions,

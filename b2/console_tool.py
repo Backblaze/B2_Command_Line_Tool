@@ -13,6 +13,7 @@ from __future__ import absolute_import, print_function
 import getpass
 import json
 import os
+import signal
 import sys
 
 import six
@@ -26,6 +27,7 @@ from .exception import (B2Error, BadFileInfo, MissingAccountData)
 from .file_version import (FileVersionInfo)
 from .progress import (make_progress_listener, DoNothingProgressListener)
 from .raw_api import (test_raw_api)
+from .utils import (set_shutting_down)
 from .version import (VERSION)
 
 USAGE = """This program provides command-line access to the B2 service.
@@ -184,6 +186,11 @@ def local_path_to_b2_path(path):
     return path.replace(os.path.sep, '/')
 
 
+def keyboard_interrupt_handler(signum, frame):
+    set_shutting_down()
+    raise KeyboardInterrupt()
+
+
 class ConsoleTool(object):
     """
     Implements the commands available in the B2 command-line tool
@@ -201,6 +208,8 @@ class ConsoleTool(object):
     def run_command(self, argv):
         if len(argv) < 2:
             return self._usage_and_fail()
+
+        signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
         action = argv[1]
         args = argv[2:]
@@ -265,6 +274,8 @@ class ConsoleTool(object):
         except B2Error as e:
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
+        except KeyboardInterrupt:
+            self._print('\ninterrupted')
 
     def _message_and_fail(self, message):
         """Prints a message, and exits with error status.

@@ -4,6 +4,8 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
+import sys
+
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
 # To use a consistent encoding
@@ -16,6 +18,17 @@ here = path.abspath(path.dirname(__file__))
 # ??? Is a markdown file OK?  Sample used .rst ???
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+
+# The set of required packages depends on what version
+# of python you're running.
+required_packages = [
+        'portalocker>=0.5.7',
+        'requests>=2.9.1',
+        'six>=1.10.0'
+]
+
+if sys.version_info < (3,2):
+    required_packages.append('futures>=3.0.5')
 
 setup(
     name='b2',
@@ -81,7 +94,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['portalocker>=0.5.7', 'requests>=2.9.1', 'six>=1.10.0'],
+    install_requires=required_packages,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
