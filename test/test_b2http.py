@@ -162,5 +162,5 @@ class TestB2Http(unittest.TestCase):
         with self.b2_http.get_content(self.URL, self.HEADERS) as r:
             if IS_27_OR_LATER:
                 self.assertIs(self.response, r)
-        self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS)
+        self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
         self.response.close.assert_called_with()
