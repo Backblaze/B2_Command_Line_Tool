@@ -554,9 +554,7 @@ def test_raw_api_helper(raw_api):
     assert [1] == [part['partNumber'] for part in parts_response['parts']]
 
     # b2_list_unfinished_large_files
-    unfinished_list = raw_api.list_unfinished_large_files(
-        api_url, account_auth_token, bucket_id
-    )
+    unfinished_list = raw_api.list_unfinished_large_files(api_url, account_auth_token, bucket_id)
     assert [file_name] == [f_dict['fileName'] for f_dict in unfinished_list['files']]
 
     # b2_finish_large_file
