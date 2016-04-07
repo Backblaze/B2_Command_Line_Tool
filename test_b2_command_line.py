@@ -550,7 +550,7 @@ def main():
         check_if_account_info_file_is_clear('~/.b2_account_info')
 
         bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
-        b2_tool.should_fail(['authorize_account', account_id, bad_application_key], r'invalid authorization')
+        b2_tool.should_fail(['authorize_account', account_id, bad_application_key], r'Invalid authorization')
         b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
         bucket_name_prefix = 'test-b2-command-line-' + account_id
