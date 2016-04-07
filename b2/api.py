@@ -18,6 +18,11 @@ from .part import PartFactory
 from .raw_api import B2RawApi
 from .session import B2Session
 
+try:
+    import concurrent.futures as futures
+except:
+    import futures
+
 
 def url_for_api(info, api_name):
     if api_name in ['b2_download_file_by_id']:
@@ -47,11 +52,7 @@ class B2Api(object):
     such as auth tokens and upload URLs.
     """
 
-    # TODO: move HTTP code out to B2RawApi
-    # TODO: ConsoleTool passes the account info cache into the constructor
-    # TODO: provide method to get the account info cache (so ConsoleTool can save it)
-
-    def __init__(self, account_info=None, cache=None, raw_api=None):
+    def __init__(self, account_info=None, cache=None, raw_api=None, max_upload_workers=10):
         """
         Initializes the API using the given account info.
         :param account_info:
@@ -69,6 +70,7 @@ class B2Api(object):
         if cache is None:
             cache = DummyCache()
         self.cache = cache
+        self.upload_executor = futures.ThreadPoolExecutor(max_workers=max_upload_workers)
 
     def authorize_automatically(self):
         try:

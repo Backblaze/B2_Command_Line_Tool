@@ -8,10 +8,12 @@
 #
 ######################################################################
 
+import collections
 import json
 import os
 import portalocker
 import stat
+import threading
 from abc import (ABCMeta, abstractmethod)
 
 import six
@@ -100,15 +102,15 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
-    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
+    def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
         pass
 
     @abstractmethod
-    def get_large_file_upload_data(self, file_id):
+    def take_large_file_upload_url(self, file_id):
         pass
 
     @abstractmethod
-    def clear_large_file_upload_data(self, file_id):
+    def clear_large_file_upload_urls(self, file_id):
         pass
 
 
@@ -150,8 +152,13 @@ class StoredAccountInfo(AbstractAccountInfo):
             self.filename = file_name
         self._lock_filename = self.filename + '.lock'
         self._lock_timeout = internal_lock_timeout
-        self._large_file_uploads = {}  # We don't keep large file upload URLs across a reload
+        self._large_file_uploads = collections.defaultdict(
+            list
+        )  # We don't keep large file upload URLs across a reload
         self._bucket_names_to_ids = {}  # for in-memory cache
+
+        # Lock to manage in-memory structures
+        self._lock = threading.Lock()
 
     def clear(self):
         self._update_data(lambda d: self._scrub_data({}))
@@ -225,15 +232,22 @@ class StoredAccountInfo(AbstractAccountInfo):
 
         self._update_data(update_fcn)
 
-    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
-        self._large_file_uploads[file_id] = (upload_url, upload_auth_token)
+    def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
+        with self._lock:
+            self._large_file_uploads[file_id].append((upload_url, upload_auth_token))
 
-    def get_large_file_upload_data(self, file_id):
-        return self._large_file_uploads.get(file_id, (None, None))
+    def take_large_file_upload_url(self, file_id):
+        with self._lock:
+            url_list = self._large_file_uploads.get(file_id, [])
+            if len(url_list) == 0:
+                return (None, None)
+            else:
+                return url_list.pop()
 
-    def clear_large_file_upload_data(self, file_id):
-        if file_id in self._large_file_uploads:
-            del self._large_file_uploads[file_id]
+    def clear_large_file_upload_urls(self, file_id):
+        with self._lock:
+            if file_id in self._large_file_uploads:
+                del self._large_file_uploads[file_id]
 
     def save_bucket(self, bucket):
         def update_fcn(data):
@@ -386,7 +400,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.application_key = None
         self.realm = None
         self.buckets = {}
-        self._large_file_uploads = {}
+        self._large_file_uploads = collections.defaultdict(list)
 
     def clear_bucket_upload_data(self, bucket_id):
         if bucket_id in self.buckets:
@@ -434,12 +448,16 @@ class StubAccountInfo(AbstractAccountInfo):
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))
 
-    def set_large_file_upload_data(self, file_id, upload_url, upload_auth_token):
-        self._large_file_uploads[file_id] = (upload_url, upload_auth_token)
+    def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
+        self._large_file_uploads[file_id].append((upload_url, upload_auth_token))
 
-    def get_large_file_upload_data(self, file_id):
-        return self._large_file_uploads.get(file_id, (None, None))
+    def take_large_file_upload_url(self, file_id):
+        upload_urls = self._large_file_uploads.get(file_id, [])
+        if len(upload_urls) == 0:
+            return (None, None)
+        else:
+            return upload_urls.pop()
 
-    def clear_large_file_upload_data(self, file_id):
+    def clear_large_file_upload_urls(self, file_id):
         if file_id in self._large_file_uploads:
             del self._large_file_uploads[file_id]

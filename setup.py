@@ -81,7 +81,12 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['portalocker>=0.5.7', 'requests>=2.9.1', 'six>=1.10.0'],
+    install_requires=[
+        'futures>=3.0.5',
+        'portalocker>=0.5.7',
+        'requests>=2.9.1',
+        'six>=1.10.0'
+    ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

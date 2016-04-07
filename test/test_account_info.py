@@ -87,14 +87,17 @@ class TestStoredAccountInfo(unittest.TestCase):
         self.account_info.clear_bucket_upload_data('bucket-0')
         self.assertEqual((None, None), self.account_info.take_bucket_upload_url('bucket-0'))
 
-    def test_large_file_upload_data(self):
-        self.account_info.set_large_file_upload_data('file_0', 'http://file_0', 'auth_0')
+    def test_large_file_upload_urls(self):
+        self.account_info.put_large_file_upload_url('file_0', 'http://file_0', 'auth_0')
         self.assertEqual(
-            ('http://file_0', 'auth_0'), self.account_info.get_large_file_upload_data('file_0')
+            ('http://file_0', 'auth_0'), self.account_info.take_large_file_upload_url('file_0')
         )
-        self.assertEqual((None, None), self._fresh_info().get_large_file_upload_data('file_0'))
-        self.account_info.clear_large_file_upload_data('file_0')
-        self.assertEqual((None, None), self.account_info.get_large_file_upload_data('file_0'))
+        self.assertEqual((None, None), self.account_info.take_large_file_upload_url('file_0'))
+
+    def test_clear_large_file_upload_urls(self):
+        self.account_info.put_large_file_upload_url('file_0', 'http://file_0', 'auth_0')
+        self.account_info.clear_large_file_upload_urls('file_0')
+        self.assertEqual((None, None), self.account_info.take_large_file_upload_url('file_0'))
 
     def test_bucket(self):
         bucket = mock.MagicMock()
