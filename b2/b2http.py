@@ -221,7 +221,7 @@ class B2Http(object):
 
         # Do the HTTP GET.
         def do_get():
-            return self.requests.get(url, headers=headers)
+            return self.requests.get(url, headers=headers, stream=True)
 
         response = _translate_and_retry(do_get, try_count)
         return ResponseContextManager(response)
