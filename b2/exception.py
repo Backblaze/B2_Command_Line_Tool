@@ -196,6 +196,14 @@ class StorageCapExceeded(B2Error):
         return 'Cannot upload files, storage cap exceeded.'
 
 
+class TooManyRequests(B2Error):
+    def __str__(self):
+        return 'Too many requests'
+
+    def should_retry_http(self):
+        return True
+
+
 class TruncatedOutput(B2Error):
     def __init__(self, bytes_read, file_size):
         self.bytes_read = bytes_read
@@ -246,6 +254,8 @@ def interpret_b2_error(status, code, message, post_params=None):
         return InvalidAuthToken(message, code)
     elif status == 403 and code == "storage_cap_exceeded":
         return StorageCapExceeded()
+    elif status == 429:
+        return TooManyRequests()
     elif 500 <= status and status < 600:
         return ServiceError('%d %s %s' % (status, code, message))
     else:
