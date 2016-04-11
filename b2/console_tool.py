@@ -135,18 +135,36 @@ Usages:
         Prints an URL that can be used to download the given file, if
         it is public.
 
-    b2 sync [--delete] [--hide] <source> <destination>
+    b2 sync [--delete] [--keep-days NNN] [--skip-newer] [--replace-newer] <source> <destination>
 
-        UNDER DEVELOPMENT -- there may be changes coming to this command
+        Copies multiple files from source to destination.  Optionally
+        deletes or hides destination files that the source does not have.
 
-        Uploads or downloads multiple files from source to destination.
         One of the paths must be a local file path, and the other must be
         a B2 bucket path. Use "b2:<bucketName>/<prefix>" for B2 paths, e.g.
         "b2:my-bucket-name/a/path/prefix/".
 
-        If the --delete or --hide flags are specified, destination files
-        are deleted or hidden if not present in the source path. Note that
-        files are matched only by name and size.
+        When a destination file is present that is not in the source, the
+        default is to leave it there.  Specifying --delete means to delete
+        destination files that are not in the source.
+
+        When the destination is B2, you have the option of leaving older
+        versions in place.  Specifying --keep-days will leave older versions
+        in B2 for the given number of days, and then delete them.  This
+        option is not available when the destination is a local folder.
+
+        Files at the source that have a newer modification time are always
+        copied to the destination.  If the destination file is newer, the
+        default is to report an error and stop.  But with --skip-newer set,
+        those files will just be skipped.  With --replace-newer set, the
+        old file from the source will replace the newer one in the destination.
+
+        To make the destination exactly match the source, use:
+            b2 sync --delete --replace-newer ... ...
+
+        To make the destination match the source, but retain previous versions
+        for 30 days:
+            b2 sync --keep-days 30 --replace-newer ... b2://...
 
     b2 update_bucket <bucketName> <bucketType>
 

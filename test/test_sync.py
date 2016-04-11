@@ -18,6 +18,7 @@ from six.moves import map
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
+
 def write_file(path, contents):
     parent = os.path.dirname(path)
     if not os.path.isdir(parent):
@@ -127,8 +128,7 @@ class TestMakeSyncActions(unittest.TestCase):
             [
                 "b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)",
                 "b2_upload(/dir/e.txt, e.txt, 300)"
-            ],
-            [str(a) for a in actions]
+            ], [str(a) for a in actions]
         )
 
     def test_b2_to_local(self):
