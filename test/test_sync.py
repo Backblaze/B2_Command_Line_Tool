@@ -11,16 +11,12 @@
 from __future__ import print_function
 
 import os
-import sys
 import unittest
 
 from six.moves import map
 
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
-
-IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
-
 
 def write_file(path, contents):
     parent = os.path.dirname(path)
@@ -93,13 +89,19 @@ class TestZipFolders(unittest.TestCase):
 
 class TestMakeSyncActions(unittest.TestCase):
     def test_illegal_cases(self):
-        if IS_27_OR_LATER:
-            with self.assertRaises(NotImplementedError):
-                b2_folder = FakeFolder('b2', [])
-                list(make_folder_sync_actions(b2_folder, b2_folder, 1))
-            with self.assertRaises(NotImplementedError):
-                local_folder = FakeFolder('local', [])
-                list(make_folder_sync_actions(local_folder, local_folder, 1))
+        b2_folder = FakeFolder('b2', [])
+        try:
+            list(make_folder_sync_actions(b2_folder, b2_folder, 1))
+            self.fail('should have raised NotImplementedError')
+        except NotImplementedError:
+            pass
+
+        local_folder = FakeFolder('local', [])
+        try:
+            list(make_folder_sync_actions(local_folder, local_folder, 1))
+            self.fail('should have raised NotImplementedError')
+        except NotImplementedError:
+            pass
 
     def test_empty(self):
         folder_a = FakeFolder('b2', [])
@@ -125,7 +127,8 @@ class TestMakeSyncActions(unittest.TestCase):
             [
                 "b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)",
                 "b2_upload(/dir/e.txt, e.txt, 300)"
-            ], list(map(str, actions))
+            ],
+            [str(a) for a in actions]
         )
 
     def test_b2_to_local(self):
