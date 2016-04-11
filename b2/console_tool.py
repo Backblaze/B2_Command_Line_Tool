@@ -140,6 +140,10 @@ Usages:
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
 
+        Files are considered to be the same if they have the same name
+        and modification time.  A future enhancement may add the ability
+        to compare the SHA1 checksum of the files.
+
         One of the paths must be a local file path, and the other must be
         a B2 bucket path. Use "b2:<bucketName>/<prefix>" for B2 paths, e.g.
         "b2:my-bucket-name/a/path/prefix/".
@@ -149,9 +153,10 @@ Usages:
         destination files that are not in the source.
 
         When the destination is B2, you have the option of leaving older
-        versions in place.  Specifying --keep-days will leave older versions
-        in B2 for the given number of days, and then delete them.  This
-        option is not available when the destination is a local folder.
+        versions in place.  Specifying --keep-days will delete any older
+        versions more than the given number of days old, based on the
+        modification time of the file.  This option is not available when
+        the destination is a local folder.
 
         Files at the source that have a newer modification time are always
         copied to the destination.  If the destination file is newer, the
