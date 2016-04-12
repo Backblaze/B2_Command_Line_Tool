@@ -342,36 +342,63 @@ class LocalFolder(AbstractFolder):
     """
 
     def __init__(self, root):
+        """
+        Initializes a new folder.
+
+        :param root: Path to the root of the local folder.  Must be unicode.
+        """
+        if not isinstance(root, six.text_type):
+            raise ValueError('folder path should be unicode: %s' % repr(root))
+        assert isinstance(root, six.text_type)
         self.root = os.path.abspath(root)
-        self.relative_paths = self._get_all_relative_paths(self.root)
 
     def folder_type(self):
         return 'local'
 
     def all_files(self):
-        for relative_path in self.relative_paths:
+        prefix_len = len(self.root) + 1  # include trailing '/' in prefix length
+        for relative_path in self._walk_relative_paths(prefix_len, self.root):
             yield self._make_file(relative_path)
 
-    def make_full_path(self, file_name):
-        return os.path.join(self.root, file_name.replace('/', os.path.sep))
+    def _walk_relative_paths(self, prefix_len, dir_path):
+        """
+        Yields all of the file names anywhere under this folder, in the
+        order they would appear in B2.
+        """
+        if not isinstance(dir_path, six.text_type):
+            raise ValueError('folder path should be unicode: %s' % repr(dir_path))
 
-    def _get_all_relative_paths(self, root_path):
-        """
-        Returns a sorted list of all of the files under the given root,
-        relative to that root
-        """
-        result = []
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            for filename in filenames:
-                full_path = os.path.join(dirpath, filename)
-                relative_path = full_path[len(root_path) + 1:]
-                result.append(relative_path)
-        return sorted(result)
+        # Collect the names
+        # We know the dir_path is unicode, which will cause os.listdir() to
+        # return unicode paths.
+        names = {}  # name to (full_path, relative path)
+        dirs = set()  # subset of names that are directories
+        for name in os.listdir(dir_path):
+            if '/' in name:
+                raise Exception(
+                    "sync does not support file names that include '/': %s in dir %s" %
+                    (name, dir_path)
+                )
+            full_path = os.path.join(dir_path, name)
+            relative_path = full_path[prefix_len:]
+            if os.path.isdir(full_path):
+                name += u'/'
+                dirs.add(name)
+            names[name] = (full_path, relative_path)
+
+        # Yield all of the answers
+        for name in sorted(names):
+            (full_path, relative_path) = names[name]
+            if name in dirs:
+                for rp in self._walk_relative_paths(prefix_len, full_path):
+                    yield rp
+            else:
+                yield relative_path
 
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
         mod_time = os.path.getmtime(full_path)
-        slashes_path = '/'.join(relative_path.split(os.path.sep))
+        slashes_path = u'/'.join(relative_path.split(os.path.sep))
         version = FileVersion(full_path, mod_time, "upload")
         return File(slashes_path, [version])
 

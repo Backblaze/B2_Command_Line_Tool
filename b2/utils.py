@@ -175,7 +175,10 @@ class TempDir(object):
     """
 
     def __enter__(self):
-        self.dirpath = tempfile.mkdtemp()
+        """
+        Returns the unicode path to the temp dir.
+        """
+        self.dirpath = six.u(tempfile.mkdtemp())
         return self.dirpath
 
     def __exit__(self, exc_type, exc_val, exc_tb):

@@ -36,12 +36,14 @@ def create_files(root_dir, relative_paths):
 class TestLocalFolder(unittest.TestCase):
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
+        names = [
+            u'.dot_file', u'hello.', u'hello/a/1', u'hello/a/2', u'hello/b', u'hello0', u'\u81ea\u7531'
+        ]
         with TempDir() as tmpdir:
-            create_files(tmpdir, ['hello.', 'hello/a', 'hello/b', 'hello0'])
+            create_files(tmpdir, names)
             folder = LocalFolder(tmpdir)
-            files = list(folder.all_files())
-            names = [f.name for f in files]
-            self.assertEqual(['hello.', 'hello/a', 'hello/b', 'hello0'], names)
+            actual_names = list(f.name for f in folder.all_files())
+            self.assertEqual(names, actual_names)
 
 
 class FakeFolder(AbstractFolder):
