@@ -15,6 +15,7 @@ import json
 import os
 import signal
 import sys
+import textwrap
 
 import six
 
@@ -33,20 +34,6 @@ from .version import (VERSION)
 USAGE = """This program provides command-line access to the B2 service.
 
 Usages:
-
-    b2 authorize_account [accountId] [applicationKey]
-
-        Prompts for Backblaze accountID and applicationKey (unless they are given
-        on the command line).
-
-        The account ID is a 12-digit hex number that you can get from
-        your account page on backblaze.com.
-
-        The application key is a 40-digit hex number that you can get from
-        your account page on backblaze.com.
-
-        Stores an account auth token in ~/.b2_account_info.  This can be overridden using the
-        B2_ACCOUNT_INFO environment variable.
 
     b2 cancel_all_unfinished_large_files [bucketName]
 
@@ -88,10 +75,6 @@ Usages:
     b2 hide_file <bucketName> <fileName>
 
         Uploads a new, hidden, version of the given file.
-
-    b2 list_buckets
-
-        Lists all of the buckets in the current account.
 
     b2 list_file_names <bucketName> [<startingName>] [<numberToShow>]
 
@@ -191,6 +174,172 @@ def keyboard_interrupt_handler(signum, frame):
     raise KeyboardInterrupt()
 
 
+def mixed_case_to_underscores(s):
+    return s[0].lower() + ''.join(c if c.islower() else '_' + c.lower() for c in s[1:])
+
+
+class Arguments(object):
+    """
+    An object to stick attributes on.
+    """
+
+
+class Command(object):
+    """
+    Base class for commands.  Has basic argument parsing and printing.
+    """
+
+    # Option flags.  A name here that looks like "fast" can be set to
+    # True with a command line option "--fast".  All option flags
+    # default to False.
+    OPTION_FLAGS = []
+
+    # Explicit arguments.  These always come before the positional arguments.
+    # Putting "color" here means you can put something like "--color blue" on
+    # the command line, and args.color will be set to "blue".  These all
+    # default to None.
+    EXPLICIT_ARGUMENTS = []
+
+    # Required positional arguments.  Never None.
+    REQUIRED = []
+
+    # Optional positional arguments.  Default to None if not present.
+    OPTIONAL = []
+
+    def __init__(self, console_tool):
+        self.console_tool = console_tool
+        self.api = console_tool.api
+        self.stdout = console_tool.stdout
+        self.stderr = console_tool.stderr
+
+    @classmethod
+    def summary_line(cls):
+        """
+        Returns the one-line summary of how to call the command.
+        """
+        return textwrap.dedent(cls.__doc__).split('\n')[1]
+
+    def parse_arg_list(self, arg_list):
+        """
+        Takes a list of string arguments, and returns an object with fields
+        for all of the parameters.  Returns None if there is a parsing error.
+        """
+        result = Arguments()
+        for name in self.OPTION_FLAGS:
+            setattr(result, name, False)
+        while len(arg_list) != 0 and arg_list[0][0] == '-':
+            option = arg_list.pop(0)
+            if option in self.OPTION_FLAGS:
+                TODO()
+            elif option in self.EXPLICIT_ARGUMENTS:
+                TODO()
+            else:
+                return None
+        for arg_name in self.REQUIRED:
+            if len(arg_list) == 0:
+                return None
+            setattr(result, arg_name, arg_list.pop(0))
+        for arg_name in self.OPTIONAL:
+            if len(arg_list) == 0:
+                setattr(result, arg_name, None)
+            else:
+                setattr(result, arg_name, arg_list.pop(0))
+        if len(arg_list) != 0:
+            return None
+        return result
+
+    def _print(self, *args, **kwargs):
+        print(*args, file=self.stdout, **kwargs)
+
+    def _print_stderr(self, *args, **kwargs):
+        print(*args, file=self.stderr, **kwargs)
+
+
+class AuthorizeAccount(Command):
+    """
+    b2 authorize_account [accountId] [applicationKey]
+
+        Prompts for Backblaze accountID and applicationKey (unless they are given
+        on the command line).
+
+        The account ID is a 12-digit hex number that you can get from
+        your account page on backblaze.com.
+
+        The application key is a 40-digit hex number that you can get from
+        your account page on backblaze.com.
+
+        Stores an account auth token in ~/.b2_account_info
+    """
+
+    OPTION_FLAGS = ['dev', 'staging']  # undocumented
+
+    OPTIONAL = ['accountId', 'applicationKey']
+
+    def run(self, args):
+        # Handle internal options for testing inside Backblaze.  These
+        # are not documented in the usage string.
+        realm = 'production'
+        if args.staging:
+            realm = 'staging'
+        if args.dev:
+            realm = 'dev'
+
+        url = self.api.account_info.REALM_URLS[realm]
+        self._print('Using %s' % url)
+
+        if args.accountId is None:
+            args.accountId = six.moves.input('Backblaze account ID: ')
+
+        if args.applicationKey is None:
+            args.applicationKey = getpass.getpass('Backblaze application key: ')
+
+        try:
+            self.api.authorize_account(realm, args.accountId, args.applicationKey)
+            return 0
+        except B2Error as e:
+            self._print_stderr('ERROR: unable to authorize account: ' + str(e))
+            return 1
+
+
+class Help(Command):
+    """
+    b2 help [commandName]
+
+        When no command is specified, prints general help.
+        With a valid command name, prints details about that command.
+    """
+
+    OPTIONAL = ['commandName']
+
+    def run(self, args):
+        if args.commandName is None:
+            return self.console_tool._usage_and_fail()
+        command_cls = self.console_tool.command_name_to_class.get(args.commandName)
+        if command_cls is None:
+            return self.console_tool._usage_and_fail()
+        self._print(textwrap.dedent(command_cls.__doc__))
+        return 1
+
+
+class ListBuckets(Command):
+    """
+    b2 list_buckets
+
+        Lists all of the buckets in the current account.
+
+        Output lines list the bucket ID, bucket type, and bucket name,
+        and look like this:
+
+            98c960fd1cb4390c5e0f0519  allPublic   winston
+    """
+
+    def run(self, args):
+        for b in self.api.list_buckets():
+            self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
+        return 0
+
+
+
 class ConsoleTool(object):
     """
     Implements the commands available in the B2 command-line tool
@@ -204,15 +353,30 @@ class ConsoleTool(object):
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
+        self.command_name_to_class = dict(
+            (mixed_case_to_underscores(cls.__name__), cls)
+            for cls in Command.__subclasses__()
+        )
 
     def run_command(self, argv):
+        signal.signal(signal.SIGINT, keyboard_interrupt_handler)
+
         if len(argv) < 2:
             return self._usage_and_fail()
 
-        signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-
         action = argv[1]
-        args = argv[2:]
+        arg_list = argv[2:]
+
+        if action not in self.command_name_to_class:
+            return self._usage_and_fail()
+
+        command = self.command_name_to_class[action](self)
+        args = command.parse_arg_list(arg_list)
+        if args is None:
+            self._print_stderr(command.command_usage())
+            return 1
+
+        return command.run(args)
 
         try:
             if action == 'authorize_account':
@@ -286,7 +450,20 @@ class ConsoleTool(object):
     def _usage_and_fail(self):
         """Prints a usage message, and exits with an error status.
         """
-        return self._message_and_fail(USAGE)
+        self._print_stderr('This program provides command-line access to the B2 service.')
+        self._print_stderr('')
+        self._print_stderr('Usages:')
+        self._print_stderr('')
+
+        for name in sorted(six.iterkeys(self.command_name_to_class)):
+            cls = self.command_name_to_class[name]
+            line = '    ' + cls.summary_line()
+            self._print_stderr(line)
+
+        self._print_stderr('')
+        self._print_stderr('For more details on one command: b2 help <command>')
+        self._print_stderr('')
+        return 1
 
     def _print(self, *args):
         print(*args, file=self.stdout)
@@ -357,13 +534,6 @@ class ConsoleTool(object):
         self._print(json.dumps(response, indent=4, sort_keys=True))
         return 0
 
-    def list_buckets(self, args):
-        if len(args) != 0:
-            return self._usage_and_fail()
-
-        for b in self.api.list_buckets():
-            self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
-        return 0
 
     # file
 
@@ -526,41 +696,6 @@ class ConsoleTool(object):
             )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
-
-    # account
-
-    def authorize_account(self, args):
-        realm = 'production'
-        while 0 < len(args) and args[0][0] == '-':
-            realm = args[0][2:]
-            args = args[1:]
-            if realm in self.api.account_info.REALM_URLS:
-                break
-            else:
-                self._print('ERROR: unknown option', realm)
-                return self._usage_and_fail()
-
-        url = self.api.account_info.REALM_URLS[realm]
-        self._print('Using %s' % url)
-
-        if 2 < len(args):
-            return self._usage_and_fail()
-        if 0 < len(args):
-            account_id = args[0]
-        else:
-            account_id = six.moves.input('Backblaze account ID: ')
-
-        if 1 < len(args):
-            application_key = args[1]
-        else:
-            application_key = getpass.getpass('Backblaze application key: ')
-
-        try:
-            self.api.authorize_account(realm, account_id, application_key)
-            return 0
-        except B2Error as e:
-            self._print_stderr('ERROR: unable to authorize account: ' + str(e))
-            return 1
 
     def clear_account(self, args):
         if len(args) != 0:
