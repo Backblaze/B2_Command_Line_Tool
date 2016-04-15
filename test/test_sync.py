@@ -13,6 +13,7 @@ from __future__ import print_function
 import os
 import unittest
 
+from b2.exception import DestFileNewer
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
@@ -102,19 +103,27 @@ class FakeArgs(object):
 
 
 class TestMakeSyncActions(unittest.TestCase):
-    def test_illegal_cases(self):
+    def test_illegal_b2_to_b2(self):
         b2_folder = FakeFolder('b2', [])
         try:
-            list(make_folder_sync_actions(b2_folder, b2_folder, 1))
+            list(make_folder_sync_actions(b2_folder, b2_folder, FakeArgs()))
             self.fail('should have raised NotImplementedError')
         except NotImplementedError:
             pass
 
+    def test_illegal_local_to_local(self):
         local_folder = FakeFolder('local', [])
         try:
-            list(make_folder_sync_actions(local_folder, local_folder, 1))
+            list(make_folder_sync_actions(local_folder, local_folder, FakeArgs()))
             self.fail('should have raised NotImplementedError')
         except NotImplementedError:
+            pass
+
+    def test_illegal_skip_and_replace(self):
+        try:
+            self._check_local_to_b2(None, None, FakeArgs(skipNewer=True, replaceNewer=True), [])
+            self.fail('should have thrown ValueError')
+        except ValueError:
             pass
 
     # src: absent, dst: absent
@@ -151,8 +160,13 @@ class TestMakeSyncActions(unittest.TestCase):
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
 
     def test_delete_b2_multiple_versions(self):
-        dst_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload'), FileVersion(
-            'id_a_200', 200, 'upload')])
+        dst_file = File(
+            'a.txt',
+            [
+                FileVersion('id_a_100', 100, 'upload'),
+                FileVersion('id_a_200', 200, 'upload')
+            ]
+        )
         actions = ['b2_delete(a.txt, id_a_100)', 'b2_delete(a.txt, id_a_200)']
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
 
@@ -180,17 +194,53 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_upload(/dir/a.txt, a.txt, 200)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(), actions)
 
+    def test_newer_local(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 200, 'upload')])
+        dst_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload')])
+        actions = ['b2_upload(/dir/a.txt, a.txt, 200)']
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(), actions)
+
     # src older than dst
 
     def test_older_b2(self):
         src_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
         dst_file = File('a.txt', [FileVersion('id_a_100', 200, 'upload')])
-        self._check_local_to_b2(src_file, dst_file, FakeArgs(), [])
+        try:
+            self._check_local_to_b2(src_file, dst_file, FakeArgs(), [])
+            self.fail('should have raised DestFileNewer')
+        except DestFileNewer as e:
+            self.assertEqual('destination file is newer: a.txt', str(e))
+
+    def test_older_b2_skip(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        dst_file = File('a.txt', [FileVersion('id_a_100', 200, 'upload')])
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(skipNewer=True), [])
+
+    def test_older_b2_replace(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        dst_file = File('a.txt', [FileVersion('id_a_100', 200, 'upload')])
+        actions = ['b2_upload(/dir/a.txt, a.txt, 100)']
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(replaceNewer=True), actions)
 
     def test_older_local(self):
         src_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload')])
         dst_file = File('a.txt', [FileVersion('/dir/a.txt', 200, 'upload')])
-        self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
+        try:
+            self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
+            self.fail('should have raised DestFileNewer')
+        except DestFileNewer as e:
+            self.assertEqual('destination file is newer: a.txt', str(e))
+
+    def test_older_local_skip(self):
+        src_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload')])
+        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 200, 'upload')])
+        self._check_b2_to_local(src_file, dst_file, FakeArgs(skipNewer=True), [])
+
+    def test_older_local_replace(self):
+        src_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload')])
+        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 200, 'upload')])
+        actions = ['b2_download(a.txt, id_a_100)']
+        self._check_b2_to_local(src_file, dst_file, FakeArgs(replaceNewer=True), actions)
 
     # helper methods
 

@@ -16,6 +16,8 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
+from .exception import DestFileNewer
+
 
 class SyncReport(object):
     """
@@ -452,12 +454,17 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
     """
     Yields the sequence of actions needed to sync the two files
     """
+    # Get the modification time of the latest version of the source file
     source_mod_time = 0
     if source_file is not None:
         source_mod_time = source_file.latest_version().mod_time
+
+    # Get the modification time of the latest version of the destination file
     dest_mod_time = 0
     if dest_file is not None:
         dest_mod_time = dest_file.latest_version().mod_time
+
+    # Case 1: Destination does not exist, or source is newer
     if dest_mod_time < source_mod_time:
         if sync_type == 'local-to-b2':
             yield B2UploadAction(
@@ -465,15 +472,29 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
             )
         else:
             yield B2DownloadAction(source_file.name, source_file.latest_version().id_)
-    if source_mod_time == 0 and dest_mod_time != 0:
+
+    # Case 2: Both exist and source is older
+    elif source_mod_time != 0 and source_mod_time < dest_mod_time:
+        if args.replaceNewer:
+            if sync_type == 'local-to-b2':
+                yield B2UploadAction(
+                    dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
+                )
+            else:
+                yield B2DownloadAction(source_file.name, source_file.latest_version().id_)
+        elif args.skipNewer:
+            pass
+        else:
+            raise DestFileNewer('destination file is newer: %s' % (dest_file.name,))
+
+    # Case 3: No source file, but destination file exists
+    elif source_mod_time == 0 and dest_mod_time != 0:
         if args.delete:
             if sync_type == 'local-to-b2':
                 for version in dest_file.versions:
                     yield B2DeleteAction(dest_file.name, version.id_)
             else:
                 yield LocalDeleteAction(dest_file.latest_version().id_)
-    # TODO: clean up file history in B2
-    # TODO: do not delete local files for history_days days
 
 
 def make_folder_sync_actions(source_folder, dest_folder, args):
@@ -481,6 +502,9 @@ def make_folder_sync_actions(source_folder, dest_folder, args):
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
     """
+    if args.skipNewer and args.replaceNewer:
+        raise ValueError('--skipNewer and --replaceNewer are incompatible')
+
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)

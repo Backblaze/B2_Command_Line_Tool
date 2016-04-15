@@ -86,6 +86,17 @@ class ConnectionError(B2Error):
         return True
 
 
+class DestFileNewer(B2Error):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+    def should_retry_http(self):
+        return True
+
+
 class DuplicateBucketName(B2Error):
     def __init__(self, bucket_name):
         self.bucket_name = bucket_name
