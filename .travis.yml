@@ -27,6 +27,11 @@ matrix:
       language: generic
       env: OS_X=true  # used just for build description
 
+cache:
+  - pip
+  - directories:
+    - $HOME/.virtualenv/python3-osx
+
 install:
   - pip install mock
   - pip install nose
