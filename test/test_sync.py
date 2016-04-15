@@ -13,8 +13,6 @@ from __future__ import print_function
 import os
 import unittest
 
-from six.moves import map
-
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
@@ -119,56 +117,97 @@ class TestMakeSyncActions(unittest.TestCase):
         except NotImplementedError:
             pass
 
-    def test_empty(self):
-        folder_a = FakeFolder('b2', [])
-        folder_b = FakeFolder('local', [])
-        self.assertEqual([], list(make_folder_sync_actions(folder_a, folder_b, 1)))
+    # src: absent, dst: absent
 
-    def test_local_to_b2(self):
-        file_a1 = File("a.txt", [FileVersion("/dir/a.txt", 100, "upload")])  # only in source
-        file_a2 = File("c.txt", [FileVersion("/dir/c.txt", 200, "upload")])  # mod time matches
-        file_a3 = File("d.txt", [FileVersion("/dir/d.txt", 100, "upload")])  # newer in dest
-        file_a4 = File("e.txt", [FileVersion("/dir/e.txt", 300, "upload")])  # newer in source
+    def test_empty_b2(self):
+        self._check_local_to_b2(None, None, FakeArgs(), [])
 
-        file_b1 = File("b.txt", [FileVersion("id_b_200", 200, "upload")])  # only in dest
-        file_b2 = File("c.txt", [FileVersion("id_c_200", 200, "upload")])  # mod time matches
-        file_b3 = File("d.txt", [FileVersion("id_d_200", 200, "upload")])  # newer in dest
-        file_b4 = File("e.txt", [FileVersion("id_e_200", 200, "upload")])  # newer in source
+    def test_empty_local(self):
+        self._check_b2_to_local(None, None, FakeArgs(), [])
 
-        folder_a = FakeFolder('local', [file_a1, file_a2, file_a3, file_a4])
-        folder_b = FakeFolder('b2', [file_b1, file_b2, file_b3, file_b4])
+    # src: present, dst: absent
 
-        args = FakeArgs()
-        actions = list(make_folder_sync_actions(folder_a, folder_b, args))
-        self.assertEqual(
-            [
-                "b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)",
-                "b2_upload(/dir/e.txt, e.txt, 300)"
-            ], [str(a) for a in actions]
-        )
+    def test_not_there_b2(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        self._check_local_to_b2(src_file, None, FakeArgs(), ['b2_upload(/dir/a.txt, a.txt, 100)'])
 
-    def test_b2_to_local(self):
-        file_a1 = File("a.txt", [FileVersion("id_a_100", 100, "upload")])  # only in source
-        file_a2 = File("c.txt", [FileVersion("id_c_200", 200, "upload")])  # mod time matches
-        file_a3 = File("d.txt", [FileVersion("id_d_100", 100, "upload")])  # newer in dest
-        file_a4 = File("e.txt", [FileVersion("id_e_300", 300, "upload")])  # newer in source
+    def test_not_there_local(self):
+        src_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload')])
+        self._check_b2_to_local(src_file, None, FakeArgs(), ['b2_download(a.txt, id_a_100)'])
 
-        file_b1 = File("b.txt", [FileVersion("/dir/b.txt", 200, "upload")])  # only in dest
-        file_b2 = File("c.txt", [FileVersion("/dir/c.txt", 200, "upload")])  # mod time matches
-        file_b3 = File("d.txt", [FileVersion("/dir/d.txt", 200, "upload")])  # newer in dest
-        file_b4 = File("e.txt", [FileVersion("/dir/e.txt", 200, "upload")])  # newer in source
+    # src: absent, dst: present
 
-        folder_a = FakeFolder('b2', [file_a1, file_a2, file_a3, file_a4])
-        folder_b = FakeFolder('local', [file_b1, file_b2, file_b3, file_b4])
+    def test_no_delete_b2(self):
+        dst_file = File("a.txt", [FileVersion("id_a_100", 100, "upload")])
+        self._check_local_to_b2(None, dst_file, FakeArgs(), [])
 
-        args = FakeArgs()
-        actions = list(make_folder_sync_actions(folder_a, folder_b, args))
-        self.assertEqual(
-            [
-                "b2_download(a.txt, id_a_100)", "local_delete(/dir/b.txt)",
-                "b2_download(e.txt, id_e_300)"
-            ], list(map(str, actions))
-        )
+    def test_no_delete_local(self):
+        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        self._check_b2_to_local(None, dst_file, FakeArgs(), [])
+
+    def test_delete_b2(self):
+        dst_file = File('a.txt', [FileVersion('id_a_100', 100, 'upload')])
+        self._check_local_to_b2(None,
+                                dst_file,
+                                FakeArgs(delete=True),
+                                ['b2_delete(a.txt, id_a_100)'])
+
+    def test_delete_local(self):
+        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        self._check_b2_to_local(None, dst_file, FakeArgs(delete=True), ['local_delete(/dir/a.txt)'])
+
+    # src same as dst
+
+    def test_same_b2(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        dst_file = File("a.txt", [FileVersion("id_a_100", 100, "upload")])
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(), [])
+
+    def test_same_local(self):
+        src_file = File("a.txt", [FileVersion("id_a_100", 100, "upload")])
+        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
+
+    # src newer than dst
+
+    def test_newer_b2(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 200, 'upload')])
+        dst_file = File("a.txt", [FileVersion("id_a_100", 100, "upload")])
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(), ['b2_upload(/dir/a.txt, a.txt, 200)'
+                                                                ])
+
+    # src older than dst
+
+    def test_older_b2(self):
+        src_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        dst_file = File("a.txt", [FileVersion("id_a_100", 200, "upload")])
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(), [])
+
+    def test_older_local(self):
+        src_file = File("a.txt", [FileVersion("id_a_100", 100, "upload")])
+        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 200, 'upload')])
+        self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
+
+    # helper methods
+
+    def _check_local_to_b2(self, src_file, dst_file, args, expected_actions):
+        self._check_one_file('local', src_file, 'b2', dst_file, args, expected_actions)
+
+    def _check_b2_to_local(self, src_file, dst_file, args, expected_actions):
+        self._check_one_file('b2', src_file, 'local', dst_file, args, expected_actions)
+
+    def _check_one_file(self, src_type, src_file, dst_type, dst_file, args, expected_actions):
+        """
+        Checks the actions generated for one file.  The file may or may not
+        exist at the source, and may or may not exist at the destination.
+        Passing in None means that the file does not exist.
+
+        The source and destination files may have multiple versions.
+        """
+        src_folder = FakeFolder(src_type, [src_file] if src_file else [])
+        dst_folder = FakeFolder(dst_type, [dst_file] if dst_file else [])
+        actions = list(make_folder_sync_actions(src_folder, dst_folder, args))
+        self.assertEqual(expected_actions, [str(a) for a in actions])
 
 
 if __name__ == '__main__':
