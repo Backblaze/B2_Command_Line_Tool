@@ -22,6 +22,10 @@ matrix:
       env: SCA=true
     - python: "3.5"
       env: SCA=true
+    - python: 3.5
+      os: osx
+      language: generic
+      env: OS_X=true
 
 install:
   - pip install mock
@@ -31,7 +35,12 @@ install:
 
 before_install:
   - uname -a
-  - lsb_release -a
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
+  # install python3 on OS X
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install python3; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then virtualenv -p python3 "$HOME/.virtualenv/python3-osx"; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then source "$HOME/.virtualenv/python3-osx/bin/activate"; else; echo skip; fi
   - virtualenv --version
 
 script:
