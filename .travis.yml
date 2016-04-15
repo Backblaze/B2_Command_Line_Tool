@@ -39,5 +39,6 @@ script:
   - python setup.py install
   - nosetests -w test
   - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; fi
-  - if [ -n "$SCA" ]; then yapf --recursive --diff b2; fi
+  - if [ -n "$SCA" -a -n "$TRAVIS_COMMIT_RANGE" ]; then git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py test_b2_command_line.py || exit; else echo skip; fi
+  - if [ -n "$SCA" -a -z "$TRAVIS_COMMIT_RANGE" ]; then yapf --diff --recursive b2 setup.py test_b2_command_line.py || exit; else echo skip; fi
   - if [ -n "$SCA" ]; then pyflakes b2; fi
