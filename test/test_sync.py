@@ -168,6 +168,13 @@ class TestMakeSyncActions(unittest.TestCase):
         except ValueError:
             pass
 
+    def test_illegal_delete_and_keep_days(self):
+        try:
+            self._check_local_to_b2(None, None, FakeArgs(delete=True, keepDays=1), [])
+            self.fail('should have thrown ValueError')
+        except ValueError:
+            pass
+
     # src: absent, dst: absent
 
     def test_empty_b2(self):

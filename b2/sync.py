@@ -545,6 +545,9 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now):
     if args.skipNewer and args.replaceNewer:
         raise ValueError('--skipNewer and --replaceNewer are incompatible')
 
+    if args.delete and (args.keepDays is not None):
+        raise ValueError('--delete and --keepDays are incompatible')
+
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
