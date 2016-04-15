@@ -232,6 +232,23 @@ class TestMakeSyncActions(unittest.TestCase):
         dst_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
         self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
 
+    def test_same_leave_old_versions(self):
+        src_file = local_file('a.txt', TODAY)
+        dst_file = b2_file('a.txt', TODAY, TODAY - 3 * DAY)
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(), [])
+
+    def test_same_clean_old_versions(self):
+        src_file = local_file('a.txt', TODAY)
+        dst_file = b2_file('a.txt', TODAY, TODAY - 3 * DAY)
+        actions = ['b2_delete(a.txt, id_a_8380800000)']
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(keepDays=1), actions)
+
+    def test_same_delete_old_versions(self):
+        src_file = local_file('a.txt', TODAY)
+        dst_file = b2_file('a.txt', TODAY, TODAY - 3 * DAY)
+        actions = ['b2_delete(a.txt, id_a_8380800000)']
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(delete=True), actions)
+
     # src newer than dst
 
     def test_newer_b2(self):
@@ -240,11 +257,26 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_upload(/dir/a.txt, a.txt, 200)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(), actions)
 
+    def test_newer_b2_clean_old_versions(self):
+        src_file = local_file('a.txt', TODAY)
+        dst_file = b2_file('a.txt', TODAY - 1 * DAY, TODAY - 3 * DAY)
+        actions = ['b2_upload(/dir/a.txt, a.txt, 8640000000)', 'b2_delete(a.txt, id_a_8380800000)']
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(keepDays=2), actions)
+
+    def test_newer_b2_delete_old_versions(self):
+        src_file = local_file('a.txt', TODAY)
+        dst_file = b2_file('a.txt', TODAY - 1 * DAY, TODAY - 3 * DAY)
+        actions = [
+            'b2_upload(/dir/a.txt, a.txt, 8640000000)', 'b2_delete(a.txt, id_a_8553600000)',
+            'b2_delete(a.txt, id_a_8380800000)'
+        ]  # yapf disable
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(delete=True), actions)
+
     def test_newer_local(self):
         src_file = b2_file('a.txt', 200)
         dst_file = local_file('a.txt', 100)
-        actions = ['b2_upload(/dir/a.txt, a.txt, 200)']
-        self._check_local_to_b2(src_file, dst_file, FakeArgs(), actions)
+        actions = ['b2_download(a.txt, id_a_200)']
+        self._check_b2_to_local(src_file, dst_file, FakeArgs(delete=True), actions)
 
     # src older than dst
 

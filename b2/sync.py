@@ -464,8 +464,19 @@ def zip_folders(folder_a, folder_b):
             current_b = next_or_none(iter_b)
 
 
-def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, args,
-                           now):
+def make_transfer_action(sync_type, source_file, dest_folder):
+    if sync_type == 'local-to-b2':
+        source_mod_time = source_file.latest_version().mod_time
+        return B2UploadAction(
+            dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
+        )
+    else:
+        return B2DownloadAction(source_file.name, source_file.latest_version().id_)
+
+
+def make_file_sync_actions(
+    sync_type, source_file, dest_file, source_folder, dest_folder, args, now
+):
     """
     Yields the sequence of actions needed to sync the two files
     """
@@ -479,24 +490,25 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
     if dest_file is not None:
         dest_mod_time = dest_file.latest_version().mod_time
 
-    # Case 1: Destination does not exist, or source is newer
+    # By default, all but the current version at the destination are
+    # candidates for cleaning.  This will be overridden in the case
+    # where there is no source file.
+    dest_versions_to_clean = []
+    if dest_file is not None:
+        dest_versions_to_clean = dest_file.versions[1:]
+
+    # Case 1: Destination does not exist, or source is newer.
+    # All prior versions of the destination file are candidates for
+    # cleaning.
     if dest_mod_time < source_mod_time:
-        if sync_type == 'local-to-b2':
-            yield B2UploadAction(
-                dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
-            )
-        else:
-            yield B2DownloadAction(source_file.name, source_file.latest_version().id_)
+        yield make_transfer_action(sync_type, source_file, dest_folder)
+        if sync_type == 'local-to-b2' and dest_file is not None:
+            dest_versions_to_clean = dest_file.versions
 
     # Case 2: Both exist and source is older
     elif source_mod_time != 0 and source_mod_time < dest_mod_time:
         if args.replaceNewer:
-            if sync_type == 'local-to-b2':
-                yield B2UploadAction(
-                    dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
-                )
-            else:
-                yield B2DownloadAction(source_file.name, source_file.latest_version().id_)
+            yield make_transfer_action(sync_type, source_file, dest_folder)
         elif args.skipNewer:
             pass
         else:
@@ -504,19 +516,25 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
 
     # Case 3: No source file, but destination file exists
     elif source_mod_time == 0 and dest_mod_time != 0:
-        if args.delete:
-            if sync_type == 'local-to-b2':
-                for version in dest_file.versions:
-                    yield B2DeleteAction(dest_file.name, version.id_)
-            else:
-                yield LocalDeleteAction(dest_file.latest_version().id_)
         if args.keepDays and sync_type == 'local-to-b2':
             if dest_file.versions[0].action == 'upload':
                 yield B2HideAction(dest_file.name)
-            for version in dest_file.versions:
+        # all versions of the destination file are candidates for cleaning
+        dest_versions_to_clean = dest_file.versions
+
+    # Clean up old versions
+    if sync_type == 'local-to-b2':
+        for version in dest_versions_to_clean:
+            if args.delete:
+                yield B2DeleteAction(dest_file.name, version.id_)
+            elif args.keepDays is not None:
                 cutoff_time = now - args.keepDays * ONE_DAY_IN_MS
                 if version.mod_time < cutoff_time:
                     yield B2DeleteAction(dest_file.name, version.id_)
+    elif sync_type == 'b2-to-local':
+        for version in dest_versions_to_clean:
+            if args.delete:
+                yield LocalDeleteAction(version.id_)
 
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now):
