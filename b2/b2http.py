@@ -273,9 +273,8 @@ def test_http():
     # Broken pipe
     print('TEST: broken pipe')
     try:
-        b2_http.post_content_return_json(
-            'https://api.backblaze.com/bad_url', {}, six.b(chr(0)) * 10000000
-        )
+        data = six.BytesIO(six.b(chr(0)) * 10000000)
+        b2_http.post_content_return_json('https://api.backblaze.com/bad_url', {}, data)
         assert False, 'should have failed with broken pipe'
     except BrokenPipe as e:
         pass

@@ -34,7 +34,7 @@ class PartSimulator(object):
             partNumber=self.part_number,
             contentLength=self.content_length,
             contentSha1=self.content_sha1
-        )
+        )  # yapf: disable
 
 
 class FileSimulator(object):
@@ -79,7 +79,7 @@ class FileSimulator(object):
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info
-        )
+        )  # yapf: disable
 
     def as_list_files_dict(self):
         return dict(
@@ -91,7 +91,7 @@ class FileSimulator(object):
             fileInfo=self.file_info,
             action=self.action,
             uploadTimestamp=self.upload_timestamp
-        )
+        )  # yapf: disable
 
     def as_start_large_file_result(self):
         return dict(
@@ -101,7 +101,7 @@ class FileSimulator(object):
             bucketId=self.bucket_id,
             contentType=self.content_type,
             fileInfo=self.file_info
-        )
+        )  # yapf: disable
 
     def add_part(self, part_number, part):
         while len(self.parts) < part_number + 1:
@@ -187,7 +187,7 @@ class BucketSimulator(object):
             bucketId=self.bucket_id,
             fileId=file_id,
             fileName=file_sim.name
-        )
+        )  # yapf: disable
 
     def delete_file_version(self, file_id, file_name):
         key = (file_name, file_id)
@@ -303,7 +303,7 @@ class BucketSimulator(object):
             for file_sim in (
                 self.file_id_to_file[file_id] for file_id in ids_in_order[:max_file_count]
             )
-        ]
+        ]  # yapf: disable
         next_file_id = None
         if len(file_dict_list) == max_file_count:
             next_file_id = str(int(file_dict_list[-1]['fileId']) - 1)
@@ -314,7 +314,7 @@ class BucketSimulator(object):
         file_sim = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'start', file_name, content_type, 'none',
             file_info, None, six.next(self.upload_timestamp_counter)
-        )
+        )  # yapf: disable
         self.file_id_to_file[file_id] = file_sim
         self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
         return file_sim.as_start_large_file_result()
@@ -349,7 +349,7 @@ class BucketSimulator(object):
             partNumber=part_number,
             contentLength=content_length,
             contentSha1=sha1_sum
-        )
+        )  # yapf: disable
 
     def _next_file_id(self):
         return str(six.next(self.file_id_counter))
@@ -399,7 +399,7 @@ class RawSimulator(AbstractRawApi):
             apiUrl=self.API_URL,
             downloadUrl=self.DOWNLOAD_URL,
             minimumPartSize=self.MIN_PART_SIZE
-        )
+        )  # yapf: disable
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -553,7 +553,7 @@ class RawSimulator(AbstractRawApi):
         response = bucket.upload_file(
             upload_id, upload_auth_token, file_name, content_length, content_type, content_sha1,
             file_infos, data_stream
-        )
+        )  # yapf: disable
         file_id = response['fileId']
         self.file_id_to_bucket_id[file_id] = bucket_id
         return response
