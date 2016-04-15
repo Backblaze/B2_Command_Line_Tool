@@ -25,7 +25,7 @@ matrix:
     - python: 3.5
       os: osx
       language: generic
-      env: OS_X=true
+      env: OS_X=true  # used just for build description
 
 install:
   - pip install mock
