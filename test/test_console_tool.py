@@ -16,7 +16,7 @@ import six
 from b2.account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.cache import InMemoryCache
-from b2.console_tool import Command, ConsoleTool
+from b2.console_tool import ConsoleTool
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
@@ -25,56 +25,6 @@ try:
     import unittest.mock as mock
 except:
     import mock
-
-
-class TestCommand(unittest.TestCase):
-    def setUp(self):
-        self.console_tool = mock.MagicMock()
-
-    class NoArgs(Command):
-        pass
-
-    class Everything(Command):
-        OPTION_FLAGS = ['optionFlag']
-        OPTION_ARGS = ['optionArg']
-        LIST_ARGS = ['list']
-        REQUIRED = ['required']
-        OPTIONAL = ['optional']
-        ARG_PARSER = {'optionArg': int}
-
-    def test_no_args(self):
-        args = self.NoArgs(self.console_tool).parse_arg_list([])
-        self.assertTrue(args is not None)
-
-    def test_unexpected_flag(self):
-        args = self.NoArgs(self.console_tool).parse_arg_list(['--bad-flag'])
-        self.assertTrue(args is None)
-
-    def test_unexpected_arg(self):
-        args = self.NoArgs(self.console_tool).parse_arg_list(['bad-arg'])
-        self.assertTrue(args is None)
-
-    def test_option_defaults(self):
-        args = self.Everything(self.console_tool).parse_arg_list(['req-value'])
-        self.assertFalse(args.optionFlag)
-        self.assertTrue(args.optionArg is None)
-        self.assertEqual([], args.list)
-        self.assertEqual('req-value', args.required)
-        self.assertTrue(args.optional is None)
-
-    def test_all_there(self):
-        args = self.Everything(self.console_tool).parse_arg_list(
-            ['--optionFlag', '--optionArg', '99', '--list', '1', '--list', '2', 'b', 'c']
-        )
-        self.assertTrue(args.optionFlag)
-        self.assertEqual(99, args.optionArg)
-        self.assertEqual('b', args.required)
-        self.assertEqual(['1', '2'], args.list)
-        self.assertEqual('c', args.optional)
-
-    def test_optional_arg_missing_value(self):
-        args = self.Everything(self.console_tool).parse_arg_list(['--optionArg'])
-        self.assertTrue(args is None)
 
 
 class TestConsoleTool(unittest.TestCase):

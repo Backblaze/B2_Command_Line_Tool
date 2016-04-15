@@ -26,6 +26,7 @@ from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo, MissingAccountData)
 from .file_version import (FileVersionInfo)
+from .parse_args import parse_arg_list
 from .progress import (make_progress_listener, DoNothingProgressListener)
 from .raw_api import (test_raw_api)
 from .utils import (set_shutting_down)
@@ -49,12 +50,6 @@ def keyboard_interrupt_handler(signum, frame):
 
 def mixed_case_to_underscores(s):
     return s[0].lower() + ''.join(c if c.islower() else '_' + c.lower() for c in s[1:])
-
-
-class Arguments(object):
-    """
-    An object to stick attributes on.
-    """
 
 
 class Command(object):
@@ -111,51 +106,15 @@ class Command(object):
         return textwrap.dedent(cls.__doc__)
 
     def parse_arg_list(self, arg_list):
-        """
-        Takes a list of string arguments, and returns an object with fields
-        for all of the parameters.  Returns None if there is a parsing error.
-        """
-        result = Arguments()
-        for name in self.OPTION_FLAGS:
-            setattr(result, name, False)
-        for name in self.OPTION_ARGS:
-            setattr(result, name, None)
-        for name in self.LIST_ARGS:
-            setattr(result, name, [])
-        while len(arg_list) != 0 and arg_list[0].startswith('--'):
-            option = arg_list.pop(0)[2:]
-            if option in self.OPTION_FLAGS:
-                setattr(result, option, True)
-            elif option in self.OPTION_ARGS:
-                if len(arg_list) == 0:
-                    return None
-                else:
-                    setattr(result, option, self._next_arg(option, arg_list))
-            elif option in self.LIST_ARGS:
-                if len(arg_list) == 0:
-                    return None
-                else:
-                    getattr(result, option).append(self._next_arg(option, arg_list))
-            else:
-                return None
-        for arg_name in self.REQUIRED:
-            if len(arg_list) == 0:
-                return None
-            setattr(result, arg_name, self._next_arg(arg_name, arg_list))
-        for arg_name in self.OPTIONAL:
-            if len(arg_list) == 0:
-                setattr(result, arg_name, None)
-            else:
-                setattr(result, arg_name, self._next_arg(arg_name, arg_list))
-        if len(arg_list) != 0:
-            return None
-        return result
-
-    def _next_arg(self, arg_name, arg_list):
-        value = arg_list.pop(0)
-        if arg_name in self.ARG_PARSER:
-            value = self.ARG_PARSER[arg_name](value)
-        return value
+        return parse_arg_list(
+            arg_list,
+            option_flags=self.OPTION_FLAGS,
+            option_args=self.OPTION_ARGS,
+            list_args=self.LIST_ARGS,
+            required=self.REQUIRED,
+            optional=self.OPTIONAL,
+            arg_parser=self.ARG_PARSER
+        )
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
