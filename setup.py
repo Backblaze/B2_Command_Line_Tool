@@ -21,13 +21,9 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 # The set of required packages depends on what version
 # of python you're running.
-required_packages = [
-        'portalocker>=0.5.7',
-        'requests>=2.9.1',
-        'six>=1.10.0'
-]
+required_packages = ['portalocker>=0.5.7', 'requests>=2.9.1', 'six>=1.10.0']
 
-if sys.version_info < (3,2):
+if sys.version_info < (3, 2):
     required_packages.append('futures>=3.0.5')
 
 setup(
@@ -37,7 +33,6 @@ setup(
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
     version='0.5.3',
-
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
 
@@ -118,7 +113,7 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     data_files=[
         #('my_data', ['data/data_file'])
-        ],
+    ],
 
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
