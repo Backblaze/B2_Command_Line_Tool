@@ -18,9 +18,9 @@ matrix:
   include:
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
-    - python: "2.7"
+    - python: 2.7
       env: SCA=true
-    - python: "3.5"
+    - python: 3.5
       env: SCA=true
     - python: 3.5
       os: osx
@@ -43,10 +43,16 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then source "$HOME/.virtualenv/python3-osx/bin/activate"; else; echo skip; fi
   - virtualenv --version
 
+install:
+  - pip install mock
+  - pip install nose
+  - pip install pyflakes
+  - pip install yapf
+
 script:
   - pip freeze
   - python setup.py install
   - nosetests -w test
-  - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; fi
-  - if [ -n "$SCA" ]; then yapf --recursive --diff b2; fi
-  - if [ -n "$SCA" ]; then pyflakes b2; fi
+  - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; else; echo skip; fi
+  - if [ -n "$SCA" ]; then yapf --recursive --diff b2; echo skip; fi
+  - if [ -n "$SCA" ]; then pyflakes b2; echo skip; fi
