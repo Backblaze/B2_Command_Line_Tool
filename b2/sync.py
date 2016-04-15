@@ -468,7 +468,8 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
     if source_mod_time == 0 and dest_mod_time != 0:
         if args.delete:
             if sync_type == 'local-to-b2':
-                yield B2DeleteAction(dest_file.name, dest_file.latest_version().id_)
+                for version in dest_file.versions:
+                    yield B2DeleteAction(dest_file.name, version.id_)
             else:
                 yield LocalDeleteAction(dest_file.latest_version().id_)
     # TODO: clean up file history in B2
