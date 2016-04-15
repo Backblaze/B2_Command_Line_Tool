@@ -37,7 +37,8 @@ class TestLocalFolder(unittest.TestCase):
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
         names = [
-            u'.dot_file', u'hello.', u'hello/a/1', u'hello/a/2', u'hello/b', u'hello0', u'\u81ea\u7531'
+            u'.dot_file', u'hello.', u'hello/a/1', u'hello/a/2', u'hello/b', u'hello0',
+            u'\u81ea\u7531'
         ]
         with TempDir() as tmpdir:
             create_files(tmpdir, names)
@@ -90,6 +91,18 @@ class TestZipFolders(unittest.TestCase):
         )
 
 
+class FakeArgs(object):
+    """
+    Can be passed to sync code to simulate command-line options.
+    """
+
+    def __init__(self, delete=False, keepDays=None, skipNewer=False, replaceNewer=False):
+        self.delete = delete
+        self.keepDays = keepDays
+        self.skipNewer = skipNewer
+        self.replaceNewer = replaceNewer
+
+
 class TestMakeSyncActions(unittest.TestCase):
     def test_illegal_cases(self):
         b2_folder = FakeFolder('b2', [])
@@ -125,7 +138,8 @@ class TestMakeSyncActions(unittest.TestCase):
         folder_a = FakeFolder('local', [file_a1, file_a2, file_a3, file_a4])
         folder_b = FakeFolder('b2', [file_b1, file_b2, file_b3, file_b4])
 
-        actions = list(make_folder_sync_actions(folder_a, folder_b, 1))
+        args = FakeArgs()
+        actions = list(make_folder_sync_actions(folder_a, folder_b, args))
         self.assertEqual(
             [
                 "b2_upload(/dir/a.txt, a.txt, 100)", "b2_delete(b.txt, id_b_200)",
@@ -147,7 +161,8 @@ class TestMakeSyncActions(unittest.TestCase):
         folder_a = FakeFolder('b2', [file_a1, file_a2, file_a3, file_a4])
         folder_b = FakeFolder('local', [file_b1, file_b2, file_b3, file_b4])
 
-        actions = list(make_folder_sync_actions(folder_a, folder_b, 1))
+        args = FakeArgs()
+        actions = list(make_folder_sync_actions(folder_a, folder_b, args))
         self.assertEqual(
             [
                 "b2_download(a.txt, id_a_100)", "local_delete(/dir/b.txt)",

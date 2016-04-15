@@ -448,9 +448,7 @@ def zip_folders(folder_a, folder_b):
             current_b = next_or_none(iter_b)
 
 
-def make_file_sync_actions(
-    sync_type, source_file, dest_file, source_folder, dest_folder, history_days
-):
+def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, args):
     """
     Yields the sequence of actions needed to sync the two files
     """
@@ -476,7 +474,7 @@ def make_file_sync_actions(
     # TODO: do not delete local files for history_days days
 
 
-def make_folder_sync_actions(source_folder, dest_folder, history_days):
+def make_folder_sync_actions(source_folder, dest_folder, args):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
@@ -490,7 +488,7 @@ def make_folder_sync_actions(source_folder, dest_folder, history_days):
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
         for action in make_file_sync_actions(
-            sync_type, source_file, dest_file, source_folder, dest_folder, history_days
+            sync_type, source_file, dest_file, source_folder, dest_folder, args
         ):
             yield action
 
