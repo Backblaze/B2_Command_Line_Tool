@@ -34,7 +34,7 @@ class PartSimulator(object):
             partNumber=self.part_number,
             contentLength=self.content_length,
             contentSha1=self.content_sha1
-        )
+        )  # yapf: disable
 
 
 class FileSimulator(object):
@@ -79,7 +79,7 @@ class FileSimulator(object):
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info
-        )
+        )  # yapf: disable
 
     def as_list_files_dict(self):
         return dict(
@@ -91,7 +91,7 @@ class FileSimulator(object):
             fileInfo=self.file_info,
             action=self.action,
             uploadTimestamp=self.upload_timestamp
-        )
+        )  # yapf: disable
 
     def as_start_large_file_result(self):
         return dict(
@@ -101,7 +101,7 @@ class FileSimulator(object):
             bucketId=self.bucket_id,
             contentType=self.content_type,
             fileInfo=self.file_info
-        )
+        )  # yapf: disable
 
     def add_part(self, part_number, part):
         while len(self.parts) < part_number + 1:
