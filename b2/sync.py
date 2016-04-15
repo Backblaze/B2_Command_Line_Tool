@@ -18,6 +18,8 @@ import six
 
 from .exception import DestFileNewer
 
+ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
 
 class SyncReport(object):
     """
@@ -229,6 +231,17 @@ class B2UploadAction(AbstractAction):
         return 'b2_upload(%s, %s, %s)' % (self.full_path, self.file_name, self.mod_time)
 
 
+class B2HideAction(AbstractAction):
+    def __init__(self, file_name):
+        self.file_name = file_name
+
+    def do_action(self):
+        raise NotImplementedError
+
+    def __str__(self):
+        return 'b2_hide(%s)' % (self.file_name,)
+
+
 class B2DownloadAction(AbstractAction):
     def __init__(self, file_name, file_id):
         self.file_name = file_name
@@ -269,7 +282,8 @@ class FileVersion(object):
     Holds information about one version of a file:
 
        id - The B2 file id, or the local full path name
-       mod_time - modification time, in seconds
+       mod_time - modification time, in milliseconds, to avoid rounding issues
+                  with millisecond times from B2
        action - "hide" or "upload" (never "start")
     """
 
@@ -399,7 +413,7 @@ class LocalFolder(AbstractFolder):
 
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
-        mod_time = os.path.getmtime(full_path)
+        mod_time = int(round(os.path.getmtime(full_path) * 1000))
         slashes_path = u'/'.join(relative_path.split(os.path.sep))
         version = FileVersion(full_path, mod_time, "upload")
         return File(slashes_path, [version])
@@ -450,7 +464,8 @@ def zip_folders(folder_a, folder_b):
             current_b = next_or_none(iter_b)
 
 
-def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, args):
+def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, dest_folder, args,
+                           now):
     """
     Yields the sequence of actions needed to sync the two files
     """
@@ -495,9 +510,16 @@ def make_file_sync_actions(sync_type, source_file, dest_file, source_folder, des
                     yield B2DeleteAction(dest_file.name, version.id_)
             else:
                 yield LocalDeleteAction(dest_file.latest_version().id_)
+        if args.keepDays and sync_type == 'local-to-b2':
+            if dest_file.versions[0].action == 'upload':
+                yield B2HideAction(dest_file.name)
+            for version in dest_file.versions:
+                cutoff_time = now - args.keepDays * ONE_DAY_IN_MS
+                if version.mod_time < cutoff_time:
+                    yield B2DeleteAction(dest_file.name, version.id_)
 
 
-def make_folder_sync_actions(source_folder, dest_folder, args):
+def make_folder_sync_actions(source_folder, dest_folder, args, now):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
@@ -514,7 +536,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args):
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
         for action in make_file_sync_actions(
-            sync_type, source_file, dest_file, source_folder, dest_folder, args
+            sync_type, source_file, dest_file, source_folder, dest_folder, args, now
         ):
             yield action
 
