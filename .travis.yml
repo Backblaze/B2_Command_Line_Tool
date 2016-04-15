@@ -18,10 +18,26 @@ matrix:
   include:
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
-    - python: "2.7"
+    - python: 2.7
       env: SCA=true
-    - python: "3.5"
+    - python: 3.5
       env: SCA=true
+
+    # Travis CI doesn't support OSX python builds officially,
+    # but that won't stop us
+    - python: 2.7
+      os: osx
+      language: generic
+      env: OS_X_PYTHON_VERSION=python
+    - python: 3.5
+      os: osx
+      language: generic
+      env: OS_X_PYTHON_VERSION=python3
+
+cache:
+  - pip
+  - directories:
+    - $HOME/.virtualenv/python3-osx
 
 install:
   - pip install mock
@@ -31,13 +47,24 @@ install:
 
 before_install:
   - uname -a
-  - lsb_release -a
+  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
+  # install python3 on OS X
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install "$OS_X_PYTHON_VERSION"; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"; else echo skip; fi
   - virtualenv --version
+
+install:
+  - pip install mock
+  - pip install nose
+  - pip install pyflakes
+  - pip install yapf
 
 script:
   - pip freeze
   - python setup.py install
   - nosetests -w test
-  - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; fi
-  - if [ -n "$SCA" ]; then yapf --recursive --diff b2; fi
-  - if [ -n "$SCA" ]; then pyflakes b2; fi
+  - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
+  - if [ -n "$SCA" ]; then yapf --recursive --diff b2; else echo skip; fi
+  - if [ -n "$SCA" ]; then pyflakes b2; else echo skip; fi
