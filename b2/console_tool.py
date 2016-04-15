@@ -103,6 +103,13 @@ class Command(object):
         """
         return textwrap.dedent(cls.__doc__).split('\n')[1]
 
+    @classmethod
+    def command_usage(cls):
+        """
+        Returns the doc string for this class.
+        """
+        return textwrap.dedent(cls.__doc__)
+
     def parse_arg_list(self, arg_list):
         """
         Takes a list of string arguments, and returns an object with fields
@@ -295,15 +302,20 @@ class DeleteFileVersion(Command):
 
 class DownloadFileById(Command):
     """
-    b2 download_file_by_id <fileId> <localFileName>
+    b2 download_file_by_id [--noProgress] <fileId> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
+
+        If the 'tqdm' library is installed, progress bar is displayed
+        on stderr.  Without it, simple text progress is printed.
+        Use '--no-progress' to disable progress reporting.
     """
 
+    OPTION_FLAGS = ['noProgress']
     REQUIRED = ['fileId', 'localFileName']
 
     def run(self, args):
-        progress_listener = make_progress_listener(args.localFileName, False)
+        progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName, progress_listener)
         self.api.download_file_by_id(args.fileId, download_dest)
         self.console_tool._print_download_info(download_dest)
@@ -312,16 +324,17 @@ class DownloadFileById(Command):
 
 class DownloadFileByName(Command):
     """
-    b2 download_file_by_name <bucketName> <fileName> <localFileName>
+    b2 download_file_by_name [--noProgress] <bucketName> <fileName> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
     """
 
+    OPTION_FLAGS = ['noProgress']
     REQUIRED = ['bucketName', 'b2FileName', 'localFileName']
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        progress_listener = make_progress_listener(args.localFileName, False)
+        progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName, progress_listener)
         bucket.download_file_by_name(args.b2FileName, download_dest)
         self.console_tool._print_download_info(download_dest)
@@ -701,7 +714,8 @@ class UpdateBucket(Command):
 
 class UploadFile(Command):
     """
-    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* <bucketName> <localFilePath> <b2FileName>
+    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \
+            [--noProgress] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
@@ -713,13 +727,14 @@ class UploadFile(Command):
         Content type is optional.  If not set, it will be set based on the
         file extension.
 
-        If `tqdm` library is installed, progress bar is displayed on stderr.
-        (use pip install tqdm to install it)
+        If the 'tqdm' library is installed, progress bar is displayed
+        on stderr.  Without it, simple text progress is printed.
+        Use '--no-progress' to disable progress reporting.
 
         Each fileInfo is of the form "a=b".
     """
 
-    OPTION_FLAGS = ['quiet']
+    OPTION_FLAGS = ['noProgress', 'quiet']
 
     OPTION_ARGS = ['sha1', 'contentType']
 
@@ -737,7 +752,7 @@ class UploadFile(Command):
             file_infos[parts[0]] = parts[1]
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        with make_progress_listener(args.localFilePath, args.quiet) as progress_listener:
+        with make_progress_listener(args.localFilePath, args.noProgress) as progress_listener:
             file_info = bucket.upload_local_file(
                 local_file=args.localFilePath,
                 file_name=args.b2FileName,

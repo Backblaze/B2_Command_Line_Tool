@@ -113,6 +113,17 @@ class TestConsoleTool(unittest.TestCase):
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
 
+    def test_help_with_bad_args(self):
+        expected_stderr = '''
+
+        b2 create_bucket <bucketName> [allPublic | allPrivate]
+
+            Creates a new bucket.  Prints the ID of the bucket created.
+
+        '''
+
+        self._run_command(['create_bucket'], '', expected_stderr, 1)
+
     def test_clear_account(self):
         # Initial condition
         self._authorize_account()
@@ -410,15 +421,15 @@ class TestConsoleTool(unittest.TestCase):
             return ''
 
         # Count the leading spaces
-        space_count = min(self._leading_spaces(line) for line in lines)
+        space_count = min(self._leading_spaces(line) for line in lines if line != '')
 
         # Remove the leading spaces from each line, based on the line
         # with the fewest leading spaces
         leading_spaces = ' ' * space_count
         assert all(
-            line.startswith(leading_spaces) for line in lines
+            line.startswith(leading_spaces) or line == '' for line in lines
         ), 'all lines have leading spaces'
-        return '\n'.join(line[space_count:] for line in lines)
+        return '\n'.join('' if line == '' else line[space_count:] for line in lines)
 
     def _leading_spaces(self, s):
         space_count = 0
