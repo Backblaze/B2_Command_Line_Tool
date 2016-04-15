@@ -258,8 +258,13 @@ def delete_files_in_bucket(b2_tool, bucket_name):
         if len(files) == 0:
             return
         for file_info in files:
-            b2_tool.should_succeed(['delete_file_version', file_info['fileName'], file_info[
-                'fileId']])
+            b2_tool.should_succeed(
+                [
+                    'delete_file_version', file_info['fileName'], file_info[
+                        'fileId'
+                    ]
+                ]
+            )
 
 
 def clean_buckets(b2_tool, bucket_name_prefix):
@@ -323,8 +328,11 @@ def basic_test(b2_tool, bucket_name):
 
     with open(file_to_upload, 'rb') as f:
         hex_sha1 = hashlib.sha1(f.read()).hexdigest()
-    uploaded_a = b2_tool.should_succeed_json(['upload_file', '--quiet', bucket_name, file_to_upload,
-                                              'a'])
+    uploaded_a = b2_tool.should_succeed_json(
+        [
+            'upload_file', '--quiet', bucket_name, file_to_upload, 'a'
+        ]
+    )
     b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'b/1'])
     b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'b/2'])
@@ -340,8 +348,11 @@ def basic_test(b2_tool, bucket_name):
             bucket_name, file_to_upload, 'c'
         ], r'ERROR: Bad file info: foo-bar'
     )
-    b2_tool.should_succeed(['upload_file', '--contentType', 'text/plain', bucket_name,
-                            file_to_upload, 'd'])
+    b2_tool.should_succeed(
+        [
+            'upload_file', '--contentType', 'text/plain', bucket_name, file_to_upload, 'd'
+        ]
+    )
 
     b2_tool.should_succeed(['download_file_by_name', bucket_name, 'b/1', '/dev/null'])
     b2_tool.should_succeed(['download_file_by_id', uploaded_a['fileId'], '/dev/null'])
@@ -356,26 +367,37 @@ def basic_test(b2_tool, bucket_name):
     should_equal(['b/1', 'b/2'], [f['fileName'] for f in list_of_files['files']])
 
     list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
-    should_equal(['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName']
-                                                           for f in list_of_files['files']])
     should_equal(
-        ['upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'
+        ['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [
+            f['fileName'] for f in list_of_files['files']
+        ]
+    )
+    should_equal(
+        [
+            'upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'
         ], [f['action'] for f in list_of_files['files']]
     )
     first_c_version = list_of_files['files'][4]
     second_c_version = list_of_files['files'][5]
     list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c'])
     should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']])
-    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c',
-                                                 second_c_version['fileId']])
+    list_of_files = b2_tool.should_succeed_json(
+        [
+            'list_file_versions', bucket_name, 'c', second_c_version['fileId']
+        ]
+    )
     should_equal(['c', 'd'], [f['fileName'] for f in list_of_files['files']])
-    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c',
-                                                 second_c_version['fileId'], '1'])
+    list_of_files = b2_tool.should_succeed_json(
+        [
+            'list_file_versions', bucket_name, 'c', second_c_version['fileId'], '1'
+        ]
+    )
     should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
 
     b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nd\n')
-    b2_tool.should_succeed(['ls', '--long', bucket_name],
-                           r'^4_z.*upload.*a\n.*-.*b/\n4_z.*upload.*d\n')
+    b2_tool.should_succeed(
+        ['ls', '--long', bucket_name], r'^4_z.*upload.*a\n.*-.*b/\n4_z.*upload.*d\n'
+    )
     b2_tool.should_succeed(['ls', '--versions', bucket_name], r'^a\na\nb/\nc\nc\nd\n')
     b2_tool.should_succeed(['ls', bucket_name, 'b'], r'^b/1\nb/2\n')
     b2_tool.should_succeed(['ls', bucket_name, 'b/'], r'^b/1\nb/2\n')
@@ -393,8 +415,9 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['clear_account'])
     check_if_account_info_file_is_clear(new_creds)
     bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
-    b2_tool.should_fail(['authorize_account', sys.argv[1], bad_application_key],
-                        r'nvalid authorization')
+    b2_tool.should_fail(
+        ['authorize_account', sys.argv[1], bad_application_key], r'nvalid authorization'
+    )
     b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
@@ -560,7 +583,8 @@ def main():
 
         bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
         b2_tool.should_fail(
-            ['authorize_account', account_id, bad_application_key], r'Invalid authorization')
+            ['authorize_account', account_id, bad_application_key], r'Invalid authorization'
+        )
         b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
         bucket_name_prefix = 'test-b2-command-line-' + account_id
