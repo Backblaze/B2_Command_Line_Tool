@@ -250,6 +250,11 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_delete(a.txt, id_a_8380800000)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(keepDays=1), actions)
 
+    def test_keep_days_no_change_with_old_file(self):
+        src_file = local_file('a.txt', TODAY - 3 * DAY)
+        dst_file = b2_file('a.txt', TODAY - 3 * DAY)
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(keepDays=1), [])
+
     def test_same_delete_old_versions(self):
         src_file = local_file('a.txt', TODAY)
         dst_file = b2_file('a.txt', TODAY, TODAY - 3 * DAY)
