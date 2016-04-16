@@ -29,7 +29,8 @@ from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener, DoNothingProgressListener)
 from .raw_api import (test_raw_api)
-from .utils import (set_shutting_down)
+from .sync import parse_sync_folder, sync_folders
+from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
 
 
@@ -558,6 +559,18 @@ class NewSync(Command):
     """
 
     PRIVATE = True
+    OPTION_FLAGS = ['delete', 'skipNewer', 'replaceNewer']
+    OPTION_ARGS = ['keepDays']
+    REQUIRED = ['source', 'destination']
+    ARG_PARSER = {
+        'keepDays': int,
+        'source': parse_sync_folder,
+        'destination': parse_sync_folder
+    }  # yapf: disable
+
+    def run(self, args):
+        sync_folders(args.source, args.destination, args, current_time_millis())
+
 
 
 class Sync(Command):

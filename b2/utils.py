@@ -13,6 +13,7 @@ from __future__ import division, print_function
 import hashlib
 import shutil
 import tempfile
+import time
 
 import six
 from six.moves import urllib
@@ -34,6 +35,13 @@ def set_shutting_down():
 def raise_if_shutting_down():
     if _shutting_down:
         raise KeyboardInterrupt()
+
+
+def current_time_millis():
+    """
+    File times are in integer milliseconds, to avoid roundoff errors.
+    """
+    return int(round(time.time() * 1000))
 
 
 def interruptible_get_result(future):

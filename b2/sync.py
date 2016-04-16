@@ -349,7 +349,6 @@ class AbstractFolder(object):
         """
         Only for local folders, returns the full path to the file.
         """
-        raise NotImplementedError()
 
 
 class LocalFolder(AbstractFolder):
@@ -419,6 +418,25 @@ class LocalFolder(AbstractFolder):
         return File(slashes_path, [version])
 
 
+class B2Folder(AbstractFolder):
+    """
+    Folder interface to B2.
+    """
+
+    def __init__(self, bucket_name, folder_name):
+        self.bucket_name = bucket_name
+        self.folder_name = folder_name
+
+    def all_files(self):
+        raise NotImplementedError()
+
+    def folder_type(self):
+        return 'b2'
+
+    def make_full_path(self, file_name):
+        raise NotImplementedError()
+
+
 def next_or_none(iterator):
     """
     Returns the next item from the iterator, or None if there are no more.
@@ -475,7 +493,7 @@ def make_transfer_action(sync_type, source_file, dest_folder):
 
 
 def make_file_sync_actions(
-    sync_type, source_file, dest_file, source_folder, dest_folder, args, now
+    sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
 ):
     """
     Yields the sequence of actions needed to sync the two files
@@ -528,7 +546,7 @@ def make_file_sync_actions(
             if args.delete:
                 yield B2DeleteAction(dest_file.name, version.id_)
             elif args.keepDays is not None:
-                cutoff_time = now - args.keepDays * ONE_DAY_IN_MS
+                cutoff_time = now_millis - args.keepDays * ONE_DAY_IN_MS
                 if version.mod_time < cutoff_time:
                     yield B2DeleteAction(dest_file.name, version.id_)
     elif sync_type == 'b2-to-local':
@@ -537,7 +555,7 @@ def make_file_sync_actions(
                 yield LocalDeleteAction(version.id_)
 
 
-def make_folder_sync_actions(source_folder, dest_folder, args, now):
+def make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
@@ -557,14 +575,39 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now):
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
         for action in make_file_sync_actions(
-            sync_type, source_file, dest_file, source_folder, dest_folder, args, now
+            sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
         ):
             yield action
 
 
-def sync_folders(source, dest, history_days):
+def parse_sync_folder(folder_name):
+    """
+    Takes either a local path, or a B2 path, and returns a Folder
+    object for it.
+
+    B2 paths look like: b2://bucketName/path/name
+
+    Anything else is treated like a local folder.
+    """
+    if folder_name.startswith('b2://'):
+        bucket_and_path = folder_name[5:]
+        if '/' not in bucket_and_path:
+            bucket_name = bucket_and_path
+            folder_name = ''
+        else:
+            (bucket_name, folder_name) = bucket_and_path.split('/', 1)
+        return B2Folder(bucket_name, folder_name)
+    else:
+        return LocalFolder(folder_name)
+
+
+def sync_folders(source_folder, dest_folder, args, now_millis):
     """
     Syncs two folders.  Always ensures that every file in the
     source is also in the destination.  Deletes any file versions
     in the destination older than history_days.
     """
+
+    actions = make_folder_sync_actions(source_folder, dest_folder, args, now_millis)
+    for a in actions:
+        print(a)
