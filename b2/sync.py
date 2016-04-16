@@ -18,6 +18,11 @@ import six
 
 from .exception import DestFileNewer
 
+try:
+    import concurrent.futures as futures
+except:
+    import futures
+
 ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
 
 
@@ -219,8 +224,8 @@ class AbstractAction(object):
 
 
 class B2UploadAction(AbstractAction):
-    def __init__(self, full_path, file_name, mod_time):
-        self.full_path = full_path
+    def __init__(self, local_full_path, file_name, mod_time):
+        self.local_full_path = local_full_path
         self.file_name = file_name
         self.mod_time = mod_time
 
@@ -228,7 +233,7 @@ class B2UploadAction(AbstractAction):
         raise NotImplementedError()
 
     def __str__(self):
-        return 'b2_upload(%s, %s, %s)' % (self.full_path, self.file_name, self.mod_time)
+        return 'b2_upload(%s, %s, %s)' % (self.local_full_path, self.file_name, self.mod_time)
 
 
 class B2HideAction(AbstractAction):
@@ -243,15 +248,20 @@ class B2HideAction(AbstractAction):
 
 
 class B2DownloadAction(AbstractAction):
-    def __init__(self, file_name, file_id):
+    def __init__(self, file_name, file_id, local_full_path, mod_time_millis):
         self.file_name = file_name
         self.file_id = file_id
+        self.local_full_path = local_full_path
+        self.mod_time_millis = mod_time_millis
 
     def do_action(self):
         raise NotImplementedError()
 
     def __str__(self):
-        return 'b2_download(%s, %s)' % (self.file_name, self.file_id)
+        return (
+            'b2_download(%s, %s, %s, %d)' %
+            (self.file_name, self.file_id, self.local_full_path, self.mod_time_millis)
+        )
 
 
 class B2DeleteAction(AbstractAction):
@@ -345,6 +355,7 @@ class AbstractFolder(object):
         Returns one of:  'b2', 'local'
         """
 
+    @abstractmethod
     def make_full_path(self, file_name):
         """
         Only for local folders, returns the full path to the file.
@@ -374,6 +385,9 @@ class LocalFolder(AbstractFolder):
         prefix_len = len(self.root) + 1  # include trailing '/' in prefix length
         for relative_path in self._walk_relative_paths(prefix_len, self.root):
             yield self._make_file(relative_path)
+
+    def make_full_path(self, file_name):
+        return os.path.join(self.root, file_name.replace('/', os.path.sep))
 
     def _walk_relative_paths(self, prefix_len, dir_path):
         """
@@ -417,18 +431,25 @@ class LocalFolder(AbstractFolder):
         version = FileVersion(full_path, mod_time, "upload")
         return File(slashes_path, [version])
 
+    def __repr__(self):
+        return 'LocalFolder(%s)' % (self.root,)
+
 
 class B2Folder(AbstractFolder):
     """
     Folder interface to B2.
     """
 
-    def __init__(self, bucket_name, folder_name):
+    def __init__(self, bucket_name, folder_name, api):
         self.bucket_name = bucket_name
         self.folder_name = folder_name
+        self.bucket = api.get_bucket_by_name(bucket_name)
 
     def all_files(self):
-        raise NotImplementedError()
+        for file_version_info in self.bucket.ls(self.folder_name, show_versions=True):
+            mod_time_millis = int(file_version_info.file_info.get(
+                'src_modified_millis', file_version_info.upload_timestamp))
+            yield FileVersion(file_version_info.id_, mod_time_millis, file_version_info.action)
 
     def folder_type(self):
         return 'b2'
@@ -482,14 +503,21 @@ def zip_folders(folder_a, folder_b):
             current_b = next_or_none(iter_b)
 
 
-def make_transfer_action(sync_type, source_file, dest_folder):
+def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
+    source_mod_time = source_file.latest_version().mod_time
     if sync_type == 'local-to-b2':
-        source_mod_time = source_file.latest_version().mod_time
         return B2UploadAction(
-            dest_folder.make_full_path(source_file.name), source_file.name, source_mod_time
-        )
+            source_folder.make_full_path(source_file.name),
+            source_file.name,
+            source_mod_time
+        )  # yapf: disable
     else:
-        return B2DownloadAction(source_file.name, source_file.latest_version().id_)
+        return B2DownloadAction(
+            source_file.name,
+            source_file.latest_version().id_,
+            dest_folder.make_full_path(source_file.name),
+            source_mod_time
+        )  # yapf: disable
 
 
 def make_file_sync_actions(
@@ -519,14 +547,14 @@ def make_file_sync_actions(
     # All prior versions of the destination file are candidates for
     # cleaning.
     if dest_mod_time < source_mod_time:
-        yield make_transfer_action(sync_type, source_file, dest_folder)
+        yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
         if sync_type == 'local-to-b2' and dest_file is not None:
             dest_versions_to_clean = dest_file.versions
 
     # Case 2: Both exist and source is older
     elif source_mod_time != 0 and source_mod_time < dest_mod_time:
         if args.replaceNewer:
-            yield make_transfer_action(sync_type, source_file, dest_folder)
+            yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
         elif args.skipNewer:
             pass
         else:
@@ -580,7 +608,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
             yield action
 
 
-def parse_sync_folder(folder_name):
+def parse_sync_folder(folder_name, api):
     """
     Takes either a local path, or a B2 path, and returns a Folder
     object for it.
@@ -596,9 +624,18 @@ def parse_sync_folder(folder_name):
             folder_name = ''
         else:
             (bucket_name, folder_name) = bucket_and_path.split('/', 1)
-        return B2Folder(bucket_name, folder_name)
+        return B2Folder(bucket_name, folder_name, api)
     else:
         return LocalFolder(folder_name)
+
+
+def count_files(local_folder, reporter):
+    """
+    Counts all of the files in a local folder.
+    """
+    for _ in local_folder.all_files():
+        reporter.update_local(1)
+    reporter.finish_local()
 
 
 def sync_folders(source_folder, dest_folder, args, now_millis):
@@ -608,6 +645,26 @@ def sync_folders(source_folder, dest_folder, args, now_millis):
     in the destination older than history_days.
     """
 
-    actions = make_folder_sync_actions(source_folder, dest_folder, args, now_millis)
-    for a in actions:
-        print(a)
+    # Make a reporter to report progress.
+    reporter = SyncReport()
+
+    # Make an executor to count files and run all of the actions.
+    sync_executor = futures.ThreadPoolExecutor(max_workers=10)
+
+    # First, start the thread that counts the local files.  That's the operation
+    # that should be fastest, and it provides scale for the progress reporting.
+    local_folder = None
+    if source_folder.folder_type() == 'local':
+        local_folder = source_folder
+    if dest_folder.folder_type() == 'local':
+        local_folder = dest_folder
+    if local_folder is None:
+        raise ValueError('neither folder is a local folder')
+    sync_executor.submit(count_files, local_folder, reporter)
+
+    # Schedule each of the actions
+    for action in make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
+        reporter.print_completion(str(action))
+
+    # Wait for everything to finish
+    sync_executor.shutdown()

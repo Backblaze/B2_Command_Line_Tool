@@ -562,15 +562,12 @@ class NewSync(Command):
     OPTION_FLAGS = ['delete', 'skipNewer', 'replaceNewer']
     OPTION_ARGS = ['keepDays']
     REQUIRED = ['source', 'destination']
-    ARG_PARSER = {
-        'keepDays': int,
-        'source': parse_sync_folder,
-        'destination': parse_sync_folder
-    }  # yapf: disable
+    ARG_PARSER = {'keepDays': int}
 
     def run(self, args):
-        sync_folders(args.source, args.destination, args, current_time_millis())
-
+        source = parse_sync_folder(args.source, self.console_tool.api)
+        destination = parse_sync_folder(args.destination, self.console_tool.api)
+        sync_folders(source, destination, args, current_time_millis())
 
 
 class Sync(Command):
