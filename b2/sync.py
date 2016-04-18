@@ -18,8 +18,11 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
+from .download_dest import DownloadDestLocalFile
 from .exception import DestFileNewer
+from .progress import DoNothingProgressListener
 from .upload_source import UploadSourceLocalFile
+from .utils import raise_if_shutting_down
 
 try:
     import concurrent.futures as futures
@@ -193,6 +196,7 @@ class AbstractAction(object):
     """
 
     def run(self, bucket, reporter):
+        raise_if_shutting_down()
         try:
             self.do_action(bucket, reporter)
         except Exception as e:
@@ -224,7 +228,7 @@ class B2UploadAction(AbstractAction):
         bucket.upload(
             UploadSourceLocalFile(self.local_full_path),
             self.file_name,
-            file_info={'src_modified_millis': str(self.mod_time_millis)}
+            file_info={'src_last_modified_millis': str(self.mod_time_millis)}
         )
         reporter.update_transfer(1, self.get_bytes())
         reporter.print_completion('upload ' + self.file_name)
@@ -262,7 +266,34 @@ class B2DownloadAction(AbstractAction):
         return 0  # TODO
 
     def do_action(self, bucket, reporter):
-        raise NotImplementedError()
+        # Make sure the directory exists
+        parent_dir = os.path.dirname(self.local_full_path)
+        if not os.path.isdir(parent_dir):
+            try:
+                os.makedirs(parent_dir)
+            except:
+                pass
+        if not os.path.isdir(parent_dir):
+            raise Exception('could not create directory %s' % (parent_dir,))
+
+        # Download the file to a .tmp file
+        download_path = self.local_full_path + '.b2.sync.tmp'
+        download_dest = DownloadDestLocalFile(
+            download_path,
+            DoNothingProgressListener()
+        )
+        bucket.download_file_by_name(self.file_name, download_dest)
+
+        # Move the file into place
+        try:
+            os.unlink(self.local_full_path)
+        except:
+            pass
+        os.rename(download_path, self.local_full_path)
+
+        # Report progress
+        reporter.update_transfer(1, os.path.getsize(self.local_full_path))
+        reporter.print_completion('dnload ' + self.file_name)
 
     def __str__(self):
         return (
@@ -296,7 +327,9 @@ class LocalDeleteAction(AbstractAction):
         return 0
 
     def do_action(self, bucket, reporter):
-        raise NotImplementedError()
+        os.unlink(self.full_path)
+        reporter.update_transfer(1, 0)
+        reporter.print_completion('delete ' + self.full_path)
 
     def __str__(self):
         return 'local_delete(%s)' % (self.full_path)
@@ -407,6 +440,18 @@ class LocalFolder(AbstractFolder):
     def make_full_path(self, file_name):
         return os.path.join(self.root, file_name.replace('/', os.path.sep))
 
+    def ensure_present(self):
+        """
+        Makes sure that the directory exists.
+        """
+        if not os.path.exists(self.root):
+            try:
+                os.mkdir(self.root)
+            except:
+                raise Exception('unable to create directory %s' % (self.root,))
+        elif not os.path.isdir(self.root):
+            raise Exception('%s is not a directory' % (self.root,))
+
     def _walk_relative_paths(self, prefix_len, dir_path):
         """
         Yields all of the file names anywhere under this folder, in the
@@ -478,8 +523,8 @@ class B2Folder(AbstractFolder):
                 yield File(current_name, current_versions)
                 current_versions = []
             file_info = file_version_info.file_info
-            if 'src_modified_millis' in file_info:
-                mod_time_millis = int(file_info['src_modified_millis'])
+            if 'src_last_modified_millis' in file_info:
+                mod_time_millis = int(file_info['src_last_modified_millis'])
             else:
                 mod_time_millis = file_version_info.upload_timestamp
             file_version = FileVersion(
@@ -556,7 +601,7 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
         )  # yapf: disable
     else:
         return B2DownloadAction(
-            source_file.name,
+            source_folder.make_full_path(source_file.name),
             source_file.latest_version().id_,
             dest_folder.make_full_path(source_file.name),
             source_mod_time
@@ -693,6 +738,10 @@ def sync_folders(source_folder, dest_folder, args, now_millis):
     source is also in the destination.  Deletes any file versions
     in the destination older than history_days.
     """
+
+    # For downloads, make sure that the target directory is there.
+    if dest_folder.folder_type() == 'local':
+        dest_folder.ensure_present()
 
     # Make a reporter to report progress.
     reporter = SyncReport()

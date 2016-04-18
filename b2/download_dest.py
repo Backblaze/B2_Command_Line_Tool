@@ -89,7 +89,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
 
         return OpenLocalFileForWriting(
             self.local_file_path, self.progress_listener,
-            file_info.get('x-bz-info-src_last_modified_millis')
+            file_info.get('src_last_modified_millis')
         )
 
 
