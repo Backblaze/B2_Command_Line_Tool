@@ -429,7 +429,7 @@ class LocalFolder(AbstractFolder):
             full_path = os.path.join(dir_path, name)
             relative_path = full_path[prefix_len:]
             if os.path.isdir(full_path):
-                name += u'/'
+                name += six.u('/')
                 dirs.add(name)
             names[name] = (full_path, relative_path)
 
@@ -445,7 +445,7 @@ class LocalFolder(AbstractFolder):
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
         mod_time = int(round(os.path.getmtime(full_path) * 1000))
-        slashes_path = u'/'.join(relative_path.split(os.path.sep))
+        slashes_path = six.u('/').join(relative_path.split(os.path.sep))
         version = FileVersion(full_path, slashes_path, mod_time, "upload")
         return File(slashes_path, [version])
 
