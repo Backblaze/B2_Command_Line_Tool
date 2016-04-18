@@ -46,6 +46,7 @@ def local_path_to_b2_path(path):
 
 def keyboard_interrupt_handler(signum, frame):
     set_shutting_down()
+    print('\nShutting down...\n')
     raise KeyboardInterrupt()
 
 

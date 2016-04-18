@@ -15,7 +15,7 @@ import unittest
 
 import six
 
-from b2.exception import DestFileNewer
+from b2.exception import CommandError, DestFileNewer
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
@@ -178,14 +178,14 @@ class TestMakeSyncActions(unittest.TestCase):
         try:
             self._check_local_to_b2(None, None, FakeArgs(skipNewer=True, replaceNewer=True), [])
             self.fail('should have thrown ValueError')
-        except ValueError:
+        except CommandError:
             pass
 
     def test_illegal_delete_and_keep_days(self):
         try:
             self._check_local_to_b2(None, None, FakeArgs(delete=True, keepDays=1), [])
             self.fail('should have thrown ValueError')
-        except ValueError:
+        except CommandError:
             pass
 
     # src: absent, dst: absent
@@ -206,7 +206,7 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_not_there_local(self):
         src_file = b2_file('a.txt', 100)
-        actions = ['b2_download(a.txt, id_a_100, /dir/a.txt, 100)']
+        actions = ['b2_download(folder/a.txt, id_a_100, /dir/a.txt, 100)']
         self._check_b2_to_local(src_file, None, FakeArgs(), actions)
 
     # src: absent, dst: present
@@ -306,7 +306,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_newer_local(self):
         src_file = b2_file('a.txt', 200)
         dst_file = local_file('a.txt', 100)
-        actions = ['b2_download(a.txt, id_a_200, /dir/a.txt, 200)']
+        actions = ['b2_download(folder/a.txt, id_a_200, /dir/a.txt, 200)']
         self._check_b2_to_local(src_file, dst_file, FakeArgs(delete=True), actions)
 
     # src older than dst
@@ -348,7 +348,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_older_local_replace(self):
         src_file = b2_file('a.txt', 100)
         dst_file = local_file('a.txt', 200)
-        actions = ['b2_download(a.txt, id_a_100, /dir/a.txt, 100)']
+        actions = ['b2_download(folder/a.txt, id_a_100, /dir/a.txt, 100)']
         self._check_b2_to_local(src_file, dst_file, FakeArgs(replaceNewer=True), actions)
 
     # helper methods

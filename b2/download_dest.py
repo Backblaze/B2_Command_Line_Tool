@@ -88,8 +88,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
         self.progress_listener.set_total_bytes(content_length)
 
         return OpenLocalFileForWriting(
-            self.local_file_path, self.progress_listener,
-            file_info.get('src_last_modified_millis')
+            self.local_file_path, self.progress_listener, file_info.get('src_last_modified_millis')
         )
 
 

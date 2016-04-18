@@ -19,7 +19,7 @@ from abc import (ABCMeta, abstractmethod)
 import six
 
 from .download_dest import DownloadDestLocalFile
-from .exception import DestFileNewer
+from .exception import CommandError, DestFileNewer
 from .progress import DoNothingProgressListener
 from .upload_source import UploadSourceLocalFile
 from .utils import raise_if_shutting_down
@@ -58,12 +58,20 @@ class SyncReport(object):
         self.transfer_files = 0
         self.transfer_bytes = 0
         self.current_line = ''
+        self.closed = False
         self.lock = threading.Lock()
         self._update_progress()
 
     def close(self):
         with self.lock:
             self._print_line('', False)
+            self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def error(self, message):
         # TODO: stop things
@@ -75,27 +83,29 @@ class SyncReport(object):
         bar back.
         """
         with self.lock:
-            self._print_line(message, True)
-            self._update_progress()
+            if not self.closed:
+                self._print_line(message, True)
+                self._update_progress()
 
     def _update_progress(self):
-        rate = int(self.transfer_bytes / (time.time() - self.start_time))
-        if not self.local_done:
-            message = ' count: %d files   compare: %d files   transferred: %d files   %d bytes   %d B/s' % (
-                self.local_file_count, self.compare_count, self.transfer_files, self.transfer_bytes,
-                rate
-            )
-        elif not self.compare_done:
-            message = ' compare: %d/%d files   transferred: %d files   %d bytes   %d B/s' % (
-                self.compare_count, self.local_file_count, self.transfer_files, self.transfer_bytes,
-                rate
-            )
-        else:
-            message = ' compare: %d/%d files   transferred: %d/%d files   %d/%d bytes   %d B/s' % (
-                self.compare_count, self.local_file_count, self.transfer_files,
-                self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes, rate
-            )
-        self._print_line(message, False)
+        if not self.closed:
+            rate = int(self.transfer_bytes / (time.time() - self.start_time))
+            if not self.local_done:
+                message = ' count: %d files   compare: %d files   transferred: %d files   %d bytes   %d B/s' % (
+                    self.local_file_count, self.compare_count, self.transfer_files,
+                    self.transfer_bytes, rate
+                )
+            elif not self.compare_done:
+                message = ' compare: %d/%d files   transferred: %d files   %d bytes   %d B/s' % (
+                    self.compare_count, self.local_file_count, self.transfer_files,
+                    self.transfer_bytes, rate
+                )
+            else:
+                message = ' compare: %d/%d files   transferred: %d/%d files   %d/%d bytes   %d B/s' % (
+                    self.compare_count, self.local_file_count, self.transfer_files,
+                    self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes, rate
+                )
+            self._print_line(message, False)
 
     def _print_line(self, line, newline):
         """
@@ -278,10 +288,7 @@ class B2DownloadAction(AbstractAction):
 
         # Download the file to a .tmp file
         download_path = self.local_full_path + '.b2.sync.tmp'
-        download_dest = DownloadDestLocalFile(
-            download_path,
-            DoNothingProgressListener()
-        )
+        download_dest = DownloadDestLocalFile(download_path, DoNothingProgressListener())
         bucket.download_file_by_name(self.file_name, download_dest)
 
         # Move the file into place
@@ -677,10 +684,13 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     folder to the source folder.
     """
     if args.skipNewer and args.replaceNewer:
-        raise ValueError('--skipNewer and --replaceNewer are incompatible')
+        raise CommandError('--skipNewer and --replaceNewer are incompatible')
 
     if args.delete and (args.keepDays is not None):
-        raise ValueError('--delete and --keepDays are incompatible')
+        raise CommandError('--delete and --keepDays are incompatible')
+
+    if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
+        raise CommandError('--keepDays cannot be used for local files')
 
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
@@ -744,38 +754,39 @@ def sync_folders(source_folder, dest_folder, args, now_millis):
         dest_folder.ensure_present()
 
     # Make a reporter to report progress.
-    reporter = SyncReport()
+    with SyncReport() as reporter:
 
-    # Make an executor to count files and run all of the actions.
-    sync_executor = futures.ThreadPoolExecutor(max_workers=10)
+        # Make an executor to count files and run all of the actions.
+        sync_executor = futures.ThreadPoolExecutor(max_workers=10)
 
-    # First, start the thread that counts the local files.  That's the operation
-    # that should be fastest, and it provides scale for the progress reporting.
-    local_folder = None
-    if source_folder.folder_type() == 'local':
-        local_folder = source_folder
-    if dest_folder.folder_type() == 'local':
-        local_folder = dest_folder
-    if local_folder is None:
-        raise ValueError('neither folder is a local folder')
-    sync_executor.submit(count_files, local_folder, reporter)
+        # First, start the thread that counts the local files.  That's the operation
+        # that should be fastest, and it provides scale for the progress reporting.
+        local_folder = None
+        if source_folder.folder_type() == 'local':
+            local_folder = source_folder
+        if dest_folder.folder_type() == 'local':
+            local_folder = dest_folder
+        if local_folder is None:
+            raise ValueError('neither folder is a local folder')
+        sync_executor.submit(count_files, local_folder, reporter)
 
-    # Schedule each of the actions
-    bucket = None
-    if source_folder.folder_type() == 'b2':
-        bucket = source_folder.bucket
-    if dest_folder.folder_type() == 'b2':
-        bucket = dest_folder.bucket
-    if bucket is None:
-        raise ValueError('neither folder is a b2 folder')
-    total_files = 0
-    total_bytes = 0
-    for action in make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
-        sync_executor.submit(action.run, bucket, reporter)
-        total_files += 1
-        total_bytes += action.get_bytes()
-    reporter.end_compare(total_files, total_bytes)
+        # Schedule each of the actions
+        bucket = None
+        if source_folder.folder_type() == 'b2':
+            bucket = source_folder.bucket
+        if dest_folder.folder_type() == 'b2':
+            bucket = dest_folder.bucket
+        if bucket is None:
+            raise ValueError('neither folder is a b2 folder')
+        total_files = 0
+        total_bytes = 0
+        for action in make_folder_sync_actions(
+            source_folder, dest_folder, args, now_millis, reporter
+        ):
+            sync_executor.submit(action.run, bucket, reporter)
+            total_files += 1
+            total_bytes += action.get_bytes()
+        reporter.end_compare(total_files, total_bytes)
 
-    # Wait for everything to finish
-    sync_executor.shutdown()
-    reporter.close()
+        # Wait for everything to finish
+        sync_executor.shutdown()

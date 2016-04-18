@@ -72,6 +72,14 @@ class ChecksumMismatch(B2Error):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
 
 
+class CommandError(B2Error):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
 class ConnectionError(B2Error):
     def __init__(self, message):
         self.message = message
