@@ -46,9 +46,8 @@ class TestLocalFolder(unittest.TestCase):
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
         names = [
-            six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'),
-            six.u('hello/a/2'), six.u('hello/b'), six.u('hello0'),
-            six.u('\u81ea\u7531')
+            six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
+            six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
         ]
         with TempDir() as tmpdir:
             create_files(tmpdir, names)
