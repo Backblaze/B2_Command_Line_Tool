@@ -100,17 +100,17 @@ class SyncReport(object):
                 self._last_update_time = now
                 rate = int(self.transfer_bytes / (time.time() - self.start_time))
                 if not self.local_done:
-                    message = ' count: %d files   compare: %d files   transferred: %d files   %d bytes   %d B/s' % (
+                    message = ' count: %d files   compare: %d files   updated: %d files   %d bytes   %d B/s' % (
                         self.local_file_count, self.compare_count, self.transfer_files,
                         self.transfer_bytes, rate
                     )
                 elif not self.compare_done:
-                    message = ' compare: %d/%d files   transferred: %d files   %d bytes   %d B/s' % (
+                    message = ' compare: %d/%d files   updated: %d files   %d bytes   %d B/s' % (
                         self.compare_count, self.local_file_count, self.transfer_files,
                         self.transfer_bytes, rate
                     )
                 else:
-                    message = ' compare: %d/%d files   transferred: %d/%d files   %d/%d bytes   %d B/s' % (
+                    message = ' compare: %d/%d files   updated: %d/%d files   %d/%d bytes   %d B/s' % (
                         self.compare_count, self.local_file_count, self.transfer_files,
                         self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes,
                         rate
@@ -236,9 +236,10 @@ class AbstractAction(object):
 
 
 class B2UploadAction(AbstractAction):
-    def __init__(self, local_full_path, file_name, mod_time_millis):
+    def __init__(self, local_full_path, relative_name, b2_file_name, mod_time_millis):
         self.local_full_path = local_full_path
-        self.file_name = file_name
+        self.relative_name = relative_name
+        self.b2_file_name = b2_file_name
         self.mod_time_millis = mod_time_millis
 
     def get_bytes(self):
@@ -247,37 +248,39 @@ class B2UploadAction(AbstractAction):
     def do_action(self, bucket, reporter):
         bucket.upload(
             UploadSourceLocalFile(self.local_full_path),
-            self.file_name,
+            self.b2_file_name,
             file_info={'src_last_modified_millis': str(self.mod_time_millis)}
         )
         reporter.update_transfer(1, self.get_bytes())
-        reporter.print_completion('upload ' + self.file_name)
+        reporter.print_completion('upload ' + self.relative_name)
 
     def __str__(self):
         return 'b2_upload(%s, %s, %s)' % (
-            self.local_full_path, self.file_name, self.mod_time_millis
+            self.local_full_path, self.b2_file_name, self.mod_time_millis
         )
 
 
 class B2HideAction(AbstractAction):
-    def __init__(self, file_name):
-        self.file_name = file_name
+    def __init__(self, relative_name, b2_file_name):
+        self.relative_name = relative_name
+        self.b2_file_name = b2_file_name
 
     def get_bytes(self):
         return 0
 
     def do_action(self, bucket, reporter):
-        bucket.hide_file(self.file_name)
+        bucket.hide_file(self.b2_file_name)
         reporter.update_transfer(1, 0)
-        reporter.print_completion('hide   ' + self.file_name)
+        reporter.print_completion('hide   ' + self.relative_name)
 
     def __str__(self):
-        return 'b2_hide(%s)' % (self.file_name,)
+        return 'b2_hide(%s)' % (self.b2_file_name,)
 
 
 class B2DownloadAction(AbstractAction):
-    def __init__(self, file_name, file_id, local_full_path, mod_time_millis):
-        self.file_name = file_name
+    def __init__(self, relative_name, b2_file_name, file_id, local_full_path, mod_time_millis):
+        self.relative_name = relative_name
+        self.b2_file_name = b2_file_name
         self.file_id = file_id
         self.local_full_path = local_full_path
         self.mod_time_millis = mod_time_millis
@@ -299,7 +302,7 @@ class B2DownloadAction(AbstractAction):
         # Download the file to a .tmp file
         download_path = self.local_full_path + '.b2.sync.tmp'
         download_dest = DownloadDestLocalFile(download_path, DoNothingProgressListener())
-        bucket.download_file_by_name(self.file_name, download_dest)
+        bucket.download_file_by_name(self.b2_file_name, download_dest)
 
         # Move the file into place
         try:
@@ -310,34 +313,36 @@ class B2DownloadAction(AbstractAction):
 
         # Report progress
         reporter.update_transfer(1, os.path.getsize(self.local_full_path))
-        reporter.print_completion('dnload ' + self.file_name)
+        reporter.print_completion('dnload ' + self.relative_name)
 
     def __str__(self):
         return (
             'b2_download(%s, %s, %s, %d)' %
-            (self.file_name, self.file_id, self.local_full_path, self.mod_time_millis)
+            (self.b2_file_name, self.file_id, self.local_full_path, self.mod_time_millis)
         )
 
 
 class B2DeleteAction(AbstractAction):
-    def __init__(self, file_name, file_id):
-        self.file_name = file_name
+    def __init__(self, relative_name, b2_file_name, file_id):
+        self.relative_name = relative_name
+        self.b2_file_name = b2_file_name
         self.file_id = file_id
 
     def get_bytes(self):
         return 0
 
     def do_action(self, bucket, reporter):
-        bucket.api.delete_file_version(self.file_id, self.file_name)
+        bucket.api.delete_file_version(self.file_id, self.b2_file_name)
         reporter.update_transfer(1, 0)
-        reporter.print_completion('delete ' + self.file_name)
+        reporter.print_completion('delete ' + self.relative_name)
 
     def __str__(self):
-        return 'b2_delete(%s, %s)' % (self.file_name, self.file_id)
+        return 'b2_delete(%s, %s)' % (self.b2_file_name, self.file_id)
 
 
 class LocalDeleteAction(AbstractAction):
-    def __init__(self, full_path):
+    def __init__(self, relative_name, full_path):
+        self.relative_name = relative_name
         self.full_path = full_path
 
     def get_bytes(self):
@@ -346,7 +351,7 @@ class LocalDeleteAction(AbstractAction):
     def do_action(self, bucket, reporter):
         os.unlink(self.full_path)
         reporter.update_transfer(1, 0)
-        reporter.print_completion('delete ' + self.full_path)
+        reporter.print_completion('delete ' + self.relative_name)
 
     def __str__(self):
         return 'local_delete(%s)' % (self.full_path)
@@ -613,11 +618,13 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
     if sync_type == 'local-to-b2':
         return B2UploadAction(
             source_folder.make_full_path(source_file.name),
+            source_file.name,
             dest_folder.make_full_path(source_file.name),
             source_mod_time
         )  # yapf: disable
     else:
         return B2DownloadAction(
+            source_file.name,
             source_folder.make_full_path(source_file.name),
             source_file.latest_version().id_,
             dest_folder.make_full_path(source_file.name),
@@ -669,7 +676,7 @@ def make_file_sync_actions(
     elif source_mod_time == 0 and dest_mod_time != 0:
         if args.keepDays is not None and sync_type == 'local-to-b2':
             if dest_file.versions[0].action == 'upload':
-                yield B2HideAction(dest_folder.make_full_path(dest_file.name))
+                yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
         # all versions of the destination file are candidates for cleaning
         dest_versions_to_clean = dest_file.versions
 
@@ -677,15 +684,17 @@ def make_file_sync_actions(
     if sync_type == 'local-to-b2':
         for version in dest_versions_to_clean:
             if args.delete:
-                yield B2DeleteAction(dest_folder.make_full_path(dest_file.name), version.id_)
+                yield B2DeleteAction(dest_file.name, dest_folder.make_full_path(dest_file.name),
+                                     version.id_)
             elif args.keepDays is not None:
                 age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
                 if args.keepDays < age_days:
-                    yield B2DeleteAction(dest_folder.make_full_path(dest_file.name), version.id_)
+                    yield B2DeleteAction(dest_file.name, dest_folder.make_full_path(dest_file.name),
+                                         version.id_)
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:
             if args.delete:
-                yield LocalDeleteAction(version.id_)
+                yield LocalDeleteAction(dest_file.name, version.id_)
 
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
