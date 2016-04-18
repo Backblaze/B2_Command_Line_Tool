@@ -47,6 +47,9 @@ class SyncReport(object):
     This class is THREAD SAFE so that it can be used from parallel sync threads.
     """
 
+    # Minimum time between displayed updates
+    UPDATE_INTERVAL = 0.1
+
     def __init__(self):
         self.start_time = time.time()
         self.local_file_count = 0
@@ -58,6 +61,7 @@ class SyncReport(object):
         self.transfer_files = 0
         self.transfer_bytes = 0
         self.current_line = ''
+        self._last_update_time = 0
         self.closed = False
         self.lock = threading.Lock()
         self._update_progress()
@@ -85,27 +89,33 @@ class SyncReport(object):
         with self.lock:
             if not self.closed:
                 self._print_line(message, True)
+                self._last_update_time = 0
                 self._update_progress()
 
     def _update_progress(self):
         if not self.closed:
-            rate = int(self.transfer_bytes / (time.time() - self.start_time))
-            if not self.local_done:
-                message = ' count: %d files   compare: %d files   transferred: %d files   %d bytes   %d B/s' % (
-                    self.local_file_count, self.compare_count, self.transfer_files,
-                    self.transfer_bytes, rate
-                )
-            elif not self.compare_done:
-                message = ' compare: %d/%d files   transferred: %d files   %d bytes   %d B/s' % (
-                    self.compare_count, self.local_file_count, self.transfer_files,
-                    self.transfer_bytes, rate
-                )
-            else:
-                message = ' compare: %d/%d files   transferred: %d/%d files   %d/%d bytes   %d B/s' % (
-                    self.compare_count, self.local_file_count, self.transfer_files,
-                    self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes, rate
-                )
-            self._print_line(message, False)
+            now = time.time()
+            interval = now - self._last_update_time
+            if self.UPDATE_INTERVAL <= interval:
+                self._last_update_time = now
+                rate = int(self.transfer_bytes / (time.time() - self.start_time))
+                if not self.local_done:
+                    message = ' count: %d files   compare: %d files   transferred: %d files   %d bytes   %d B/s' % (
+                        self.local_file_count, self.compare_count, self.transfer_files,
+                        self.transfer_bytes, rate
+                    )
+                elif not self.compare_done:
+                    message = ' compare: %d/%d files   transferred: %d files   %d bytes   %d B/s' % (
+                        self.compare_count, self.local_file_count, self.transfer_files,
+                        self.transfer_bytes, rate
+                    )
+                else:
+                    message = ' compare: %d/%d files   transferred: %d/%d files   %d/%d bytes   %d B/s' % (
+                        self.compare_count, self.local_file_count, self.transfer_files,
+                        self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes,
+                        rate
+                    )
+                self._print_line(message, False)
 
     def _print_line(self, line, newline):
         """

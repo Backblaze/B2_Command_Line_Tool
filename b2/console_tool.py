@@ -46,7 +46,6 @@ def local_path_to_b2_path(path):
 
 def keyboard_interrupt_handler(signum, frame):
     set_shutting_down()
-    print('\nShutting down...\n')
     raise KeyboardInterrupt()
 
 
@@ -844,7 +843,7 @@ class ConsoleTool(object):
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
         except KeyboardInterrupt:
-            self._print('\ninterrupted')
+            self._print('\nInterrupted.  Shutting down...\n')
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
