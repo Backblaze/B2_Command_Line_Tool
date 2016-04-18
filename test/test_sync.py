@@ -61,7 +61,10 @@ class FakeFolder(AbstractFolder):
         return self.f_type
 
     def make_full_path(self, name):
-        return "/dir/" + name
+        if self.f_type == 'local':
+            return "/dir/" + name
+        else:
+            return name
 
 
 class TestZipFolders(unittest.TestCase):
@@ -71,18 +74,18 @@ class TestZipFolders(unittest.TestCase):
         self.assertEqual([], list(zip_folders(folder_a, folder_b)))
 
     def test_one_empty(self):
-        file_a1 = File("a.txt", [FileVersion("a", 100, "upload")])
+        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload")])
         folder_a = FakeFolder('b2', [file_a1])
         folder_b = FakeFolder('b2', [])
         self.assertEqual([(file_a1, None)], list(zip_folders(folder_a, folder_b)))
 
     def test_two(self):
-        file_a1 = File("a.txt", [FileVersion("a", 100, "upload")])
-        file_a2 = File("b.txt", [FileVersion("b", 100, "upload")])
-        file_a3 = File("d.txt", [FileVersion("c", 100, "upload")])
-        file_a4 = File("f.txt", [FileVersion("f", 100, "upload")])
-        file_b1 = File("b.txt", [FileVersion("b", 200, "upload")])
-        file_b2 = File("e.txt", [FileVersion("e", 200, "upload")])
+        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload")])
+        file_a2 = File("b.txt", [FileVersion("b", "b", 100, "upload")])
+        file_a3 = File("d.txt", [FileVersion("c", "c", 100, "upload")])
+        file_a4 = File("f.txt", [FileVersion("f", "f", 100, "upload")])
+        file_b1 = File("b.txt", [FileVersion("b", "b", 200, "upload")])
+        file_b2 = File("e.txt", [FileVersion("e", "e", 200, "upload")])
         folder_a = FakeFolder('b2', [file_a1, file_a2, file_a3, file_a4])
         folder_b = FakeFolder('b2', [file_b1, file_b2])
         self.assertEqual(
@@ -128,7 +131,7 @@ def b2_file(name, *args):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), abs(mod_time), 'upload'
+            'id_%s_%d' % (name[0], abs(mod_time)), name, abs(mod_time), 'upload'
             if 0 < mod_time else 'hide'
         ) for mod_time in args
     ]  # yapf disable
@@ -140,7 +143,7 @@ def local_file(name, *args):
     Makes a File object for a b2 file, with one FileVersion for
     each modification time given in *args.
     """
-    versions = [FileVersion('/dir/%s' % (name,), mod_time, 'upload') for mod_time in args]
+    versions = [FileVersion('/dir/%s' % (name,), name, mod_time, 'upload') for mod_time in args]
     return File(name, versions)
 
 
@@ -237,7 +240,7 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_same_local(self):
         src_file = b2_file('a.txt', 100)
-        dst_file = File('a.txt', [FileVersion('/dir/a.txt', 100, 'upload')])
+        dst_file = local_file('a.txt', 100)
         self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
 
     def test_same_leave_old_versions(self):

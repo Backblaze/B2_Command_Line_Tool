@@ -17,6 +17,7 @@ from abc import (ABCMeta, abstractmethod)
 import six
 
 from .exception import DestFileNewer
+from .upload_source import UploadSourceLocalFile
 
 try:
     import concurrent.futures as futures
@@ -41,15 +42,11 @@ class SyncReport(object):
     This class is THREAD SAFE so that it can be used from parallel sync threads.
     """
 
-    STATE_LOCAL = 'local'
-    STATE_COMPARE = 'compare'
-    STATE_TRANSFER = 'transfer'
-    STATE_DONE = 'done'
-
     def __init__(self):
         self.start_time = time.time()
-        self.state = 'local'
         self.local_file_count = 0
+        self.local_done = False
+        self.compare_done = False
         self.compare_count = 0
         self.total_transfer_files = 0  # set in end_compare()
         self.total_transfer_bytes = 0  # set in end_compare()
@@ -61,8 +58,11 @@ class SyncReport(object):
 
     def close(self):
         with self.lock:
-            if self.state != self.STATE_DONE:
-                self._print_line('', False)
+            self._print_line('', False)
+
+    def error(self, message):
+        # TODO: stop things
+        self.print_completion(message)
 
     def print_completion(self, message):
         """
@@ -75,23 +75,21 @@ class SyncReport(object):
 
     def _update_progress(self):
         rate = int(self.transfer_bytes / (time.time() - self.start_time))
-        if self.state == self.STATE_LOCAL:
+        if not self.local_done:
             message = ' count: %d files   compare: %d files   transferred: %d files   %d bytes   %d B/s' % (
                 self.local_file_count, self.compare_count, self.transfer_files, self.transfer_bytes,
                 rate
             )
-        elif self.state == self.STATE_COMPARE:
+        elif not self.compare_done:
             message = ' compare: %d/%d files   transferred: %d files   %d bytes   %d B/s' % (
                 self.compare_count, self.local_file_count, self.transfer_files, self.transfer_bytes,
                 rate
             )
-        elif self.state == self.STATE_TRANSFER:
+        else:
             message = ' compare: %d/%d files   transferred: %d/%d files   %d/%d bytes   %d B/s' % (
                 self.compare_count, self.local_file_count, self.transfer_files,
                 self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes, rate
             )
-        else:
-            message = ''
         self._print_line(message, False)
 
     def _print_line(self, line, newline):
@@ -117,7 +115,6 @@ class SyncReport(object):
         Reports that more local files have been found.
         """
         with self.lock:
-            assert self.state == self.STATE_LOCAL
             self.local_file_count += delta
             self._update_progress()
 
@@ -126,8 +123,7 @@ class SyncReport(object):
         Local file count is done.  Can proceed to step 2.
         """
         with self.lock:
-            assert self.state == self.STATE_LOCAL
-            self.state = self.STATE_COMPARE
+            self.local_done = True
             self._update_progress()
 
     def update_compare(self, delta):
@@ -140,8 +136,7 @@ class SyncReport(object):
 
     def end_compare(self, total_transfer_files, total_transfer_bytes):
         with self.lock:
-            assert self.state == self.STATE_COMPARE
-            self.state = self.STATE_TRANSFER
+            self.compare_done = True
             self.total_transfer_files = total_transfer_files
             self.total_transfer_bytes = total_transfer_bytes
             self._update_progress()
@@ -195,52 +190,55 @@ class AbstractAction(object):
     UploadFileAction.
     """
 
-    def __init__(self, prerequisites):
-        """
-        :param prerequisites: A list of tasks that must be completed
-         before this one can be run.
-        """
-        self.prerequisites = prerequisites
-        self.done = False
-
-    def run(self):
-        for prereq in self.prerequisites:
-            prereq.wait_until_done()
-        self.do_action()
-        self.done = True
-
-    def wait_until_done(self):
-        # TODO: better implementation
-        while not self.done:
-            time.sleep(1)
+    def run(self, bucket, reporter):
+        try:
+            self.do_action(bucket, reporter)
+        except Exception as e:
+            reporter.error(str(self) + ": " + repr(e) + ' ' + str(e))
 
     @abstractmethod
-    def do_action(self):
+    def get_bytes(self):
+        """
+        Returns the number of bytes to transfer for this action.
+        """
+
+    @abstractmethod
+    def do_action(self, bucket, reporter):
         """
         Performs the action, returning only after the action is completed.
-
-        Will not be called until all prerequisites are satisfied.
         """
 
 
 class B2UploadAction(AbstractAction):
-    def __init__(self, local_full_path, file_name, mod_time):
+    def __init__(self, local_full_path, file_name, mod_time_millis):
         self.local_full_path = local_full_path
         self.file_name = file_name
-        self.mod_time = mod_time
+        self.mod_time_millis = mod_time_millis
 
-    def do_action(self):
-        raise NotImplementedError()
+    def get_bytes(self):
+        return os.path.getsize(self.local_full_path)
+
+    def do_action(self, bucket, reporter):
+        bucket.upload(
+            UploadSourceLocalFile(self.local_full_path),
+            self.file_name,
+            file_info={'src_modified_millis': str(self.mod_time_millis)}
+        )
+        reporter.print_completion('upload ' + self.file_name)
 
     def __str__(self):
-        return 'b2_upload(%s, %s, %s)' % (self.local_full_path, self.file_name, self.mod_time)
+        return 'b2_upload(%s, %s, %s)' % (self.local_full_path, self.file_name,
+                                          self.mod_time_millis)
 
 
 class B2HideAction(AbstractAction):
     def __init__(self, file_name):
         self.file_name = file_name
 
-    def do_action(self):
+    def get_bytes(self):
+        return 0
+
+    def do_action(self, bucket, reporter):
         raise NotImplementedError
 
     def __str__(self):
@@ -254,7 +252,10 @@ class B2DownloadAction(AbstractAction):
         self.local_full_path = local_full_path
         self.mod_time_millis = mod_time_millis
 
-    def do_action(self):
+    def get_bytes(self):
+        return 0  # TODO
+
+    def do_action(self, bucket, reporter):
         raise NotImplementedError()
 
     def __str__(self):
@@ -269,7 +270,10 @@ class B2DeleteAction(AbstractAction):
         self.file_name = file_name
         self.file_id = file_id
 
-    def do_action(self):
+    def get_bytes(self):
+        return 0
+
+    def do_action(self, bucket, reporter):
         raise NotImplementedError()
 
     def __str__(self):
@@ -280,7 +284,10 @@ class LocalDeleteAction(AbstractAction):
     def __init__(self, full_path):
         self.full_path = full_path
 
-    def do_action(self):
+    def get_bytes(self):
+        return 0
+
+    def do_action(self, bucket, reporter):
         raise NotImplementedError()
 
     def __str__(self):
@@ -297,13 +304,15 @@ class FileVersion(object):
        action - "hide" or "upload" (never "start")
     """
 
-    def __init__(self, id_, mod_time, action):
+    def __init__(self, id_, file_name, mod_time, action):
         self.id_ = id_
+        self.name = file_name
         self.mod_time = mod_time
         self.action = action
 
     def __repr__(self):
-        return 'FileVersion(%s, %s, %s)' % (repr(self.id_), repr(self.mod_time), repr(self.action))
+        return 'FileVersion(%s, %s, %s, %s)' % (repr(self.id_), repr(self.name),
+                                                repr(self.mod_time), repr(self.action))
 
 
 class File(object):
@@ -428,7 +437,7 @@ class LocalFolder(AbstractFolder):
         full_path = os.path.join(self.root, relative_path)
         mod_time = int(round(os.path.getmtime(full_path) * 1000))
         slashes_path = u'/'.join(relative_path.split(os.path.sep))
-        version = FileVersion(full_path, mod_time, "upload")
+        version = FileVersion(full_path, slashes_path, mod_time, "upload")
         return File(slashes_path, [version])
 
     def __repr__(self):
@@ -446,16 +455,35 @@ class B2Folder(AbstractFolder):
         self.bucket = api.get_bucket_by_name(bucket_name)
 
     def all_files(self):
-        for file_version_info in self.bucket.ls(self.folder_name, show_versions=True):
-            mod_time_millis = int(file_version_info.file_info.get(
-                'src_modified_millis', file_version_info.upload_timestamp))
-            yield FileVersion(file_version_info.id_, mod_time_millis, file_version_info.action)
+        current_name = None
+        current_versions = []
+        for (file_version_info, folder_name) in self.bucket.ls(self.folder_name,
+                                                               show_versions=True):
+            assert file_version_info.file_name.startswith(self.folder_name + '/')
+            file_name = file_version_info.file_name[len(self.folder_name) + 1:]
+            if current_name != file_name and current_name is not None:
+                yield File(current_name, current_versions)
+                current_versions = []
+            file_info = file_version_info.file_info
+            if 'src_modified_millis' in file_info:
+                mod_time_millis = int(file_info['src_modified_millis'])
+            else:
+                mod_time_millis = file_version_info.upload_timestamp
+            file_version = FileVersion(file_version_info.id_, file_version_info.file_name,
+                                       mod_time_millis, file_version_info.action)
+            current_versions.append(file_version)
+            current_name = file_name
+        if current_name is not None:
+            yield File(current_name, current_versions)
 
     def folder_type(self):
         return 'b2'
 
     def make_full_path(self, file_name):
-        raise NotImplementedError()
+        if self.folder_name == '':
+            return file_name
+        else:
+            return self.folder_name + '/' + file_name
 
 
 def next_or_none(iterator):
@@ -508,7 +536,7 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
     if sync_type == 'local-to-b2':
         return B2UploadAction(
             source_folder.make_full_path(source_file.name),
-            source_file.name,
+            dest_folder.make_full_path(source_file.name),
             source_mod_time
         )  # yapf: disable
     else:
@@ -635,7 +663,7 @@ def count_files(local_folder, reporter):
     """
     for _ in local_folder.all_files():
         reporter.update_local(1)
-    reporter.finish_local()
+    reporter.end_local()
 
 
 def sync_folders(source_folder, dest_folder, args, now_millis):
@@ -663,8 +691,22 @@ def sync_folders(source_folder, dest_folder, args, now_millis):
     sync_executor.submit(count_files, local_folder, reporter)
 
     # Schedule each of the actions
+    bucket = None
+    if source_folder.folder_type() == 'b2':
+        bucket = source_folder.bucket
+    if dest_folder.folder_type() == 'b2':
+        bucket = dest_folder.bucket
+    if bucket is None:
+        raise ValueError('neither folder is a b2 folder')
+    total_files = 0
+    total_bytes = 0
     for action in make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
-        reporter.print_completion(str(action))
+        sync_executor.submit(action.run, bucket, reporter)
+        reporter.update_compare(1)
+        total_files += 1
+        total_bytes += action.get_bytes()
+    reporter.end_compare(total_files, total_bytes)
 
     # Wait for everything to finish
     sync_executor.shutdown()
+    reporter.close()
