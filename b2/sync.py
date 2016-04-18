@@ -542,7 +542,8 @@ class B2Folder(AbstractFolder):
             assert file_version_info.file_name.startswith(self.folder_name + '/')
             file_name = file_version_info.file_name[len(self.folder_name) + 1:]
             if current_name != file_name and current_name is not None:
-                yield File(current_name, current_versions)
+                if current_versions[0].action == 'upload':
+                    yield File(current_name, current_versions)
                 current_versions = []
             file_info = file_version_info.file_info
             if 'src_last_modified_millis' in file_info:
@@ -556,7 +557,8 @@ class B2Folder(AbstractFolder):
             current_versions.append(file_version)
             current_name = file_name
         if current_name is not None:
-            yield File(current_name, current_versions)
+            if current_versions[0].action == 'upload':
+                yield File(current_name, current_versions)
 
     def folder_type(self):
         return 'b2'
