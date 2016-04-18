@@ -224,11 +224,13 @@ class B2UploadAction(AbstractAction):
             self.file_name,
             file_info={'src_modified_millis': str(self.mod_time_millis)}
         )
+        reporter.update_transfer(1, self.get_bytes())
         reporter.print_completion('upload ' + self.file_name)
 
     def __str__(self):
-        return 'b2_upload(%s, %s, %s)' % (self.local_full_path, self.file_name,
-                                          self.mod_time_millis)
+        return 'b2_upload(%s, %s, %s)' % (
+            self.local_full_path, self.file_name, self.mod_time_millis
+        )
 
 
 class B2HideAction(AbstractAction):
@@ -274,7 +276,9 @@ class B2DeleteAction(AbstractAction):
         return 0
 
     def do_action(self, bucket, reporter):
-        raise NotImplementedError()
+        bucket.api.delete_file_version(self.file_id, self.file_name)
+        reporter.update_transfer(1, 0)
+        reporter.print_completion('delete ' + self.file_name)
 
     def __str__(self):
         return 'b2_delete(%s, %s)' % (self.file_name, self.file_id)
@@ -311,8 +315,9 @@ class FileVersion(object):
         self.action = action
 
     def __repr__(self):
-        return 'FileVersion(%s, %s, %s, %s)' % (repr(self.id_), repr(self.name),
-                                                repr(self.mod_time), repr(self.action))
+        return 'FileVersion(%s, %s, %s, %s)' % (
+            repr(self.id_), repr(self.name), repr(self.mod_time), repr(self.action)
+        )
 
 
 class File(object):
@@ -457,8 +462,11 @@ class B2Folder(AbstractFolder):
     def all_files(self):
         current_name = None
         current_versions = []
-        for (file_version_info, folder_name) in self.bucket.ls(self.folder_name,
-                                                               show_versions=True):
+        for (file_version_info, folder_name) in self.bucket.ls(
+            self.folder_name,
+            show_versions=True,
+            recursive=True
+        ):
             assert file_version_info.file_name.startswith(self.folder_name + '/')
             file_name = file_version_info.file_name[len(self.folder_name) + 1:]
             if current_name != file_name and current_name is not None:
@@ -469,8 +477,10 @@ class B2Folder(AbstractFolder):
                 mod_time_millis = int(file_info['src_modified_millis'])
             else:
                 mod_time_millis = file_version_info.upload_timestamp
-            file_version = FileVersion(file_version_info.id_, file_version_info.file_name,
-                                       mod_time_millis, file_version_info.action)
+            file_version = FileVersion(
+                file_version_info.id_, file_version_info.file_name, mod_time_millis,
+                file_version_info.action
+            )
             current_versions.append(file_version)
             current_name = file_name
         if current_name is not None:
@@ -600,18 +610,18 @@ def make_file_sync_actions(
     if sync_type == 'local-to-b2':
         for version in dest_versions_to_clean:
             if args.delete:
-                yield B2DeleteAction(dest_file.name, version.id_)
+                yield B2DeleteAction(dest_folder.make_full_path(dest_file.name), version.id_)
             elif args.keepDays is not None:
                 cutoff_time = now_millis - args.keepDays * ONE_DAY_IN_MS
                 if version.mod_time < cutoff_time:
-                    yield B2DeleteAction(dest_file.name, version.id_)
+                    yield B2DeleteAction(dest_folder.make_full_path(dest_file.name), version.id_)
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:
             if args.delete:
                 yield LocalDeleteAction(version.id_)
 
 
-def make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
+def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
@@ -630,6 +640,12 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
+        if source_folder.folder_type() == 'local':
+            if source_file is not None:
+                reporter.update_compare(1)
+        else:
+            if dest_file is not None:
+                reporter.update_compare(1)
         for action in make_file_sync_actions(
             sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
         ):
@@ -700,9 +716,8 @@ def sync_folders(source_folder, dest_folder, args, now_millis):
         raise ValueError('neither folder is a b2 folder')
     total_files = 0
     total_bytes = 0
-    for action in make_folder_sync_actions(source_folder, dest_folder, args, now_millis):
+    for action in make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
         sync_executor.submit(action.run, bucket, reporter)
-        reporter.update_compare(1)
         total_files += 1
         total_bytes += action.get_bytes()
     reporter.end_compare(total_files, total_bytes)

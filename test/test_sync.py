@@ -17,6 +17,11 @@ from b2.exception import DestFileNewer
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
 
+try:
+    from unittest.mock import MagicMock
+except:
+    from mock import MagicMock
+
 DAY = 86400000  # milliseconds
 TODAY = DAY * 100  # an arbitrary reference time for testing
 
@@ -62,9 +67,9 @@ class FakeFolder(AbstractFolder):
 
     def make_full_path(self, name):
         if self.f_type == 'local':
-            return "/dir/" + name
+            return '/dir/' + name
         else:
-            return name
+            return 'folder/' + name
 
 
 class TestZipFolders(unittest.TestCase):
@@ -123,15 +128,15 @@ def b2_file(name, *args):
         File(
             'a.txt',
             [
-               FileVersion('id_a_300', 300, 'upload'),
-               FileVersion('id_a_200', 200, 'hide'),
-               FileVersion('id_a_100', 100, 'upload')
+               FileVersion('id_a_300', 'a.txt', 300, 'upload'),
+               FileVersion('id_a_200', 'a.txt', 200, 'hide'),
+               FileVersion('id_a_100', 'a.txt', 100, 'upload')
             ]
         )
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), name, abs(mod_time), 'upload'
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
             if 0 < mod_time else 'hide'
         ) for mod_time in args
     ]  # yapf disable
@@ -148,10 +153,13 @@ def local_file(name, *args):
 
 
 class TestMakeSyncActions(unittest.TestCase):
+    def setUp(self):
+        self.reporter = MagicMock()
+
     def test_illegal_b2_to_b2(self):
         b2_folder = FakeFolder('b2', [])
         try:
-            list(make_folder_sync_actions(b2_folder, b2_folder, FakeArgs(), 0))
+            list(make_folder_sync_actions(b2_folder, b2_folder, FakeArgs(), 0, self.reporter))
             self.fail('should have raised NotImplementedError')
         except NotImplementedError:
             pass
@@ -159,7 +167,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_illegal_local_to_local(self):
         local_folder = FakeFolder('local', [])
         try:
-            list(make_folder_sync_actions(local_folder, local_folder, FakeArgs(), 0))
+            list(make_folder_sync_actions(local_folder, local_folder, FakeArgs(), 0, self.reporter))
             self.fail('should have raised NotImplementedError')
         except NotImplementedError:
             pass
@@ -190,7 +198,8 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_not_there_b2(self):
         src_file = local_file('a.txt', 100)
-        self._check_local_to_b2(src_file, None, FakeArgs(), ['b2_upload(/dir/a.txt, a.txt, 100)'])
+        self._check_local_to_b2(src_file, None, FakeArgs(),
+                                ['b2_upload(/dir/a.txt, folder/a.txt, 100)'])
 
     def test_not_there_local(self):
         src_file = b2_file('a.txt', 100)
@@ -209,22 +218,22 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_delete_b2(self):
         dst_file = b2_file('a.txt', 100)
-        actions = ['b2_delete(a.txt, id_a_100)']
+        actions = ['b2_delete(folder/a.txt, id_a_100)']
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
 
     def test_delete_b2_multiple_versions(self):
         dst_file = b2_file('a.txt', 100, 200)
-        actions = ['b2_delete(a.txt, id_a_100)', 'b2_delete(a.txt, id_a_200)']
+        actions = ['b2_delete(folder/a.txt, id_a_100)', 'b2_delete(folder/a.txt, id_a_200)']
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
 
     def test_delete_hide_b2_multiple_versions(self):
         dst_file = b2_file('a.txt', TODAY, TODAY - 4 * DAY)
-        actions = ['b2_hide(a.txt)', 'b2_delete(a.txt, id_a_8294400000)']
+        actions = ['b2_hide(a.txt)', 'b2_delete(folder/a.txt, id_a_8294400000)']
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=1), actions)
 
     def test_already_hidden_multiple_versions(self):
         dst_file = b2_file('a.txt', -TODAY, TODAY - 2 * DAY, TODAY - 4 * DAY)
-        actions = ['b2_delete(a.txt, id_a_8294400000)']
+        actions = ['b2_delete(folder/a.txt, id_a_8294400000)']
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=2), actions)
 
     def test_delete_local(self):
@@ -251,7 +260,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_same_clean_old_versions(self):
         src_file = local_file('a.txt', TODAY)
         dst_file = b2_file('a.txt', TODAY, TODAY - 3 * DAY)
-        actions = ['b2_delete(a.txt, id_a_8380800000)']
+        actions = ['b2_delete(folder/a.txt, id_a_8380800000)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(keepDays=1), actions)
 
     def test_keep_days_no_change_with_old_file(self):
@@ -262,7 +271,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_same_delete_old_versions(self):
         src_file = local_file('a.txt', TODAY)
         dst_file = b2_file('a.txt', TODAY, TODAY - 3 * DAY)
-        actions = ['b2_delete(a.txt, id_a_8380800000)']
+        actions = ['b2_delete(folder/a.txt, id_a_8380800000)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(delete=True), actions)
 
     # src newer than dst
@@ -270,21 +279,24 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_newer_b2(self):
         src_file = local_file('a.txt', 200)
         dst_file = b2_file('a.txt', 100)
-        actions = ['b2_upload(/dir/a.txt, a.txt, 200)']
+        actions = ['b2_upload(/dir/a.txt, folder/a.txt, 200)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(), actions)
 
     def test_newer_b2_clean_old_versions(self):
         src_file = local_file('a.txt', TODAY)
         dst_file = b2_file('a.txt', TODAY - 1 * DAY, TODAY - 3 * DAY)
-        actions = ['b2_upload(/dir/a.txt, a.txt, 8640000000)', 'b2_delete(a.txt, id_a_8380800000)']
+        actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 8640000000)',
+            'b2_delete(folder/a.txt, id_a_8380800000)'
+        ]
         self._check_local_to_b2(src_file, dst_file, FakeArgs(keepDays=2), actions)
 
     def test_newer_b2_delete_old_versions(self):
         src_file = local_file('a.txt', TODAY)
         dst_file = b2_file('a.txt', TODAY - 1 * DAY, TODAY - 3 * DAY)
         actions = [
-            'b2_upload(/dir/a.txt, a.txt, 8640000000)', 'b2_delete(a.txt, id_a_8553600000)',
-            'b2_delete(a.txt, id_a_8380800000)'
+            'b2_upload(/dir/a.txt, folder/a.txt, 8640000000)',
+            'b2_delete(folder/a.txt, id_a_8553600000)', 'b2_delete(folder/a.txt, id_a_8380800000)'
         ]  # yapf disable
         self._check_local_to_b2(src_file, dst_file, FakeArgs(delete=True), actions)
 
@@ -313,7 +325,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_older_b2_replace(self):
         src_file = local_file('a.txt', 100)
         dst_file = b2_file('a.txt', 200)
-        actions = ['b2_upload(/dir/a.txt, a.txt, 100)']
+        actions = ['b2_upload(/dir/a.txt, folder/a.txt, 100)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(replaceNewer=True), actions)
 
     def test_older_local(self):
@@ -354,7 +366,7 @@ class TestMakeSyncActions(unittest.TestCase):
         """
         src_folder = FakeFolder(src_type, [src_file] if src_file else [])
         dst_folder = FakeFolder(dst_type, [dst_file] if dst_file else [])
-        actions = list(make_folder_sync_actions(src_folder, dst_folder, args, TODAY))
+        actions = list(make_folder_sync_actions(src_folder, dst_folder, args, TODAY, self.reporter))
         self.assertEqual(expected_actions, [str(a) for a in actions])
 
 
