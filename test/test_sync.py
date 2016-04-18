@@ -13,6 +13,8 @@ from __future__ import print_function
 import os
 import unittest
 
+import six
+
 from b2.exception import DestFileNewer
 from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
 from b2.utils import TempDir
@@ -44,8 +46,9 @@ class TestLocalFolder(unittest.TestCase):
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
         names = [
-            u'.dot_file', u'hello.', u'hello/a/1', u'hello/a/2', u'hello/b', u'hello0',
-            u'\u81ea\u7531'
+            six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'),
+            six.u('hello/a/2'), six.u('hello/b'), six.u('hello0'),
+            six.u('\u81ea\u7531')
         ]
         with TempDir() as tmpdir:
             create_files(tmpdir, names)
