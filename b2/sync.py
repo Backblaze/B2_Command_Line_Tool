@@ -20,7 +20,7 @@ import six
 
 from .download_dest import DownloadDestLocalFile
 from .exception import CommandError, DestFileNewer
-from .progress import DoNothingProgressListener
+from .progress import AbstractProgressListener
 from .upload_source import UploadSourceLocalFile
 from .utils import raise_if_shutting_down
 
@@ -78,7 +78,6 @@ class SyncReport(object):
         self.close()
 
     def error(self, message):
-        # TODO: stop things
         self.print_completion(message)
 
     def print_completion(self, message):
@@ -93,6 +92,7 @@ class SyncReport(object):
                 self._update_progress()
 
     def _update_progress(self):
+        raise_if_shutting_down()
         if not self.closed:
             now = time.time()
             interval = now - self._last_update_time
@@ -173,6 +173,27 @@ class SyncReport(object):
             self._update_progress()
 
 
+class SyncFileReporter(AbstractProgressListener):
+    """
+    Listens to the progress for a single file and passes info on to a SyncReporter.
+    """
+
+    def __init__(self, reporter):
+        self.bytes_so_far = 0
+        self.reporter = reporter
+
+    def close(self):
+        # no more bytes are done, but the file is done
+        self.reporter.update_transfer(1, 0)
+
+    def set_total_bytes(self, total_byte_count):
+        pass
+
+    def bytes_completed(self, byte_count):
+        self.reporter.update_transfer(0, byte_count - self.bytes_so_far)
+        self.bytes_so_far = byte_count
+
+
 def sample_sync_report_run():
     sync_report = SyncReport()
 
@@ -236,20 +257,22 @@ class AbstractAction(object):
 
 
 class B2UploadAction(AbstractAction):
-    def __init__(self, local_full_path, relative_name, b2_file_name, mod_time_millis):
+    def __init__(self, local_full_path, relative_name, b2_file_name, mod_time_millis, size):
         self.local_full_path = local_full_path
         self.relative_name = relative_name
         self.b2_file_name = b2_file_name
         self.mod_time_millis = mod_time_millis
+        self.size = size
 
     def get_bytes(self):
-        return os.path.getsize(self.local_full_path)
+        return self.size
 
     def do_action(self, bucket, reporter):
         bucket.upload(
             UploadSourceLocalFile(self.local_full_path),
             self.b2_file_name,
-            file_info={'src_last_modified_millis': str(self.mod_time_millis)}
+            file_info={'src_last_modified_millis': str(self.mod_time_millis)},
+            progress_listener=SyncFileReporter(reporter)
         )
         reporter.update_transfer(1, self.get_bytes())
         reporter.print_completion('upload ' + self.relative_name)
@@ -278,15 +301,18 @@ class B2HideAction(AbstractAction):
 
 
 class B2DownloadAction(AbstractAction):
-    def __init__(self, relative_name, b2_file_name, file_id, local_full_path, mod_time_millis):
+    def __init__(
+        self, relative_name, b2_file_name, file_id, local_full_path, mod_time_millis, file_size
+    ):
         self.relative_name = relative_name
         self.b2_file_name = b2_file_name
         self.file_id = file_id
         self.local_full_path = local_full_path
         self.mod_time_millis = mod_time_millis
+        self.file_size = file_size
 
     def get_bytes(self):
-        return 0  # TODO
+        return self.file_size
 
     def do_action(self, bucket, reporter):
         # Make sure the directory exists
@@ -301,7 +327,7 @@ class B2DownloadAction(AbstractAction):
 
         # Download the file to a .tmp file
         download_path = self.local_full_path + '.b2.sync.tmp'
-        download_dest = DownloadDestLocalFile(download_path, DoNothingProgressListener())
+        download_dest = DownloadDestLocalFile(download_path, SyncFileReporter(reporter))
         bucket.download_file_by_name(self.b2_file_name, download_dest)
 
         # Move the file into place
@@ -312,7 +338,6 @@ class B2DownloadAction(AbstractAction):
         os.rename(download_path, self.local_full_path)
 
         # Report progress
-        reporter.update_transfer(1, os.path.getsize(self.local_full_path))
         reporter.print_completion('dnload ' + self.relative_name)
 
     def __str__(self):
@@ -367,11 +392,12 @@ class FileVersion(object):
        action - "hide" or "upload" (never "start")
     """
 
-    def __init__(self, id_, file_name, mod_time, action):
+    def __init__(self, id_, file_name, mod_time, action, size):
         self.id_ = id_
         self.name = file_name
         self.mod_time = mod_time
         self.action = action
+        self.size = size
 
     def __repr__(self):
         return 'FileVersion(%s, %s, %s, %s)' % (
@@ -513,7 +539,9 @@ class LocalFolder(AbstractFolder):
         full_path = os.path.join(self.root, relative_path)
         mod_time = int(round(os.path.getmtime(full_path) * 1000))
         slashes_path = six.u('/').join(relative_path.split(os.path.sep))
-        version = FileVersion(full_path, slashes_path, mod_time, "upload")
+        version = FileVersion(
+            full_path, slashes_path, mod_time, "upload", os.path.getsize(full_path)
+        )
         return File(slashes_path, [version])
 
     def __repr__(self):
@@ -552,7 +580,7 @@ class B2Folder(AbstractFolder):
                 mod_time_millis = file_version_info.upload_timestamp
             file_version = FileVersion(
                 file_version_info.id_, file_version_info.file_name, mod_time_millis,
-                file_version_info.action
+                file_version_info.action, file_version_info.size
             )
             current_versions.append(file_version)
             current_name = file_name
@@ -622,7 +650,8 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
             source_folder.make_full_path(source_file.name),
             source_file.name,
             dest_folder.make_full_path(source_file.name),
-            source_mod_time
+            source_mod_time,
+            source_file.latest_version().size
         )  # yapf: disable
     else:
         return B2DownloadAction(
@@ -630,7 +659,8 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
             source_folder.make_full_path(source_file.name),
             source_file.latest_version().id_,
             dest_folder.make_full_path(source_file.name),
-            source_mod_time
+            source_mod_time,
+            source_file.latest_version().size
         )  # yapf: disable
 
 
@@ -686,13 +716,15 @@ def make_file_sync_actions(
     if sync_type == 'local-to-b2':
         for version in dest_versions_to_clean:
             if args.delete:
-                yield B2DeleteAction(dest_file.name, dest_folder.make_full_path(dest_file.name),
-                                     version.id_)
+                yield B2DeleteAction(
+                    dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_
+                )
             elif args.keepDays is not None:
                 age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
                 if args.keepDays < age_days:
-                    yield B2DeleteAction(dest_file.name, dest_folder.make_full_path(dest_file.name),
-                                         version.id_)
+                    yield B2DeleteAction(
+                        dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_
+                    )
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:
             if args.delete:

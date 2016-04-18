@@ -81,18 +81,18 @@ class TestZipFolders(unittest.TestCase):
         self.assertEqual([], list(zip_folders(folder_a, folder_b)))
 
     def test_one_empty(self):
-        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload")])
+        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload", 10)])
         folder_a = FakeFolder('b2', [file_a1])
         folder_b = FakeFolder('b2', [])
         self.assertEqual([(file_a1, None)], list(zip_folders(folder_a, folder_b)))
 
     def test_two(self):
-        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload")])
-        file_a2 = File("b.txt", [FileVersion("b", "b", 100, "upload")])
-        file_a3 = File("d.txt", [FileVersion("c", "c", 100, "upload")])
-        file_a4 = File("f.txt", [FileVersion("f", "f", 100, "upload")])
-        file_b1 = File("b.txt", [FileVersion("b", "b", 200, "upload")])
-        file_b2 = File("e.txt", [FileVersion("e", "e", 200, "upload")])
+        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload", 10)])
+        file_a2 = File("b.txt", [FileVersion("b", "b", 100, "upload", 10)])
+        file_a3 = File("d.txt", [FileVersion("c", "c", 100, "upload", 10)])
+        file_a4 = File("f.txt", [FileVersion("f", "f", 100, "upload", 10)])
+        file_b1 = File("b.txt", [FileVersion("b", "b", 200, "upload", 10)])
+        file_b2 = File("e.txt", [FileVersion("e", "e", 200, "upload", 10)])
         folder_a = FakeFolder('b2', [file_a1, file_a2, file_a3, file_a4])
         folder_b = FakeFolder('b2', [file_b1, file_b2])
         self.assertEqual(
@@ -139,7 +139,7 @@ def b2_file(name, *args):
     versions = [
         FileVersion(
             'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide'
+            if 0 < mod_time else 'hide', 10
         ) for mod_time in args
     ]  # yapf disable
     return File(name, versions)
@@ -150,7 +150,7 @@ def local_file(name, *args):
     Makes a File object for a b2 file, with one FileVersion for
     each modification time given in *args.
     """
-    versions = [FileVersion('/dir/%s' % (name,), name, mod_time, 'upload') for mod_time in args]
+    versions = [FileVersion('/dir/%s' % (name,), name, mod_time, 'upload', 10) for mod_time in args]
     return File(name, versions)
 
 
