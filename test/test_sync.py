@@ -198,8 +198,9 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_not_there_b2(self):
         src_file = local_file('a.txt', 100)
-        self._check_local_to_b2(src_file, None, FakeArgs(),
-                                ['b2_upload(/dir/a.txt, folder/a.txt, 100)'])
+        self._check_local_to_b2(
+            src_file, None, FakeArgs(), ['b2_upload(/dir/a.txt, folder/a.txt, 100)']
+        )
 
     def test_not_there_local(self):
         src_file = b2_file('a.txt', 100)
@@ -228,7 +229,7 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_delete_hide_b2_multiple_versions(self):
         dst_file = b2_file('a.txt', TODAY, TODAY - 4 * DAY)
-        actions = ['b2_hide(a.txt)', 'b2_delete(folder/a.txt, id_a_8294400000)']
+        actions = ['b2_hide(folder/a.txt)', 'b2_delete(folder/a.txt, id_a_8294400000)']
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=1), actions)
 
     def test_already_hidden_multiple_versions(self):

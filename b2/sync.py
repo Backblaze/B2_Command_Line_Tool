@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+from __future__ import division
+
 import os
 import sys
 import threading
@@ -241,7 +243,9 @@ class B2HideAction(AbstractAction):
         return 0
 
     def do_action(self, bucket, reporter):
-        raise NotImplementedError
+        bucket.hide_file(self.file_name)
+        reporter.update_transfer(1, 0)
+        reporter.print_completion('hide   ' + self.file_name)
 
     def __str__(self):
         return 'b2_hide(%s)' % (self.file_name,)
@@ -465,7 +469,8 @@ class B2Folder(AbstractFolder):
         for (file_version_info, folder_name) in self.bucket.ls(
             self.folder_name,
             show_versions=True,
-            recursive=True
+            recursive=True,
+            fetch_count=1000
         ):
             assert file_version_info.file_name.startswith(self.folder_name + '/')
             file_name = file_version_info.file_name[len(self.folder_name) + 1:]
@@ -600,9 +605,9 @@ def make_file_sync_actions(
 
     # Case 3: No source file, but destination file exists
     elif source_mod_time == 0 and dest_mod_time != 0:
-        if args.keepDays and sync_type == 'local-to-b2':
+        if args.keepDays is not None and sync_type == 'local-to-b2':
             if dest_file.versions[0].action == 'upload':
-                yield B2HideAction(dest_file.name)
+                yield B2HideAction(dest_folder.make_full_path(dest_file.name))
         # all versions of the destination file are candidates for cleaning
         dest_versions_to_clean = dest_file.versions
 
@@ -612,8 +617,8 @@ def make_file_sync_actions(
             if args.delete:
                 yield B2DeleteAction(dest_folder.make_full_path(dest_file.name), version.id_)
             elif args.keepDays is not None:
-                cutoff_time = now_millis - args.keepDays * ONE_DAY_IN_MS
-                if version.mod_time < cutoff_time:
+                age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
+                if args.keepDays < age_days:
                     yield B2DeleteAction(dest_folder.make_full_path(dest_file.name), version.id_)
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:

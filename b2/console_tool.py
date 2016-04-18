@@ -562,7 +562,7 @@ class NewSync(Command):
     OPTION_FLAGS = ['delete', 'skipNewer', 'replaceNewer']
     OPTION_ARGS = ['keepDays']
     REQUIRED = ['source', 'destination']
-    ARG_PARSER = {'keepDays': int}
+    ARG_PARSER = {'keepDays': float}
 
     def run(self, args):
         source = parse_sync_folder(args.source, self.console_tool.api)
