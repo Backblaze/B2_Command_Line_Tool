@@ -123,9 +123,10 @@ class B2Api(object):
         return bucket
 
     def download_file_by_id(self, file_id, download_dest):
-        self.raw_api.download_file_by_id(
-            self.account_info.get_download_url(), self.account_info.get_account_auth_token(),
-            file_id, download_dest
+        self.session.download_file_by_id(
+            file_id,
+            download_dest,
+            url_factory=self.account_info.get_download_url
         )
 
     def get_bucket_by_id(self, bucket_id):
