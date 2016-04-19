@@ -198,12 +198,17 @@ class B2RawApi(AbstractRawApi):
             content_sha1 = info['x-bz-content-sha1']
             file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
 
+            if 'src_last_modified_millis' in file_info:
+                mod_time_millis = int(file_info['src_last_modified_millis'])
+            else:
+                mod_time_millis = int(info['x-bz-upload-timestamp'])
+
             block_size = 4096
             digest = hashlib.sha1()
             bytes_read = 0
 
             with download_dest.open(
-                file_id, file_name, content_length, content_type, content_sha1, file_info
+                file_id, file_name, content_length, content_type, content_sha1, file_info, mod_time_millis
             ) as file:
                 for data in response.iter_content(chunk_size=block_size):
                     file.write(data)

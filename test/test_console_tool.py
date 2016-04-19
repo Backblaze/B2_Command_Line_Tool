@@ -164,7 +164,8 @@ class TestConsoleTool(unittest.TestCase):
             {
               "fileId": "9999",
               "fileName": "file1.txt",
-              "size": 11
+              "size": 11,
+              "uploadTimestamp": 5000
             }
             '''
 
@@ -202,7 +203,8 @@ class TestConsoleTool(unittest.TestCase):
             {
               "fileId": "9998",
               "fileName": "file1.txt",
-              "size": 0
+              "size": 0,
+              "uploadTimestamp": 5001
             }
             '''
 

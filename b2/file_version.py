@@ -113,3 +113,12 @@ class FileVersionInfoFactory(object):
             0,  # upload timestamp
             'cancel'
         )
+
+
+class FileIdAndName(object):
+    def __init__(self, file_id, file_name):
+        self.file_id = file_id
+        self.file_name = file_name
+
+    def as_dict(self):
+        return {'action': 'delete', 'fileId': self.file_id, 'fileName': self.file_name}

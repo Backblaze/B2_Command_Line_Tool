@@ -13,7 +13,7 @@ from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
 from .exception import MissingAccountData, NonExistentBucket
-from .file_version import FileVersionInfoFactory
+from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
 from .raw_api import B2RawApi
 from .session import B2Session
@@ -196,11 +196,9 @@ class B2Api(object):
     def delete_file_version(self, file_id, file_name):
         # filename argument is not first, because one day it may become optional
         response = self.session.delete_file_version(file_id, file_name)
-        file_info = FileVersionInfoFactory.from_api_response(response, force_action='delete',)
-        assert file_info.id_ == file_id
-        assert file_info.file_name == file_name
-        assert file_info.action == 'delete'
-        return file_info
+        assert response['fileId'] == file_id
+        assert response['fileName'] == file_name
+        return FileIdAndName(file_id, file_name)
 
     # download
     def get_download_url_for_fileid(self, file_id):

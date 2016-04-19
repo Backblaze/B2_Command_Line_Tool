@@ -78,7 +78,8 @@ class FileSimulator(object):
             contentLength=len(self.data_bytes),
             contentType=self.content_type,
             contentSha1=self.content_sha1,
-            fileInfo=self.file_info
+            fileInfo=self.file_info,
+            uploadTimestamp=self.upload_timestamp
         )  # yapf: disable
 
     def as_list_files_dict(self):
@@ -100,7 +101,8 @@ class FileSimulator(object):
             accountId=self.account_id,
             bucketId=self.bucket_id,
             contentType=self.content_type,
-            fileInfo=self.file_info
+            fileInfo=self.file_info,
+            uploadTimestamp=self.upload_timestamp
         )  # yapf: disable
 
     def add_part(self, part_number, part):
@@ -145,6 +147,9 @@ class FileSimulator(object):
             next_part_number = parts[max_part_count]['partNumber']
             parts = parts[:max_part_count]
         return dict(parts=parts, nextPartNumber=next_part_number)
+
+    def mod_time_millis(self):
+        return 0
 
 
 class BucketSimulator(object):
@@ -191,9 +196,10 @@ class BucketSimulator(object):
 
     def delete_file_version(self, file_id, file_name):
         key = (file_name, file_id)
+        file_sim = self.file_name_and_id_to_file[key]
         del self.file_name_and_id_to_file[key]
         del self.file_id_to_file[file_id]
-        return dict(fileId=file_id, fileName=file_name)
+        return dict(fileId=file_id, fileName=file_name, uploadTimestamp=file_sim.upload_timestamp)
 
     def download_file_by_id(self, file_id, download_dest):
         file_sim = self.file_id_to_file[file_id]
@@ -212,7 +218,7 @@ class BucketSimulator(object):
     def _download_file_sim(self, download_dest, file_sim):
         with download_dest.open(
             file_sim.file_id, file_sim.name, file_sim.content_length, file_sim.content_type,
-            file_sim.content_sha1, file_sim.file_info
+            file_sim.content_sha1, file_sim.file_info, file_sim.mod_time_millis()
         ) as f:
             f.write(file_sim.data_bytes)
 
