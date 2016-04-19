@@ -314,9 +314,13 @@ class Bucket(object):
         # the minimum part size.
         min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
         if upload_source.get_content_length() < min_large_file_size:
-            return self._upload_small_file(
-                upload_source, file_name, content_type, file_info, progress_listener
+            # Run small uploads in the same thread pool as large file uploads,
+            # so that they share resources during a sync.
+            f = self.api.get_thread_pool().submit(
+                self._upload_small_file, upload_source, file_name, content_type, file_info,
+                progress_listener
             )
+            return f.result()
         else:
             return self._upload_large_file(
                 upload_source, file_name, content_type, file_info, progress_listener

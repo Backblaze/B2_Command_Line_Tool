@@ -838,7 +838,10 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
     # Make a reporter to report progress.
     with SyncReport(stdout, no_progress) as reporter:
 
-        # Make an executor to count files and run all of the actions.
+        # Make an executor to count files and run all of the actions.  This is
+        # not the same as the executor in the API object, which is used for
+        # uploads.  The tasks in this executor wait for uploads.  Putting them
+        # in the same thread pool could lead to deadlock.
         sync_executor = futures.ThreadPoolExecutor(max_workers=max_workers)
 
         # First, start the thread that counts the local files.  That's the operation
