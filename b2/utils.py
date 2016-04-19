@@ -192,3 +192,79 @@ class TempDir(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         shutil.rmtree(self.dirpath)
         return None  # do not hide exception
+
+
+SCALES = [
+    (1000, 'k'),
+    (1000 * 1000, 'M'),
+    (1000 * 1000 * 1000, 'G'),
+    (1000 * 1000 * 1000 * 1000, 'T')
+]
+
+def _pick_scale_and_suffix(x):
+    # suffixes for different scales
+    suffixes = ' kMGTP'
+
+    # We want to use the biggest suffix that makes sense.
+    ref_digits = str(int(x))
+    index = (len(ref_digits) - 1) // 3
+    suffix = suffixes[index]
+    if suffix == ' ':
+        suffix = ''
+
+    scale = 1000 ** index
+    return (scale, suffix)
+
+
+def format_and_scale_number(x, unit):
+    """
+    Picks a good scale for representing a number and formats it.
+    """
+
+    # simple case for small numbers
+    if x < 1000:
+        return '%d %s' % (x, unit)
+
+    # pick a scale
+    (scale, suffix) = _pick_scale_and_suffix(x)
+
+    # decide how many digits after the decimal to display
+    scaled = x / scale
+    if scaled < 10.0:
+        fmt = '%1.2f %s%s'
+    elif scaled < 100.0:
+        fmt = '%1.1f %s%s'
+    else:
+        fmt = '%1.0f %s%s'
+
+    # format it
+    return fmt % (scaled, suffix, unit)
+
+
+def format_and_scale_fraction(numerator, denominator, unit):
+    """
+    Picks a good scale for representing a fraction, and formats it.
+    """
+
+    # simple case for small numbers
+    if denominator < 1000:
+        return '%d / %d %s' % (numerator, denominator, unit)
+
+    # pick a scale
+    (scale, suffix) = _pick_scale_and_suffix(denominator)
+
+    # decide how many digits after the decimal to display
+    scaled_denominator = denominator / scale
+    if scaled_denominator < 10.0:
+        fmt = '%1.2f / %1.2f %s%s'
+    elif scaled_denominator < 100.0:
+        fmt = '%1.1f / %1.1f %s%s'
+    else:
+        fmt = '%1.0f / %1.0f %s%s'
+
+    # format it
+    scaled_numerator = numerator / scale
+    return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
+
+
+

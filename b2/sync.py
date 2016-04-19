@@ -21,7 +21,7 @@ from .download_dest import DownloadDestLocalFile
 from .exception import CommandError, DestFileNewer
 from .progress import AbstractProgressListener
 from .upload_source import UploadSourceLocalFile
-from .utils import raise_if_shutting_down
+from .utils import format_and_scale_number, format_and_scale_fraction, raise_if_shutting_down
 
 try:
     import concurrent.futures as futures
@@ -101,20 +101,29 @@ class SyncReport(object):
                 self._last_update_time = now
                 rate = int(self.transfer_bytes / (time.time() - self.start_time))
                 if not self.local_done:
-                    message = ' count: %d files   compare: %d files   updated: %d files   %d bytes   %d B/s' % (
-                        self.local_file_count, self.compare_count, self.transfer_files,
-                        self.transfer_bytes, rate
-                    )
+                    message = ' count: %d files   compare: %d files   updated: %d files   %s   %s' % (
+                        self.local_file_count,
+                        self.compare_count,
+                        self.transfer_files,
+                        format_and_scale_number(self.transfer_bytes, 'B'),
+                        format_and_scale_number(rate, 'B/s')
+                    )  # yapf: disable
                 elif not self.compare_done:
-                    message = ' compare: %d/%d files   updated: %d files   %d bytes   %d B/s' % (
-                        self.compare_count, self.local_file_count, self.transfer_files,
-                        self.transfer_bytes, rate
+                    message = ' compare: %d/%d files   updated: %d files   %s   %s' % (
+                        self.compare_count,
+                        self.local_file_count,
+                        self.transfer_files,
+                        format_and_scale_number(self.transfer_bytes, 'B'),
+                        format_and_scale_number(rate, 'B/s')
                     )
                 else:
-                    message = ' compare: %d/%d files   updated: %d/%d files   %d/%d bytes   %d B/s' % (
-                        self.compare_count, self.local_file_count, self.transfer_files,
-                        self.total_transfer_files, self.transfer_bytes, self.total_transfer_bytes,
-                        rate
+                    message = ' compare: %d/%d files   updated: %d/%d files   %s   %s' % (
+                        self.compare_count,
+                        self.local_file_count,
+                        self.transfer_files,
+                        self.total_transfer_files,
+                        format_and_scale_fraction(self.transfer_bytes, self.total_transfer_bytes, 'B'),
+                        format_and_scale_number(rate, 'B/s')
                     )
                 self._print_line(message, False)
 
