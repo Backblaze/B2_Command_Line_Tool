@@ -115,7 +115,7 @@ class SyncReport(object):
                         self.transfer_files,
                         format_and_scale_number(self.transfer_bytes, 'B'),
                         format_and_scale_number(rate, 'B/s')
-                    )
+                    )  # yapf: disable
                 else:
                     message = ' compare: %d/%d files   updated: %d/%d files   %s   %s' % (
                         self.compare_count,
@@ -124,7 +124,7 @@ class SyncReport(object):
                         self.total_transfer_files,
                         format_and_scale_fraction(self.transfer_bytes, self.total_transfer_bytes, 'B'),
                         format_and_scale_number(rate, 'B/s')
-                    )
+                    )  # yapf: disable
                 self._print_line(message, False)
 
     def _print_line(self, line, newline):

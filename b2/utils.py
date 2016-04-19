@@ -194,13 +194,6 @@ class TempDir(object):
         return None  # do not hide exception
 
 
-SCALES = [
-    (1000, 'k'),
-    (1000 * 1000, 'M'),
-    (1000 * 1000 * 1000, 'G'),
-    (1000 * 1000 * 1000 * 1000, 'T')
-]
-
 def _pick_scale_and_suffix(x):
     # suffixes for different scales
     suffixes = ' kMGTP'
@@ -212,7 +205,7 @@ def _pick_scale_and_suffix(x):
     if suffix == ' ':
         suffix = ''
 
-    scale = 1000 ** index
+    scale = 1000**index
     return (scale, suffix)
 
 
@@ -265,6 +258,3 @@ def format_and_scale_fraction(numerator, denominator, unit):
     # format it
     scaled_numerator = numerator / scale
     return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
-
-
-
