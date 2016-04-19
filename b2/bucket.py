@@ -374,7 +374,7 @@ class Bucket(object):
 
         # Tell the executor to upload each of the parts
         part_futures = [
-            self.api.upload_executor.submit(
+            self.api.get_thread_pool().submit(
                 self._upload_part,
                 file_id,
                 part_index + 1,  # part number

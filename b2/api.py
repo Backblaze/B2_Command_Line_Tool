@@ -70,7 +70,27 @@ class B2Api(object):
         if cache is None:
             cache = DummyCache()
         self.cache = cache
-        self.upload_executor = futures.ThreadPoolExecutor(max_workers=max_upload_workers)
+        self.upload_executor = None
+        self.max_workers = 1
+
+    def set_thread_pool_size(self, max_workers):
+        """
+        Sets the size of the thread pool to use for uploads and downloads.
+
+        Must be called before any work starts, or the thread pool will get
+        the default size of 1.
+        """
+        if self.upload_executor is not None:
+            raise Exception('thread pool already created')
+        self.max_workers = max_workers
+
+    def get_thread_pool(self):
+        """
+        Returns the thread pool executor to use for uploads and downloads.
+        """
+        if self.upload_executor is None:
+            self.upload_executor = futures.ThreadPoolExecutor(max_workers=self.max_workers)
+        return self.upload_executor
 
     def authorize_automatically(self):
         try:

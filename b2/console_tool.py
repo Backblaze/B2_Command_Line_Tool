@@ -727,7 +727,7 @@ class UpdateBucket(Command):
 class UploadFile(Command):
     """
     b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \
-            [--noProgress] <bucketName> <localFilePath> <b2FileName>
+            [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
@@ -739,6 +739,10 @@ class UploadFile(Command):
         Content type is optional.  If not set, it will be set based on the
         file extension.
 
+        The maximum number of threads to use to upload parts of a large file
+        is specified by '--threads'.  It has no effect on small files (under 200MB).
+        Default is 10.
+
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
         Use '--no-progress' to disable progress reporting.
@@ -747,12 +751,10 @@ class UploadFile(Command):
     """
 
     OPTION_FLAGS = ['noProgress', 'quiet']
-
-    OPTION_ARGS = ['sha1', 'contentType']
-
+    OPTION_ARGS = ['sha1', 'contentType', 'threads']
     LIST_ARGS = ['info']
-
     REQUIRED = ['bucketName', 'localFilePath', 'b2FileName']
+    ARG_PARSER = {'threads': int}
 
     def run(self, args):
 
@@ -762,6 +764,9 @@ class UploadFile(Command):
             if len(parts) == 1:
                 raise BadFileInfo(info)
             file_infos[parts[0]] = parts[1]
+
+        max_workers = args.threads or 10
+        self.api.set_thread_pool_size(max_workers)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         with make_progress_listener(args.localFilePath, args.noProgress) as progress_listener:
