@@ -63,10 +63,12 @@ class OpenLocalFileForWriting(object):
         self.progress_listener.close()
         result = self.file.__exit__(exc_type, exc_val, exc_tb)
         mod_time = self.mod_time_millis / 1000.0
-        try:
+
+        # This is an ugly hack to make the tests work.  I can't think
+        # of any other cases where os.utime might fail.
+        if self.local_path_name != '/dev/null':
             os.utime(self.local_path_name, (mod_time, mod_time))
-        except:
-            pass
+
         return result
 
 
