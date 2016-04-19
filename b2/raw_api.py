@@ -208,7 +208,8 @@ class B2RawApi(AbstractRawApi):
             bytes_read = 0
 
             with download_dest.open(
-                file_id, file_name, content_length, content_type, content_sha1, file_info, mod_time_millis
+                file_id, file_name, content_length, content_type, content_sha1, file_info,
+                mod_time_millis
             ) as file:
                 for data in response.iter_content(chunk_size=block_size):
                     file.write(data)
