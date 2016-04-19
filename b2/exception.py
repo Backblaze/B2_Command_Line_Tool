@@ -118,6 +118,9 @@ class InvalidAuthToken(B2Error):
     def __str__(self):
         return 'Invalid authorization token. Server said: %s (%s)' % (self.message, self._type)
 
+    def should_retry_upload(self):
+        return True
+
 
 class MaxFileSizeExceeded(B2Error):
     def __init__(self, size, max_allowed_size):
