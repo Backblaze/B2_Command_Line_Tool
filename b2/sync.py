@@ -711,7 +711,7 @@ def make_file_sync_actions(
         elif args.skipNewer:
             pass
         else:
-            raise DestFileNewer('destination file is newer: %s' % (dest_file.name,))
+            raise DestFileNewer(dest_file.name,)
 
     # Case 3: No source file, but destination file exists
     elif source_mod_time == 0 and dest_mod_time != 0:
