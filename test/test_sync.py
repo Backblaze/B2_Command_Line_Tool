@@ -16,7 +16,7 @@ import unittest
 import six
 
 from b2.exception import CommandError, DestFileNewer
-from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, zip_folders
+from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, parse_sync_folder, zip_folders
 from b2.utils import TempDir
 
 try:
@@ -72,6 +72,31 @@ class FakeFolder(AbstractFolder):
             return '/dir/' + name
         else:
             return 'folder/' + name
+
+
+class TestParseSyncFolder(unittest.TestCase):
+    def test_b2_double_slash(self):
+        self._check_one('B2Folder(my-bucket, folder/path)', 'b2://my-bucket/folder/path')
+
+    def test_b2_no_double_slash(self):
+        self._check_one('B2Folder(my-bucket, folder/path)', 'b2:my-bucket/folder/path')
+
+    def test_b2_trailing_slash(self):
+        self._check_one('B2Folder(my-bucket, a)', 'b2://my-bucket/a/')
+
+    def test_b2_no_folder(self):
+        self._check_one('B2Folder(my-bucket, )', 'b2://my-bucket')
+        self._check_one('B2Folder(my-bucket, )', 'b2://my-bucket/')
+
+    def test_local(self):
+        self._check_one('LocalFolder(/foo)', '/foo')
+
+    def test_local_trailing_slash(self):
+        self._check_one('LocalFolder(/foo)', '/foo/')
+
+    def _check_one(self, expected, to_parse):
+        api = MagicMock()
+        self.assertEqual(expected, str(parse_sync_folder(six.u(to_parse), api)))
 
 
 class TestZipFolders(unittest.TestCase):
@@ -226,14 +251,17 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_delete_b2_multiple_versions(self):
         dst_file = b2_file('a.txt', 100, 200)
-        actions = ['b2_delete(folder/a.txt, id_a_100, )',
-                   'b2_delete(folder/a.txt, id_a_200, (old version))']
+        actions = [
+            'b2_delete(folder/a.txt, id_a_100, )',
+            'b2_delete(folder/a.txt, id_a_200, (old version))'
+        ]
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
 
     def test_delete_hide_b2_multiple_versions(self):
         dst_file = b2_file('a.txt', TODAY, TODAY - 4 * DAY)
-        actions = ['b2_hide(folder/a.txt)',
-                   'b2_delete(folder/a.txt, id_a_8294400000, (old version))']
+        actions = [
+            'b2_hide(folder/a.txt)', 'b2_delete(folder/a.txt, id_a_8294400000, (old version))'
+        ]
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=1), actions)
 
     def test_already_hidden_multiple_versions(self):

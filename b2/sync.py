@@ -558,6 +558,7 @@ class B2Folder(AbstractFolder):
         self.bucket_name = bucket_name
         self.folder_name = folder_name
         self.bucket = api.get_bucket_by_name(bucket_name)
+        self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
 
     def all_files(self):
         current_name = None
@@ -568,8 +569,8 @@ class B2Folder(AbstractFolder):
             recursive=True,
             fetch_count=1000
         ):
-            assert file_version_info.file_name.startswith(self.folder_name + '/')
-            file_name = file_version_info.file_name[len(self.folder_name) + 1:]
+            assert file_version_info.file_name.startswith(self.prefix)
+            file_name = file_version_info.file_name[len(self.prefix):]
             if current_name != file_name and current_name is not None:
                 if current_versions[0].action == 'upload':
                     yield File(current_name, current_versions)
@@ -579,6 +580,7 @@ class B2Folder(AbstractFolder):
                 mod_time_millis = int(file_info['src_last_modified_millis'])
             else:
                 mod_time_millis = file_version_info.upload_timestamp
+            assert file_version_info.size is not None
             file_version = FileVersion(
                 file_version_info.id_, file_version_info.file_name, mod_time_millis,
                 file_version_info.action, file_version_info.size
@@ -597,6 +599,9 @@ class B2Folder(AbstractFolder):
             return file_name
         else:
             return self.folder_name + '/' + file_name
+
+    def __str__(self):
+        return 'B2Folder(%s, %s)' % (self.bucket_name, self.folder_name)
 
 
 def next_or_none(iterator):
@@ -773,24 +778,39 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
             yield action
 
 
+def _parse_bucket_and_folder(bucket_and_path, api):
+    """
+    Turns 'my-bucket/foo' into B2Folder(my-bucket, foo)
+    """
+    if '//' in bucket_and_path:
+        raise CommandError("'//' not allowed in path names")
+    if '/' not in bucket_and_path:
+        bucket_name = bucket_and_path
+        folder_name = ''
+    else:
+        (bucket_name, folder_name) = bucket_and_path.split('/', 1)
+    if folder_name.endswith('/'):
+        folder_name = folder_name[:-1]
+    return B2Folder(bucket_name, folder_name, api)
+
+
 def parse_sync_folder(folder_name, api):
     """
     Takes either a local path, or a B2 path, and returns a Folder
     object for it.
 
-    B2 paths look like: b2://bucketName/path/name
+    B2 paths look like: b2://bucketName/path/name.  The '//' is optional,
+    because the previous sync command didn't use it.
 
     Anything else is treated like a local folder.
     """
     if folder_name.startswith('b2://'):
-        bucket_and_path = folder_name[5:]
-        if '/' not in bucket_and_path:
-            bucket_name = bucket_and_path
-            folder_name = ''
-        else:
-            (bucket_name, folder_name) = bucket_and_path.split('/', 1)
-        return B2Folder(bucket_name, folder_name, api)
+        return _parse_bucket_and_folder(folder_name[5:], api)
+    elif folder_name.startswith('b2:') and folder_name[3].isalnum():
+        return _parse_bucket_and_folder(folder_name[3:], api)
     else:
+        if folder_name.endswith('/'):
+            folder_name = folder_name[:-1]
         return LocalFolder(folder_name)
 
 
