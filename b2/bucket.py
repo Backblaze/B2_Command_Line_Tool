@@ -109,9 +109,11 @@ class Bucket(object):
 
     def download_file_by_name(self, file_name, download_dest):
         account_info = self.api.account_info
-        self.api.raw_api.download_file_by_name(
-            account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
-            file_name, download_dest
+        self.api.session.download_file_by_name(
+            self.name,
+            file_name,
+            download_dest,
+            url_factory=account_info.get_download_url
         )
 
     def list_parts(self, file_id, start_part_number=None, batch_size=None):

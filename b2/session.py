@@ -29,8 +29,10 @@ class B2Session(object):
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
             auth_failure_encountered = False
+            # download_by_name uses different URLs
+            url_factory = kwargs.pop('url_factory', self._api.account_info.get_api_url)
             while 1:
-                api_url = self._api.account_info.get_api_url()
+                api_url = url_factory()
                 account_auth_token = self._api.account_info.get_account_auth_token()
                 try:
                     return f(api_url, account_auth_token, *args, **kwargs)
