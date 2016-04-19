@@ -348,10 +348,11 @@ class B2DownloadAction(AbstractAction):
 
 
 class B2DeleteAction(AbstractAction):
-    def __init__(self, relative_name, b2_file_name, file_id):
+    def __init__(self, relative_name, b2_file_name, file_id, note):
         self.relative_name = relative_name
         self.b2_file_name = b2_file_name
         self.file_id = file_id
+        self.note = note
 
     def get_bytes(self):
         return 0
@@ -359,10 +360,10 @@ class B2DeleteAction(AbstractAction):
     def do_action(self, bucket, reporter):
         bucket.api.delete_file_version(self.file_id, self.b2_file_name)
         reporter.update_transfer(1, 0)
-        reporter.print_completion('delete ' + self.relative_name)
+        reporter.print_completion('delete ' + self.relative_name + ' ' + self.note)
 
     def __str__(self):
-        return 'b2_delete(%s, %s)' % (self.b2_file_name, self.file_id)
+        return 'b2_delete(%s, %s, %s)' % (self.b2_file_name, self.file_id, self.note)
 
 
 class LocalDeleteAction(AbstractAction):
@@ -690,8 +691,10 @@ def make_file_sync_actions(
     # Case 1: Destination does not exist, or source is newer.
     # All prior versions of the destination file are candidates for
     # cleaning.
+    transferred = False
     if dest_mod_time < source_mod_time:
         yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+        transferred = True
         if sync_type == 'local-to-b2' and dest_file is not None:
             dest_versions_to_clean = dest_file.versions
 
@@ -699,6 +702,7 @@ def make_file_sync_actions(
     elif source_mod_time != 0 and source_mod_time < dest_mod_time:
         if args.replaceNewer:
             yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+            transferred = True
         elif args.skipNewer:
             pass
         else:
@@ -715,15 +719,19 @@ def make_file_sync_actions(
     # Clean up old versions
     if sync_type == 'local-to-b2':
         for version in dest_versions_to_clean:
+            note = ''
+            if transferred or (version is not dest_file.versions[0]):
+                note = '(old version)'
             if args.delete:
                 yield B2DeleteAction(
-                    dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_
+                    dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
                 )
             elif args.keepDays is not None:
                 age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
                 if args.keepDays < age_days:
                     yield B2DeleteAction(
-                        dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_
+                        dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
+                        note
                     )
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:
