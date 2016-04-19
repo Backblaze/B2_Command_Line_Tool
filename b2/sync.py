@@ -11,7 +11,6 @@
 from __future__ import division
 
 import os
-import sys
 import threading
 import time
 from abc import (ABCMeta, abstractmethod)
@@ -50,7 +49,9 @@ class SyncReport(object):
     # Minimum time between displayed updates
     UPDATE_INTERVAL = 0.1
 
-    def __init__(self):
+    def __init__(self, stdout, no_progress):
+        self.stdout = stdout
+        self.no_progress = no_progress
         self.start_time = time.time()
         self.local_file_count = 0
         self.local_done = False
@@ -93,7 +94,7 @@ class SyncReport(object):
 
     def _update_progress(self):
         raise_if_shutting_down()
-        if not self.closed:
+        if not self.closed and not self.no_progress:
             now = time.time()
             interval = now - self._last_update_time
             if self.UPDATE_INTERVAL <= interval:
@@ -126,14 +127,14 @@ class SyncReport(object):
         """
         if len(line) < len(self.current_line):
             line += ' ' * (len(self.current_line) - len(line))
-        sys.stdout.write(line)
+        self.stdout.write(line)
         if newline:
-            sys.stdout.write('\n')
+            self.stdout.write('\n')
             self.current_line = ''
         else:
-            sys.stdout.write('\r')
+            self.stdout.write('\r')
             self.current_line = line
-        sys.stdout.flush()
+        self.stdout.flush()
 
     def update_local(self, delta):
         """
@@ -823,7 +824,7 @@ def count_files(local_folder, reporter):
     reporter.end_local()
 
 
-def sync_folders(source_folder, dest_folder, args, now_millis):
+def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers):
     """
     Syncs two folders.  Always ensures that every file in the
     source is also in the destination.  Deletes any file versions
@@ -835,10 +836,10 @@ def sync_folders(source_folder, dest_folder, args, now_millis):
         dest_folder.ensure_present()
 
     # Make a reporter to report progress.
-    with SyncReport() as reporter:
+    with SyncReport(stdout, no_progress) as reporter:
 
         # Make an executor to count files and run all of the actions.
-        sync_executor = futures.ThreadPoolExecutor(max_workers=10)
+        sync_executor = futures.ThreadPoolExecutor(max_workers=max_workers)
 
         # First, start the thread that counts the local files.  That's the operation
         # that should be fastest, and it provides scale for the progress reporting.

@@ -339,8 +339,25 @@ class TestConsoleTool(unittest.TestCase):
             '''
 
             self._run_command(
-                ['upload_file', '--threads', '5', 'my-bucket', file_path, 'test.txt'
-                ], expected_stdout, '', 0)
+                [
+                    'upload_file', '--threads', '5', 'my-bucket', file_path, 'test.txt'
+                ], expected_stdout, '', 0
+            )
+
+    def test_sync(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            file_path = os.path.join(temp_dir, 'test.txt')
+            with open(file_path, 'wb') as f:
+                f.write(six.u('hello world').encode('utf-8'))
+            expected_stdout = '''
+            upload test.txt
+            '''
+
+            command = ['new_sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
 
     def _authorize_account(self):
         """

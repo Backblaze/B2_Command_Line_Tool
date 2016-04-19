@@ -520,10 +520,16 @@ class MakeUrl(Command):
 
 class NewSync(Command):
     """
-    b2 sync [--delete] [--keepDays NNN] [--skipNewer] [--replaceNewer] <source> <destination>
+    b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
+            [--threads N] [--noProgress] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
+
+        Work is done in parallel in multiple threads.  The default
+        number of threads is 10.  Progress is displayed on the
+        console unless '--noProgress' is specified.  A list of
+        actions taken is always printed.
 
         Files are considered to be the same if they have the same name
         and modification time.  A future enhancement may add the ability
@@ -559,15 +565,26 @@ class NewSync(Command):
     """
 
     PRIVATE = True
-    OPTION_FLAGS = ['delete', 'skipNewer', 'replaceNewer']
-    OPTION_ARGS = ['keepDays']
+    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
+    OPTION_ARGS = ['keepDays', 'threads']
     REQUIRED = ['source', 'destination']
-    ARG_PARSER = {'keepDays': float}
+    ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
+        max_workers = args.threads or 10
+        self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
-        sync_folders(source, destination, args, current_time_millis())
+        sync_folders(
+            source_folder=source,
+            dest_folder=destination,
+            args=args,
+            now_millis=current_time_millis(),
+            stdout=self.stdout,
+            no_progress=args.noProgress,
+            max_workers=max_workers
+        )
+        return 0
 
 
 class Sync(Command):
