@@ -275,7 +275,7 @@ class B2UploadAction(AbstractAction):
             file_info={'src_last_modified_millis': str(self.mod_time_millis)},
             progress_listener=SyncFileReporter(reporter)
         )
-        reporter.update_transfer(1, self.get_bytes())
+        reporter.update_transfer(1, 0)  # bytes reported during transfer
         reporter.print_completion('upload ' + self.relative_name)
 
     def __str__(self):
