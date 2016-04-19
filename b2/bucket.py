@@ -109,9 +109,11 @@ class Bucket(object):
 
     def download_file_by_name(self, file_name, download_dest):
         account_info = self.api.account_info
-        self.api.raw_api.download_file_by_name(
-            account_info.get_download_url(), account_info.get_account_auth_token(), self.name,
-            file_name, download_dest
+        self.api.session.download_file_by_name(
+            self.name,
+            file_name,
+            download_dest,
+            url_factory=account_info.get_download_url
         )
 
     def list_parts(self, file_id, start_part_number=None, batch_size=None):
@@ -224,12 +226,10 @@ class Bucket(object):
         unfinished large file in the bucket, starting at the
         given file.
         """
-        account_info = self.api.account_info
         batch_size = batch_size or 100
         while True:
-            batch = self.api.raw_api.list_unfinished_large_files(
-                account_info.get_api_url(), account_info.get_account_auth_token(), self.id_,
-                start_file_id, batch_size
+            batch = self.api.session.list_unfinished_large_files(
+                self.id_, start_file_id, batch_size
             )
             for file_dict in batch['files']:
                 yield UnfinishedLargeFile(file_dict)
@@ -238,12 +238,8 @@ class Bucket(object):
                 break
 
     def start_large_file(self, file_name, content_type, file_info):
-        account_info = self.api.account_info
         return UnfinishedLargeFile(
-            self.api.raw_api.start_large_file(
-                account_info.get_api_url(), account_info.get_account_auth_token(
-                ), self.id_, file_name, content_type, file_info
-            )
+            self.api.session.start_large_file(self.id_, file_name, content_type, file_info)
         )
 
     def upload_bytes(
@@ -390,10 +386,7 @@ class Bucket(object):
         part_sha1_array = [interruptible_get_result(f)['contentSha1'] for f in part_futures]
 
         # Finish the large file
-        response = self.api.raw_api.finish_large_file(
-            self.api.account_info.get_api_url(), self.api.account_info.get_account_auth_token(),
-            file_id, part_sha1_array
-        )
+        response = self.api.session.finish_large_file(file_id, part_sha1_array)
         return FileVersionInfoFactory.from_api_response(response)
 
     def _upload_part(
@@ -466,9 +459,7 @@ class Bucket(object):
         if None not in (upload_url, upload_auth_token):
             return upload_url, upload_auth_token
 
-        response = self.api.raw_api.get_upload_part_url(
-            account_info.get_api_url(), account_info.get_account_auth_token(), file_id
-        )
+        response = self.api.session.get_upload_part_url(file_id)
         return (response['uploadUrl'], response['authorizationToken'])
 
     def get_download_url(self, filename):
