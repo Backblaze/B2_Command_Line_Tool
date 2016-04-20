@@ -34,7 +34,7 @@ def _print_exception(e, indent=''):
             _print_exception(a, indent + '        ')
 
 
-def _translate_errors(fcn):
+def _translate_errors(fcn, post_params=None):
     """
     Calls the given function, turning any exception raised into the right
     kind of B2Error.
@@ -44,7 +44,9 @@ def _translate_errors(fcn):
         if response.status_code not in [200, 206]:
             # Decode the error object returned by the service
             error = json.loads(response.content.decode('utf-8'))
-            raise interpret_b2_error(int(error['status']), error['code'], error['message'])
+            raise interpret_b2_error(
+                int(error['status']), error['code'], error['message'], post_params
+            )
         return response
 
     except B2Error:
@@ -70,12 +72,11 @@ def _translate_errors(fcn):
         raise ConnectionError(str(e0))
 
     except Exception as e:
-        # Don't expect this to happen.  To get lots of info for
-        # debugging, call print_exception: print_exception(e)
+        # Don't expect this to happen.
         raise UnknownError(repr(e))
 
 
-def _translate_and_retry(fcn, try_count):
+def _translate_and_retry(fcn, try_count, post_params=None):
     """
     Try calling fcn try_count times, retrying only if
     the exception is a retryable B2Error.
@@ -84,7 +85,7 @@ def _translate_and_retry(fcn, try_count):
     wait_time = 1.0
     for _ in range(try_count - 1):
         try:
-            return _translate_errors(fcn)
+            return _translate_errors(fcn, post_params)
         except B2Error as e:
             if not e.should_retry_http():
                 raise
@@ -92,7 +93,7 @@ def _translate_and_retry(fcn, try_count):
             wait_time *= 1.5
 
     # If the last try gets an exception, it will be raised.
-    return _translate_errors(fcn)
+    return _translate_errors(fcn, post_params)
 
 
 class ResponseContextManager(object):
@@ -138,7 +139,7 @@ class B2Http(object):
         """
         self.requests = requests_module or requests
 
-    def post_content_return_json(self, url, headers, data, try_count=1):
+    def post_content_return_json(self, url, headers, data, try_count=1, post_params=None):
         """
         Use like this:
 
@@ -164,7 +165,7 @@ class B2Http(object):
             data.seek(0)
             return self.requests.post(url, headers=headers, data=data)
 
-        response = _translate_and_retry(do_post, try_count)
+        response = _translate_and_retry(do_post, try_count, post_params)
 
         # Decode the JSON that came back.  If we've gotten this far,
         # we know we have a status of 200 OK.  In this case, the body
@@ -191,7 +192,7 @@ class B2Http(object):
         :return: a dict that is the decoded JSON
         """
         data = six.BytesIO(six.b(json.dumps(params)))
-        return self.post_content_return_json(url, headers, data, try_count)
+        return self.post_content_return_json(url, headers, data, try_count, params)
 
     def get_content(self, url, headers, try_count=1):
         """
@@ -223,7 +224,7 @@ class B2Http(object):
         def do_get():
             return self.requests.get(url, headers=headers, stream=True)
 
-        response = _translate_and_retry(do_get, try_count)
+        response = _translate_and_retry(do_get, try_count, None)
         return ResponseContextManager(response)
 
 

@@ -72,6 +72,14 @@ class ChecksumMismatch(B2Error):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
 
 
+class CommandError(B2Error):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+
 class ConnectionError(B2Error):
     def __init__(self, message):
         self.message = message
@@ -83,6 +91,17 @@ class ConnectionError(B2Error):
         return True
 
     def should_retry_upload(self):
+        return True
+
+
+class DestFileNewer(B2Error):
+    def __init__(self, file_name):
+        self.file_name = file_name
+
+    def __str__(self):
+        return 'destination file is newer: %s' % (self.file_name,)
+
+    def should_retry_http(self):
         return True
 
 

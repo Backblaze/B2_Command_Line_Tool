@@ -164,7 +164,8 @@ class TestConsoleTool(unittest.TestCase):
             {
               "fileId": "9999",
               "fileName": "file1.txt",
-              "size": 11
+              "size": 11,
+              "uploadTimestamp": 5000
             }
             '''
 
@@ -202,7 +203,8 @@ class TestConsoleTool(unittest.TestCase):
             {
               "fileId": "9998",
               "fileName": "file1.txt",
-              "size": 0
+              "size": 0,
+              "uploadTimestamp": 5001
             }
             '''
 
@@ -313,6 +315,49 @@ class TestConsoleTool(unittest.TestCase):
         '''
 
         self._run_command(['list_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_upload_large_file(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        min_part_size = self.account_info.get_minimum_part_size()
+        file_size = min_part_size * 3
+
+        with TempDir() as temp_dir:
+            file_path = os.path.join(temp_dir, 'test.txt')
+            text = six.u('*') * file_size
+            with open(file_path, 'wb') as f:
+                f.write(text.encode('utf-8'))
+            expected_stdout = '''
+            URL by file name: http://download.example.com/file/my-bucket/test.txt
+            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
+            {
+              "fileId": "9999",
+              "fileName": "test.txt",
+              "size": 600,
+              "uploadTimestamp": 5000
+            }
+            '''
+
+            self._run_command(
+                [
+                    'upload_file', '--threads', '5', 'my-bucket', file_path, 'test.txt'
+                ], expected_stdout, '', 0
+            )
+
+    def test_sync(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            file_path = os.path.join(temp_dir, 'test.txt')
+            with open(file_path, 'wb') as f:
+                f.write(six.u('hello world').encode('utf-8'))
+            expected_stdout = '''
+            upload test.txt
+            '''
+
+            command = ['new_sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
 
     def _authorize_account(self):
         """

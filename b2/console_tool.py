@@ -29,7 +29,8 @@ from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener, DoNothingProgressListener)
 from .raw_api import (test_raw_api)
-from .utils import (set_shutting_down)
+from .sync import parse_sync_folder, sync_folders
+from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
 
 
@@ -517,6 +518,75 @@ class MakeUrl(Command):
         return 0
 
 
+class NewSync(Command):
+    """
+    b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
+            [--threads N] [--noProgress] <source> <destination>
+
+        Copies multiple files from source to destination.  Optionally
+        deletes or hides destination files that the source does not have.
+
+        Work is done in parallel in multiple threads.  The default
+        number of threads is 10.  Progress is displayed on the
+        console unless '--noProgress' is specified.  A list of
+        actions taken is always printed.
+
+        Files are considered to be the same if they have the same name
+        and modification time.  A future enhancement may add the ability
+        to compare the SHA1 checksum of the files.
+
+        One of the paths must be a local file path, and the other must be
+        a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
+        "b2://my-bucket-name/a/path/prefix/".
+
+        When a destination file is present that is not in the source, the
+        default is to leave it there.  Specifying --delete means to delete
+        destination files that are not in the source.
+
+        When the destination is B2, you have the option of leaving older
+        versions in place.  Specifying --keepDays will delete any older
+        versions more than the given number of days old, based on the
+        modification time of the file.  This option is not available when
+        the destination is a local folder.
+
+        Files at the source that have a newer modification time are always
+        copied to the destination.  If the destination file is newer, the
+        default is to report an error and stop.  But with --skipNewer set,
+        those files will just be skipped.  With --replaceNewer set, the
+        old file from the source will replace the newer one in the destination.
+
+        To make the destination exactly match the source, use:
+            b2 sync --delete --replaceNewer ... ...
+
+        To make the destination match the source, but retain previous versions
+        for 30 days:
+            b2 sync --keepDays 30 --replaceNewer ... b2://...
+
+    """
+
+    PRIVATE = True
+    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
+    OPTION_ARGS = ['keepDays', 'threads']
+    REQUIRED = ['source', 'destination']
+    ARG_PARSER = {'keepDays': float, 'threads': int}
+
+    def run(self, args):
+        max_workers = args.threads or 10
+        self.console_tool.api.set_thread_pool_size(max_workers)
+        source = parse_sync_folder(args.source, self.console_tool.api)
+        destination = parse_sync_folder(args.destination, self.console_tool.api)
+        sync_folders(
+            source_folder=source,
+            dest_folder=destination,
+            args=args,
+            now_millis=current_time_millis(),
+            stdout=self.stdout,
+            no_progress=args.noProgress,
+            max_workers=max_workers
+        )
+        return 0
+
+
 class Sync(Command):
     """
     b2 sync [--delete] [--hide] <source> <destination>
@@ -674,7 +744,7 @@ class UpdateBucket(Command):
 class UploadFile(Command):
     """
     b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \
-            [--noProgress] <bucketName> <localFilePath> <b2FileName>
+            [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
         of the local file, and assigns the given name to the B2 file.
@@ -686,6 +756,10 @@ class UploadFile(Command):
         Content type is optional.  If not set, it will be set based on the
         file extension.
 
+        The maximum number of threads to use to upload parts of a large file
+        is specified by '--threads'.  It has no effect on small files (under 200MB).
+        Default is 10.
+
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
         Use '--no-progress' to disable progress reporting.
@@ -694,12 +768,10 @@ class UploadFile(Command):
     """
 
     OPTION_FLAGS = ['noProgress', 'quiet']
-
-    OPTION_ARGS = ['sha1', 'contentType']
-
+    OPTION_ARGS = ['sha1', 'contentType', 'threads']
     LIST_ARGS = ['info']
-
     REQUIRED = ['bucketName', 'localFilePath', 'b2FileName']
+    ARG_PARSER = {'threads': int}
 
     def run(self, args):
 
@@ -709,6 +781,9 @@ class UploadFile(Command):
             if len(parts) == 1:
                 raise BadFileInfo(info)
             file_infos[parts[0]] = parts[1]
+
+        max_workers = args.threads or 10
+        self.api.set_thread_pool_size(max_workers)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         with make_progress_listener(args.localFilePath, args.noProgress) as progress_listener:
@@ -790,7 +865,7 @@ class ConsoleTool(object):
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
         except KeyboardInterrupt:
-            self._print('\ninterrupted')
+            self._print('\nInterrupted.  Shutting down...\n')
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)

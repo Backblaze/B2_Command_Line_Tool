@@ -86,7 +86,12 @@ class FileVersionInfoFactory(object):
         action = file_info_dict.get('action') or force_action
         file_name = file_info_dict['fileName']
         id_ = file_info_dict['fileId']
-        size = file_info_dict.get('size') or file_info_dict.get('contentLength')
+        if 'size' in file_info_dict:
+            size = file_info_dict['size']
+        elif 'contentLength' in file_info_dict:
+            size = file_info_dict['contentLength']
+        else:
+            raise ValueError('no size or contentLength')
         upload_timestamp = file_info_dict.get('uploadTimestamp')
         content_type = file_info_dict.get('contentType')
         content_sha1 = file_info_dict.get('contentSha1')
@@ -108,3 +113,12 @@ class FileVersionInfoFactory(object):
             0,  # upload timestamp
             'cancel'
         )
+
+
+class FileIdAndName(object):
+    def __init__(self, file_id, file_name):
+        self.file_id = file_id
+        self.file_name = file_name
+
+    def as_dict(self):
+        return {'action': 'delete', 'fileId': self.file_id, 'fileName': self.file_name}

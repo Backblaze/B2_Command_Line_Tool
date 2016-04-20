@@ -13,6 +13,7 @@ from __future__ import division, print_function
 import hashlib
 import shutil
 import tempfile
+import time
 
 import six
 from six.moves import urllib
@@ -34,6 +35,13 @@ def set_shutting_down():
 def raise_if_shutting_down():
     if _shutting_down:
         raise KeyboardInterrupt()
+
+
+def current_time_millis():
+    """
+    File times are in integer milliseconds, to avoid roundoff errors.
+    """
+    return int(round(time.time() * 1000))
 
 
 def interruptible_get_result(future):
@@ -175,9 +183,78 @@ class TempDir(object):
     """
 
     def __enter__(self):
-        self.dirpath = tempfile.mkdtemp()
+        """
+        Returns the unicode path to the temp dir.
+        """
+        self.dirpath = six.u(tempfile.mkdtemp())
         return self.dirpath
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         shutil.rmtree(self.dirpath)
         return None  # do not hide exception
+
+
+def _pick_scale_and_suffix(x):
+    # suffixes for different scales
+    suffixes = ' kMGTP'
+
+    # We want to use the biggest suffix that makes sense.
+    ref_digits = str(int(x))
+    index = (len(ref_digits) - 1) // 3
+    suffix = suffixes[index]
+    if suffix == ' ':
+        suffix = ''
+
+    scale = 1000**index
+    return (scale, suffix)
+
+
+def format_and_scale_number(x, unit):
+    """
+    Picks a good scale for representing a number and formats it.
+    """
+
+    # simple case for small numbers
+    if x < 1000:
+        return '%d %s' % (x, unit)
+
+    # pick a scale
+    (scale, suffix) = _pick_scale_and_suffix(x)
+
+    # decide how many digits after the decimal to display
+    scaled = x / scale
+    if scaled < 10.0:
+        fmt = '%1.2f %s%s'
+    elif scaled < 100.0:
+        fmt = '%1.1f %s%s'
+    else:
+        fmt = '%1.0f %s%s'
+
+    # format it
+    return fmt % (scaled, suffix, unit)
+
+
+def format_and_scale_fraction(numerator, denominator, unit):
+    """
+    Picks a good scale for representing a fraction, and formats it.
+    """
+
+    # simple case for small numbers
+    if denominator < 1000:
+        return '%d / %d %s' % (numerator, denominator, unit)
+
+    # pick a scale
+    (scale, suffix) = _pick_scale_and_suffix(denominator)
+
+    # decide how many digits after the decimal to display
+    scaled_denominator = denominator / scale
+    if scaled_denominator < 10.0:
+        fmt = '%1.2f / %1.2f %s%s'
+    elif scaled_denominator < 100.0:
+        fmt = '%1.1f / %1.1f %s%s'
+    else:
+        fmt = '%1.0f / %1.0f %s%s'
+
+    # format it
+    scaled_numerator = numerator / scale
+    return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
