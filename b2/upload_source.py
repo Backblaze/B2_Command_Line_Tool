@@ -62,12 +62,14 @@ class UploadSourceLocalFile(AbstractUploadSource):
     def __init__(self, local_path, content_sha1=None):
         self.local_path = local_path
         self.content_length = os.path.getsize(local_path)
-        self.content_sha1 = content_sha1 or self._hex_sha1_of_file(local_path)
+        self.content_sha1 = content_sha1
 
     def get_content_length(self):
         return self.content_length
 
     def get_content_sha1(self):
+        if self.content_sha1 is None:
+            self.content_sha1 = self._hex_sha1_of_file(self.local_path)
         return self.content_sha1
 
     def open(self):
