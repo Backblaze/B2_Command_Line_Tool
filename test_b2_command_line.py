@@ -246,11 +246,6 @@ def should_equal(expected, actual):
     print()
 
 
-def check_if_account_info_file_is_clear(path):
-    if b'auth' in read_file(os.path.expanduser(path)):
-        error_and_exit('failure to clear account_info file: %s' % (path,))
-
-
 def delete_files_in_bucket(b2_tool, bucket_name):
     while True:
         data = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
@@ -413,7 +408,6 @@ def basic_test(b2_tool, bucket_name):
     new_creds = '/tmp/b2_account_info'
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear_account'])
-    check_if_account_info_file_is_clear(new_creds)
     bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
     b2_tool.should_fail(
         ['authorize_account', sys.argv[1], bad_application_key], r'nvalid authorization'
@@ -579,7 +573,6 @@ def main():
         print()
 
         b2_tool.should_succeed(['clear_account'])
-        check_if_account_info_file_is_clear('~/.b2_account_info')
 
         bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
         b2_tool.should_fail(

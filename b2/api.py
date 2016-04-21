@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from .account_info import StoredAccountInfo
+from .account_info import SqliteAccountInfo
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
@@ -62,7 +62,7 @@ class B2Api(object):
         """
         self.raw_api = raw_api or B2RawApi(B2Http())
         if account_info is None:
-            account_info = StoredAccountInfo()
+            account_info = SqliteAccountInfo()
             if cache is None:
                 cache = AuthInfoCache(account_info)
         self.session = B2Session(self, self.raw_api)

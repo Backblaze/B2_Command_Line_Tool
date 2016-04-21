@@ -19,7 +19,7 @@ import textwrap
 
 import six
 
-from .account_info import (StoredAccountInfo)
+from .account_info import (SqliteAccountInfo)
 from .api import (B2Api)
 from .b2http import (test_http)
 from .cache import (AuthInfoCache)
@@ -858,8 +858,8 @@ class ConsoleTool(object):
 
         try:
             return command.run(args)
-        except MissingAccountData:
-            self._print_stderr('ERROR: Missing account.  Use: b2 authorize_account')
+        except MissingAccountData as e:
+            self._print_stderr('ERROR: %s  Use: b2 authorize_account' % (str(e),))
             return 1
         except B2Error as e:
             self._print_stderr('ERROR: %s' % (str(e),))
@@ -925,7 +925,7 @@ def decode_sys_argv():
 
 
 def main():
-    info = StoredAccountInfo()
+    info = SqliteAccountInfo()
     b2_api = B2Api(info, AuthInfoCache(info))
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
