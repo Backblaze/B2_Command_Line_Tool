@@ -44,7 +44,8 @@ class TestSqliteAccountInfo(unittest.TestCase):
         account_info.set_auth_data(
             'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
         )
-        info2 = SqliteAccountInfo(file_name=self.FILE_NAME)
+
+        info2 = self._make_info()
         self.assertEqual('account_id', info2.get_account_id())
         self.assertEqual('account_auth', info2.get_account_auth_token())
         self.assertEqual('api_url', info2.get_api_url())

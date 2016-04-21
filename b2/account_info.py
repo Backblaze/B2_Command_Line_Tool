@@ -12,6 +12,7 @@ import collections
 import json
 import os
 import sqlite3
+import stat
 import threading
 from abc import (ABCMeta, abstractmethod)
 
@@ -151,7 +152,7 @@ class SqliteAccountInfo(AbstractAccountInfo):
         user_account_info_path = file_name or os.environ.get(
             'B2_ACCOUNT_INFO', '~/.b2_account_info'
         )
-        self.filename = os.path.expanduser(user_account_info_path)
+        self.filename = file_name or os.path.expanduser(user_account_info_path)
         self._validate_database()
         with self._get_connection() as conn:
             self._create_tables(conn)
@@ -170,17 +171,16 @@ class SqliteAccountInfo(AbstractAccountInfo):
         # If there is no file there, that's fine.  It will get created when
         # we connect.
         if not os.path.exists(self.filename):
+            self._create_database()
             return
 
         # If we can connect to the database, and do anything, then all is good.
-        conn = self._connect()
         try:
-            conn.execute("SELECT account_id FROM account;")
-            return
+            with self._connect() as conn:
+                self._create_tables(conn)
+                return
         except:
             pass  # fall through to next case
-        finally:
-            conn.close()
 
         # If the file contains JSON with the right stuff in it, convert from
         # the old representation.
@@ -194,26 +194,26 @@ class SqliteAccountInfo(AbstractAccountInfo):
                 if all(k in data for k in keys):
                     # remove the json file
                     os.unlink(self.filename)
-                    # create a database and return
-                    conn = self._connect()
-                    try:
-                        with conn:
-                            self._create_tables(conn)
-                            insert_statement = """
-                                INSERT INTO account
-                                (account_id, application_key, account_auth_token, api_url, download_url, minimum_part_size, realm)
-                                values (?, ?, ?, ?, ?, ?, ?);
-                            """
+                    # create a database
+                    self._create_database()
+                    # add the data from the JSON file
+                    with self._connect() as conn:
+                        self._create_tables(conn)
+                        insert_statement = """
+                            INSERT INTO account
+                            (account_id, application_key, account_auth_token, api_url, download_url, minimum_part_size, realm)
+                            values (?, ?, ?, ?, ?, ?, ?);
+                        """
 
-                            conn.execute(insert_statement, tuple(data[k] for k in keys))
-                            return
-                    finally:
-                        conn.close()
+                        conn.execute(insert_statement, tuple(data[k] for k in keys))
+                    # all is happy now
+                    return
         except:
             pass
 
-        # Remove the corrupted file
+        # Remove the corrupted file and create a new database
         os.unlink(self.filename)
+        self._create_database()
 
     def _get_connection(self):
         """
@@ -227,6 +227,22 @@ class SqliteAccountInfo(AbstractAccountInfo):
 
     def _connect(self):
         return sqlite3.connect(self.filename, isolation_level='EXCLUSIVE')
+
+    def _create_database(self):
+        """
+        Makes sure that the database is created and sets the file permissions.
+        This should be done before storing any sensitive data in it.
+        """
+        # Create the tables in the database
+        conn = self._connect()
+        try:
+            with conn:
+                self._create_tables(conn)
+        finally:
+            conn.close()
+
+        # Set the file permissions
+        os.chmod(self.filename, stat.S_IRUSR | stat.S_IWUSR)
 
     def _create_tables(self, conn):
         conn.execute(
