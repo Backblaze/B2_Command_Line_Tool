@@ -183,8 +183,7 @@ class SqliteAccountInfo(AbstractAccountInfo):
             pass  # fall through to next case
 
         # If the file contains JSON with the right stuff in it, convert from
-        # the old representation.  In 2.6, the exception thrown by json is
-        # different.
+        # the old representation.
         try:
             with open(self.filename, 'rb') as f:
                 data = json.loads(f.read().decode('utf-8'))
