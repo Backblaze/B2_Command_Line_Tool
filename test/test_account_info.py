@@ -15,7 +15,7 @@ import unittest
 import six
 
 from b2.account_info import SqliteAccountInfo
-from b2.exception import MissingAccountData
+from b2.exception import CorruptAccountInfo, MissingAccountData
 
 try:
     import unittest.mock as mock
@@ -60,11 +60,11 @@ class TestSqliteAccountInfo(unittest.TestCase):
         with open(self.FILE_NAME, 'wb') as f:
             f.write(six.u('not a valid database').encode('utf-8'))
 
-        account_info = self._make_info()
-        account_info.put_bucket_upload_url('my-bucket', 'http://upload', 'auth_token')
-        self.assertEqual(
-            ('http://upload', 'auth_token'), self._make_info().take_bucket_upload_url('my-bucket')
-        )
+        try:
+            self._make_info()
+            self.fail('should have thrown CorruptAccountInfo')
+        except CorruptAccountInfo:
+            pass
 
     def test_convert_from_json(self):
         """

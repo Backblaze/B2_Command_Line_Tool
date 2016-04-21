@@ -18,7 +18,7 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
-from .exception import (MissingAccountData)
+from .exception import (CorruptAccountInfo, MissingAccountData)
 
 
 @six.add_metaclass(ABCMeta)
@@ -179,11 +179,12 @@ class SqliteAccountInfo(AbstractAccountInfo):
             with self._connect() as conn:
                 self._create_tables(conn)
                 return
-        except:
+        except sqlite3.DatabaseError:
             pass  # fall through to next case
 
         # If the file contains JSON with the right stuff in it, convert from
-        # the old representation.
+        # the old representation.  In 2.6, the exception thrown by json is
+        # different.
         try:
             with open(self.filename, 'rb') as f:
                 data = json.loads(f.read().decode('utf-8'))
@@ -208,12 +209,11 @@ class SqliteAccountInfo(AbstractAccountInfo):
                         conn.execute(insert_statement, tuple(data[k] for k in keys))
                     # all is happy now
                     return
-        except:
+        except ValueError:  # includes json.decoder.JSONDecodeError
             pass
 
         # Remove the corrupted file and create a new database
-        os.unlink(self.filename)
-        self._create_database()
+        raise CorruptAccountInfo(self.filename)
 
     def _get_connection(self):
         """
