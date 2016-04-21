@@ -118,10 +118,28 @@ class Command(object):
         )
 
     def _print(self, *args, **kwargs):
-        print(*args, file=self.stdout, **kwargs)
+        try:
+            print(*args, file=self.stdout, **kwargs)
+        except UnicodeEncodeError:
+            print(
+                "\nERROR: Unable to print unicode.  Encoding for stdout is: '%s'" %
+                (sys.stdout.encoding,),
+                file=sys.stderr
+            )
+            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
+            sys.exit(1)
 
     def _print_stderr(self, *args, **kwargs):
-        print(*args, file=self.stderr, **kwargs)
+        try:
+            print(*args, file=self.stderr, **kwargs)
+        except:
+            print(
+                "\nERROR: Unable to print unicode.  Encoding for stderr is: '%s'" %
+                (sys.stderr.encoding,),
+                file=sys.stderr
+            )
+            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
+            sys.exit(1)
 
 
 class AuthorizeAccount(Command):
