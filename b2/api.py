@@ -143,11 +143,8 @@ class B2Api(object):
         return bucket
 
     def download_file_by_id(self, file_id, download_dest):
-        self.session.download_file_by_id(
-            file_id,
-            download_dest,
-            url_factory=self.account_info.get_download_url
-        )
+        url_factory = self.account_info.get_download_url
+        self.session.download_file_by_id(file_id, download_dest, url_factory=url_factory)
 
     def get_bucket_by_id(self, bucket_id):
         return Bucket(self, bucket_id)

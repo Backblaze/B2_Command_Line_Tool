@@ -631,11 +631,8 @@ class Sync(Command):
 
         # Find all matching files in B2
         remote_files = {}
-        for file_info, __ in bucket.ls(
-            folder_to_list=bucket_prefix,
-            max_entries=1000,
-            recursive=True
-        ):
+        ls_generator = bucket.ls(folder_to_list=bucket_prefix, max_entries=1000, recursive=True)
+        for file_info, __ in ls_generator:
             name = file_info.file_name
             after_prefix = name[len(bucket_prefix):]
             remote_files[after_prefix] = {
