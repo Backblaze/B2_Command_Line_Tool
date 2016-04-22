@@ -356,7 +356,7 @@ class TestConsoleTool(unittest.TestCase):
             upload test.txt
             '''
 
-            command = ['new_sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def _authorize_account(self):
