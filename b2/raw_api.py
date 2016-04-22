@@ -63,8 +63,7 @@ class AbstractRawApi(object):
 
     @abstractmethod
     def list_unfinished_large_files(
-        self,
-        api_url,
+        self, api_url,
         account_auth_token,
         bucket_id,
         start_file_id=None,
@@ -252,8 +251,7 @@ class B2RawApi(AbstractRawApi):
 
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
         return self._post_json(
-            api_url,
-            'b2_get_upload_part_url',
+            api_url, 'b2_get_upload_part_url',
             account_auth_token,
             fileId=file_id
         )
@@ -317,8 +315,7 @@ class B2RawApi(AbstractRawApi):
         )
 
     def list_unfinished_large_files(
-        self,
-        api_url,
+        self, api_url,
         account_auth_token,
         bucket_id,
         start_file_id=None,
@@ -515,8 +512,7 @@ def test_raw_api_helper(raw_api):
     # b2_list_file_names (start, count)
     print('b2_list_file_names (start, count)')
     list_names_dict = raw_api.list_file_names(
-        api_url,
-        account_auth_token,
+        api_url, account_auth_token,
         bucket_id,
         start_file_name=file_name,
         max_file_count=5
