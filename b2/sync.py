@@ -69,7 +69,8 @@ class SyncReport(object):
 
     def close(self):
         with self.lock:
-            self._print_line('', False)
+            if not self.no_progress:
+                self._print_line('', False)
             self.closed = True
 
     def __enter__(self):
@@ -575,16 +576,13 @@ class B2Folder(AbstractFolder):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
-            self.folder_name,
-            show_versions=True,
-            recursive=True,
-            fetch_count=1000
+            self.folder_name, show_versions=True,
+            recursive=True, fetch_count=1000
         ):
             assert file_version_info.file_name.startswith(self.prefix)
             file_name = file_version_info.file_name[len(self.prefix):]
             if current_name != file_name and current_name is not None:
-                if current_versions[0].action == 'upload':
-                    yield File(current_name, current_versions)
+                yield File(current_name, current_versions)
                 current_versions = []
             file_info = file_version_info.file_info
             if 'src_last_modified_millis' in file_info:
@@ -599,8 +597,7 @@ class B2Folder(AbstractFolder):
             current_versions.append(file_version)
             current_name = file_name
         if current_name is not None:
-            if current_versions[0].action == 'upload':
-                yield File(current_name, current_versions)
+            yield File(current_name, current_versions)
 
     def folder_type(self):
         return 'b2'
@@ -687,6 +684,7 @@ def make_file_sync_actions(
     """
     Yields the sequence of actions needed to sync the two files
     """
+
     # Get the modification time of the latest version of the source file
     source_mod_time = 0
     if source_file is not None:

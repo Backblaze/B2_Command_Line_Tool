@@ -29,7 +29,7 @@ fi
 
 header Checking Formatting
 
-SOURCE_FILES="b2/*.py test/*.py"
+SOURCE_FILES="b2/*.py test/*.py *.py"
 
 for src_file in $SOURCE_FILES
 do

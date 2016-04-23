@@ -455,7 +455,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
 
         p = lambda fname: os.path.join(dir_path, fname)
 
-        b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        b2_tool.should_succeed(['sync', '--noProgress', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
 
@@ -463,7 +463,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         write_file(p('b'), b'hello')
         write_file(p('c'), b'hello')
 
-        b2_tool.should_succeed(['sync', dir_path, b2_sync_point])
+        b2_tool.should_succeed(['sync', '--noProgress', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
@@ -480,7 +480,11 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         os.unlink(p('b'))
         write_file(p('c'), b'hello world')
 
-        b2_tool.should_succeed(['sync', '--hide', dir_path, b2_sync_point])
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--keepDays', '10', dir_path, b2_sync_point
+            ]
+        )
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
@@ -494,16 +498,9 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
 
         os.unlink(p('a'))
 
-        b2_tool.should_succeed(['sync', '--delete', dir_path, b2_sync_point])
+        b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
-        should_equal(
-            [
-                '- ' + prefix + 'b',
-                '+ ' + prefix + 'b',
-                '+ ' + prefix + 'c',
-                '+ ' + prefix + 'c',
-            ], file_version_summary(file_versions)
-        )
+        should_equal(['+ ' + prefix + 'c',], file_version_summary(file_versions))
 
 
 def sync_down_test(b2_tool, bucket_name):

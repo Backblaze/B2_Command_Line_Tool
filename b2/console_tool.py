@@ -27,7 +27,7 @@ from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo, MissingAccountData)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
-from .progress import (make_progress_listener, DoNothingProgressListener)
+from .progress import (make_progress_listener)
 from .raw_api import (test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
@@ -536,7 +536,7 @@ class MakeUrl(Command):
         return 0
 
 
-class NewSync(Command):
+class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
             [--threads N] [--noProgress] <source> <destination>
@@ -602,112 +602,6 @@ class NewSync(Command):
             no_progress=args.noProgress,
             max_workers=max_workers
         )
-        return 0
-
-
-class Sync(Command):
-    """
-    b2 sync [--delete] [--hide] <source> <destination>
-
-        UNDER DEVELOPMENT -- there may be changes coming to this command
-
-        Uploads or downloads multiple files from source to destination.
-        One of the paths must be a local file path, and the other must be
-        a B2 bucket path. Use "b2:<bucketName>/<prefix>" for B2 paths, e.g.
-        "b2:my-bucket-name/a/path/prefix/".
-
-        If the --delete or --hide flags are specified, destination files
-        are deleted or hidden if not present in the source path. Note that
-        files are matched only by name and size.
-    """
-
-    OPTION_FLAGS = ['delete', 'hide']
-
-    REQUIRED = ['source', 'destination']
-
-    def run(self, args):
-        # TODO: break up this method.  it's too long
-        # maybe move into its own class?
-        dst_is_b2 = args.destination.startswith('b2:')
-        local_path = args.source if dst_is_b2 else args.destination
-        b2_path = args.destination if dst_is_b2 else args.source
-        is_b2_src = b2_path == args.source
-        if local_path.startswith('b2:') or not b2_path.startswith('b2:'):
-            return self.console_tool._message_and_fail(
-                'ERROR: one of the paths must be a "b2:<bucket>" URI'
-            )
-        elif not os.path.exists(local_path):
-            return self.console_tool._message_and_fail(
-                'ERROR: local path doesn\'t exist: ' + local_path
-            )
-        bucket_name = b2_path[3:].split('/')[0]
-        bucket_prefix = '/'.join(b2_path[3:].split('/')[1:])
-        if bucket_prefix and not bucket_prefix.endswith('/'):
-            bucket_prefix += '/'
-
-        bucket = self.api.get_bucket_by_name(bucket_name)
-
-        # Find all matching files in B2
-        remote_files = {}
-        ls_generator = bucket.ls(folder_to_list=bucket_prefix, max_entries=1000, recursive=True)
-        for file_info, __ in ls_generator:
-            name = file_info.file_name
-            after_prefix = name[len(bucket_prefix):]
-            remote_files[after_prefix] = {
-                'fileName': after_prefix,
-                'fileId': file_info.id_,
-                'size': file_info.size,
-            }
-
-        # Find all matching local files
-        local_files = {}
-        for dirpath, dirnames, filenames in os.walk(local_path):
-            for filename in filenames:
-                abspath = os.path.join(dirpath, filename)
-                relpath = os.path.relpath(abspath, local_path)
-                local_files[relpath] = {'fileName': relpath, 'size': os.path.getsize(abspath)}
-
-        # Process differences
-        local_fileset = set(local_files.keys())
-        remote_fileset = set(remote_files.keys())
-        for filename in local_fileset | remote_fileset:
-            filepath = os.path.join(local_path, filename)
-            dirpath = os.path.dirname(filepath)
-            b2_path = local_path_to_b2_path(os.path.join(bucket_prefix, filename))
-            local_file = local_files.get(filename)
-            remote_file = remote_files.get(filename)
-            is_match = local_file and remote_file and local_file['size'] == remote_file['size']
-            if is_b2_src and remote_file and not is_match:
-                self._print("+ %s" % filename)
-                if not os.path.exists(dirpath):
-                    os.makedirs(dirpath)
-                download_dest = DownloadDestLocalFile(filepath, DoNothingProgressListener())
-                self.api.download_file_by_id(remote_file['fileId'], download_dest)
-            elif is_b2_src and not remote_file and args.delete:
-                self._print("- %s" % filename)
-                os.remove(filepath)
-            elif not is_b2_src and local_file and not is_match:
-                self._print("+ %s" % filename)
-                file_infos = {
-                    'src_last_modified_millis': str(int(os.path.getmtime(filepath) * 1000))
-                }
-                bucket.upload_local_file(filepath, b2_path, file_infos=file_infos)
-            elif not is_b2_src and not local_file and args.delete:
-                self._print("- %s" % filename)
-                self.api.delete_file_version(remote_file['fileId'], b2_path)
-            elif not is_b2_src and not local_file and args.hide:
-                self._print(". %s" % filename)
-                bucket.hide_file(b2_path)
-
-        # Remove empty local directories
-        if is_b2_src and args.delete:
-            for dirpath, dirnames, filenames in os.walk(local_path, topdown=False):
-                for name in dirnames:
-                    try:
-                        os.rmdir(os.path.join(dirpath, name))
-                    except Exception:
-                        pass
-
         return 0
 
 
