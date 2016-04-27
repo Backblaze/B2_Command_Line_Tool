@@ -48,11 +48,32 @@ install:
 before_install:
   - uname -a
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
-  # install python3 on OS X
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install "$OS_X_PYTHON_VERSION"; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"; else echo skip; fi
+  - |
+       # install python3 on OS X
+       if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+           brew update
+           brew install "$OS_X_PYTHON_VERSION"
+           virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
+           source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
+       else
+           echo skip
+       fi
+  - |
+       # upgrade pypy to a version that works with Cryptography 1.0
+       if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]]; then
+           export PYENV_ROOT="$HOME/.pyenv"
+           if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
+               pushd "$PYENV_ROOT" && git pull && popd
+           else
+               rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
+           fi
+           export PYPY_VERSION="4.0.1"
+           "$PYENV_ROOT/bin/pyenv" install --skip-existing "pypy-$PYPY_VERSION"
+           virtualenv -p "$PYENV_ROOT/versions/pypy-$PYPY_VERSION/bin/python" "$HOME/.virtualenv/pypy-$PYPY_VERSION"
+           source "$HOME/.virtualenv/pypy-$PYPY_VERSION/bin/activate"
+       else
+           echo skip
+       fi
   - virtualenv --version
 
 install:
