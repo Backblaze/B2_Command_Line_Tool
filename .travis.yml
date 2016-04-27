@@ -39,12 +39,6 @@ cache:
   - directories:
     - $HOME/.virtualenv/python3-osx
 
-install:
-  - pip install mock
-  - pip install nose
-  - pip install pyflakes
-  - pip install yapf
-
 before_install:
   - uname -a
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
