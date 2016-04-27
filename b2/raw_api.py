@@ -339,6 +339,7 @@ class B2RawApi(AbstractRawApi):
             account_auth_token,
             bucketId=bucket_id,
             fileName=file_name,
+            fileInfo=file_info,
             contentType=content_type
         )
 
@@ -530,8 +531,9 @@ def test_raw_api_helper(raw_api):
 
     # b2_start_large_file
     print('b2_start_large_file')
+    file_info = {'color': 'red'}
     large_info = raw_api.start_large_file(
-        api_url, account_auth_token, bucket_id, file_name, 'text/plain', {}
+        api_url, account_auth_token, bucket_id, file_name, 'text/plain', file_info
     )
     large_file_id = large_info['fileId']
 
@@ -558,6 +560,7 @@ def test_raw_api_helper(raw_api):
     # b2_list_unfinished_large_files
     unfinished_list = raw_api.list_unfinished_large_files(api_url, account_auth_token, bucket_id)
     assert [file_name] == [f_dict['fileName'] for f_dict in unfinished_list['files']]
+    assert file_info == unfinished_list['files'][0]['fileInfo']
 
     # b2_finish_large_file
     # We don't upload enough data to actually finish on, so we'll just
