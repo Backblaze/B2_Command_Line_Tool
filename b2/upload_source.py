@@ -14,6 +14,7 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
+from .encryption import (EncryptingFileStream)
 from .utils import (BytesIoContextManager, hex_sha1_of_stream)
 
 
@@ -78,3 +79,26 @@ class UploadSourceLocalFile(AbstractUploadSource):
     def _hex_sha1_of_file(self, local_path):
         with open(local_path, 'rb') as f:
             return hex_sha1_of_stream(f, self.content_length)
+
+
+class UploadEncryptedSourceWrapper(AbstractUploadSource):
+    def __init__(self, upload_source, crypto):
+        self.upload_source = upload_source
+        self.crypto_file = crypto.make_file_context(upload_source.get_content_length())
+        self.content_length = self.crypto_file.encrypted_size()
+        self.content_sha1 = None
+
+    def get_content_length(self):
+        return self.content_length
+
+    def get_content_sha1(self):
+        if self.content_sha1 is None:
+            self.content_sha1 = self._hex_sha1_of_source()
+        return self.content_sha1
+
+    def open(self):
+        return EncryptingFileStream(self.upload_source, self.crypto_file)
+
+    def _hex_sha1_of_source(self):
+        with self.open() as f:
+            return hex_sha1_of_stream(f, self.get_content_length())
