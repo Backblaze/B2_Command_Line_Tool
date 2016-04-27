@@ -139,7 +139,7 @@ class EncryptionContext(object):
     def block_count(self, file_size):
         return (file_size + self.block_size - 1) // self.block_size  # divide rounding up
 
-    def encrypt_filename(filename, folder=''):
+    def encrypt_filename(self, filename, folder=''):
         # derive multiple keys
         enc_key = derive_key(self.master_key, b'filename', 1)
         hmac_key = derive_key(self.master_key, b'filename_hmac', 1)
@@ -158,7 +158,7 @@ class EncryptionContext(object):
         filenamePadded = padder.update(filename) + padder.finalize()
         return iv + encryptor.update(filenamePadded) + encryptor.finalize()
 
-    def decrypt_filename(masterKey, filename):
+    def decrypt_filename(self, filename):
         # get key and iv
         enc_key = derive_key(self.master_key, b'filename', 1)
         iv = filename[0:16]
