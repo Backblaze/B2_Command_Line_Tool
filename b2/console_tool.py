@@ -97,7 +97,15 @@ class Command(object):
         """
         Returns the one-line summary of how to call the command.
         """
-        return textwrap.dedent(cls.__doc__).split('\n')[1]
+        lines = textwrap.dedent(cls.__doc__).split('\n')
+        while lines[0].strip() == '':
+            lines = lines[1:]
+        result = []
+        for line in lines:
+            result.append(line)
+            if not line.endswith('\\'):
+                break
+        return six.u('\n').join(result)
 
     @classmethod
     def command_usage(cls):
@@ -414,7 +422,6 @@ class ListFileVersions(Command):
 
 class ListFileNames(Command):
     """
-
     b2 list_file_names <bucketName> [<startFileName>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
@@ -538,7 +545,7 @@ class MakeUrl(Command):
 
 class Sync(Command):
     """
-    b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
+    b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--threads N] [--noProgress] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
@@ -582,7 +589,6 @@ class Sync(Command):
 
     """
 
-    PRIVATE = True
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
     OPTION_ARGS = ['keepDays', 'threads']
     REQUIRED = ['source', 'destination']
@@ -652,7 +658,7 @@ class UpdateBucket(Command):
 
 class UploadFile(Command):
     """
-    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \
+    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \\
             [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
