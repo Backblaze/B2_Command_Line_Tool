@@ -40,6 +40,7 @@ cache:
     - $HOME/.virtualenv/python3-osx
 
 install:
+  - pip install cryptography
   - pip install mock
   - pip install nose
   - pip install pyflakes
@@ -56,6 +57,7 @@ before_install:
   - virtualenv --version
 
 install:
+  - pip install cryptography
   - pip install mock
   - pip install nose
   - pip install pyflakes
