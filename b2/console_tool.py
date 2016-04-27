@@ -19,7 +19,7 @@ import textwrap
 
 import six
 
-from .account_info import (SqliteAccountInfo)
+from .account_info import (SqliteAccountInfo, test_upload_url_concurrency)
 from .api import (B2Api)
 from .b2http import (test_http)
 from .cache import (AuthInfoCache)
@@ -636,6 +636,20 @@ class TestRawApi(Command):
 
     def run(self, args):
         test_raw_api()
+        return 0
+
+
+class TestUploadUrlConcurrency(Command):
+    """
+    b2 test_upload_url_concurrency
+
+        PRIVATE.  Exercises the HTTP layer.
+    """
+
+    PRIVATE = True
+
+    def run(self, args):
+        test_upload_url_concurrency()
         return 0
 
 
