@@ -859,4 +859,9 @@ def main():
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
-    sys.exit(exit_status)
+
+    # I haven't tracked down the root cause yet, but in Python 2.7, the futures
+    # packages is hanging on exit sometimes, waiting for a thread to finish.
+    # This happens when using sync to upload files.
+    os._exit(exit_status)
+    # sys.exit(exit_status)
