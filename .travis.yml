@@ -11,11 +11,18 @@ python:
   - 3.4
   - 3.5
   - nightly
-  - pypy
-#  - pypy3  # https://github.com/pyca/cryptography/issues/2880
 
 matrix:
   include:
+    - python: pypy
+      env: PYPY_VERSION=pypy-4.0.1
+    - python: pypy
+      env: PYPY_VERSION=pypy-5.1
+
+    # pypy3 is temporarily disabled: https://github.com/pyca/cryptography/issues/2880
+    #- python: pypy3
+    #  env: PYPY_VERSION=pypy3-2.4.0
+
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
     - python: 2.7
@@ -60,13 +67,6 @@ before_install:
                pushd "$PYENV_ROOT" && git pull && popd
            else
                rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
-           fi
-           if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]]; then
-               export PYPY_VERSION="pypy-4.0.1"
-           elif [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
-               export PYPY_VERSION="pypy3-2.4.0"
-           else
-               false
            fi
            echo "PYPY_VERSION=$PYPY_VERSION"
            "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
