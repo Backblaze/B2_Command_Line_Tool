@@ -386,7 +386,8 @@ class Bucket(object):
                 part_index + 1,  # part number
                 part_range,
                 upload_source,
-                large_file_upload_state
+                large_file_upload_state,
+                finished_parts
             ) for (part_index, part_range) in enumerate(part_ranges)
         ]
 
@@ -428,11 +429,26 @@ class Bucket(object):
 
                 # Return first matched file
                 return (file, finished_parts)
-        return (None, None)
+        return (None, [])
 
     def _upload_part(
-        self, file_id, part_number, part_range, upload_source, large_file_upload_state
+        self,
+        file_id,
+        part_number,
+        part_range,
+        upload_source,
+        large_file_upload_state,
+        finished_parts=[]
     ):
+        # Check if this part was uploaded before
+        for part in finished_parts:
+            if part.part_number == part_number:
+                # Report this part finished
+                large_file_upload_state.update_part_bytes(part.content_length)
+
+                # Return SHA1 hash
+                return {'contentSha1': part.content_sha1}
+
         # Compute the SHA1 of the part
         (offset, content_length) = part_range
         with upload_source.open() as f:
