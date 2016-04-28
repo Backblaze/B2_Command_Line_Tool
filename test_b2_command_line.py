@@ -351,10 +351,16 @@ def basic_test(b2_tool, bucket_name):
         ]
     )
 
-    b2_tool.should_succeed(['download_file_by_name', '--noProgress', bucket_name, 'b/1', '/dev/null'
-                           ])
-    b2_tool.should_succeed(['download_file_by_id', '--noProgress', uploaded_a['fileId'], '/dev/null'
-                           ])
+    b2_tool.should_succeed(
+        [
+            'download_file_by_name', '--noProgress', bucket_name, 'b/1', '/dev/null'
+        ]
+    )
+    b2_tool.should_succeed(
+        [
+            'download_file_by_id', '--noProgress', uploaded_a['fileId'], '/dev/null'
+        ]
+    )
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
 
@@ -531,10 +537,16 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         should_equal([], sorted(os.listdir(local_path)))
 
         # Put a couple files in B2, and sync them down
-        b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload,
-                                b2_file_prefix + 'a'])
-        b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload,
-                                b2_file_prefix + 'b'])
+        b2_tool.should_succeed(
+            [
+                'upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a'
+            ]
+        )
+        b2_tool.should_succeed(
+            [
+                'upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b'
+            ]
+        )
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
