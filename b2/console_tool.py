@@ -863,5 +863,7 @@ def main():
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures
     # packages is hanging on exit sometimes, waiting for a thread to finish.
     # This happens when using sync to upload files.
+    sys.stdout.flush()
+    sys.stderr.flush()
     os._exit(exit_status)
     # sys.exit(exit_status)
