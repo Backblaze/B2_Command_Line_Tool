@@ -18,8 +18,6 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
-from six.moves import range
-
 from .exception import (CorruptAccountInfo, MissingAccountData)
 
 
@@ -522,6 +520,7 @@ def test_upload_url_concurrency():
 
     # Pull them all from the account info, from multiple threads
     lock = threading.Lock()
+
     def run_thread():
         while True:
             (url, _) = account_info.take_bucket_upload_url('bucket-id')
@@ -532,6 +531,7 @@ def test_upload_url_concurrency():
                     available_urls.remove(url)
                 else:
                     print('DOUBLE:', url)
+
     threads = []
     for i in six.moves.range(5):
         thread = threading.Thread(target=run_thread)
@@ -546,4 +546,3 @@ def test_upload_url_concurrency():
 
     # Clean up
     os.unlink(file_name)
-
