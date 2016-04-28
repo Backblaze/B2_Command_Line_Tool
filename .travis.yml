@@ -13,15 +13,15 @@ python:
   - nightly
 
 matrix:
+  allow_failures:
+    - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
     - python: pypy
       env: PYPY_VERSION=pypy-4.0.1
     - python: pypy
       env: PYPY_VERSION=pypy-5.1
-
-    # pypy3 is temporarily disabled: https://github.com/pyca/cryptography/issues/2880
-    #- python: pypy3
-    #  env: PYPY_VERSION=pypy3-2.4.0
+    - python: pypy3
+      env: PYPY_VERSION=pypy3-2.4.0
 
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
