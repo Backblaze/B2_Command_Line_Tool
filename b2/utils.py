@@ -86,10 +86,11 @@ def choose_part_ranges(content_length, minimum_part_size):
     assert minimum_part_size * 2 <= content_length
 
     # How many parts can we make?
-    part_count = content_length // minimum_part_size
+    part_count = min(content_length // minimum_part_size, 10000)
     assert 2 <= part_count
 
-    # All of the parts, except the last, are the same size
+    # All of the parts, except the last, are the same size.  The
+    # last one may be bigger.
     part_size = content_length // part_count
     last_part_size = content_length - (part_size * (part_count - 1))
     assert minimum_part_size <= last_part_size

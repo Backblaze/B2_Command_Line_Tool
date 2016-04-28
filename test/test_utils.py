@@ -11,12 +11,21 @@
 import b2.utils
 import unittest
 
+import six
+
 
 class TestChooseParts(unittest.TestCase):
     def test_it(self):
         self._check_one([(0, 100), (100, 100)], 200, 100)
         self._check_one([(0, 149), (149, 150)], 299, 100)
         self._check_one([(0, 100), (100, 100), (200, 100)], 300, 100)
+
+        ten_TB = 10 * 1000 * 1000 * 1000 * 1000
+        one_GB = 1000 * 1000 * 1000
+
+        expected = [(i * one_GB, one_GB) for i in six.moves.range(10000)]
+        actual = b2.utils.choose_part_ranges(ten_TB, 100 * 1000 * 1000)
+        self.assertEqual(expected, actual)
 
     def _check_one(self, expected, content_length, min_part_size):
         self.assertEqual(expected, b2.utils.choose_part_ranges(content_length, min_part_size))
