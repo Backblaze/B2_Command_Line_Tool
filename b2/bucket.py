@@ -369,7 +369,7 @@ class Bucket(object):
         part_ranges = choose_part_ranges(content_length, minimum_part_size)
 
         # Check for unfinished files with same name
-        (unfinished_file, finished_parts) = self._find_unfinshed_file(
+        (unfinished_file, finished_parts) = self._find_unfinished_file(
             upload_source, file_name, file_info, part_ranges
         )
 
@@ -400,11 +400,16 @@ class Bucket(object):
         response = self.api.session.finish_large_file(file_id, part_sha1_array)
         return FileVersionInfoFactory.from_api_response(response)
 
-    def _find_unfinshed_file(self, upload_source, file_name, file_info, part_ranges):
+    def _find_unfinished_file(self, upload_source, file_name, file_info, part_ranges):
+        """
+        Find an unfinished file which may be used to resume a large file upload. The
+        file is found using the filename and comparing the uploaded parts against
+        the local file.
+        """
         for file in self.list_unfinished_large_files():
             if file.file_name == file_name and file.file_info == file_info:
                 files_match = True
-                finished_parts = []
+                finished_parts = {}
                 for part in self.list_parts(file.file_id):
                     # Compare part sizes
                     (offset, part_length) = part_ranges[part.part_number - 1]
@@ -421,7 +426,7 @@ class Bucket(object):
                         break
 
                     # Save part
-                    finished_parts.append(part)
+                    finished_parts[part.part_number] = part
 
                 # Skip not matching files or unfinished files with no uploaded parts
                 if files_match == False or len(finished_parts) == 0:
@@ -429,7 +434,7 @@ class Bucket(object):
 
                 # Return first matched file
                 return (file, finished_parts)
-        return (None, [])
+        return (None, {})
 
     def _upload_part(
         self,
@@ -438,16 +443,16 @@ class Bucket(object):
         part_range,
         upload_source,
         large_file_upload_state,
-        finished_parts=[]
+        finished_parts={}
     ):
         # Check if this part was uploaded before
-        for part in finished_parts:
-            if part.part_number == part_number:
-                # Report this part finished
-                large_file_upload_state.update_part_bytes(part.content_length)
+        if part_number in finished_parts:
+            # Report this part finished
+            part = finished_parts[part_number]
+            large_file_upload_state.update_part_bytes(part.content_length)
 
-                # Return SHA1 hash
-                return {'contentSha1': part.content_sha1}
+            # Return SHA1 hash
+            return {'contentSha1': part.content_sha1}
 
         # Compute the SHA1 of the part
         (offset, content_length) = part_range
