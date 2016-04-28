@@ -110,6 +110,7 @@ def run_command(path_to_script, args):
     # '-m' with a package, so we explicitly say to run the module
     # b2.__main__
     os.environ['PYTHONPATH'] = '.'
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
     command = ['python', '-m', 'b2.__main__']
     command.extend(args)
 
@@ -325,32 +326,41 @@ def basic_test(b2_tool, bucket_name):
         hex_sha1 = hashlib.sha1(f.read()).hexdigest()
     uploaded_a = b2_tool.should_succeed_json(
         [
-            'upload_file', '--quiet', bucket_name, file_to_upload, 'a'
+            'upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a'
         ]
     )
-    b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'a'])
-    b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'b/1'])
-    b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, 'b/2'])
+    b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
+    b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
     b2_tool.should_succeed(
         [
-            'upload_file', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info', 'color=blue',
-            bucket_name, file_to_upload, 'c'
+            'upload_file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info',
+            'color=blue', bucket_name, file_to_upload, 'c'
         ]
     )
     b2_tool.should_fail(
         [
-            'upload_file', '--sha1', hex_sha1, '--info', 'foo-bar', '--info', 'color=blue',
-            bucket_name, file_to_upload, 'c'
+            'upload_file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo-bar', '--info',
+            'color=blue', bucket_name, file_to_upload, 'c'
         ], r'ERROR: Bad file info: foo-bar'
     )
     b2_tool.should_succeed(
         [
-            'upload_file', '--contentType', 'text/plain', bucket_name, file_to_upload, 'd'
+            'upload_file', '--noProgress', '--contentType', 'text/plain', bucket_name,
+            file_to_upload, 'd'
         ]
     )
 
-    b2_tool.should_succeed(['download_file_by_name', bucket_name, 'b/1', '/dev/null'])
-    b2_tool.should_succeed(['download_file_by_id', uploaded_a['fileId'], '/dev/null'])
+    b2_tool.should_succeed(
+        [
+            'download_file_by_name', '--noProgress', bucket_name, 'b/1', '/dev/null'
+        ]
+    )
+    b2_tool.should_succeed(
+        [
+            'download_file_by_id', '--noProgress', uploaded_a['fileId'], '/dev/null'
+        ]
+    )
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
 
@@ -527,8 +537,16 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         should_equal([], sorted(os.listdir(local_path)))
 
         # Put a couple files in B2, and sync them down
-        b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, b2_file_prefix + 'a'])
-        b2_tool.should_succeed(['upload_file', bucket_name, file_to_upload, b2_file_prefix + 'b'])
+        b2_tool.should_succeed(
+            [
+                'upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a'
+            ]
+        )
+        b2_tool.should_succeed(
+            [
+                'upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b'
+            ]
+        )
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 

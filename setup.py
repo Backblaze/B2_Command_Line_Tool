@@ -21,7 +21,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 # The set of required packages depends on what version
 # of python you're running.
-required_packages = ['requests>=2.9.1', 'six>=1.10.0']
+required_packages = ['requests>=2.9.1', 'six>=1.10.0', 'tqdm>=4.5.0']
 
 if sys.version_info < (3, 2):
     required_packages.append('futures>=3.0.5')

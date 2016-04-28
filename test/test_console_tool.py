@@ -170,7 +170,8 @@ class TestConsoleTool(unittest.TestCase):
             '''
 
             self._run_command(
-                ['upload_file', 'my-bucket', local_file1, 'file1.txt'], expected_stdout, '', 0
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                expected_stdout, '', 0
             )
 
             # Download by name
@@ -186,7 +187,8 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(
                 [
-                    'download_file_by_name', 'my-bucket', 'file1.txt', local_download1
+                    'download_file_by_name', '--noProgress', 'my-bucket', 'file1.txt',
+                    local_download1
                 ], expected_stdout, '', 0
             )
             self.assertEquals(six.b('hello world'), self._read_file(local_download1))
@@ -194,7 +196,8 @@ class TestConsoleTool(unittest.TestCase):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download_file_by_id', '9999', local_download2], expected_stdout, '', 0
+                ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
+                '', 0
             )
             self.assertEquals(six.b('hello world'), self._read_file(local_download2))
 
@@ -340,7 +343,8 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(
                 [
-                    'upload_file', '--threads', '5', 'my-bucket', file_path, 'test.txt'
+                    'upload_file', '--noProgress', '--threads', '5', 'my-bucket', file_path,
+                    'test.txt'
                 ], expected_stdout, '', 0
             )
 
