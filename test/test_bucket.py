@@ -322,6 +322,17 @@ class TestUpload(TestCaseWithBucket):
         self._check_file_contents('file1', data)
         self.assertEqual("600: 200 400 600", progress_listener.get_history())
 
+    def test_upload_large_resume_wrong_part_size(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1')
+        self._upload_part(large_file_id, 1, data[:part_size+1])  # one byte to much
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
+        self.assertNotEqual(large_file_id, file_info.id_)
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
+
     def test_upload_large_resume_file_info(self):
         part_size = self.simulator.MIN_PART_SIZE
         data = self._make_data(part_size * 3)
