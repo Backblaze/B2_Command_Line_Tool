@@ -324,10 +324,12 @@ class TestUpload(TestCaseWithBucket):
         large_file_id = self._start_large_file('file1', {'property': 'value1'})
         self._upload_part(large_file_id, 1, data[:part_size])
         progress_listener = StubProgressListener()
-        file_info = self.bucket.upload_bytes(data,
-                                             'file1',
-                                             progress_listener=progress_listener,
-                                             file_infos={'property': 'value1'})
+        file_info = self.bucket.upload_bytes(
+            data,
+            'file1',
+            progress_listener=progress_listener,
+            file_infos={'property': 'value1'}
+        )
         self.assertEqual(large_file_id, file_info.id_)
         self._check_file_contents('file1', data)
         self.assertEqual("600: 200 400 600", progress_listener.get_history())
@@ -338,10 +340,12 @@ class TestUpload(TestCaseWithBucket):
         large_file_id = self._start_large_file('file1', {'property': 'value1'})
         self._upload_part(large_file_id, 1, data[:part_size])
         progress_listener = StubProgressListener()
-        file_info = self.bucket.upload_bytes(data,
-                                             'file1',
-                                             progress_listener=progress_listener,
-                                             file_infos={'property': 'value2'})
+        file_info = self.bucket.upload_bytes(
+            data,
+            'file1',
+            progress_listener=progress_listener,
+            file_infos={'property': 'value2'}
+        )
         self.assertNotEqual(large_file_id, file_info.id_)
 
     def _start_large_file(self, file_name, file_info=None):
