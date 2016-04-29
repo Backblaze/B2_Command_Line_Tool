@@ -295,6 +295,8 @@ class TestUpload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
         self.assertNotEqual(large_file_id, file_info.id_)  # it's not a match if there are no parts
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
 
     def test_upload_large_resume_all_parts_there(self):
         part_size = self.simulator.MIN_PART_SIZE
@@ -317,6 +319,8 @@ class TestUpload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
         self.assertNotEqual(large_file_id, file_info.id_)
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
 
     def test_upload_large_resume_file_info(self):
         part_size = self.simulator.MIN_PART_SIZE
@@ -347,6 +351,8 @@ class TestUpload(TestCaseWithBucket):
             file_infos={'property': 'value2'}
         )
         self.assertNotEqual(large_file_id, file_info.id_)
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
 
     def _start_large_file(self, file_name, file_info=None):
         if file_info is None:
