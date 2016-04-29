@@ -318,9 +318,37 @@ class TestUpload(TestCaseWithBucket):
         file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
         self.assertNotEqual(large_file_id, file_info.id_)
 
-    def _start_large_file(self, file_name):
+    def test_upload_large_resume_file_info(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1', {'property': 'value1'})
+        self._upload_part(large_file_id, 1, data[:part_size])
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data,
+                                             'file1',
+                                             progress_listener=progress_listener,
+                                             file_infos={'property': 'value1'})
+        self.assertEqual(large_file_id, file_info.id_)
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
+
+    def test_upload_large_resume_file_info_does_not_match(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1', {'property': 'value1'})
+        self._upload_part(large_file_id, 1, data[:part_size])
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data,
+                                             'file1',
+                                             progress_listener=progress_listener,
+                                             file_infos={'property': 'value2'})
+        self.assertNotEqual(large_file_id, file_info.id_)
+
+    def _start_large_file(self, file_name, file_info=None):
+        if file_info is None:
+            file_info = {}
         large_file_info = self.simulator.start_large_file(
-            self.api_url, self.account_auth_token, self.bucket_id, file_name, None, {}
+            self.api_url, self.account_auth_token, self.bucket_id, file_name, None, file_info
         )
         return large_file_info['fileId']
 
