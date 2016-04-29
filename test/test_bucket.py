@@ -91,11 +91,12 @@ class TestCaseWithBucket(unittest.TestCase):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()
         self.account_info = StubAccountInfo()
-        self.api_url = self.account_info.get_api_url()
-        self.account_auth_token = self.account_info.get_account_auth_token()
         self.api = B2Api(self.account_info, raw_api=self.simulator)
         self.api.authorize_account('production', 'my-account', 'good-app-key')
+        self.api_url = self.account_info.get_api_url()
+        self.account_auth_token = self.account_info.get_account_auth_token()
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
+        self.bucket_id = self.bucket.id_
 
 
 class TestReauthorization(TestCaseWithBucket):
@@ -275,6 +276,37 @@ class TestUpload(TestCaseWithBucket):
         self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
         self._check_file_contents('file1', data)
         self.assertEqual("600: 200 400 600", progress_listener.get_history())
+
+    def test_upload_large_resume(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1')
+        self._upload_part(large_file_id, 1, data[:part_size])
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
+        self.assertEqual(large_file_id, file_info.id_)
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
+
+    def _start_large_file(self, file_name):
+        large_file_info = self.simulator.start_large_file(
+            self.api_url, self.account_auth_token, self.bucket_id, file_name, None, {}
+        )
+        return large_file_info['fileId']
+
+    def _upload_part(self, large_file_id, part_number, part_data):
+        part_stream = six.BytesIO(part_data)
+        upload_info = self.simulator.get_upload_part_url(
+            self.api_url, self.account_auth_token, large_file_id
+        )
+        self.simulator.upload_part(
+            upload_info['uploadUrl'],
+            upload_info['authorizationToken'],
+            part_number,
+            len(part_data),
+            hex_sha1_of_bytes(part_data),
+            part_stream
+        )
 
     def _check_file_contents(self, file_name, expected_contents):
         download = DownloadDestBytes()
