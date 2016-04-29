@@ -288,6 +288,36 @@ class TestUpload(TestCaseWithBucket):
         self._check_file_contents('file1', data)
         self.assertEqual("600: 200 400 600", progress_listener.get_history())
 
+    def test_upload_large_resume_no_parts(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1')
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
+        self.assertNotEqual(large_file_id, file_info.id_)  # it's not a match if there are no parts
+
+    def test_upload_large_resume_all_parts_there(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1')
+        self._upload_part(large_file_id, 1, data[:part_size])
+        self._upload_part(large_file_id, 2, data[part_size:2 * part_size])
+        self._upload_part(large_file_id, 3, data[2 * part_size:])
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
+        self.assertEqual(large_file_id, file_info.id_)
+        self._check_file_contents('file1', data)
+        self.assertEqual("600: 200 400 600", progress_listener.get_history())
+
+    def test_upload_large_resume_part_does_not_match(self):
+        part_size = self.simulator.MIN_PART_SIZE
+        data = self._make_data(part_size * 3)
+        large_file_id = self._start_large_file('file1')
+        self._upload_part(large_file_id, 3, data[:part_size])  # wrong part number for this data
+        progress_listener = StubProgressListener()
+        file_info = self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
+        self.assertNotEqual(large_file_id, file_info.id_)
+
     def _start_large_file(self, file_name):
         large_file_info = self.simulator.start_large_file(
             self.api_url, self.account_auth_token, self.bucket_id, file_name, None, {}
@@ -300,12 +330,8 @@ class TestUpload(TestCaseWithBucket):
             self.api_url, self.account_auth_token, large_file_id
         )
         self.simulator.upload_part(
-            upload_info['uploadUrl'],
-            upload_info['authorizationToken'],
-            part_number,
-            len(part_data),
-            hex_sha1_of_bytes(part_data),
-            part_stream
+            upload_info['uploadUrl'], upload_info['authorizationToken'], part_number,
+            len(part_data), hex_sha1_of_bytes(part_data), part_stream
         )
 
     def _check_file_contents(self, file_name, expected_contents):
