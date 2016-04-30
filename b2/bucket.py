@@ -368,8 +368,14 @@ class Bucket(object):
         # Select the part boundaries
         part_ranges = choose_part_ranges(content_length, minimum_part_size)
 
-        # Tell B2 we're going to upload a file
-        unfinished_file = self.start_large_file(file_name, content_type, file_info)
+        # Check for unfinished files with same name
+        unfinished_file, finished_parts = self._find_unfinished_file(
+            upload_source, file_name, file_info, part_ranges
+        )
+
+        # Tell B2 we're going to upload a file if necessary
+        if unfinished_file is None:
+            unfinished_file = self.start_large_file(file_name, content_type, file_info)
         file_id = unfinished_file.file_id
 
         # Tell the executor to upload each of the parts
@@ -380,7 +386,8 @@ class Bucket(object):
                 part_index + 1,  # part number
                 part_range,
                 upload_source,
-                large_file_upload_state
+                large_file_upload_state,
+                finished_parts
             ) for (part_index, part_range) in enumerate(part_ranges)
         ]
 
@@ -393,11 +400,62 @@ class Bucket(object):
         response = self.api.session.finish_large_file(file_id, part_sha1_array)
         return FileVersionInfoFactory.from_api_response(response)
 
+    def _find_unfinished_file(self, upload_source, file_name, file_info, part_ranges):
+        """
+        Find an unfinished file which may be used to resume a large file upload. The
+        file is found using the filename and comparing the uploaded parts against
+        the local file.
+        """
+        for file_ in self.list_unfinished_large_files():
+            if file_.file_name == file_name and file_.file_info == file_info:
+                files_match = True
+                finished_parts = {}
+                for part in self.list_parts(file_.file_id):
+                    # Compare part sizes
+                    offset, part_length = part_ranges[part.part_number - 1]
+                    if part_length != part.content_length:
+                        files_match = False
+                        break
+
+                    # Compare hash
+                    with upload_source.open() as f:
+                        f.seek(offset)
+                        sha1_sum = hex_sha1_of_stream(f, part_length)
+                    if sha1_sum != part.content_sha1:
+                        files_match = False
+                        break
+
+                    # Save part
+                    finished_parts[part.part_number] = part
+
+                # Skip not matching files or unfinished files with no uploaded parts
+                if not files_match or not finished_parts:
+                    continue
+
+                # Return first matched file
+                return file_, finished_parts
+        return None, {}
+
     def _upload_part(
-        self, file_id, part_number, part_range, upload_source, large_file_upload_state
+        self,
+        file_id,
+        part_number,
+        part_range,
+        upload_source,
+        large_file_upload_state,
+        finished_parts=None
     ):
+        # Check if this part was uploaded before
+        if finished_parts is not None and part_number in finished_parts:
+            # Report this part finished
+            part = finished_parts[part_number]
+            large_file_upload_state.update_part_bytes(part.content_length)
+
+            # Return SHA1 hash
+            return {'contentSha1': part.content_sha1}
+
         # Compute the SHA1 of the part
-        (offset, content_length) = part_range
+        offset, content_length = part_range
         with upload_source.open() as f:
             f.seek(offset)
             sha1_sum = hex_sha1_of_stream(f, content_length)
