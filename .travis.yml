@@ -78,6 +78,7 @@ before_install:
   - virtualenv --version
 
 install:
+  - pip install cryptography==1.1
   - pip install mock
   - pip install nose
   - pip install pyflakes
