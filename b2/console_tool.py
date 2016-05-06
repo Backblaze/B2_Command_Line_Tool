@@ -294,7 +294,7 @@ class DownloadFileById(Command):
 
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
-        Use '--no-progress' to disable progress reporting.
+        Use '--noProgress' to disable progress reporting.
     """
 
     OPTION_FLAGS = ['noProgress']
@@ -691,7 +691,7 @@ class UploadFile(Command):
 
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
-        Use '--no-progress' to disable progress reporting.
+        Use '--noProgress' to disable progress reporting.
 
         Each fileInfo is of the form "a=b".
     """
