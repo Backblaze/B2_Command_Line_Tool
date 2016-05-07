@@ -13,6 +13,7 @@ from __future__ import division
 import os
 import threading
 import time
+import re
 from abc import (ABCMeta, abstractmethod)
 
 import six
@@ -752,6 +753,8 @@ def make_file_sync_actions(
             if args.delete:
                 yield LocalDeleteAction(dest_file.name, version.id_)
 
+def is_excluded(ex, target_file):
+    return target_file is not None and ex.match(target_file.name)
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
     """
@@ -767,6 +770,8 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
         raise CommandError('--keepDays cannot be used for local files')
 
+    exclusions = [re.compile(ex) for ex in args.exclude]
+
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
@@ -775,17 +780,19 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
-        if source_folder.folder_type() == 'local':
-            if source_file is not None:
-                reporter.update_compare(1)
-        else:
-            if dest_file is not None:
-                reporter.update_compare(1)
-        for action in make_file_sync_actions(
-            sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
-        ):
-            yield action
+        if not any([is_excluded(ex, source_file) or
+                    is_excluded(ex, dest_file) for ex in exclusions]):
 
+            if source_folder.folder_type() == 'local':
+                if source_file is not None:
+                    reporter.update_compare(1)
+            else:
+                if dest_file is not None:
+                    reporter.update_compare(1)
+            for action in make_file_sync_actions(
+                sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
+            ):
+                yield action
 
 def _parse_bucket_and_folder(bucket_and_path, api):
     """
