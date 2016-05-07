@@ -715,15 +715,23 @@ class UploadFile(Command):
         self.api.set_thread_pool_size(max_workers)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        with make_progress_listener(args.localFilePath, args.noProgress) as progress_listener:
-            file_info = bucket.upload_local_file(
-                local_file=args.localFilePath,
+        #check if upload is stream or local file
+        if args.localFilePath == '-': #TODO not sure how to handle unicode
+            file_info = bucket.upload_stream(
                 file_name=args.b2FileName,
                 content_type=args.contentType,
                 file_infos=file_infos,
-                sha1_sum=args.sha1,
-                progress_listener=progress_listener,
             )
+        else:
+            with make_progress_listener(args.localFilePath, args.noProgress) as progress_listener:
+                file_info = bucket.upload_local_file(
+                    local_file=args.localFilePath,
+                    file_name=args.b2FileName,
+                    content_type=args.contentType,
+                    file_infos=file_infos,
+                    sha1_sum=args.sha1,
+                    progress_listener=progress_listener,
+                )
         response = file_info.as_dict()
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))

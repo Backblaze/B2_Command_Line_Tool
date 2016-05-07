@@ -10,6 +10,8 @@
 
 import six
 import threading
+from cStringIO import StringIO
+import sys
 
 from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
@@ -18,7 +20,7 @@ from .file_version import FileVersionInfoFactory
 from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
-from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
+from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, hex_sha1_of_bytes, interruptible_get_result, validate_b2_file_name
 
 
 class LargeFileUploadState(object):
@@ -270,6 +272,58 @@ class Bucket(object):
         """
         upload_source = UploadSourceLocalFile(local_path=local_file, content_sha1=sha1_sum)
         return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
+
+    def upload_stream(
+        self,
+        file_name,
+        content_type=None,
+        file_infos=None
+    ):
+        """
+        Uploads a file from stdin stream to a B2 file.
+        """
+        #determine if it requires large file upload, >= part_size >= minimum_part_size
+        #TODO make part_size user configurable 100MB to 5GB so max file size of 10TB can be reached with 1 to 10000 parts
+        part_size = self.api.account_info.get_minimum_part_size()
+        validate_b2_file_name(file_name)
+        file_info = file_infos or {}
+        content_type = content_type or self.DEFAULT_CONTENT_TYPE
+        
+        data = sys.stdin.read(part_size)
+        #check if small file upload
+        if len(data) < part_size:
+            #TODO need to implement small file upload
+            print 'Starting small file upload'
+        else:
+            print 'Starting large file multipart upload'
+            unfinished_file = self.start_large_file(file_name, content_type, file_info)
+            part_number = 0
+            sha1_array = []
+            while True:
+                upload_url, upload_auth_token = self._get_upload_part_data(unfinished_file.file_id)
+                sha1_sum = hex_sha1_of_bytes(data)
+                sha1_array.append(sha1_sum)
+                part_number += 1
+                print 'Part %d of size %d bytes being uploaded ...' %(part_number, len(data))
+                response = self.api.raw_api.upload_part(
+                    upload_url,
+                    upload_auth_token,
+                    part_number,
+                    len(data),
+                    sha1_sum,
+                    StringIO(data)
+                )
+                assert sha1_sum == response['contentSha1']
+                data = sys.stdin.read(part_size)
+                if not data:
+                    print 'Reached end of inputstream'
+                    break
+                #TODO need to check if part_number limit of 100000 reached
+                #TODO need to add retry and retry checks
+            #Finish the large file
+            response = self.api.session.finish_large_file(unfinished_file.file_id, sha1_array)
+            #TODO probably check final sha1 of file and sha1 array
+            return FileVersionInfoFactory.from_api_response(response)
 
     def upload(
         self,
