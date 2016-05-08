@@ -220,6 +220,22 @@ class TestMakeSyncActions(unittest.TestCase):
         except CommandError:
             pass
 
+    def test_file_exclusions(self):
+ 	file_a = local_file('a.txt', 100)
+ 	file_b = local_file('b.txt', 100)
+ 	file_c = local_file('c.txt', 100)
+
+	local_folder = FakeFolder('local', [file_a, file_b, file_c])
+	b2_folder = FakeFolder('b2', [])
+
+	expected_actions = [
+		'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+		'b2_upload(/dir/c.txt, folder/c.txt, 100)'
+	]
+
+        actions = list(make_folder_sync_actions(local_folder, b2_folder, FakeArgs(exclude=["b.txt"]), TODAY, self.reporter))
+        self.assertEqual(expected_actions, [str(a) for a in actions])
+
     # src: absent, dst: absent
 
     def test_empty_b2(self):
