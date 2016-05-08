@@ -733,8 +733,11 @@ def make_file_sync_actions(
                 if sync_type == 'local-to-b2':
                     dest_versions_to_clean = dest_file.versions
 
+        else:
+            raise CommandError('Invalid option for --compareVersions')
+
     # Case 2: No destination file, but source file exists
-    if source_file is not None and dest_file is None:
+    elif source_file is not None and dest_file is None:
         yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
         transferred = True
 
