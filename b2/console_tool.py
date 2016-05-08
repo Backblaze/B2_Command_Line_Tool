@@ -546,7 +546,7 @@ class MakeUrl(Command):
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
-            [--threads N] [--noProgress] [--exclude N] <source> <destination>
+            [--threads N] [--noProgress] [--exclude <regex>] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
