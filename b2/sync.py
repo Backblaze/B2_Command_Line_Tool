@@ -753,8 +753,10 @@ def make_file_sync_actions(
             if args.delete:
                 yield LocalDeleteAction(dest_file.name, version.id_)
 
+
 def is_excluded(ex, target_file):
     return target_file is not None and ex.match(target_file.name)
+
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
     """
@@ -780,9 +782,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
-        if not any(
-		is_excluded(ex, source_file) or is_excluded(ex, dest_file) for ex in exclusions
-        ):
+        if not any(is_excluded(ex, source_file) for ex in exclusions):
 
             if source_folder.folder_type() == 'local':
                 if source_file is not None:
