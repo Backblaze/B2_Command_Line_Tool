@@ -133,11 +133,19 @@ class FakeArgs(object):
     Can be passed to sync code to simulate command-line options.
     """
 
-    def __init__(self, delete=False, keepDays=None, skipNewer=False, replaceNewer=False):
+    def __init__(
+        self,
+        delete=False,
+        keepDays=None,
+        skipNewer=False,
+        replaceNewer=False,
+        compareVersions=None
+    ):
         self.delete = delete
         self.keepDays = keepDays
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
+        self.compareVersions = compareVersions
 
 
 def b2_file(name, *args):

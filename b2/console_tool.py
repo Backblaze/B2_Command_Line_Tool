@@ -590,7 +590,7 @@ class Sync(Command):
     """
 
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
-    OPTION_ARGS = ['keepDays', 'threads']
+    OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
     ARG_PARSER = {'keepDays': float, 'threads': int}
 

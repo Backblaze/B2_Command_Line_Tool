@@ -685,16 +685,6 @@ def make_file_sync_actions(
     Yields the sequence of actions needed to sync the two files
     """
 
-    # Get the modification time of the latest version of the source file
-    source_mod_time = 0
-    if source_file is not None:
-        source_mod_time = source_file.latest_version().mod_time
-
-    # Get the modification time of the latest version of the destination file
-    dest_mod_time = 0
-    if dest_file is not None:
-        dest_mod_time = dest_file.latest_version().mod_time
-
     # By default, all but the current version at the destination are
     # candidates for cleaning.  This will be overridden in the case
     # where there is no source file.
@@ -702,28 +692,54 @@ def make_file_sync_actions(
     if dest_file is not None:
         dest_versions_to_clean = dest_file.versions[1:]
 
-    # Case 1: Destination does not exist, or source is newer.
-    # All prior versions of the destination file are candidates for
-    # cleaning.
+    # Case 1: Both files exist
     transferred = False
-    if dest_mod_time < source_mod_time:
+    if source_file is not None and dest_file is not None:
+        compareVersions = args.compareVersions or 'modTime'
+        if compareVersions == 'none':
+            pass
+
+        elif compareVersions == 'modTime':
+            # Get the modification time of the latest versions
+            source_mod_time = source_file.latest_version().mod_time
+            dest_mod_time = dest_file.latest_version().mod_time
+
+            # Source is newer
+            if dest_mod_time < source_mod_time:
+                yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+                transferred = True
+                if sync_type == 'local-to-b2':
+                    dest_versions_to_clean = dest_file.versions
+
+            # Source is older
+            elif source_mod_time < dest_mod_time:
+                if args.replaceNewer:
+                    yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+                    transferred = True
+                elif args.skipNewer:
+                    pass
+                else:
+                    raise DestFileNewer(dest_file.name,)
+
+        elif compareVersions == 'size':
+            # Get file size of the latest versions
+            source_size = source_file.latest_version().size
+            dest_size = dest_file.latest_version().size
+
+            # Upload if sizes are different
+            if source_size != dest_size:
+                yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+                transferred = True
+                if sync_type == 'local-to-b2':
+                    dest_versions_to_clean = dest_file.versions
+
+    # Case 2: No destination file, but source file exists
+    if source_file is not None and dest_file is None:
         yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
         transferred = True
-        if sync_type == 'local-to-b2' and dest_file is not None:
-            dest_versions_to_clean = dest_file.versions
-
-    # Case 2: Both exist and source is older
-    elif source_mod_time != 0 and source_mod_time < dest_mod_time:
-        if args.replaceNewer:
-            yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-            transferred = True
-        elif args.skipNewer:
-            pass
-        else:
-            raise DestFileNewer(dest_file.name,)
 
     # Case 3: No source file, but destination file exists
-    elif source_mod_time == 0 and dest_mod_time != 0:
+    elif source_file is None and dest_file is not None:
         if args.keepDays is not None and sync_type == 'local-to-b2':
             if dest_file.versions[0].action == 'upload':
                 yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
