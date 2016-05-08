@@ -780,8 +780,9 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
     for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
-        if not any([is_excluded(ex, source_file) or
-                    is_excluded(ex, dest_file) for ex in exclusions]):
+        if not any(
+		is_excluded(ex, source_file) or is_excluded(ex, dest_file) for ex in exclusions
+        ):
 
             if source_folder.folder_type() == 'local':
                 if source_file is not None:
@@ -793,6 +794,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
                 sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
             ):
                 yield action
+
 
 def _parse_bucket_and_folder(bucket_and_path, api):
     """
