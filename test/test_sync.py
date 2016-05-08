@@ -138,7 +138,7 @@ class FakeArgs(object):
         self.keepDays = keepDays
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
-	self.exclude = exclude
+        self.exclude = exclude
 
 
 def b2_file(name, *args):
