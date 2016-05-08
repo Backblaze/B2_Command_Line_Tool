@@ -233,11 +233,12 @@ class TestMakeSyncActions(unittest.TestCase):
         ]
 
         actions = list(
-            make_folder_sync_actions(local_folder,
-                                     b2_folder,
-                                     FakeArgs(exclude=["b.txt"]),
-                                     TODAY,
-                                     self.reporter)
+            make_folder_sync_actions(
+                local_folder,
+                b2_folder,
+                FakeArgs(exclude=["b.txt"]),
+                TODAY, self.reporter
+            )
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
 
