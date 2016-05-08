@@ -623,7 +623,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b):
+def zip_folders(folder_a, folder_b, exclusions=[]):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -634,8 +634,9 @@ def zip_folders(folder_a, folder_b):
     :param folder_a: A Folder object.
     :param folder_b: A Folder object.
     """
-    iter_a = folder_a.all_files()
+    iter_a = (f for f in folder_a.all_files() if not any(is_excluded(ex, f) for ex in exclusions))
     iter_b = folder_b.all_files()
+
     current_a = next_or_none(iter_a)
     current_b = next_or_none(iter_b)
     while current_a is not None or current_b is not None:
@@ -781,19 +782,17 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         ('b2', 'local'), ('local', 'b2')
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
-    for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
-        if not any(is_excluded(ex, source_file) for ex in exclusions):
-
-            if source_folder.folder_type() == 'local':
-                if source_file is not None:
-                    reporter.update_compare(1)
-            else:
-                if dest_file is not None:
-                    reporter.update_compare(1)
-            for action in make_file_sync_actions(
-                sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
-            ):
-                yield action
+    for (source_file, dest_file) in zip_folders(source_folder, dest_folder, exclusions):
+        if source_folder.folder_type() == 'local':
+            if source_file is not None:
+                reporter.update_compare(1)
+        else:
+            if dest_file is not None:
+                reporter.update_compare(1)
+        for action in make_file_sync_actions(
+            sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
+        ):
+            yield action
 
 
 def _parse_bucket_and_folder(bucket_and_path, api):

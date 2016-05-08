@@ -242,6 +242,16 @@ class TestMakeSyncActions(unittest.TestCase):
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
 
+    def test_file_exclusions_with_delete(self):
+        src_file = b2_file('a.txt', 100)
+        dst_file = b2_file('a.txt', 100)
+        actions = ['b2_delete(folder/a.txt, id_a_100, )']
+        self._check_local_to_b2(
+            src_file, dst_file,
+            FakeArgs(delete=True, exclude=['a.txt']),
+            actions
+        )
+
     # src: absent, dst: absent
 
     def test_empty_b2(self):
