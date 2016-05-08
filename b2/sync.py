@@ -634,7 +634,8 @@ def zip_folders(folder_a, folder_b, exclusions=[]):
     :param folder_a: A Folder object.
     :param folder_b: A Folder object.
     """
-    iter_a = (f for f in folder_a.all_files() if not any(is_excluded(ex, f) for ex in exclusions))
+
+    iter_a = (f for f in folder_a.all_files() if not any(ex.match(f.name) for ex in exclusions))
     iter_b = folder_b.all_files()
 
     current_a = next_or_none(iter_a)
@@ -755,10 +756,6 @@ def make_file_sync_actions(
                 yield LocalDeleteAction(dest_file.name, version.id_)
 
 
-def is_excluded(ex, target_file):
-    return target_file is not None and ex.match(target_file.name)
-
-
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
     """
     Yields a sequence of actions that will sync the destination
@@ -773,7 +770,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
         raise CommandError('--keepDays cannot be used for local files')
 
-    exclusions = [re.compile(ex) for ex in args.exclude]
+    exclusions = [re.compile(ex) for ex in args.excludeRegex]
 
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()

@@ -134,17 +134,18 @@ class FakeArgs(object):
     """
 
     def __init__(
-        self, delete=False,
+        self,
+        delete=False,
         keepDays=None,
         skipNewer=False,
         replaceNewer=False,
-        exclude=[]
+        excludeRegex=[]
     ):
         self.delete = delete
         self.keepDays = keepDays
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
-        self.exclude = exclude
+        self.excludeRegex = excludeRegex
 
 
 def b2_file(name, *args):
@@ -236,8 +237,9 @@ class TestMakeSyncActions(unittest.TestCase):
             make_folder_sync_actions(
                 local_folder,
                 b2_folder,
-                FakeArgs(exclude=["b.txt"]),
-                TODAY, self.reporter
+                FakeArgs(excludeRegex=["b.txt"]),
+                TODAY,
+                self.reporter
             )
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
@@ -248,7 +250,7 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(
             src_file, dst_file,
-            FakeArgs(delete=True, exclude=['a.txt']),
+            FakeArgs(delete=True, excludeRegex=['a.txt']),
             actions
         )
 
