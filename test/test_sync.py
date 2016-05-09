@@ -139,13 +139,15 @@ class FakeArgs(object):
         keepDays=None,
         skipNewer=False,
         replaceNewer=False,
-        compareVersions=None
+        compareVersions=None,
+        excludeRegex=[]
     ):
         self.delete = delete
         self.keepDays = keepDays
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
         self.compareVersions = compareVersions
+        self.excludeRegex = excludeRegex
 
 
 def b2_file(name, *args, size=10):
@@ -222,6 +224,39 @@ class TestMakeSyncActions(unittest.TestCase):
             self.fail('should have thrown ValueError')
         except CommandError:
             pass
+
+    def test_file_exclusions(self):
+        file_a = local_file('a.txt', 100)
+        file_b = local_file('b.txt', 100)
+        file_c = local_file('c.txt', 100)
+
+        local_folder = FakeFolder('local', [file_a, file_b, file_c])
+        b2_folder = FakeFolder('b2', [])
+
+        expected_actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 100)', 'b2_upload(/dir/c.txt, folder/c.txt, 100)'
+        ]
+
+        actions = list(
+            make_folder_sync_actions(
+                local_folder,
+                b2_folder,
+                FakeArgs(excludeRegex=["b.txt"]),
+                TODAY,
+                self.reporter
+            )
+        )
+        self.assertEqual(expected_actions, [str(a) for a in actions])
+
+    def test_file_exclusions_with_delete(self):
+        src_file = b2_file('a.txt', 100)
+        dst_file = b2_file('a.txt', 100)
+        actions = ['b2_delete(folder/a.txt, id_a_100, )']
+        self._check_local_to_b2(
+            src_file, dst_file,
+            FakeArgs(delete=True, excludeRegex=['a.txt']),
+            actions
+        )
 
     # src: absent, dst: absent
 
