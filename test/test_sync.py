@@ -148,7 +148,7 @@ class FakeArgs(object):
         self.compareVersions = compareVersions
 
 
-def b2_file(name, *args):
+def b2_file(name, *args, size=10):
     """
     Makes a File object for a b2 file, with one FileVersion for
     each modification time given in *args.
@@ -172,18 +172,20 @@ def b2_file(name, *args):
     versions = [
         FileVersion(
             'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide', 10
+            if 0 < mod_time else 'hide', size
         ) for mod_time in args
     ]  # yapf disable
     return File(name, versions)
 
 
-def local_file(name, *args):
+def local_file(name, *args, size=10):
     """
     Makes a File object for a b2 file, with one FileVersion for
     each modification time given in *args.
     """
-    versions = [FileVersion('/dir/%s' % (name,), name, mod_time, 'upload', 10) for mod_time in args]
+    versions = [
+        FileVersion('/dir/%s' % (name,), name, mod_time, 'upload', size) for mod_time in args
+    ]
     return File(name, versions)
 
 
@@ -383,6 +385,16 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_upload(/dir/a.txt, folder/a.txt, 100)']
         self._check_local_to_b2(src_file, dst_file, FakeArgs(replaceNewer=True), actions)
 
+    def test_older_b2_replace_delete(self):
+        src_file = local_file('a.txt', 100)
+        dst_file = b2_file('a.txt', 200)
+        args = FakeArgs(replaceNewer=True, delete=True)
+        actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_delete(folder/a.txt, id_a_200, (old version))'
+        ]
+        self._check_local_to_b2(src_file, dst_file, args, actions)
+
     def test_older_local(self):
         src_file = b2_file('a.txt', 100)
         dst_file = local_file('a.txt', 200)
@@ -402,6 +414,39 @@ class TestMakeSyncActions(unittest.TestCase):
         dst_file = local_file('a.txt', 200)
         actions = ['b2_download(folder/a.txt, id_a_100, /dir/a.txt, 100)']
         self._check_b2_to_local(src_file, dst_file, FakeArgs(replaceNewer=True), actions)
+
+    # compareVersions option
+
+    def test_compare_b2_none_newer(self):
+        src_file = local_file('a.txt', 200)
+        dst_file = b2_file('a.txt', 100)
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(compareVersions='none'), [])
+
+    def test_compare_b2_none_older(self):
+        src_file = local_file('a.txt', 100)
+        dst_file = b2_file('a.txt', 200)
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(compareVersions='none'), [])
+
+    def test_compare_b2_size_equal(self):
+        src_file = local_file('a.txt', 200, size=10)
+        dst_file = b2_file('a.txt', 100, size=10)
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(compareVersions='size'), [])
+
+    def test_compare_b2_size_not_equal(self):
+        src_file = local_file('a.txt', 200, size=11)
+        dst_file = b2_file('a.txt', 100, size=10)
+        actions = ['b2_upload(/dir/a.txt, folder/a.txt, 200)']
+        self._check_local_to_b2(src_file, dst_file, FakeArgs(compareVersions='size'), actions)
+
+    def test_compare_b2_size_not_equal_delete(self):
+        src_file = local_file('a.txt', 200, size=11)
+        dst_file = b2_file('a.txt', 100, size=10)
+        args = FakeArgs(compareVersions='size', delete=True)
+        actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 200)',
+            'b2_delete(folder/a.txt, id_a_100, (old version))'
+        ]
+        self._check_local_to_b2(src_file, dst_file, args, actions)
 
     # helper methods
 

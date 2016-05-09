@@ -687,7 +687,7 @@ def make_file_sync_actions(
 
     # By default, all but the current version at the destination are
     # candidates for cleaning.  This will be overridden in the case
-    # where there is no source file.
+    # where there is no source file or a new version is uploaded.
     dest_versions_to_clean = []
     if dest_file is not None:
         dest_versions_to_clean = dest_file.versions[1:]
@@ -708,8 +708,6 @@ def make_file_sync_actions(
             if dest_mod_time < source_mod_time:
                 yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
                 transferred = True
-                if sync_type == 'local-to-b2':
-                    dest_versions_to_clean = dest_file.versions
 
             # Source is older
             elif source_mod_time < dest_mod_time:
@@ -730,11 +728,13 @@ def make_file_sync_actions(
             if source_size != dest_size:
                 yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
                 transferred = True
-                if sync_type == 'local-to-b2':
-                    dest_versions_to_clean = dest_file.versions
 
         else:
             raise CommandError('Invalid option for --compareVersions')
+
+        # All previous files are candidates for cleaning, if a new version is beeing uploaded
+        if transferred and sync_type == 'local-to-b2':
+            dest_versions_to_clean = dest_file.versions
 
     # Case 2: No destination file, but source file exists
     elif source_file is not None and dest_file is None:
@@ -744,9 +744,9 @@ def make_file_sync_actions(
     # Case 3: No source file, but destination file exists
     elif source_file is None and dest_file is not None:
         if args.keepDays is not None and sync_type == 'local-to-b2':
-            if dest_file.versions[0].action == 'upload':
+            if dest_file.latest_version().action == 'upload':
                 yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
-        # all versions of the destination file are candidates for cleaning
+        # All versions of the destination file are candidates for cleaning
         dest_versions_to_clean = dest_file.versions
 
     # Clean up old versions
