@@ -546,7 +546,8 @@ class MakeUrl(Command):
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
-            [--threads N] [--noProgress] <source> <destination>
+            [--threads N] [--noProgress] [--excludeRegex <regex>] \\
+            <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -555,6 +556,11 @@ class Sync(Command):
         number of threads is 10.  Progress is displayed on the
         console unless '--noProgress' is specified.  A list of
         actions taken is always printed.
+
+        You can specify --excludeRegex to selectively ignore files that
+        match the given pattern. Ignored files will not copy during
+        the sync operation. The pattern is a regular expression
+        that is tested against the full path of each file.
 
         Files are considered to be the same if they have the same name
         and modification time.  A future enhancement may add the ability
@@ -592,6 +598,7 @@ class Sync(Command):
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
     OPTION_ARGS = ['keepDays', 'threads']
     REQUIRED = ['source', 'destination']
+    LIST_ARGS = ['excludeRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):

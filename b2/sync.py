@@ -13,6 +13,7 @@ from __future__ import division
 import os
 import threading
 import time
+import re
 from abc import (ABCMeta, abstractmethod)
 
 import six
@@ -622,7 +623,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b):
+def zip_folders(folder_a, folder_b, exclusions=[]):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -633,8 +634,10 @@ def zip_folders(folder_a, folder_b):
     :param folder_a: A Folder object.
     :param folder_b: A Folder object.
     """
-    iter_a = folder_a.all_files()
+
+    iter_a = (f for f in folder_a.all_files() if not any(ex.match(f.name) for ex in exclusions))
     iter_b = folder_b.all_files()
+
     current_a = next_or_none(iter_a)
     current_b = next_or_none(iter_b)
     while current_a is not None or current_b is not None:
@@ -767,6 +770,8 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
         raise CommandError('--keepDays cannot be used for local files')
 
+    exclusions = [re.compile(ex) for ex in args.excludeRegex]
+
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
@@ -774,7 +779,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         ('b2', 'local'), ('local', 'b2')
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
-    for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
+    for (source_file, dest_file) in zip_folders(source_folder, dest_folder, exclusions):
         if source_folder.folder_type() == 'local':
             if source_file is not None:
                 reporter.update_compare(1)
