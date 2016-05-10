@@ -680,6 +680,50 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
             source_file.latest_version().size
         )  # yapf: disable
 
+def check_file_replacement(source_file, dest_file, args):
+    """
+    Compare two files and determine if the the destination file
+    should be replaced by the source file.
+    """
+
+    # Compare using modification time by default
+    compareVersions = args.compareVersions or 'modTime'
+
+    # Compare using file name only
+    if compareVersions == 'none':
+        return False
+
+    # Compare using modification time
+    elif compareVersions == 'modTime':
+        # Get the modification time of the latest versions
+        source_mod_time = source_file.latest_version().mod_time
+        dest_mod_time = dest_file.latest_version().mod_time
+
+        # Source is newer
+        if dest_mod_time < source_mod_time:
+            return True
+
+        # Source is older
+        elif source_mod_time < dest_mod_time:
+            if args.replaceNewer:
+                return True
+            elif args.skipNewer:
+                return False
+            else:
+                raise DestFileNewer(dest_file.name,)
+
+    # Compare using file size
+    elif compareVersions == 'size':
+        # Get file size of the latest versions
+        source_size = source_file.latest_version().size
+        dest_size = dest_file.latest_version().size
+
+        # Replace if sizes are different
+        return source_size != dest_size
+
+    else:
+        raise CommandError('Invalid option for --compareVersions')
+
 
 def make_file_sync_actions(
     sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
@@ -698,44 +742,10 @@ def make_file_sync_actions(
     # Case 1: Both files exist
     transferred = False
     if source_file is not None and dest_file is not None:
-        compareVersions = args.compareVersions or 'modTime'
-        if compareVersions == 'none':
-            pass
-
-        elif compareVersions == 'modTime':
-            # Get the modification time of the latest versions
-            source_mod_time = source_file.latest_version().mod_time
-            dest_mod_time = dest_file.latest_version().mod_time
-
-            # Source is newer
-            if dest_mod_time < source_mod_time:
-                yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-                transferred = True
-
-            # Source is older
-            elif source_mod_time < dest_mod_time:
-                if args.replaceNewer:
-                    yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-                    transferred = True
-                elif args.skipNewer:
-                    pass
-                else:
-                    raise DestFileNewer(dest_file.name,)
-
-        elif compareVersions == 'size':
-            # Get file size of the latest versions
-            source_size = source_file.latest_version().size
-            dest_size = dest_file.latest_version().size
-
-            # Upload if sizes are different
-            if source_size != dest_size:
-                yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-                transferred = True
-
-        else:
-            raise CommandError('Invalid option for --compareVersions')
-
-        # All previous files are candidates for cleaning, if a new version is beeing uploaded
+        if check_file_replacement(source_file, dest_file, args):
+            yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+            transferred = True
+        # All destination files are candidates for cleaning, if a new version is beeing uploaded
         if transferred and sync_type == 'local-to-b2':
             dest_versions_to_clean = dest_file.versions
 
