@@ -546,8 +546,8 @@ class MakeUrl(Command):
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
-            [--threads N] [--noProgress] [--excludeRegex <regex>] \\
-            <source> <destination>
+            [--compareVersions <option>] [--threads N] [--noProgress] \\
+            [--excludeRegex <regex>] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -563,8 +563,13 @@ class Sync(Command):
         that is tested against the full path of each file.
 
         Files are considered to be the same if they have the same name
-        and modification time.  A future enhancement may add the ability
-        to compare the SHA1 checksum of the files.
+        and modification time.  This behaviour can be changed using the
+        --compareVersions option.  Possible values are:
+          'none':    Comparison using the file name only
+          'modTime': Comparison using the modification time (default)
+          'size':    Comparison using the file size
+        A future enhancement may add the ability to compare the SHA1 checksum
+        of the files.
 
         One of the paths must be a local file path, and the other must be
         a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
@@ -596,7 +601,7 @@ class Sync(Command):
     """
 
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
-    OPTION_ARGS = ['keepDays', 'threads']
+    OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
     LIST_ARGS = ['excludeRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int}
