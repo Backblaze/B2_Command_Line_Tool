@@ -720,7 +720,7 @@ class UploadFile(Command):
         self.api.set_thread_pool_size(max_workers)
 
         #TODO pull out constants for min and max size, 100MB and 5GB
-        part_size_bytes = human2bytes(args.partSize) or human2bytes('100MB') #100MB default
+        part_size_bytes = human2bytes(args.partSize or '100MB') #default 100MB
 	if (part_size_bytes < human2bytes('100MB')) or (part_size_bytes > human2bytes('5GB')):
             self._print('Invalid partSize specified')
             #TODO make sure this is appropriate way to exit
