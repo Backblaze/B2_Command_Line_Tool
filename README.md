@@ -11,7 +11,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.5.5
+Version 0.5.6
 
 # Installation
 
@@ -47,7 +47,8 @@ this:
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
     b2 make_url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
-        [--threads N] [--noProgress] <source> <destination>
+        [--compareVersions <option>] [--threads N] [--noProgress] \
+        [--excludeRegex <regex>] <source> <destination>
     b2 update_bucket <bucketName> [allPublic | allPrivate]
     b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
