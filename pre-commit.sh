@@ -19,7 +19,7 @@ fi
 
 header Unit Tests
 
-if make test
+if ./run-unit-tests.sh
 then
     echo "Unit tests PASSED"
 else
