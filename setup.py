@@ -19,12 +19,17 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 # The set of required packages depends on what version
 # of python you're running.
-required_packages = ['requests>=2.9.1', 'six>=1.10.0', 'tqdm>=4.5.0']
-
 if sys.version_info < (3, 2):
-    required_packages.append('futures>=3.0.5')
+    requirements.append('futures>=3.0.5')
+
+
+with open('requirements-test.txt') as f:
+    requirements_test = f.read().splitlines()
 
 setup(
     name='b2',
@@ -89,7 +94,11 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=required_packages,
+    install_requires=requirements,
+
+    # requirements for tests
+    # it used to be test_requires, but there was a chicken/egg problem with nose
+    setup_requires=requirements_test,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

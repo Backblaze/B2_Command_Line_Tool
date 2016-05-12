@@ -45,6 +45,8 @@ cache:
   - pip
   - directories:
     - $HOME/.virtualenv/python3-osx
+  - directories:
+    - $HOME/.eggs
 
 before_install:
   - uname -a
@@ -78,10 +80,8 @@ before_install:
   - virtualenv --version
 
 install:
-  - pip install mock
-  - pip install nose
-  - pip install pyflakes
-  - pip install yapf
+  - if [ -n "$SCA" ]; then pip install pyflakes; else echo skip; fi
+  - if [ -n "$SCA" ]; then pip install yapf; else echo skip; fi
 
 script:
   - pip freeze
