@@ -93,8 +93,7 @@ class StringReader(object):
 
 def remove_insecure_platform_warnings(text):
     return '\n'.join(
-        line
-        for line in text.split('\n')
+        line for line in text.split('\n')
         if ('SNIMissingWarning' not in line) and ('InsecurePlatformWarning' not in line)
     )
 
