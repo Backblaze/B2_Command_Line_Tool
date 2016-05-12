@@ -49,7 +49,7 @@ done
 
 header Pyflakes
 
-for d in b2 test
+for d in b2 test *.py
 do
     if pyflakes $d
     then
