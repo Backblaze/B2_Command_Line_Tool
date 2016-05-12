@@ -276,15 +276,15 @@ class Bucket(object):
     def upload_stream(
         self,
         file_name,
+        part_size,
         content_type=None,
-        file_infos=None
+        file_infos=None,
     ):
         """
         Uploads a file from stdin stream to a B2 file.
         """
         #determine if it requires large file upload, >= part_size >= minimum_part_size
         #TODO make part_size user configurable 100MB to 5GB so max file size of 10TB can be reached with 1 to 10000 parts
-        part_size = self.api.account_info.get_minimum_part_size()
         chunk_size = 1000000 #1MB chunk size for memory considerations
         validate_b2_file_name(file_name)
         file_info = file_infos or {}

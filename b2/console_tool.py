@@ -30,7 +30,7 @@ from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
 from .raw_api import (test_raw_api)
 from .sync import parse_sync_folder, sync_folders
-from .utils import (current_time_millis, set_shutting_down)
+from .utils import (current_time_millis, set_shutting_down, human2bytes)
 from .version import (VERSION)
 
 
@@ -673,10 +673,10 @@ class UpdateBucket(Command):
 class UploadFile(Command):
     """
     b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \\
-            [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
+            [--noProgress] [--threads N] [--partSize <partSize>] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
-        of the local file, and assigns the given name to the B2 file.
+        of the local file or specify '-' for STDIN, and assigns the given name to the B2 file.
 
         By default, upload_file will compute the sha1 checksum of the file
         to be uploaded.  But, if you already have it, you can provide it
@@ -689,6 +689,11 @@ class UploadFile(Command):
         is specified by '--threads'.  It has no effect on small files (under 200MB).
         Default is 10.
 
+        If file exceeds partSize, multipart large file upload will be initiated and file will be
+        split into partSize parts. Must be specified with units, for example 500MB or 1GiB.
+        Valid range: 100MB <= partSize <= 5GB.
+        Default is 100MB.
+
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
         Use '--noProgress' to disable progress reporting.
@@ -697,7 +702,7 @@ class UploadFile(Command):
     """
 
     OPTION_FLAGS = ['noProgress', 'quiet']
-    OPTION_ARGS = ['sha1', 'contentType', 'threads']
+    OPTION_ARGS = ['sha1', 'contentType', 'threads', 'partSize']
     LIST_ARGS = ['info']
     REQUIRED = ['bucketName', 'localFilePath', 'b2FileName']
     ARG_PARSER = {'threads': int}
@@ -714,13 +719,21 @@ class UploadFile(Command):
         max_workers = args.threads or 10
         self.api.set_thread_pool_size(max_workers)
 
+        #TODO pull out constants for min and max size, 100MB and 5GB
+        part_size_bytes = human2bytes(args.partSize) or human2bytes('100MB') #100MB default
+	if (part_size_bytes < human2bytes('100MB')) or (part_size_bytes > human2bytes('5GB')):
+            self._print('Invalid partSize specified')
+            #TODO make sure this is appropriate way to exit
+            return -1
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         #check if upload is stream or local file
         if args.localFilePath == '-': #TODO not sure how to handle unicode
             file_info = bucket.upload_stream(
                 file_name=args.b2FileName,
+                part_size = part_size_bytes,
                 content_type=args.contentType,
-                file_infos=file_infos,
+                file_infos=file_infos
             )
         else:
             with make_progress_listener(args.localFilePath, args.noProgress) as progress_listener:

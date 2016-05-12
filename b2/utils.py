@@ -259,3 +259,29 @@ def format_and_scale_fraction(numerator, denominator, unit):
     # format it
     scaled_numerator = numerator / scale
     return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
+
+def human2bytes(s):
+    UNITS = {
+        'B': 1,
+        'KB': 1e3,
+        'MB': 1e6,
+        'GB': 1e9,
+        'TB': 1e12,
+        'KiB': 2**10,
+        'MiB': 2**20,
+        'GiB': 2**30,
+        'TiB': 2**40
+    }
+
+    init = s
+    num = ""
+    while s and s[0].isdigit() or s[0] == '.':
+        num += s[0]
+        s = s[1:]
+    num = float(num)
+    unit = s.strip()
+    
+    if not UNITS.has_key(unit):
+        raise ValueError("can't interpret %r" % init)
+    return int(num * UNITS[unit])
+
