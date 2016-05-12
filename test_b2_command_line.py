@@ -60,7 +60,7 @@ def write_file(path, contents):
 
 
 def file_mod_time_millis(path):
-    return int(1000 * os.path.getmtime(path))
+    return int(round(1000 * os.path.getmtime(path)))
 
 
 def random_hex(length):
