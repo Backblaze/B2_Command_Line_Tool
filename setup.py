@@ -19,7 +19,7 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-with open('requirements.txt') as f:
+with open('requirements.txt', encoding='utf-8') as f:
     requirements = f.read().splitlines()
 
 # The set of required packages depends on what version
@@ -27,9 +27,11 @@ with open('requirements.txt') as f:
 if sys.version_info < (3, 2):
     requirements.append('futures>=3.0.5')
 
-
-with open('requirements-test.txt') as f:
+with open('requirements-test.txt', encoding='utf-8') as f:
     requirements_test = f.read().splitlines()
+
+with open('requirements-setup.txt', encoding='utf-8') as f:
+    requirements_setup = f.read().splitlines()
 
 setup(
     name='b2',
@@ -97,8 +99,11 @@ setup(
     install_requires=requirements,
 
     # requirements for tests
-    # it used to be test_requires, but there was a chicken/egg problem with nose
-    setup_requires=requirements_test,
+    tests_require=requirements_test,
+
+    # putting nose in test_requires caused a chicken/egg problem
+    # but apparently setup_requires is broken on most python versions
+    # setup_requires=requirements_setup,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
