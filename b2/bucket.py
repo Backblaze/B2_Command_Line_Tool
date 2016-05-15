@@ -16,13 +16,13 @@ import os
 import io
 
 from .exception import (
-    AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
+    AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxPartsExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
 from .file_version import FileVersionInfoFactory
 from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
-from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, hex_sha1_of_bytes, interruptible_get_result, validate_b2_file_name
+from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
 
 
 class LargeFileUploadState(object):
@@ -311,29 +311,41 @@ class Bucket(object):
             #check if small file upload
             #peek to check if stream ended on first part_size boundary
             if (tmp_length < part_size) or not stdin_buffered.peek(1):
-                print 'Starting small file upload'
+                #print 'Starting small file upload'
                 upload_source = UploadSourceLocalFile(temp_path)
                 return self._upload_small_file(upload_source, file_name, content_type, file_info, progress_listener)
             else:
-                print 'Starting large file multipart upload'
+                #print 'Starting large file multipart upload'
+                #TODO Figure out how to incorporate progress listener
+                #progress_listener.set_total_bytes()
+                large_file_upload_state = LargeFileUploadState(progress_listener)
                 unfinished_file = self.start_large_file(file_name, content_type, file_info)
-                part_number = 0
-                sha1_array = []
+                part_index = 0
+                part_sha1_array = []
+                large_file_size = 0
                 while True:
-                    upload_url, upload_auth_token = self._get_upload_part_data(unfinished_file.file_id)
-                    sha1_sum = hex_sha1_of_stream(tmp, tmp_length)
-                    sha1_array.append(sha1_sum)
-                    part_number += 1
-                    print 'Part %d of size %d bytes being uploaded ...' %(part_number, tmp_length)
-                    response = self.api.raw_api.upload_part(
-                        upload_url,
-                        upload_auth_token,
-                        part_number,
-                        tmp_length,
-                        sha1_sum,
-                        tmp
+                    upload_source = UploadSourceLocalFile(temp_path)
+                    part_index += 1
+                    part_range = (0, upload_source.content_length)
+
+                    #Check if part_index exceeds b2 limit, 10000
+                    #TODO constant should be refactored
+                    if (part_index > 10000):
+                        raise MaxPartsExceeded(part_index, 10000)
+
+                    #Check if uploaded size exceeds b2 limit, 10TB
+                    large_file_size += upload_source.content_length
+                    if (large_file_size > self.MAX_LARGE_FILE_SIZE):
+                        raise MaxFileSizeExceeded(large_file_size, self.MAX_LARGE_FILE_SIZE)
+
+                    result = self._upload_part(
+                        unfinished_file.file_id,
+                        part_index,
+                        part_range,
+                        upload_source,
+                        large_file_upload_state
                     )
-                    assert sha1_sum == response['contentSha1']
+                    part_sha1_array.append(result['contentSha1'])
                     #clear contents of tmp file
                     tmp.seek(0)
                     tmp.truncate()
@@ -345,15 +357,12 @@ class Bucket(object):
                         if not chunk: #EOF
                             break
                         tmp.write(chunk)
-                    tmp_length = tmp.tell()
-                    tmp.seek(0)
-                    if tmp_length == 0:
-                        print 'Reached end of inputstream'
+                    if tmp.tell() == 0:
+                        #Reached EOF
                         break
-                    #TODO need to check if part_number limit of 100000 reached
-                    #TODO need to add retry and retry checks
+                    tmp.seek(0)
                 #Finish the large file
-                response = self.api.session.finish_large_file(unfinished_file.file_id, sha1_array)
+                response = self.api.session.finish_large_file(unfinished_file.file_id, part_sha1_array)
                 #TODO probably check final sha1 of file and sha1 array
                 return FileVersionInfoFactory.from_api_response(response)
 
