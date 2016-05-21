@@ -14,7 +14,7 @@ import struct
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, hmac, padding
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives.ciphers import (Cipher, algorithms, modes)
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
 def derive_key(passphrase, salt, iterations=500000):
@@ -39,22 +39,25 @@ def unpack_iv(piv):
 
 class EncryptingFileStream(object):
     def __init__(self, upload_source, crypto_file):
-        self.stream = upload_source.open()
+        self.upload_source = upload_source
         self.crypto_file = crypto_file
+
+    def __enter__(self):
+        self.stream = self.upload_source.open().__enter__()
         self.buffer = b''
         self.block = 0
         self.eof = False
-
-    def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
-        self.stream.close()
+    def __exit__(self, type_, value, traceback):
+        self.stream.__exit__(type_, value, traceback)
         return None  # don't hide exception
 
-    def read(self, size):
+    def read(self, size=None):
+        if size is None:
+            size = self.crypto_file.encrypted_size()
         while not self.eof and len(self.buffer) < size:
-            self.fillBuffer()
+            self._fillBuffer()
         rtn = self.buffer[0:size]
         self.buffer = self.buffer[size:]
         return rtn
@@ -62,7 +65,7 @@ class EncryptingFileStream(object):
     def seek(self, offset):
         # calculate positions
         header_size = len(self.crypto_file.header())
-        auth_tag_size = self.crypto_file.auth_tag_size()
+        auth_tag_size = self.crypto_file.crypto.auth_tag_size
         block_size = self.crypto_file.crypto.block_size
         self.block = max(0, offset - header_size) // (block_size + auth_tag_size)
         if self.block == 0:
@@ -74,13 +77,10 @@ class EncryptingFileStream(object):
         self.eof = False
         self.stream.seek(self.block * block_size)
         self.buffer = b''
-        self.fillBuffer()
+        self._fillBuffer()
         self.buffer = self.buffer[block_offset:]
 
-    def close(self):
-        self.stream.close()
-
-    def fillBuffer(self):
+    def _fillBuffer(self):
         # write header
         if self.block == 0:
             self.buffer = self.crypto_file.header()
@@ -100,11 +100,17 @@ class FileEncryptionContext(object):
         self.file_size = file_size
         self.salt = os.urandom(16)
         self.iv = os.urandom(12)
-        self.blocks = struct.pack('>Q', crypto.block_count(file_size))
+        self.blocks = struct.pack('>Q', self.block_count())
         self.file_key = derive_key(crypto.get_master_key(), self.salt, 1)
 
     def header(self):
-        return self.salt + self.blocks + self.iv
+        data = self.salt + self.blocks + self.iv
+        assert (len(data) == self.crypto.header_size)
+        return data
+
+    def block_count(self):
+        block_size = self.crypto.block_size
+        return (self.file_size + block_size - 1) // block_size  # divide rounding up
 
     def encrypt_block(self, block_id, data):
         iv_int = unpack_iv(self.iv)
@@ -115,29 +121,116 @@ class FileEncryptionContext(object):
         ).encryptor()
         encryptor.authenticate_additional_data(self.blocks)
         ciphertext = encryptor.update(data) + encryptor.finalize()
+        assert (len(encryptor.tag) == self.crypto.auth_tag_size)
         return ciphertext + encryptor.tag
 
-    def auth_tag_size(self):
-        return 16
-
     def encrypted_size(self):
-        auth_size = self.crypto.block_count(self.file_size) * self.auth_tag_size()
-        return self.file_size + len(self.header()) + auth_size
+        auth_size = self.block_count() * self.crypto.auth_tag_size
+        return self.file_size + self.crypto.header_size + auth_size
 
 
-class EncryptionContext(object):
+class DecryptingFileStream(object):
+    def __init__(self, download_dest, params, crypto_file):
+        self.download_dest = download_dest
+        self.params = params
+        self.crypto_file = crypto_file
+
+    def __enter__(self):
+        self.stream = self.download_dest.open(*self.params).__enter__()
+        self.buffer = b''
+        self.block = 0
+        self.header_read = False
+        self.bytes_processed = 0
+        return self
+
+    def __exit__(self, type_, value, traceback):
+        self.stream.__exit__(type_, value, traceback)
+        return None  # don't hide exception
+
+    def write(self, bytes):
+        self.buffer += bytes
+        self.bytes_processed += len(bytes)
+        while self._flushBuffer():
+            pass
+
+        # end of file
+        if self.bytes_processed == self.crypto_file.file_size:
+            self._flushBuffer(True)
+
+    def _flushBuffer(self, eof=False):
+        # read header
+        header_size = self.crypto_file.crypto.header_size
+        if self.header_read == False:
+            if len(self.buffer) >= header_size:
+                header = self.buffer[0:header_size]
+                self.buffer = self.buffer[header_size:]
+                self.crypto_file.decode_header(header)
+                self.header_read = True
+                return True
+
+            # Don't decrypt blocks until header is read
+            return False
+
+        # decrypt block
+        enc_block_size = self.crypto_file.crypto.block_size + self.crypto_file.crypto.auth_tag_size
+        if len(self.buffer) >= enc_block_size or eof:
+            data = self.buffer[0:enc_block_size]
+            self.buffer = self.buffer[enc_block_size:]
+            self.stream.write(self.crypto_file.decrypt_block(self.block, data))
+            self.block += 1
+            return True
+
+        return False
+
+
+class FileDecryptionContext(object):
+    def __init__(self, crypto, file_size):
+        self.crypto = crypto
+        self.file_size = file_size
+
+    def decode_header(self, header):
+        assert (len(header) == self.crypto.header_size)
+        self.salt = header[0:16]
+        self.blocks = header[16:24]
+        self.iv = header[24:36]
+        self.file_key = derive_key(self.crypto.get_master_key(), self.salt, 1)
+
+    def block_count(self):
+        data_size = self.file_size - self.crypt.header_size
+        block_size = self.crypto.block_size + self.crypto.auth_tag_size
+        return (data_size + block_size - 1) // block_size  # divide rounding up
+
+    def decrypt_block(self, block_id, data):
+        # split data block
+        ciphertext = data[:-self.crypto.auth_tag_size]
+        tag = data[-self.crypto.auth_tag_size:]
+
+        # decrypt
+        iv_int = unpack_iv(self.iv)
+        decryptor = Cipher(
+            algorithms.AES(self.file_key),
+            modes.GCM(pack_iv(iv_int + block_id), tag),
+            backend=default_backend()
+        ).decryptor()
+        decryptor.authenticate_additional_data(self.blocks)
+        return decryptor.update(ciphertext) + decryptor.finalize()
+
+
+class CryptoContext(object):
     def __init__(self):
         self.master_key = b'bla'
         self.block_size = 16 * 1024
+        self.header_size = 16 + 8 + 12
+        self.auth_tag_size = 16
 
-    def make_file_context(self, file_size):
+    def make_encryption_context(self, file_size):
         return FileEncryptionContext(self, file_size)
+
+    def make_decryption_context(self, file_size):
+        return FileDecryptionContext(self, file_size)
 
     def get_master_key(self):
         return self.master_key
-
-    def block_count(self, file_size):
-        return (file_size + self.block_size - 1) // self.block_size  # divide rounding up
 
     def encrypt_filename(self, filename, folder=''):
         # derive multiple keys

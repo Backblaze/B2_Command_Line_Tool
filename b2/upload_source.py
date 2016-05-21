@@ -81,10 +81,10 @@ class UploadSourceLocalFile(AbstractUploadSource):
             return hex_sha1_of_stream(f, self.content_length)
 
 
-class UploadEncryptedSourceWrapper(AbstractUploadSource):
+class UploadSourceEncryptionWrapper(AbstractUploadSource):
     def __init__(self, upload_source, crypto):
         self.upload_source = upload_source
-        self.crypto_file = crypto.make_file_context(upload_source.get_content_length())
+        self.crypto_file = crypto.make_encryption_context(upload_source.get_content_length())
         self.content_length = self.crypto_file.encrypted_size()
         self.content_sha1 = None
 

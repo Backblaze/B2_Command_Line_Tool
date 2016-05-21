@@ -11,13 +11,15 @@
 import six
 import threading
 
+from .encryption import CryptoContext
 from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
+from .download_dest import DownloadDestDecryptionWrapper
 from .file_version import FileVersionInfoFactory
 from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
 from .unfinished_large_file import UnfinishedLargeFile
-from .upload_source import UploadSourceBytes, UploadSourceLocalFile
+from .upload_source import UploadSourceBytes, UploadSourceLocalFile, UploadSourceEncryptionWrapper
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
 
 
@@ -547,6 +549,35 @@ class Bucket(object):
         return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
 
 
+class EncryptedBucket(Bucket):
+    def __init__(self, api, id_, name=None, type_=None):
+        self.crypto = CryptoContext()
+        super().__init__(api, id_, name, type_)
+
+    def download_file_by_id(self, file_id, download_dest):
+        download_dest = DownloadDestDecryptionWrapper(download_dest, self.crypto)
+        return super().download_file_by_id(file_id, download_dest)
+
+    def download_file_by_name(self, file_name, download_dest):
+        download_dest = DownloadDestDecryptionWrapper(download_dest, self.crypto)
+        return super().download_file_by_name(file_name, download_dest)
+
+    def upload(
+        self,
+        upload_source,
+        file_name,
+        content_type=None,
+        file_info=None,
+        progress_listener=None
+    ):
+        encrypted_source = UploadSourceEncryptionWrapper(upload_source, self.crypto)
+        result = super().upload(
+            encrypted_source, file_name, content_type, file_info, progress_listener
+        )
+        result.size = upload_source.get_content_length()
+        return result
+
+
 class BucketFactory(object):
     @classmethod
     def from_api_response(cls, api, response):
@@ -569,4 +600,4 @@ class BucketFactory(object):
         type_ = bucket_dict['bucketType']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(api, bucket_id, bucket_name, type_)
+        return EncryptedBucket(api, bucket_id, bucket_name, type_)

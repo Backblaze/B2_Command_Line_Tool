@@ -13,6 +13,7 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
+from .encryption import (DecryptingFileStream)
 from .progress import (StreamWithProgress)
 
 
@@ -132,3 +133,20 @@ class DownloadDestBytes(AbstractDownloadDestination):
         self.mod_time_millis = mod_time_millis
         self.bytes_io = BytesCapture()
         return self.bytes_io
+
+
+class DownloadDestDecryptionWrapper(AbstractDownloadDestination):
+    def __init__(self, download_dest, crypto):
+        self.download_dest = download_dest
+        self.crypto = crypto
+
+    def open(
+        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
+        mod_time_millis
+    ):
+        params = (
+            file_id, file_name, content_length, content_type, content_sha1, file_info,
+            mod_time_millis
+        )
+        crypto_file = self.crypto.make_decryption_context(content_length)
+        return DecryptingFileStream(self.download_dest, params, crypto_file)

@@ -10,7 +10,7 @@
 
 from .account_info import SqliteAccountInfo
 from .b2http import B2Http
-from .bucket import Bucket, BucketFactory
+from .bucket import Bucket, EncryptedBucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
 from .exception import MissingAccountData, NonExistentBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
@@ -147,7 +147,7 @@ class B2Api(object):
         self.session.download_file_by_id(file_id, download_dest, url_factory=url_factory)
 
     def get_bucket_by_id(self, bucket_id):
-        return Bucket(self, bucket_id)
+        return EncryptedBucket(self, bucket_id)
 
     def get_bucket_by_name(self, bucket_name):
         """
@@ -159,7 +159,7 @@ class B2Api(object):
         # If we can get it from the stored info, do that.
         id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
         if id_ is not None:
-            return Bucket(self, id_, name=bucket_name)
+            return EncryptedBucket(self, id_, name=bucket_name)
 
         for bucket in self.list_buckets():
             if bucket.name == bucket_name:
