@@ -16,7 +16,8 @@ import os
 import io
 
 from .exception import (
-    AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxPartsExceeded, MaxRetriesExceeded, UnrecognizedBucketType
+    AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxPartsExceeded, MaxRetriesExceeded,
+    UnrecognizedBucketType
 )
 from .file_version import FileVersionInfoFactory
 from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
@@ -275,19 +276,13 @@ class Bucket(object):
         upload_source = UploadSourceLocalFile(local_path=local_file, content_sha1=sha1_sum)
         return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
 
-    def upload_stream(
-        self,
-        file_name,
-        part_size,
-        content_type=None,
-        file_infos=None,
-    ):
+    def upload_stream(self, file_name, part_size, content_type=None, file_infos=None,):
         """
-        Uploads a file from stdin stream to a B2 file.
+        Uploads from stdin stream to a B2 file.
         """
         #determine if it requires large file upload, > part_size >= minimum_part_size
         #TODO make part_size user configurable 100MB to 5GB so max file size of 10TB can be reached with 1 to 10000 parts
-        chunk_size = 16*1024 #16KiB chunk size for memory considerations
+        chunk_size = 16 * 1024  #16KiB chunk size for memory considerations
         validate_b2_file_name(file_name)
         file_info = file_infos or {}
         content_type = content_type or self.DEFAULT_CONTENT_TYPE
@@ -295,25 +290,27 @@ class Bucket(object):
 
         temp_fd, temp_path = tempfile.mkstemp()
         stdin_reader = io.open(sys.stdin.fileno())
-        stdin_buffered = io.BufferedReader(stdin_reader.buffer) #Allows for peeking stdin
-        with os.fdopen(temp_fd, 'w+b') as tmp:
+        stdin_buffered = io.BufferedReader(stdin_reader.buffer)  #Allows for peeking stdin
+        with os.fdopen(temp_fd, 'w+b') as temp_file:
             for i in six.moves.xrange(0, part_size, chunk_size):
                 #checks if end of file chunking to be in line with part_size
                 if (i + chunk_size) > part_size:
                     chunk = stdin_buffered.read(part_size - i)
                 else:
                     chunk = stdin_buffered.read(chunk_size)
-                if not chunk: #EOF
+                if not chunk:  #EOF
                     break
-                tmp.write(chunk)
-            tmp_length = tmp.tell()
-            tmp.seek(0)
+                temp_file.write(chunk)
+            temp_file_length = temp_file.tell()
+            temp_file.seek(0)
             #check if small file upload
             #peek to check if stream ended on first part_size boundary
-            if (tmp_length < part_size) or not stdin_buffered.peek(1):
+            if (temp_file_length < part_size) or not stdin_buffered.peek(1):
                 #print 'Starting small file upload'
                 upload_source = UploadSourceLocalFile(temp_path)
-                return self._upload_small_file(upload_source, file_name, content_type, file_info, progress_listener)
+                return self._upload_small_file(
+                    upload_source, file_name, content_type, file_info, progress_listener
+                )
             else:
                 #print 'Starting large file multipart upload'
                 #TODO Figure out how to incorporate progress listener
@@ -339,30 +336,29 @@ class Bucket(object):
                         raise MaxFileSizeExceeded(large_file_size, self.MAX_LARGE_FILE_SIZE)
 
                     result = self._upload_part(
-                        unfinished_file.file_id,
-                        part_index,
-                        part_range,
-                        upload_source,
+                        unfinished_file.file_id, part_index, part_range, upload_source,
                         large_file_upload_state
                     )
                     part_sha1_array.append(result['contentSha1'])
-                    #clear contents of tmp file
-                    tmp.seek(0)
-                    tmp.truncate()
+                    #clear contents of temp_file file
+                    temp_file.seek(0)
+                    temp_file.truncate()
                     for i in six.moves.xrange(0, part_size, chunk_size):
                         if (i + chunk_size) > part_size:
                             chunk = stdin_buffered.read(part_size - i)
                         else:
                             chunk = stdin_buffered.read(chunk_size)
-                        if not chunk: #EOF
+                        if not chunk:  #EOF
                             break
-                        tmp.write(chunk)
-                    if tmp.tell() == 0:
+                        temp_file.write(chunk)
+                    if temp_file.tell() == 0:
                         #Reached EOF
                         break
-                    tmp.seek(0)
+                    temp_file.seek(0)
                 #Finish the large file
-                response = self.api.session.finish_large_file(unfinished_file.file_id, part_sha1_array)
+                response = self.api.session.finish_large_file(
+                    unfinished_file.file_id, part_sha1_array
+                )
                 #TODO probably check final sha1 of file and sha1 array
                 return FileVersionInfoFactory.from_api_response(response)
 
