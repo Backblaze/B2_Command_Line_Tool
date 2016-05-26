@@ -581,6 +581,8 @@ class B2Folder(AbstractFolder):
             recursive=True, fetch_count=1000
         ):
             assert file_version_info.file_name.startswith(self.prefix)
+            if file_version_info.action == 'start':
+                continue
             file_name = file_version_info.file_name[len(self.prefix):]
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
