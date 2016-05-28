@@ -58,7 +58,6 @@ class TestLocalFolder(unittest.TestCase):
 
 
 class TestB2Folder(unittest.TestCase):
-
     def setUp(self):
         self.bucket = MagicMock()
         self.api = MagicMock()
@@ -73,18 +72,35 @@ class TestB2Folder(unittest.TestCase):
         # Test two files, to cover the yield within the loop, and
         # the yield without.
         self.bucket.ls.return_value = [
-            (FileVersionInfo('a2', 'folder/a.txt', 200, 'text/plain', 'sha1', {}, 2000, 'upload'), 'folder'),
-            (FileVersionInfo('a1', 'folder/a.txt', 100, 'text/plain', 'sha1', {}, 1000, 'upload'), 'folder'),
-            (FileVersionInfo('b2', 'folder/b.txt', 200, 'text/plain', 'sha1', {}, 2000, 'upload'), 'folder'),
-            (FileVersionInfo('bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500, 'start'), 'folder'),
-            (FileVersionInfo('b1', 'folder/b.txt', 100, 'text/plain', 'sha1', {'src_last_modified_millis': 1000}, 6666, 'upload'), 'folder'),
+            (
+                FileVersionInfo('a2', 'folder/a.txt', 200, 'text/plain', 'sha1', {}, 2000,
+                                'upload'), 'folder'
+            ),
+            (
+                FileVersionInfo('a1', 'folder/a.txt', 100, 'text/plain', 'sha1', {}, 1000,
+                                'upload'), 'folder'
+            ),
+            (
+                FileVersionInfo('b2', 'folder/b.txt', 200, 'text/plain', 'sha1', {}, 2000,
+                                'upload'), 'folder'
+            ),
+            (
+                FileVersionInfo('bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500,
+                                'start'), 'folder'
+            ),
+            (
+                FileVersionInfo(
+                    'b1', 'folder/b.txt', 100, 'text/plain', 'sha1', {
+                        'src_last_modified_millis': 1000
+                    }, 6666, 'upload'
+                ), 'folder'
+            ),
         ]
         self.assertEqual(
             [
                 "File(a.txt, [FileVersion('a2', 'folder/a.txt', 2000, 'upload'), FileVersion('a1', 'folder/a.txt', 1000, 'upload')])",
                 "File(b.txt, [FileVersion('b2', 'folder/b.txt', 2000, 'upload'), FileVersion('b1', 'folder/b.txt', 1000, 'upload')])",
-            ],
-            [str(f) for f in self.b2_folder.all_files()]
+            ], [str(f) for f in self.b2_folder.all_files()]
         )
 
 
@@ -205,8 +221,9 @@ def b2_file(name, mod_times, size=10):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide', size
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(
+                mod_time
+            ), 'upload' if 0 < mod_time else 'hide', size
         ) for mod_time in mod_times
     ]  # yapf disable
     return File(name, versions)
@@ -286,9 +303,8 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(
             src_file, dst_file,
-            FakeArgs(
-                delete=True, excludeRegex=['a.txt']
-            ), actions
+            FakeArgs(delete=True, excludeRegex=['a.txt']),
+            actions
         )
 
     # src: absent, dst: absent

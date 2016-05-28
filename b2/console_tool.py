@@ -611,11 +611,12 @@ class Sync(Command):
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
+        now_millis = current_time_millis()
         sync_folders(
             source_folder=source,
             dest_folder=destination,
             args=args,
-            now_millis=current_time_millis(),
+            now_millis=now_millis,
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers
@@ -738,14 +739,10 @@ class UploadFile(Command):
             )
         response = file_info.as_dict()
         if not args.quiet:
-            self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
-            self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(
-                    response[
-                        'fileId'
-                    ]
-                )
-            )
+            name_url = bucket.get_download_url(args.b2FileName)
+            id_url = self.api.get_download_url_for_fileid(response['fileId'])
+            self._print("URL by file name: " + name_url)
+            self._print("URL by fileId: " + id_url)
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
