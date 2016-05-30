@@ -615,8 +615,7 @@ class Sync(Command):
             source_folder=source,
             dest_folder=destination,
             args=args,
-            now_millis=current_time_millis(
-            ),
+            now_millis=current_time_millis(),
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers

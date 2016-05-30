@@ -373,9 +373,7 @@ class B2RawApi(AbstractRawApi):
         headers = {
             'Authorization': upload_auth_token,
             'Content-Length': str(content_length),
-            'X-Bz-File-Name': b2_url_encode(
-                file_name
-            ),
+            'X-Bz-File-Name': b2_url_encode(file_name),
             'Content-Type': content_type,
             'X-Bz-Content-Sha1': content_sha1
         }

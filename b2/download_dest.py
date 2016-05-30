@@ -13,7 +13,7 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
-from .progress import (StreamWithProgress, DoNothingProgressListener)
+from .progress import (StreamWithProgress)
 
 
 @six.add_metaclass(ABCMeta)

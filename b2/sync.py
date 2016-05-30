@@ -776,9 +776,8 @@ def make_file_sync_actions(
                 age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
                 if args.keepDays < age_days:
                     yield B2DeleteAction(
-                        dest_file.name, dest_folder.make_full_path(
-                            dest_file.name
-                        ), version.id_, note
+                        dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
+                        note
                     )
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:
