@@ -12,7 +12,7 @@ from .account_info import SqliteAccountInfo
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
-from .download_dest import DownloadDestProgessWrapper
+from .download_dest import DownloadDestProgressWrapper
 from .exception import MissingAccountData, NonExistentBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
@@ -148,7 +148,7 @@ class B2Api(object):
         progress_listener = progress_listener or DoNothingProgressListener()
         self.session.download_file_by_id(
             file_id,
-            DownloadDestProgessWrapper(download_dest, progress_listener),
+            DownloadDestProgressWrapper(download_dest, progress_listener),
             url_factory=self.account_info.get_download_url
         )
         progress_listener.close()

@@ -11,7 +11,7 @@
 import six
 import threading
 
-from .download_dest import DownloadDestProgessWrapper
+from .download_dest import DownloadDestProgressWrapper
 from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
@@ -113,7 +113,7 @@ class Bucket(object):
         self.api.session.download_file_by_name(
             self.name,
             file_name,
-            DownloadDestProgessWrapper(download_dest, progress_listener),
+            DownloadDestProgressWrapper(download_dest, progress_listener),
             url_factory=self.api.account_info.get_download_url
         )
         progress_listener.close()

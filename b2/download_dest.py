@@ -125,7 +125,7 @@ class DownloadDestBytes(AbstractDownloadDestination):
         return self.bytes_io
 
 
-class DownloadDestProgessWrapper(AbstractDownloadDestination):
+class DownloadDestProgressWrapper(AbstractDownloadDestination):
     def __init__(self, download_dest, progress_listener):
         self.download_dest = download_dest
         self.progress_listener = progress_listener

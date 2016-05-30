@@ -242,7 +242,7 @@ class TestUpload(TestCaseWithBucket):
         self.assertTrue(isinstance(file_info, FileVersionInfo))
         self._check_file_contents('file1', data)
 
-    def test_upload_bytes_progess(self):
+    def test_upload_bytes_progress(self):
         data = six.b('hello world')
         progress_listener = StubProgressListener()
         self.bucket.upload_bytes(data, 'file1', progress_listener=progress_listener)
@@ -418,7 +418,7 @@ class TestDownload(TestCaseWithBucket):
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
         self.assertEqual("11: 11 closed", progress_listener.get_history())
 
-    def test_download_by_id_no_progess(self):
+    def test_download_by_id_no_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
         self.bucket.download_file_by_id(file_info.id_, download)
@@ -430,7 +430,7 @@ class TestDownload(TestCaseWithBucket):
         self.bucket.download_file_by_name('file1', download, progress_listener)
         self.assertEqual("11: 11 closed", progress_listener.get_history())
 
-    def test_download_by_name_no_progess(self):
+    def test_download_by_name_no_progress(self):
         self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
         self.bucket.download_file_by_name('file1', download)
