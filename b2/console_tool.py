@@ -740,11 +740,7 @@ class UploadFile(Command):
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(
-                    response[
-                        'fileId'
-                    ]
-                )
+                "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
             )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
@@ -807,6 +803,7 @@ class ConsoleTool(object):
             return 1
         except KeyboardInterrupt:
             self._print('\nInterrupted.  Shutting down...\n')
+            return 1
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)

@@ -138,8 +138,8 @@ class FileSimulator(object):
         start_part_number = start_part_number or 1
         max_part_count = max_part_count or 100
         parts = [
-            part.as_list_parts_dict() for part in self.parts
-            if part is not None and start_part_number <= part.part_number
+            part.as_list_parts_dict()
+            for part in self.parts if part is not None and start_part_number <= part.part_number
         ]
         if len(parts) <= max_part_count:
             next_part_number = None

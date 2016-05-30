@@ -286,9 +286,8 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(
             src_file, dst_file,
-            FakeArgs(
-                delete=True, excludeRegex=['a.txt']
-            ), actions
+            FakeArgs(delete=True, excludeRegex=['a.txt']),
+            actions
         )
 
     # src: absent, dst: absent
