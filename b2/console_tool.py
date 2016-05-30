@@ -615,7 +615,8 @@ class Sync(Command):
             source_folder=source,
             dest_folder=destination,
             args=args,
-            now_millis=current_time_millis(),
+            now_millis=current_time_millis(
+            ),
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers
@@ -740,11 +741,7 @@ class UploadFile(Command):
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(
-                    response[
-                        'fileId'
-                    ]
-                )
+                "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
             )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0

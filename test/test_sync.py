@@ -173,8 +173,9 @@ def b2_file(name, mod_times, size=10):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide', size
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(
+                mod_time
+            ), 'upload' if 0 < mod_time else 'hide', size
         ) for mod_time in mod_times
     ]  # yapf disable
     return File(name, versions)
@@ -254,9 +255,8 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(
             src_file, dst_file,
-            FakeArgs(
-                delete=True, excludeRegex=['a.txt']
-            ), actions
+            FakeArgs(delete=True, excludeRegex=['a.txt']),
+            actions
         )
 
     # src: absent, dst: absent

@@ -208,9 +208,7 @@ class TestLs(TestCaseWithBucket):
         ]
         actual = [
             (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls(
-                'bb', fetch_count=1
-            )
+            for (info, folder) in self.bucket.ls('bb', fetch_count=1)
         ]
         self.assertEqual(expected, actual)
 
@@ -230,9 +228,8 @@ class TestLs(TestCaseWithBucket):
         ]
         actual = [
             (info.id_, info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls(
-                'bb', show_versions=True, fetch_count=1
-            )
+            for (info, folder) in self.bucket.ls('bb', show_versions=True,
+                                                 fetch_count=1)
         ]
         self.assertEqual(expected, actual)
 
