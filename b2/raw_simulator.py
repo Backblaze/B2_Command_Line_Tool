@@ -138,8 +138,8 @@ class FileSimulator(object):
         start_part_number = start_part_number or 1
         max_part_count = max_part_count or 100
         parts = [
-            part.as_list_parts_dict(
-            ) for part in self.parts if part is not None and start_part_number <= part.part_number
+            part.as_list_parts_dict()
+            for part in self.parts if part is not None and start_part_number <= part.part_number
         ]
         if len(parts) <= max_part_count:
             next_part_number = None
@@ -292,9 +292,8 @@ class BucketSimulator(object):
         start_file_id = start_file_id or self.FIRST_FILE_ID
         max_file_count = max_file_count or 100
         all_unfinished_ids = set(
-            k for (k, v) in six.iteritems(
-                self.file_id_to_file
-            ) if v.action == 'start' and k <= start_file_id
+            k for (k, v) in six.iteritems(self.file_id_to_file)
+            if v.action == 'start' and k <= start_file_id
         )
         ids_in_order = sorted(all_unfinished_ids, reverse=True)
         file_dict_list = [

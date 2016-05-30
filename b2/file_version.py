@@ -27,7 +27,8 @@ class FileVersionInfo(object):
         self.action = action  # "upload" or "hide" or "delete"
 
     def as_dict(self):
-        result = {'fileId': self.id_, 'fileName': self.file_name,}
+        result = {'fileId': self.id_,
+                  'fileName': self.file_name,}
 
         if self.size is not None:
             result['size'] = self.size
