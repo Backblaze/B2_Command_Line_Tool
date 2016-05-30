@@ -255,7 +255,9 @@ def delete_files_in_bucket(b2_tool, bucket_name):
         for file_info in files:
             b2_tool.should_succeed(
                 [
-                    'delete_file_version', file_info['fileName'], file_info['fileId']
+                    'delete_file_version', file_info['fileName'], file_info[
+                        'fileId'
+                    ]
                 ]
             )
 
@@ -524,6 +526,8 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         b2_file_prefix = folder_in_bucket + '/'
     else:
         b2_file_prefix = ''
+
+    path_to_script = b2_tool.path_to_script
 
     with TempDir() as local_path:
 

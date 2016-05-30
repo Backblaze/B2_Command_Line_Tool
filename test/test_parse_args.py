@@ -54,8 +54,10 @@ class TestParseArgs(unittest.TestCase):
         self.assertTrue(args.optional is None)
 
     def test_all_there(self):
-        words = ['--optionFlag', '--optionArg', '99', '--list', '1', '--list', '2', 'b', 'c']
-        args = parse_arg_list(words, **self.EVERYTHING)
+        args = parse_arg_list(
+            ['--optionFlag', '--optionArg', '99', '--list', '1', '--list', '2', 'b', 'c'],
+            **self.EVERYTHING
+        )  # yapf disable
         self.assertTrue(args.optionFlag)
         self.assertEqual(99, args.optionArg)
         self.assertEqual('b', args.required)
