@@ -807,6 +807,7 @@ class ConsoleTool(object):
             return 1
         except KeyboardInterrupt:
             self._print('\nInterrupted.  Shutting down...\n')
+            return 1
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
