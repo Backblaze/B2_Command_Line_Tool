@@ -12,9 +12,11 @@ from .account_info import SqliteAccountInfo
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
+from .download_dest import DownloadDestProgessWrapper
 from .exception import MissingAccountData, NonExistentBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
+from .progress import DoNothingProgressListener
 from .raw_api import B2RawApi
 from .session import B2Session
 
@@ -142,9 +144,14 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
 
-    def download_file_by_id(self, file_id, download_dest):
-        url_factory = self.account_info.get_download_url
-        self.session.download_file_by_id(file_id, download_dest, url_factory=url_factory)
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
+        progress_listener = progress_listener or DoNothingProgressListener()
+        self.session.download_file_by_id(
+            file_id,
+            DownloadDestProgessWrapper(download_dest, progress_listener),
+            url_factory=self.account_info.get_download_url
+        )
+        progress_listener.close()
 
     def get_bucket_by_id(self, bucket_id):
         return Bucket(self, bucket_id)

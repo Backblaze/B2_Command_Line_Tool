@@ -302,8 +302,8 @@ class DownloadFileById(Command):
 
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
-        download_dest = DownloadDestLocalFile(args.localFileName, progress_listener)
-        self.api.download_file_by_id(args.fileId, download_dest)
+        download_dest = DownloadDestLocalFile(args.localFileName)
+        self.api.download_file_by_id(args.fileId, download_dest, progress_listener)
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -321,8 +321,8 @@ class DownloadFileByName(Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
-        download_dest = DownloadDestLocalFile(args.localFileName, progress_listener)
-        bucket.download_file_by_name(args.b2FileName, download_dest)
+        download_dest = DownloadDestLocalFile(args.localFileName)
+        bucket.download_file_by_name(args.b2FileName, download_dest, progress_listener)
         self.console_tool._print_download_info(download_dest)
         return 0
 
