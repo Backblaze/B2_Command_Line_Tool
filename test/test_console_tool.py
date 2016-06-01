@@ -162,6 +162,7 @@ class TestConsoleTool(unittest.TestCase):
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
             {
+              "action": "upload",
               "fileId": "9999",
               "fileName": "file1.txt",
               "size": 11,
@@ -206,6 +207,7 @@ class TestConsoleTool(unittest.TestCase):
             # Hide the file
             expected_stdout = '''
             {
+              "action": "hide",
               "fileId": "9998",
               "fileName": "file1.txt",
               "size": 0,
@@ -336,6 +338,7 @@ class TestConsoleTool(unittest.TestCase):
             URL by file name: http://download.example.com/file/my-bucket/test.txt
             URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
             {
+              "action": "upload",
               "fileId": "9999",
               "fileName": "test.txt",
               "size": 600,
