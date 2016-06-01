@@ -75,7 +75,7 @@ class FileSimulator(object):
             fileName=self.name,
             accountId=self.account_id,
             bucketId=self.bucket_id,
-            contentLength=len(self.data_bytes),
+            contentLength=len(self.data_bytes) if self.data_bytes is not None else 0,
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info,
@@ -86,7 +86,7 @@ class FileSimulator(object):
         return dict(
             fileId=self.file_id,
             fileName=self.name,
-            size=len(self.data_bytes),
+            size=len(self.data_bytes) if self.data_bytes is not None else 0,
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info,

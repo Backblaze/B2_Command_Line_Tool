@@ -240,7 +240,7 @@ class Bucket(object):
             if start_file_id is None:
                 break
 
-    def start_large_file(self, file_name, content_type, file_info):
+    def start_large_file(self, file_name, content_type=None, file_info=None):
         return UnfinishedLargeFile(
             self.api.session.start_large_file(self.id_, file_name, content_type, file_info)
         )
