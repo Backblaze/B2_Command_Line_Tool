@@ -16,7 +16,8 @@ import unittest
 import six
 
 from b2.exception import CommandError, DestFileNewer
-from b2.sync import File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, parse_sync_folder, zip_folders
+from b2.file_version import FileVersionInfo
+from b2.sync import B2Folder, File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, parse_sync_folder, zip_folders
 from b2.utils import TempDir
 
 try:
@@ -54,6 +55,55 @@ class TestLocalFolder(unittest.TestCase):
             folder = LocalFolder(tmpdir)
             actual_names = list(f.name for f in folder.all_files())
             self.assertEqual(names, actual_names)
+
+
+class TestB2Folder(unittest.TestCase):
+    def setUp(self):
+        self.bucket = MagicMock()
+        self.api = MagicMock()
+        self.api.get_bucket_by_name.return_value = self.bucket
+        self.b2_folder = B2Folder('bucket-name', 'folder', self.api)
+
+    def test_empty(self):
+        self.bucket.ls.return_value = []
+        self.assertEqual([], list(self.b2_folder.all_files()))
+
+    def test_multiple_versions(self):
+        # Test two files, to cover the yield within the loop, and
+        # the yield without.
+        self.bucket.ls.return_value = [
+            (
+                FileVersionInfo(
+                    'a2', 'folder/a.txt', 200, 'text/plain', 'sha1', {}, 2000, 'upload'
+                ), 'folder'
+            ),
+            (
+                FileVersionInfo(
+                    'a1', 'folder/a.txt', 100, 'text/plain', 'sha1', {}, 1000, 'upload'
+                ), 'folder'
+            ),
+            (
+                FileVersionInfo(
+                    'b2', 'folder/b.txt', 200, 'text/plain', 'sha1', {}, 2000, 'upload'
+                ), 'folder'
+            ),
+            (
+                FileVersionInfo('bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500, 'start'),
+                'folder'
+            ),
+            (
+                FileVersionInfo(
+                    'b1', 'folder/b.txt', 100, 'text/plain', 'sha1',
+                    {'src_last_modified_millis': 1000}, 6666, 'upload'
+                ), 'folder'
+            ),
+        ]
+        self.assertEqual(
+            [
+                "File(a.txt, [FileVersion('a2', 'folder/a.txt', 2000, 'upload'), FileVersion('a1', 'folder/a.txt', 1000, 'upload')])",
+                "File(b.txt, [FileVersion('b2', 'folder/b.txt', 2000, 'upload'), FileVersion('b1', 'folder/b.txt', 1000, 'upload')])",
+            ], [str(f) for f in self.b2_folder.all_files()]
+        )
 
 
 class FakeFolder(AbstractFolder):
