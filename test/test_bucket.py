@@ -233,6 +233,26 @@ class TestLs(TestCaseWithBucket):
         ]
         self.assertEqual(expected, actual)
 
+    def test_started_large_file(self):
+        self.bucket.start_large_file('hello.txt')
+        expected = [('hello.txt', 0, 'start', None)]
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls('', show_versions=True)
+        ]
+        self.assertEqual(expected, actual)
+
+    def test_hidden_file(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+        self.bucket.hide_file('hello.txt')
+        expected = [('hello.txt', 0, 'hide', None), ('hello.txt', 11, 'upload', None)]
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls('', show_versions=True)
+        ]
+        self.assertEqual(expected, actual)
+
 
 class TestUpload(TestCaseWithBucket):
     def test_upload_bytes(self):
