@@ -12,9 +12,11 @@ from .account_info import SqliteAccountInfo
 from .b2http import B2Http
 from .bucket import Bucket, EncryptedBucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
+from .download_dest import DownloadDestProgressWrapper
 from .exception import MissingAccountData, NonExistentBucket
 from .file_version import FileVersionInfoFactory
 from .part import PartFactory
+from .progress import DoNothingProgressListener
 from .raw_api import B2RawApi
 from .session import B2Session
 
@@ -145,9 +147,8 @@ class B2Api(object):
     def create_encrypted_bucket(self, name):
         return self.create_bucket(name, 'allPrivate')
 
-    def download_file_by_id(self, file_id, download_dest):
-        url_factory = self.account_info.get_download_url
-        self.session.download_file_by_id(file_id, download_dest, url_factory=url_factory)
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
+        return self.get_bucket_by_file_id(file_id).download_file_by_id(file_id, download_dest, progress_listener)
 
     def get_bucket_by_id(self, bucket_id):
         return EncryptedBucket(self, bucket_id)

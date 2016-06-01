@@ -19,7 +19,7 @@ fi
 
 header Unit Tests
 
-if make test
+if ./run-unit-tests.sh
 then
     echo "Unit tests PASSED"
 else
@@ -49,13 +49,13 @@ done
 
 header Pyflakes
 
-for d in b2 test
+for d in b2 test *.py
 do
-    if pyflakes $d
+    if pyflakes "$d"
     then
-        echo pyflakes passed on $d
+        echo "pyflakes passed on $d"
     else
-        echo pyflakes FAILED on %d
+        echo "pyflakes FAILED on $d"
         exit 1
     fi
 done
@@ -96,8 +96,8 @@ then
 else
     for virtual_env in $PYTHON_VIRTUAL_ENVS
     do
-        header Integration tests in: $virtual_env
-        source $virtual_env/bin/activate
+        header "Integration tests in: $virtual_env"
+        source "$virtual_env/bin/activate"
         run_integration_tests
     done
 

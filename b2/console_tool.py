@@ -294,7 +294,7 @@ class DownloadFileById(Command):
 
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
-        Use '--no-progress' to disable progress reporting.
+        Use '--noProgress' to disable progress reporting.
     """
 
     OPTION_FLAGS = ['noProgress']
@@ -302,8 +302,8 @@ class DownloadFileById(Command):
 
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
-        download_dest = DownloadDestLocalFile(args.localFileName, progress_listener)
-        self.api.download_file_by_id(args.fileId, download_dest)
+        download_dest = DownloadDestLocalFile(args.localFileName)
+        self.api.download_file_by_id(args.fileId, download_dest, progress_listener)
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -321,8 +321,8 @@ class DownloadFileByName(Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
-        download_dest = DownloadDestLocalFile(args.localFileName, progress_listener)
-        bucket.download_file_by_name(args.b2FileName, download_dest)
+        download_dest = DownloadDestLocalFile(args.localFileName)
+        bucket.download_file_by_name(args.b2FileName, download_dest, progress_listener)
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -546,7 +546,8 @@ class MakeUrl(Command):
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
-            [--threads N] [--noProgress] <source> <destination>
+            [--compareVersions <option>] [--threads N] [--noProgress] \\
+            [--excludeRegex <regex>] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -556,9 +557,19 @@ class Sync(Command):
         console unless '--noProgress' is specified.  A list of
         actions taken is always printed.
 
+        You can specify --excludeRegex to selectively ignore files that
+        match the given pattern. Ignored files will not copy during
+        the sync operation. The pattern is a regular expression
+        that is tested against the full path of each file.
+
         Files are considered to be the same if they have the same name
-        and modification time.  A future enhancement may add the ability
-        to compare the SHA1 checksum of the files.
+        and modification time.  This behaviour can be changed using the
+        --compareVersions option.  Possible values are:
+          'none':    Comparison using the file name only
+          'modTime': Comparison using the modification time (default)
+          'size':    Comparison using the file size
+        A future enhancement may add the ability to compare the SHA1 checksum
+        of the files.
 
         One of the paths must be a local file path, and the other must be
         a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
@@ -590,8 +601,9 @@ class Sync(Command):
     """
 
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
-    OPTION_ARGS = ['keepDays', 'threads']
+    OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
+    LIST_ARGS = ['excludeRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
@@ -691,7 +703,7 @@ class UploadFile(Command):
 
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
-        Use '--no-progress' to disable progress reporting.
+        Use '--noProgress' to disable progress reporting.
 
         Each fileInfo is of the form "a=b".
     """
@@ -728,11 +740,7 @@ class UploadFile(Command):
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(
-                    response[
-                        'fileId'
-                    ]
-                )
+                "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
             )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
@@ -795,6 +803,7 @@ class ConsoleTool(object):
             return 1
         except KeyboardInterrupt:
             self._print('\nInterrupted.  Shutting down...\n')
+            return 1
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)

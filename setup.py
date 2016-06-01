@@ -19,12 +19,19 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
+with open('requirements.txt', encoding='utf-8') as f:
+    requirements = f.read().splitlines()
+
 # The set of required packages depends on what version
 # of python you're running.
-required_packages = ['requests>=2.9.1', 'six>=1.10.0', 'tqdm>=4.5.0']
-
 if sys.version_info < (3, 2):
-    required_packages.append('futures>=3.0.5')
+    requirements.append('futures>=3.0.5')
+
+with open('requirements-test.txt', encoding='utf-8') as f:
+    requirements_test = f.read().splitlines()
+
+with open('requirements-setup.txt', encoding='utf-8') as f:
+    requirements_setup = f.read().splitlines()
 
 setup(
     name='b2',
@@ -32,7 +39,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.5.5',
+    version='0.5.7',
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
 
@@ -89,7 +96,14 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=required_packages,
+    install_requires=requirements,
+
+    # requirements for tests
+    tests_require=requirements_test,
+
+    # putting nose in test_requires caused a chicken/egg problem
+    # but apparently setup_requires is broken on most python versions
+    # setup_requires=requirements_setup,
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

@@ -75,7 +75,7 @@ class FileSimulator(object):
             fileName=self.name,
             accountId=self.account_id,
             bucketId=self.bucket_id,
-            contentLength=len(self.data_bytes),
+            contentLength=len(self.data_bytes) if self.data_bytes is not None else 0,
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info,
@@ -86,7 +86,7 @@ class FileSimulator(object):
         return dict(
             fileId=self.file_id,
             fileName=self.name,
-            size=len(self.data_bytes),
+            size=len(self.data_bytes) if self.data_bytes is not None else 0,
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info,
@@ -292,8 +292,7 @@ class BucketSimulator(object):
         start_file_id = start_file_id or self.FIRST_FILE_ID
         max_file_count = max_file_count or 100
         all_unfinished_ids = set(
-            k
-            for (k, v) in six.iteritems(self.file_id_to_file)
+            k for (k, v) in six.iteritems(self.file_id_to_file)
             if v.action == 'start' and k <= start_file_id
         )
         ids_in_order = sorted(all_unfinished_ids, reverse=True)

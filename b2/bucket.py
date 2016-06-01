@@ -11,6 +11,7 @@
 import six
 import threading
 
+from .download_dest import DownloadDestProgressWrapper
 from .encryption import CryptoContext
 from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
@@ -106,17 +107,24 @@ class Bucket(object):
     def cancel_large_file(self, file_id):
         return self.api.cancel_large_file(file_id)
 
-    def download_file_by_id(self, file_id, download_dest):
-        self.api.download_file_by_id(file_id, download_dest)
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
+        progress_listener = progress_listener or DoNothingProgressListener()
+        self.api.session.download_file_by_id(
+            file_id,
+            DownloadDestProgressWrapper(download_dest, progress_listener),
+            url_factory=self.api.account_info.get_download_url
+        )
+        progress_listener.close()
 
-    def download_file_by_name(self, file_name, download_dest):
-        account_info = self.api.account_info
+    def download_file_by_name(self, file_name, download_dest, progress_listener=None):
+        progress_listener = progress_listener or DoNothingProgressListener()
         self.api.session.download_file_by_name(
             self.name,
             file_name,
-            download_dest,
-            url_factory=account_info.get_download_url
+            DownloadDestProgressWrapper(download_dest, progress_listener),
+            url_factory=self.api.account_info.get_download_url
         )
+        progress_listener.close()
 
 
     def list_parts(self, file_id, start_part_number=None, batch_size=None):
@@ -211,7 +219,8 @@ class Bucket(object):
                 start_file_name = response.get('nextFileName')
                 start_file_id = response.get('nextFileId')
             else:
-                start_file_name = max(response['nextFileName'], prefix + current_dir[:-1] + '0',)
+                start_file_name = max(response['nextFileName'],
+                                      prefix + current_dir[:-1] + '0',)
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
@@ -240,7 +249,7 @@ class Bucket(object):
             if start_file_id is None:
                 break
 
-    def start_large_file(self, file_name, content_type, file_info):
+    def start_large_file(self, file_name, content_type=None, file_info=None):
         return UnfinishedLargeFile(
             self.api.session.start_large_file(self.id_, file_name, content_type, file_info)
         )
@@ -346,6 +355,7 @@ class Bucket(object):
                     self.api.account_info.put_bucket_upload_url(
                         self.id_, upload_url, upload_auth_token
                     )
+                    progress_listener.close()
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
             except B2Error as e:
@@ -401,6 +411,7 @@ class Bucket(object):
 
         # Finish the large file
         response = self.api.session.finish_large_file(file_id, part_sha1_array)
+        progress_listener.close()
         return FileVersionInfoFactory.from_api_response(response)
 
     def _find_unfinished_file(self, upload_source, file_name, file_info, part_ranges):
@@ -545,7 +556,8 @@ class Bucket(object):
         return FileVersionInfoFactory.from_api_response(response)
 
     def as_dict(self):  # TODO: refactor with other as_dict()
-        result = {'accountId': self.api.account_info.get_account_id(), 'bucketId': self.id_,}
+        result = {'accountId': self.api.account_info.get_account_id(),
+                  'bucketId': self.id_,}
         if self.name is not None:
             result['bucketName'] = self.name
         if self.type_ is not None:
@@ -561,14 +573,14 @@ class EncryptedBucket(Bucket):
         self.crypto = CryptoContext()
         Bucket.__init__(self, api, id_, name, type_)
 
-    def download_file_by_id(self, file_id, download_dest):
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
         download_dest = DownloadDestDecryptionWrapper(download_dest, self.crypto)
-        Bucket.download_file_by_id(self, file_id, download_dest)
+        Bucket.download_file_by_id(self, file_id, download_dest, progress_listener)
 
-    def download_file_by_name(self, file_name, download_dest):
+    def download_file_by_name(self, file_name, download_dest, progress_listener=None):
         name_hashed = self.crypto.hash_filename(file_name)
         download_dest = DownloadDestDecryptionWrapper(download_dest, self.crypto)
-        Bucket.download_file_by_name(self, name_hashed, download_dest)
+        Bucket.download_file_by_name(self, name_hashed, download_dest, progress_listener)
 
     def ls(
         self,

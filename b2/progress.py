@@ -227,6 +227,9 @@ class StreamWithProgress(object):
     def __enter__(self):
         return self
 
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self.stream.__exit__(exc_type, exc_val, exc_tb)
+
     def seek(self, pos):
         self.bytes_completed = 0
         self.stream.seek(0)

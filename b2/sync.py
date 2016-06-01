@@ -13,6 +13,7 @@ from __future__ import division
 import os
 import threading
 import time
+import re
 from abc import (ABCMeta, abstractmethod)
 
 import six
@@ -286,7 +287,6 @@ class B2UploadAction(AbstractAction):
             file_info={'src_last_modified_millis': str(self.mod_time_millis)},
             progress_listener=SyncFileReporter(reporter)
         )
-        reporter.update_transfer(1, 0)  # bytes reported during transfer
         reporter.print_completion('upload ' + self.relative_name)
 
     def __str__(self):
@@ -339,8 +339,8 @@ class B2DownloadAction(AbstractAction):
 
         # Download the file to a .tmp file
         download_path = self.local_full_path + '.b2.sync.tmp'
-        download_dest = DownloadDestLocalFile(download_path, SyncFileReporter(reporter))
-        bucket.download_file_by_name(self.b2_file_name, download_dest)
+        download_dest = DownloadDestLocalFile(download_path)
+        bucket.download_file_by_name(self.b2_file_name, download_dest, SyncFileReporter(reporter))
 
         # Move the file into place
         try:
@@ -580,6 +580,8 @@ class B2Folder(AbstractFolder):
             recursive=True, fetch_count=1000
         ):
             assert file_version_info.file_name.startswith(self.prefix)
+            if file_version_info.action == 'start':
+                continue
             file_name = file_version_info.file_name[len(self.prefix):]
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
@@ -622,7 +624,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b):
+def zip_folders(folder_a, folder_b, exclusions=[]):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -633,8 +635,10 @@ def zip_folders(folder_a, folder_b):
     :param folder_a: A Folder object.
     :param folder_b: A Folder object.
     """
-    iter_a = folder_a.all_files()
+
+    iter_a = (f for f in folder_a.all_files() if not any(ex.match(f.name) for ex in exclusions))
     iter_b = folder_b.all_files()
+
     current_a = next_or_none(iter_a)
     current_b = next_or_none(iter_b)
     while current_a is not None or current_b is not None:
@@ -677,6 +681,50 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
             source_file.latest_version().size
         )  # yapf: disable
 
+def check_file_replacement(source_file, dest_file, args):
+    """
+    Compare two files and determine if the the destination file
+    should be replaced by the source file.
+    """
+
+    # Compare using modification time by default
+    compareVersions = args.compareVersions or 'modTime'
+
+    # Compare using file name only
+    if compareVersions == 'none':
+        return False
+
+    # Compare using modification time
+    elif compareVersions == 'modTime':
+        # Get the modification time of the latest versions
+        source_mod_time = source_file.latest_version().mod_time
+        dest_mod_time = dest_file.latest_version().mod_time
+
+        # Source is newer
+        if dest_mod_time < source_mod_time:
+            return True
+
+        # Source is older
+        elif source_mod_time < dest_mod_time:
+            if args.replaceNewer:
+                return True
+            elif args.skipNewer:
+                return False
+            else:
+                raise DestFileNewer(dest_file.name,)
+
+    # Compare using file size
+    elif compareVersions == 'size':
+        # Get file size of the latest versions
+        source_size = source_file.latest_version().size
+        dest_size = dest_file.latest_version().size
+
+        # Replace if sizes are different
+        return source_size != dest_size
+
+    else:
+        raise CommandError('Invalid option for --compareVersions')
+
 
 def make_file_sync_actions(
     sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
@@ -685,49 +733,34 @@ def make_file_sync_actions(
     Yields the sequence of actions needed to sync the two files
     """
 
-    # Get the modification time of the latest version of the source file
-    source_mod_time = 0
-    if source_file is not None:
-        source_mod_time = source_file.latest_version().mod_time
-
-    # Get the modification time of the latest version of the destination file
-    dest_mod_time = 0
-    if dest_file is not None:
-        dest_mod_time = dest_file.latest_version().mod_time
-
     # By default, all but the current version at the destination are
     # candidates for cleaning.  This will be overridden in the case
-    # where there is no source file.
+    # where there is no source file or a new version is uploaded.
     dest_versions_to_clean = []
     if dest_file is not None:
         dest_versions_to_clean = dest_file.versions[1:]
 
-    # Case 1: Destination does not exist, or source is newer.
-    # All prior versions of the destination file are candidates for
-    # cleaning.
+    # Case 1: Both files exist
     transferred = False
-    if dest_mod_time < source_mod_time:
-        yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-        transferred = True
-        if sync_type == 'local-to-b2' and dest_file is not None:
-            dest_versions_to_clean = dest_file.versions
-
-    # Case 2: Both exist and source is older
-    elif source_mod_time != 0 and source_mod_time < dest_mod_time:
-        if args.replaceNewer:
+    if source_file is not None and dest_file is not None:
+        if check_file_replacement(source_file, dest_file, args):
             yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
             transferred = True
-        elif args.skipNewer:
-            pass
-        else:
-            raise DestFileNewer(dest_file.name,)
+        # All destination files are candidates for cleaning, if a new version is beeing uploaded
+        if transferred and sync_type == 'local-to-b2':
+            dest_versions_to_clean = dest_file.versions
+
+    # Case 2: No destination file, but source file exists
+    elif source_file is not None and dest_file is None:
+        yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
+        transferred = True
 
     # Case 3: No source file, but destination file exists
-    elif source_mod_time == 0 and dest_mod_time != 0:
+    elif source_file is None and dest_file is not None:
         if args.keepDays is not None and sync_type == 'local-to-b2':
-            if dest_file.versions[0].action == 'upload':
+            if dest_file.latest_version().action == 'upload':
                 yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
-        # all versions of the destination file are candidates for cleaning
+        # All versions of the destination file are candidates for cleaning
         dest_versions_to_clean = dest_file.versions
 
     # Clean up old versions
@@ -767,6 +800,8 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
         raise CommandError('--keepDays cannot be used for local files')
 
+    exclusions = [re.compile(ex) for ex in args.excludeRegex]
+
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
@@ -774,7 +809,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         ('b2', 'local'), ('local', 'b2')
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
-    for (source_file, dest_file) in zip_folders(source_folder, dest_folder):
+    for (source_file, dest_file) in zip_folders(source_folder, dest_folder, exclusions):
         if source_folder.folder_type() == 'local':
             if source_file is not None:
                 reporter.update_compare(1)
