@@ -287,7 +287,6 @@ class B2UploadAction(AbstractAction):
             file_info={'src_last_modified_millis': str(self.mod_time_millis)},
             progress_listener=SyncFileReporter(reporter)
         )
-        reporter.update_transfer(1, 0)  # bytes reported during transfer
         reporter.print_completion('upload ' + self.relative_name)
 
     def __str__(self):
@@ -340,8 +339,8 @@ class B2DownloadAction(AbstractAction):
 
         # Download the file to a .tmp file
         download_path = self.local_full_path + '.b2.sync.tmp'
-        download_dest = DownloadDestLocalFile(download_path, SyncFileReporter(reporter))
-        bucket.download_file_by_name(self.b2_file_name, download_dest)
+        download_dest = DownloadDestLocalFile(download_path)
+        bucket.download_file_by_name(self.b2_file_name, download_dest, SyncFileReporter(reporter))
 
         # Move the file into place
         try:
@@ -581,6 +580,8 @@ class B2Folder(AbstractFolder):
             recursive=True, fetch_count=1000
         ):
             assert file_version_info.file_name.startswith(self.prefix)
+            if file_version_info.action == 'start':
+                continue
             file_name = file_version_info.file_name[len(self.prefix):]
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
