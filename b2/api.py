@@ -13,7 +13,7 @@ from .b2http import B2Http
 from .bucket import Bucket, EncryptedBucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
 from .exception import MissingAccountData, NonExistentBucket
-from .file_version import FileVersionInfoFactory, FileIdAndName
+from .file_version import FileVersionInfoFactory
 from .part import PartFactory
 from .raw_api import B2RawApi
 from .session import B2Session
@@ -142,6 +142,9 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
 
+    def create_encrypted_bucket(self, name):
+        return self.create_bucket(name, 'allPrivate')
+
     def download_file_by_id(self, file_id, download_dest):
         url_factory = self.account_info.get_download_url
         self.session.download_file_by_id(file_id, download_dest, url_factory=url_factory)
@@ -165,6 +168,27 @@ class B2Api(object):
             if bucket.name == bucket_name:
                 return bucket
         raise NonExistentBucket(bucket_name)
+
+    def get_bucket_by_file_id(self, file_id):
+        """
+        Return the bucket which contains the file with the given ID.
+
+        This function tries to do this without any API calls.  Currently file IDs look like this:
+          4_z6a50f44ffa18e296564d0d16_f109b63815ee48165_d20160525_m220400_c001_v0001019_t0019
+        The file ID can be split into blocks separated by '_'.  The first block contains the
+        format version.  In version 4 the remaining blocks contain data which can be identified
+        using the first character in each block.  The bucket ID is present in block 'z'.  So for
+        the example above the bucket ID is 6a50f44ffa18e296564d0d16.
+        """
+        bucket_id = ''
+        blocks = file_id.split('_')
+        if blocks[0] == '4':
+            data = dict((b[0], b[1:]) for b in blocks[1:])
+            bucket_id = data['z'];
+        else:
+            # Unknown file ID format, fall back to API call
+            bucked_id = self.session.get_file_info(file_id)['bucketId']
+        return self.get_bucket_by_id(bucket_id)
 
     def delete_bucket(self, bucket):
         """
@@ -213,10 +237,7 @@ class B2Api(object):
 
     def delete_file_version(self, file_id, file_name):
         # filename argument is not first, because one day it may become optional
-        response = self.session.delete_file_version(file_id, file_name)
-        assert response['fileId'] == file_id
-        assert response['fileName'] == file_name
-        return FileIdAndName(file_id, file_name)
+        return self.get_bucket_by_file_id(file_id).delete_file_version(file_id, file_name)
 
     # download
     def get_download_url_for_fileid(self, file_id):

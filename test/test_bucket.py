@@ -403,3 +403,23 @@ class TestUpload(TestCaseWithBucket):
             so_far += len(fragment)
             fragments.append(fragment)
         return six.b('').join(fragments)
+
+
+# Run same tests with encrypted bucket
+class TestCaseWithEncryptedBucket(TestCaseWithBucket):
+    def setUp(self):
+        TestCaseWithBucket.setUp(self)
+        self.bucket =  self.api.create_encrypted_bucket('my-enc-bucket')
+        self.bucket_id = self.bucket.id_
+
+class TestEncryptedListParts(TestListParts, TestCaseWithEncryptedBucket):
+    pass
+
+class TestEncryptedListUnfinished(TestListUnfinished, TestCaseWithEncryptedBucket):
+    pass
+
+class TestEncryptedLs(TestLs, TestCaseWithEncryptedBucket):
+    pass
+
+class TestEncryptedUpload(TestUpload, TestCaseWithEncryptedBucket):
+    pass

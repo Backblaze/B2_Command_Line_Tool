@@ -137,6 +137,33 @@ class DoNothingProgressListener(AbstractProgressListener):
         pass
 
 
+class ProgressEncryptionWrapper(AbstractProgressListener):
+    def __init__(self, listener, crypto):
+        self.listener = listener
+        self.crypto = crypto
+
+    def set_total_bytes(self, total_byte_count):
+        crypto_file = self.crypto.make_decryption_context(total_byte_count)
+        self.listener.set_total_bytes(crypto_file.decrypted_size())
+
+    def bytes_completed(self, byte_count):
+        data_size = max(0, byte_count - self.crypto.header_size)
+        print(byte_count)
+        block_size = self.crypto.block_size + self.crypto.auth_tag_size
+        block_count = (data_size + block_size - 1) // block_size  # divide rounding up
+        progress = (block_count-1)*self.crypto.block_size # + min(data_size % block_size, self.crypto.block_size)
+        self.listener.bytes_completed(data_size)
+
+    def close(self):
+        self.listener.close()
+
+    def __enter__(self):
+        self.listener.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.listener.__exit__(exc_type, exc_val, exc_tb)
+
+
 def make_progress_listener(description, quiet):
     if quiet:
         return DoNothingProgressListener()
@@ -199,9 +226,6 @@ class StreamWithProgress(object):
 
     def __enter__(self):
         return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return self.stream.__exit__(exc_type, exc_val, exc_tb)
 
     def seek(self, pos):
         self.bytes_completed = 0

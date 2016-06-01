@@ -10,6 +10,9 @@
 
 import os
 import struct
+import base64
+
+from .utils import validate_b2_file_name
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, hmac, padding
@@ -112,6 +115,10 @@ class FileEncryptionContext(object):
         block_size = self.crypto.block_size
         return (self.file_size + block_size - 1) // block_size  # divide rounding up
 
+    def encrypted_size(self):
+        auth_size = self.block_count() * self.crypto.auth_tag_size
+        return self.file_size + self.crypto.header_size + auth_size
+
     def encrypt_block(self, block_id, data):
         iv_int = unpack_iv(self.iv)
         encryptor = Cipher(
@@ -123,10 +130,6 @@ class FileEncryptionContext(object):
         ciphertext = encryptor.update(data) + encryptor.finalize()
         assert (len(encryptor.tag) == self.crypto.auth_tag_size)
         return ciphertext + encryptor.tag
-
-    def encrypted_size(self):
-        auth_size = self.block_count() * self.crypto.auth_tag_size
-        return self.file_size + self.crypto.header_size + auth_size
 
 
 class DecryptingFileStream(object):
@@ -173,7 +176,7 @@ class DecryptingFileStream(object):
 
         # decrypt block
         enc_block_size = self.crypto_file.crypto.block_size + self.crypto_file.crypto.auth_tag_size
-        if len(self.buffer) >= enc_block_size or eof:
+        if len(self.buffer) >= enc_block_size or (eof and self.buffer):
             data = self.buffer[0:enc_block_size]
             self.buffer = self.buffer[enc_block_size:]
             self.stream.write(self.crypto_file.decrypt_block(self.block, data))
@@ -196,9 +199,13 @@ class FileDecryptionContext(object):
         self.file_key = derive_key(self.crypto.get_master_key(), self.salt, 1)
 
     def block_count(self):
-        data_size = self.file_size - self.crypt.header_size
+        data_size = self.file_size - self.crypto.header_size
         block_size = self.crypto.block_size + self.crypto.auth_tag_size
         return (data_size + block_size - 1) // block_size  # divide rounding up
+
+    def decrypted_size(self):
+        data_size = self.file_size - self.crypto.header_size
+        return data_size - self.block_count()*self.crypto.auth_tag_size
 
     def decrypt_block(self, block_id, data):
         # split data block
@@ -232,36 +239,93 @@ class CryptoContext(object):
     def get_master_key(self):
         return self.master_key
 
-    def encrypt_filename(self, filename, folder=''):
-        # derive multiple keys
-        enc_key = derive_key(self.master_key, b'filename', 1)
-        hmac_key = derive_key(self.master_key, b'filename_hmac', 1)
+    def hash_filename(self, filename):
+        """
+        Create hash of the filename that is suitable as the B2 filename.
+        """
+        if filename == '':
+            return ''
+        if filename.endswith('/'):
+            filename = filename[:-1]
+        validate_b2_file_name(filename)
+
+        section_hashes = []
+        parts = filename.split('/')
+        for i, val in enumerate(parts):
+            section = '/'.join(parts[0:i+1]).encode('utf-8')
+            section_hash = base64.urlsafe_b64encode(self._hmac(section)[0:15])
+            section_hashes.append(section_hash.decode('utf-8'))
+
+        return '/'.join(section_hashes)
+
+    def encrypt_filename(self, filename):
+        validate_b2_file_name(filename)
 
         # generate IV from filename HMAC
-        h = hmac.HMAC(hmac_key, hashes.SHA256(), backend=default_backend())
-        h.update(folder + filename)
-        iv = h.finalize()[0:16]
+        filename_bytes = filename.encode('utf-8')
+        iv = self._hmac(filename_bytes)[0:16]
 
-        # encrypt filename
+        # encrypt and base64 encode
+        filename_encrypted = self._encrypt_cbc(iv, filename_bytes, b'filename')
+        return base64.b64encode(filename_encrypted).decode('utf-8')
+
+    def decrypt_filename(self, filename_encrypted):
+        filename_bytes = base64.b64decode(filename_encrypted)
+        filename = self._decrypt_cbc(filename_bytes, b'filename').decode('utf-8')
+        validate_b2_file_name(filename)
+        return filename
+
+    def decrypt_file_version_info(self, file_version_info):
+        # TODO: Wait until API supports metadata for hidden files
+        if file_version_info.action == 'hide':
+            return file_version_info
+
+        # Decrypt file name and calculate decrypted size
+        file_crypto = self.make_decryption_context(file_version_info.size)
+        file_version_info.file_name = self.decrypt_filename(file_version_info.file_info['name'])
+        file_version_info.file_info.pop('name', None)
+        file_version_info.size = file_crypto.decrypted_size()
+        return file_version_info
+
+    def _hmac(self, data):
+        """
+        Calculate SHA256 HMAC of data with key derived from master key.
+        """
+        hmac_key = derive_key(self.master_key, b'hmac', 1)
+        h = hmac.HMAC(hmac_key, hashes.SHA256(), backend=default_backend())
+        h.update(data)
+        return h.finalize()
+
+    def _encrypt_cbc(self, iv, data, usage):
+        """
+        Encrypt data using AES128 CBC with PKCS7 padding.
+        """
+        # pad data
+        padder = padding.PKCS7(128).padder()
+        data_padded = padder.update(data) + padder.finalize()
+
+        # encrypt
+        enc_key = derive_key(self.master_key, usage, 1)
         encryptor = Cipher(
             algorithms.AES(enc_key),
             modes.CBC(iv), backend=default_backend()
         ).encryptor()
-        padder = padding.PKCS7(128).padder()
-        filenamePadded = padder.update(filename) + padder.finalize()
-        return iv + encryptor.update(filenamePadded) + encryptor.finalize()
+        return iv + encryptor.update(data_padded) + encryptor.finalize()
 
-    def decrypt_filename(self, filename):
-        # get key and iv
-        enc_key = derive_key(self.master_key, b'filename', 1)
-        iv = filename[0:16]
-        ciphertext = filename[16:]
+    def _decrypt_cbc(self, data, usage):
+        """
+        Decrypt data using AES128 CBC with PKCS7 padding.
+        """
+        # extract key and iv
+        iv = data[0:16]
+        ciphertext = data[16:]
 
-        # decrypt filename
+        # decrypt and unpad
+        enc_key = derive_key(self.master_key, usage, 1)
         decryptor = Cipher(
             algorithms.AES(enc_key),
             modes.CBC(iv), backend=default_backend()
         ).decryptor()
         unpadder = padding.PKCS7(128).unpadder()
-        plaintextPadded = decryptor.update(ciphertext) + decryptor.finalize()
-        return unpadder.update(plaintextPadded) + unpadder.finalize()
+        data_padded = decryptor.update(ciphertext) + decryptor.finalize()
+        return unpadder.update(data_padded) + unpadder.finalize()
