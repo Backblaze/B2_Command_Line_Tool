@@ -43,24 +43,20 @@ class AbstractDownloadDestination(object):
 class OpenLocalFileForWriting(object):
     """
     Context manager that opens a local file for writing,
-    tracks progress as it's written, and sets the modification
-    time when it's done.
+    and sets the modification time when it's done.
 
-    Takes care of opening/closing the file, and closing the
-    progress listener.
+    Takes care of opening/closing the file.
     """
 
-    def __init__(self, local_path_name, progress_listener, mod_time_millis):
+    def __init__(self, local_path_name, mod_time_millis):
         self.local_path_name = local_path_name
-        self.progress_listener = progress_listener
         self.mod_time_millis = mod_time_millis
 
     def __enter__(self):
         self.file = open(self.local_path_name, 'wb')
-        return StreamWithProgress(self.file.__enter__(), self.progress_listener)
+        return self.file.__enter__()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.progress_listener.close()
         result = self.file.__exit__(exc_type, exc_val, exc_tb)
         mod_time = self.mod_time_millis / 1000.0
 
@@ -77,9 +73,8 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
     Stores a downloaded file into a local file and sets its modification time.
     """
 
-    def __init__(self, local_file_path, progress_listener):
+    def __init__(self, local_file_path):
         self.local_file_path = local_file_path
-        self.progress_listener = progress_listener
 
     def open(
         self, file_id, file_name, content_length, content_type, content_sha1, file_info,
@@ -92,11 +87,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
         self.content_sha1 = content_sha1
         self.file_info = file_info
 
-        self.progress_listener.set_total_bytes(content_length)
-
-        return OpenLocalFileForWriting(
-            self.local_file_path, self.progress_listener, mod_time_millis
-        )
+        return OpenLocalFileForWriting(self.local_file_path, mod_time_millis)
 
 
 class BytesCapture(six.BytesIO):
@@ -132,3 +123,20 @@ class DownloadDestBytes(AbstractDownloadDestination):
         self.mod_time_millis = mod_time_millis
         self.bytes_io = BytesCapture()
         return self.bytes_io
+
+
+class DownloadDestProgressWrapper(AbstractDownloadDestination):
+    def __init__(self, download_dest, progress_listener):
+        self.download_dest = download_dest
+        self.progress_listener = progress_listener
+
+    def open(
+        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
+        mod_time_millis
+    ):
+        self.progress_listener.set_total_bytes(content_length)
+        stream = self.download_dest.open(
+            file_id, file_name, content_length, content_type, content_sha1, file_info,
+            mod_time_millis
+        )
+        return StreamWithProgress(stream.__enter__(), self.progress_listener)
