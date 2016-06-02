@@ -28,13 +28,55 @@ for now:
 
 ???
 
-## Metadata and File Format
+## Bucket Encryption Settings 
 
 Encryption is specified per bucket.  Each bucket has its own master key.
 
-The master key for a bucket is stored in a file called `.MASTER_KEY` in the bucket.  This file contains a JSON with this information:
+The master key for a bucket is stored in a file called `.MASTER_KEY` in the bucket.  This file contains 
+a JSON with this information:
 
 - ???
+
+## Per-File Information
+
+### File Name
+
+The names of encrypted files are themselves encrypted.  The file name used to store the file
+in B2 is a path, with each segment of the path being a SHA-256 HMAC of the cleartext.  It 
+is a one-way mapping from cleartext file name to the name used in the B2 bucket.  To get
+the name of a file, you must decrypt the encrypted file name that's stored in the file 
+info.
+
+This path:
+
+    photos/kittens/fluffy.jpeg
+   
+Could turn into this:
+
+    s4wjOOg8rKNB8Q_Aw1R4/GkExLqMNCRKwEt4FWRla/y_izVpsP4IPwdvRflvWj
+
+The grouping of files into folders is preserved by this mapping.  You can find all
+of the files in a folder by hashing the folder path, and using it as a prefix when
+listing the files from B2.
+
+There are some valid B2 path names that cannot be used, because they would be too
+long after being hashed.  The B2 limit of 1000 bytes means that encrypted path names can have 
+at most 47 segments.
+
+The file name is encrypted and stored in file info.  Because each file info value is limited to 200 bytes, 
+the encryption block size is 16 bytes, the initialization vector is included in the encrypted name, and 
+the resulting name is base-64 encoded, the maximum file name size is 112 bytes of UTF-8.
+
+### File Info
+
+The following file info is stored with each encrypted file, in addition to the whatever 
+other file info the user wants to store.
+
+- `encrypted_file_name` - the encrypted name of the file
+
+(Note: code currently uses `name`, which is to common a name to use.)
+
+## Encryption Process
 
 ### Per-file Key Generation
 
