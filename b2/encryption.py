@@ -8,9 +8,11 @@
 #
 ######################################################################
 
-import os
-import struct
 import base64
+import hashlib
+import os
+import six
+import struct
 
 from .utils import validate_b2_file_name
 
@@ -257,6 +259,45 @@ class CryptoContext(object):
             section_hashes.append(section_hash.decode('utf-8'))
 
         return '/'.join(section_hashes)
+
+    def simpler_hash_filename(self, file_hash_salt, filename):
+        """
+        Computes the hashed file name for the given one.
+
+        The salt for all file hashing in the bucket is contained
+        in the .MASTER_KEY file.  It must be the same for all so
+        that common path prefixes hash the same, so that files will
+        keep their grouping by folder.
+
+        For a path like 'one/two/three', the strings hashed for
+        the three hash values are:
+            'one'
+            'one/two'
+            'one/two/three'
+
+        :param file_hash_salt: A string (not bytes) used as salt.
+        :param filename: The file name to hash.
+        :return: The hashed file name to use when storing the file in B2.
+        """
+        assert isinstance(file_hash_salt, six.text_type)
+        assert isinstance(filename, six.text_type)
+        validate_b2_file_name(filename)
+        sections = filename.split('/')
+        strings_to_hash = [u'/'.join(sections[0:i+1]) for i in six.moves.range(len(sections))]
+        return u'/'.join(self._base64_hash_for_file(file_hash_salt + s) for s in strings_to_hash)
+
+    def _base64_hash_for_file(self, s):
+        """
+        Returns a base64 string of some of the bytes resulting from hashing
+        the given string.
+
+        The full 20-byte SHA1 digest is overkill.  We just use the first 18 bytes,
+        which is a multiple of the 3-byte block used for base64.
+
+        :param s: A string to hash.
+        :return:
+        """
+        return base64.urlsafe_b64encode(hashlib.sha1(s.encode('utf-8')).digest()[:18])
 
     def encrypt_filename(self, filename):
         validate_b2_file_name(filename)
