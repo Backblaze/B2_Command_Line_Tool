@@ -79,6 +79,7 @@ class FileSimulator(object):
             contentType=self.content_type,
             contentSha1=self.content_sha1,
             fileInfo=self.file_info,
+            action=self.action,
             uploadTimestamp=self.upload_timestamp
         )  # yapf: disable
 
@@ -227,6 +228,9 @@ class BucketSimulator(object):
         file_sim.finish(part_sha1_array)
         return file_sim.as_upload_result()
 
+    def get_file_info(self, file_id):
+        return self.file_id_to_file[file_id].as_upload_result()
+
     def get_upload_url(self):
         upload_id = six.next(self.upload_url_counter)
         upload_url = 'https://upload.example.com/%s/%s' % (self.bucket_id, upload_id)
@@ -244,7 +248,7 @@ class BucketSimulator(object):
         )
         self.file_id_to_file[file_id] = file_sim
         self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
-        return file_sim.as_upload_result()
+        return file_sim.as_list_files_dict()
 
     def list_file_names(self, start_file_name=None, max_file_count=None):
         start_file_name = start_file_name or ''
@@ -456,6 +460,11 @@ class RawSimulator(AbstractRawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return bucket.finish_large_file(file_id, part_sha1_array)
+
+    def get_file_info(self, api_url, account_auth_token, file_id):
+        bucket_id = self.file_id_to_bucket_id[file_id]
+        bucket = self._get_bucket_by_id(bucket_id)
+        return bucket.get_file_info(file_id)
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         bucket = self._get_bucket_by_id(bucket_id)
