@@ -304,13 +304,6 @@ class Bucket(object):
         :param progress_listener: object to notify as data is transferred
         :return:
         """
-        """
-        Uploads a file, retrying as needed.
-
-        The function `opener` should return a file-like object, and it
-        must be possible to call it more than once in case the upload
-        is retried.
-        """
 
         validate_b2_file_name(file_name)
         file_info = file_info or {}
