@@ -151,8 +151,10 @@ class ProgressEncryptionWrapper(AbstractProgressListener):
         print(byte_count)
         block_size = self.crypto.block_size + self.crypto.auth_tag_size
         block_count = (data_size + block_size - 1) // block_size  # divide rounding up
-        progress = (block_count-1)*self.crypto.block_size # + min(data_size % block_size, self.crypto.block_size)
-        self.listener.bytes_completed(data_size)
+        progress = (
+            block_count - 1
+        ) * self.crypto.block_size  # + min(data_size % block_size, self.crypto.block_size)
+        self.listener.bytes_completed(progress)
 
     def close(self):
         self.listener.close()

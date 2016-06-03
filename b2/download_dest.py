@@ -156,6 +156,7 @@ class DownloadDestDecryptionWrapper(AbstractDownloadDestination):
         file_name = self.crypto.decrypt_filename(file_info['name'])
         file_info.pop('name', None)
         params = (
-            file_id, file_name, crypto_file.decrypted_size(), content_type, content_sha1, file_info, mod_time_millis
+            file_id, file_name, crypto_file.decrypted_size(), content_type, content_sha1, file_info,
+            mod_time_millis
         )
         return DecryptingFileStream(self.download_dest, params, crypto_file)

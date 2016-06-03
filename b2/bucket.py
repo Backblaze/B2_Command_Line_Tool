@@ -126,7 +126,6 @@ class Bucket(object):
         )
         progress_listener.close()
 
-
     def list_parts(self, file_id, start_part_number=None, batch_size=None):
         return self.api.list_parts(file_id, start_part_number, batch_size)
 
@@ -592,7 +591,9 @@ class EncryptedBucket(Bucket):
     ):
         files = []
         folder_hash = self.crypto.hash_filename(folder_to_list)
-        for file_info, folder in Bucket.ls(self, folder_hash, show_versions, max_entries, recursive, fetch_count):
+        for file_info, folder in Bucket.ls(
+            self, folder_hash, show_versions, max_entries, recursive, fetch_count
+        ):
             file_info = self.crypto.decrypt_file_version_info(file_info)
             if folder:
                 folder = '/'.join(file_info.file_name.split('/')[0:-1]) + '/'
@@ -637,7 +638,7 @@ class EncryptedBucket(Bucket):
 
         name_hashed = self.crypto.hash_filename(file_name)
         file_info['name'] = self.crypto.encrypt_filename(file_name)
-        result = Bucket.start_large_file(self, file_name, content_type, file_info)
+        result = Bucket.start_large_file(self, name_hashed, content_type, file_info)
         result.file_name = file_name
         return result
 
@@ -680,4 +681,4 @@ class BucketFactory(object):
         type_ = bucket_dict['bucketType']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return EncryptedBucket(api, bucket_id, bucket_name, type_)
+        return Bucket(api, bucket_id, bucket_name, type_)

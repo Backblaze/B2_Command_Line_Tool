@@ -10,13 +10,11 @@
 
 from .account_info import SqliteAccountInfo
 from .b2http import B2Http
-from .bucket import Bucket, EncryptedBucket, BucketFactory
+from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
-from .download_dest import DownloadDestProgressWrapper
 from .exception import MissingAccountData, NonExistentBucket
 from .file_version import FileVersionInfoFactory
 from .part import PartFactory
-from .progress import DoNothingProgressListener
 from .raw_api import B2RawApi
 from .session import B2Session
 
@@ -148,10 +146,12 @@ class B2Api(object):
         return self.create_bucket(name, 'allPrivate')
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None):
-        return self.get_bucket_by_file_id(file_id).download_file_by_id(file_id, download_dest, progress_listener)
+        return self.get_bucket_by_file_id(file_id).download_file_by_id(
+            file_id, download_dest, progress_listener
+        )
 
     def get_bucket_by_id(self, bucket_id):
-        return EncryptedBucket(self, bucket_id)
+        return Bucket(self, bucket_id)
 
     def get_bucket_by_name(self, bucket_name):
         """
@@ -163,7 +163,7 @@ class B2Api(object):
         # If we can get it from the stored info, do that.
         id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
         if id_ is not None:
-            return EncryptedBucket(self, id_, name=bucket_name)
+            return Bucket(self, id_, name=bucket_name)
 
         for bucket in self.list_buckets():
             if bucket.name == bucket_name:
@@ -181,14 +181,13 @@ class B2Api(object):
         using the first character in each block.  The bucket ID is present in block 'z'.  So for
         the example above the bucket ID is 6a50f44ffa18e296564d0d16.
         """
-        bucket_id = ''
         blocks = file_id.split('_')
         if blocks[0] == '4':
             data = dict((b[0], b[1:]) for b in blocks[1:])
-            bucket_id = data['z'];
+            bucket_id = data['z']
         else:
             # Unknown file ID format, fall back to API call
-            bucked_id = self.session.get_file_info(file_id)['bucketId']
+            bucket_id = self.session.get_file_info(file_id)['bucketId']
         return self.get_bucket_by_id(bucket_id)
 
     def delete_bucket(self, bucket):

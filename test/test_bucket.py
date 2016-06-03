@@ -460,20 +460,25 @@ class TestDownload(TestCaseWithBucket):
 class TestCaseWithEncryptedBucket(TestCaseWithBucket):
     def setUp(self):
         TestCaseWithBucket.setUp(self)
-        self.bucket =  self.api.create_encrypted_bucket('my-enc-bucket')
+        self.bucket = self.api.create_encrypted_bucket('my-enc-bucket')
         self.bucket_id = self.bucket.id_
+
 
 class TestEncryptedListParts(TestListParts, TestCaseWithEncryptedBucket):
     pass
 
+
 class TestEncryptedListUnfinished(TestListUnfinished, TestCaseWithEncryptedBucket):
     pass
+
 
 class TestEncryptedLs(TestLs, TestCaseWithEncryptedBucket):
     pass
 
+
 class TestEncryptedUpload(TestUpload, TestCaseWithEncryptedBucket):
     pass
+
 
 class TestEncryptedDownload(TestDownload, TestCaseWithEncryptedBucket):
     pass

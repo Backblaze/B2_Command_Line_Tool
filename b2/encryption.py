@@ -205,7 +205,7 @@ class FileDecryptionContext(object):
 
     def decrypted_size(self):
         data_size = self.file_size - self.crypto.header_size
-        return data_size - self.block_count()*self.crypto.auth_tag_size
+        return data_size - self.block_count() * self.crypto.auth_tag_size
 
     def decrypt_block(self, block_id, data):
         # split data block
@@ -216,7 +216,9 @@ class FileDecryptionContext(object):
         iv_int = unpack_iv(self.iv)
         decryptor = Cipher(
             algorithms.AES(self.file_key),
-            modes.GCM(pack_iv(iv_int + block_id), tag),
+            modes.GCM(
+                pack_iv(iv_int + block_id), tag
+            ),
             backend=default_backend()
         ).decryptor()
         decryptor.authenticate_additional_data(self.blocks)
@@ -252,7 +254,7 @@ class CryptoContext(object):
         section_hashes = []
         parts = filename.split('/')
         for i, val in enumerate(parts):
-            section = '/'.join(parts[0:i+1]).encode('utf-8')
+            section = '/'.join(parts[0:i + 1]).encode('utf-8')
             section_hash = base64.urlsafe_b64encode(self._hmac(section)[0:15])
             section_hashes.append(section_hash.decode('utf-8'))
 
