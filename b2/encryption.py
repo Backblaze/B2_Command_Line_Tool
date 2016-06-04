@@ -126,7 +126,7 @@ class FileEncryptionContext(object):
         encryptor = Cipher(
             algorithms.AES(self.file_key),
             modes.GCM(pack_iv(iv_int + block_id)),
-            backend=default_backend()
+            backend=default_backend()  # TODO: specify the backend, in case the default changes
         ).encryptor()
         encryptor.authenticate_additional_data(self.blocks)
         ciphertext = encryptor.update(data) + encryptor.finalize()
