@@ -32,19 +32,30 @@ for now:
 
 ## Bucket Encryption Settings 
 
-Encryption is specified per bucket.  Each bucket has its own master key.
+Encryption is specified per bucket.  When a bucket is encrypted, it
+contains a file called `.MASTER_KEY`, which holds the salt used
+to generate encryption keys.  Keys are created based on the salt,
+and on the user's secret passphrase.
 
-The master key for a bucket is stored in a file called `.MASTER_KEY` in the bucket.  This file contains 
-a JSON with this information:
+The file contains:
 
-- ???
+- The 16-byte salt used to generate encryption keys, as hex.
+- The 16-byte salt used to generate file name encryption keys.
+
+The format looks like this:
+
+    {
+        "encryptionKeySalt" : "7b536cce8a053634be024d53f2dcaebb"
+    }
 
 ## Per-File Information
 
 ### Encrypted File Name
 
-The file name for each file is encrypted using the same algorithm as the 
-contents of the file.  See the "Encryption Process" section below.
+The file name for each file is encrypted using the same algorithm 
+and the same key as the contents of the file.  
+See the "Encryption Process" section below.
+
 The result is a random initialization vection (I.V.), followed by the
 encrypted data.  This whole thing is base64 encoded (using "url-safe"
 encoding), and stored in the file info as `encrypted_file_name`.
@@ -82,9 +93,14 @@ slashes to produce the name used to store the file.  The file
 
 The salt used when hashing file names must be the same for all 
 files in the bucket, so that files in the same folder hash to
-files in the same folder.  The salt is a random string of 20
-bytes, chosen at random, and stored in the `.MASTER_KEY` file
-for the bucket.
+files in the same folder.  The salt should be secret, so that 
+even if the `.MASTER_KEY` file is compromised, an attacker will
+not have it.
+
+The file hashing salt is created using the same algorithm used to generate
+encryption keys, but uses `/make_salt` as the file name, which
+is not a valid B2 file name because it starts with `/`.
+(For details, see below for Per-file Key Generation.)
 
 - Append the salt to the front of the UTF-8 bytes of the name to be hashed.
 - Compute the SHA1 of salt + name.
@@ -133,12 +149,15 @@ SHA256 as the hash function and 500000 Iterations.
 The Python code to create a key looks like this, using the
 cryptography library:
 
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=16,
-        salt=salt,
-        iterations=500000,
-        backend=default_backend()
+        salt=bucket_key_generation_salt,
+        iterations=???,  # TODO: How many?
+        backend=default_backend()   # TODO: specify backend
     )
     file_key = kdf.derive(passphrase)
 
@@ -155,10 +174,79 @@ randomly generated, and then stored in the header on the file.
 Each encrypted file is prefixed with a header before being stored.
 The header contains:
 
-- The salt used to generate the key for the file
-- The initialization vector for the file
-- The number of sections (blocks) in the file.
 
 ### File Encryption
 
-Files are encrypted in sections, each on NNN bytes long.
+Files are encrypted in sections, each on 16384 bytes (16 KiB) long.  We call each
+of these sections a "chapter", to avoid confusing them with the AES 
+"blocks", each of which is 16 bytes.
+
+A file to be encrypted is broken into chapters, with all but the last being 
+exactly 16 KiB, and the last one being at least one byte, and at most 16 KiB.
+
+Each of the chapters is encrypted with AES128/GCM.
+
+### File Format
+
+The encrypted file is the concatenation of:
+
+- The string "AA_b2_crypt_0_AA" (16 bytes)
+- The salt used to generate the key for the file (16 bytes)
+- The initialization vector for the first chapter of the file (12 bytes)
+- The number of chapters in the file (8 ascii hex digits in 8 bytes)
+- The binary SHA1 digest of everything up to this point. (20 bytes)
+- chapter 0, encrypted
+- chapter 1, encrypted
+- ...
+- last chapter, encrypted
+- the string "ZZ_b2_crypt_0_ZZ" (16 bytes)
+
+The header is the concatenation of:
+
+- The salt used to generate the key for the file (16 bytes)
+- The initialization vector for the first chapter of the file (12 bytes)
+- The number of chapters in the file.
+
+*PROPOSAL*: Start with a constant string as a double check that the format is correct.
+
+*PROPOSAL*: Include a SHA1 hash of the header.
+
+*PROPOSAL*: Store the number of chapters in hex, not binary.  It's easier to deal with in some languages.
+
+*QUESTION*: Why is the IV only 12 bytes?
+
+### Encryption
+
+The AES key for every chapter of a file is the same (see above), 
+but the initialization vector is different.  
+The initialization vector for a chapter is computed by
+treating the file's I.V. as a big-endian integer, and adding the zero-based
+chapter index.  Chapter 0 uses the file's I.V..  Chapter 1 adds 1 to that, and
+so on.
+
+In Python, the encryption of a chapter looks like this:
+
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    
+    encryptor = Cipher(
+        algorithms.AES(file_key),
+        modes.GCM(chapter_initialization_vector),
+        backend=default_backend()  # TODO: specify the backend, in case the default changes
+    ).encryptor()
+    encryptor.authenticate_additional_data(self.blocks)
+    ciphertext = encryptor.update(data) + encryptor.finalize() + encryptor.tag
+    assert len(ciphertext) == len(data) + 16
+    
+And decryption looks like this:
+
+    decryptor = Cipher(
+        algorithms.AES(file_key),
+        modes.GCM(chapter_initializion_vector), tag),
+        backend=default_backend()  # TODO: specify the backend, in case the default changes
+    ).decryptor()
+    decryptor.authenticate_additional_data(self.blocks)
+    return decryptor.update(ciphertext) + decryptor.finalize()
+
+*QUESTION*: What does `authenticate_additional_data` buy us?  Given that the IV for each
+chapter is different, I would have expected that validating just the contents of the
+chapter would be enough.
