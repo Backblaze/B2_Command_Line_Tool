@@ -73,7 +73,7 @@ class B2Api(object):
             cache = DummyCache()
         self.cache = cache
         self.upload_executor = None
-        self.max_workers = 1
+        self.max_workers = max_upload_workers
 
     def set_thread_pool_size(self, max_workers):
         """
