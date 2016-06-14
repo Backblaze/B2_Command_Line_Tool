@@ -535,6 +535,9 @@ class LocalFolder(AbstractFolder):
                 )
             full_path = os.path.join(dir_path, name)
             relative_path = full_path[prefix_len:]
+            if not os.path.exists(full_path):
+                # Skip broken symlinks or other inaccessible files
+                continue
             if os.path.isdir(full_path):
                 name += six.u('/')
                 dirs.add(name)
