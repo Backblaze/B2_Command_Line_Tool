@@ -48,6 +48,10 @@ class LargeFileUploadState(object):
         with self.lock:
             return self.error_message is not None
 
+    def get_error_message(self):
+        assert self.has_error()
+        return self.error_message
+
     def update_part_bytes(self, bytes_delta):
         with self.lock:
             self.bytes_completed += bytes_delta
