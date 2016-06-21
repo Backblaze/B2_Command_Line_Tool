@@ -255,6 +255,7 @@ class AbstractAction(object):
             self.do_action(bucket, reporter)
         except Exception as e:
             reporter.error(str(self) + ": " + repr(e) + ' ' + str(e))
+            raise  # Re-throw so we can identify failed actions
 
     @abstractmethod
     def get_bytes(self):
@@ -906,15 +907,20 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
             bucket = dest_folder.bucket
         if bucket is None:
             raise ValueError('neither folder is a b2 folder')
+        action_futures = []
         total_files = 0
         total_bytes = 0
         for action in make_folder_sync_actions(
             source_folder, dest_folder, args, now_millis, reporter
         ):
-            sync_executor.submit(action.run, bucket, reporter)
+            future = sync_executor.submit(action.run, bucket, reporter)
+            action_futures.append(future)
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
 
         # Wait for everything to finish
         sync_executor.shutdown()
+        error_count = len([f for f in action_futures if f.exception() is not None])
+        if error_count != 0:
+            raise CommandError('sync is incomplete')
