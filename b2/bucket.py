@@ -34,7 +34,7 @@ class LargeFileUploadState(object):
     """
 
     def __init__(self, file_progress_listener):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.error_message = None
         self.file_progress_listener = file_progress_listener
         self.part_number_to_part_state = {}
