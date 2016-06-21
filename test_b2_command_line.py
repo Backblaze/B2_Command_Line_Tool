@@ -319,8 +319,8 @@ def basic_test(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
 
-    with open(file_to_upload, 'rb') as f:
-        hex_sha1 = hashlib.sha1(f.read()).hexdigest()
+    hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
+
     uploaded_a = b2_tool.should_succeed_json(
         [
             'upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a'

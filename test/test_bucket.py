@@ -151,7 +151,6 @@ class TestUploadPart(TestCaseWithBucket):
     def test_error_in_state(self):
         file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
         content = six.b('hello world')
-        content_sha1 = hex_sha1_of_bytes(content)
         file_progress_listener = mock.MagicMock()
         large_file_upload_state = LargeFileUploadState(file_progress_listener)
         large_file_upload_state.set_error('test error')
