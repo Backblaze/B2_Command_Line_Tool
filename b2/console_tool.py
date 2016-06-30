@@ -629,6 +629,22 @@ class MakeUrl(Command):
         return 0
 
 
+class ShowAccountInfo(Command):
+    """
+    b2_show_account_info
+
+        Shows the account ID, key, auth token, and URLs.
+    """
+    def run(self, args):
+        account_info = self.api.account_info
+        print('Account ID:         %s' % (account_info.get_account_id(),))
+        print('Application Key:    %s' % (account_info.get_application_key(),))
+        print('Account Auth Token: %s' % (account_info.get_account_auth_token(),))
+        print('API URL:            %s' % (account_info.get_api_url(),))
+        print('Download URL:       %s' % (account_info.get_download_url(),))
+        return 0
+
+
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
