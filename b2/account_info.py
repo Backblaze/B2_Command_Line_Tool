@@ -166,10 +166,10 @@ class UploadUrlPool(object):
         """
         with self._lock:
             pair_list = self._pool[key]
-            if len(pair_list) == 0:
-                return (None, None)
-            else:
+            if pair_list:
                 return pair_list.pop()
+            else:
+                return (None, None)
 
     def clear_for_key(self, key):
         with self._lock:

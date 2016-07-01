@@ -14,13 +14,39 @@ import unittest
 
 import six
 
-from b2.account_info import SqliteAccountInfo
+from b2.account_info import SqliteAccountInfo, UploadUrlPool
 from b2.exception import CorruptAccountInfo, MissingAccountData
 
 try:
     import unittest.mock as mock
 except:
     import mock
+
+
+class TestUploadUrlPool(unittest.TestCase):
+    def setUp(self):
+        self.pool = UploadUrlPool()
+
+    def test_take_empty(self):
+        self.assertEqual((None, None), self.pool.take('a'))
+
+    def test_put_and_take(self):
+        self.pool.put('a', 'url_a1', 'auth_token_a1')
+        self.pool.put('a', 'url_a2', 'auth_token_a2')
+        self.pool.put('b', 'url_b1', 'auth_token_b1')
+        self.assertEqual(('url_a2', 'auth_token_a2'), self.pool.take('a'))
+        self.assertEqual(('url_a1', 'auth_token_a1'), self.pool.take('a'))
+        self.assertEqual((None, None), self.pool.take('a'))
+        self.assertEqual(('url_b1', 'auth_token_b1'), self.pool.take('b'))
+        self.assertEqual((None, None), self.pool.take('b'))
+
+    def test_clear(self):
+        self.pool.put('a', 'url_a1', 'auth_token_a1')
+        self.pool.clear_for_key('a')
+        self.pool.put('b', 'url_b1', 'auth_token_b1')
+        self.assertEqual((None, None), self.pool.take('a'))
+        self.assertEqual(('url_b1', 'auth_token_b1'), self.pool.take('b'))
+        self.assertEqual((None, None), self.pool.take('b'))
 
 
 class TestSqliteAccountInfo(unittest.TestCase):
