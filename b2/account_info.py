@@ -303,7 +303,7 @@ class SqliteAccountInfo(AbstractAccountInfo):
         """
         )
         # This table is not used any more.  We may use it again
-        # someday if we same upload URLs across invocations of
+        # someday if we save upload URLs across invocations of
         # the command-line tool.
         conn.execute(
             """
