@@ -99,20 +99,6 @@ class TestSqliteAccountInfo(unittest.TestCase):
         except MissingAccountData:
             pass
 
-    def test_bucket_upload_data(self):
-        account_info = self._make_info()
-        account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
-        self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'), account_info.take_bucket_upload_url('bucket-0')
-        )
-        self.assertEqual((None, None), self._make_info().take_bucket_upload_url('bucket-0'))
-        account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
-        self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'),
-            self._make_info().take_bucket_upload_url('bucket-0')
-        )
-        self.assertEqual((None, None), account_info.take_bucket_upload_url('bucket-0'))
-
     def test_clear_bucket_upload_data(self):
         account_info = self._make_info()
         account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
