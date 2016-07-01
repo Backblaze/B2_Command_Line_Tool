@@ -141,6 +141,42 @@ class AbstractAccountInfo(object):
         pass
 
 
+class UploadUrlPool(object):
+    """
+    For each key (either a bucket id or large file id), holds a pool
+    of (url, auth_token) pairs, with thread-safe methods to add and
+    remove them.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._pool = collections.defaultdict(list)
+
+    def put(self, key, url, auth_token):
+        """
+        Adds the url and auth token to the pool for the given key.
+        """
+        with self._lock:
+            pair = (url, auth_token)
+            self._pool[key].append(pair)
+
+    def take(self, key):
+        """
+        Returns (url, auth_token) if one is available, or (None, None) if not.
+        """
+        with self._lock:
+            pair_list = self._pool[key]
+            if pair_list:
+                return pair_list.pop()
+            else:
+                return (None, None)
+
+    def clear_for_key(self, key):
+        with self._lock:
+            if key in self._pool:
+                del self._pool[key]
+
+
 class SqliteAccountInfo(AbstractAccountInfo):
     """
     Stores account information in an sqlite database, which is
@@ -157,9 +193,8 @@ class SqliteAccountInfo(AbstractAccountInfo):
         with self._get_connection() as conn:
             self._create_tables(conn)
 
-        self._large_file_uploads = collections.defaultdict(
-            list
-        )  # We don't keep large file upload URLs across a reload
+        self._bucket_uploads = UploadUrlPool()
+        self._large_file_uploads = UploadUrlPool()
 
         # this lock controls access to self._large_file_uploads
         self._lock = threading.Lock()
@@ -267,6 +302,9 @@ class SqliteAccountInfo(AbstractAccountInfo):
            );
         """
         )
+        # This table is not used any more.  We may use it again
+        # someday if we save upload URLs across invocations of
+        # the command-line tool.
         conn.execute(
             """
            CREATE TABLE IF NOT EXISTS
@@ -367,48 +405,22 @@ class SqliteAccountInfo(AbstractAccountInfo):
             return None
 
     def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
-        with self._get_connection() as conn:
-            conn.execute(
-                'INSERT INTO bucket_upload_url (bucket_id, upload_url, upload_auth_token) values (?, ?, ?);',
-                (bucket_id, upload_url, upload_auth_token)
-            )
+        self._bucket_uploads.put(bucket_id, upload_url, upload_auth_token)
 
     def clear_bucket_upload_data(self, bucket_id):
-        with self._get_connection() as conn:
-            conn.execute('DELETE FROM bucket_upload_url WHERE bucket_id = ?;', (bucket_id,))
+        self._bucket_uploads.clear_for_key(bucket_id)
 
     def take_bucket_upload_url(self, bucket_id):
-        try:
-            with self._get_connection() as conn:
-                cursor = conn.execute(
-                    'SELECT upload_url, upload_auth_token FROM bucket_upload_url WHERE bucket_id = ?;',
-                    (bucket_id,)
-                )
-                (upload_url, upload_auth_token) = cursor.fetchone()
-                conn.execute(
-                    'DELETE FROM bucket_upload_url WHERE upload_auth_token = ?;',
-                    (upload_auth_token,)
-                )
-                return (upload_url, upload_auth_token)
-        except:
-            return (None, None)
+        return self._bucket_uploads.take(bucket_id)
 
     def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
-        with self._lock:
-            self._large_file_uploads[file_id].append((upload_url, upload_auth_token))
+        self._large_file_uploads.put(file_id, upload_url, upload_auth_token)
 
     def take_large_file_upload_url(self, file_id):
-        with self._lock:
-            url_list = self._large_file_uploads.get(file_id, [])
-            if len(url_list) == 0:
-                return (None, None)
-            else:
-                return url_list.pop()
+        return self._large_file_uploads.take(file_id)
 
     def clear_large_file_upload_urls(self, file_id):
-        with self._lock:
-            if file_id in self._large_file_uploads:
-                del self._large_file_uploads[file_id]
+        self._large_file_uploads.clear_for_key(file_id)
 
 
 class StubAccountInfo(AbstractAccountInfo):
