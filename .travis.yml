@@ -3,6 +3,7 @@ notifications:
     secure: naix0bLa/50X1HIXwLtkUC/YH9Iurs18eVy/mhfrfD2YFd7QjUGRz24SQU2r0ev0Qh3CUaH9MJoAUbu4oaXGB1VXzZkV7OIGimZe4gcWJuzItnVhyrQJKpcpC7yafdl7uDA0wjWs2BYRHCJ3c35Gv4SmihuGVXUS3WFsL0i3VyXno8xPOfmyuUT7GZWW80uMnV6eOyhbPCBb17CchI8x7owdXVf3drxCrrjoP3oNbbpByTsDC+hnCmVQbhkZAqS63gZRj5LT6gNh4ZA/qenaGkhzfHFRSUW1+H16ZzYcSSl0PfAQBQYrc7agUjI987PBHdOv6BJS+pKmZ0MvaDwbnzhHZZdb8LXqM5K0zAhPiZMPL2MTq7+eNOBdRuTlbWs3OZfbY1cnewSpMmUGfwrIjVnLtvfhfJXVaFbpIfvNc6eafgmHas23A05f4Gk/IcRLvqICw+GQg76ADUpWubQal7gECTGbeivOdRLnQcQYWCg/a5VR5B+4ELENmWLRD7IQgo6rJKpPiRdGRc0C0E9Mqt3w7w+9NiDnjTbSu8Q6ARBLXjAu+jSbY1VK0iPq6k1Wj8U5EgQF/xVLCEtKDRW1bdllwWNgi2yPo1CrkgKmJj6XPU3Zc744NR85uC+PxAjkIIbm90joevPmUQGwkpAgVX2pxCjVAX6ynQ79TFfdd/Y=
 
 language: python
+
 python:
   - 2.6
   - 2.7
@@ -14,6 +15,10 @@ python:
 
 branches:
   # https://github.com/travis-ci/travis-ci/issues/1147#issuecomment-160820262
+  # this reduces workload on Travis if there are many pushes in a short time.
+  # It does not have a drawback if:
+  # - pull requests are used for review
+  # - branches that we care about (not work-in-progress) are listed below
   only:
     - master
 
@@ -21,6 +26,7 @@ matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
+    # pypy
     - python: pypy
       env: PYPY_VERSION=pypy-4.0.1
     - python: pypy
@@ -49,23 +55,26 @@ matrix:
 cache:
   - pip
   - directories:
-    - $HOME/.virtualenv/python3-osx
-  - directories:
     - $HOME/.eggs
+    - $HOME/.pyenv  # custom pypy versions
+    - $HOME/.virtualenv/osx-python
+    - $HOME/.virtualenv/osx-python3
 
 before_install:
   - uname -a
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
   - |
-       # install python3 on OS X
-       if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-           brew update
-           brew install "$OS_X_PYTHON_VERSION"
-           virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
-           source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
-       else
-           echo skip
-       fi
+        # install python on OS X
+        if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+            brew update
+            brew install "$OS_X_PYTHON_VERSION"
+            if [ ! -e "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
+                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
+            fi
+            source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
+        else
+            echo skip
+        fi
   - |
        # upgrade pypy to a version that works with Cryptography 1.0
        if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
@@ -77,7 +86,9 @@ before_install:
            fi
            echo "PYPY_VERSION=$PYPY_VERSION"
            "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
-           virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
+           if [ ! -e "$HOME/.virtualenv/$PYPY_VERSION/bin/activate" ]; then
+               virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
+           fi
            source "$HOME/.virtualenv/$PYPY_VERSION/bin/activate"
        else
            echo skip
@@ -90,11 +101,33 @@ install:
   # for some strange reason letting setuptools handle dependencies doesn't work for us on some python versions
   - cat requirements*.txt | xargs pip install
 
-script:
+before_script:
   - pip freeze
+
+script:
+  # nosetests
   - if [ -z "$SCA" ]; then python setup.py nosetests; else echo skip; fi
+  # SCA
+  - |
+       if [ -n "$SCA" ]; then
+          if [ -n "$TRAVIS_COMMIT_RANGE" ]; then
+             echo "using commit range: $TRAVIS_COMMIT_RANGE"
+             git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py || exit
+          else
+             yapf --diff --recursive . || exit
+          fi
+       fi
+  - if [ -n "$SCA" ]; then pyflakes . || exit; else echo skip; fi
+
+  # isort doesn't get along with yapf. Hopefully we'll figure it out and re-enable in the future.
+  # - if [ -n "$SCA" ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
+
+  # home-made bad code detectors
+  - if [ -n "$SCA" ]; then grep -r --extended-regex '^ *class [^\(]+(\(\))?:' whylog/ && exit 1 || true; else echo skip; fi  # old-style class detector
+  - if [ -n "$SCA" ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
+  - if [ -n "$SCA" ]; then grep -r --extended-regex '\b(all|any)\(\[' whylog/ && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
+  - if [ -n "$SCA" ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
+    #
+  # custom things specific to b2 CLI
   - if [ -n "$TEST_ACCOUNT_ID" -o -n "$SCA" ]; then python setup.py install; else echo skip; fi
   - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
-  - if [ -n "$SCA" -a -n "$TRAVIS_COMMIT_RANGE" ]; then git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py test_b2_command_line.py || exit; else echo skip; fi
-  - if [ -n "$SCA" -a -z "$TRAVIS_COMMIT_RANGE" ]; then yapf --diff --recursive b2 setup.py test_b2_command_line.py || exit; else echo skip; fi
-  - if [ -n "$SCA" ]; then pyflakes b2; else echo skip; fi
