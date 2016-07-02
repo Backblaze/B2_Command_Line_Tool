@@ -76,23 +76,23 @@ before_install:
             echo skip
         fi
   - |
-       # upgrade pypy to a version that works with Cryptography 1.0
-       if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
-           export PYENV_ROOT="$HOME/.pyenv"
-           if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
-               pushd "$PYENV_ROOT" && git pull && popd
-           else
-               rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
-           fi
-           echo "PYPY_VERSION=$PYPY_VERSION"
-           "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
-           if [ ! -e "$HOME/.virtualenv/$PYPY_VERSION/bin/activate" ]; then
-               virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
-           fi
-           source "$HOME/.virtualenv/$PYPY_VERSION/bin/activate"
-       else
-           echo skip
-       fi
+        # upgrade pypy to a version that works with Cryptography 1.0
+        if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
+            export PYENV_ROOT="$HOME/.pyenv"
+            if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
+                pushd "$PYENV_ROOT" && git pull && popd
+            else
+                rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
+            fi
+            echo "PYPY_VERSION=$PYPY_VERSION"
+            "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
+            if [ ! -e "$HOME/.virtualenv/$PYPY_VERSION/bin/activate" ]; then
+                virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
+            fi
+            source "$HOME/.virtualenv/$PYPY_VERSION/bin/activate"
+        else
+            echo skip
+        fi
   - virtualenv --version
 
 install:
@@ -109,14 +109,14 @@ script:
   - if [ -z "$SCA" ]; then python setup.py nosetests; else echo skip; fi
   # SCA
   - |
-       if [ -n "$SCA" ]; then
-          if [ -n "$TRAVIS_COMMIT_RANGE" ]; then
-             echo "using commit range: $TRAVIS_COMMIT_RANGE"
-             git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py || exit
-          else
-             yapf --diff --recursive . || exit
-          fi
-       fi
+        if [ -n "$SCA" ]; then
+            if [ -n "$TRAVIS_COMMIT_RANGE" ]; then
+                echo "using commit range: $TRAVIS_COMMIT_RANGE"
+                git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py || exit
+            else
+                yapf --diff --recursive . || exit
+            fi
+        fi
   - if [ -n "$SCA" ]; then pyflakes . || exit; else echo skip; fi
 
   # isort doesn't get along with yapf. Hopefully we'll figure it out and re-enable in the future.
