@@ -96,8 +96,6 @@ before_install:
   - virtualenv --version
 
 install:
-  - if [ -n "$SCA" ]; then pip install pyflakes; else echo skip; fi
-  - if [ -n "$SCA" ]; then pip install yapf; else echo skip; fi
   # for some strange reason letting setuptools handle dependencies doesn't work for us on some python versions
   - cat requirements*.txt | xargs pip install
 
