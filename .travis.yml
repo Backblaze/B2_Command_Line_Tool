@@ -52,6 +52,7 @@ matrix:
       language: generic
       env: OS_X_PYTHON_VERSION=python3
 
+
 cache:
   - pip
   - directories:
@@ -106,6 +107,7 @@ before_script:
 script:
   # nosetests
   - if [ -z "$SCA" ]; then python setup.py nosetests; else echo skip; fi
+
   # SCA
   - |
         if [ -n "$SCA" ]; then
@@ -128,7 +130,7 @@ script:
   - if [ -n "$SCA" ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
   - if [ -n "$SCA" ]; then grep -r --extended-regex '\b(all|any)\(\[' whylog/ && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
   - if [ -n "$SCA" ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
-    #
+
   # custom things specific to b2 CLI
-  - if [ -n "$TEST_ACCOUNT_ID" -o -n "$SCA" ]; then python setup.py install; else echo skip; fi
+  - if [ -n "$TEST_ACCOUNT_ID" -o -n "$SCA" ]; then python setup.py develop; else echo skip; fi
   - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
