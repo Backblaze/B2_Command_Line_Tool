@@ -94,6 +94,7 @@ before_install:
             echo skip
         fi
   - virtualenv --version
+  - python --version
 
 install:
   # for some strange reason letting setuptools handle dependencies doesn't work for us on some python versions
@@ -114,6 +115,8 @@ script:
             else
                 yapf --diff --recursive . || exit
             fi
+        else
+            echo skip
         fi
   - if [ -n "$SCA" ]; then pyflakes . || exit; else echo skip; fi
 
