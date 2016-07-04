@@ -36,7 +36,21 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, reporter, exclusions=tuple()):
+def _filter_folder(folder, reporter, exclusions, inclusions):
+    """
+    Filters a folder through a list of exclusions and inclusions.
+    Inclusions override exclusions.
+    """
+    for f in folder.all_files(reporter):
+        if any(pattern.match(f.name) for pattern in inclusions):
+            yield f
+            continue
+        if any(pattern.match(f.name) for pattern in exclusions):
+            continue
+        yield f
+
+
+def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple()):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -48,9 +62,7 @@ def zip_folders(folder_a, folder_b, reporter, exclusions=tuple()):
     :param folder_b: A Folder object.
     """
 
-    iter_a = (
-        f for f in folder_a.all_files(reporter) if not any(ex.match(f.name) for ex in exclusions)
-    )
+    iter_a = _filter_folder(folder_a, reporter, exclusions, inclusions)
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
@@ -104,6 +116,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         raise CommandError('--keepDays cannot be used for local files')
 
     exclusions = [re.compile(ex) for ex in args.excludeRegex]
+    inclusions = [re.compile(inc) for inc in args.includeRegex]
 
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
@@ -112,7 +125,14 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         ('b2', 'local'), ('local', 'b2')
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
-    for (source_file, dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions):
+
+    for (source_file,
+         dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions, inclusions):
+        if source_file is None:
+            logging.debug('determined that %s is not present on source', dest_file)
+        elif dest_file is None:
+            logging.debug('determined that %s is not present on destination', source_file)
+
         if source_folder.folder_type() == 'local':
             if source_file is not None:
                 reporter.update_compare(1)

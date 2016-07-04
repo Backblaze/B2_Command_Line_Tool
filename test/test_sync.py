@@ -242,6 +242,7 @@ class FakeArgs(object):
         replaceNewer=False,
         compareVersions=None,
         excludeRegex=None,
+        includeRegex=None,
     ):
         self.delete = delete
         self.keepDays = keepDays
@@ -251,6 +252,9 @@ class FakeArgs(object):
         if excludeRegex is None:
             excludeRegex = []
         self.excludeRegex = excludeRegex
+        if includeRegex is None:
+            includeRegex = []
+        self.includeRegex = includeRegex
 
 
 def b2_file(name, mod_times, size=10):
@@ -294,6 +298,59 @@ def local_file(name, mod_times, size=10):
     return File(name, versions)
 
 
+class TestExclusions(TestBase):
+    def setUp(self):
+        self.reporter = MagicMock()
+
+    def _check_folder_sync(self, expected_actions, fakeargs):
+        # only local
+        file_a = local_file('a.txt', [100])
+        file_b = local_file('b.txt', [100])
+
+        # both local and remote
+        file_bi = local_file('b.txt.incl', [100])
+        file_z = local_file('z.incl', [100])
+
+        # only remote
+        file_c = local_file('c.txt', [100])
+
+        local_folder = FakeFolder('local', [file_a, file_b, file_bi, file_z])
+        b2_folder = FakeFolder('b2', [file_bi, file_c, file_z])
+
+        actions = list(
+            make_folder_sync_actions(local_folder, b2_folder, fakeargs, TODAY, self.reporter)
+        )
+        self.assertEqual(expected_actions, [str(a) for a in actions])
+
+    def test_file_exclusions(self):
+        expected_actions = ['b2_upload(/dir/a.txt, folder/a.txt, 100)',]
+        self._check_folder_sync(expected_actions, FakeArgs(excludeRegex=["b\\.txt"]))
+
+    def test_file_exclusions_with_delete(self):
+        expected_actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_delete(folder/b.txt.incl, /dir/b.txt.incl, )',
+            'b2_delete(folder/c.txt, /dir/c.txt, )',
+        ]
+        self._check_folder_sync(expected_actions, FakeArgs(delete=True, excludeRegex=["b\\.txt"]))
+
+    def test_file_exclusions_inclusions(self):
+        expected_actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_upload(/dir/b.txt, folder/b.txt, 100)',
+        ]
+        fakeargs = FakeArgs(excludeRegex=["b\\.txt"], includeRegex=["b\\.txt"])
+        self._check_folder_sync(expected_actions, fakeargs)
+
+    def test_file_exclusions_inclusions_with_delete(self):
+        expected_actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_delete(folder/c.txt, /dir/c.txt, )',
+        ]
+        fakeargs = FakeArgs(delete=True, excludeRegex=["b\\.txt"], includeRegex=[".*\\.incl"])
+        self._check_folder_sync(expected_actions, fakeargs)
+
+
 class TestMakeSyncActions(TestBase):
     def setUp(self):
         self.reporter = MagicMock()
@@ -315,35 +372,6 @@ class TestMakeSyncActions(TestBase):
     def test_illegal_delete_and_keep_days(self):
         with self.assertRaises(CommandError):
             self._check_local_to_b2(None, None, FakeArgs(delete=True, keepDays=1), [])
-
-    def test_file_exclusions(self):
-        file_a = local_file('a.txt', [100])
-        file_b = local_file('b.txt', [100])
-        file_c = local_file('c.txt', [100])
-
-        local_folder = FakeFolder('local', [file_a, file_b, file_c])
-        b2_folder = FakeFolder('b2', [])
-
-        expected_actions = [
-            'b2_upload(/dir/a.txt, folder/a.txt, 100)', 'b2_upload(/dir/c.txt, folder/c.txt, 100)'
-        ]
-
-        actions = list(
-            make_folder_sync_actions(
-                local_folder, b2_folder, FakeArgs(excludeRegex=["b.txt"]), TODAY, self.reporter
-            )
-        )
-        self.assertEqual(expected_actions, [str(a) for a in actions])
-
-    def test_file_exclusions_with_delete(self):
-        src_file = b2_file('a.txt', [100])
-        dst_file = b2_file('a.txt', [100])
-        actions = ['b2_delete(folder/a.txt, id_a_100, )']
-        self._check_local_to_b2(
-            src_file, dst_file, FakeArgs(
-                delete=True, excludeRegex=['a.txt']
-            ), actions
-        )
 
     # src: absent, dst: absent
 

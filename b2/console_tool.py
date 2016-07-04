@@ -590,7 +590,7 @@ class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--threads N] [--noProgress] \\
-            [--excludeRegex <regex>] <source> <destination>
+            [--excludeRegex <regex>] [--includeRegex <regex>] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -614,6 +614,12 @@ class Sync(Command):
         match the given pattern. Ignored files will not copy during
         the sync operation. The pattern is a regular expression
         that is tested against the full path of each file.
+
+        You can specify --includeRegex to selectively override ignoring
+        files that match the given --excludeRegex pattern by an
+        --includeRegex pattern. Similarly to --excludeRegex, the pattern
+        is a regular expression that is tested against the full path
+        of each file.
 
         Files are considered to be the same if they have the same name
         and modification time.  This behaviour can be changed using the
@@ -660,7 +666,7 @@ class Sync(Command):
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
-    LIST_ARGS = ['excludeRegex']
+    LIST_ARGS = ['excludeRegex', 'includeRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
