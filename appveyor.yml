@@ -109,6 +109,7 @@ install:
   # target Python version and architecture
   - "%CMD_IN_ENV% pip install -r requirements.txt"
   - "%CMD_IN_ENV% pip install -r requirements-test.txt"
+  - "%CMD_IN_ENV% pip install -r requirements-setup.txt"
 
 build_script:
   # Build the compiled extension
