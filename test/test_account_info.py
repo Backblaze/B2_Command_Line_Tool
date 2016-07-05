@@ -9,13 +9,19 @@
 ######################################################################
 
 import json
+from nose import SkipTest
 import os
+import platform
 import unittest
 
 import six
 
-from b2.account_info import SqliteAccountInfo, UploadUrlPool
+from b2.account_info import UploadUrlPool
 from b2.exception import CorruptAccountInfo, MissingAccountData
+
+if not platform.system().lower().startswith('java'):
+    # in Jython 2.7.1b3 there is no sqlite3
+    from b2.account_info import SqliteAccountInfo
 
 try:
     import unittest.mock as mock
@@ -54,6 +60,9 @@ class TestSqliteAccountInfo(unittest.TestCase):
     FILE_NAME = '/tmp/test_b2_account_info'
 
     def setUp(self):
+        if platform.system().lower().startswith('java'):
+            # in Jython 2.7.1b3 there is no sqlite3
+            raise SkipTest()
         try:
             os.unlink(self.FILE_NAME)
         except:
