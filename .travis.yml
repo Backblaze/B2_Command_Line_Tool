@@ -56,6 +56,11 @@ matrix:
       language: generic
       env: OS_X_PYTHON_VERSION=python3
 
+    # test_raw_api takes too long to be run in every cell of the build matrix
+    - python: 2.6
+      env: TEST_RAW_API=true
+    - python: nightly
+      env: TEST_RAW_API=true
 
 cache:
   - pip
@@ -158,10 +163,10 @@ before_script:
 
 script:
   # nosetests
-  - if [ -z "$SCA" ]; then python setup.py nosetests; else echo skip; fi
+  - if [ -z "$SCA" -a -z "$TEST_RAW_API" ]; then python setup.py nosetests; else echo skip; fi
 
-  # SCA
   - |
+        # yapf
         if [ -n "$SCA" ]; then
             if [ -n "$TRAVIS_COMMIT_RANGE" ]; then
                 echo "using commit range: $TRAVIS_COMMIT_RANGE"
@@ -184,5 +189,12 @@ script:
   - if [ -n "$SCA" ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
 
   # custom things specific to b2 CLI
-  - if [ -n "$TEST_ACCOUNT_ID" -o -n "$SCA" ]; then python setup.py develop; else echo skip; fi
-  - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
+  - |
+        if [ -n "$TEST_ACCOUNT_ID" -a -n "$TEST_RAW_API" ]; then
+            python setup.py develop
+        elif [ -n "$SCA" ]; then
+            python setup.py develop
+        else
+            echo skip
+        fi
+  - if [ -n "$TEST_ACCOUNT_ID" -a -n "$TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
