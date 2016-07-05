@@ -472,7 +472,7 @@ class Bucket(object):
 
         # Retry the upload as needed
         exception_list = []
-        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_part_data(file_id)
 
