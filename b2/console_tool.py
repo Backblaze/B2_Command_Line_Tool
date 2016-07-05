@@ -140,7 +140,7 @@ class Command(object):
     def _print_stderr(self, *args, **kwargs):
         try:
             print(*args, file=self.stderr, **kwargs)
-        except:
+        except UnicodeEncodeError:
             print(
                 "\nERROR: Unable to print unicode.  Encoding for stderr is: '%s'" %
                 (sys.stderr.encoding,),
