@@ -208,7 +208,8 @@ class SyncFileReporter(AbstractProgressListener):
 
 
 def sample_sync_report_run():
-    sync_report = SyncReport()
+    import sys
+    sync_report = SyncReport(sys.stdout, False)
 
     for i in six.moves.range(20):
         sync_report.update_local(1)
