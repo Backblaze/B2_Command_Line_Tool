@@ -12,6 +12,9 @@ python:
   - 3.4
   - 3.5
   - nightly
+  # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
+  #- pypy
+  #- pypy3
 
 branches:
   # https://github.com/travis-ci/travis-ci/issues/1147#issuecomment-160820262
@@ -119,8 +122,10 @@ before_install:
             echo skip
         fi
   - |
-        # upgrade pypy to a version that works with Cryptography 1.0
-        if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
+        # upgrade pypy (to a version that works with Cryptography 1.0)
+        if [ -z "$PYPY_VERSION" ]; then
+            echo 'this is a build of native Travis pypy/pypy3, not the upgraded one'
+        elif [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
             export PYENV_ROOT="$HOME/.pyenv"
             if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
                 pushd "$PYENV_ROOT" && git pull && popd
