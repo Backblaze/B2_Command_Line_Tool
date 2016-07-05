@@ -158,8 +158,8 @@ install:
             cd -
         fi
 
-  # for some strange reason letting setuptools handle dependencies doesn't work for us on some python versions
-  - cat requirements*.txt | xargs pip install
+  # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it
+  - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
 
 before_script:
   - pip freeze
