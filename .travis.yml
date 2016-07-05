@@ -193,13 +193,17 @@ script:
   - if [ -n "$SCA" ]; then grep -r --extended-regex '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
   - if [ -n "$SCA" ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
 
-  # custom things specific to b2 CLI
+  # package installation
   - |
-        if [ -n "$TEST_ACCOUNT_ID" -a -n "$TEST_RAW_API" ]; then
-            python setup.py develop
-        elif [ -n "$SCA" ]; then
-            python setup.py develop
+        if [ -z "$SCA" ]; then
+            if [ -n "$OS_X_PYTHON_VERSION" ]; then
+                # install action fails on osx for unknown reason
+                python setup.py develop
+            else
+                python setup.py install
+            fi
         else
             echo skip
         fi
+  # custom things specific to b2 CLI
   - if [ -n "$TEST_ACCOUNT_ID" -a -n "$TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
