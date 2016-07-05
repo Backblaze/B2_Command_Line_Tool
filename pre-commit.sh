@@ -34,16 +34,21 @@ SOURCE_FILES="b2/*.py test/*.py *.py"
 for src_file in $SOURCE_FILES
 do
     echo "$src_file"
-    if yapf "$src_file" > yapf.out
-    then
+    yapf "$src_file" > yapf.out ; yapf_return_code="$?"
+    if [ "$yapf_return_code" == '0' ]; then
         rm yapf.out
-    else
+    elif [ "$yapf_return_code" == '2' ]; then
         echo
         echo "Formatting updated:"
         echo
         diff "$src_file" yapf.out
         mv yapf.out "$src_file"
         sleep 5
+    else
+        echo
+        echo "Fatal yapf error!"
+        echo
+        exit 1
     fi
 done
 
