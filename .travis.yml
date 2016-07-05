@@ -26,6 +26,10 @@ matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
+    # jython
+    - python: 2.7
+      env: JYTHON=true
+
     # pypy
     - python: pypy
       env: PYPY_VERSION=pypy-4.0.1
@@ -57,7 +61,10 @@ cache:
   - pip
   - directories:
     - $HOME/.eggs
+    - $HOME/jython-pip
+    - $HOME/jython
     - $HOME/.pyenv  # custom pypy versions
+    - $HOME/.virtualenv/jython
     - $HOME/.virtualenv/osx-python
     - $HOME/.virtualenv/osx-python3
 
@@ -73,6 +80,36 @@ before_install:
                 virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
             fi
             source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
+        else
+            echo skip
+        fi
+  - |
+        # get jython
+        if [ -n "$JYTHON" ]; then
+            if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
+                wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
+                java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
+            else
+                echo skip
+            fi
+            # install a custom version of pip, as standard pip doesn't work on jython (https://github.com/jythontools/pip/commits/develop)
+            if [ ! -d "$HOME/jython-pip" ]; then
+                mkdir ~/jython-pip
+            else
+                echo skip
+            fi
+            if [ ! -f ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl ]; then
+                wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
+            else
+                echo skip
+            fi
+            # create jython virtualenv
+            if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
+                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenv/jython"
+            else
+                echo skip
+            fi
+            source "$HOME/.virtualenv/jython/bin/activate"
         else
             echo skip
         fi
@@ -98,11 +135,25 @@ before_install:
   - python --version
 
 install:
+  - |
+        # install PyYAML on Jython manually before pip tries to do it and fails
+        if [ -n "$JYTHON" -a ! -f "$HOME/.virtualenv/jython/Lib/site-packages/PyYAML-3.11-py2.7.egg-info" ]; then
+            wget https://pypi.python.org/packages/source/P/PyYAML/PyYAML-3.11.tar.gz
+            tar -zxf PyYAML-3.11.tar.gz
+            cd PyYAML-3.11/
+            wget http://pyyaml.org/raw-attachment/ticket/163/jython-setup.patch
+            patch < jython-setup.patch
+            python setup.py install
+            cd -
+        fi
+
   # for some strange reason letting setuptools handle dependencies doesn't work for us on some python versions
   - cat requirements*.txt | xargs pip install
 
 before_script:
   - pip freeze
+  # Before runing the test case, we need to make jython run some code as in first run it can put something on stdout
+  - if [ -n "$JYTHON" ]; then python -c "print ''"; else echo skip; fi
 
 script:
   # nosetests
