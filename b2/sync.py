@@ -26,7 +26,7 @@ from .utils import format_and_scale_number, format_and_scale_fraction, raise_if_
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
@@ -208,7 +208,8 @@ class SyncFileReporter(AbstractProgressListener):
 
 
 def sample_sync_report_run():
-    sync_report = SyncReport()
+    import sys
+    sync_report = SyncReport(sys.stdout, False)
 
     for i in six.moves.range(20):
         sync_report.update_local(1)
@@ -624,7 +625,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, exclusions=[]):
+def zip_folders(folder_a, folder_b, exclusions=tuple()):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.

@@ -19,7 +19,7 @@ from b2.exception import CorruptAccountInfo, MissingAccountData
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 

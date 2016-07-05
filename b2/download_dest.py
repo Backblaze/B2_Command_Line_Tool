@@ -26,7 +26,10 @@ class AbstractDownloadDestination(object):
     """
 
     @abstractmethod
-    def open(self, file_id, file_name, content_length, content_type, content_sha1, file_info):
+    def open(
+        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
+        mod_time_millis
+    ):
         """
         Returns a binary file-like object to use for writing the contents of
         the file.
@@ -36,6 +39,7 @@ class AbstractDownloadDestination(object):
         :param content_type: the content type from the headers
         :param content_sha1: the content sha1 from the headers (or "none" for large files)
         :param file_info: the user file info from the headers
+        :param mod_time_millis: the desired file modification date in ms since 1970-01-01
         :return: None
         """
 
