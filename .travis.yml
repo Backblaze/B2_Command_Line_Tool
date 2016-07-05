@@ -137,7 +137,8 @@ before_install:
 install:
   - |
         # install PyYAML on Jython manually before pip tries to do it and fails
-        if [ -n "$JYTHON" -a ! -f "$HOME/.virtualenv/jython/Lib/site-packages/PyYAML-3.11-py2.7.egg-info" ]; then
+        if [ -n "$JYTHON" -a ! -f "$HOME/.virtualenv/jython/Lib/site-packages/PyYAML-3.11-py2.7.egg-info" ] &&
+                egrep '^pyyaml((>|<|=).+)?$' requirements*.txt -q; then
             wget https://pypi.python.org/packages/source/P/PyYAML/PyYAML-3.11.tar.gz
             tar -zxf PyYAML-3.11.tar.gz
             cd PyYAML-3.11/
