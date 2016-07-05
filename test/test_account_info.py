@@ -16,7 +16,7 @@ import unittest
 
 import six
 
-from b2.account_info import UploadUrlPool
+from b2.upload_url_pool import UploadUrlPool
 from b2.exception import CorruptAccountInfo, MissingAccountData
 
 if not platform.system().lower().startswith('java'):
