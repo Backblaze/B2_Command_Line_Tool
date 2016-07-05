@@ -66,7 +66,6 @@ class StubProgressListener(AbstractProgressListener):
 
     def close(self):
         self.history.append('closed')
-        pass
 
     def __enter__(self):
         return self

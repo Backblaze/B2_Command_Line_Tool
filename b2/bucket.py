@@ -300,9 +300,6 @@ class Bucket(object):
         :param file_infos: custom file info to be stored with the file
         :param progress_listener: object to notify as data is transferred
         :return:
-        """
-        """
-        Uploads a file, retrying as needed.
 
         The function `opener` should return a file-like object, and it
         must be possible to call it more than once in case the upload
