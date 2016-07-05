@@ -624,7 +624,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, exclusions=[]):
+def zip_folders(folder_a, folder_b, exclusions=tuple()):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.

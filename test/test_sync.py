@@ -190,13 +190,15 @@ class FakeArgs(object):
         skipNewer=False,
         replaceNewer=False,
         compareVersions=None,
-        excludeRegex=[]
+        excludeRegex=None,
     ):
         self.delete = delete
         self.keepDays = keepDays
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
         self.compareVersions = compareVersions
+        if excludeRegex is None:
+            excludeRegex = []
         self.excludeRegex = excludeRegex
 
 
