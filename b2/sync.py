@@ -26,7 +26,7 @@ from .utils import format_and_scale_number, format_and_scale_fraction, raise_if_
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 ONE_DAY_IN_MS = 24 * 60 * 60 * 1000

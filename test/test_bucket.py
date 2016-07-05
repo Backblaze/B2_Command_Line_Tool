@@ -30,7 +30,7 @@ from b2.utils import hex_sha1_of_bytes, TempDir
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 # The assertRaises context manager isn't in 2.6, so we don't bother running those tests there

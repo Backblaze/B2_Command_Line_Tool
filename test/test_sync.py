@@ -22,7 +22,7 @@ from b2.utils import TempDir
 
 try:
     from unittest.mock import MagicMock
-except:
+except ImportError:
     from mock import MagicMock
 
 DAY = 86400000  # milliseconds

@@ -20,7 +20,7 @@ from six.moves import urllib
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 # Global variable that says whether the app is shutting down
