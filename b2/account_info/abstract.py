@@ -8,7 +8,6 @@
 #
 ######################################################################
 
-
 from abc import (ABCMeta, abstractmethod)
 
 import six
@@ -132,5 +131,3 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def clear_large_file_upload_urls(self, file_id):
         pass
-
-

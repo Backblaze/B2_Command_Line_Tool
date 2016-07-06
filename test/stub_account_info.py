@@ -8,7 +8,6 @@
 #
 ######################################################################
 
-
 import collections
 
 from b2.account_info.abstract import AbstractAccountInfo

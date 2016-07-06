@@ -60,4 +60,3 @@ def test_upload_url_concurrency():
 
     # Clean up
     os.unlink(file_name)
-
