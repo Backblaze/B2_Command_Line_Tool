@@ -48,6 +48,10 @@ matrix:
     - python: 3.5
       env: MODE=SCA
 
+    # coverage
+    - python: 3.5
+      env: MODE=coverage
+
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us
     - python: 2.7
@@ -161,6 +165,15 @@ install:
   # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it
   - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
 
+  - |
+        # coverage has additional requirements
+        if [ "$MODE" == 'coverage' ]; then
+            pip install coverage
+            if [ -n "$CODACY_PROJECT_TOKEN" ]; then pip install codacy-coverage; fi
+            if [ -n "$COVERALLS_REPO_TOKEN" ]; then pip install coveralls; fi
+            if [ -n "$CODECOV_TOKEN" ]; then wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
+        fi
+
 before_script:
   - pip freeze
   # Before runing the test case, we need to make jython run some code as in first run it can put something on stdout
@@ -171,6 +184,8 @@ script:
         # nosetests
         if [ -z "$MODE" ]; then
             python setup.py nosetests
+        elif [ "$MODE" == 'coverage' ]; then
+            python setup.py nosetests --with-coverage --cover-xml --cover-package "$(python setup.py --name)" --cover-branches
         else
             echo skip
         fi
@@ -211,3 +226,8 @@ script:
         fi
   # custom things specific to b2 CLI
   - if [ -n "$TEST_ACCOUNT_ID" -a "$MODE" == "TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
+
+after_success:
+  - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then python-codacy-coverage -r coverage.xml; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then coveralls; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then ./codecov.sh -X gcov -X coveragepy; else echo skip; fi
