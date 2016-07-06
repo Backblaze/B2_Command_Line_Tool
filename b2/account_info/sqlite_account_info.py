@@ -18,7 +18,6 @@ from .abstract import AbstractAccountInfo
 from .exception import (CorruptAccountInfo, MissingAccountData)
 from .upload_url_pool import (UploadUrlPool)
 
-
 if not platform.system().lower().startswith('java'):
     # in Jython 2.7.1b3 there is no sqlite3
     import sqlite3
