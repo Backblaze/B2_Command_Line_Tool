@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from .account_info import SqliteAccountInfo
+from .account_info.sqlite_account_info import SqliteAccountInfo
 from .account_info.exception import MissingAccountData
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory

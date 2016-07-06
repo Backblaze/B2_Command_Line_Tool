@@ -19,7 +19,8 @@ import textwrap
 
 import six
 
-from .account_info import (SqliteAccountInfo, test_upload_url_concurrency)
+from .account_info.sqlite_account_info import (SqliteAccountInfo)
+from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
 from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
 from .b2http import (test_http)
