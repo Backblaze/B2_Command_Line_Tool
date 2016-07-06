@@ -30,8 +30,8 @@ matrix:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
     # jython
-    - python: 2.7
-      env: JYTHON=true
+    #- python: 2.7
+    #  env: JYTHON=true
 
     # pypy
     - python: pypy
