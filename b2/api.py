@@ -23,7 +23,7 @@ from .session import B2Session
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 

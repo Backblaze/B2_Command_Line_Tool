@@ -23,7 +23,7 @@ from b2.utils import TempDir
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 

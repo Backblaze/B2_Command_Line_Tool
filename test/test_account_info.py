@@ -25,7 +25,7 @@ if not platform.system().lower().startswith('java'):
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 

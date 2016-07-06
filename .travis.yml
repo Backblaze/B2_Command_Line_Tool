@@ -30,8 +30,8 @@ matrix:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
     # jython
-    - python: 2.7
-      env: JYTHON=true
+    #- python: 2.7
+    #  env: JYTHON=true
 
     # pypy
     - python: pypy
@@ -44,9 +44,9 @@ matrix:
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
     - python: 2.7
-      env: SCA=true
+      env: MODE=SCA
     - python: 3.5
-      env: SCA=true
+      env: MODE=SCA
 
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us
@@ -61,9 +61,9 @@ matrix:
 
     # test_raw_api takes too long to be run in every cell of the build matrix
     - python: 2.6
-      env: TEST_RAW_API=true
+      env: MODE=TEST_RAW_API
     - python: nightly
-      env: TEST_RAW_API=true
+      env: MODE=TEST_RAW_API
 
 cache:
   - pip
@@ -167,12 +167,16 @@ before_script:
   - if [ -n "$JYTHON" ]; then python -c "print ''"; else echo skip; fi
 
 script:
-  # nosetests
-  - if [ -z "$SCA" -a -z "$TEST_RAW_API" ]; then python setup.py nosetests; else echo skip; fi
-
+  - |
+        # nosetests
+        if [ -z "$MODE" ]; then
+            python setup.py nosetests
+        else
+            echo skip
+        fi
   - |
         # yapf
-        if [ -n "$SCA" ]; then
+        if [ "$MODE" == 'SCA' ]; then
             if [ -n "$TRAVIS_COMMIT_RANGE" ]; then
                 echo "using commit range: $TRAVIS_COMMIT_RANGE"
                 git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py || exit
@@ -182,28 +186,28 @@ script:
         else
             echo skip
         fi
-  - if [ -n "$SCA" ]; then pyflakes . || exit; else echo skip; fi
+  - if [ "$MODE" == 'SCA' ]; then pyflakes . || exit; else echo skip; fi
 
   # isort doesn't get along with yapf. Hopefully we'll figure it out and re-enable in the future.
-  # - if [ -n "$SCA" ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
+  # - if [ "$MODE" == 'SCA' ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
 
   # home-made bad code detectors
-  - if [ -n "$SCA" ]; then grep -r --extended-regex '^ *class [^\(]+(\(\))?:' . && exit 1 || true; else echo skip; fi  # old-style class detector
-  - if [ -n "$SCA" ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
-  - if [ -n "$SCA" ]; then grep -r --extended-regex '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
-  - if [ -n "$SCA" ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
+  - if [ "$MODE" == 'SCA' ]; then grep -r --extended-regex '^ *class [^\(]+(\(\))?:' . && exit 1 || true; else echo skip; fi  # old-style class detector
+  - if [ "$MODE" == 'SCA' ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
+  - if [ "$MODE" == 'SCA' ]; then grep -r --extended-regex '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
+  - if [ "$MODE" == 'SCA' ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
 
   # package installation
   - |
-        if [ -z "$SCA" ]; then
+        if [ "$MODE" == 'SCA' ]; then
+            echo skip
+        else
             if [ -n "$OS_X_PYTHON_VERSION" ]; then
                 # install action fails on osx for unknown reason
                 python setup.py develop
             else
                 python setup.py install
             fi
-        else
-            echo skip
         fi
   # custom things specific to b2 CLI
-  - if [ -n "$TEST_ACCOUNT_ID" -a -n "$TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
+  - if [ -n "$TEST_ACCOUNT_ID" -a "$MODE" == "TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi

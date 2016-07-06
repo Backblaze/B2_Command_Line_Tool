@@ -22,7 +22,7 @@ from b2.utils import TempDir
 
 try:
     from unittest.mock import MagicMock
-except:
+except ImportError:
     from mock import MagicMock
 
 DAY = 86400000  # milliseconds
@@ -190,13 +190,15 @@ class FakeArgs(object):
         skipNewer=False,
         replaceNewer=False,
         compareVersions=None,
-        excludeRegex=[]
+        excludeRegex=None,
     ):
         self.delete = delete
         self.keepDays = keepDays
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
         self.compareVersions = compareVersions
+        if excludeRegex is None:
+            excludeRegex = []
         self.excludeRegex = excludeRegex
 
 

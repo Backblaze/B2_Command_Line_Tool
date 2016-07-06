@@ -300,9 +300,6 @@ class Bucket(object):
         :param file_infos: custom file info to be stored with the file
         :param progress_listener: object to notify as data is transferred
         :return:
-        """
-        """
-        Uploads a file, retrying as needed.
 
         The function `opener` should return a file-like object, and it
         must be possible to call it more than once in case the upload
@@ -475,7 +472,7 @@ class Bucket(object):
 
         # Retry the upload as needed
         exception_list = []
-        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_part_data(file_id)
 
