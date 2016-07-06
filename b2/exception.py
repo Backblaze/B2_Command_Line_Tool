@@ -80,16 +80,6 @@ class CommandError(B2Error):
         return self.message
 
 
-class CorruptAccountInfo(B2Error):
-    def __init__(self, file_name):
-        self.file_name = file_name
-
-    def __str__(self):
-        return 'Account info file (%s) appears corrupted.  Try removing and then re-authorizing the account.' % (
-            self.file_name,
-        )
-
-
 class ConnectionError(B2Error):
     def __init__(self, message):
         self.message = message
@@ -172,14 +162,6 @@ class MaxRetriesExceeded(B2Error):
             self.limit,
             exceptions,
         )
-
-
-class MissingAccountData(B2Error):
-    def __init__(self, key):
-        self.key = key
-
-    def __str__(self):
-        return 'Missing account data: %s' % (self.key,)
 
 
 class MissingPart(B2Error):

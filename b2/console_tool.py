@@ -19,12 +19,14 @@ import textwrap
 
 import six
 
-from .account_info import (SqliteAccountInfo, test_upload_url_concurrency)
+from .account_info.sqlite_account_info import (SqliteAccountInfo)
+from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
+from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
 from .b2http import (test_http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
-from .exception import (B2Error, BadFileInfo, MissingAccountData)
+from .exception import (B2Error, BadFileInfo)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)

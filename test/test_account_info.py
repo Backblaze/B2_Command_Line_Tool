@@ -16,12 +16,12 @@ import unittest
 
 import six
 
-from b2.account_info import UploadUrlPool
-from b2.exception import CorruptAccountInfo, MissingAccountData
+from b2.account_info.upload_url_pool import UploadUrlPool
+from b2.account_info.exception import CorruptAccountInfo, MissingAccountData
 
 if not platform.system().lower().startswith('java'):
     # in Jython 2.7.1b3 there is no sqlite3
-    from b2.account_info import SqliteAccountInfo
+    from b2.account_info.sqlite_account_info import SqliteAccountInfo
 
 try:
     import unittest.mock as mock

@@ -13,7 +13,7 @@ import unittest
 
 import six
 
-from b2.account_info import StubAccountInfo
+from stub_account_info import StubAccountInfo
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
