@@ -207,9 +207,9 @@ script:
   # - if [ "$MODE" == 'SCA' ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
 
   # home-made bad code detectors
-  - if [ "$MODE" == 'SCA' ]; then grep -r --extended-regex '^ *class [^\(]+(\(\))?:' . && exit 1 || true; else echo skip; fi  # old-style class detector
+  - if [ "$MODE" == 'SCA' ]; then egrep -r '^ *class [^\(]+(\(\))?:' . && exit 1 || true; else echo skip; fi  # old-style class detector
   - if [ "$MODE" == 'SCA' ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
-  - if [ "$MODE" == 'SCA' ]; then grep -r --extended-regex '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
+  - if [ "$MODE" == 'SCA' ]; then egrep -r '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
   - if [ "$MODE" == 'SCA' ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
 
   # package installation
