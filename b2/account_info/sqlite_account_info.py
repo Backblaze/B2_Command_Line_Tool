@@ -42,9 +42,6 @@ class SqliteAccountInfo(AbstractAccountInfo):
         self._bucket_uploads = UploadUrlPool()
         self._large_file_uploads = UploadUrlPool()
 
-        # this lock controls access to self._large_file_uploads
-        self._lock = threading.Lock()
-
     def _validate_database(self):
         """
         Makes sure that the database is openable.  Removes the file if it's not.

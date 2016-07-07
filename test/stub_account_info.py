@@ -9,6 +9,7 @@
 ######################################################################
 
 import collections
+import threading
 
 from b2.account_info.abstract import AbstractAccountInfo
 
@@ -30,6 +31,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.realm = None
         self.buckets = {}
         self._large_file_uploads = collections.defaultdict(list)
+        self._large_file_uploads_lock = threading.Lock()
 
     def clear_bucket_upload_data(self, bucket_id):
         if bucket_id in self.buckets:
@@ -90,15 +92,18 @@ class StubAccountInfo(AbstractAccountInfo):
         return self.buckets.get(bucket_id, (None, None))
 
     def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
-        self._large_file_uploads[file_id].append((upload_url, upload_auth_token))
+        with self._large_file_uploads_lock:
+            self._large_file_uploads[file_id].append((upload_url, upload_auth_token))
 
     def take_large_file_upload_url(self, file_id):
-        upload_urls = self._large_file_uploads.get(file_id, [])
-        if len(upload_urls) == 0:
-            return (None, None)
-        else:
-            return upload_urls.pop()
+        with self._large_file_uploads_lock:
+            upload_urls = self._large_file_uploads.get(file_id, [])
+            if not upload_urls:
+                return (None, None)
+            else:
+                return upload_urls.pop()
 
     def clear_large_file_upload_urls(self, file_id):
-        if file_id in self._large_file_uploads:
-            del self._large_file_uploads[file_id]
+        with self._large_file_uploads_lock:
+            if file_id in self._large_file_uploads:
+                del self._large_file_uploads[file_id]
