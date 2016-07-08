@@ -548,7 +548,12 @@ class LocalFolder(AbstractFolder):
             if not os.path.exists(full_path):
                 # Skip broken symlinks or other inaccessible files
                 reporter.local_access_error(full_path)
+                print full_path, 'does not exist'
+                assert False
                 continue
+            else:
+                print full_path, 'exists'
+                assert False
             if os.path.isdir(full_path):
                 name += six.u('/')
                 dirs.add(name)
