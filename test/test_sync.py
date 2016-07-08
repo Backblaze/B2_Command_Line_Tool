@@ -37,24 +37,37 @@ def write_file(path, contents):
         f.write(contents)
 
 
-def create_files(root_dir, relative_paths):
-    for relative_path in relative_paths:
-        full_path = os.path.join(root_dir, relative_path)
-        write_file(full_path, b'')
-
-
 class TestLocalFolder(unittest.TestCase):
+    NAMES = [
+        six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
+        six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
+    ]
+    @classmethod
+    def _create_files(cls, root_dir, relative_paths):
+        for relative_path in relative_paths:
+            full_path = os.path.join(root_dir, relative_path)
+            write_file(full_path, b'')
+
+    def _prepare_folder(self, root_dir):
+        self._create_files(root_dir, self.NAMES)
+        return LocalFolder(root_dir)
+
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
-        names = [
-            six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
-            six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
-        ]
         with TempDir() as tmpdir:
-            create_files(tmpdir, names)
-            folder = LocalFolder(tmpdir)
+            folder = self._prepare_folder(tmpdir)
             actual_names = list(f.name for f in folder.all_files())
-            self.assertEqual(names, actual_names)
+            self.assertEqual(self.NAMES, actual_names)
+
+
+class TestLocalFolderWithBrokenSymlinks(TestLocalFolder):
+    def _prepare_folder(self, root_dir):
+        folder = super(TestLocalFolderWithBrokenSymlinks, self)._prepare_folder(root_dir)
+        os.symlink(
+            os.path.join(root_dir, 'bad_symlink_source'),
+            os.path.join(root_dir, 'bad_symlink_destination')
+        )
+        return folder
 
 
 class TestB2Folder(unittest.TestCase):
