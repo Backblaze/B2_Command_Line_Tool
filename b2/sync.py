@@ -545,9 +545,10 @@ class LocalFolder(AbstractFolder):
                 )
             full_path = os.path.join(dir_path, name)
             relative_path = full_path[prefix_len:]
+            # Skip broken symlinks or other inaccessible files
             if not os.path.exists(full_path):
-                # Skip broken symlinks or other inaccessible files
-                reporter.local_access_error(full_path)
+                if reporter:
+                    reporter.local_access_error(full_path)
             else:
                 if os.path.isdir(full_path):
                     name += six.u('/')
@@ -879,7 +880,9 @@ def count_files(local_folder, reporter):
     """
     Counts all of the files in a local folder.
     """
-    for _ in local_folder.all_files(reporter):
+    # Don't pass in a reporter to all_files.  Broken symlinks will be reported
+    # during the next pass when the source and dest files are compared.
+    for _ in local_folder.all_files(None):
         reporter.update_local(1)
     reporter.end_local()
 
