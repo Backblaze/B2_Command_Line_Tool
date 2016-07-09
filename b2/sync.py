@@ -547,7 +547,7 @@ class LocalFolder(AbstractFolder):
             relative_path = full_path[prefix_len:]
             # Skip broken symlinks or other inaccessible files
             if not os.path.exists(full_path):
-                if reporter:
+                if reporter is not None:
                     reporter.local_access_error(full_path)
             else:
                 if os.path.isdir(full_path):
