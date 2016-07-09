@@ -93,8 +93,7 @@ class StringReader(object):
 
 def remove_insecure_platform_warnings(text):
     return '\n'.join(
-        line
-        for line in text.split('\n')
+        line for line in text.split('\n')
         if ('SNIMissingWarning' not in line) and ('InsecurePlatformWarning' not in line)
     )
 
@@ -256,9 +255,7 @@ def delete_files_in_bucket(b2_tool, bucket_name):
         for file_info in files:
             b2_tool.should_succeed(
                 [
-                    'delete_file_version', file_info['fileName'], file_info[
-                        'fileId'
-                    ]
+                    'delete_file_version', file_info['fileName'], file_info['fileId']
                 ]
             )
 

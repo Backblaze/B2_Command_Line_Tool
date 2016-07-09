@@ -159,13 +159,17 @@ class MaxFileSizeExceeded(B2Error):
     def __str__(self):
         return 'Allowed file size of exceeded: %s > %s' % (self.size, self.max_allowed_size,)
 
+
 class MaxPartsExceeded(B2Error):
     def __init__(self, num_parts, max_allowed_parts):
         self.num_parts = num_parts
         self.max_allowed_parts = max_allowed_parts
 
     def __str__(self):
-        return 'Allowed number of parts exceeded: %s > %s' % (self.num_parts, self.max_allowed_parts)
+        return 'Allowed number of parts exceeded: %s > %s' % (
+            self.num_parts, self.max_allowed_parts
+        )
+
 
 class MaxRetriesExceeded(B2Error):
     def __init__(self, limit, exception_info_list):

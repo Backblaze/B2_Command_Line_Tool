@@ -170,8 +170,9 @@ class TestConsoleTool(unittest.TestCase):
             '''
 
             self._run_command(
-                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
-                expected_stdout, '', 0
+                [
+                    'upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'
+                ], expected_stdout, '', 0
             )
 
             # Download by name
@@ -196,8 +197,9 @@ class TestConsoleTool(unittest.TestCase):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
-                '', 0
+                [
+                    'download_file_by_id', '--noProgress', '9999', local_download2
+                ], expected_stdout, '', 0
             )
             self.assertEquals(six.b('hello world'), self._read_file(local_download2))
 
@@ -426,7 +428,9 @@ class TestConsoleTool(unittest.TestCase):
         # with the fewest leading spaces
         leading_spaces = ' ' * space_count
         assert all(
-            line.startswith(leading_spaces) or line == '' for line in lines
+            line.startswith(
+                leading_spaces
+            ) or line == '' for line in lines
         ), 'all lines have leading spaces'
         return '\n'.join('' if line == '' else line[space_count:] for line in lines)
 

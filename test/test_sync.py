@@ -163,8 +163,9 @@ def b2_file(name, *args):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide', 10
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(
+                mod_time
+            ), 'upload' if 0 < mod_time else 'hide', 10
         ) for mod_time in args
     ]  # yapf disable
     return File(name, versions)

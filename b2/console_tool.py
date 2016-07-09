@@ -603,7 +603,8 @@ class Sync(Command):
             source_folder=source,
             dest_folder=destination,
             args=args,
-            now_millis=current_time_millis(),
+            now_millis=current_time_millis(
+            ),
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers
@@ -720,18 +721,18 @@ class UploadFile(Command):
         self.api.set_thread_pool_size(max_workers)
 
         #TODO pull out constants for min and max size, 100MB and 5GB
-        part_size_bytes = human2bytes(args.partSize or '100MB') #default 100MB
-	if (part_size_bytes < human2bytes('100MB')) or (part_size_bytes > human2bytes('5GB')):
+        part_size_bytes = human2bytes(args.partSize or '100MB')  #default 100MB
+        if (part_size_bytes < human2bytes('100MB')) or (part_size_bytes > human2bytes('5GB')):
             self._print('Invalid partSize specified')
             #TODO make sure this is appropriate way to exit
             return -1
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         #check if upload is stream or local file
-        if args.localFilePath == '-': #TODO not sure how to handle unicode
+        if args.localFilePath == '-':  #TODO not sure how to handle unicode
             file_info = bucket.upload_stream(
                 file_name=args.b2FileName,
-                part_size = part_size_bytes,
+                part_size=part_size_bytes,
                 content_type=args.contentType,
                 file_infos=file_infos
             )
@@ -749,11 +750,7 @@ class UploadFile(Command):
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(
-                    response[
-                        'fileId'
-                    ]
-                )
+                "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
             )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0

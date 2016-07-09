@@ -260,6 +260,7 @@ def format_and_scale_fraction(numerator, denominator, unit):
     scaled_numerator = numerator / scale
     return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
 
+
 def human2bytes(s):
     UNITS = {
         'B': 1,
@@ -280,8 +281,7 @@ def human2bytes(s):
         s = s[1:]
     num = float(num)
     unit = s.strip()
-    
+
     if not UNITS.has_key(unit):
         raise ValueError("can't interpret %r" % init)
     return int(num * UNITS[unit])
-
