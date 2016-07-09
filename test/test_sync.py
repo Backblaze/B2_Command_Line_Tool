@@ -22,10 +22,8 @@ from b2.utils import TempDir
 
 try:
     from unittest.mock import MagicMock
-    from unittest.mock import patch
 except ImportError:
     from mock import MagicMock
-    from mock import patch
 
 DAY = 86400000  # milliseconds
 TODAY = DAY * 100  # an arbitrary reference time for testing
@@ -44,16 +42,22 @@ class TestLocalFolder(unittest.TestCase):
         six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
         six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
     ]
+
     def setUp(self):
         self.reporter = MagicMock()
+
     @classmethod
     def _create_files(cls, root_dir, relative_paths):
         for relative_path in relative_paths:
             full_path = os.path.join(root_dir, relative_path)
             write_file(full_path, b'')
 
-    def _prepare_folder(self, root_dir):
+    def _prepare_folder(self, root_dir, broken_symlink=False):
         self._create_files(root_dir, self.NAMES)
+        if broken_symlink:
+            os.symlink(
+                os.path.join(root_dir, 'non_existant_file'), os.path.join(root_dir, 'bad_symlink')
+            )
         return LocalFolder(root_dir)
 
     def test_slash_sorting(self):
@@ -62,16 +66,16 @@ class TestLocalFolder(unittest.TestCase):
             folder = self._prepare_folder(tmpdir)
             actual_names = list(f.name for f in folder.all_files(self.reporter))
             self.assertEqual(self.NAMES, actual_names)
+            self.reporter.local_access_error.assert_not_called()
 
-
-class TestLocalFolderWithBrokenSymlinks(TestLocalFolder):
-    def _prepare_folder(self, root_dir):
-        folder = super(TestLocalFolderWithBrokenSymlinks, self)._prepare_folder(root_dir)
-        os.symlink(
-            os.path.join(root_dir, 'bad_symlink_source'),
-            os.path.join(root_dir, 'bad_symlink_destination')
-        )
-        return folder
+    def test_broken_symlink(self):
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir, broken_symlink=True)
+            for f in folder.all_files(self.reporter):
+                pass  # just generate all the files
+            self.reporter.local_access_error.assert_called_once_with(
+                os.path.join(tmpdir, 'bad_symlink')
+            )
 
 
 class TestB2Folder(unittest.TestCase):
@@ -198,16 +202,18 @@ class TestZipFolders(unittest.TestCase):
             ], list(zip_folders(folder_a, folder_b, self.reporter))
         )
 
-    def test_broken_symlink(self):
-        file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload", 10)])
-        folder_a = FakeFolder('b2', [file_a1])
-        folder_b = FakeFolder('b2', [])
-        with patch(os.path, 'exists', return_value=False) as mock_method:
-            self.assertEqual(
-                [], list(zip_folders(folder_a, folder_b, self.reporter))
-            )
-        mock_method.assert_called_once_with("a.txt")
-        assert False # check reporter
+    def test_pass_reporter_to_folder(self):
+        """
+        Check that the zip_folders() function passes the reporter through
+        to both folders.
+        """
+        folder_a = MagicMock()
+        folder_b = MagicMock()
+        folder_a.all_files = MagicMock(return_value=iter([]))
+        folder_b.all_files = MagicMock(return_value=iter([]))
+        self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
+        folder_a.all_files.assert_called_once_with(self.reporter)
+        folder_b.all_files.assert_called_once_with(self.reporter)
 
 
 class FakeArgs(object):

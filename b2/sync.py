@@ -548,16 +548,11 @@ class LocalFolder(AbstractFolder):
             if not os.path.exists(full_path):
                 # Skip broken symlinks or other inaccessible files
                 reporter.local_access_error(full_path)
-                print full_path, 'does not exist'
-                assert False
-                continue
             else:
-                print full_path, 'exists'
-                assert False
-            if os.path.isdir(full_path):
-                name += six.u('/')
-                dirs.add(name)
-            names[name] = (full_path, relative_path)
+                if os.path.isdir(full_path):
+                    name += six.u('/')
+                    dirs.add(name)
+                names[name] = (full_path, relative_path)
 
         # Yield all of the answers
         for name in sorted(names):
@@ -656,7 +651,9 @@ def zip_folders(folder_a, folder_b, reporter, exclusions=tuple()):
     :param folder_b: A Folder object.
     """
 
-    iter_a = (f for f in folder_a.all_files(reporter) if not any(ex.match(f.name) for ex in exclusions))
+    iter_a = (
+        f for f in folder_a.all_files(reporter) if not any(ex.match(f.name) for ex in exclusions)
+    )
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
