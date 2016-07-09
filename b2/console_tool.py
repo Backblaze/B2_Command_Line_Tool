@@ -677,7 +677,7 @@ class UploadFile(Command):
             [--noProgress] [--threads N] [--partSize <partSize>] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
-        of the local file or specify '-' for STDIN, and assigns the given name to the B2 file.
+        of the local file or standard input when '-', and assigns the given name to the B2 file.
 
         By default, upload_file will compute the sha1 checksum of the file
         to be uploaded.  But, if you already have it, you can provide it

@@ -311,56 +311,54 @@ class Bucket(object):
                 return self._upload_small_file(
                     upload_source, file_name, content_type, file_info, progress_listener
                 )
-            else:
-                #print 'Starting large file multipart upload'
-                #TODO Figure out how to incorporate progress listener
-                #progress_listener.set_total_bytes()
-                large_file_upload_state = LargeFileUploadState(progress_listener)
-                unfinished_file = self.start_large_file(file_name, content_type, file_info)
-                part_index = 0
-                part_sha1_array = []
-                large_file_size = 0
-                while True:
-                    upload_source = UploadSourceLocalFile(temp_path)
-                    part_index += 1
-                    part_range = (0, upload_source.content_length)
 
-                    #Check if part_index exceeds b2 limit, 10000
-                    #TODO constant should be refactored
-                    if (part_index > 10000):
-                        raise MaxPartsExceeded(part_index, 10000)
+            #print 'Starting large file multipart upload'
+            #TODO Figure out how to incorporate progress listener
+            #progress_listener.set_total_bytes()
+            large_file_upload_state = LargeFileUploadState(progress_listener)
+            unfinished_file = self.start_large_file(file_name, content_type, file_info)
+            part_index = 0
+            part_sha1_array = []
+            large_file_size = 0
+            while True:
+                upload_source = UploadSourceLocalFile(temp_path)
+                part_index += 1
+                part_range = (0, upload_source.content_length)
 
-                    #Check if uploaded size exceeds b2 limit, 10TB
-                    large_file_size += upload_source.content_length
-                    if (large_file_size > self.MAX_LARGE_FILE_SIZE):
-                        raise MaxFileSizeExceeded(large_file_size, self.MAX_LARGE_FILE_SIZE)
+                #Check if part_index exceeds b2 limit, 10000
+                #TODO constant should be refactored
+                if (part_index > 10000):
+                    raise MaxPartsExceeded(part_index, 10000)
 
-                    result = self._upload_part(
-                        unfinished_file.file_id, part_index, part_range, upload_source,
-                        large_file_upload_state
-                    )
-                    part_sha1_array.append(result['contentSha1'])
-                    #clear contents of temp_file file
-                    temp_file.seek(0)
-                    temp_file.truncate()
-                    for i in six.moves.xrange(0, part_size, chunk_size):
-                        if (i + chunk_size) > part_size:
-                            chunk = stdin_buffered.read(part_size - i)
-                        else:
-                            chunk = stdin_buffered.read(chunk_size)
-                        if not chunk:  #EOF
-                            break
-                        temp_file.write(chunk)
-                    if temp_file.tell() == 0:
-                        #Reached EOF
-                        break
-                    temp_file.seek(0)
-                #Finish the large file
-                response = self.api.session.finish_large_file(
-                    unfinished_file.file_id, part_sha1_array
+                #Check if uploaded size exceeds b2 limit, 10TB
+                large_file_size += upload_source.content_length
+                if (large_file_size > self.MAX_LARGE_FILE_SIZE):
+                    raise MaxFileSizeExceeded(large_file_size, self.MAX_LARGE_FILE_SIZE)
+
+                result = self._upload_part(
+                    unfinished_file.file_id, part_index, part_range, upload_source,
+                    large_file_upload_state
                 )
-                #TODO probably check final sha1 of file and sha1 array
-                return FileVersionInfoFactory.from_api_response(response)
+                part_sha1_array.append(result['contentSha1'])
+                #clear contents of temp_file file
+                temp_file.seek(0)
+                temp_file.truncate()
+                for i in six.moves.xrange(0, part_size, chunk_size):
+                    if (i + chunk_size) > part_size:
+                        chunk = stdin_buffered.read(part_size - i)
+                    else:
+                        chunk = stdin_buffered.read(chunk_size)
+                    if not chunk:  #EOF
+                        break
+                    temp_file.write(chunk)
+                if temp_file.tell() == 0:
+                    #Reached EOF
+                    break
+                temp_file.seek(0)
+            #Finish the large file
+            response = self.api.session.finish_large_file(unfinished_file.file_id, part_sha1_array)
+            #TODO probably check final sha1 of file and sha1 array
+            return FileVersionInfoFactory.from_api_response(response)
 
     def upload(
         self,
