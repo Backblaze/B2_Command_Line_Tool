@@ -200,6 +200,8 @@ class CommandLine(object):
                 sys.exit(1)
         if expected_pattern is not None:
             if re.search(expected_pattern, stdout) is None:
+                print('STDOUT:')
+                print(stdout)
                 error_and_exit('did not match pattern: ' + expected_pattern)
         return stdout
 
@@ -469,8 +471,12 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         write_file(p('a'), b'hello')
         write_file(p('b'), b'hello')
         write_file(p('c'), b'hello')
+        os.symlink('broken', p('d'))
 
-        b2_tool.should_succeed(['sync', '--noProgress', dir_path, b2_sync_point])
+        b2_tool.should_succeed(
+            ['sync', '--noProgress', dir_path, b2_sync_point],
+            expected_pattern="/d could not be accessed"
+        )
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [

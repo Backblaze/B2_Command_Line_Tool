@@ -75,7 +75,7 @@ class SyncReport(object):
                 self._print_line('', False)
             self.closed = True
             for warning in self.warnings:
-                self._print_line(warning)
+                self._print_line(warning, True)
 
     def __enter__(self):
         return self
