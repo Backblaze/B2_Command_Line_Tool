@@ -8,10 +8,13 @@
 #
 ######################################################################
 
+from __future__ import print_function
+
 import json
 from nose import SkipTest
 import os
 import platform
+import tempfile
 import unittest
 
 import six
@@ -58,7 +61,10 @@ class TestUploadUrlPool(unittest.TestCase):
 class TestSqliteAccountInfo(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestSqliteAccountInfo, self).__init__(*args, **kwargs)
-        self.db_path = '/tmp/test_b2_account_info'
+        self.db_path = tempfile.NamedTemporaryFile(
+            prefix='tmp_b2_tests_%s__' %
+            (self.id(),), delete=True
+        ).name
 
     def setUp(self):
         if platform.system().lower().startswith('java'):
@@ -68,6 +74,7 @@ class TestSqliteAccountInfo(unittest.TestCase):
             os.unlink(self.db_path)
         except OSError:
             pass
+        print('using %s' % self.db_path)
 
     def tearDown(self):
         try:
