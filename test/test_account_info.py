@@ -65,13 +65,13 @@ class TestSqliteAccountInfo(unittest.TestCase):
             raise SkipTest()
         try:
             os.unlink(self.FILE_NAME)
-        except:
+        except OSError:
             pass
 
     def tearDown(self):
         try:
             os.unlink(self.FILE_NAME)
-        except BaseException:
+        except OSError:
             pass
 
     def test_account_info(self):

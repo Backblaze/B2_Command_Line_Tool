@@ -333,7 +333,7 @@ class B2DownloadAction(AbstractAction):
         if not os.path.isdir(parent_dir):
             try:
                 os.makedirs(parent_dir)
-            except:
+            except OSError:
                 pass
         if not os.path.isdir(parent_dir):
             raise Exception('could not create directory %s' % (parent_dir,))
@@ -346,7 +346,7 @@ class B2DownloadAction(AbstractAction):
         # Move the file into place
         try:
             os.unlink(self.local_full_path)
-        except:
+        except OSError:
             pass
         os.rename(download_path, self.local_full_path)
 
