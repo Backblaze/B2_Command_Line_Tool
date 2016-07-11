@@ -80,7 +80,7 @@ class CommandError(B2Error):
         return self.message
 
 
-class ConnectionError(B2Error):
+class B2ConnectionError(B2Error):
     def __init__(self, message):
         self.message = message
 
