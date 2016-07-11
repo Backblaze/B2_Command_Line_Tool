@@ -62,8 +62,8 @@ class TestSqliteAccountInfo(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestSqliteAccountInfo, self).__init__(*args, **kwargs)
         self.db_path = tempfile.NamedTemporaryFile(
-            prefix='tmp_b2_tests_%s__' %
-            (self.id(),), delete=True
+            prefix='tmp_b2_tests_%s__' % (self.id(),),
+            delete=True
         ).name
 
     def setUp(self):
