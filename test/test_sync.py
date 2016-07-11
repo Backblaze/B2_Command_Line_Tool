@@ -37,36 +37,58 @@ def write_file(path, contents):
         f.write(contents)
 
 
-def create_files(root_dir, relative_paths):
-    for relative_path in relative_paths:
-        full_path = os.path.join(root_dir, relative_path)
-        write_file(full_path, b'')
-
-
 class TestLocalFolder(unittest.TestCase):
+    NAMES = [
+        six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
+        six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
+    ]
+
+    def setUp(self):
+        self.reporter = MagicMock()
+
+    @classmethod
+    def _create_files(cls, root_dir, relative_paths):
+        for relative_path in relative_paths:
+            full_path = os.path.join(root_dir, relative_path)
+            write_file(full_path, b'')
+
+    def _prepare_folder(self, root_dir, broken_symlink=False):
+        self._create_files(root_dir, self.NAMES)
+        if broken_symlink:
+            os.symlink(
+                os.path.join(root_dir, 'non_existant_file'), os.path.join(root_dir, 'bad_symlink')
+            )
+        return LocalFolder(root_dir)
+
     def test_slash_sorting(self):
         # '/' should sort between '.' and '0'
-        names = [
-            six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
-            six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
-        ]
         with TempDir() as tmpdir:
-            create_files(tmpdir, names)
-            folder = LocalFolder(tmpdir)
-            actual_names = list(f.name for f in folder.all_files())
-            self.assertEqual(names, actual_names)
+            folder = self._prepare_folder(tmpdir)
+            actual_names = list(f.name for f in folder.all_files(self.reporter))
+            self.assertEqual(self.NAMES, actual_names)
+            self.reporter.local_access_error.assert_not_called()
+
+    def test_broken_symlink(self):
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir, broken_symlink=True)
+            for f in folder.all_files(self.reporter):
+                pass  # just generate all the files
+            self.reporter.local_access_error.assert_called_once_with(
+                os.path.join(tmpdir, 'bad_symlink')
+            )
 
 
 class TestB2Folder(unittest.TestCase):
     def setUp(self):
         self.bucket = MagicMock()
         self.api = MagicMock()
+        self.reporter = MagicMock()
         self.api.get_bucket_by_name.return_value = self.bucket
         self.b2_folder = B2Folder('bucket-name', 'folder', self.api)
 
     def test_empty(self):
         self.bucket.ls.return_value = []
-        self.assertEqual([], list(self.b2_folder.all_files()))
+        self.assertEqual([], list(self.b2_folder.all_files(self.reporter)))
 
     def test_multiple_versions(self):
         # Test two files, to cover the yield within the loop, and
@@ -102,7 +124,7 @@ class TestB2Folder(unittest.TestCase):
             [
                 "File(a.txt, [FileVersion('a2', 'folder/a.txt', 2000, 'upload'), FileVersion('a1', 'folder/a.txt', 1000, 'upload')])",
                 "File(b.txt, [FileVersion('b2', 'folder/b.txt', 2000, 'upload'), FileVersion('b1', 'folder/b.txt', 1000, 'upload')])",
-            ], [str(f) for f in self.b2_folder.all_files()]
+            ], [str(f) for f in self.b2_folder.all_files(self.reporter)]
         )
 
 
@@ -111,7 +133,7 @@ class FakeFolder(AbstractFolder):
         self.f_type = f_type
         self.files = files
 
-    def all_files(self):
+    def all_files(self, reporter):
         return iter(self.files)
 
     def folder_type(self):
@@ -150,16 +172,19 @@ class TestParseSyncFolder(unittest.TestCase):
 
 
 class TestZipFolders(unittest.TestCase):
+    def setUp(self):
+        self.reporter = MagicMock()
+
     def test_empty(self):
         folder_a = FakeFolder('b2', [])
         folder_b = FakeFolder('b2', [])
-        self.assertEqual([], list(zip_folders(folder_a, folder_b)))
+        self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
 
     def test_one_empty(self):
         file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload", 10)])
         folder_a = FakeFolder('b2', [file_a1])
         folder_b = FakeFolder('b2', [])
-        self.assertEqual([(file_a1, None)], list(zip_folders(folder_a, folder_b)))
+        self.assertEqual([(file_a1, None)], list(zip_folders(folder_a, folder_b, self.reporter)))
 
     def test_two(self):
         file_a1 = File("a.txt", [FileVersion("a", "a", 100, "upload", 10)])
@@ -174,8 +199,21 @@ class TestZipFolders(unittest.TestCase):
             [
                 (file_a1, None), (file_a2, file_b1), (file_a3, None), (None, file_b2),
                 (file_a4, None)
-            ], list(zip_folders(folder_a, folder_b))
+            ], list(zip_folders(folder_a, folder_b, self.reporter))
         )
+
+    def test_pass_reporter_to_folder(self):
+        """
+        Check that the zip_folders() function passes the reporter through
+        to both folders.
+        """
+        folder_a = MagicMock()
+        folder_b = MagicMock()
+        folder_a.all_files = MagicMock(return_value=iter([]))
+        folder_b.all_files = MagicMock(return_value=iter([]))
+        self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
+        folder_a.all_files.assert_called_once_with(self.reporter)
+        folder_b.all_files.assert_called_once_with(self.reporter)
 
 
 class FakeArgs(object):
