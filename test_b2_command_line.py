@@ -68,6 +68,9 @@ def random_hex(length):
 
 
 class TempDir(object):
+    def __init__(self):
+        self.dirpath = None
+
     def get_dir(self):
         return self.dirpath
 
@@ -80,6 +83,9 @@ class TempDir(object):
 
 
 class StringReader(object):
+    def __init__(self):
+        self.string = None
+
     def get_string(self):
         return self.string
 
