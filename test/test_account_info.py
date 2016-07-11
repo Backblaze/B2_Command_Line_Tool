@@ -56,21 +56,22 @@ class TestUploadUrlPool(unittest.TestCase):
 
 
 class TestSqliteAccountInfo(unittest.TestCase):
-
-    FILE_NAME = '/tmp/test_b2_account_info'
+    def __init__(self, *args, **kwargs):
+        super(TestSqliteAccountInfo, self).__init__(*args, **kwargs)
+        self.db_path = '/tmp/test_b2_account_info'
 
     def setUp(self):
         if platform.system().lower().startswith('java'):
             # in Jython 2.7.1b3 there is no sqlite3
             raise SkipTest()
         try:
-            os.unlink(self.FILE_NAME)
+            os.unlink(self.db_path)
         except OSError:
             pass
 
     def tearDown(self):
         try:
-            os.unlink(self.FILE_NAME)
+            os.unlink(self.db_path)
         except OSError:
             pass
 
@@ -92,7 +93,7 @@ class TestSqliteAccountInfo(unittest.TestCase):
         """
         Test that a corrupted file will be replaced with a blank file.
         """
-        with open(self.FILE_NAME, 'wb') as f:
+        with open(self.db_path, 'wb') as f:
             f.write(six.u('not a valid database').encode('utf-8'))
 
         try:
@@ -115,7 +116,7 @@ class TestSqliteAccountInfo(unittest.TestCase):
             minimum_part_size=5000,
             realm='production'
         )
-        with open(self.FILE_NAME, 'wb') as f:
+        with open(self.db_path, 'wb') as f:
             f.write(json.dumps(data).encode('utf-8'))
         account_info = self._make_info()
         self.assertEqual('auth_token', account_info.get_account_auth_token())
@@ -185,4 +186,4 @@ class TestSqliteAccountInfo(unittest.TestCase):
         """
         Returns a new StoredAccountInfo that has just read the data from the file.
         """
-        return SqliteAccountInfo(file_name=self.FILE_NAME)
+        return SqliteAccountInfo(file_name=self.db_path)
