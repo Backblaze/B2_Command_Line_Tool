@@ -11,6 +11,7 @@
 from __future__ import print_function
 
 import os
+import platform
 import unittest
 
 import six
@@ -139,10 +140,18 @@ class TestParseSyncFolder(unittest.TestCase):
         self._check_one('B2Folder(my-bucket, )', 'b2://my-bucket/')
 
     def test_local(self):
-        self._check_one('LocalFolder(/foo)', '/foo')
+        if platform.system() == 'Windows':
+            expected = 'LocalFolder(C:\\foo)'
+        else:
+            expected = 'LocalFolder(/foo)'
+        self._check_one(expected, '/foo')
 
     def test_local_trailing_slash(self):
-        self._check_one('LocalFolder(/foo)', '/foo/')
+        if platform.system() == 'Windows':
+            expected = 'LocalFolder(C:\\foo)'
+        else:
+            expected = 'LocalFolder(/foo)'
+        self._check_one(expected, '/foo/')
 
     def _check_one(self, expected, to_parse):
         api = MagicMock()

@@ -488,7 +488,6 @@ class LocalFolder(AbstractFolder):
         """
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
-        assert isinstance(root, six.text_type)
         self.root = os.path.abspath(root)
 
     def folder_type(self):
