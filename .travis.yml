@@ -29,28 +29,12 @@ matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
-    # jython
-    - python: 2.7
-      env: JYTHON=true
-
-    # pypy
-    - python: pypy
-      env: PYPY_VERSION=pypy-4.0.1
-    - python: pypy
-      env: PYPY_VERSION=pypy-5.1
-    - python: pypy3
-      env: PYPY_VERSION=pypy3-2.4.0
-
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
     - python: 2.7
       env: MODE=SCA
     - python: 3.5
       env: MODE=SCA
-
-    # coverage
-    - python: 3.5
-      env: MODE=coverage
 
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us
@@ -63,11 +47,27 @@ matrix:
       language: generic
       env: OS_X_PYTHON_VERSION=python3
 
+    # jython
+    - python: 2.7
+      env: JYTHON=true
+
+    # pypy
+    - python: pypy
+      env: PYPY_VERSION=pypy-4.0.1
+    - python: pypy
+      env: PYPY_VERSION=pypy-5.1
+    - python: pypy3
+      env: PYPY_VERSION=pypy3-2.4.0
+
     # test_raw_api takes too long to be run in every cell of the build matrix
     - python: 2.6
       env: MODE=TEST_RAW_API
     - python: nightly
       env: MODE=TEST_RAW_API
+
+    # coverage
+    - python: 3.5
+      env: MODE=coverage
 
 cache:
   - pip
