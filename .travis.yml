@@ -29,28 +29,12 @@ matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
-    # jython
-    - python: 2.7
-      env: JYTHON=true
-
-    # pypy
-    - python: pypy
-      env: PYPY_VERSION=pypy-4.0.1
-    - python: pypy
-      env: PYPY_VERSION=pypy-5.1
-    - python: pypy3
-      env: PYPY_VERSION=pypy3-2.4.0
-
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
     - python: 2.7
       env: MODE=SCA
     - python: 3.5
       env: MODE=SCA
-
-    # coverage
-    - python: 3.5
-      env: MODE=coverage
 
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us
@@ -63,33 +47,71 @@ matrix:
       language: generic
       env: OS_X_PYTHON_VERSION=python3
 
+    # jython
+    - python: 2.7
+      env: JYTHON=true
+
+    # pypy
+    - python: pypy
+      env: PYPY_VERSION=pypy-4.0.1
+    - python: pypy
+      env: PYPY_VERSION=pypy-5.1
+    - python: pypy3
+      env: PYPY_VERSION=pypy3-2.4.0
+
     # test_raw_api takes too long to be run in every cell of the build matrix
     - python: 2.6
       env: MODE=TEST_RAW_API
     - python: nightly
       env: MODE=TEST_RAW_API
 
+    # coverage
+    - python: 3.5
+      env: MODE=coverage
+
 cache:
   - pip
   - directories:
     - $HOME/.eggs
-    - $HOME/jython-pip
-    - $HOME/jython
-    - $HOME/.pyenv  # custom pypy versions
+    # custom pypy versions
+    - $HOME/.pyenv
+    # jython
     - $HOME/.virtualenv/jython
+    - $HOME/jython
+    - $HOME/jython-pip
+    # OS X
     - $HOME/.virtualenv/osx-python
     - $HOME/.virtualenv/osx-python3
-
+    #- /usr/local/Cellar/python  # see comment in the install script
+    #- /usr/local/Cellar/python3
 before_install:
   - uname -a
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
   - |
         # install python on OS X
         if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-            brew update
-            brew install "$OS_X_PYTHON_VERSION"
+            if [ -n 'ALWAYS TRUE!' -o ! -d "/usr/local/Cellar/$OS_X_PYTHON_VERSION" ]; then
+                # unfortunately caching /usr/local/Cellar/$OS_X_PYTHON_VERSION is not enough.
+                # brew does some kind of side effect which registers the binary in the system
+                # or something. The resulting error error is:
+                #
+                # dyld: Library not loaded: @executable_path/../.Python
+                #
+                # Due to lack of information on the web as well as the lack of appropriate
+                # environment it is very hard to debug out how to properly cache the python
+                # installation on OS X.
+                #
+                # Therefore caching is temporarily disabled until someone figures it out.
+                # Typically brew update and installation of python takes 3 to 4 minutes.
+                brew update
+                brew install "$OS_X_PYTHON_VERSION"
+            else
+                echo 'skip install'
+            fi
             if [ ! -e "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
                 virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
+            else
+                echo 'skip virtualenv'
             fi
             source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
         else

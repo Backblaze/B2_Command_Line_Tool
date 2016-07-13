@@ -98,7 +98,7 @@ class SqliteAccountInfo(AbstractAccountInfo):
         """
         try:
             return self.thread_local.connection
-        except:
+        except AttributeError:
             self.thread_local.connection = self._connect()
             return self.thread_local.connection
 

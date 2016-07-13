@@ -339,7 +339,7 @@ class B2DownloadAction(AbstractAction):
         if not os.path.isdir(parent_dir):
             try:
                 os.makedirs(parent_dir)
-            except:
+            except OSError:
                 pass
         if not os.path.isdir(parent_dir):
             raise Exception('could not create directory %s' % (parent_dir,))
@@ -352,7 +352,7 @@ class B2DownloadAction(AbstractAction):
         # Move the file into place
         try:
             os.unlink(self.local_full_path)
-        except:
+        except OSError:
             pass
         os.rename(download_path, self.local_full_path)
 
@@ -498,7 +498,6 @@ class LocalFolder(AbstractFolder):
         """
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
-        assert isinstance(root, six.text_type)
         self.root = os.path.abspath(root)
 
     def folder_type(self):

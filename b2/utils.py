@@ -174,7 +174,7 @@ class BytesIoContextManager(object):
     def __enter__(self):
         return six.BytesIO(self.byte_data)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type_, value, traceback):
         return None  # don't hide exception
 
 

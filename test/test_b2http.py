@@ -9,7 +9,7 @@
 ######################################################################
 
 from b2.b2http import _translate_and_retry, _translate_errors, B2Http
-from b2.exception import BadJson, BrokenPipe, ConnectionError, ServiceError, UnknownError, UnknownHost
+from b2.exception import BadJson, BrokenPipe, B2ConnectionError, ServiceError, UnknownError, UnknownHost
 from b2.version import USER_AGENT
 import requests
 import six
@@ -82,7 +82,7 @@ class TestTranslateErrors(unittest.TestCase):
         try:
             _translate_errors(fcn)
             self.fail('should have raised ConnectionError')
-        except ConnectionError:
+        except B2ConnectionError:
             pass
 
     def test_unknown_error(self):

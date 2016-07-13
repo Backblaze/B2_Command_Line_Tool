@@ -22,6 +22,7 @@ class AccountInfoError(B2Error):
 
 class CorruptAccountInfo(AccountInfoError):
     def __init__(self, file_name):
+        super(CorruptAccountInfo, self).__init__()
         self.file_name = file_name
 
     def __str__(self):
@@ -32,6 +33,7 @@ class CorruptAccountInfo(AccountInfoError):
 
 class MissingAccountData(AccountInfoError):
     def __init__(self, key):
+        super(MissingAccountData, self).__init__()
         self.key = key
 
     def __str__(self):
