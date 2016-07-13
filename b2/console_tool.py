@@ -702,7 +702,7 @@ class UploadFile(Command):
 
         By default, the file is broken into as many parts as possible to
         maximize upload parallelism and increase speed.  The minimum that
-        B2 allows is 100MB.  Setting --minPartSize to a larger file will
+        B2 allows is 100MB.  Setting --minPartSize to a larger value will
         reduce the number of parts uploaded when uploading a large file.
 
         The maximum number of threads to use to upload parts of a large file
