@@ -921,6 +921,5 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
 
         # Wait for everything to finish
         sync_executor.shutdown()
-        error_count = len([f for f in action_futures if f.exception() is not None])
-        if error_count != 0:
+        if any(1 for f in action_futures if f.exception() is not None):
             raise CommandError('sync is incomplete')
