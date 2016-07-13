@@ -9,3 +9,8 @@ else
         python setup.py nosetests
     done
 fi
+
+echo
+echo '#################'
+echo '# unit tests OK #'
+echo '#################'

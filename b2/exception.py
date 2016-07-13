@@ -27,6 +27,7 @@ class B2Error(Exception):
 
 class AlreadyFailed(B2Error):
     def __init__(self, message):
+        super(AlreadyFailed, self).__init__()
         self.message = message
 
     def __str__(self):
@@ -35,6 +36,7 @@ class AlreadyFailed(B2Error):
 
 class BadJson(B2Error):
     def __init__(self, message):
+        super(BadJson, self).__init__()
         self.message = message
 
     def __str__(self):
@@ -64,6 +66,7 @@ class BrokenPipe(B2Error):
 
 class ChecksumMismatch(B2Error):
     def __init__(self, checksum_type, expected, actual):
+        super(ChecksumMismatch, self).__init__()
         self.checksum_type = checksum_type
         self.expected = expected
         self.actual = actual
@@ -74,24 +77,16 @@ class ChecksumMismatch(B2Error):
 
 class CommandError(B2Error):
     def __init__(self, message):
+        super(CommandError, self).__init__()
         self.message = message
 
     def __str__(self):
         return self.message
 
 
-class CorruptAccountInfo(B2Error):
-    def __init__(self, file_name):
-        self.file_name = file_name
-
-    def __str__(self):
-        return 'Account info file (%s) appears corrupted.  Try removing and then re-authorizing the account.' % (
-            self.file_name,
-        )
-
-
-class ConnectionError(B2Error):
+class B2ConnectionError(B2Error):
     def __init__(self, message):
+        super(B2ConnectionError, self).__init__()
         self.message = message
 
     def __str__(self):
@@ -106,6 +101,7 @@ class ConnectionError(B2Error):
 
 class DestFileNewer(B2Error):
     def __init__(self, file_name):
+        super(DestFileNewer, self).__init__()
         self.file_name = file_name
 
     def __str__(self):
@@ -117,6 +113,7 @@ class DestFileNewer(B2Error):
 
 class DuplicateBucketName(B2Error):
     def __init__(self, bucket_name):
+        super(DuplicateBucketName, self).__init__()
         self.bucket_name = bucket_name
 
     def __str__(self):
@@ -125,6 +122,7 @@ class DuplicateBucketName(B2Error):
 
 class FileAlreadyHidden(B2Error):
     def __init__(self, file_name):
+        super(FileAlreadyHidden, self).__init__()
         self.file_name = file_name
 
     def __str__(self):
@@ -133,6 +131,7 @@ class FileAlreadyHidden(B2Error):
 
 class FileNotPresent(B2Error):
     def __init__(self, file_name):
+        super(FileNotPresent, self).__init__()
         self.file_name = file_name
 
     def __str__(self):
@@ -141,6 +140,7 @@ class FileNotPresent(B2Error):
 
 class InvalidAuthToken(B2Error):
     def __init__(self, message, _type):
+        super(InvalidAuthToken, self).__init__()
         self.message = message
         self._type = _type
 
@@ -153,6 +153,7 @@ class InvalidAuthToken(B2Error):
 
 class MaxFileSizeExceeded(B2Error):
     def __init__(self, size, max_allowed_size):
+        super(MaxFileSizeExceeded, self).__init__()
         self.size = size
         self.max_allowed_size = max_allowed_size
 
@@ -163,6 +164,7 @@ class MaxFileSizeExceeded(B2Error):
 
 class MaxRetriesExceeded(B2Error):
     def __init__(self, limit, exception_info_list):
+        super(MaxRetriesExceeded, self).__init__()
         self.limit = limit
         self.exception_info_list = exception_info_list
 
@@ -174,16 +176,9 @@ class MaxRetriesExceeded(B2Error):
         )
 
 
-class MissingAccountData(B2Error):
-    def __init__(self, key):
-        self.key = key
-
-    def __str__(self):
-        return 'Missing account data: %s' % (self.key,)
-
-
 class MissingPart(B2Error):
     def __init__(self, key):
+        super(MissingPart, self).__init__()
         self.key = key
 
     def __str__(self):
@@ -192,6 +187,7 @@ class MissingPart(B2Error):
 
 class NonExistentBucket(B2Error):
     def __init__(self, bucket_name_or_id):
+        super(NonExistentBucket, self).__init__()
         self.bucket_name_or_id = bucket_name_or_id
 
     def __str__(self):
@@ -200,6 +196,7 @@ class NonExistentBucket(B2Error):
 
 class PartSha1Mismatch(B2Error):
     def __init__(self, key):
+        super(PartSha1Mismatch, self).__init__()
         self.key = key
 
     def __str__(self):
@@ -212,6 +209,7 @@ class ServiceError(B2Error):
     """
 
     def __init__(self, message):
+        super(ServiceError, self).__init__()
         self.message = message
 
     def __str__(self):
@@ -239,6 +237,7 @@ class TooManyRequests(B2Error):
 
 class TruncatedOutput(B2Error):
     def __init__(self, bytes_read, file_size):
+        super(TruncatedOutput, self).__init__()
         self.bytes_read = bytes_read
         self.file_size = file_size
 
@@ -249,6 +248,7 @@ class TruncatedOutput(B2Error):
 
 class UnknownError(B2Error):
     def __init__(self, message):
+        super(UnknownError, self).__init__()
         self.message = message
 
     def __str__(self):
@@ -262,6 +262,7 @@ class UnknownHost(B2Error):
 
 class UnrecognizedBucketType(B2Error):
     def __init__(self, type_):
+        super(UnrecognizedBucketType, self).__init__()
         self.type_ = type_
 
     def __str__(self):

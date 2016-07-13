@@ -16,10 +16,11 @@ import unittest
 
 import six
 
-from b2.account_info import StubAccountInfo
+from stub_account_info import StubAccountInfo
 from b2.api import B2Api
+from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
-from b2.exception import B2Error, InvalidAuthToken, MaxRetriesExceeded
+from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
@@ -29,7 +30,7 @@ from b2.utils import hex_sha1_of_bytes, TempDir
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 # The assertRaises context manager isn't in 2.6, so we don't bother running those tests there
@@ -65,7 +66,6 @@ class StubProgressListener(AbstractProgressListener):
 
     def close(self):
         self.history.append('closed')
-        pass
 
     def __enter__(self):
         return self
@@ -144,6 +144,22 @@ class TestListParts(TestCaseWithBucket):
             Part('9999', 3, 11, content_sha1),
         ]
         self.assertEqual(expected_parts, list(self.bucket.list_parts(file1.file_id, batch_size=1)))
+
+
+class TestUploadPart(TestCaseWithBucket):
+    def test_error_in_state(self):
+        file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
+        content = six.b('hello world')
+        file_progress_listener = mock.MagicMock()
+        large_file_upload_state = LargeFileUploadState(file_progress_listener)
+        large_file_upload_state.set_error('test error')
+        try:
+            self.bucket._upload_part(
+                file1.file_id, 1, (0, 11), UploadSourceBytes(content), large_file_upload_state
+            )
+            self.fail('should have thrown')
+        except AlreadyFailed:
+            pass
 
 
 class TestListUnfinished(TestCaseWithBucket):

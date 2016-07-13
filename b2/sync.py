@@ -26,7 +26,7 @@ from .utils import format_and_scale_number, format_and_scale_fraction, raise_if_
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
@@ -67,12 +67,15 @@ class SyncReport(object):
         self.closed = False
         self.lock = threading.Lock()
         self._update_progress()
+        self.warnings = []
 
     def close(self):
         with self.lock:
             if not self.no_progress:
                 self._print_line('', False)
             self.closed = True
+            for warning in self.warnings:
+                self._print_line(warning, True)
 
     def __enter__(self):
         return self
@@ -185,6 +188,9 @@ class SyncReport(object):
             self.transfer_bytes += byte_delta
             self._update_progress()
 
+    def local_access_error(self, path):
+        self.warnings.append('WARNING: %s could not be accessed (broken symlink?)' % (path,))
+
 
 class SyncFileReporter(AbstractProgressListener):
     """
@@ -208,7 +214,8 @@ class SyncFileReporter(AbstractProgressListener):
 
 
 def sample_sync_report_run():
-    sync_report = SyncReport()
+    import sys
+    sync_report = SyncReport(sys.stdout, False)
 
     for i in six.moves.range(20):
         sync_report.update_local(1)
@@ -333,7 +340,7 @@ class B2DownloadAction(AbstractAction):
         if not os.path.isdir(parent_dir):
             try:
                 os.makedirs(parent_dir)
-            except:
+            except OSError:
                 pass
         if not os.path.isdir(parent_dir):
             raise Exception('could not create directory %s' % (parent_dir,))
@@ -346,7 +353,7 @@ class B2DownloadAction(AbstractAction):
         # Move the file into place
         try:
             os.unlink(self.local_full_path)
-        except:
+        except OSError:
             pass
         os.rename(download_path, self.local_full_path)
 
@@ -453,13 +460,17 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self):
+    def all_files(self, reporter):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
 
         No matter what the folder separator on the local file system
         is, "/" is used in the returned file names.
+
+        If a file is found, but does not exist (for example due to
+        a broken symlink or a race), reporter will be informed about
+        each such problem.
         """
 
     @abstractmethod
@@ -488,15 +499,14 @@ class LocalFolder(AbstractFolder):
         """
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
-        assert isinstance(root, six.text_type)
         self.root = os.path.abspath(root)
 
     def folder_type(self):
         return 'local'
 
-    def all_files(self):
+    def all_files(self, reporter):
         prefix_len = len(self.root) + 1  # include trailing '/' in prefix length
-        for relative_path in self._walk_relative_paths(prefix_len, self.root):
+        for relative_path in self._walk_relative_paths(prefix_len, self.root, reporter):
             yield self._make_file(relative_path)
 
     def make_full_path(self, file_name):
@@ -514,7 +524,7 @@ class LocalFolder(AbstractFolder):
         elif not os.path.isdir(self.root):
             raise Exception('%s is not a directory' % (self.root,))
 
-    def _walk_relative_paths(self, prefix_len, dir_path):
+    def _walk_relative_paths(self, prefix_len, dir_path, reporter):
         """
         Yields all of the file names anywhere under this folder, in the
         order they would appear in B2.
@@ -535,16 +545,21 @@ class LocalFolder(AbstractFolder):
                 )
             full_path = os.path.join(dir_path, name)
             relative_path = full_path[prefix_len:]
-            if os.path.isdir(full_path):
-                name += six.u('/')
-                dirs.add(name)
-            names[name] = (full_path, relative_path)
+            # Skip broken symlinks or other inaccessible files
+            if not os.path.exists(full_path):
+                if reporter is not None:
+                    reporter.local_access_error(full_path)
+            else:
+                if os.path.isdir(full_path):
+                    name += six.u('/')
+                    dirs.add(name)
+                names[name] = (full_path, relative_path)
 
         # Yield all of the answers
         for name in sorted(names):
             (full_path, relative_path) = names[name]
             if name in dirs:
-                for rp in self._walk_relative_paths(prefix_len, full_path):
+                for rp in self._walk_relative_paths(prefix_len, full_path, reporter):
                     yield rp
             else:
                 yield relative_path
@@ -573,7 +588,7 @@ class B2Folder(AbstractFolder):
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
 
-    def all_files(self):
+    def all_files(self, reporter):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -625,7 +640,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, exclusions=[]):
+def zip_folders(folder_a, folder_b, reporter, exclusions=tuple()):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -637,8 +652,10 @@ def zip_folders(folder_a, folder_b, exclusions=[]):
     :param folder_b: A Folder object.
     """
 
-    iter_a = (f for f in folder_a.all_files() if not any(ex.match(f.name) for ex in exclusions))
-    iter_b = folder_b.all_files()
+    iter_a = (
+        f for f in folder_a.all_files(reporter) if not any(ex.match(f.name) for ex in exclusions)
+    )
+    iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
     current_b = next_or_none(iter_b)
@@ -810,7 +827,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         ('b2', 'local'), ('local', 'b2')
     ]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
-    for (source_file, dest_file) in zip_folders(source_folder, dest_folder, exclusions):
+    for (source_file, dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions):
         if source_folder.folder_type() == 'local':
             if source_file is not None:
                 reporter.update_compare(1)
@@ -863,7 +880,9 @@ def count_files(local_folder, reporter):
     """
     Counts all of the files in a local folder.
     """
-    for _ in local_folder.all_files():
+    # Don't pass in a reporter to all_files.  Broken symlinks will be reported
+    # during the next pass when the source and dest files are compared.
+    for _ in local_folder.all_files(None):
         reporter.update_local(1)
     reporter.end_local()
 

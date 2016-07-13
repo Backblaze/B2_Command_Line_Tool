@@ -34,7 +34,7 @@ class LargeFileUploadState(object):
     """
 
     def __init__(self, file_progress_listener):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.error_message = None
         self.file_progress_listener = file_progress_listener
         self.part_number_to_part_state = {}
@@ -47,6 +47,11 @@ class LargeFileUploadState(object):
     def has_error(self):
         with self.lock:
             return self.error_message is not None
+
+    def get_error_message(self):
+        with self.lock:
+            assert self.has_error()
+            return self.error_message
 
     def update_part_bytes(self, bytes_delta):
         with self.lock:
@@ -257,7 +262,13 @@ class Bucket(object):
         Upload bytes in memory to a B2 file
         """
         upload_source = UploadSourceBytes(data_bytes)
-        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
+        return self.upload(
+            upload_source,
+            file_name,
+            content_type=content_type,
+            file_info=file_infos,
+            progress_listener=progress_listener
+        )
 
     def upload_local_file(
         self,
@@ -266,13 +277,21 @@ class Bucket(object):
         content_type=None,
         file_infos=None,
         sha1_sum=None,
+        min_part_size=None,
         progress_listener=None
     ):
         """
         Uploads a file on local disk to a B2 file.
         """
         upload_source = UploadSourceLocalFile(local_path=local_file, content_sha1=sha1_sum)
-        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
+        return self.upload(
+            upload_source,
+            file_name,
+            content_type=content_type,
+            file_info=file_infos,
+            min_part_size=min_part_size,
+            progress_listener=progress_listener
+        )
 
     def upload(
         self,
@@ -280,6 +299,7 @@ class Bucket(object):
         file_name,
         content_type=None,
         file_info=None,
+        min_part_size=None,
         progress_listener=None
     ):
         """
@@ -293,11 +313,9 @@ class Bucket(object):
         :param file_name: the file name of the new B2 file
         :param content_type: the MIME type, or None to accept the default based on file extension of the B2 file name
         :param file_infos: custom file info to be stored with the file
+        :param min_part_size: the smallest part size to use
         :param progress_listener: object to notify as data is transferred
         :return:
-        """
-        """
-        Uploads a file, retrying as needed.
 
         The function `opener` should return a file-like object, and it
         must be possible to call it more than once in case the upload
@@ -311,7 +329,8 @@ class Bucket(object):
 
         # We don't upload any large files unless all of the parts can be at least
         # the minimum part size.
-        min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
+        min_part_size = max(min_part_size or 0, self.api.account_info.get_minimum_part_size())
+        min_large_file_size = min_part_size * 2
         if upload_source.get_content_length() < min_large_file_size:
             # Run small uploads in the same thread pool as large file uploads,
             # so that they share resources during a sync.
@@ -470,7 +489,7 @@ class Bucket(object):
 
         # Retry the upload as needed
         exception_list = []
-        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_part_data(file_id)
 

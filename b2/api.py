@@ -8,12 +8,13 @@
 #
 ######################################################################
 
-from .account_info import SqliteAccountInfo
+from .account_info.sqlite_account_info import SqliteAccountInfo
+from .account_info.exception import MissingAccountData
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
 from .download_dest import DownloadDestProgressWrapper
-from .exception import MissingAccountData, NonExistentBucket
+from .exception import NonExistentBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
 from .progress import DoNothingProgressListener
@@ -22,7 +23,7 @@ from .session import B2Session
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 

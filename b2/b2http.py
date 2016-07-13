@@ -17,7 +17,7 @@ import requests
 import six
 import time
 
-from .exception import B2Error, BrokenPipe, ConnectionError, interpret_b2_error, UnknownError, UnknownHost
+from .exception import B2Error, BrokenPipe, B2ConnectionError, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 from six.moves import range
 
@@ -69,7 +69,7 @@ def _translate_errors(fcn, post_params=None):
                     # an upload request for cause, so we use a 400 Bad Request
                     # code.
                     raise BrokenPipe()
-        raise ConnectionError(str(e0))
+        raise B2ConnectionError(str(e0))
 
     except Exception as e:
         # Don't expect this to happen.
@@ -286,5 +286,5 @@ def test_http():
         with b2_http.get_content('https://www.backblaze.com:80/bad_url', {}) as response:
             assert False, 'should have failed with connection error'
             response.iter_content()  # make pyflakes happy
-    except ConnectionError as e:
+    except B2ConnectionError as e:
         pass

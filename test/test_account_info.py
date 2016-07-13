@@ -8,35 +8,78 @@
 #
 ######################################################################
 
+from __future__ import print_function
+
 import json
+from nose import SkipTest
 import os
+import platform
+import tempfile
 import unittest
 
 import six
 
-from b2.account_info import SqliteAccountInfo
-from b2.exception import CorruptAccountInfo, MissingAccountData
+from b2.account_info.upload_url_pool import UploadUrlPool
+from b2.account_info.exception import CorruptAccountInfo, MissingAccountData
+
+if not platform.system().lower().startswith('java'):
+    # in Jython 2.7.1b3 there is no sqlite3
+    from b2.account_info.sqlite_account_info import SqliteAccountInfo
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 
-class TestSqliteAccountInfo(unittest.TestCase):
+class TestUploadUrlPool(unittest.TestCase):
+    def setUp(self):
+        self.pool = UploadUrlPool()
 
-    FILE_NAME = '/tmp/test_b2_account_info'
+    def test_take_empty(self):
+        self.assertEqual((None, None), self.pool.take('a'))
+
+    def test_put_and_take(self):
+        self.pool.put('a', 'url_a1', 'auth_token_a1')
+        self.pool.put('a', 'url_a2', 'auth_token_a2')
+        self.pool.put('b', 'url_b1', 'auth_token_b1')
+        self.assertEqual(('url_a2', 'auth_token_a2'), self.pool.take('a'))
+        self.assertEqual(('url_a1', 'auth_token_a1'), self.pool.take('a'))
+        self.assertEqual((None, None), self.pool.take('a'))
+        self.assertEqual(('url_b1', 'auth_token_b1'), self.pool.take('b'))
+        self.assertEqual((None, None), self.pool.take('b'))
+
+    def test_clear(self):
+        self.pool.put('a', 'url_a1', 'auth_token_a1')
+        self.pool.clear_for_key('a')
+        self.pool.put('b', 'url_b1', 'auth_token_b1')
+        self.assertEqual((None, None), self.pool.take('a'))
+        self.assertEqual(('url_b1', 'auth_token_b1'), self.pool.take('b'))
+        self.assertEqual((None, None), self.pool.take('b'))
+
+
+class TestSqliteAccountInfo(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(TestSqliteAccountInfo, self).__init__(*args, **kwargs)
+        self.db_path = tempfile.NamedTemporaryFile(
+            prefix='tmp_b2_tests_%s__' % (self.id(),),
+            delete=True
+        ).name
 
     def setUp(self):
+        if platform.system().lower().startswith('java'):
+            # in Jython 2.7.1b3 there is no sqlite3
+            raise SkipTest()
         try:
-            os.unlink(self.FILE_NAME)
-        except:
+            os.unlink(self.db_path)
+        except OSError:
             pass
+        print('using %s' % self.db_path)
 
     def tearDown(self):
         try:
-            os.unlink(self.FILE_NAME)
-        except BaseException:
+            os.unlink(self.db_path)
+        except OSError:
             pass
 
     def test_account_info(self):
@@ -57,7 +100,7 @@ class TestSqliteAccountInfo(unittest.TestCase):
         """
         Test that a corrupted file will be replaced with a blank file.
         """
-        with open(self.FILE_NAME, 'wb') as f:
+        with open(self.db_path, 'wb') as f:
             f.write(six.u('not a valid database').encode('utf-8'))
 
         try:
@@ -80,7 +123,7 @@ class TestSqliteAccountInfo(unittest.TestCase):
             minimum_part_size=5000,
             realm='production'
         )
-        with open(self.FILE_NAME, 'wb') as f:
+        with open(self.db_path, 'wb') as f:
             f.write(json.dumps(data).encode('utf-8'))
         account_info = self._make_info()
         self.assertEqual('auth_token', account_info.get_account_auth_token())
@@ -98,20 +141,6 @@ class TestSqliteAccountInfo(unittest.TestCase):
             self.fail('should have raised MissingAccountData')
         except MissingAccountData:
             pass
-
-    def test_bucket_upload_data(self):
-        account_info = self._make_info()
-        account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
-        self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'), account_info.take_bucket_upload_url('bucket-0')
-        )
-        self.assertEqual((None, None), self._make_info().take_bucket_upload_url('bucket-0'))
-        account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
-        self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'),
-            self._make_info().take_bucket_upload_url('bucket-0')
-        )
-        self.assertEqual((None, None), account_info.take_bucket_upload_url('bucket-0'))
 
     def test_clear_bucket_upload_data(self):
         account_info = self._make_info()
@@ -164,4 +193,4 @@ class TestSqliteAccountInfo(unittest.TestCase):
         """
         Returns a new StoredAccountInfo that has just read the data from the file.
         """
-        return SqliteAccountInfo(file_name=self.FILE_NAME)
+        return SqliteAccountInfo(file_name=self.db_path)

@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/bin/bash -u
+
+base_remote="${1:-origin}"
+base_branch="${2:-master}"
+base_remote_branch="${3:-master}"
 
 function header 
 {
@@ -29,23 +33,40 @@ fi
 
 header Checking Formatting
 
-SOURCE_FILES="b2/*.py test/*.py *.py"
+if [ "$(<.git/refs/heads/${base_branch})" != "$(<.git/refs/remotes/${base_remote}/${base_remote_branch})" ]; then
+    echo """running yapf in full mode, because an assumption that master and origin/master are the same, is broken. To fix it, do this:
+git checkout master
+git pull --ff-only
 
-for src_file in $SOURCE_FILES
-do
-    echo "$src_file"
-    if yapf "$src_file" > yapf.out
-    then
-        rm yapf.out
+then checkout your topic branch and run $0.
+If the base branch on github is not called 'origin', invoke as $0 proper_origin_remote_name. Then your remote needs to be synched with your master too.
+"""
+    yapf --in-place --recursive .
+else
+    echo 'running yapf in incremental mode'
+    head=`mktemp`
+    master=`mktemp`
+    git rev-list --first-parent HEAD > "$head"  # list of commits being a history of HEAD branch, but without commits merged from master after forking
+    git rev-list origin/master > "$master"  # list of all commits on history of master
+
+    changed_files=`git diff --name-only "$(git rev-parse --abbrev-ref HEAD)..${base_remote}/${base_remote_branch}"`
+    dirty_files=`git ls-files -m`
+    files_to_check="$((echo "$changed_files"; echo "$dirty_files") | grep '\.py$' | sort -u)"
+    if [ -z "$files_to_check" ]; then
+        echo 'nothing to run yapf on after all'
     else
-        echo
-        echo "Formatting updated:"
-        echo
-        diff "$src_file" yapf.out
-        mv yapf.out "$src_file"
-        sleep 5
+        echo -n 'running yapf... '
+
+        echo "$files_to_check" | (while read file
+        do
+            yapf --in-place "$file" &
+        done
+        wait
+        )
+
+        echo 'done'
     fi
-done
+fi
 
 header Pyflakes
 
