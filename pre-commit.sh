@@ -120,7 +120,9 @@ else
     for virtual_env in $PYTHON_VIRTUAL_ENVS
     do
         header "Integration tests in: $virtual_env"
+        set +u  # if PS1 is not set and -u is set, $virtual_env/bin/active crashes
         source "$virtual_env/bin/activate"
+        set -u
         run_integration_tests
     done
 
