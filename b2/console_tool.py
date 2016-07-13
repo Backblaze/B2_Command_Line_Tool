@@ -686,7 +686,8 @@ class UpdateBucket(Command):
 
 class UploadFile(Command):
     """
-    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \\
+    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] \\
+            [--info <key>=<value>]* [--minPartSize N] \\
             [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
@@ -698,6 +699,11 @@ class UploadFile(Command):
 
         Content type is optional.  If not set, it will be set based on the
         file extension.
+
+        By default, the file is broken into as many parts as possible to
+        maximize upload parallelism and increase speed.  The minimum that
+        B2 allows is 100MB.  Setting --minPartSize to a larger value will
+        reduce the number of parts uploaded when uploading a large file.
 
         The maximum number of threads to use to upload parts of a large file
         is specified by '--threads'.  It has no effect on small files (under 200MB).
@@ -711,10 +717,10 @@ class UploadFile(Command):
     """
 
     OPTION_FLAGS = ['noProgress', 'quiet']
-    OPTION_ARGS = ['sha1', 'contentType', 'threads']
+    OPTION_ARGS = ['contentType', 'minPartSize', 'sha1', 'threads']
     LIST_ARGS = ['info']
     REQUIRED = ['bucketName', 'localFilePath', 'b2FileName']
-    ARG_PARSER = {'threads': int}
+    ARG_PARSER = {'minPartSize': int, 'threads': int}
 
     def run(self, args):
 
@@ -736,7 +742,8 @@ class UploadFile(Command):
                 content_type=args.contentType,
                 file_infos=file_infos,
                 sha1_sum=args.sha1,
-                progress_listener=progress_listener,
+                min_part_size=args.minPartSize,
+                progress_listener=progress_listener
             )
         response = file_info.as_dict()
         if not args.quiet:
