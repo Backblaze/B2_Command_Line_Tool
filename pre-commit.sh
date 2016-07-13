@@ -110,7 +110,6 @@ function run_integration_tests
     fi
 }
 
-
 if [[ -z "$PYTHON_VIRTUAL_ENVS" ]]
 then
     run_integration_tests

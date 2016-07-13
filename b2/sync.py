@@ -538,6 +538,24 @@ class LocalFolder(AbstractFolder):
         names = {}  # name to (full_path, relative path)
         dirs = set()  # subset of names that are directories
         for name in os.listdir(dir_path):
+            # We expect listdir() to return unicode if dir_path is unicode.
+            # This assertion is to help track down issue #190.  One theory
+            # is that listdir() is not behaving correctly.  If it were to
+            # return bytes rather than unicode, it's not clear how to decode it.
+            if not isinstance(name, six.text_type):
+                if six.PY2:
+                    for c in name:
+                        assert ord(
+                            c
+                        ) <= 127, 'non-ascii character in str returned by os.listdir: ' + str(
+                            ord(c)
+                        )
+                else:
+                    for b in name:
+                        assert b <= 127, 'non-ascii character in bytes returned by os.listdir: ' + str(
+                            b
+                        )
+
             if '/' in name:
                 raise Exception(
                     "sync does not support file names that include '/': %s in dir %s" %
