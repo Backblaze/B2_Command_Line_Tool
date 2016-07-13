@@ -110,9 +110,6 @@ function run_integration_tests
     fi
 }
 
-# not sure why this is needed to make virtualenv activation work
-PS1=""
-
 if [[ -z "$PYTHON_VIRTUAL_ENVS" ]]
 then
     run_integration_tests
