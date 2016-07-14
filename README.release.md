@@ -1,7 +1,8 @@
 # Release Process
 
-- Bump the version number in github to an even number, and tag it.
+- Bump the version number in github to an even number.
   - version number is in: `b2/version.py`, `README.md`, and `setup.py`.
+- Copy the main usage string (from `python -m b2`) to README.md.
 - Run full tests (currently: `pre-checkin.sh`)
 - Commit and tag in git.  Version tags look like "v0.4.6"
 - Upload to PyPI.
