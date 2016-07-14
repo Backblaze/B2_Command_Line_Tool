@@ -119,9 +119,7 @@ setup(
     # have to be included in MANIFEST.in as well.
     package_data={
         'b2': [
-            'requirements.txt',
-            'requirements-test.txt',
-            'requirements-setup.txt'
+            'requirements.txt', 'requirements-test.txt', 'requirements-setup.txt'
         ]
     },
 
