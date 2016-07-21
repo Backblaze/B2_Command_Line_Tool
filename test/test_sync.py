@@ -72,7 +72,7 @@ class TestLocalFolder(unittest.TestCase):
     def test_broken_symlink(self):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir, broken_symlink=True)
-            for f in folder.all_files(self.reporter):
+            for _ in folder.all_files(self.reporter):
                 pass  # just generate all the files
             self.reporter.local_access_error.assert_called_once_with(
                 os.path.join(tmpdir, 'bad_symlink')
