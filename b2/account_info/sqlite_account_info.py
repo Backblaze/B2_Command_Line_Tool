@@ -244,7 +244,9 @@ class SqliteAccountInfo(AbstractAccountInfo):
                     'SELECT bucket_id FROM bucket WHERE bucket_name = ?;', (bucket_name,)
                 )
                 return cursor.fetchone()[0]
-        except:
+        except TypeError:  # TypeError: 'NoneType' object is unsubscriptable
+            return None
+        except sqlite3.Error:
             return None
 
     def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
