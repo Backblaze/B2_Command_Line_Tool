@@ -251,12 +251,7 @@ class Bucket(object):
         )
 
     def upload_bytes(
-        self,
-        data_bytes,
-        file_name,
-        content_type=None,
-        file_infos=None,
-        progress_listener=None
+        self, data_bytes, file_name, content_type=None, file_infos=None, progress_listener=None
     ):
         """
         Upload bytes in memory to a B2 file

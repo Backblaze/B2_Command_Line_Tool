@@ -338,11 +338,7 @@ class TestMakeSyncActions(unittest.TestCase):
 
         actions = list(
             make_folder_sync_actions(
-                local_folder,
-                b2_folder,
-                FakeArgs(excludeRegex=["b.txt"]),
-                TODAY,
-                self.reporter
+                local_folder, b2_folder, FakeArgs(excludeRegex=["b.txt"]), TODAY, self.reporter
             )
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
@@ -352,9 +348,9 @@ class TestMakeSyncActions(unittest.TestCase):
         dst_file = b2_file('a.txt', [100])
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(
-            src_file, dst_file,
-            FakeArgs(delete=True, excludeRegex=['a.txt']),
-            actions
+            src_file, dst_file, FakeArgs(
+                delete=True, excludeRegex=['a.txt']
+            ), actions
         )
 
     # src: absent, dst: absent

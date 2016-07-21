@@ -496,10 +496,7 @@ class RawSimulator(AbstractRawApi):
         return dict(buckets=bucket_list)
 
     def list_file_names(
-        self, api_url,
-        account_auth,
-        bucket_id, start_file_name=None,
-        max_file_count=None
+        self, api_url, account_auth, bucket_id, start_file_name=None, max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
@@ -525,10 +522,7 @@ class RawSimulator(AbstractRawApi):
         return bucket.list_parts(file_id, start_part_number, max_part_count)
 
     def list_unfinished_large_files(
-        self, api_url,
-        account_auth,
-        bucket_id, start_file_id=None,
-        max_file_count=None
+        self, api_url, account_auth, bucket_id, start_file_id=None, max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
