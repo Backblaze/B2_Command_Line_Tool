@@ -14,8 +14,8 @@ import six
 from six.moves import range
 
 from .exception import (
-    BadJson, BadUploadUrl, DuplicateBucketName, FileNotPresent, InvalidAuthToken, MissingPart,
-    NonExistentBucket
+    BadJson, BadUploadUrl, ChecksumMismatch, DuplicateBucketName, FileNotPresent, InvalidAuthToken,
+    MissingPart, NonExistentBucket
 )
 from .raw_api import AbstractRawApi
 
@@ -121,7 +121,9 @@ class FileSimulator(object):
             for part_number in six.moves.range(1, last_part_number + 1)
         ]
         if part_sha1_array != my_part_sha1_array:
-            raise
+            raise ChecksumMismatch(
+                'sha1', expected=str(part_sha1_array), actual=str(my_part_sha1_array)
+            )
         self.data_bytes = six.b('').join(
             self.parts[part_number].part_data
             for part_number in six.moves.range(1, last_part_number + 1)
