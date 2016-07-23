@@ -72,7 +72,7 @@ class TestLocalFolder(unittest.TestCase):
     def test_broken_symlink(self):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir, broken_symlink=True)
-            for f in folder.all_files(self.reporter):
+            for _ in folder.all_files(self.reporter):
                 pass  # just generate all the files
             self.reporter.local_access_error.assert_called_once_with(
                 os.path.join(tmpdir, 'bad_symlink')
@@ -338,11 +338,7 @@ class TestMakeSyncActions(unittest.TestCase):
 
         actions = list(
             make_folder_sync_actions(
-                local_folder,
-                b2_folder,
-                FakeArgs(excludeRegex=["b.txt"]),
-                TODAY,
-                self.reporter
+                local_folder, b2_folder, FakeArgs(excludeRegex=["b.txt"]), TODAY, self.reporter
             )
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
@@ -352,9 +348,9 @@ class TestMakeSyncActions(unittest.TestCase):
         dst_file = b2_file('a.txt', [100])
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(
-            src_file, dst_file,
-            FakeArgs(delete=True, excludeRegex=['a.txt']),
-            actions
+            src_file, dst_file, FakeArgs(
+                delete=True, excludeRegex=['a.txt']
+            ), actions
         )
 
     # src: absent, dst: absent

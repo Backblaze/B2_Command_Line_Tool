@@ -45,6 +45,7 @@ class BadJson(B2Error):
 
 class BadFileInfo(B2Error):
     def __init__(self, data):
+        super(BadFileInfo, self).__init__()
         self.data = data
 
     def __str__(self):

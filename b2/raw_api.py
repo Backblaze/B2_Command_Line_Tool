@@ -63,11 +63,7 @@ class AbstractRawApi(object):
 
     @abstractmethod
     def list_unfinished_large_files(
-        self, api_url,
-        account_auth_token,
-        bucket_id,
-        start_file_id=None,
-        max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_id=None, max_file_count=None
     ):
         pass
 
@@ -220,9 +216,7 @@ class B2RawApi(AbstractRawApi):
 
                 if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
                     raise ChecksumMismatch(
-                        checksum_type='sha1',
-                        expected=content_length,
-                        actual=digest.hexdigest()
+                        checksum_type='sha1', expected=content_length, actual=digest.hexdigest()
                     )
 
             return dict(
@@ -251,30 +245,19 @@ class B2RawApi(AbstractRawApi):
 
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
         return self._post_json(
-            api_url, 'b2_get_upload_part_url',
-            account_auth_token,
-            fileId=file_id
+            api_url, 'b2_get_upload_part_url', account_auth_token, fileId=file_id
         )
 
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         return self._post_json(
-            api_url,
-            'b2_hide_file',
-            account_auth_token,
-            bucketId=bucket_id,
-            fileName=file_name
+            api_url, 'b2_hide_file', account_auth_token, bucketId=bucket_id, fileName=file_name
         )
 
     def list_buckets(self, api_url, account_auth_token, account_id):
         return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
 
     def list_file_names(
-        self,
-        api_url,
-        account_auth_token,
-        bucket_id,
-        start_file_name=None,
-        max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_name=None, max_file_count=None
     ):
         return self._post_json(
             api_url,
@@ -315,11 +298,7 @@ class B2RawApi(AbstractRawApi):
         )
 
     def list_unfinished_large_files(
-        self, api_url,
-        account_auth_token,
-        bucket_id,
-        start_file_id=None,
-        max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_id=None, max_file_count=None
     ):
         return self._post_json(
             api_url,
@@ -513,10 +492,7 @@ def test_raw_api_helper(raw_api):
     # b2_list_file_names (start, count)
     print('b2_list_file_names (start, count)')
     list_names_dict = raw_api.list_file_names(
-        api_url, account_auth_token,
-        bucket_id,
-        start_file_name=file_name,
-        max_file_count=5
+        api_url, account_auth_token, bucket_id, start_file_name=file_name, max_file_count=5
     )
     assert [file_name] == [f_dict['fileName'] for f_dict in list_names_dict['files']]
 
