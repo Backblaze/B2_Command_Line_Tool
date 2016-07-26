@@ -792,15 +792,21 @@ def make_file_sync_actions(
 
     # Case 3: No source file, but destination file exists
     elif source_file is None and dest_file is not None:
+        # All versions of the destination file are candidates for cleaning
+        dest_versions_to_clean = dest_file.versions
         if args.keepDays is not None and sync_type == 'local-to-b2':
             if dest_file.latest_version().action == 'upload':
                 yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
-        # All versions of the destination file are candidates for cleaning
-        dest_versions_to_clean = dest_file.versions
+                dest_versions_to_clean = dest_file.versions[1:]
 
     # Clean up old versions
     if sync_type == 'local-to-b2':
+        skipNextVersion = False
         for version in dest_versions_to_clean:
+            if skipNextVersion:
+                skipNextVersion = False
+                continue
+
             note = ''
             if transferred or (version is not dest_file.versions[0]):
                 note = '(old version)'
@@ -815,6 +821,10 @@ def make_file_sync_actions(
                         dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
                         note
                     )
+                elif version.action == 'hide':
+                    # Keep next oldest version as long as this hidden file
+                    skipNextVersion = True
+
     elif sync_type == 'b2-to-local':
         for version in dest_versions_to_clean:
             if args.delete:
