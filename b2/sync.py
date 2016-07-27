@@ -696,27 +696,6 @@ def zip_folders(folder_a, folder_b, reporter, exclusions=tuple()):
             current_b = next_or_none(iter_b)
 
 
-def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
-    source_mod_time = source_file.latest_version().mod_time
-    if sync_type == 'local-to-b2':
-        return B2UploadAction(
-            source_folder.make_full_path(source_file.name),
-            source_file.name,
-            dest_folder.make_full_path(source_file.name),
-            source_mod_time,
-            source_file.latest_version().size
-        )  # yapf: disable
-    else:
-        return B2DownloadAction(
-            source_file.name,
-            source_folder.make_full_path(source_file.name),
-            source_file.latest_version().id_,
-            dest_folder.make_full_path(source_file.name),
-            source_mod_time,
-            source_file.latest_version().size
-        )  # yapf: disable
-
-
 def files_are_different(source_file, dest_file, args):
     """
     Compare two files and determine if the the destination file
@@ -760,21 +739,6 @@ def files_are_different(source_file, dest_file, args):
 
     else:
         raise CommandError('Invalid option for --compareVersions')
-
-
-def should_transfer_file(source_file, dest_file, args):
-    """
-    Decides whether to transfer the file from the source to the destination.
-    """
-    if source_file is None:
-        # No source file.  Nothing to transfer.
-        return False
-    elif dest_file is None:
-        # Source file exists, but no destination file.  Always transfer.
-        return True
-    else:
-        # Both exist.  Transfer only if the two are different.
-        return files_are_different(source_file, dest_file, args)
 
 
 def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
@@ -850,35 +814,144 @@ def make_file_sync_actions(
     Yields the sequence of actions needed to sync the two files
     """
 
-    # Decide whether or not to transfer the file.
-    transferred = False
-    if should_transfer_file(source_file, dest_file, args):
-        yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-        transferred = True
+    policy = POLICY_MANAGER.get_policy(sync_type, source_file, source_folder, dest_file, dest_folder, now_millis, args)
+    for action in policy.get_all_actions():
+        yield action
 
-    # Delete and hide
-    if dest_file is not None:
-        if sync_type == 'local-to-b2':
-            if args.delete or args.keepDays is not None:
-                if args.delete:
-                    actions = make_b2_delete_actions(
-                        source_file, dest_file, dest_folder, transferred
-                    )
-                else:
-                    actions = make_b2_keep_days_actions(
-                        source_file, dest_file, dest_folder, transferred, args.keepDays, now_millis
-                    )
-                for action in actions:
-                    yield action
 
-        elif sync_type == 'b2-to-local':
-            if (source_file is None) and args.delete:
-                # Local files have either 0 or 1 versions.  If the file is there,
-                # it must have exactly 1 version.
-                yield LocalDeleteAction(dest_file.name, dest_file.versions[0].id_)
-
+@six.add_metaclass(ABCMeta)
+class AbstractFileSyncPolicy(object):
+    def __init__(self, source_file, source_folder, dest_file, dest_folder, now_millis, args):
+        self.source_file = source_file
+        self.source_folder = source_folder
+        self.dest_file = dest_file
+        self.delete = args.delete
+        self.keepDays = args.keepDays
+        self.args = args
+        self.dest_folder = dest_folder
+        self.now_millis = now_millis
+        self.transferred = False
+    def should_transfer(self):
+        """
+        Decides whether to transfer the file from the source to the destination.
+        """
+        if self.source_file is None:
+            # No source file.  Nothing to transfer.
+            return False
+        elif self.dest_file is None:
+            # Source file exists, but no destination file.  Always transfer.
+            return True
         else:
-            raise CommandError('Invalid sync type: ' + sync_type)
+            # Both exist.  Transfer only if the two are different.
+            return files_are_different(self.source_file, self.dest_file, self.args)  # TODO: don't pass args here?
+    def get_all_actions(self):
+        if self.should_transfer():
+            yield self.make_transfer_action()
+            self.transferred = True
+
+        assert self.dest_file is not None or self.source_file is not None
+        for action in self.get_upload_delete_actions():
+            yield action
+    def get_upload_delete_actions(self):
+        return []  # subclass can override this
+    def get_source_mod_time(self):
+        return self.source_file.latest_version().mod_time
+    @abstractmethod
+    def make_transfer_action(self):
+        pass
+
+
+class DownPolicy(AbstractFileSyncPolicy):
+    def make_transfer_action(self):
+        return B2DownloadAction(
+            self.source_file.name,
+            self.source_folder.make_full_path(self.source_file.name),
+            self.source_file.latest_version().id_,
+            self.dest_folder.make_full_path(self.source_file.name),
+            self.get_source_mod_time(),
+            self.source_file.latest_version().size
+        )
+
+class UpPolicy(AbstractFileSyncPolicy):
+    def make_transfer_action(self):
+        return B2UploadAction(
+            self.source_folder.make_full_path(self.source_file.name),
+            self.source_file.name,
+            self.dest_folder.make_full_path(self.source_file.name),
+            self.get_source_mod_time(),
+            self.source_file.latest_version().size
+        )
+
+
+class UpAndDeletePolicy(UpPolicy):
+    """
+    file is synced up (from disk to the cloud) and the deleta flag is SET
+    """
+    def get_upload_delete_actions(self):
+        for action in super(UpAndDeletePolicy, self).get_upload_delete_actions():
+            yield action
+        for action in make_b2_delete_actions(
+                self.source_file, self.dest_file, self.dest_folder, self.transferred
+            ):
+            yield action
+
+
+class UpAndKeepDaysPolicy(UpPolicy):
+    """
+    file is synced up (from disk to the cloud) and the keepDays flag is SET
+    """
+    def get_upload_delete_actions(self):
+        for action in super(UpAndKeepDaysPolicy, self).get_upload_delete_actions():
+            yield action
+        for action in make_b2_keep_days_actions(
+                self.source_file, self.dest_file, self.dest_folder,
+                self.transferred, self.keepDays, self.now_millis
+            ):
+            yield action
+
+
+class DownAndDeletePolicy(DownPolicy):
+    """
+    file is synced down (from the cloud to disk) and the delete flag is SET
+    """
+    def get_upload_delete_actions(self):
+        for action in super(DownAndDeletePolicy, self).get_upload_delete_actions():
+            yield action
+        if self.dest_file is not None and self.source_file is None:
+            # Local files have either 0 or 1 versions.  If the file is there,
+            # it must have exactly 1 version.
+            yield LocalDeleteAction(self.dest_file.name, self.dest_file.versions[0].id_)
+
+
+class DownAndKeepDaysPolicy(DownPolicy):
+    pass
+
+
+class SyncPolicyManager(object):
+    def __init__(self):
+        self.policies = {}  # dict<,>
+    def get_policy(self, sync_type, source_file, source_folder, dest_file, dest_folder, now_millis, args):
+        policy_class = self.get_policy_class(sync_type, args)
+        return policy_class(source_file, source_folder, dest_file, dest_folder, now_millis, args)
+    def get_policy_class(self, sync_type, args):
+        if sync_type == 'local-to-b2':
+            if args.delete:
+                return UpAndDeletePolicy
+            elif args.keepDays:
+                return UpAndKeepDaysPolicy
+            else:
+                return UpPolicy
+        elif sync_type == 'b2-to-local':
+            if args.delete:
+                return DownAndDeletePolicy
+            elif args.keepDays:
+                return DownAndKeepDaysPolicy
+            else:
+                return DownPolicy
+        assert False, 'invalid sync type: %s, args: %s' % (sync_type, str(args))
+
+
+POLICY_MANAGER = SyncPolicyManager()
 
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
