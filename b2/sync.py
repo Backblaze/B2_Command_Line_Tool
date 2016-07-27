@@ -716,7 +716,8 @@ def make_transfer_action(sync_type, source_file, source_folder, dest_folder):
             source_file.latest_version().size
         )  # yapf: disable
 
-def check_file_replacement(source_file, dest_file, args):
+
+def files_are_different(source_file, dest_file, args):
     """
     Compare two files and determine if the the destination file
     should be replaced by the source file.
@@ -761,6 +762,21 @@ def check_file_replacement(source_file, dest_file, args):
         raise CommandError('Invalid option for --compareVersions')
 
 
+def should_transfer_file(source_file, dest_file, args):
+    """
+    Decides whether to transfer the file from the source to the destination.
+    """
+    if source_file is None:
+        # No source file.  Nothing to transfer.
+        return False
+    elif dest_file is None:
+        # Source file exists, but no destination file.  Always transfer.
+        return True
+    else:
+        # Both exist.  Transfer only if the two are different.
+        return files_are_different(source_file, dest_file, args)
+
+
 def make_file_sync_actions(
     sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
 ):
@@ -775,23 +791,19 @@ def make_file_sync_actions(
     if dest_file is not None:
         dest_versions_to_clean = dest_file.versions[1:]
 
-    # Case 1: Both files exist
+    # Decide whether or not to transfer the file.
     transferred = False
-    if source_file is not None and dest_file is not None:
-        if check_file_replacement(source_file, dest_file, args):
-            yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
-            transferred = True
-        # All destination files are candidates for cleaning, if a new version is beeing uploaded
-        if transferred and sync_type == 'local-to-b2':
-            dest_versions_to_clean = dest_file.versions
-
-    # Case 2: No destination file, but source file exists
-    elif source_file is not None and dest_file is None:
+    if should_transfer_file(source_file, dest_file, args):
         yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
         transferred = True
 
+    # Case 1: Both files exist
+    if source_file is not None and dest_file is not None:
+        if transferred and sync_type == 'local-to-b2':
+            dest_versions_to_clean = dest_file.versions
+
     # Case 3: No source file, but destination file exists
-    elif source_file is None and dest_file is not None:
+    if source_file is None and dest_file is not None:
         # All versions of the destination file are candidates for cleaning
         dest_versions_to_clean = dest_file.versions
         if args.keepDays is not None and sync_type == 'local-to-b2':
