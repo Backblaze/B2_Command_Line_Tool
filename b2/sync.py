@@ -777,31 +777,10 @@ def should_transfer_file(source_file, dest_file, args):
         return files_are_different(source_file, dest_file, args)
 
 
-def make_b2_hide_delete_actions(
-    source_file, dest_file, dest_folder, transferred, keep_days, now_millis
-):
-    """
-    Creates the actions to hide or delete existing versions of a file
-    stored in B2.
-    """
-    prev_was_hide_marker = False
+def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
     for (version_index, version) in enumerate(dest_file.versions):
-        # Is the first version being kept forever because it matches
-        # the source?
-        keep_forever = (version_index == 0) and (source_file is not None) and not transferred
-        if keep_forever:
-            continue
-
-        # Is this version older than keep_days?
-        age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
-        too_old = keep_days < age_days
-
-        # Do we need to hide this version?
-        if version_index == 0 and source_file is None and version.action == 'upload' and not too_old:
-            yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
-
-        # Do we need to delete this version?
-        if too_old and not prev_was_hide_marker:
+        keep = (version_index == 0) and (source_file is not None) and not transferred
+        if not keep:
             note = ''
             if version.action == 'hide':
                 note = '(hide marker)'
@@ -810,8 +789,58 @@ def make_b2_hide_delete_actions(
             yield B2DeleteAction(
                 dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
             )
-        else:
-            prev_was_hide_marker = version.action == 'hide'
+
+
+def make_b2_keep_days_actions(
+    source_file, dest_file, dest_folder, transferred, keep_days, now_millis
+):
+    """
+    Creates the actions to hide or delete existing versions of a file
+    stored in B2.
+
+    When keepDays is set, all files that were visible any time from
+    keepDays ago until now must be kept.  If versions were uploaded 5
+    days ago, 15 days ago, and 25 days ago, and the keepDays is 10,
+    only the 25-day old version can be deleted.  The 15 day-old version
+    was visible 10 days ago.
+    """
+    prev_age_days = None
+    deleting = False
+    for (version_index, version) in enumerate(dest_file.versions):
+        # How old is this version?
+        age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
+
+        # We assume that the versions are ordered by time, newest first.
+        assert prev_age_days is None or prev_age_days <= age_days
+
+        # Do we need to hide this version?
+        if version_index == 0 and source_file is None and version.action == 'upload':
+            yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
+
+        # Can we start deleting?  Once we start deleting, all older
+        # versions will also be deleted.
+        if version.action == 'hide':
+            if keep_days < age_days:
+                deleting = True
+
+        # Delete this version
+        if deleting:
+            note = ''
+            if version.action == 'hide':
+                note = '(hide marker)'
+            elif transferred or 0 < version_index:
+                note = '(old version)'
+            yield B2DeleteAction(
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
+            )
+
+        # Can we start deleting with the next version, based on the
+        # age of this one?
+        if keep_days < age_days:
+            deleting = True
+
+        # Remember this age for next time around the loop.
+        prev_age_days = age_days
 
 
 def make_file_sync_actions(
@@ -832,12 +861,14 @@ def make_file_sync_actions(
         if sync_type == 'local-to-b2':
             if args.delete or args.keepDays is not None:
                 if args.delete:
-                    keep_days = -1
+                    actions = make_b2_delete_actions(
+                        source_file, dest_file, dest_folder, transferred
+                    )
                 else:
-                    keep_days = args.keepDays
-                for action in make_b2_hide_delete_actions(
-                    source_file, dest_file, dest_folder, transferred, keep_days, now_millis
-                ):
+                    actions = make_b2_keep_days_actions(
+                        source_file, dest_file, dest_folder, transferred, args.keepDays, now_millis
+                    )
+                for action in actions:
                     yield action
 
         elif sync_type == 'b2-to-local':
