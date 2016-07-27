@@ -838,9 +838,13 @@ def make_file_sync_actions(
                     skipNextVersion = True
 
     elif sync_type == 'b2-to-local':
-        for version in dest_versions_to_clean:
-            if args.delete:
-                yield LocalDeleteAction(dest_file.name, version.id_)
+        if (source_file is None) and (dest_file is not None) and args.delete:
+            # Local files have either 0 or 1 versions.  If the file is there,
+            # it must have exactly 1 version.
+            yield LocalDeleteAction(dest_file.name, dest_file.versions[0].id_)
+
+    else:
+        raise CommandError('Invalid sync type: ' + sync_type)
 
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
