@@ -436,7 +436,7 @@ class TestMakeSyncActions(unittest.TestCase):
     def test_already_hidden_multiple_versions_keep_days_delete_hide_marker(self):
         dst_file = b2_file('a.txt', [-(TODAY - 2 * DAY), TODAY - 4 * DAY, TODAY - 6 * DAY])
         actions = [
-            'b2_delete(folder/a.txt, id_a_8467200000, )',
+            'b2_delete(folder/a.txt, id_a_8467200000, (hide marker))',
             'b2_delete(folder/a.txt, id_a_8294400000, (old version))',
             'b2_delete(folder/a.txt, id_a_8121600000, (old version))'
         ]

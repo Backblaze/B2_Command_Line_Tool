@@ -802,7 +802,9 @@ def make_b2_hide_delete_actions(
         # Do we need to delete this version?
         if too_old:
             note = ''
-            if transferred or 0 < version_index:
+            if version.action == 'hide':
+                note = '(hide marker)'
+            elif transferred or 0 < version_index:
                 note = '(old version)'
             yield B2DeleteAction(
                 dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
