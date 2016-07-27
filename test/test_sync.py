@@ -427,10 +427,7 @@ class TestMakeSyncActions(unittest.TestCase):
 
     def test_already_hidden_multiple_versions_keep_days_two_old(self):
         dst_file = b2_file('a.txt', [-(TODAY - 2 * DAY), TODAY - 4 * DAY, TODAY - 6 * DAY])
-        actions = [
-            'b2_delete(folder/a.txt, id_a_8294400000, (old version))',
-            'b2_delete(folder/a.txt, id_a_8121600000, (old version))'
-        ]
+        actions = ['b2_delete(folder/a.txt, id_a_8121600000, (old version))']
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=2), actions)
 
     def test_already_hidden_multiple_versions_keep_days_delete_hide_marker(self):

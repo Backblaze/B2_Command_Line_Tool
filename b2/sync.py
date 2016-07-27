@@ -784,6 +784,7 @@ def make_b2_hide_delete_actions(
     Creates the actions to hide or delete existing versions of a file
     stored in B2.
     """
+    prev_was_hide_marker = False
     for (version_index, version) in enumerate(dest_file.versions):
         # Is the first version being kept forever because it matches
         # the source?
@@ -800,7 +801,7 @@ def make_b2_hide_delete_actions(
             yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
 
         # Do we need to delete this version?
-        if too_old:
+        if too_old and not prev_was_hide_marker:
             note = ''
             if version.action == 'hide':
                 note = '(hide marker)'
@@ -809,6 +810,8 @@ def make_b2_hide_delete_actions(
             yield B2DeleteAction(
                 dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
             )
+        else:
+            prev_was_hide_marker = version.action == 'hide'
 
 
 def make_file_sync_actions(
