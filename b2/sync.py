@@ -777,6 +777,38 @@ def should_transfer_file(source_file, dest_file, args):
         return files_are_different(source_file, dest_file, args)
 
 
+def make_b2_hide_delete_actions(
+    source_file, dest_file, dest_folder, transferred, keep_days, now_millis
+):
+    """
+    Creates the actions to hide or delete existing versions of a file
+    stored in B2.
+    """
+    for (version_index, version) in enumerate(dest_file.versions):
+        # Is the first version being kept forever because it matches
+        # the source?
+        keep_forever = (version_index == 0) and (source_file is not None) and not transferred
+        if keep_forever:
+            continue
+
+        # Is this version older than keep_days?
+        age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
+        too_old = keep_days < age_days
+
+        # Do we need to hide this version?
+        if version_index == 0 and source_file is None and version.action == 'upload' and not too_old:
+            yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
+
+        # Do we need to delete this version?
+        if too_old:
+            note = ''
+            if transferred or 0 < version_index:
+                note = '(old version)'
+            yield B2DeleteAction(
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
+            )
+
+
 def make_file_sync_actions(
     sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
 ):
@@ -784,67 +816,33 @@ def make_file_sync_actions(
     Yields the sequence of actions needed to sync the two files
     """
 
-    # By default, all but the current version at the destination are
-    # candidates for cleaning.  This will be overridden in the case
-    # where there is no source file or a new version is uploaded.
-    dest_versions_to_clean = []
-    if dest_file is not None:
-        dest_versions_to_clean = dest_file.versions[1:]
-
     # Decide whether or not to transfer the file.
     transferred = False
     if should_transfer_file(source_file, dest_file, args):
         yield make_transfer_action(sync_type, source_file, source_folder, dest_folder)
         transferred = True
 
-    # Case 1: Both files exist
-    if source_file is not None and dest_file is not None:
-        if transferred and sync_type == 'local-to-b2':
-            dest_versions_to_clean = dest_file.versions
+    # Delete and hide
+    if dest_file is not None:
+        if sync_type == 'local-to-b2':
+            if args.delete or args.keepDays is not None:
+                if args.delete:
+                    keep_days = -1
+                else:
+                    keep_days = args.keepDays
+                for action in make_b2_hide_delete_actions(
+                    source_file, dest_file, dest_folder, transferred, keep_days, now_millis
+                ):
+                    yield action
 
-    # Case 3: No source file, but destination file exists
-    if source_file is None and dest_file is not None:
-        # All versions of the destination file are candidates for cleaning
-        dest_versions_to_clean = dest_file.versions
-        if args.keepDays is not None and sync_type == 'local-to-b2':
-            if dest_file.latest_version().action == 'upload':
-                yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
-                dest_versions_to_clean = dest_file.versions[1:]
+        elif sync_type == 'b2-to-local':
+            if (source_file is None) and args.delete:
+                # Local files have either 0 or 1 versions.  If the file is there,
+                # it must have exactly 1 version.
+                yield LocalDeleteAction(dest_file.name, dest_file.versions[0].id_)
 
-    # Clean up old versions
-    if sync_type == 'local-to-b2':
-        skipNextVersion = False
-        for version in dest_versions_to_clean:
-            if skipNextVersion:
-                skipNextVersion = False
-                continue
-
-            note = ''
-            if transferred or (version is not dest_file.versions[0]):
-                note = '(old version)'
-            if args.delete:
-                yield B2DeleteAction(
-                    dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
-                )
-            elif args.keepDays is not None:
-                age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
-                if args.keepDays < age_days:
-                    yield B2DeleteAction(
-                        dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
-                        note
-                    )
-                elif version.action == 'hide':
-                    # Keep next oldest version as long as this hidden file
-                    skipNextVersion = True
-
-    elif sync_type == 'b2-to-local':
-        if (source_file is None) and (dest_file is not None) and args.delete:
-            # Local files have either 0 or 1 versions.  If the file is there,
-            # it must have exactly 1 version.
-            yield LocalDeleteAction(dest_file.name, dest_file.versions[0].id_)
-
-    else:
-        raise CommandError('Invalid sync type: ' + sync_type)
+        else:
+            raise CommandError('Invalid sync type: ' + sync_type)
 
 
 def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):

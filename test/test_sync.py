@@ -405,9 +405,9 @@ class TestMakeSyncActions(unittest.TestCase):
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=1), actions)
 
     def test_delete_hide_b2_multiple_versions_old(self):
-        dst_file = b2_file('a.txt', [TODAY - 2 * DAY, TODAY - 4 * DAY])
+        dst_file = b2_file('a.txt', [TODAY - 1 * DAY, TODAY - 2 * DAY])
         actions = [
-            'b2_hide(folder/a.txt)', 'b2_delete(folder/a.txt, id_a_8294400000, (old version))'
+            'b2_hide(folder/a.txt)', 'b2_delete(folder/a.txt, id_a_8467200000, (old version))'
         ]
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=1), actions)
 
@@ -420,10 +420,27 @@ class TestMakeSyncActions(unittest.TestCase):
         actions = ['b2_delete(folder/a.txt, id_a_8294400000, (old version))']
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=2), actions)
 
-    def test_already_hidden_multiple_versions_keep_days_old(self):
-        dst_file = b2_file('a.txt', [-TODAY + 2 * DAY, TODAY - 4 * DAY, TODAY - 6 * DAY])
+    def test_already_hidden_multiple_versions_keep_days_one_old(self):
+        dst_file = b2_file('a.txt', [-(TODAY - 2 * DAY), TODAY - 4 * DAY, TODAY - 6 * DAY])
         actions = ['b2_delete(folder/a.txt, id_a_8121600000, (old version))']
+        self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=5), actions)
+
+    def test_already_hidden_multiple_versions_keep_days_two_old(self):
+        dst_file = b2_file('a.txt', [-(TODAY - 2 * DAY), TODAY - 4 * DAY, TODAY - 6 * DAY])
+        actions = [
+            'b2_delete(folder/a.txt, id_a_8294400000, (old version))',
+            'b2_delete(folder/a.txt, id_a_8121600000, (old version))'
+        ]
         self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=2), actions)
+
+    def test_already_hidden_multiple_versions_keep_days_delete_hide_marker(self):
+        dst_file = b2_file('a.txt', [-(TODAY - 2 * DAY), TODAY - 4 * DAY, TODAY - 6 * DAY])
+        actions = [
+            'b2_delete(folder/a.txt, id_a_8467200000, )',
+            'b2_delete(folder/a.txt, id_a_8294400000, (old version))',
+            'b2_delete(folder/a.txt, id_a_8121600000, (old version))'
+        ]
+        self._check_local_to_b2(None, dst_file, FakeArgs(keepDays=1), actions)
 
     def test_already_hidden_multiple_versions_keep_days_old_delete(self):
         dst_file = b2_file('a.txt', [-TODAY + 2 * DAY, TODAY - 4 * DAY])
@@ -617,6 +634,14 @@ class TestMakeSyncActions(unittest.TestCase):
         src_folder = FakeFolder(src_type, [src_file] if src_file else [])
         dst_folder = FakeFolder(dst_type, [dst_file] if dst_file else [])
         actions = list(make_folder_sync_actions(src_folder, dst_folder, args, TODAY, self.reporter))
+        action_strs = [str(a) for a in actions]
+        if expected_actions != action_strs:
+            print('Expected:')
+            for a in expected_actions:
+                print('   ', a)
+            print('Actual:')
+            for a in action_strs:
+                print('   ', a)
         self.assertEqual(expected_actions, [str(a) for a in actions])
 
 
