@@ -13,7 +13,7 @@ from __future__ import division
 import re
 import six
 
-from ..exception import CommandError, DestFileNewer
+from ..exception import CommandError
 from .policy_manager import POLICY_MANAGER
 from .report import SyncReport
 
@@ -79,7 +79,9 @@ def make_file_sync_actions(
     Yields the sequence of actions needed to sync the two files
     """
 
-    policy = POLICY_MANAGER.get_policy(sync_type, source_file, source_folder, dest_file, dest_folder, now_millis, args)
+    policy = POLICY_MANAGER.get_policy(
+        sync_type, source_file, source_folder, dest_file, dest_folder, now_millis, args
+    )
     for action in policy.get_all_actions():
         yield action
 

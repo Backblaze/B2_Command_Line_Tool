@@ -31,6 +31,7 @@ def parse_sync_folder(folder_name, api):
             folder_name = folder_name[:-1]
         return LocalFolder(folder_name)
 
+
 def _parse_bucket_and_folder(bucket_and_path, api):
     """
     Turns 'my-bucket/foo' into B2Folder(my-bucket, foo)

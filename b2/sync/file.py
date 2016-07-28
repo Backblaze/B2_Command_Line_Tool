@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+
 class File(object):
     """
     Holds information about one file in a folder.

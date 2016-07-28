@@ -19,7 +19,6 @@ from ..utils import raise_if_shutting_down
 from .report import SyncFileReporter
 
 
-
 @six.add_metaclass(ABCMeta)
 class AbstractAction(object):
     """
@@ -177,6 +176,3 @@ class LocalDeleteAction(AbstractAction):
 
     def __str__(self):
         return 'local_delete(%s)' % (self.full_path)
-
-
-

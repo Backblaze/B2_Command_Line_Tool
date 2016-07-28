@@ -15,9 +15,13 @@ from .policy import UpAndDeletePolicy, UpAndKeepDaysPolicy, UpPolicy
 class SyncPolicyManager(object):
     def __init__(self):
         self.policies = {}  # dict<,>
-    def get_policy(self, sync_type, source_file, source_folder, dest_file, dest_folder, now_millis, args):
+
+    def get_policy(
+        self, sync_type, source_file, source_folder, dest_file, dest_folder, now_millis, args
+    ):
         policy_class = self.get_policy_class(sync_type, args)
         return policy_class(source_file, source_folder, dest_file, dest_folder, now_millis, args)
+
     def get_policy_class(self, sync_type, args):
         if sync_type == 'local-to-b2':
             if args.delete:
@@ -34,5 +38,6 @@ class SyncPolicyManager(object):
             else:
                 return DownPolicy
         assert False, 'invalid sync type: %s, args: %s' % (sync_type, str(args))
+
 
 POLICY_MANAGER = SyncPolicyManager()

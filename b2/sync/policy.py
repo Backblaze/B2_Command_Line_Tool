@@ -15,7 +15,6 @@ import six
 from .utils import files_are_different
 from .action import LocalDeleteAction, B2DeleteAction, B2DownloadAction, B2HideAction, B2UploadAction
 
-
 ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
 
 
@@ -31,6 +30,7 @@ class AbstractFileSyncPolicy(object):
         self._dest_folder = dest_folder
         self._now_millis = now_millis
         self._transferred = False
+
     def _should_transfer(self):
         """
         Decides whether to transfer the file from the source to the destination.
@@ -43,7 +43,10 @@ class AbstractFileSyncPolicy(object):
             return True
         else:
             # Both exist.  Transfer only if the two are different.
-            return files_are_different(self._source_file, self._dest_file, self._args)  # TODO: don't pass args here?
+            return files_are_different(
+                self._source_file, self._dest_file, self._args
+            )  # TODO: don't pass args here?
+
     def get_all_actions(self):
         if self._should_transfer():
             yield self._make_transfer_action()
@@ -53,13 +56,16 @@ class AbstractFileSyncPolicy(object):
 
         for action in self._get_hide_delete_actions():
             yield action
+
     def _get_hide_delete_actions(self):
         """
         subclass policy can override this to hide or delete files
         """
         return []
+
     def _get_source_mod_time(self):
         return self._source_file.latest_version().mod_time
+
     @abstractmethod
     def _make_transfer_action(self):
         """ return an action representing transfer of file according to the selected policy """
@@ -69,26 +75,25 @@ class DownPolicy(AbstractFileSyncPolicy):
     """
     file is synced down (from the cloud to disk)
     """
+
     def _make_transfer_action(self):
         return B2DownloadAction(
-            self._source_file.name,
-            self._source_folder.make_full_path(self._source_file.name),
+            self._source_file.name, self._source_folder.make_full_path(self._source_file.name),
             self._source_file.latest_version().id_,
-            self._dest_folder.make_full_path(self._source_file.name),
-            self._get_source_mod_time(),
+            self._dest_folder.make_full_path(self._source_file.name), self._get_source_mod_time(),
             self._source_file.latest_version().size
         )
+
 
 class UpPolicy(AbstractFileSyncPolicy):
     """
     file is synced up (from disk the cloud)
     """
+
     def _make_transfer_action(self):
         return B2UploadAction(
-            self._source_folder.make_full_path(self._source_file.name),
-            self._source_file.name,
-            self._dest_folder.make_full_path(self._source_file.name),
-            self._get_source_mod_time(),
+            self._source_folder.make_full_path(self._source_file.name), self._source_file.name,
+            self._dest_folder.make_full_path(self._source_file.name), self._get_source_mod_time(),
             self._source_file.latest_version().size
         )
 
@@ -97,12 +102,13 @@ class UpAndDeletePolicy(UpPolicy):
     """
     file is synced up (from disk to the cloud) and the delete flag is SET
     """
+
     def _get_hide_delete_actions(self):
         for action in super(UpAndDeletePolicy, self)._get_hide_delete_actions():
             yield action
         for action in make_b2_delete_actions(
-                self._source_file, self._dest_file, self._dest_folder, self._transferred
-            ):
+            self._source_file, self._dest_file, self._dest_folder, self._transferred
+        ):
             yield action
 
 
@@ -110,13 +116,14 @@ class UpAndKeepDaysPolicy(UpPolicy):
     """
     file is synced up (from disk to the cloud) and the keepDays flag is SET
     """
+
     def _get_hide_delete_actions(self):
         for action in super(UpAndKeepDaysPolicy, self)._get_hide_delete_actions():
             yield action
         for action in make_b2_keep_days_actions(
-                self._source_file, self._dest_file, self._dest_folder,
-                self._transferred, self._keepDays, self._now_millis
-            ):
+            self._source_file, self._dest_file, self._dest_folder, self._transferred,
+            self._keepDays, self._now_millis
+        ):
             yield action
 
 
@@ -124,6 +131,7 @@ class DownAndDeletePolicy(DownPolicy):
     """
     file is synced down (from the cloud to disk) and the delete flag is SET
     """
+
     def _get_hide_delete_actions(self):
         for action in super(DownAndDeletePolicy, self)._get_hide_delete_actions():
             yield action
