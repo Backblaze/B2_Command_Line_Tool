@@ -56,10 +56,12 @@ else
         echo 'nothing to run yapf on after all'
     else
         echo -n 'running yapf... '
-
         echo "$files_to_check" | (while read file
         do
-            yapf --in-place "$file" &
+            if [ -e "$file" ]; then
+                # in case file was added since master, but then was removed
+                yapf --in-place "$file" &
+            fi
         done
         wait
         )
