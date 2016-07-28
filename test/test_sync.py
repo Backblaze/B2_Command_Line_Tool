@@ -18,7 +18,10 @@ import six
 
 from b2.exception import CommandError, DestFileNewer
 from b2.file_version import FileVersionInfo
-from b2.sync import B2Folder, File, FileVersion, AbstractFolder, LocalFolder, make_folder_sync_actions, parse_sync_folder, zip_folders
+from b2.sync.folder import AbstractFolder, B2Folder, LocalFolder
+from b2.sync.file import File, FileVersion
+from b2.sync.sync import make_folder_sync_actions, zip_folders
+from b2.sync.folder_parser import parse_sync_folder
 from b2.utils import TempDir
 
 try:
