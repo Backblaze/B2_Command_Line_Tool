@@ -10,6 +10,7 @@
 
 from abc import (ABCMeta, abstractmethod)
 
+import os
 import six
 
 from ..download_dest import DownloadDestLocalFile
