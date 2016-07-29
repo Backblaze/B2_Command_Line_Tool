@@ -10,6 +10,7 @@
 
 from abc import ABCMeta, abstractmethod
 import os
+import sys
 
 import six
 
@@ -107,22 +108,10 @@ class LocalFolder(AbstractFolder):
         dirs = set()  # subset of names that are directories
         for name in os.listdir(dir_path):
             # We expect listdir() to return unicode if dir_path is unicode.
-            # This assertion is to help track down issue #190.  One theory
-            # is that listdir() is not behaving correctly.  If it were to
-            # return bytes rather than unicode, it's not clear how to decode it.
+            # If the file name is not valid, based on the file system
+            # encoding, then listdir() will return un-decoded str/bytes.
             if not isinstance(name, six.text_type):
-                if six.PY2:
-                    for c in name:
-                        assert ord(
-                            c
-                        ) <= 127, 'non-ascii character in str returned by os.listdir: ' + str(
-                            ord(c)
-                        )
-                else:
-                    for b in name:
-                        assert b <= 127, 'non-ascii character in bytes returned by os.listdir: ' + str(
-                            b
-                        )
+                name = self._handle_non_unicode_file_name(name)
 
             if '/' in name:
                 raise Exception(
@@ -149,6 +138,28 @@ class LocalFolder(AbstractFolder):
                     yield rp
             else:
                 yield relative_path
+
+    def _handle_non_unicode_file_name(self, name):
+        """
+        Decide what to do with a name returned from os.listdir()
+        that isn't unicode.  We think that this only happens when
+        the file name can't be decoded using the file system
+        encoding.  Just in case that's not true, we'll allow all-ascii
+        names.
+        """
+        # if it's all ascii, allow it
+        if six.PY2:
+            if all(ord(c) <= 127 for c in name):
+                return name
+        else:
+            if all(b <= 127 for b in name):
+                return name
+
+        # Report a problem
+        raise Exception(
+            'file name %s cannot be decoded with file system encoding (%s)' %
+            (repr(name), sys.getfilesystemencoding())
+        )
 
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
