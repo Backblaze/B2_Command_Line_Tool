@@ -14,6 +14,7 @@ import sys
 
 import six
 
+from .exception import EnvironmentEncodingError
 from .file import File, FileVersion
 
 
@@ -154,12 +155,7 @@ class LocalFolder(AbstractFolder):
         else:
             if all(b <= 127 for b in name):
                 return name
-
-        # Report a problem
-        raise Exception(
-            'file name %s cannot be decoded with file system encoding (%s)' %
-            (repr(name), sys.getfilesystemencoding())
-        )
+        raise EnvironmentEncodingError(repr(name), sys.getfilesystemencoding())
 
     def _make_file(self, relative_path):
         full_path = os.path.join(self.root, relative_path)
