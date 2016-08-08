@@ -112,6 +112,36 @@ class DestFileNewer(B2Error):
         return True
 
 
+class B2ReadTimeout(B2Error):
+    def __init__(self, message):
+        super(B2ConnectionTimeout, self).__init__()
+        self.message = message
+
+    def should_retry_http(self):
+        return True
+
+    def should_retry_upload(self):
+        return True
+
+    def __str__(self):
+        return 'Connection timeout: %s' % (self.message,)
+
+
+class B2ConnectionTimeout(B2Error):
+    def __init__(self, message):
+        super(B2ConnectionTimeout, self).__init__()
+        self.message = message
+
+    def should_retry_http(self):
+        return True
+
+    def should_retry_upload(self):
+        return True
+
+    def __str__(self):
+        return 'Connection timeout: %s' % (self.message,)
+
+
 class DuplicateBucketName(B2Error):
     def __init__(self, bucket_name):
         super(DuplicateBucketName, self).__init__()
