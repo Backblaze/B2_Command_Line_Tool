@@ -8,8 +8,26 @@
 #
 ######################################################################
 
+from abc import ABCMeta
 
+import six
+
+from .utils import camelcase_to_underscore
+
+
+@six.add_metaclass(ABCMeta)
 class B2Error(Exception):
+    @property
+    def prefix(self):
+        """
+        nice auto-generated error message prefix
+        """
+        prefix = self.__class__.__name__
+        if prefix.startswith('B2'):
+            prefix = prefix[2:]
+        prefix = camelcase_to_underscore(prefix).replace('_', ' ')
+        return prefix[0].upper() + prefix[1:]
+
     def should_retry_http(self):
         """
         Returns true if this is an error that can cause an HTTP
@@ -25,36 +43,39 @@ class B2Error(Exception):
         return False
 
 
-class AlreadyFailed(B2Error):
-    def __init__(self, message):
-        super(AlreadyFailed, self).__init__()
-        self.message = message
+@six.add_metaclass(ABCMeta)
+class B2SimpleError(B2Error):
+    """
+    a B2Error with a message prefix
+    """
 
     def __str__(self):
-        return 'Already failed: %s' % (self.message,)
+        return '%s: %s' % (self.prefix, super(B2SimpleError, self).__str__())
 
 
-class BadJson(B2Error):
-    def __init__(self, message):
-        super(BadJson, self).__init__()
-        self.message = message
+@six.add_metaclass(ABCMeta)
+class TransientErrorMixin(object):
+    def should_retry_http(self):
+        return True
 
-    def __str__(self):
-        return 'Bad request: %s' % (self.message,)
-
-
-class BadFileInfo(B2Error):
-    def __init__(self, data):
-        super(BadFileInfo, self).__init__()
-        self.data = data
-
-    def __str__(self):
-        return 'Bad file info: %s' % (self.data,)
+    def should_retry_upload(self):
+        return True
 
 
-class BadUploadUrl(B2Error):
-    def __str__(self):
-        return 'Bad upload URL: %s' % (self.message,)
+class AlreadyFailed(B2SimpleError):
+    pass
+
+
+class BadJson(B2SimpleError):
+    prefix = 'Bad request'
+
+
+class BadFileInfo(B2SimpleError):
+    pass
+
+
+class BadUploadUrl(TransientErrorMixin, B2SimpleError):
+    pass
 
 
 class BrokenPipe(B2Error):
@@ -65,7 +86,7 @@ class BrokenPipe(B2Error):
         return True
 
 
-class ChecksumMismatch(B2Error):
+class ChecksumMismatch(TransientErrorMixin, B2Error):
     def __init__(self, checksum_type, expected, actual):
         super(ChecksumMismatch, self).__init__()
         self.checksum_type = checksum_type
@@ -77,6 +98,11 @@ class ChecksumMismatch(B2Error):
 
 
 class CommandError(B2Error):
+    """
+    b2 command error (user caused). Accepts exactly one argument.
+    We expect users of shell scripts will parse our __str__ output.
+    """
+
     def __init__(self, message):
         super(CommandError, self).__init__()
         self.message = message
@@ -85,88 +111,35 @@ class CommandError(B2Error):
         return self.message
 
 
-class B2ConnectionError(B2Error):
-    def __init__(self, message):
-        super(B2ConnectionError, self).__init__()
-        self.message = message
-
-    def __str__(self):
-        return 'Connection error: %s' % (self.message,)
-
-    def should_retry_http(self):
-        return True
-
-    def should_retry_upload(self):
-        return True
+class B2ConnectionError(TransientErrorMixin, B2SimpleError):
+    pass
 
 
-class DestFileNewer(B2Error):
-    def __init__(self, file_name):
-        super(DestFileNewer, self).__init__()
-        self.file_name = file_name
+class B2ConnectionTimeout(TransientErrorMixin, B2SimpleError):
+    pass
 
-    def __str__(self):
-        return 'destination file is newer: %s' % (self.file_name,)
+
+class B2ReadTimeout(TransientErrorMixin, B2SimpleError):
+    pass
+
+
+class DestFileNewer(B2SimpleError):
+    prefix = 'destination file is newer'
 
     def should_retry_http(self):
         return True
 
 
-class B2ReadTimeout(B2Error):
-    def __init__(self, message):
-        super(B2ConnectionTimeout, self).__init__()
-        self.message = message
-
-    def should_retry_http(self):
-        return True
-
-    def should_retry_upload(self):
-        return True
-
-    def __str__(self):
-        return 'Connection timeout: %s' % (self.message,)
+class DuplicateBucketName(B2SimpleError):
+    prefix = 'Bucket name is already in use'
 
 
-class B2ConnectionTimeout(B2Error):
-    def __init__(self, message):
-        super(B2ConnectionTimeout, self).__init__()
-        self.message = message
-
-    def should_retry_http(self):
-        return True
-
-    def should_retry_upload(self):
-        return True
-
-    def __str__(self):
-        return 'Connection timeout: %s' % (self.message,)
+class FileAlreadyHidden(B2SimpleError):
+    pass
 
 
-class DuplicateBucketName(B2Error):
-    def __init__(self, bucket_name):
-        super(DuplicateBucketName, self).__init__()
-        self.bucket_name = bucket_name
-
-    def __str__(self):
-        return 'Bucket name is already in use: %s' % (self.bucket_name,)
-
-
-class FileAlreadyHidden(B2Error):
-    def __init__(self, file_name):
-        super(FileAlreadyHidden, self).__init__()
-        self.file_name = file_name
-
-    def __str__(self):
-        return 'File already hidden: %s' % (self.file_name,)
-
-
-class FileNotPresent(B2Error):
-    def __init__(self, file_name):
-        super(FileNotPresent, self).__init__()
-        self.file_name = file_name
-
-    def __str__(self):
-        return 'File not present: %s' % (self.file_name,)
+class FileNotPresent(B2SimpleError):
+    pass
 
 
 class InvalidAuthToken(B2Error):
@@ -207,22 +180,12 @@ class MaxRetriesExceeded(B2Error):
         )
 
 
-class MissingPart(B2Error):
-    def __init__(self, key):
-        super(MissingPart, self).__init__()
-        self.key = key
-
-    def __str__(self):
-        return 'Part number has not been uploaded: %s' % (self.key,)
+class MissingPart(B2SimpleError):
+    prefix = 'Part number has not been uploaded'
 
 
-class NonExistentBucket(B2Error):
-    def __init__(self, bucket_name_or_id):
-        super(NonExistentBucket, self).__init__()
-        self.bucket_name_or_id = bucket_name_or_id
-
-    def __str__(self):
-        return 'No such bucket: %s' % (self.bucket_name_or_id,)
+class NonExistentBucket(B2SimpleError):
+    prefix = 'No such bucket'
 
 
 class PartSha1Mismatch(B2Error):
@@ -234,23 +197,10 @@ class PartSha1Mismatch(B2Error):
         return 'Part number %s has wrong SHA1' % (self.key,)
 
 
-class ServiceError(B2Error):
+class ServiceError(TransientErrorMixin, B2Error):
     """
     Used for HTTP status codes 500 through 599.
     """
-
-    def __init__(self, message):
-        super(ServiceError, self).__init__()
-        self.message = message
-
-    def __str__(self):
-        return self.message
-
-    def should_retry_http(self):
-        return True
-
-    def should_retry_upload(self):
-        return True
 
 
 class StorageCapExceeded(B2Error):
@@ -266,7 +216,7 @@ class TooManyRequests(B2Error):
         return True
 
 
-class TruncatedOutput(B2Error):
+class TruncatedOutput(TransientErrorMixin, B2Error):
     def __init__(self, bytes_read, file_size):
         super(TruncatedOutput, self).__init__()
         self.bytes_read = bytes_read
@@ -277,13 +227,8 @@ class TruncatedOutput(B2Error):
                                              self.file_size,)
 
 
-class UnknownError(B2Error):
-    def __init__(self, message):
-        super(UnknownError, self).__init__()
-        self.message = message
-
-    def __str__(self):
-        return 'unknown error: %s' % (self.message,)
+class UnknownError(B2SimpleError):
+    pass
 
 
 class UnknownHost(B2Error):
@@ -292,12 +237,7 @@ class UnknownHost(B2Error):
 
 
 class UnrecognizedBucketType(B2Error):
-    def __init__(self, type_):
-        super(UnrecognizedBucketType, self).__init__()
-        self.type_ = type_
-
-    def __str__(self):
-        return 'Unrecognized bucket type: %s' % (self.type_,)
+    pass
 
 
 def interpret_b2_error(status, code, message, post_params=None):

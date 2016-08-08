@@ -11,6 +11,7 @@
 from __future__ import division, print_function
 
 import hashlib
+import re
 import shutil
 import tempfile
 import time
@@ -259,3 +260,10 @@ def format_and_scale_fraction(numerator, denominator, unit):
     # format it
     scaled_numerator = numerator / scale
     return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
+
+
+_CAMELCASE_TO_UNDERSCORE_RE = re.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
+
+
+def camelcase_to_underscore(input_):
+    return _CAMELCASE_TO_UNDERSCORE_RE.sub(r'_\1', input_).lower()
