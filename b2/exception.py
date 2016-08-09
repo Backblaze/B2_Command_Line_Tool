@@ -115,11 +115,7 @@ class B2ConnectionError(TransientErrorMixin, B2SimpleError):
     pass
 
 
-class B2ConnectionTimeout(TransientErrorMixin, B2SimpleError):
-    pass
-
-
-class B2ReadTimeout(TransientErrorMixin, B2SimpleError):
+class B2RequestTimeout(TransientErrorMixin, B2SimpleError):
     pass
 
 
