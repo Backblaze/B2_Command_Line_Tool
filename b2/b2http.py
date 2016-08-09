@@ -17,7 +17,7 @@ import requests
 import six
 import time
 
-from .exception import B2Error, BrokenPipe, B2ConnectionError, B2ConnectionTimeout, B2ReadTimeout, interpret_b2_error, UnknownError, UnknownHost
+from .exception import B2Error, BrokenPipe, B2ConnectionError, B2RequestTimeout, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 from six.moves import range
 
@@ -71,11 +71,8 @@ def _translate_errors(fcn, post_params=None):
                     raise BrokenPipe()
         raise B2ConnectionError(str(e0))
 
-    except requests.ConnectTimeout as e:
-        raise B2ConnectionTimeout(str(e))
-
-    except requests.ReadTimeout as e:
-        raise B2ReadTimeout(str(e))
+    except requests.Timeout as e:
+        raise B2RequestTimeout(str(e))
 
     except Exception as e:
         # Don't expect this to happen.

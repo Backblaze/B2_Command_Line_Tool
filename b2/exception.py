@@ -21,6 +21,10 @@ class B2Error(Exception):
     def prefix(self):
         """
         nice auto-generated error message prefix
+        >>> B2SimpleError().prefix
+        'Simple error'
+        >>> AlreadyFailed().prefix
+        'Already failed'
         """
         prefix = self.__class__.__name__
         if prefix.startswith('B2'):
@@ -115,11 +119,7 @@ class B2ConnectionError(TransientErrorMixin, B2SimpleError):
     pass
 
 
-class B2ConnectionTimeout(TransientErrorMixin, B2SimpleError):
-    pass
-
-
-class B2ReadTimeout(TransientErrorMixin, B2SimpleError):
+class B2RequestTimeout(TransientErrorMixin, B2SimpleError):
     pass
 
 
