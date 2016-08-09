@@ -21,6 +21,10 @@ class B2Error(Exception):
     def prefix(self):
         """
         nice auto-generated error message prefix
+        >>> B2SimpleError().prefix
+        'Simple error'
+        >>> AlreadyFailed().prefix
+        'Already failed'
         """
         prefix = self.__class__.__name__
         if prefix.startswith('B2'):
