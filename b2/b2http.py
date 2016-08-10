@@ -256,8 +256,8 @@ def test_http():
 
     # Successful get
     print('TEST: get')
-    with b2_http.get_content('https://api.backblazeb2.com/test/echo_zeros?length=10', {}
-                            ) as response:
+    with b2_http.get_content('https://api.backblazeb2.com/test/echo_zeros?length=10',
+                             {}) as response:
         assert response.status_code == 200
         response_data = six.b('').join(response.iter_content())
         assert response_data == six.b(chr(0) * 10)
