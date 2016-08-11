@@ -27,7 +27,7 @@ class AbstractAccountInfo(object):
     """
 
     REALM_URLS = {
-        'production': 'https://api.backblaze.com',
+        'production': 'https://api.backblazeb2.com',
         'dev': 'http://api.test.blaze:8180',
         'staging': 'https://api.backblaze.net',
     }
