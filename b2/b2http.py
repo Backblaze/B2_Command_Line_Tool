@@ -247,14 +247,17 @@ def test_http():
     # Error from B2
     print('TEST: error object from B2')
     try:
-        b2_http.post_json_return_json('https://api.backblaze.com/b2api/v1/b2_get_file_info', {}, {})
+        b2_http.post_json_return_json(
+            'https://api.backblazeb2.com/b2api/v1/b2_get_file_info', {}, {}
+        )
         assert False, 'should have failed with bad json'
     except BadJson as e:
         assert str(e) == 'Bad request: required field fileId is missing'
 
     # Successful get
     print('TEST: get')
-    with b2_http.get_content('https://api.backblaze.com/test/echo_zeros?length=10', {}) as response:
+    with b2_http.get_content('https://api.backblazeb2.com/test/echo_zeros?length=10',
+                             {}) as response:
         assert response.status_code == 200
         response_data = six.b('').join(response.iter_content())
         assert response_data == six.b(chr(0) * 10)
@@ -262,14 +265,14 @@ def test_http():
     # Successful post
     print('TEST: post')
     response_dict = b2_http.post_json_return_json(
-        'https://api.backblaze.com/api/build_version', {}, {}
+        'https://api.backblazeb2.com/api/build_version', {}, {}
     )
     assert 'timestamp' in response_dict
 
     # Unknown host
     print('TEST: unknown host')
     try:
-        b2_http.post_json_return_json('https://unknown.backblaze.com', {}, {})
+        b2_http.post_json_return_json('https://unknown.backblazeb2.com', {}, {})
         assert False, 'should have failed with unknown host'
     except UnknownHost as e:
         pass
@@ -278,7 +281,7 @@ def test_http():
     print('TEST: broken pipe')
     try:
         data = six.BytesIO(six.b(chr(0)) * 10000000)
-        b2_http.post_content_return_json('https://api.backblaze.com/bad_url', {}, data)
+        b2_http.post_content_return_json('https://api.backblazeb2.com/bad_url', {}, data)
         assert False, 'should have failed with broken pipe'
     except BrokenPipe as e:
         pass
@@ -286,7 +289,7 @@ def test_http():
     # Generic connection error
     print('TEST: generic connection error')
     try:
-        with b2_http.get_content('https://www.backblaze.com:80/bad_url', {}) as response:
+        with b2_http.get_content('https://www.backblazeb2.com:80/bad_url', {}) as response:
             assert False, 'should have failed with connection error'
             response.iter_content()  # make pyflakes happy
     except B2ConnectionError as e:

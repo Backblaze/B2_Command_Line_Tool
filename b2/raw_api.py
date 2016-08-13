@@ -111,7 +111,7 @@ class B2RawApi(AbstractRawApi):
     def _post_json(self, base_url, api_name, auth, **params):
         """
         Helper method for calling an API with the given auth and params.
-        :param base_url: Something like "https://api001.backblaze.com/"
+        :param base_url: Something like "https://api001.backblazeb2.com/"
         :param auth: Passed in Authorization header.
         :param api_name: Example: "b2_create_bucket"
         :param args: The rest of the parameters are passed to B2.
@@ -417,7 +417,7 @@ def test_raw_api_helper(raw_api):
     if application_key is None:
         print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
         sys.exit(1)
-    realm_url = 'https://api.backblaze.com'
+    realm_url = 'https://api.backblazeb2.com'
 
     # b2_authorize_account
     print('b2_authorize_account')
