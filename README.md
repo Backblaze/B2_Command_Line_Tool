@@ -11,7 +11,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.6.4
+Version 0.6.5
 
 # Installation
 
