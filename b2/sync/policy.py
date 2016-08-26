@@ -189,18 +189,21 @@ class DownAndKeepDaysPolicy(DownPolicy):
     """
     pass
 
+def make_b2_delete_note(version, index, transferred):
+    note = ''
+    if version.action == 'hide':
+        note = '(hide marker)'
+    elif transferred or 0 < index:
+        note = '(old version)'
+    return note
 
 def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
     for version_index, version in enumerate(dest_file.versions):
         keep = (version_index == 0) and (source_file is not None) and not transferred
         if not keep:
-            note = ''
-            if version.action == 'hide':
-                note = '(hide marker)'
-            elif transferred or 0 < version_index:
-                note = '(old version)'
             yield B2DeleteAction(
-                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
+                make_b2_delete_note(version, version_index, transferred)
             )
 
 
@@ -217,40 +220,48 @@ def make_b2_keep_days_actions(
     only the 25-day old version can be deleted.  The 15 day-old version
     was visible 10 days ago.
     """
-    prev_age_days = None
-    deleting = False
+    # most recent version older than keepDays (which we must keep to
+    # have a complete snapshot as of keepDays)
+    sentinel = None
+    sentinel_index = None
     for version_index, version in enumerate(dest_file.versions):
         # How old is this version?
         age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
-
-        # We assume that the versions are ordered by time, newest first.
-        assert prev_age_days is None or prev_age_days <= age_days
 
         # Do we need to hide this version?
         if version_index == 0 and source_file is None and version.action == 'upload':
             yield B2HideAction(dest_file.name, dest_folder.make_full_path(dest_file.name))
 
-        # Can we start deleting?  Once we start deleting, all older
-        # versions will also be deleted.
-        if version.action == 'hide':
-            if keep_days < age_days:
-                deleting = True
+        # Is the version too new? If so, we must keep it.
+        if age_days <= keep_days:
+            continue
 
-        # Delete this version
-        if deleting:
-            note = ''
-            if version.action == 'hide':
-                note = '(hide marker)'
-            elif transferred or 0 < version_index:
-                note = '(old version)'
+        # Even if this version does become the sentinel, we know that it
+        # will be useless to keep a sentinel that is just a "hide"
+        # (because there is nothing behind it to hide). So we can delete
+        # it immediately, but we still need to record it as a sentinel
+        # (because anything older should be deleted immediately, too).
+        if version.action == 'hide':
             yield B2DeleteAction(
-                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_, note
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
+                make_b2_delete_note(version, version_index, transferred)
             )
 
-        # Can we start deleting with the next version, based on the
-        # age of this one?
-        if keep_days < age_days:
-            deleting = True
-
-        # Remember this age for next time around the loop.
-        prev_age_days = age_days
+        # We become the sentinel node if there isn't one already, or if
+        # we are newer than the previously-found sentinel. In the latter
+        # case, we must dispose of the old sentinel.
+        if sentinel is None:
+            sentinel = version
+            sentinel_index = version_index
+        elif sentinel.mod_time < version.mod_time:
+            yield B2DeleteAction(
+                dest_file.name, dest_folder.make_full_path(dest_file.name), sentinel.id_,
+                make_b2_delete_note(sentinel, sentinel_index, transferred)
+            )
+            sentinel = version
+            sentinel_index = version_index
+        elif version.action != 'hide':
+            yield B2DeleteAction(
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
+                make_b2_delete_note(version, version_index, transferred)
+            )
