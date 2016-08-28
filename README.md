@@ -87,16 +87,16 @@ You'll need to have these packages installed:
 * six
 * yapf
 
-There is a Makefile with a rule to run the unit tests using the currently active Python:
+There is a `Makefile` with a rule to run the unit tests using the currently active Python:
 
     make test
     
-To test in multiple python virtual environments, set the enviroment variable PYTHON_VIRTUAL_ENVS
+To test in multiple python virtual environments, set the enviroment variable `PYTHON_VIRTUAL_ENVS`
 to be a space-separated list of their root directories.  When set, the makefile will run the
 unit tests in each of the environments.
     
-Before checking in, use the pre-commit.sh script to check code formatting, run
-unit tests, and run integration tests.
+Before checking in, use the `pre-commit.sh` script to check code formatting, run
+unit tests, run integration tests etc.
 
 The integration tests need a file in your home directory called `.b2_auth`
 that contains two lines with nothing on them but your account ID and application key:
