@@ -64,6 +64,10 @@ this:
 You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
 script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
 
+## detailed logs
+
+A hidden option `--logConfig <filename.ini>` can be used to enable logging. An example log configuration can be found [here](contrib/debug_logs.ini).
+
 # Developer Info
 
 You'll need to have these packages installed:
