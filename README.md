@@ -80,6 +80,17 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Developer Info
 
+We encourage outside contributors to perform changes on our codebase. Many such changes have been merged already. In order to make it easier to contribute, core developers of this project:
+
+* provide guidance (through the issue reporting system)
+* provide tool assisted code review (through the Pull Request system)
+* maintain a set of integration tests (run with a production cloud)
+* maintain a set of (well over a hundred) unit tests
+* automatically run unit tests on 14 versions of python (including osx, Jython and pypy)
+* format the code automatically using [yapf](https://github.com/google/yapf)
+* use static code analysis to find subtle/potential issues with maintainability
+* maintain other Continous Integration tools (coverage tracker)
+
 You'll need to have these packages installed:
 
 * nose
