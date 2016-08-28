@@ -12,6 +12,8 @@ from __future__ import absolute_import, print_function
 
 import getpass
 import json
+import logging
+import logging.config
 import os
 import signal
 import sys
@@ -34,6 +36,8 @@ from .raw_api import (test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
+
+logger = logging.getLogger(__name__)
 
 
 def local_path_to_b2_path(path):
@@ -75,7 +79,7 @@ class Command(object):
     OPTION_ARGS = []
 
     # Global explicit arguments.  Not shown in help.
-    GLOBAL_OPTION_ARGS = []
+    GLOBAL_OPTION_ARGS = ['logConfig']
 
     # Optional arguments that you can specify zero or more times and the
     # values are collected into a list.  Default is []
@@ -808,6 +812,9 @@ class ConsoleTool(object):
             self._print_stderr(command.command_usage())
             return 1
 
+        if args.logConfig:
+            logging.config.fileConfig(args.logConfig)
+
         try:
             return command.run(args)
         except MissingAccountData as e:
@@ -889,5 +896,8 @@ def main():
     # This happens when using sync to upload files.
     sys.stdout.flush()
     sys.stderr.flush()
+
+    logging.shutdown()
+
     os._exit(exit_status)
     # sys.exit(exit_status)
