@@ -204,6 +204,7 @@ class AuthorizeAccount(Command):
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
             return 0
         except B2Error as e:
+            logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
 
@@ -821,7 +822,7 @@ class ConsoleTool(object):
         try:
             return command.run(args)
         except MissingAccountData as e:
-            logger.exception('ConsoleTool authorization error')
+            logger.exception('ConsoleTool missing account data error')
             self._print_stderr('ERROR: %s  Use: b2 authorize_account' % (str(e),))
             return 1
         except B2Error as e:
@@ -832,6 +833,9 @@ class ConsoleTool(object):
             logger.exception('ConsoleTool command interrupt')
             self._print('\nInterrupted.  Shutting down...\n')
             return 1
+        except Exception:
+            logger.exception('ConsoleTool unexpected exception')
+            raise
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
@@ -896,6 +900,7 @@ def main():
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
+    logging.info('exiting with status code=%s', exit_status)
 
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures
     # packages is hanging on exit sometimes, waiting for a thread to finish.
