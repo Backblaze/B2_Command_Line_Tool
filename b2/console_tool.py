@@ -12,9 +12,11 @@ from __future__ import absolute_import, print_function
 
 import getpass
 import json
+import locale
 import logging
 import logging.config
 import os
+import platform
 import signal
 import sys
 import textwrap
@@ -160,6 +162,9 @@ class Command(object):
             )
             print("Trying to print: %s" % (repr(args),), file=sys.stderr)
             sys.exit(1)
+
+    def __str__(self):
+        return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
 
 
 class AuthorizeAccount(Command):
@@ -830,6 +835,16 @@ class ConsoleTool(object):
             b2_logger = logging.getLogger('b2')
             b2_logger.setLevel(logging.DEBUG)
             b2_logger.addHandler(handler)
+
+        logger.info('running b2 cli version: %s', VERSION)
+        logger.debug('running on platform: %s', platform.platform())
+        logger.debug(
+            'running on Python version: %s %s', platform.python_implementation(), sys.version
+        )
+        logger.debug('locale: %s', locale.getdefaultlocale())
+        logger.debug('filesystem encoding: %s', sys.getfilesystemencoding())
+
+        logger.info('starting command [%s] %s', command, args)
 
         try:
             return command.run(args)
