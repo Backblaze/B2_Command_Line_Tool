@@ -828,8 +828,7 @@ class ConsoleTool(object):
 
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
-
-        if args.debugLogs:
+        elif args.debugLogs:
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
