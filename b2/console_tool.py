@@ -798,17 +798,20 @@ class ConsoleTool(object):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
         if len(argv) < 2:
+            logger.info('ConsoleTool error - insufficient arguments')
             return self._usage_and_fail()
 
         action = argv[1]
         arg_list = argv[2:]
 
         if action not in self.command_name_to_class:
+            logger.info('ConsoleTool error - unknown command')
             return self._usage_and_fail()
 
         command = self.command_name_to_class[action](self)
         args = command.parse_arg_list(arg_list)
         if args is None:
+            logger.info('ConsoleTool \'args is None\' - printing usage')
             self._print_stderr(command.command_usage())
             return 1
 
@@ -818,12 +821,15 @@ class ConsoleTool(object):
         try:
             return command.run(args)
         except MissingAccountData as e:
+            logger.exception('ConsoleTool authorization error')
             self._print_stderr('ERROR: %s  Use: b2 authorize_account' % (str(e),))
             return 1
         except B2Error as e:
+            logger.exception('ConsoleTool command error')
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
         except KeyboardInterrupt:
+            logger.exception('ConsoleTool command interrupt')
             self._print('\nInterrupted.  Shutting down...\n')
             return 1
 
