@@ -8,11 +8,17 @@
 #
 ######################################################################
 
+from .utils import repr_dict_deterministically
+
 
 class Arguments(object):
     """
     An object to stick attributes on.
     """
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__.__name__,
+                           repr_dict_deterministically(self.__dict__),)
 
 
 def parse_arg_list(arg_list, option_flags, option_args, list_args, required, optional, arg_parser):
