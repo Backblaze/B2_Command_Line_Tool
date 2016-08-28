@@ -10,6 +10,7 @@
 
 from __future__ import division
 
+import logging
 import re
 import six
 
@@ -21,6 +22,8 @@ try:
     import concurrent.futures as futures
 except ImportError:
     import futures
+
+logger = logging.getLogger(__name__)
 
 
 def next_or_none(iterator):
@@ -140,6 +143,10 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
     in the destination older than history_days.
     """
 
+    logger.debug(
+        'sync_folders(%s, %s, %s, %s, %s, %s, %s)', source_folder, dest_folder, args, now_millis,
+        stdout, no_progress, max_workers
+    )
     # For downloads, make sure that the target directory is there.
     if dest_folder.folder_type() == 'local':
         dest_folder.ensure_present()

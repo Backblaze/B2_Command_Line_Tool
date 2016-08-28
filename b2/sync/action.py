@@ -10,6 +10,7 @@
 
 from abc import (ABCMeta, abstractmethod)
 
+import logging
 import os
 import six
 
@@ -17,6 +18,8 @@ from ..download_dest import DownloadDestLocalFile
 from ..upload_source import UploadSourceLocalFile
 from ..utils import raise_if_shutting_down
 from .report import SyncFileReporter
+
+logger = logging.getLogger(__name__)
 
 
 @six.add_metaclass(ABCMeta)
@@ -36,6 +39,7 @@ class AbstractAction(object):
         try:
             self.do_action(bucket, reporter)
         except Exception as e:
+            logger.exception('an exception occurred in a sync action')
             reporter.error(str(self) + ": " + repr(e) + ' ' + str(e))
             raise  # Re-throw so we can identify failed actions
 
