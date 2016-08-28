@@ -65,11 +65,17 @@ class Command(object):
     # default to False.
     OPTION_FLAGS = []
 
+    # Global option flags.  Not shown in help.
+    GLOBAL_OPTION_FLAGS = []
+
     # Explicit arguments.  These always come before the positional arguments.
     # Putting "color" here means you can put something like "--color blue" on
     # the command line, and args.color will be set to "blue".  These all
     # default to None.
     OPTION_ARGS = []
+
+    # Global explicit arguments.  Not shown in help.
+    GLOBAL_OPTION_ARGS = []
 
     # Optional arguments that you can specify zero or more times and the
     # values are collected into a list.  Default is []
@@ -119,8 +125,8 @@ class Command(object):
     def parse_arg_list(self, arg_list):
         return parse_arg_list(
             arg_list,
-            option_flags=self.OPTION_FLAGS,
-            option_args=self.OPTION_ARGS,
+            option_flags=self.OPTION_FLAGS + self.GLOBAL_OPTION_FLAGS,
+            option_args=self.OPTION_ARGS + self.GLOBAL_OPTION_ARGS,
             list_args=self.LIST_ARGS,
             required=self.REQUIRED,
             optional=self.OPTIONAL,
