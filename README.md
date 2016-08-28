@@ -104,4 +104,4 @@ that contains two lines with nothing on them but your account ID and application
      accountId
      applicationKey
     
-   
+We marked the places in the code which are significantly less intuitive than others in a special way. To find them occurrences, use `git grep '*magic*'`.

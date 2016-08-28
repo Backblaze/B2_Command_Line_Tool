@@ -835,6 +835,8 @@ class ConsoleTool(object):
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
+
+        # a *magic* registry of commands
         self.command_name_to_class = dict(
             (mixed_case_to_underscores(cls.__name__), cls) for cls in Command.__subclasses__()
         )
