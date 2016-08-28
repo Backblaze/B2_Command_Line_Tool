@@ -11,6 +11,7 @@
 from __future__ import division, print_function
 
 import hashlib
+import inspect
 import re
 import shutil
 import tempfile
@@ -274,3 +275,23 @@ def repr_dict_deterministically(dict_):
     # It was hard to read. Therefore we sort items by key.
     fields = ', '.join('%s: %s' % (repr(k), repr(v)) for k, v in sorted(six.iteritems(dict_)))
     return '{%s}' % (fields,)
+
+
+class log_call(object):
+    """
+    """
+
+    def __init__(self, logger):
+        self.logger = logger
+
+    def __call__(self, f):
+        def wrapper(*args, **kwargs):
+            frame = inspect.getouterframes(inspect.currentframe())[1][0]
+            frame_args, _, _, frame_values = inspect.getargvalues(frame)
+            arguments = ', '.join(
+                '%s: %s' % (repr(k), repr(frame_values[k])) for k in sorted(frame_args)
+            )
+            self.logger.info('running %s(%s)' % (f.__name__, arguments))
+            return f(*args, **kwargs)
+
+        return wrapper
