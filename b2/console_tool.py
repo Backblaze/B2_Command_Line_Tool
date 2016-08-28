@@ -70,7 +70,7 @@ class Command(object):
     OPTION_FLAGS = []
 
     # Global option flags.  Not shown in help.
-    GLOBAL_OPTION_FLAGS = []
+    GLOBAL_OPTION_FLAGS = ['debugLogs']
 
     # Explicit arguments.  These always come before the positional arguments.
     # Putting "color" here means you can put something like "--color blue" on
@@ -818,6 +818,18 @@ class ConsoleTool(object):
 
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
+
+        if args.debugLogs:
+            formatter = logging.Formatter(
+                '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
+            )
+            handler = logging.FileHandler('b2_cli.log')
+            handler.setLevel(logging.DEBUG)
+            handler.setFormatter(formatter)
+
+            b2_logger = logging.getLogger('b2')
+            b2_logger.setLevel(logging.DEBUG)
+            b2_logger.addHandler(handler)
 
         try:
             return command.run(args)
