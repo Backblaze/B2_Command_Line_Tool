@@ -832,30 +832,7 @@ class ConsoleTool(object):
             self._print_stderr('ERROR: --logConfig and --debugLogs cannot be used at the same time')
             return 1
 
-        if args.logConfig:
-            logging.config.fileConfig(args.logConfig)
-        elif args.debugLogs:
-            formatter = logging.Formatter(
-                '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
-            )
-            handler = logging.FileHandler('b2_cli.log')
-            handler.setLevel(logging.DEBUG)
-            handler.setFormatter(formatter)
-
-            b2_logger = logging.getLogger('b2')
-            b2_logger.setLevel(logging.DEBUG)
-            b2_logger.addHandler(handler)
-
-        logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
-        logger.debug('platform is %s', platform.platform())
-        logger.debug(
-            'Python version is %s %s', platform.python_implementation(),
-            sys.version.replace('\n', ' ')
-        )
-        logger.debug('locale is %s', locale.getdefaultlocale())
-        logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
-
-        logger.info('starting command [%s] %s', command, args)
+        self._setup_logging(args, command, argv)
 
         try:
             return command.run(args)
@@ -917,6 +894,35 @@ class ConsoleTool(object):
         if download_dest.content_sha1 != 'none':
             self._print('checksum matches')
         return 0
+
+    def _setup_logging(self, args, command, argv):
+        if args.logConfig:
+            logging.config.fileConfig(args.logConfig)
+        elif args.debugLogs:
+            formatter = logging.Formatter(
+                '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
+            )
+            handler = logging.FileHandler('b2_cli.log')
+            handler.setLevel(logging.DEBUG)
+            handler.setFormatter(formatter)
+
+            b2_logger = logging.getLogger('b2')
+            b2_logger.setLevel(logging.DEBUG)
+            b2_logger.addHandler(handler)
+
+        logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
+        logger.debug('platform is %s', platform.platform())
+        logger.debug(
+            'Python version is %s %s', platform.python_implementation(),
+            sys.version.replace('\n', ' ')
+        )
+        logger.debug('locale is %s', locale.getdefaultlocale())
+        logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
+
+        if command.FORBID_LOGGING_ARGUMENTS:
+            logger.info('starting command [%s] (arguments hidden)', command)
+        else:
+            logger.info('starting command [%s] with arguments: %s', command, argv)
 
 
 def decode_sys_argv():
