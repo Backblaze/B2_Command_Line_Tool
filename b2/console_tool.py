@@ -843,7 +843,8 @@ class ConsoleTool(object):
         logger.info('running b2 cli version: %s', VERSION)
         logger.debug('running on platform: %s', platform.platform())
         logger.debug(
-            'running on Python version: %s %s', platform.python_implementation(), sys.version
+            'running on Python version: %s %s', platform.python_implementation(),
+            sys.version.replace('\n', ' ')
         )
         logger.debug('locale: %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding: %s', sys.getfilesystemencoding())
