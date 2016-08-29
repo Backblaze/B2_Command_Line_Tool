@@ -840,14 +840,15 @@ class ConsoleTool(object):
             b2_logger.setLevel(logging.DEBUG)
             b2_logger.addHandler(handler)
 
-        logger.info('running b2 cli version: %s', VERSION)
-        logger.debug('running on platform: %s', platform.platform())
+        logger.info('=' * 80)
+        logger.info('b2 cli version is %s', VERSION)
+        logger.debug('platform is %s', platform.platform())
         logger.debug(
-            'running on Python version: %s %s', platform.python_implementation(),
+            'Python version is %s %s', platform.python_implementation(),
             sys.version.replace('\n', ' ')
         )
-        logger.debug('locale: %s', locale.getdefaultlocale())
-        logger.debug('filesystem encoding: %s', sys.getfilesystemencoding())
+        logger.debug('locale is %s', locale.getdefaultlocale())
+        logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
 
         if command.FORBID_LOGGING_ARGUMENTS:
             logger.info('starting command [%s]', command)
