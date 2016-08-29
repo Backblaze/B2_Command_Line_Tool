@@ -12,6 +12,7 @@ from __future__ import division, print_function
 
 import hashlib
 import inspect
+import logging
 import re
 import shutil
 import tempfile
@@ -279,19 +280,32 @@ def repr_dict_deterministically(dict_):
 
 class log_call(object):
     """
+    A decorator which causes the function execution to be logged using a passed logger
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, only=None):
+        """
+            only - if not None, contains a whitelist (list of names) of arguments that can be logged
+        """
         self.logger = logger
+        self.only = only
 
     def __call__(self, f):
         def wrapper(*args, **kwargs):
-            frame = inspect.getouterframes(inspect.currentframe())[1][0]
-            frame_args, _, _, frame_values = inspect.getargvalues(frame)
-            arguments = ', '.join(
-                '%s: %s' % (repr(k), repr(frame_values[k])) for k in sorted(frame_args)
-            )
-            self.logger.info('running %s(%s)' % (f.__name__, arguments))
+            if self.logger.isEnabledFor(logging.INFO):
+                frame = inspect.getouterframes(inspect.currentframe())[1][0]
+                frame_args, _, _, frame_values = inspect.getargvalues(frame)
+                suffix = ''
+                if self.only is not None:
+                    pre_filter_len = len(frame_args)
+                    frame_args = [arg for arg in frame_args if arg in self.only]
+                    post_filter_len = len(frame_args)
+                    if post_filter_len != pre_filter_len:
+                        suffix = ' (%d arguments were hidden)' % (pre_filter_len - post_filter_len)
+                arguments = ', '.join(
+                    '%s: %s' % (repr(k), repr(frame_values[k])) for k in sorted(frame_args)
+                )
+                self.logger.info('calling %s(%s)%s' % (f.__name__, arguments, suffix))
             return f(*args, **kwargs)
 
         return wrapper
