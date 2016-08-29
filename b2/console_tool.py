@@ -96,6 +96,9 @@ class Command(object):
     # Set to True for commands that should not be listed in the summary.
     PRIVATE = False
 
+    # Set to True for commands that receive sensitive information in arguments
+    FORBID_LOGGING_ARGUMENTS = False
+
     # Parsers for each argument.  Each should be a function that
     # takes a string and returns the vaule.
     ARG_PARSER = {}
@@ -186,6 +189,8 @@ class AuthorizeAccount(Command):
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
 
     OPTIONAL = ['accountId', 'applicationKey']
+
+    FORBID_LOGGING_ARGUMENTS = True
 
     def run(self, args):
         # Handle internal options for testing inside Backblaze.  These
@@ -843,7 +848,10 @@ class ConsoleTool(object):
         logger.debug('locale: %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding: %s', sys.getfilesystemencoding())
 
-        logger.info('starting command [%s] %s', command, args)
+        if command.FORBID_LOGGING_ARGUMENTS:
+            logger.info('starting command [%s]', command)
+        else:
+            logger.info('starting command [%s] with arguments: %s', command, argv)
 
         try:
             return command.run(args)
