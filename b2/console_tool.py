@@ -96,6 +96,9 @@ class Command(object):
     # Set to True for commands that should not be listed in the summary.
     PRIVATE = False
 
+    # Set to True for commands that receive sensitive information in arguments
+    FORBID_LOGGING_ARGUMENTS = False
+
     # Parsers for each argument.  Each should be a function that
     # takes a string and returns the vaule.
     ARG_PARSER = {}
@@ -186,6 +189,8 @@ class AuthorizeAccount(Command):
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
 
     OPTIONAL = ['accountId', 'applicationKey']
+
+    FORBID_LOGGING_ARGUMENTS = True
 
     def run(self, args):
         # Handle internal options for testing inside Backblaze.  These
