@@ -827,6 +827,10 @@ class ConsoleTool(object):
             logger.info('ConsoleTool \'args is None\' - printing usage')
             self._print_stderr(command.command_usage())
             return 1
+        elif args.logConfig and args.debugLogs:
+            logger.info('ConsoleTool \'args.logConfig and args.debugLogs\' were both specified')
+            self._print_stderr('ERROR: --logConfig and --debugLogs cannot be used at the same time')
+            return 1
 
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
