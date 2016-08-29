@@ -41,6 +41,8 @@ from .version import (VERSION)
 
 logger = logging.getLogger(__name__)
 
+SEPARATOR = '=' * 40
+
 
 def local_path_to_b2_path(path):
     """
@@ -840,8 +842,7 @@ class ConsoleTool(object):
             b2_logger.setLevel(logging.DEBUG)
             b2_logger.addHandler(handler)
 
-        logger.info('=' * 80)
-        logger.info('b2 cli version is %s', VERSION)
+        logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
         logger.debug(
             'Python version is %s %s', platform.python_implementation(),
@@ -933,7 +934,7 @@ def main():
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
-    logging.info('exiting with status code=%s', exit_status)
+    logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures
     # packages is hanging on exit sometimes, waiting for a thread to finish.
