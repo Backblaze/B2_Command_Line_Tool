@@ -219,6 +219,10 @@ def make_b2_keep_days_actions(
     """
     prev_age_days = None
     deleting = False
+    if dest_file is None:
+        # B2 does not really store folders, so there is no need to hide
+        # them or delete them
+        raise StopIteration()
     for version_index, version in enumerate(dest_file.versions):
         # How old is this version?
         age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
