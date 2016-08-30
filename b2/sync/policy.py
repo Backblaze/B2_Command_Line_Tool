@@ -189,6 +189,7 @@ class DownAndKeepDaysPolicy(DownPolicy):
     """
     pass
 
+
 def make_b2_delete_note(version, index, transferred):
     note = ''
     if version.action == 'hide':
@@ -196,6 +197,7 @@ def make_b2_delete_note(version, index, transferred):
     elif transferred or 0 < index:
         note = '(old version)'
     return note
+
 
 def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
     """
