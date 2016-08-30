@@ -372,6 +372,16 @@ class TestMakeSyncActions(unittest.TestCase):
             src_file, None, FakeArgs(), ['b2_upload(/dir/a.txt, folder/a.txt, 100)']
         )
 
+    def test_dir_not_there_b2_keepdays(self):  # reproduces issue 220
+        src_file = b2_file('directory/a.txt', [100])
+        actions = ['b2_upload(/dir/directory/a.txt, folder/directory/a.txt, 100)']
+        self._check_local_to_b2(src_file, None, FakeArgs(keepDays=1), actions)
+
+    def test_dir_not_there_b2_delete(self):  # reproduces issue 218
+        src_file = b2_file('directory/a.txt', [100])
+        actions = ['b2_upload(/dir/directory/a.txt, folder/directory/a.txt, 100)']
+        self._check_local_to_b2(src_file, None, FakeArgs(delete=True), actions)
+
     def test_not_there_local(self):
         src_file = b2_file('a.txt', [100])
         actions = ['b2_download(folder/a.txt, id_a_100, /dir/a.txt, 100)']
