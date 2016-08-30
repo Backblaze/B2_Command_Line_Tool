@@ -191,6 +191,9 @@ class DownAndKeepDaysPolicy(DownPolicy):
 
 
 def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
+    """
+    Creates the actions to delete files stored on B2, which are not present locally.
+    """
     if dest_file is None:
         # B2 does not really store folders, so there is no need to hide
         # them or delete them
