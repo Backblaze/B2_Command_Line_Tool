@@ -13,10 +13,14 @@ from abc import ABCMeta
 import six
 
 from .utils import camelcase_to_underscore
-
+a = 0
 
 @six.add_metaclass(ABCMeta)
 class B2Error(Exception):
+    def __init__(self, *args, **kwargs):
+        super(B2Error, self).__init__(*args, **kwargs)
+        global a
+        a += 1
     @property
     def prefix(self):
         """

@@ -33,7 +33,6 @@ class CorruptAccountInfo(AccountInfoError):
 
 class MissingAccountData(AccountInfoError):
     def __init__(self, key):
-        super(MissingAccountData, self).__init__()
         self.key = key
 
     def __str__(self):
