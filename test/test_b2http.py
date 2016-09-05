@@ -8,14 +8,15 @@
 #
 ######################################################################
 
-from b2.b2http import _translate_and_retry, _translate_errors, B2Http
-from b2.exception import BadJson, BrokenPipe, B2ConnectionError, ServiceError, UnknownError, UnknownHost
-from b2.version import USER_AGENT
 import requests
 import six
 import socket
 import sys
-import unittest
+
+from .test_base import TestBase
+from b2.b2http import _translate_and_retry, _translate_errors, B2Http
+from b2.exception import BadJson, BrokenPipe, B2ConnectionError, ServiceError, UnknownError, UnknownHost
+from b2.version import USER_AGENT
 
 if sys.version_info < (3, 3):
     from mock import call, MagicMock, patch
@@ -23,7 +24,7 @@ else:
     from unittest.mock import call, MagicMock, patch
 
 
-class TestTranslateErrors(unittest.TestCase):
+class TestTranslateErrors(TestBase):
     def test_ok(self):
         response = MagicMock()
         response.status_code = 200
@@ -96,7 +97,7 @@ class TestTranslateErrors(unittest.TestCase):
             pass
 
 
-class TestTranslateAndRetry(unittest.TestCase):
+class TestTranslateAndRetry(TestBase):
     def setUp(self):
         self.response = MagicMock()
         self.response.status_code = 200
@@ -140,7 +141,7 @@ class TestTranslateAndRetry(unittest.TestCase):
             self.assertEqual([call(1.0), call(1.5)], mock_time.mock_calls)
 
 
-class TestB2Http(unittest.TestCase):
+class TestB2Http(TestBase):
 
     URL = 'http://example.com'
     HEADERS = dict(my_header='my_value')

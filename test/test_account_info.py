@@ -15,10 +15,10 @@ from nose import SkipTest
 import os
 import platform
 import tempfile
-import unittest
 
 import six
 
+from .test_base import TestBase
 from b2.account_info.upload_url_pool import UploadUrlPool
 from b2.account_info.exception import CorruptAccountInfo, MissingAccountData
 
@@ -32,7 +32,7 @@ except ImportError:
     import mock
 
 
-class TestUploadUrlPool(unittest.TestCase):
+class TestUploadUrlPool(TestBase):
     def setUp(self):
         self.pool = UploadUrlPool()
 
@@ -58,7 +58,7 @@ class TestUploadUrlPool(unittest.TestCase):
         self.assertEqual((None, None), self.pool.take('b'))
 
 
-class TestSqliteAccountInfo(unittest.TestCase):
+class TestSqliteAccountInfo(TestBase):
     def __init__(self, *args, **kwargs):
         super(TestSqliteAccountInfo, self).__init__(*args, **kwargs)
         self.db_path = tempfile.NamedTemporaryFile(

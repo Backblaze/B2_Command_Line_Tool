@@ -8,12 +8,11 @@
 #
 ######################################################################
 
-import unittest
-
+from .test_base import TestBase
 from b2.exception import AlreadyFailed, BadUploadUrl, CommandError
 
 
-class TestExceptions(unittest.TestCase):
+class TestExceptions(TestBase):
     def test_bad_upload_url_exception(self):
         try:
             raise BadUploadUrl('foo')

@@ -12,11 +12,11 @@ from __future__ import absolute_import, division, print_function
 
 import os
 import sys
-import unittest
 
 import six
 
 from .stub_account_info import StubAccountInfo
+from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
@@ -87,7 +87,7 @@ class CanRetry(B2Error):
         return self.can_retry
 
 
-class TestCaseWithBucket(unittest.TestCase):
+class TestCaseWithBucket(TestBase):
     def setUp(self):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()

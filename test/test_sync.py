@@ -16,6 +16,7 @@ import unittest
 
 import six
 
+from .test_base import TestBase
 from b2.exception import CommandError, DestFileNewer
 from b2.file_version import FileVersionInfo
 from b2.sync.folder import AbstractFolder, B2Folder, LocalFolder
@@ -41,7 +42,7 @@ def write_file(path, contents):
         f.write(contents)
 
 
-class TestLocalFolder(unittest.TestCase):
+class TestLocalFolder(TestBase):
     NAMES = [
         six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
         six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
@@ -82,7 +83,7 @@ class TestLocalFolder(unittest.TestCase):
             )
 
 
-class TestB2Folder(unittest.TestCase):
+class TestB2Folder(TestBase):
     def setUp(self):
         self.bucket = MagicMock()
         self.api = MagicMock()
@@ -150,7 +151,7 @@ class FakeFolder(AbstractFolder):
             return 'folder/' + name
 
 
-class TestParseSyncFolder(unittest.TestCase):
+class TestParseSyncFolder(TestBase):
     def test_b2_double_slash(self):
         self._check_one('B2Folder(my-bucket, folder/path)', 'b2://my-bucket/folder/path')
 
@@ -183,7 +184,7 @@ class TestParseSyncFolder(unittest.TestCase):
         self.assertEqual(expected, str(parse_sync_folder(six.u(to_parse), api)))
 
 
-class TestZipFolders(unittest.TestCase):
+class TestZipFolders(TestBase):
     def setUp(self):
         self.reporter = MagicMock()
 
@@ -293,7 +294,7 @@ def local_file(name, mod_times, size=10):
     return File(name, versions)
 
 
-class TestMakeSyncActions(unittest.TestCase):
+class TestMakeSyncActions(TestBase):
     def setUp(self):
         self.reporter = MagicMock()
 
