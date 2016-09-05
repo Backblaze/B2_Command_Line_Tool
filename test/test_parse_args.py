@@ -8,12 +8,11 @@
 #
 ######################################################################
 
-import unittest
-
+from .test_base import TestBase
 from b2.parse_args import parse_arg_list
 
 
-class TestParseArgs(unittest.TestCase):
+class TestParseArgs(TestBase):
 
     NO_ARGS = {
         'option_flags': [],

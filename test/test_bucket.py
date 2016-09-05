@@ -12,11 +12,11 @@ from __future__ import absolute_import, division, print_function
 
 import os
 import sys
-import unittest
 
 import six
 
-from stub_account_info import StubAccountInfo
+from .stub_account_info import StubAccountInfo
+from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
@@ -87,7 +87,7 @@ class CanRetry(B2Error):
         return self.can_retry
 
 
-class TestCaseWithBucket(unittest.TestCase):
+class TestCaseWithBucket(TestBase):
     def setUp(self):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()
@@ -175,8 +175,7 @@ class TestListUnfinished(TestCaseWithBucket):
         file2 = self.bucket.start_large_file('file2.txt', 'text/plain', {})
         file3 = self.bucket.start_large_file('file3.txt', 'text/plain', {})
         self.assertEqual(
-            [file1, file2, file3],
-            list(self.bucket.list_unfinished_large_files(batch_size=1))
+            [file1, file2, file3], list(self.bucket.list_unfinished_large_files(batch_size=1))
         )
 
     def _make_file(self, file_id, file_name):
@@ -245,8 +244,7 @@ class TestLs(TestCaseWithBucket):
         ]
         actual = [
             (info.id_, info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('bb', show_versions=True,
-                                                 fetch_count=1)
+            for (info, folder) in self.bucket.ls('bb', show_versions=True, fetch_count=1)
         ]
         self.assertEqual(expected, actual)
 
@@ -381,10 +379,7 @@ class TestUpload(TestCaseWithBucket):
         self._upload_part(large_file_id, 1, data[:part_size])
         progress_listener = StubProgressListener()
         file_info = self.bucket.upload_bytes(
-            data,
-            'file1',
-            progress_listener=progress_listener,
-            file_infos={'property': 'value1'}
+            data, 'file1', progress_listener=progress_listener, file_infos={'property': 'value1'}
         )
         self.assertEqual(large_file_id, file_info.id_)
         self._check_file_contents('file1', data)
@@ -397,10 +392,7 @@ class TestUpload(TestCaseWithBucket):
         self._upload_part(large_file_id, 1, data[:part_size])
         progress_listener = StubProgressListener()
         file_info = self.bucket.upload_bytes(
-            data,
-            'file1',
-            progress_listener=progress_listener,
-            file_infos={'property': 'value2'}
+            data, 'file1', progress_listener=progress_listener, file_infos={'property': 'value2'}
         )
         self.assertNotEqual(large_file_id, file_info.id_)
         self._check_file_contents('file1', data)

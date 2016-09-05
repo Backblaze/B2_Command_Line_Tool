@@ -8,13 +8,13 @@
 #
 ######################################################################
 
-import b2.utils
-import unittest
-
 import six
 
+from .test_base import TestBase
+import b2.utils
 
-class TestChooseParts(unittest.TestCase):
+
+class TestChooseParts(TestBase):
     def test_it(self):
         self._check_one([(0, 100), (100, 100)], 200, 100)
         self._check_one([(0, 149), (149, 150)], 299, 100)
@@ -31,7 +31,7 @@ class TestChooseParts(unittest.TestCase):
         self.assertEqual(expected, b2.utils.choose_part_ranges(content_length, min_part_size))
 
 
-class TestFormatAndScaleNumber(unittest.TestCase):
+class TestFormatAndScaleNumber(TestBase):
     def test_it(self):
         self._check_one('1 B', 1)
         self._check_one('999 B', 999)
@@ -42,7 +42,7 @@ class TestFormatAndScaleNumber(unittest.TestCase):
         self.assertEqual(expected, b2.utils.format_and_scale_number(x, 'B'))
 
 
-class TestFormatAndScaleFraction(unittest.TestCase):
+class TestFormatAndScaleFraction(TestBase):
     def test_it(self):
         self._check_one('0 / 100 B', 0, 100)
         self._check_one('0.0 / 10.0 kB', 0, 10000)

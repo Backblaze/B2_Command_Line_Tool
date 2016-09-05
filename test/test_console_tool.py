@@ -9,11 +9,11 @@
 ######################################################################
 
 import os
-import unittest
 
 import six
 
-from stub_account_info import StubAccountInfo
+from .stub_account_info import StubAccountInfo
+from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
@@ -27,7 +27,7 @@ except ImportError:
     import mock
 
 
-class TestConsoleTool(unittest.TestCase):
+class TestConsoleTool(TestBase):
     def setUp(self):
         self.account_info = StubAccountInfo()
         self.cache = InMemoryCache()
