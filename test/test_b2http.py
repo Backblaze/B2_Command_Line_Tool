@@ -51,9 +51,8 @@ class TestTranslateErrors(TestBase):
     def test_broken_pipe(self):
         def fcn():
             raise requests.ConnectionError(
-                requests.packages.urllib3.exceptions.ProtocolError(
-                    "dummy", socket.error(20, 'Broken pipe')
-                )
+                requests.packages.urllib3.exceptions.
+                ProtocolError("dummy", socket.error(20, 'Broken pipe'))
             )
         # no assertRaises until 2.7
         try:
