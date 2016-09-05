@@ -103,11 +103,8 @@ class TestSqliteAccountInfo(TestBase):
         with open(self.db_path, 'wb') as f:
             f.write(six.u('not a valid database').encode('utf-8'))
 
-        try:
+        with self.assertRaises(CorruptAccountInfo):
             self._make_info()
-            self.fail('should have thrown CorruptAccountInfo')
-        except CorruptAccountInfo:
-            pass
 
     def test_convert_from_json(self):
         """

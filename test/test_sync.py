@@ -300,33 +300,21 @@ class TestMakeSyncActions(TestBase):
 
     def test_illegal_b2_to_b2(self):
         b2_folder = FakeFolder('b2', [])
-        try:
+        with self.assertRaises(NotImplementedError):
             list(make_folder_sync_actions(b2_folder, b2_folder, FakeArgs(), 0, self.reporter))
-            self.fail('should have raised NotImplementedError')
-        except NotImplementedError:
-            pass
 
     def test_illegal_local_to_local(self):
         local_folder = FakeFolder('local', [])
-        try:
+        with self.assertRaises(NotImplementedError):
             list(make_folder_sync_actions(local_folder, local_folder, FakeArgs(), 0, self.reporter))
-            self.fail('should have raised NotImplementedError')
-        except NotImplementedError:
-            pass
 
     def test_illegal_skip_and_replace(self):
-        try:
+        with self.assertRaises(CommandError):
             self._check_local_to_b2(None, None, FakeArgs(skipNewer=True, replaceNewer=True), [])
-            self.fail('should have thrown ValueError')
-        except CommandError:
-            pass
 
     def test_illegal_delete_and_keep_days(self):
-        try:
+        with self.assertRaises(CommandError):
             self._check_local_to_b2(None, None, FakeArgs(delete=True, keepDays=1), [])
-            self.fail('should have thrown ValueError')
-        except CommandError:
-            pass
 
     def test_file_exclusions(self):
         file_a = local_file('a.txt', [100])
