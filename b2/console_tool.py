@@ -344,6 +344,25 @@ class GetFileInfo(Command):
         return 0
 
 
+class GetFileInfoAndDeleteFileVersion(Command):
+    """
+    b2 get_file_info_and_delete_file_version <fileId>
+
+        Deleting a file requires a file name.  If you just have the file ID,
+        this command saves a step by getting the file info, and then deleting
+        the file.
+    """
+
+    REQUIRED = ['fileId']
+
+    def run(self, args):
+        file_info_response = self.api.get_file_info(args.fileId)
+        delete_response = self.api.delete_file_version(args.fileId, file_info_response['fileName'])
+        result = {'file_info': file_info_response, 'deletion': delete_response.as_dict()}
+        self._print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+
 class Help(Command):
     """
     b2 help [commandName]
