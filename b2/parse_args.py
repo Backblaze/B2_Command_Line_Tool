@@ -15,7 +15,9 @@ class Arguments(object):
     """
 
 
-def parse_arg_list(arg_list, option_flags, option_args, list_args, optional_before, required, optional, arg_parser):
+def parse_arg_list(
+    arg_list, option_flags, option_args, list_args, optional_before, required, optional, arg_parser
+):
     """
     Converts a list of string arguments to an Arguments object, with
     one attribute per parameter.
