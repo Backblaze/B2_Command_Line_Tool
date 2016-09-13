@@ -75,6 +75,10 @@ class Command(object):
     # values are collected into a list.  Default is []
     LIST_ARGS = []
 
+    # Optional, positional, parameters that come before the required
+    # arguments.
+    OPTIONAL_BEFORE = []
+
     # Required positional arguments.  Never None.
     REQUIRED = []
 
@@ -122,6 +126,7 @@ class Command(object):
             option_flags=self.OPTION_FLAGS,
             option_args=self.OPTION_ARGS,
             list_args=self.LIST_ARGS,
+            optional_before=self.OPTIONAL_BEFORE,
             required=self.REQUIRED,
             optional=self.OPTIONAL,
             arg_parser=self.ARG_PARSER

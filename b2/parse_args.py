@@ -15,7 +15,7 @@ class Arguments(object):
     """
 
 
-def parse_arg_list(arg_list, option_flags, option_args, list_args, required, optional, arg_parser):
+def parse_arg_list(arg_list, option_flags, option_args, list_args, optional_before, required, optional, arg_parser):
     """
     Converts a list of string arguments to an Arguments object, with
     one attribute per parameter.
@@ -30,7 +30,7 @@ def parse_arg_list(arg_list, option_flags, option_args, list_args, required, opt
     if not present is None.
 
     List Args act like Option Args, but can be specified more than
-    once, and their values are collected into a liste.  Default is [].
+    once, and their values are collected into a list.  Default is [].
 
     Required positional parameters must be present, and do not have
     a double-dash name preceding them.
@@ -90,6 +90,16 @@ def parse_arg_list(arg_list, option_flags, option_args, list_args, required, opt
                 getattr(result, option).append(parse_arg(option, arg_list))
         else:
             return None
+
+    # Handle optional positional parameters that come first.
+    # We assume that if there are optional parameters, the
+    # ones that come before take precedence over the ones
+    # that come after the required arguments.
+    for arg_name in optional_before:
+        if len(required) < len(arg_list):
+            setattr(result, arg_name, parse_arg(arg_name, arg_list))
+        else:
+            setattr(result, arg_name, None)
 
     # Parse the positional parameters
     for arg_name in required:
