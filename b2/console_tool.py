@@ -279,18 +279,31 @@ class DeleteBucket(Command):
 
 class DeleteFileVersion(Command):
     """
-    b2 delete_file_version <fileName> <fileId>
+    b2 delete_file_version [<fileName>] <fileId>
 
         Permanently and irrevocably deletes one version of a file.
+
+        Specifying the fileName is more efficient than leaving it out.
+        If you omit the fileName, it requires an initial query to B2
+        to get the file name, before making the call to delete the
+        file.
     """
 
-    REQUIRED = ['fileName', 'fileId']
+    OPTIONAL_BEFORE = ['fileName']
+    REQUIRED = ['fileId']
 
     def run(self, args):
-        file_info = self.api.delete_file_version(args.fileId, args.fileName)
-        response = file_info.as_dict()
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        if args.fileName is not None:
+            file_name = args.fileName
+        else:
+            file_name = self._get_file_name_from_file_id(args.fileId)
+        file_info = self.api.delete_file_version(args.fileId, file_name)
+        self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
         return 0
+
+    def _get_file_name_from_file_id(self, file_id):
+        file_info = self.api.get_file_info(file_id)
+        return file_info['fileName']
 
 
 class DownloadFileById(Command):
@@ -346,25 +359,6 @@ class GetFileInfo(Command):
     def run(self, args):
         response = self.api.get_file_info(args.fileId)
         self._print(json.dumps(response, indent=2, sort_keys=True))
-        return 0
-
-
-class GetFileInfoAndDeleteFileVersion(Command):
-    """
-    b2 get_file_info_and_delete_file_version <fileId>
-
-        Deleting a file requires a file name.  If you just have the file ID,
-        this command saves a step by getting the file info, and then deleting
-        the file.
-    """
-
-    REQUIRED = ['fileId']
-
-    def run(self, args):
-        file_info_response = self.api.get_file_info(args.fileId)
-        delete_response = self.api.delete_file_version(args.fileId, file_info_response['fileName'])
-        result = {'file_info': file_info_response, 'deletion': delete_response.as_dict()}
-        self._print(json.dumps(result, indent=2, sort_keys=True))
         return 0
 
 
