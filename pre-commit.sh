@@ -13,14 +13,6 @@ function header
     echo
 }
 
-if yapf --version &> /dev/null
-then
-    echo "yapf is installed"
-else
-    echo "Please install yapf, then try again."
-    exit 1
-fi
-
 header Unit Tests
 
 if ./run-unit-tests.sh
@@ -32,6 +24,12 @@ else
 fi
 
 header Checking Formatting
+
+if ! type yapf &> /dev/null
+then
+    echo "Please install yapf, then try again."
+    exit 1
+fi
 
 if [ "$(git rev-parse ${base_branch})" != "$(git rev-parse ${base_remote}/${base_remote_branch})" ]; then
     echo """running yapf in full mode, because an assumption that master and origin/master are the same, is broken. To fix it, do this:
