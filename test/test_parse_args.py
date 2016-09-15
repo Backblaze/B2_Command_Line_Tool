@@ -88,6 +88,11 @@ class TestParseArgs(TestBase):
         args = parse_arg_list(['a', 'b'], **self.BEFORE_AND_AFTER)
         self.assertEqual(('a', 'b', None), (args.optionalBefore, args.required, args.optional))
 
-    def test_optional_before_and_after(self):
-        args = parse_arg_list(['a', 'b', 'c'], **self.BEFORE_AND_AFTER)
-        self.assertEqual(('a', 'b', 'c'), (args.optionalBefore, args.required, args.optional))
+    def test_same_arg_in_two_places(self):
+        arg_spec = dict(self.NO_ARGS)
+        arg_spec['optional_before'] = ['a']
+        arg_spec['required'] = ['a']
+        with self.assertRaisesRegexp(
+            ValueError, "argument 'a' is in both 'optional_before' an 'required'"
+        ):
+            parse_arg_list([], **arg_spec)

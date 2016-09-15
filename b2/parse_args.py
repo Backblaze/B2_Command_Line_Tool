@@ -8,11 +8,39 @@
 #
 ######################################################################
 
+import six
+
 
 class Arguments(object):
     """
     An object to stick attributes on.
     """
+
+
+def check_for_duplicate_args(args_dict):
+    """
+    Checks that no argument name is listed in multiple places.
+
+    Raises a ValueError if there is a problem.
+
+    This args_dict has a problem because 'required' and 'optional'
+    both contain 'a':
+
+       {
+          'option_args': ['b', 'c'],
+          'required': ['a', 'd']
+          'optional': ['a', 'e']
+       }
+    """
+    categories = sorted(six.iterkeys(args_dict))
+    for index_a, category_a in enumerate(categories):
+        for category_b in categories[index_a + 1:]:
+            names_a = args_dict[category_a]
+            names_b = args_dict[category_b]
+            for common_name in set(names_a) & set(names_b):
+                raise ValueError(
+                    "argument '%s' is in both '%s' an '%s'" % (common_name, category_a, category_b)
+                )
 
 
 def parse_arg_list(
@@ -49,11 +77,23 @@ def parse_arg_list(
     :param option_flags: Names of options that are boolean flags.
     :param option_args: Names of options that have values.
     :param list_args: Names of options whose values are collected into a list.
+    :param optional_before: Names of option positional params that come before the required ones.
     :param required: Names of positional params that must be there.
     :param optional: Names of optional params.
     :param arg_parser: Map from param name to parser for values.
     :return: An Argument object, or None if there was any error parsing.
     """
+
+    # Sanity check the inputs.
+    check_for_duplicate_args(
+        {
+            'option_flags': option_flags,
+            'option_args': option_args,
+            'optional_before': optional_before,
+            'required': required,
+            'optional': optional
+        }
+    )
 
     # Create an object to hold the arguments.
     result = Arguments()
