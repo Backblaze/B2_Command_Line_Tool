@@ -93,6 +93,8 @@ then
     exit 0
 fi
 
+header Integration Tests
+
 function run_integration_tests
 {
     if time python test_b2_command_line.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
@@ -105,7 +107,9 @@ function run_integration_tests
     fi
 }
 
-if [[ -z "$PYTHON_VIRTUAL_ENVS" ]]
+# Check if the variable is set, without triggering an "unbound variable" warning
+# http://stackoverflow.com/a/16753536/95920
+if [[ -z "${PYTHON_VIRTUAL_ENVS:-}" ]]
 then
     run_integration_tests
 else
@@ -117,6 +121,4 @@ else
         set -u
         run_integration_tests
     done
-
 fi
-
