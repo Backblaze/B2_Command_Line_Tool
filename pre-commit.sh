@@ -33,7 +33,7 @@ fi
 
 header Checking Formatting
 
-if [ "$(<.git/refs/heads/${base_branch})" != "$(<.git/refs/remotes/${base_remote}/${base_remote_branch})" ]; then
+if [ "$(git rev-parse ${base_branch})" != "$(git rev-parse ${base_remote}/${base_remote_branch})" ]; then
     echo """running yapf in full mode, because an assumption that master and origin/master are the same, is broken. To fix it, do this:
 git checkout master
 git pull --ff-only
