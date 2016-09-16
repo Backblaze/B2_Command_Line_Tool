@@ -24,3 +24,16 @@
 import sys
 if '/Library/Python/2.7/site-packages' in sys.path:
     sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
+
+# Set default logging handler to avoid "No handler found" warnings.
+import logging
+try:
+    from logging import NullHandler
+except ImportError:  # Python 2.6
+
+    class NullHandler(logging.Handler):
+        def emit(self, record):
+            pass
+
+
+logging.getLogger(__name__).addHandler(NullHandler())

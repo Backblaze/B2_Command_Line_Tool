@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+from .utils import repr_dict_deterministically
+
 import six
 
 
@@ -15,6 +17,10 @@ class Arguments(object):
     """
     An object to stick attributes on.
     """
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__.__name__,
+                           repr_dict_deterministically(self.__dict__),)
 
 
 def check_for_duplicate_args(args_dict):

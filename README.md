@@ -72,6 +72,12 @@ Note that using multiple threads will usually be detrimental to the other users 
 You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
 script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
 
+## detailed logs
+
+A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file (with log rotation at midnight) in current working directory. Please take care to not launch the tool from the directory that you are syncing, or the logs will get synced to the remote server (unless that is really what you want to do).
+
+For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
+
 # Developer Info
 
 You'll need to have these packages installed:

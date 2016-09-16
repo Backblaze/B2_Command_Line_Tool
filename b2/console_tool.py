@@ -12,7 +12,11 @@ from __future__ import absolute_import, print_function
 
 import getpass
 import json
+import locale
+import logging
+import logging.config
 import os
+import platform
 import signal
 import sys
 import textwrap
@@ -34,6 +38,10 @@ from .raw_api import (test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
+
+logger = logging.getLogger(__name__)
+
+SEPARATOR = '=' * 40
 
 
 def local_path_to_b2_path(path):
@@ -65,11 +73,17 @@ class Command(object):
     # default to False.
     OPTION_FLAGS = []
 
+    # Global option flags.  Not shown in help.
+    GLOBAL_OPTION_FLAGS = ['debugLogs']
+
     # Explicit arguments.  These always come before the positional arguments.
     # Putting "color" here means you can put something like "--color blue" on
     # the command line, and args.color will be set to "blue".  These all
     # default to None.
     OPTION_ARGS = []
+
+    # Global explicit arguments.  Not shown in help.
+    GLOBAL_OPTION_ARGS = ['logConfig']
 
     # Optional arguments that you can specify zero or more times and the
     # values are collected into a list.  Default is []
@@ -87,6 +101,9 @@ class Command(object):
 
     # Set to True for commands that should not be listed in the summary.
     PRIVATE = False
+
+    # Set to True for commands that receive sensitive information in arguments
+    FORBID_LOGGING_ARGUMENTS = False
 
     # Parsers for each argument.  Each should be a function that
     # takes a string and returns the vaule.
@@ -123,8 +140,8 @@ class Command(object):
     def parse_arg_list(self, arg_list):
         return parse_arg_list(
             arg_list,
-            option_flags=self.OPTION_FLAGS,
-            option_args=self.OPTION_ARGS,
+            option_flags=self.OPTION_FLAGS + self.GLOBAL_OPTION_FLAGS,
+            option_args=self.OPTION_ARGS + self.GLOBAL_OPTION_ARGS,
             list_args=self.LIST_ARGS,
             optional_before=self.OPTIONAL_BEFORE,
             required=self.REQUIRED,
@@ -156,6 +173,9 @@ class Command(object):
             print("Trying to print: %s" % (repr(args),), file=sys.stderr)
             sys.exit(1)
 
+    def __str__(self):
+        return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
+
 
 class AuthorizeAccount(Command):
     """
@@ -176,6 +196,8 @@ class AuthorizeAccount(Command):
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
 
     OPTIONAL = ['accountId', 'applicationKey']
+
+    FORBID_LOGGING_ARGUMENTS = True
 
     def run(self, args):
         # Handle internal options for testing inside Backblaze.  These
@@ -199,6 +221,7 @@ class AuthorizeAccount(Command):
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
             return 0
         except B2Error as e:
+            logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
 
@@ -820,31 +843,46 @@ class ConsoleTool(object):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
         if len(argv) < 2:
+            logger.info('ConsoleTool error - insufficient arguments')
             return self._usage_and_fail()
 
         action = argv[1]
         arg_list = argv[2:]
 
         if action not in self.command_name_to_class:
+            logger.info('ConsoleTool error - unknown command')
             return self._usage_and_fail()
 
         command = self.command_name_to_class[action](self)
         args = command.parse_arg_list(arg_list)
         if args is None:
+            logger.info('ConsoleTool \'args is None\' - printing usage')
             self._print_stderr(command.command_usage())
             return 1
+        elif args.logConfig and args.debugLogs:
+            logger.info('ConsoleTool \'args.logConfig and args.debugLogs\' were both specified')
+            self._print_stderr('ERROR: --logConfig and --debugLogs cannot be used at the same time')
+            return 1
+
+        self._setup_logging(args, command, argv)
 
         try:
             return command.run(args)
         except MissingAccountData as e:
+            logger.exception('ConsoleTool missing account data error')
             self._print_stderr('ERROR: %s  Use: b2 authorize_account' % (str(e),))
             return 1
         except B2Error as e:
+            logger.exception('ConsoleTool command error')
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
         except KeyboardInterrupt:
+            logger.exception('ConsoleTool command interrupt')
             self._print('\nInterrupted.  Shutting down...\n')
             return 1
+        except Exception:
+            logger.exception('ConsoleTool unexpected exception')
+            raise
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
@@ -889,6 +927,35 @@ class ConsoleTool(object):
             self._print('checksum matches')
         return 0
 
+    def _setup_logging(self, args, command, argv):
+        if args.logConfig:
+            logging.config.fileConfig(args.logConfig)
+        elif args.debugLogs:
+            formatter = logging.Formatter(
+                '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
+            )
+            handler = logging.FileHandler('b2_cli.log')
+            handler.setLevel(logging.DEBUG)
+            handler.setFormatter(formatter)
+
+            b2_logger = logging.getLogger('b2')
+            b2_logger.setLevel(logging.DEBUG)
+            b2_logger.addHandler(handler)
+
+        logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
+        logger.debug('platform is %s', platform.platform())
+        logger.debug(
+            'Python version is %s %s', platform.python_implementation(),
+            sys.version.replace('\n', ' ')
+        )
+        logger.debug('locale is %s', locale.getdefaultlocale())
+        logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
+
+        if command.FORBID_LOGGING_ARGUMENTS:
+            logger.info('starting command [%s] (arguments hidden)', command)
+        else:
+            logger.info('starting command [%s] with arguments: %s', command, argv)
+
 
 def decode_sys_argv():
     """
@@ -909,11 +976,15 @@ def main():
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
+    logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures
     # packages is hanging on exit sometimes, waiting for a thread to finish.
     # This happens when using sync to upload files.
     sys.stdout.flush()
     sys.stderr.flush()
+
+    logging.shutdown()
+
     os._exit(exit_status)
     # sys.exit(exit_status)
