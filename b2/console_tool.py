@@ -554,10 +554,16 @@ class Sync(Command):
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
 
-        Work is done in parallel in multiple threads.  The default
-        number of threads is 10.  Progress is displayed on the
-        console unless '--noProgress' is specified.  A list of
-        actions taken is always printed.
+        Progress is displayed on the console unless '--noProgress' is
+        specified.  A list of actions taken is always printed.
+
+        Users with high performance networks, or file sets with very small
+        files, may benefit from increased parallelism.  Experiment with
+        using the --threads parameter with small values to determine if
+        there are benefits.
+
+        Note that using multiple threads will usually be detrimental to
+        the other users on your network.
 
         You can specify --excludeRegex to selectively ignore files that
         match the given pattern. Ignored files will not copy during
@@ -609,7 +615,7 @@ class Sync(Command):
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
-        max_workers = args.threads or 10
+        max_workers = args.threads or 1
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
