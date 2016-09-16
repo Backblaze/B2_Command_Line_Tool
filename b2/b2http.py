@@ -140,7 +140,8 @@ class B2Http(object):
         Initialize with a reference to the requests module, which makes
         it easy to mock for testing.
         """
-        self.requests = requests_module or requests
+        requests_to_use = requests_module or requests
+        self.session = requests_to_use.Session()
 
     def post_content_return_json(self, url, headers, data, try_count=1, post_params=None):
         """
@@ -166,7 +167,7 @@ class B2Http(object):
         # rewind the data back to the beginning.
         def do_post():
             data.seek(0)
-            return self.requests.post(url, headers=headers, data=data)
+            return self.session.post(url, headers=headers, data=data)
 
         response = _translate_and_retry(do_post, try_count, post_params)
 
@@ -225,7 +226,7 @@ class B2Http(object):
 
         # Do the HTTP GET.
         def do_get():
-            return self.requests.get(url, headers=headers, stream=True)
+            return self.session.get(url, headers=headers, stream=True)
 
         response = _translate_and_retry(do_get, try_count, None)
         return ResponseContextManager(response)

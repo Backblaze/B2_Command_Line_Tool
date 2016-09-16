@@ -149,17 +149,20 @@ class TestB2Http(TestBase):
     PARAMS_JSON_BYTES = six.b('{"fileSize": 100}')
 
     def setUp(self):
-        self.requests = MagicMock()
+        self.session = MagicMock()
         self.response = MagicMock()
-        self.b2_http = B2Http(self.requests)
+
+        requests = MagicMock()
+        requests.Session.return_value = self.session
+        self.b2_http = B2Http(requests)
 
     def test_post_json_return_json(self):
-        self.requests.post.return_value = self.response
+        self.session.post.return_value = self.response
         self.response.status_code = 200
         self.response.content = six.b('{"color": "blue"}')
         response_dict = self.b2_http.post_json_return_json(self.URL, self.HEADERS, self.PARAMS)
         self.assertEqual({'color': 'blue'}, response_dict)
-        (pos_args, kw_args) = self.requests.post.call_args
+        (pos_args, kw_args) = self.session.post.call_args
         self.assertEqual(self.URL, pos_args[0])
         self.assertEqual(self.EXPECTED_HEADERS, kw_args['headers'])
         actual_data = kw_args['data']
@@ -167,9 +170,9 @@ class TestB2Http(TestBase):
         self.assertEqual(self.PARAMS_JSON_BYTES, actual_data.read())
 
     def test_get_content(self):
-        self.requests.get.return_value = self.response
+        self.session.get.return_value = self.response
         self.response.status_code = 200
         with self.b2_http.get_content(self.URL, self.HEADERS) as r:
             self.assertTrue(self.response is r)  # no assertIs until 2.7
-        self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
+        self.session.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
         self.response.close.assert_called_with()
