@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+import six
+
 
 class Arguments(object):
     """
@@ -15,7 +17,35 @@ class Arguments(object):
     """
 
 
-def parse_arg_list(arg_list, option_flags, option_args, list_args, required, optional, arg_parser):
+def check_for_duplicate_args(args_dict):
+    """
+    Checks that no argument name is listed in multiple places.
+
+    Raises a ValueError if there is a problem.
+
+    This args_dict has a problem because 'required' and 'optional'
+    both contain 'a':
+
+       {
+          'option_args': ['b', 'c'],
+          'required': ['a', 'd']
+          'optional': ['a', 'e']
+       }
+    """
+    categories = sorted(six.iterkeys(args_dict))
+    for index_a, category_a in enumerate(categories):
+        for category_b in categories[index_a + 1:]:
+            names_a = args_dict[category_a]
+            names_b = args_dict[category_b]
+            for common_name in set(names_a) & set(names_b):
+                raise ValueError(
+                    "argument '%s' is in both '%s' an '%s'" % (common_name, category_a, category_b)
+                )
+
+
+def parse_arg_list(
+    arg_list, option_flags, option_args, list_args, optional_before, required, optional, arg_parser
+):
     """
     Converts a list of string arguments to an Arguments object, with
     one attribute per parameter.
@@ -30,7 +60,7 @@ def parse_arg_list(arg_list, option_flags, option_args, list_args, required, opt
     if not present is None.
 
     List Args act like Option Args, but can be specified more than
-    once, and their values are collected into a liste.  Default is [].
+    once, and their values are collected into a list.  Default is [].
 
     Required positional parameters must be present, and do not have
     a double-dash name preceding them.
@@ -47,11 +77,23 @@ def parse_arg_list(arg_list, option_flags, option_args, list_args, required, opt
     :param option_flags: Names of options that are boolean flags.
     :param option_args: Names of options that have values.
     :param list_args: Names of options whose values are collected into a list.
+    :param optional_before: Names of option positional params that come before the required ones.
     :param required: Names of positional params that must be there.
     :param optional: Names of optional params.
     :param arg_parser: Map from param name to parser for values.
     :return: An Argument object, or None if there was any error parsing.
     """
+
+    # Sanity check the inputs.
+    check_for_duplicate_args(
+        {
+            'option_flags': option_flags,
+            'option_args': option_args,
+            'optional_before': optional_before,
+            'required': required,
+            'optional': optional
+        }
+    )
 
     # Create an object to hold the arguments.
     result = Arguments()
@@ -90,6 +132,16 @@ def parse_arg_list(arg_list, option_flags, option_args, list_args, required, opt
                 getattr(result, option).append(parse_arg(option, arg_list))
         else:
             return None
+
+    # Handle optional positional parameters that come first.
+    # We assume that if there are optional parameters, the
+    # ones that come before take precedence over the ones
+    # that come after the required arguments.
+    for arg_name in optional_before:
+        if len(required) < len(arg_list):
+            setattr(result, arg_name, parse_arg(arg_name, arg_list))
+        else:
+            setattr(result, arg_name, None)
 
     # Parse the positional parameters
     for arg_name in required:
