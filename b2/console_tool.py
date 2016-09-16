@@ -565,6 +565,10 @@ class Sync(Command):
         Note that using multiple threads will usually be detrimental to
         the other users on your network.
 
+        If you have a low-bandwidth connection, running multiple threads
+        will mean that each one has a very low data transfer rate.  With
+        low bandwidth, it's usually better just to use one or two threads.
+
         You can specify --excludeRegex to selectively ignore files that
         match the given pattern. Ignored files will not copy during
         the sync operation. The pattern is a regular expression
@@ -601,6 +605,10 @@ class Sync(Command):
 
         To make the destination exactly match the source, use:
             b2 sync --delete --replaceNewer ... ...
+
+        WARNING: Using '--delete' deletes files!  We recommend not using it.
+        If you use --keepDays instead, that gives you time to recover your
+        files if you discover they are missing on the source end.
 
         To make the destination match the source, but retain previous versions
         for 30 days:
