@@ -557,10 +557,14 @@ class Sync(Command):
         Progress is displayed on the console unless '--noProgress' is
         specified.  A list of actions taken is always printed.
 
-        Users with high performance networks, or file sets with very small
-        files, may benefit from increased parallelism.  Experiment with
-        using the --threads parameter with small values to determine if
-        there are benefits.
+        Users with high-performance networks, or file sets with very small
+        files, will benefit from multi-threaded uploads.  The default number
+        of threads is 10.  Experiment with the --threads parameter if the
+        default is not working well.
+
+        Users with low-performance networks may benefit from reducing the
+        number of threads.  Using just one thread will minimize the impact
+        on other users of the network.
 
         Note that using multiple threads will usually be detrimental to
         the other users on your network.
@@ -615,7 +619,7 @@ class Sync(Command):
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
-        max_workers = args.threads or 1
+        max_workers = args.threads or 10
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
