@@ -606,6 +606,10 @@ class Sync(Command):
         To make the destination exactly match the source, use:
             b2 sync --delete --replaceNewer ... ...
 
+        WARNING: Using '--delete' deletes files!  We recommend not using it.
+        If you use --keepDays instead, you will have some time to recover your
+        files if you discover they are missing on the source end.
+
         To make the destination match the source, but retain previous versions
         for 30 days:
             b2 sync --keepDays 30 --replaceNewer ... b2://...
