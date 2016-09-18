@@ -41,11 +41,15 @@ def _filter_folder(folder, reporter, exclusions, inclusions):
     Filters a folder through a list of exclusions and inclusions.
     Inclusions override exclusions.
     """
+    logging.debug('_filter_folder() exclusions for %s are %s', folder, exclusions)
+    logging.debug('_filter_folder() inclusions for %s are %s', folder, inclusions)
     for f in folder.all_files(reporter):
         if any(pattern.match(f.name) for pattern in inclusions):
+            logging.debug('_filter_folder() included %s from %s', f, folder)
             yield f
             continue
         if any(pattern.match(f.name) for pattern in exclusions):
+            logging.debug('_filter_folder() excluded %s from %s', f, folder)
             continue
         yield f
 
@@ -139,6 +143,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         else:
             if dest_file is not None:
                 reporter.update_compare(1)
+
         for action in make_file_sync_actions(
             sync_type, source_file, dest_file, source_folder, dest_folder, args, now_millis
         ):

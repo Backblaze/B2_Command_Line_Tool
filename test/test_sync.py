@@ -150,6 +150,9 @@ class FakeFolder(AbstractFolder):
         else:
             return 'folder/' + name
 
+    def __str__(self):
+        return '%s(%s, %s)' % (self.__class__.__name__, self.f_type, self.make_full_path(''))
+
 
 class TestParseSyncFolder(TestBase):
     def test_b2_double_slash(self):
@@ -243,6 +246,7 @@ class FakeArgs(object):
         compareVersions=None,
         excludeRegex=None,
         includeRegex=None,
+        debugLogs=True,
     ):
         self.delete = delete
         self.keepDays = keepDays
@@ -255,6 +259,7 @@ class FakeArgs(object):
         if includeRegex is None:
             includeRegex = []
         self.includeRegex = includeRegex
+        self.debugLogs = debugLogs
 
 
 def b2_file(name, mod_times, size=10):
