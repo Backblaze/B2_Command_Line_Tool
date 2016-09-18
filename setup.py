@@ -1,3 +1,13 @@
+######################################################################
+#
+# File: setup.py
+#
+# Copyright 2016 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+
 """A setuptools based setup module.
 See:
 https://packaging.python.org/en/latest/distributing.html
