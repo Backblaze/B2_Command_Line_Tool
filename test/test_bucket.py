@@ -13,7 +13,6 @@ from __future__ import absolute_import, division, print_function
 from nose import SkipTest
 import os
 import platform
-import sys
 
 import six
 
@@ -34,9 +33,6 @@ try:
     import unittest.mock as mock
 except ImportError:
     import mock
-
-# The assertRaises context manager isn't in 2.6, so we don't bother running those tests there
-IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
 
 def write_file(path, data):
@@ -314,18 +310,16 @@ class TestUpload(TestCaseWithBucket):
         self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_file_one_fatal_error(self):
-        if IS_27_OR_LATER:
-            self.simulator.set_upload_errors([CanRetry(False)])
-            data = six.b('hello world')
-            with self.assertRaises(CanRetry):
-                self.bucket.upload_bytes(data, 'file1')
+        self.simulator.set_upload_errors([CanRetry(False)])
+        data = six.b('hello world')
+        with self.assertRaises(CanRetry):
+            self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_file_too_many_retryable_errors(self):
-        if IS_27_OR_LATER:
-            self.simulator.set_upload_errors([CanRetry(True)] * 6)
-            data = six.b('hello world')
-            with self.assertRaises(MaxRetriesExceeded):
-                self.bucket.upload_bytes(data, 'file1')
+        self.simulator.set_upload_errors([CanRetry(True)] * 6)
+        data = six.b('hello world')
+        with self.assertRaises(MaxRetriesExceeded):
+            self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_large(self):
         data = self._make_data(self.simulator.MIN_PART_SIZE * 3)
