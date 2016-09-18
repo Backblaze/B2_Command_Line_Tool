@@ -8,8 +8,21 @@
 #
 ######################################################################
 
+import six
+
 from .test_base import TestBase
-from b2.exception import AlreadyFailed, BadUploadUrl, CommandError
+from b2.exception import AlreadyFailed, B2Error, BadUploadUrl, CommandError
+
+
+class TestB2Error(TestBase):
+    def test_plain_ascii(self):
+        self.assertEqual('message', str(B2Error('message')))
+
+    def test_unicode(self):
+        if six.PY2:
+            self.assertEqual('\\u81ea\\u7531', str(B2Error(u'\u81ea\u7531')))
+        else:
+            self.assertEqual(u'\u81ea\u7531', str(B2Error(u'\u81ea\u7531')))
 
 
 class TestExceptions(TestBase):

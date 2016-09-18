@@ -18,6 +18,18 @@ from .utils import camelcase_to_underscore
 
 @six.add_metaclass(ABCMeta)
 class B2Error(Exception):
+    def __init__(self, *args, **kwargs):
+        """
+        Python 2 does not like it when you pass unicode as the message
+        in an exception.  We like to use file names in exception messages.
+        To avoid problems, if the message has any non-ascii characters in
+        it, they are replaced with backslash-uNNNN
+        """
+        if six.PY2:
+            if 0 < len(args) and isinstance(args[0], six.text_type):
+                args = tuple([json.dumps(args[0])[1:-1]] + list(args[1:]))
+        super(B2Error, self).__init__(*args, **kwargs)
+
     @property
     def prefix(self):
         """
@@ -241,23 +253,16 @@ class UnrecognizedBucketType(B2Error):
     pass
 
 
-def safe_ascii_file_name(name):
-    """
-    Returns the JSON version of a file name, without the quotes.
-    """
-    return json.dumps(name)[1:-1]
-
-
 def interpret_b2_error(status, code, message, post_params=None):
     post_params = post_params or {}
     if status == 400 and code == "already_hidden":
-        return FileAlreadyHidden(safe_ascii_file_name(post_params['fileName']))
+        return FileAlreadyHidden(post_params['fileName'])
     elif status == 400 and code == 'bad_json':
         return BadJson(message)
     elif status == 400 and code in ("no_such_file", "file_not_present"):
         # hide_file returns "no_such_file"
         # delete_file_version returns "file_not_present"
-        return FileNotPresent(safe_ascii_file_name(post_params['fileName']))
+        return FileNotPresent(post_params['fileName'])
     elif status == 400 and code == "duplicate_bucket_name":
         return DuplicateBucketName(post_params['bucketName'])
     elif status == 400 and code == "missing_part":
