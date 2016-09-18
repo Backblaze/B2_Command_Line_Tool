@@ -42,14 +42,16 @@ def write_file(path, contents):
         f.write(contents)
 
 
-class TestLocalFolder(TestBase):
+class TestSync(TestBase):
+    def setUp(self):
+        self.reporter = MagicMock()
+
+
+class TestLocalFolder(TestSync):
     NAMES = [
         six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
         six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
     ]
-
-    def setUp(self):
-        self.reporter = MagicMock()
 
     @classmethod
     def _create_files(cls, root_dir, relative_paths):
@@ -83,11 +85,11 @@ class TestLocalFolder(TestBase):
             )
 
 
-class TestB2Folder(TestBase):
+class TestB2Folder(TestSync):
     def setUp(self):
+        super(TestB2Folder, self).setUp()
         self.bucket = MagicMock()
         self.api = MagicMock()
-        self.reporter = MagicMock()
         self.api.get_bucket_by_name.return_value = self.bucket
         self.b2_folder = B2Folder('bucket-name', 'folder', self.api)
 
@@ -187,10 +189,7 @@ class TestParseSyncFolder(TestBase):
         self.assertEqual(expected, str(parse_sync_folder(six.u(to_parse), api)))
 
 
-class TestZipFolders(TestBase):
-    def setUp(self):
-        self.reporter = MagicMock()
-
+class TestZipFolders(TestSync):
     def test_empty(self):
         folder_a = FakeFolder('b2', [])
         folder_b = FakeFolder('b2', [])
@@ -303,10 +302,7 @@ def local_file(name, mod_times, size=10):
     return File(name, versions)
 
 
-class TestExclusions(TestBase):
-    def setUp(self):
-        self.reporter = MagicMock()
-
+class TestExclusions(TestSync):
     def _check_folder_sync(self, expected_actions, fakeargs):
         # only local
         file_a = local_file('a.txt', [100])
@@ -356,10 +352,7 @@ class TestExclusions(TestBase):
         self._check_folder_sync(expected_actions, fakeargs)
 
 
-class TestMakeSyncActions(TestBase):
-    def setUp(self):
-        self.reporter = MagicMock()
-
+class TestMakeSyncActions(TestSync):
     def test_illegal_b2_to_b2(self):
         b2_folder = FakeFolder('b2', [])
         with self.assertRaises(NotImplementedError):
