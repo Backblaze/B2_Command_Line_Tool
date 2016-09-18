@@ -142,6 +142,10 @@ class FileNotPresent(B2SimpleError):
     pass
 
 
+class InvalidUploadSource(B2SimpleError):
+    pass
+
+
 class InvalidAuthToken(B2Error):
     def __init__(self, message, _type):
         super(InvalidAuthToken, self).__init__()
