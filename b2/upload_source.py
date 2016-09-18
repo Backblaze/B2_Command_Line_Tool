@@ -14,6 +14,7 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
+from .exception import InvalidUploadSource
 from .utils import (BytesIoContextManager, hex_sha1_of_stream)
 
 
@@ -61,6 +62,8 @@ class UploadSourceBytes(AbstractUploadSource):
 class UploadSourceLocalFile(AbstractUploadSource):
     def __init__(self, local_path, content_sha1=None):
         self.local_path = local_path
+        if not os.path.isfile(local_path):
+            raise InvalidUploadSource(local_path)
         self.content_length = os.path.getsize(local_path)
         self.content_sha1 = content_sha1
 

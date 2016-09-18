@@ -10,7 +10,9 @@
 
 from __future__ import absolute_import, division, print_function
 
+from nose import SkipTest
 import os
+import platform
 import sys
 
 import six
@@ -20,7 +22,7 @@ from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
-from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, MaxRetriesExceeded
+from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
@@ -289,6 +291,22 @@ class TestUpload(TestCaseWithBucket):
             write_file(path, data)
             self.bucket.upload_local_file(path, 'file1')
             self._check_file_contents('file1', data)
+
+    def test_upload_fifo(self):
+        if platform.system().lower().startswith('java'):
+            raise SkipTest('in Jython 2.7.1b3 there is no os.mkfifo()')
+        with TempDir() as d:
+            path = os.path.join(d, 'file1')
+            os.mkfifo(path)
+            with self.assertRaises(InvalidUploadSource):
+                self.bucket.upload_local_file(path, 'file1')
+
+    def test_upload_dead_symlink(self):
+        with TempDir() as d:
+            path = os.path.join(d, 'file1')
+            os.symlink('non-existing', path)
+            with self.assertRaises(InvalidUploadSource):
+                self.bucket.upload_local_file(path, 'file1')
 
     def test_upload_one_retryable_error(self):
         self.simulator.set_upload_errors([CanRetry(True)])
