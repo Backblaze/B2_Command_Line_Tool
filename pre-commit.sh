@@ -13,14 +13,6 @@ function header
     echo
 }
 
-if yapf --version &> /dev/null
-then
-    echo "yapf is installed"
-else
-    echo "Please install yapf, then try again."
-    exit 1
-fi
-
 header Unit Tests
 
 if ./run-unit-tests.sh
@@ -33,7 +25,13 @@ fi
 
 header Checking Formatting
 
-if [ "$(<.git/refs/heads/${base_branch})" != "$(<.git/refs/remotes/${base_remote}/${base_remote_branch})" ]; then
+if ! type yapf &> /dev/null
+then
+    echo "Please install yapf, then try again."
+    exit 1
+fi
+
+if [ "$(git rev-parse ${base_branch})" != "$(git rev-parse ${base_remote}/${base_remote_branch})" ]; then
     echo """running yapf in full mode, because an assumption that master and origin/master are the same, is broken. To fix it, do this:
 git checkout master
 git pull --ff-only
@@ -85,12 +83,7 @@ done
 
 header test_raw_api
 
-if [[ -n "$TEST_ACCOUNT_ID" && -n "$TEST_APPLICATION_KEY" ]]
-then
-    python -m b2.__main__ test_raw_api
-else
-    echo "Skipping because TEST_ACCOUNT_ID and TEST_APPLICATION_KEY are not set"
-fi
+TEST_ACCOUNT_ID="$(head -n 1 ~/.b2_auth)" TEST_APPLICATION_KEY="$(tail -n 1 ~/.b2_auth)" python -m b2.__main__ test_raw_api
 
 if [[ $# -ne 0 && "$1" == quick ]]
 then
@@ -99,6 +92,8 @@ then
     echo
     exit 0
 fi
+
+header Integration Tests
 
 function run_integration_tests
 {
@@ -112,7 +107,9 @@ function run_integration_tests
     fi
 }
 
-if [[ -z "$PYTHON_VIRTUAL_ENVS" ]]
+# Check if the variable is set, without triggering an "unbound variable" warning
+# http://stackoverflow.com/a/16753536/95920
+if [[ -z "${PYTHON_VIRTUAL_ENVS:-}" ]]
 then
     run_integration_tests
 else
@@ -124,6 +121,4 @@ else
         set -u
         run_integration_tests
     done
-
 fi
-
