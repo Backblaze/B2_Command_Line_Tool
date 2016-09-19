@@ -24,6 +24,8 @@ class B2Error(Exception):
         in an exception.  We like to use file names in exception messages.
         To avoid problems, if the message has any non-ascii characters in
         it, they are replaced with backslash-uNNNN
+
+        https://pythonhosted.org/kitchen/unicode-frustrations.html#frustration-5-exceptions
         """
         if six.PY2:
             if 0 < len(args) and isinstance(args[0], six.text_type):
