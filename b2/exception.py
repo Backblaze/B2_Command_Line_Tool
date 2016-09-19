@@ -10,6 +10,7 @@
 
 from abc import ABCMeta
 
+import json
 import six
 
 from .utils import camelcase_to_underscore
@@ -17,6 +18,20 @@ from .utils import camelcase_to_underscore
 
 @six.add_metaclass(ABCMeta)
 class B2Error(Exception):
+    def __init__(self, *args, **kwargs):
+        """
+        Python 2 does not like it when you pass unicode as the message
+        in an exception.  We like to use file names in exception messages.
+        To avoid problems, if the message has any non-ascii characters in
+        it, they are replaced with backslash-uNNNN
+
+        https://pythonhosted.org/kitchen/unicode-frustrations.html#frustration-5-exceptions
+        """
+        if six.PY2:
+            if args and isinstance(args[0], six.text_type):
+                args = tuple([json.dumps(args[0])[1:-1]] + list(args[1:]))
+        super(B2Error, self).__init__(*args, **kwargs)
+
     @property
     def prefix(self):
         """
