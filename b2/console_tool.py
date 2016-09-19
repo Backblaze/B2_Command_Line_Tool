@@ -89,6 +89,10 @@ class Command(object):
     # values are collected into a list.  Default is []
     LIST_ARGS = []
 
+    # Optional, positional, parameters that come before the required
+    # arguments.
+    OPTIONAL_BEFORE = []
+
     # Required positional arguments.  Never None.
     REQUIRED = []
 
@@ -139,6 +143,7 @@ class Command(object):
             option_flags=self.OPTION_FLAGS + self.GLOBAL_OPTION_FLAGS,
             option_args=self.OPTION_ARGS + self.GLOBAL_OPTION_ARGS,
             list_args=self.LIST_ARGS,
+            optional_before=self.OPTIONAL_BEFORE,
             required=self.REQUIRED,
             optional=self.OPTIONAL,
             arg_parser=self.ARG_PARSER
@@ -297,18 +302,31 @@ class DeleteBucket(Command):
 
 class DeleteFileVersion(Command):
     """
-    b2 delete_file_version <fileName> <fileId>
+    b2 delete_file_version [<fileName>] <fileId>
 
         Permanently and irrevocably deletes one version of a file.
+
+        Specifying the fileName is more efficient than leaving it out.
+        If you omit the fileName, it requires an initial query to B2
+        to get the file name, before making the call to delete the
+        file.
     """
 
-    REQUIRED = ['fileName', 'fileId']
+    OPTIONAL_BEFORE = ['fileName']
+    REQUIRED = ['fileId']
 
     def run(self, args):
-        file_info = self.api.delete_file_version(args.fileId, args.fileName)
-        response = file_info.as_dict()
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        if args.fileName is not None:
+            file_name = args.fileName
+        else:
+            file_name = self._get_file_name_from_file_id(args.fileId)
+        file_info = self.api.delete_file_version(args.fileId, file_name)
+        self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
         return 0
+
+    def _get_file_name_from_file_id(self, file_id):
+        file_info = self.api.get_file_info(file_id)
+        return file_info['fileName']
 
 
 class DownloadFileById(Command):
@@ -577,10 +595,20 @@ class Sync(Command):
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
 
-        Work is done in parallel in multiple threads.  The default
-        number of threads is 10.  Progress is displayed on the
-        console unless '--noProgress' is specified.  A list of
-        actions taken is always printed.
+        Progress is displayed on the console unless '--noProgress' is
+        specified.  A list of actions taken is always printed.
+
+        Users with high-performance networks, or file sets with very small
+        files, will benefit from multi-threaded uploads.  The default number
+        of threads is 10.  Experiment with the --threads parameter if the
+        default is not working well.
+
+        Users with low-performance networks may benefit from reducing the
+        number of threads.  Using just one thread will minimize the impact
+        on other users of the network.
+
+        Note that using multiple threads will usually be detrimental to
+        the other users on your network.
 
         You can specify --excludeRegex to selectively ignore files that
         match the given pattern. Ignored files will not copy during
@@ -618,6 +646,10 @@ class Sync(Command):
 
         To make the destination exactly match the source, use:
             b2 sync --delete --replaceNewer ... ...
+
+        WARNING: Using '--delete' deletes files!  We recommend not using it.
+        If you use --keepDays instead, you will have some time to recover your
+        files if you discover they are missing on the source end.
 
         To make the destination match the source, but retain previous versions
         for 30 days:

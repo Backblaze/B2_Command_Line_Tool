@@ -9,11 +9,11 @@
 ######################################################################
 
 import os
-import unittest
 
 import six
 
-from stub_account_info import StubAccountInfo
+from .stub_account_info import StubAccountInfo
+from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
@@ -27,7 +27,7 @@ except ImportError:
     import mock
 
 
-class TestConsoleTool(unittest.TestCase):
+class TestConsoleTool(TestBase):
     def setUp(self):
         self.account_info = StubAccountInfo()
         self.cache = InMemoryCache()
@@ -259,7 +259,7 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
-            # Delete one file version
+            # Delete one file version, passing the name in
             expected_stdout = '''
             {
               "action": "delete",
@@ -269,6 +269,17 @@ class TestConsoleTool(unittest.TestCase):
             '''
 
             self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
+
+            # Delete one file version, not passing the name in
+            expected_stdout = '''
+            {
+              "action": "delete",
+              "fileId": "9999",
+              "fileName": "file1.txt"
+            }
+            '''
+
+            self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
 
     def test_list_parts_with_none(self):
         self._authorize_account()

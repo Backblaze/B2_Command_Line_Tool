@@ -11,7 +11,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.6.5
+Version 0.6.7
 
 # Installation
 
@@ -56,6 +56,14 @@ this:
     b2 version
 
     For more details on one command: b2 help <command>
+
+## Parallelism and the --threads parameter
+
+Users with high performance networks, or file sets with very small files, may benefit from
+increased parallelism. Experiment with using the --threads parameter with small values to
+determine if there are benefits.
+
+Note that using multiple threads will usually be detrimental to the other users on your network.
 
 # Contrib
 

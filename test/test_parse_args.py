@@ -8,17 +8,17 @@
 #
 ######################################################################
 
-import unittest
-
+from .test_base import TestBase
 from b2.parse_args import parse_arg_list
 
 
-class TestParseArgs(unittest.TestCase):
+class TestParseArgs(TestBase):
 
     NO_ARGS = {
         'option_flags': [],
         'option_args': [],
         'list_args': [],
+        'optional_before': [],
         'required': [],
         'optional': [],
         'arg_parser': {}
@@ -28,9 +28,20 @@ class TestParseArgs(unittest.TestCase):
         'option_flags': ['optionFlag'],
         'option_args': ['optionArg'],
         'list_args': ['list'],
+        'optional_before': [],
         'required': ['required'],
         'optional': ['optional'],
         'arg_parser': {'optionArg': int}
+    }
+
+    BEFORE_AND_AFTER = {
+        'option_flags': [],
+        'option_args': [],
+        'list_args': [],
+        'optional_before': ['optionalBefore'],
+        'required': ['required'],
+        'optional': ['optional'],
+        'arg_parser': {}
     }
 
     def test_no_args(self):
@@ -68,3 +79,20 @@ class TestParseArgs(unittest.TestCase):
     def test_optional_arg_missing_value(self):
         args = parse_arg_list(['--optionArg'], **self.EVERYTHING)
         self.assertTrue(args is None)
+
+    def test_no_optional(self):
+        args = parse_arg_list(['a'], **self.BEFORE_AND_AFTER)
+        self.assertEqual((None, 'a', None), (args.optionalBefore, args.required, args.optional))
+
+    def test_optional_before(self):
+        args = parse_arg_list(['a', 'b'], **self.BEFORE_AND_AFTER)
+        self.assertEqual(('a', 'b', None), (args.optionalBefore, args.required, args.optional))
+
+    def test_same_arg_in_two_places(self):
+        arg_spec = dict(self.NO_ARGS)
+        arg_spec['optional_before'] = ['a']
+        arg_spec['required'] = ['a']
+        with self.assertRaisesRegexp(
+            ValueError, "argument 'a' is in both 'optional_before' an 'required'"
+        ):
+            parse_arg_list([], **arg_spec)
