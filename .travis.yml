@@ -233,6 +233,22 @@ script:
   - if [ "$MODE" == 'SCA' ]; then egrep -r '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
   - if [ "$MODE" == 'SCA' ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
   - if [ "$MODE" == 'SCA' ]; then grep -P -r '^ *logger = (?!logging\.getLogger\(__name__\)$)' . | grep -v '.eggs/nose-' && exit 1 || true; else echo skip; fi  # bad logger definition: use `logger = logging.getLogger(__name__)`. See the magic logging metaclass.
+  - |
+        if [ "$MODE" == 'SCA' ]; then
+            missing="$(
+                (
+                    grep -l 'All Rights Reserved' $(git ls-files | grep .py)
+                    git ls-files | grep .py
+                ) | sort | uniq -c | sort -n | awk '$1 == 1 && $2 !~ ".*/__init__.py"'
+            )"
+            if [ -n "$missing" ]; then
+                echo 'license is missing from:' >&2
+                echo "$missing" >&2
+                return 1
+            fi
+        else
+            echo skip
+        fi
 
   # package installation
   - |
