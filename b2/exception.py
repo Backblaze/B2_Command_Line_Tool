@@ -28,7 +28,7 @@ class B2Error(Exception):
         https://pythonhosted.org/kitchen/unicode-frustrations.html#frustration-5-exceptions
         """
         if six.PY2:
-            if 0 < len(args) and isinstance(args[0], six.text_type):
+            if args and isinstance(args[0], six.text_type):
                 args = tuple([json.dumps(args[0])[1:-1]] + list(args[1:]))
         super(B2Error, self).__init__(*args, **kwargs)
 
