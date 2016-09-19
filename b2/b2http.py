@@ -10,6 +10,7 @@
 
 from __future__ import print_function
 
+import logging
 import json
 import socket
 
@@ -20,6 +21,8 @@ import time
 from .exception import B2Error, BrokenPipe, B2ConnectionError, B2RequestTimeout, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 from six.moves import range
+
+logger = logging.getLogger(__name__)
 
 
 def _print_exception(e, indent=''):
@@ -75,7 +78,7 @@ def _translate_errors(fcn, post_params=None):
         raise B2RequestTimeout(str(e))
 
     except Exception as e:
-        # Don't expect this to happen.
+        logger.exception('_translate_errors has intercepted an unexpected exception')
         raise UnknownError(repr(e))
 
 
