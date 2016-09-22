@@ -185,6 +185,7 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
         for action in make_folder_sync_actions(
             source_folder, dest_folder, args, now_millis, reporter
         ):
+            logging.debug('scheduling action %s on bucket %s')
             future = sync_executor.submit(action.run, bucket, reporter)
             action_futures.append(future)
             total_files += 1
