@@ -8,9 +8,13 @@
 #
 ######################################################################
 
-from .utils import repr_dict_deterministically
+import logging
 
 import six
+
+from .utils import repr_dict_deterministically
+
+logger = logging.getLogger(__name__)
 
 
 class Arguments(object):
@@ -125,18 +129,24 @@ def parse_arg_list(
     while len(arg_list) != 0 and arg_list[0].startswith('--'):
         option = arg_list.pop(0)[2:]
         if option in option_flags:
+            logger.debug('option %s is properly recognized as OPTION_FLAGS', option)
             setattr(result, option, True)
         elif option in option_args:
             if len(arg_list) == 0:
+                logger.debug('option %s is recognized as OPTION_ARGS and there are no more arguments on arg_list to parse', option)
                 return None
             else:
+                logger.debug('option %s is properly recognized as OPTION_ARGS', option)
                 setattr(result, option, parse_arg(option, arg_list))
         elif option in list_args:
             if len(arg_list) == 0:
+                logger.debug('option %s is recognized as LIST_ARGS and there are no more arguments on arg_list to parse', option)
                 return None
             else:
+                logger.debug('option %s is properly recognized as LIST_ARGS', option)
                 getattr(result, option).append(parse_arg(option, arg_list))
         else:
+            logger.error('option %s is of unknown type!', option)
             return None
 
     # Handle optional positional parameters that come first.
@@ -152,6 +162,7 @@ def parse_arg_list(
     # Parse the positional parameters
     for arg_name in required:
         if len(arg_list) == 0:
+            logger.debug('lack of required positional argument: %s', arg_name)
             return None
         setattr(result, arg_name, parse_arg(arg_name, arg_list))
     for arg_name in optional:
@@ -160,6 +171,7 @@ def parse_arg_list(
 
     # Anything left is a problem
     if len(arg_list) != 0:
+        logger.debug('option parser failed to consume this: %s', arg_list)
         return None
 
     # Return the Arguments object

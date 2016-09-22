@@ -860,6 +860,8 @@ class ConsoleTool(object):
         if action not in self.command_name_to_class:
             logger.info('ConsoleTool error - unknown command')
             return self._usage_and_fail()
+        else:
+            logger.info('Action: %s, arguments: %s', action, arg_list)
 
         command = self.command_name_to_class[action](self)
         args = command.parse_arg_list(arg_list)
