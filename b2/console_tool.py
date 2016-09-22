@@ -670,6 +670,11 @@ class Sync(Command):
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
+        if args.includeRegex and not args.excludeRegex:
+            logger.error('ConsoleTool \'includeRegex\' specified without \'excludeRegex\'')
+            self._print_stderr('ERROR: --includeRegex cannot be used without --excludeRegex at the same time')
+            return 1
+
         max_workers = args.threads or 10
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
