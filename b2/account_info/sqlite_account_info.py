@@ -52,6 +52,13 @@ class SqliteAccountInfo(AbstractAccountInfo):
             self._create_database()
             return
 
+        import psutil
+        def list_open_files(a):
+            proc = psutil.Process()
+            print('-'*15, a)
+            print(proc.open_files())
+
+        list_open_files(1)
         # If we can connect to the database, and do anything, then all is good.
         try:
             with self._connect() as conn:
@@ -59,18 +66,21 @@ class SqliteAccountInfo(AbstractAccountInfo):
                 return
         except sqlite3.DatabaseError:
             pass  # fall through to next case
+        list_open_files(2)
 
         # If the file contains JSON with the right stuff in it, convert from
         # the old representation.
         try:
             with open(self.filename, 'rb') as f:
                 data = json.loads(f.read().decode('utf-8'))
+            list_open_files(3)
             keys = [
                 'account_id', 'application_key', 'account_auth_token', 'api_url', 'download_url',
                 'minimum_part_size', 'realm'
             ]
             if all(k in data for k in keys):
                 # remove the json file
+                list_open_files(3)
                 os.unlink(self.filename)
                 # create a database
                 self._create_database()
