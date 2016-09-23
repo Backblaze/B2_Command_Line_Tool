@@ -289,8 +289,11 @@ class TestUpload(TestCaseWithBucket):
             self._check_file_contents('file1', data)
 
     def test_upload_fifo(self):
-        if platform.system().lower().startswith('java'):
+        system = platform.system().lower()
+        if system.startswith('java'):
             raise SkipTest('in Jython 2.7.1b3 there is no os.mkfifo()')
+        elif system.startswith('windows'):
+            raise SkipTest('on Windows there is no os.mkfifo()')
         with TempDir() as d:
             path = os.path.join(d, 'file1')
             os.mkfifo(path)
