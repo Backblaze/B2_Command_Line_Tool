@@ -65,27 +65,27 @@ class SqliteAccountInfo(AbstractAccountInfo):
         try:
             with open(self.filename, 'rb') as f:
                 data = json.loads(f.read().decode('utf-8'))
-                keys = [
-                    'account_id', 'application_key', 'account_auth_token', 'api_url',
-                    'download_url', 'minimum_part_size', 'realm'
-                ]
-                if all(k in data for k in keys):
-                    # remove the json file
-                    os.unlink(self.filename)
-                    # create a database
-                    self._create_database()
-                    # add the data from the JSON file
-                    with self._connect() as conn:
-                        self._create_tables(conn)
-                        insert_statement = """
-                            INSERT INTO account
-                            (account_id, application_key, account_auth_token, api_url, download_url, minimum_part_size, realm)
-                            values (?, ?, ?, ?, ?, ?, ?);
-                        """
+            keys = [
+                'account_id', 'application_key', 'account_auth_token', 'api_url', 'download_url',
+                'minimum_part_size', 'realm'
+            ]
+            if all(k in data for k in keys):
+                # remove the json file
+                os.unlink(self.filename)
+                # create a database
+                self._create_database()
+                # add the data from the JSON file
+                with self._connect() as conn:
+                    self._create_tables(conn)
+                    insert_statement = """
+                        INSERT INTO account
+                        (account_id, application_key, account_auth_token, api_url, download_url, minimum_part_size, realm)
+                        values (?, ?, ?, ?, ?, ?, ?);
+                    """
 
-                        conn.execute(insert_statement, tuple(data[k] for k in keys))
-                    # all is happy now
-                    return
+                    conn.execute(insert_statement, tuple(data[k] for k in keys))
+                # all is happy now
+                return
         except ValueError:  # includes json.decoder.JSONDecodeError
             pass
 
