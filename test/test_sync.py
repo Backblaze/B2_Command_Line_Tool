@@ -36,6 +36,8 @@ TODAY = DAY * 100  # an arbitrary reference time for testing
 
 def write_file(path, contents):
     parent = os.path.dirname(path)
+    print('path is', path)
+    print('parent is', parent)
     if not os.path.isdir(parent):
         os.makedirs(parent)
     with open(path, 'wb') as f:
@@ -59,6 +61,7 @@ class TestLocalFolder(TestBase):
             write_file(full_path, b'')
 
     def _prepare_folder(self, root_dir, broken_symlink=False):
+        assert os.path.isdir(root_dir), '%s does not exist' % (root_dir,)
         self._create_files(root_dir, self.NAMES)
         if broken_symlink:
             os.symlink(
