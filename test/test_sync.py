@@ -44,8 +44,9 @@ def write_file(path, contents):
 
 class TestLocalFolder(TestBase):
     NAMES = [
-        six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
-        six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
+        six.u('.dot_file'), six.u('hello.'), six.u(os.path.join('hello', 'a', '1')),
+        six.u(os.path.join('hello', 'a', '2')), six.u(os.path.join('hello', 'b')), six.u('hello0'),
+        six.u('\u81ea\u7531')
     ]
 
     def setUp(self):
