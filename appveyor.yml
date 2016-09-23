@@ -117,7 +117,4 @@ build_script:
 
 test_script:
   # Run the project tests
-  #- "%CMD_IN_ENV% python setup.py nosetests --processes=0"
-
-  # do nothing, really
-  - "python --version"
+  - "%CMD_IN_ENV% python setup.py nosetests --processes=0"
