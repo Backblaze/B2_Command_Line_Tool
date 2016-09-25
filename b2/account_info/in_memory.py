@@ -17,9 +17,9 @@ from functools import wraps
 def _raise_missing_if_result_is_none(function):
     @wraps(function)
     def inner(*args, **kwargs):
+        assert function.__name__.startswith('get_')
         result = function(*args, **kwargs)
         if result is None:
-            assert function.__name__.startswith('get_')
             # *magic*: assumes that it is a "get_field_name"
             raise MissingAccountData(function.__name__[4:])
         return result
