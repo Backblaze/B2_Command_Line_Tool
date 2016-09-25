@@ -9,21 +9,23 @@
 ######################################################################
 
 import json
+import logging
 import os
 import platform
 import stat
 import threading
 
-from .abstract import AbstractAccountInfo
 from .exception import (CorruptAccountInfo, MissingAccountData)
-from .upload_url_pool import (UploadUrlPool)
+from .upload_url_pool import UrlPoolAccountInfo
 
 if not platform.system().lower().startswith('java'):
     # in Jython 2.7.1b3 there is no sqlite3
     import sqlite3
 
+logger = logging.getLogger(__name__)
 
-class SqliteAccountInfo(AbstractAccountInfo):
+
+class SqliteAccountInfo(UrlPoolAccountInfo):
     """
     Stores account information in an sqlite database, which is
     used to manage concurrent access to the data.
@@ -38,9 +40,7 @@ class SqliteAccountInfo(AbstractAccountInfo):
         self._validate_database()
         with self._get_connection() as conn:
             self._create_tables(conn)
-
-        self._bucket_uploads = UploadUrlPool()
-        self._large_file_uploads = UploadUrlPool()
+        super(SqliteAccountInfo, self).__init__()
 
     def _validate_database(self):
         """
@@ -214,6 +214,10 @@ class SqliteAccountInfo(AbstractAccountInfo):
                 value = cursor.fetchone()[0]
                 return value
         except Exception as e:
+            logger.exception(
+                '_get_account_info_or_raise encountered a problem while trying to retrieve "%s"',
+                column_name
+            )
             raise MissingAccountData(str(e))
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
@@ -248,21 +252,3 @@ class SqliteAccountInfo(AbstractAccountInfo):
             return None
         except sqlite3.Error:
             return None
-
-    def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
-        self._bucket_uploads.put(bucket_id, upload_url, upload_auth_token)
-
-    def clear_bucket_upload_data(self, bucket_id):
-        self._bucket_uploads.clear_for_key(bucket_id)
-
-    def take_bucket_upload_url(self, bucket_id):
-        return self._bucket_uploads.take(bucket_id)
-
-    def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
-        self._large_file_uploads.put(file_id, upload_url, upload_auth_token)
-
-    def take_large_file_upload_url(self, file_id):
-        return self._large_file_uploads.take(file_id)
-
-    def clear_large_file_upload_urls(self, file_id):
-        self._large_file_uploads.clear_for_key(file_id)
