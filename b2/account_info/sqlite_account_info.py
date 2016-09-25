@@ -9,6 +9,7 @@
 ######################################################################
 
 import json
+import logging
 import os
 import platform
 import stat
@@ -20,6 +21,8 @@ from .upload_url_pool import UrlPoolAccountInfo
 if not platform.system().lower().startswith('java'):
     # in Jython 2.7.1b3 there is no sqlite3
     import sqlite3
+
+logger = logging.getLogger(__name__)
 
 
 class SqliteAccountInfo(UrlPoolAccountInfo):
@@ -211,6 +214,10 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
                 value = cursor.fetchone()[0]
                 return value
         except Exception as e:
+            logger.exception(
+                '_get_account_info_or_raise encountered a problem while trying to retrieve "%s"',
+                column_name
+            )
             raise MissingAccountData(str(e))
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
