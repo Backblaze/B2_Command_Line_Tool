@@ -266,6 +266,25 @@ class TestLs(TestCaseWithBucket):
         ]
         self.assertEqual(expected, actual)
 
+    def test_delete_file_version(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+
+        files = self.bucket.list_file_names('hello.txt', 1)['files']
+        file_dict = files[0]
+        file_id = file_dict['fileId']
+
+        data = six.b('hello new world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+        self.bucket.delete_file_version(file_id, 'hello.txt')
+
+        expected = [('hello.txt', 15, 'upload', None)]
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls('', show_versions=True)
+        ]
+        self.assertEqual(expected, actual)
+
 
 class TestUpload(TestCaseWithBucket):
     def test_upload_bytes(self):
