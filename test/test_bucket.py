@@ -97,6 +97,16 @@ class TestCaseWithBucket(TestBase):
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
         self.bucket_id = self.bucket.id_
 
+    def assertBucketContents(self, expected, *args, **kwargs):
+        """
+        *args and **kwargs are passed to self.bucket.ls()
+        """
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls(*args, **kwargs)
+        ]
+        self.assertEqual(expected, actual)
+
 
 class TestReauthorization(TestCaseWithBucket):
     def testCreateBucket(self):
@@ -188,11 +198,7 @@ class TestLs(TestCaseWithBucket):
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'hello.txt')
         expected = [('hello.txt', 11, 'upload', None)]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('')
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '')
 
     def test_three_files_at_root(self):
         data = six.b('hello world')
@@ -202,11 +208,7 @@ class TestLs(TestCaseWithBucket):
         expected = [
             ('a', 11, 'upload', None), ('bb', 11, 'upload', None), ('ccc', 11, 'upload', None)
         ]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('')
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '')
 
     def test_three_files_in_dir(self):
         data = six.b('hello world')
@@ -220,11 +222,7 @@ class TestLs(TestCaseWithBucket):
             ('bb/1', 11, 'upload', None), ('bb/2/sub1', 11, 'upload', 'bb/2/'),
             ('bb/3', 11, 'upload', None)
         ]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('bb', fetch_count=1)
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, 'bb', fetch_count=1)
 
     def test_three_files_multiple_versions(self):
         data = six.b('hello world')
@@ -249,22 +247,29 @@ class TestLs(TestCaseWithBucket):
     def test_started_large_file(self):
         self.bucket.start_large_file('hello.txt')
         expected = [('hello.txt', 0, 'start', None)]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('', show_versions=True)
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '', show_versions=True)
 
     def test_hidden_file(self):
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'hello.txt')
         self.bucket.hide_file('hello.txt')
         expected = [('hello.txt', 0, 'hide', None), ('hello.txt', 11, 'upload', None)]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('', show_versions=True)
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_delete_file_version(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+
+        files = self.bucket.list_file_names('hello.txt', 1)['files']
+        file_dict = files[0]
+        file_id = file_dict['fileId']
+
+        data = six.b('hello new world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+        self.bucket.delete_file_version(file_id, 'hello.txt')
+
+        expected = [('hello.txt', 15, 'upload', None)]
+        self.assertBucketContents(expected, '', show_versions=True)
 
 
 class TestUpload(TestCaseWithBucket):
