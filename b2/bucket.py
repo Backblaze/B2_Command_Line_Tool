@@ -557,6 +557,10 @@ class Bucket(object):
         response = self.api.session.hide_file(self.id_, file_name)
         return FileVersionInfoFactory.from_api_response(response)
 
+    def delete_file_version(self, file_id, file_name):
+        # filename argument is not first, because one day it may become optional
+        return self.api.delete_file_version(file_id, file_name)
+
     @disable_trace
     def as_dict(self):  # TODO: refactor with other as_dict()
         result = {'accountId': self.api.account_info.get_account_id(),
