@@ -15,6 +15,7 @@ import re
 import six
 
 from ..exception import CommandError
+from ..utils import trace_call
 from .policy_manager import POLICY_MANAGER
 from .report import SyncReport
 
@@ -136,6 +137,7 @@ def count_files(local_folder, reporter):
     reporter.end_local()
 
 
+@trace_call(logger)
 def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers):
     """
     Syncs two folders.  Always ensures that every file in the
@@ -143,10 +145,6 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
     in the destination older than history_days.
     """
 
-    logger.debug(
-        'sync_folders(%s, %s, %s, %s, %s, %s, %s)', source_folder, dest_folder, args, now_millis,
-        stdout, no_progress, max_workers
-    )
     # For downloads, make sure that the target directory is there.
     if dest_folder.folder_type() == 'local':
         dest_folder.ensure_present()

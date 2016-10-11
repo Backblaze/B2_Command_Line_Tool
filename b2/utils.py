@@ -16,7 +16,10 @@ import shutil
 import tempfile
 import time
 
+from logfury.v0_1 import DefaultTraceAbstractMeta, DefaultTraceMeta, limit_trace_arguments, disable_trace, trace_call
+
 import six
+
 from six.moves import urllib
 
 try:
@@ -274,3 +277,16 @@ def repr_dict_deterministically(dict_):
     # It was hard to read. Therefore we sort items by key.
     fields = ', '.join('%s: %s' % (repr(k), repr(v)) for k, v in sorted(six.iteritems(dict_)))
     return '{%s}' % (fields,)
+
+
+class B2TraceMeta(DefaultTraceMeta):
+    pass
+
+
+class B2TraceMetaAbstract(DefaultTraceAbstractMeta):
+    pass
+
+
+assert disable_trace
+assert limit_trace_arguments
+assert trace_call

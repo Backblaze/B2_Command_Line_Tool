@@ -8,12 +8,14 @@
 #
 ######################################################################
 
-from abc import (ABCMeta, abstractmethod)
+from abc import abstractmethod
 
 import six
 
+from ..utils import B2TraceMetaAbstract, limit_trace_arguments
 
-@six.add_metaclass(ABCMeta)
+
+@six.add_metaclass(B2TraceMetaAbstract)
 class AbstractAccountInfo(object):
     """
     Holder for all account-related information that needs to be kept
@@ -39,6 +41,7 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    @limit_trace_arguments(only=['self'])
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         """
         Removes all previous name-to-id mappings and stores new ones.
@@ -99,6 +102,7 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    @limit_trace_arguments(only=['self', 'api_url', 'download_url', 'minimum_part_size', 'realm'])
     def set_auth_data(
         self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
         realm
@@ -114,6 +118,7 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    @limit_trace_arguments(only=['self', 'bucket_id'])
     def put_bucket_upload_url(self, bucket_id, upload_url, upload_auth_token):
         """
         Add an (upload_url, upload_auth_token) pair to the pool available for
@@ -121,6 +126,7 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    @limit_trace_arguments(only=['self'])
     def put_large_file_upload_url(self, file_id, upload_url, upload_auth_token):
         pass
 
