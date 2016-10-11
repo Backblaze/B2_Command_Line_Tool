@@ -590,7 +590,7 @@ class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--threads N] [--noProgress] \\
-            [--excludeRegex <regex>] <source> <destination>
+            [--excludeRegex <regex> [--includeRegex <regex>]] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -614,6 +614,14 @@ class Sync(Command):
         match the given pattern. Ignored files will not copy during
         the sync operation. The pattern is a regular expression
         that is tested against the full path of each file.
+
+        You can specify --includeRegex to selectively override ignoring
+        files that match the given --excludeRegex pattern by an
+        --includeRegex pattern. Similarly to --excludeRegex, the pattern
+        is a regular expression that is tested against the full path
+        of each file.
+
+        Note that --includeRegex cannot be used without --excludeRegex.
 
         Files are considered to be the same if they have the same name
         and modification time.  This behaviour can be changed using the
@@ -660,10 +668,15 @@ class Sync(Command):
     OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
-    LIST_ARGS = ['excludeRegex']
+    LIST_ARGS = ['excludeRegex', 'includeRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
+        if args.includeRegex and not args.excludeRegex:
+            logger.error('ConsoleTool \'includeRegex\' specified without \'excludeRegex\'')
+            self._print_stderr('ERROR: --includeRegex cannot be used without --excludeRegex at the same time')
+            return 1
+
         max_workers = args.threads or 10
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
@@ -854,6 +867,8 @@ class ConsoleTool(object):
         if action not in self.command_name_to_class:
             logger.info('ConsoleTool error - unknown command')
             return self._usage_and_fail()
+        else:
+            logger.info('Action: %s, arguments: %s', action, arg_list)
 
         command = self.command_name_to_class[action](self)
         args = command.parse_arg_list(arg_list)

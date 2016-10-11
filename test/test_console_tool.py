@@ -379,6 +379,12 @@ class TestConsoleTool(TestBase):
             command = ['sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
+    def test_sync_syntax_error(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        expected_stderr = 'ERROR: --includeRegex cannot be used without --excludeRegex at the same time\n'
+        self._run_command(['sync', '--includeRegex', '.incl', 'non-existent-local-folder', 'b2://my-bucket'], expected_stderr=expected_stderr, expected_status=1)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
