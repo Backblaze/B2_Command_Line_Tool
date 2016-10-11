@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+import six
+
 from .account_info.sqlite_account_info import SqliteAccountInfo
 from .account_info.exception import MissingAccountData
 from .b2http import B2Http
@@ -20,6 +22,7 @@ from .part import PartFactory
 from .progress import DoNothingProgressListener
 from .raw_api import B2RawApi
 from .session import B2Session
+from .utils import B2TraceMeta, limit_trace_arguments
 
 try:
     import concurrent.futures as futures
@@ -35,6 +38,7 @@ def url_for_api(info, api_name):
     return base + '/b2api/v1/' + api_name
 
 
+@six.add_metaclass(B2TraceMeta)
 class B2Api(object):
     """
     Provides file-level access to B2 services.
@@ -106,6 +110,7 @@ class B2Api(object):
             return False
         return True
 
+    @limit_trace_arguments(only=('self', 'realm'))
     def authorize_account(self, realm, account_id, application_key):
         try:
             old_account_id = self.account_info.get_account_id()

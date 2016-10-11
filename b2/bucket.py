@@ -20,6 +20,7 @@ from .progress import DoNothingProgressListener, AbstractProgressListener, Range
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
+from .utils import B2TraceMeta, disable_trace, limit_trace_arguments
 
 
 class LargeFileUploadState(object):
@@ -85,6 +86,7 @@ class PartProgressReporter(AbstractProgressListener):
         pass
 
 
+@six.add_metaclass(B2TraceMeta)
 class Bucket(object):
     """
     Provides access to a bucket in B2: listing files, uploading and downloading.
@@ -250,6 +252,7 @@ class Bucket(object):
             self.api.session.start_large_file(self.id_, file_name, content_type, file_info)
         )
 
+    @limit_trace_arguments(skip=('data_bytes',))
     def upload_bytes(
         self, data_bytes, file_name, content_type=None, file_infos=None, progress_listener=None
     ):
@@ -558,6 +561,7 @@ class Bucket(object):
         # filename argument is not first, because one day it may become optional
         return self.api.delete_file_version(file_id, file_name)
 
+    @disable_trace
     def as_dict(self):  # TODO: refactor with other as_dict()
         result = {'accountId': self.api.account_info.get_account_id(),
                   'bucketId': self.id_,}

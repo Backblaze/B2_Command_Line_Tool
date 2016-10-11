@@ -943,6 +943,7 @@ class ConsoleTool(object):
             b2_logger = logging.getLogger('b2')
             b2_logger.setLevel(logging.DEBUG)
             b2_logger.addHandler(handler)
+            b2_logger.propagate = False
 
         logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
