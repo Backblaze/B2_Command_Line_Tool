@@ -23,7 +23,7 @@ import six
 
 from .b2http import (B2Http)
 from .download_dest import DownloadDestBytes
-from .exception import (ChecksumMismatch, TruncatedOutput)
+from .exception import ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour
 from .utils import b2_url_encode, hex_sha1_of_stream
 
 
@@ -156,17 +156,17 @@ class B2RawApi(AbstractRawApi):
             fileName=file_name
         )
 
-    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest):
+    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None):
         url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
+        return self._download_file_from_url(url, account_auth_token_or_none, download_dest, range_=range_)
 
     def download_file_by_name(
-        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest
+        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest, range_=None
     ):
         url = download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
+        return self._download_file_from_url(url, account_auth_token_or_none, download_dest, range_=range_)
 
-    def _download_file_from_url(self, url, account_auth_token_or_none, download_dest):
+    def _download_file_from_url(self, url, account_auth_token_or_none, download_dest, range_=None):
         """
         Downloads a file from given url and stores it in the given download_destination.
 
@@ -179,6 +179,13 @@ class B2RawApi(AbstractRawApi):
         :return:
         """
         request_headers = {}
+        if range_ is not None:
+            assert len(range_) == 2, range_
+            assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
+            assert range_[0] >= 0, range_
+            assert range_[1] >= 1, range_
+            request_headers['Range'] = "bytes=%d-%d" % range_
+
         if account_auth_token_or_none is not None:
             request_headers['Authorization'] = account_auth_token_or_none
 
@@ -191,6 +198,9 @@ class B2RawApi(AbstractRawApi):
             content_type = info['content-type']
             content_length = int(info['content-length'])
             content_sha1 = info['x-bz-content-sha1']
+            if range_ is not None:
+                if 'Content-Range' not in info:
+                    raise UnexpectedCloudBehaviour('Content-Range header was expected')
             file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
 
             if 'src_last_modified_millis' in file_info:
@@ -204,20 +214,25 @@ class B2RawApi(AbstractRawApi):
 
             with download_dest.open(
                 file_id, file_name, content_length, content_type, content_sha1, file_info,
-                mod_time_millis
+                mod_time_millis, range_=range_
             ) as file:
                 for data in response.iter_content(chunk_size=block_size):
                     file.write(data)
                     digest.update(data)
                     bytes_read += len(data)
 
-                if bytes_read != int(info['content-length']):
-                    raise TruncatedOutput(bytes_read, content_length)
+                if range_ is None:
+                    if bytes_read != int(info['content-length']):
+                        raise TruncatedOutput(bytes_read, content_length)
 
-                if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
-                    raise ChecksumMismatch(
-                        checksum_type='sha1', expected=content_length, actual=digest.hexdigest()
-                    )
+                    if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
+                        raise ChecksumMismatch(
+                            checksum_type='sha1', expected=content_length, actual=digest.hexdigest()
+                        )
+                else:
+                    desired_length = range_[1]-range_[0]
+                    if bytes_read != desired_length:
+                        raise TruncatedOutput(bytes_read, desired_length)
 
             return dict(
                 fileId=file_id,

@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division
 
 from nose import SkipTest
 import os
@@ -462,6 +462,7 @@ class TestDownload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
         self.assertEqual("11: 11 closed", progress_listener.get_history())
+        assert download.bytes_io.getvalue() == six.b('hello world')
 
     def test_download_by_id_no_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
@@ -479,3 +480,13 @@ class TestDownload(TestCaseWithBucket):
         self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
         self.bucket.download_file_by_name('file1', download)
+
+
+class TestPartialDownload(TestCaseWithBucket):
+    def test_download_by_id_progress(self):
+        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        download = DownloadDestBytes()
+        progress_listener = StubProgressListener()
+        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
+        self.assertEqual("6: 6 closed", progress_listener.get_history())
+        assert download.bytes_io.getvalue() == six.b('lo wor'), download.bytes_io.getvalue()
