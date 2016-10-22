@@ -150,12 +150,13 @@ class B2Api(object):
         self.cache.save_bucket(bucket)
         return bucket
 
-    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
         progress_listener = progress_listener or DoNothingProgressListener()
         self.session.download_file_by_id(
             file_id,
             DownloadDestProgressWrapper(download_dest, progress_listener),
-            url_factory=self.account_info.get_download_url
+            url_factory=self.account_info.get_download_url,
+            range_=range_,
         )
         progress_listener.close()
 

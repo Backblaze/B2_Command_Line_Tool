@@ -9,14 +9,15 @@
 ######################################################################
 
 import os
-from abc import (ABCMeta, abstractmethod)
+from abc import abstractmethod
 
 import six
 
-from .progress import (StreamWithProgress)
+from .utils import B2TraceMetaAbstract, limit_trace_arguments
+from .progress import StreamWithProgress
 
 
-@six.add_metaclass(ABCMeta)
+@six.add_metaclass(B2TraceMetaAbstract)
 class AbstractDownloadDestination(object):
     """
     Interface to a destination for a downloaded file.
@@ -26,9 +27,10 @@ class AbstractDownloadDestination(object):
     """
 
     @abstractmethod
+    @limit_trace_arguments(skip=['content_sha1',])
     def open(
         self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis
+        mod_time_millis, range_=None
     ):
         """
         Returns a binary file-like object to use for writing the contents of
@@ -40,6 +42,8 @@ class AbstractDownloadDestination(object):
         :param content_sha1: the content sha1 from the headers (or "none" for large files)
         :param file_info: the user file info from the headers
         :param mod_time_millis: the desired file modification date in ms since 1970-01-01
+        :param range_: starting and ending offsets of the received file contents. Usually None,
+                       which means that the whole file is downloaded.
         :return: None
         """
 
@@ -82,7 +86,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
 
     def open(
         self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis
+        mod_time_millis, range_=None
     ):
         self.file_id = file_id
         self.file_name = file_name
@@ -90,6 +94,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
         self.content_type = content_type
         self.content_sha1 = content_sha1
         self.file_info = file_info
+        self.range_ = range_
 
         return OpenLocalFileForWriting(self.local_file_path, mod_time_millis)
 
@@ -116,7 +121,7 @@ class DownloadDestBytes(AbstractDownloadDestination):
 
     def open(
         self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis
+        mod_time_millis, range_=None
     ):
         self.file_id = file_id
         self.file_name = file_name
@@ -126,6 +131,7 @@ class DownloadDestBytes(AbstractDownloadDestination):
         self.file_info = file_info
         self.mod_time_millis = mod_time_millis
         self.bytes_io = BytesCapture()
+        self.range_ = range_
         return self.bytes_io
 
 
@@ -136,11 +142,14 @@ class DownloadDestProgressWrapper(AbstractDownloadDestination):
 
     def open(
         self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis
+        mod_time_millis, range_=None
     ):
-        self.progress_listener.set_total_bytes(content_length)
+        total_bytes = content_length
+        if range_ is not None:
+            total_bytes = range_[1] - range_[0]
+        self.progress_listener.set_total_bytes(total_bytes)
         stream = self.download_dest.open(
             file_id, file_name, content_length, content_type, content_sha1, file_info,
-            mod_time_millis
+            mod_time_millis, range_
         )
         return StreamWithProgress(stream.__enter__(), self.progress_listener)

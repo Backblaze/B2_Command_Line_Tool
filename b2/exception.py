@@ -246,6 +246,10 @@ class TruncatedOutput(TransientErrorMixin, B2Error):
                                              self.file_size,)
 
 
+class UnexpectedCloudBehaviour(B2SimpleError):
+    pass
+
+
 class UnknownError(B2SimpleError):
     pass
 

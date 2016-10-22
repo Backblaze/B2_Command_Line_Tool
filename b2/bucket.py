@@ -112,16 +112,17 @@ class Bucket(object):
     def cancel_large_file(self, file_id):
         return self.api.cancel_large_file(file_id)
 
-    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
-        self.api.download_file_by_id(file_id, download_dest, progress_listener)
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
+        self.api.download_file_by_id(file_id, download_dest, progress_listener, range_=range_)
 
-    def download_file_by_name(self, file_name, download_dest, progress_listener=None):
+    def download_file_by_name(self, file_name, download_dest, progress_listener=None, range_=None):
         progress_listener = progress_listener or DoNothingProgressListener()
         self.api.session.download_file_by_name(
             self.name,
             file_name,
             DownloadDestProgressWrapper(download_dest, progress_listener),
-            url_factory=self.api.account_info.get_download_url
+            url_factory=self.api.account_info.get_download_url,
+            range_=range_,
         )
         progress_listener.close()
 
