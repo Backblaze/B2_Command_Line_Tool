@@ -34,10 +34,12 @@ class AbstractAction(object):
     UploadFileAction.
     """
 
-    def run(self, bucket, reporter):
+    def run(self, bucket, reporter, dry_run=False):
         raise_if_shutting_down()
         try:
-            self.do_action(bucket, reporter)
+            if not dry_run:
+                self.do_action(bucket, reporter)
+            self.do_report(bucket, reporter)
         except Exception as e:
             logger.exception('an exception occurred in a sync action')
             reporter.error(str(self) + ": " + repr(e) + ' ' + str(e))
@@ -53,6 +55,12 @@ class AbstractAction(object):
     def do_action(self, bucket, reporter):
         """
         Performs the action, returning only after the action is completed.
+        """
+
+    @abstractmethod
+    def do_report(self, bucket, reporter):
+        """
+        Report the action performed.
         """
 
 
@@ -74,6 +82,8 @@ class B2UploadAction(AbstractAction):
             file_info={'src_last_modified_millis': str(self.mod_time_millis)},
             progress_listener=SyncFileReporter(reporter)
         )
+
+    def do_report(self, bucket, reporter):
         reporter.print_completion('upload ' + self.relative_name)
 
     def __str__(self):
@@ -92,6 +102,8 @@ class B2HideAction(AbstractAction):
 
     def do_action(self, bucket, reporter):
         bucket.hide_file(self.b2_file_name)
+
+    def do_report(self, bucket, reporter):
         reporter.update_transfer(1, 0)
         reporter.print_completion('hide   ' + self.relative_name)
 
@@ -136,7 +148,7 @@ class B2DownloadAction(AbstractAction):
             pass
         os.rename(download_path, self.local_full_path)
 
-        # Report progress
+    def do_report(self, bucket, reporter):
         reporter.print_completion('dnload ' + self.relative_name)
 
     def __str__(self):
@@ -158,6 +170,8 @@ class B2DeleteAction(AbstractAction):
 
     def do_action(self, bucket, reporter):
         bucket.api.delete_file_version(self.file_id, self.b2_file_name)
+
+    def do_report(self, bucket, reporter):
         reporter.update_transfer(1, 0)
         reporter.print_completion('delete ' + self.relative_name + ' ' + self.note)
 
@@ -175,6 +189,8 @@ class LocalDeleteAction(AbstractAction):
 
     def do_action(self, bucket, reporter):
         os.unlink(self.full_path)
+
+    def do_report(self, bucket, reporter):
         reporter.update_transfer(1, 0)
         reporter.print_completion('delete ' + self.relative_name)
 

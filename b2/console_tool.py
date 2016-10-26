@@ -592,13 +592,16 @@ class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--threads N] [--noProgress] \\
-            [--excludeRegex <regex> [--includeRegex <regex>]] <source> <destination>
+            [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \\
+            <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
 
         Progress is displayed on the console unless '--noProgress' is
         specified.  A list of actions taken is always printed.
+
+        Specify '--dryRun' to simulate the actions that would be taken.
 
         Users with high-performance networks, or file sets with very small
         files, will benefit from multi-threaded uploads.  The default number
@@ -667,7 +670,7 @@ class Sync(Command):
 
     """
 
-    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
+    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun']
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
     LIST_ARGS = ['excludeRegex', 'includeRegex']
@@ -692,7 +695,8 @@ class Sync(Command):
             now_millis=current_time_millis(),
             stdout=self.stdout,
             no_progress=args.noProgress,
-            max_workers=max_workers
+            max_workers=max_workers,
+            dry_run=args.dryRun,
         )
         return 0
 
