@@ -520,8 +520,10 @@ class ListUnfinishedLargeFiles(Command):
                 for k in sorted(six.iterkeys(unfinished.file_info))
             )
             self._print(
-                '%s %s %s %s' %
-                (unfinished.file_id, unfinished.file_name, unfinished.content_type, file_info_text)
+                '%s %s %s %s' % (
+                    unfinished.file_id, unfinished.file_name, unfinished.content_type,
+                    file_info_text
+                )
             )
         return 0
 
@@ -674,7 +676,9 @@ class Sync(Command):
     def run(self, args):
         if args.includeRegex and not args.excludeRegex:
             logger.error('ConsoleTool \'includeRegex\' specified without \'excludeRegex\'')
-            self._print_stderr('ERROR: --includeRegex cannot be used without --excludeRegex at the same time')
+            self._print_stderr(
+                'ERROR: --includeRegex cannot be used without --excludeRegex at the same time'
+            )
             return 1
 
         max_workers = args.threads or 10
@@ -963,8 +967,8 @@ class ConsoleTool(object):
         logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
         logger.debug(
-            'Python version is %s %s', platform.python_implementation(),
-            sys.version.replace('\n', ' ')
+            'Python version is %s %s',
+            platform.python_implementation(), sys.version.replace('\n', ' ')
         )
         logger.debug('locale is %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())

@@ -181,8 +181,10 @@ class MaxFileSizeExceeded(B2Error):
         self.max_allowed_size = max_allowed_size
 
     def __str__(self):
-        return 'Allowed file size of exceeded: %s > %s' % (self.size,
-                                                           self.max_allowed_size,)
+        return 'Allowed file size of exceeded: %s > %s' % (
+            self.size,
+            self.max_allowed_size,
+        )
 
 
 class MaxRetriesExceeded(B2Error):
@@ -242,8 +244,10 @@ class TruncatedOutput(TransientErrorMixin, B2Error):
         self.file_size = file_size
 
     def __str__(self):
-        return 'only %d of %d bytes read' % (self.bytes_read,
-                                             self.file_size,)
+        return 'only %d of %d bytes read' % (
+            self.bytes_read,
+            self.file_size,
+        )
 
 
 class UnexpectedCloudBehaviour(B2SimpleError):

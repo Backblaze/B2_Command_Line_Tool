@@ -31,7 +31,9 @@ class TestParseArgs(TestBase):
         'optional_before': [],
         'required': ['required'],
         'optional': ['optional'],
-        'arg_parser': {'optionArg': int}
+        'arg_parser': {
+            'optionArg': int
+        }
     }
 
     BEFORE_AND_AFTER = {
@@ -66,9 +68,8 @@ class TestParseArgs(TestBase):
 
     def test_all_there(self):
         args = parse_arg_list(
-            [
-                '--optionFlag', '--optionArg', '99', '--list', '1', '--list', '2', 'b', 'c'
-            ], **self.EVERYTHING
+            ['--optionFlag', '--optionArg', '99', '--list', '1', '--list', '2', 'b', 'c'],
+            **self.EVERYTHING
         )  # yapf disable
         self.assertTrue(args.optionFlag)
         self.assertEqual(99, args.optionArg)

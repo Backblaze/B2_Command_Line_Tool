@@ -117,8 +117,9 @@ class TestB2Folder(TestSync):
                 ), 'folder'
             ),
             (
-                FileVersionInfo('bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500, 'start'),
-                'folder'
+                FileVersionInfo(
+                    'bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500, 'start'
+                ), 'folder'
             ),
             (
                 FileVersionInfo(
@@ -284,8 +285,8 @@ def b2_file(name, mod_times, size=10):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide', size
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name,
+            abs(mod_time), 'upload' if 0 < mod_time else 'hide', size
         ) for mod_time in mod_times
     ]  # yapf disable
     return File(name, versions)

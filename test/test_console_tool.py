@@ -171,9 +171,8 @@ class TestConsoleTool(TestBase):
             '''
 
             self._run_command(
-                [
-                    'upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'
-                ], expected_stdout, '', 0
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                expected_stdout, '', 0
             )
 
             # Download by name
@@ -198,9 +197,8 @@ class TestConsoleTool(TestBase):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                [
-                    'download_file_by_id', '--noProgress', '9999', local_download2
-                ], expected_stdout, '', 0
+                ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
+                '', 0
             )
             self.assertEquals(six.b('hello world'), self._read_file(local_download2))
 
@@ -383,7 +381,11 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         self._create_my_bucket()
         expected_stderr = 'ERROR: --includeRegex cannot be used without --excludeRegex at the same time\n'
-        self._run_command(['sync', '--includeRegex', '.incl', 'non-existent-local-folder', 'b2://my-bucket'], expected_stderr=expected_stderr, expected_status=1)
+        self._run_command(
+            ['sync', '--includeRegex', '.incl', 'non-existent-local-folder', 'b2://my-bucket'],
+            expected_stderr=expected_stderr,
+            expected_status=1
+        )
 
     def _authorize_account(self):
         """

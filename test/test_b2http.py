@@ -54,6 +54,7 @@ class TestTranslateErrors(TestBase):
                 requests.packages.urllib3.exceptions.
                 ProtocolError("dummy", socket.error(20, 'Broken pipe'))
             )
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
@@ -68,6 +69,7 @@ class TestTranslateErrors(TestBase):
                     'AAA nodename nor servname provided, or not known AAA', 'http://example.com'
                 )
             )
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
@@ -78,6 +80,7 @@ class TestTranslateErrors(TestBase):
     def test_connection_error(self):
         def fcn():
             raise requests.ConnectionError('a message')
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
@@ -88,6 +91,7 @@ class TestTranslateErrors(TestBase):
     def test_unknown_error(self):
         def fcn():
             raise Exception('a message')
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
