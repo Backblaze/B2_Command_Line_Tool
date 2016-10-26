@@ -156,15 +156,27 @@ class B2RawApi(AbstractRawApi):
             fileName=file_name
         )
 
-    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None):
+    def download_file_by_id(
+        self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
+    ):
         url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest, range_=range_)
+        return self._download_file_from_url(
+            url, account_auth_token_or_none, download_dest, range_=range_
+        )
 
     def download_file_by_name(
-        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest, range_=None
+        self,
+        download_url,
+        account_auth_token_or_none,
+        bucket_name,
+        file_name,
+        download_dest,
+        range_=None
     ):
         url = download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest, range_=range_)
+        return self._download_file_from_url(
+            url, account_auth_token_or_none, download_dest, range_=range_
+        )
 
     def _download_file_from_url(self, url, account_auth_token_or_none, download_dest, range_=None):
         """
@@ -213,8 +225,14 @@ class B2RawApi(AbstractRawApi):
             bytes_read = 0
 
             with download_dest.open(
-                file_id, file_name, content_length, content_type, content_sha1, file_info,
-                mod_time_millis, range_=range_
+                file_id,
+                file_name,
+                content_length,
+                content_type,
+                content_sha1,
+                file_info,
+                mod_time_millis,
+                range_=range_
             ) as file:
                 for data in response.iter_content(chunk_size=block_size):
                     file.write(data)
@@ -227,10 +245,12 @@ class B2RawApi(AbstractRawApi):
 
                     if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
                         raise ChecksumMismatch(
-                            checksum_type='sha1', expected=content_length, actual=digest.hexdigest()
+                            checksum_type='sha1',
+                            expected=content_length,
+                            actual=digest.hexdigest()
                         )
                 else:
-                    desired_length = range_[1]-range_[0]
+                    desired_length = range_[1] - range_[0]
                     if bytes_read != desired_length:
                         raise TruncatedOutput(bytes_read, desired_length)
 
@@ -468,8 +488,8 @@ def test_raw_api_helper(raw_api):
     file_contents = six.b('hello world')
     file_sha1 = hex_sha1_of_stream(six.BytesIO(file_contents), len(file_contents))
     file_dict = raw_api.upload_file(
-        upload_url, upload_auth_token, file_name, len(file_contents), 'text/plain', file_sha1,
-        {'color': 'blue'}, six.BytesIO(file_contents)
+        upload_url, upload_auth_token, file_name,
+        len(file_contents), 'text/plain', file_sha1, {'color': 'blue'}, six.BytesIO(file_contents)
     )
     file_id = file_dict['fileId']
 
@@ -539,8 +559,8 @@ def test_raw_api_helper(raw_api):
     part_contents = six.b('hello part')
     part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
     raw_api.upload_part(
-        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
-        six.BytesIO(part_contents)
+        upload_part_url, upload_path_auth, 1,
+        len(part_contents), part_sha1, six.BytesIO(part_contents)
     )
 
     # b2_list_parts

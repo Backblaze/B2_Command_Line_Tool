@@ -23,8 +23,10 @@ class Arguments(object):
     """
 
     def __repr__(self):
-        return '%s(%s)' % (self.__class__.__name__,
-                           repr_dict_deterministically(self.__dict__),)
+        return '%s(%s)' % (
+            self.__class__.__name__,
+            repr_dict_deterministically(self.__dict__),
+        )
 
 
 def check_for_duplicate_args(args_dict):
@@ -49,7 +51,8 @@ def check_for_duplicate_args(args_dict):
             names_b = args_dict[category_b]
             for common_name in set(names_a) & set(names_b):
                 raise ValueError(
-                    "argument '%s' is in both '%s' an '%s'" % (common_name, category_a, category_b)
+                    "argument '%s' is in both '%s' an '%s'" %
+                    (common_name, category_a, category_b)
                 )
 
 
@@ -133,14 +136,20 @@ def parse_arg_list(
             setattr(result, option, True)
         elif option in option_args:
             if len(arg_list) == 0:
-                logger.debug('option %s is recognized as OPTION_ARGS and there are no more arguments on arg_list to parse', option)
+                logger.debug(
+                    'option %s is recognized as OPTION_ARGS and there are no more arguments on arg_list to parse',
+                    option
+                )
                 return None
             else:
                 logger.debug('option %s is properly recognized as OPTION_ARGS', option)
                 setattr(result, option, parse_arg(option, arg_list))
         elif option in list_args:
             if len(arg_list) == 0:
-                logger.debug('option %s is recognized as LIST_ARGS and there are no more arguments on arg_list to parse', option)
+                logger.debug(
+                    'option %s is recognized as LIST_ARGS and there are no more arguments on arg_list to parse',
+                    option
+                )
                 return None
             else:
                 logger.debug('option %s is properly recognized as LIST_ARGS', option)

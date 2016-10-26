@@ -43,8 +43,18 @@ class FileSimulator(object):
     """
 
     def __init__(
-        self, account_id, bucket_id, file_id, action, name, content_type, content_sha1, file_info,
-        data_bytes, upload_timestamp, range_=None
+        self,
+        account_id,
+        bucket_id,
+        file_id,
+        action,
+        name,
+        content_type,
+        content_sha1,
+        file_info,
+        data_bytes,
+        upload_timestamp,
+        range_=None
     ):
         self.account_id = account_id
         self.bucket_id = bucket_id
@@ -449,14 +459,22 @@ class RawSimulator(AbstractRawApi):
         del self.bucket_id_to_bucket[bucket_id]
         return bucket.bucket_dict()
 
-    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None):
+    def download_file_by_id(
+        self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
+    ):
         # TODO: check auth token if bucket is not public
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
         bucket.download_file_by_id(file_id, download_dest, range_=range_)
 
     def download_file_by_name(
-        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest, range_=None
+        self,
+        download_url,
+        account_auth_token_or_none,
+        bucket_name,
+        file_name,
+        download_dest,
+        range_=None
     ):
         assert download_url == self.DOWNLOAD_URL
         # TODO: check auth token if bucket is not public

@@ -218,8 +218,10 @@ class Bucket(object):
                 start_file_name = response.get('nextFileName')
                 start_file_id = response.get('nextFileId')
             else:
-                start_file_name = max(response['nextFileName'],
-                                      prefix + current_dir[:-1] + '0',)
+                start_file_name = max(
+                    response['nextFileName'],
+                    prefix + current_dir[:-1] + '0',
+                )
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
@@ -564,8 +566,10 @@ class Bucket(object):
 
     @disable_trace
     def as_dict(self):  # TODO: refactor with other as_dict()
-        result = {'accountId': self.api.account_info.get_account_id(),
-                  'bucketId': self.id_,}
+        result = {
+            'accountId': self.api.account_info.get_account_id(),
+            'bucketId': self.id_,
+        }
         if self.name is not None:
             result['bucketName'] = self.name
         if self.type_ is not None:

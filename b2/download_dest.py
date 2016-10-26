@@ -29,8 +29,15 @@ class AbstractDownloadDestination(object):
     @abstractmethod
     @limit_trace_arguments(skip=['content_sha1',])
     def open(
-        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis, range_=None
+        self,
+        file_id,
+        file_name,
+        content_length,
+        content_type,
+        content_sha1,
+        file_info,
+        mod_time_millis,
+        range_=None
     ):
         """
         Returns a binary file-like object to use for writing the contents of
@@ -85,8 +92,15 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
         self.local_file_path = local_file_path
 
     def open(
-        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis, range_=None
+        self,
+        file_id,
+        file_name,
+        content_length,
+        content_type,
+        content_sha1,
+        file_info,
+        mod_time_millis,
+        range_=None
     ):
         self.file_id = file_id
         self.file_name = file_name
@@ -120,8 +134,15 @@ class DownloadDestBytes(AbstractDownloadDestination):
     """
 
     def open(
-        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis, range_=None
+        self,
+        file_id,
+        file_name,
+        content_length,
+        content_type,
+        content_sha1,
+        file_info,
+        mod_time_millis,
+        range_=None
     ):
         self.file_id = file_id
         self.file_name = file_name
@@ -141,8 +162,15 @@ class DownloadDestProgressWrapper(AbstractDownloadDestination):
         self.progress_listener = progress_listener
 
     def open(
-        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
-        mod_time_millis, range_=None
+        self,
+        file_id,
+        file_name,
+        content_length,
+        content_type,
+        content_sha1,
+        file_info,
+        mod_time_millis,
+        range_=None
     ):
         total_bytes = content_length
         if range_ is not None:
