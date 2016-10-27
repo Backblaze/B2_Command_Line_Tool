@@ -163,7 +163,9 @@ def count_files(local_folder, reporter):
 
 
 @trace_call(logger)
-def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers):
+def sync_folders(
+    source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers, dry_run=False
+):
     """
     Syncs two folders.  Always ensures that every file in the
     source is also in the destination.  Deletes any file versions
@@ -171,7 +173,7 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
     """
 
     # For downloads, make sure that the target directory is there.
-    if dest_folder.folder_type() == 'local':
+    if dest_folder.folder_type() == 'local' and not dry_run:
         dest_folder.ensure_present()
 
     # Make a reporter to report progress.
@@ -209,7 +211,7 @@ def sync_folders(source_folder, dest_folder, args, now_millis, stdout, no_progre
             source_folder, dest_folder, args, now_millis, reporter
         ):
             logging.debug('scheduling action %s on bucket %s')
-            future = sync_executor.submit(action.run, bucket, reporter)
+            future = sync_executor.submit(action.run, bucket, reporter, dry_run)
             action_futures.append(future)
             total_files += 1
             total_bytes += action.get_bytes()

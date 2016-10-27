@@ -20,6 +20,7 @@ from b2.console_tool import ConsoleTool
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
+from test_b2_command_line import file_mod_time_millis
 
 try:
     import unittest.mock as mock
@@ -386,6 +387,59 @@ class TestConsoleTool(TestBase):
             expected_stderr=expected_stderr,
             expected_status=1
         )
+
+    def test_sync_dry_run(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            temp_file = self._make_local_file(temp_dir, 'test-dry-run.txt')
+
+            # dry-run
+            expected_stdout = '''
+            upload test-dry-run.txt
+            '''
+            command = ['sync', '--noProgress', '--dryRun', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
+
+            # file should not have been uploaded
+            expected_stdout = '''
+            {
+              "files": [],
+              "nextFileName": null
+            }
+            '''
+            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
+
+            # upload file
+            expected_stdout = '''
+            upload test-dry-run.txt
+            '''
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
+
+            # file should have been uploaded
+            mtime = file_mod_time_millis(temp_file)
+            expected_stdout = '''
+            {
+              "files": [
+                {
+                  "action": "upload",
+                  "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                  "contentType": "b2/x-auto",
+                  "fileId": "9999",
+                  "fileInfo": {
+                    "src_last_modified_millis": "%d"
+                  },
+                  "fileName": "test-dry-run.txt",
+                  "size": 11,
+                  "uploadTimestamp": 5000
+                }
+              ],
+              "nextFileName": null
+            }
+            ''' % (mtime)
+            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
     def _authorize_account(self):
         """
