@@ -477,8 +477,15 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         write_file(p('a'), b'hello')
         write_file(p('b'), b'hello')
         write_file(p('c'), b'hello')
+
+        # simulate action (nothing should be uploaded)
+        b2_tool.should_succeed(['sync', '--noProgress', '--dryRun', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal([], file_version_summary(file_versions))
+
         os.symlink('broken', p('d'))
 
+        # now upload
         b2_tool.should_succeed(
             ['sync', '--noProgress', dir_path, b2_sync_point],
             expected_pattern="/d could not be accessed"
