@@ -164,7 +164,7 @@ def count_files(local_folder, reporter):
 
 @trace_call(logger)
 def sync_folders(
-    source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers, dry_run
+    source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers, dry_run=False
 ):
     """
     Syncs two folders.  Always ensures that every file in the
