@@ -223,6 +223,7 @@ script:
             echo skip
         fi
   - if [ "$MODE" == 'SCA' ]; then pyflakes . || exit; else echo skip; fi
+  - if [ "$MODE" == 'SCA' ]; then pip install pylint && pylint b2 || true; else echo skip; fi
 
   # isort doesn't get along with yapf. Hopefully we'll figure it out and re-enable in the future.
   # - if [ "$MODE" == 'SCA' ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
@@ -269,3 +270,4 @@ after_success:
   - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then python-codacy-coverage -r coverage.xml; else echo skip; fi
   - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then coveralls; else echo skip; fi
   - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then ./codecov.sh -X gcov -X coveragepy; else echo skip; fi
+
