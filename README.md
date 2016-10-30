@@ -18,7 +18,7 @@ Version 0.6.9
 This tool can be installed with:
 
     pip install b2
-    
+
 If you see a message saying that the `six` library cannot be installed, which
 happens if you're installing with the system python on OS X El Capitan, try
 this:
@@ -48,7 +48,8 @@ this:
     b2 make_url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--threads N] [--noProgress] \
-        [--excludeRegex <regex> [--includeRegex <regex>]] <source> <destination>
+        [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \
+        <source> <destination>
     b2 update_bucket <bucketName> [allPublic | allPrivate]
     b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] \
         [--info <key>=<value>]* [--minPartSize N] \
@@ -101,18 +102,18 @@ You'll need to have these packages installed:
 There is a `Makefile` with a rule to run the unit tests using the currently active Python:
 
     make test
-    
+
 To test in multiple python virtual environments, set the enviroment variable `PYTHON_VIRTUAL_ENVS`
 to be a space-separated list of their root directories.  When set, the makefile will run the
 unit tests in each of the environments.
-    
+
 Before checking in, use the `pre-commit.sh` script to check code formatting, run
 unit tests, run integration tests etc.
 
 The integration tests need a file in your home directory called `.b2_auth`
 that contains two lines with nothing on them but your account ID and application key:
- 
+
      accountId
      applicationKey
-    
+
 We marked the places in the code which are significantly less intuitive than others in a special way. To find them occurrences, use `git grep '*magic*'`.
