@@ -10,14 +10,20 @@
 
 from abc import ABCMeta, abstractmethod
 import six
+import sys
 import time
 
 from .utils import raise_if_shutting_down
 
-try:
-    from tqdm import tqdm  # displays a nice progress bar
-except ImportError:
-    tqdm = None  # noqa
+# tqdm doesn't work on 2.6 with at least some encodings
+# on sys.stderr.  See: https://github.com/Backblaze/B2_Command_Line_Tool/issues/272
+if sys.version_info < (2, 7):
+    tqdm = None  # will fall back to simple progress reporting
+else:
+    try:
+        from tqdm import tqdm  # displays a nice progress bar
+    except ImportError:
+        tqdm = None  # noqa
 
 
 @six.add_metaclass(ABCMeta)
