@@ -461,8 +461,7 @@ class TestConsoleTool(TestBase):
         """
         expected_stdout = self._trim_leading_spaces(expected_stdout)
         expected_stderr = self._trim_leading_spaces(expected_stderr)
-        stdout = six.StringIO()
-        stderr = six.StringIO()
+        stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         actual_status = console_tool.run_command(['b2'] + argv)
 
@@ -481,8 +480,18 @@ class TestConsoleTool(TestBase):
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
 
+    def _get_stdouterr(self):
+        class MyStringIO(six.StringIO):
+            if six.PY2:  # python3 already has this attribute
+                encoding = 'fake_encoding'
+
+        stdout = MyStringIO()
+        stderr = MyStringIO()
+        return stdout, stderr
+
     def _run_command_no_checks(self, argv):
-        ConsoleTool(self.b2_api, six.StringIO(), six.StringIO()).run_command(['b2'] + argv)
+        stdout, stderr = self._get_stdouterr()
+        ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
 
     def _trim_leading_spaces(self, s):
         """
