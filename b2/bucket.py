@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import logging
 import six
 import threading
 
@@ -21,6 +22,8 @@ from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
 from .utils import B2TraceMeta, disable_trace, limit_trace_arguments
+
+logger = logging.getLogger(__name__)
 
 
 class LargeFileUploadState(object):
@@ -350,6 +353,7 @@ class Bucket(object):
     ):
         content_length = upload_source.get_content_length()
         sha1_sum = upload_source.get_content_sha1()
+        upload_url = None
         exception_info_list = []
         for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
@@ -370,6 +374,7 @@ class Bucket(object):
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
             except B2Error as e:
+                logger.exception('error when uploading, upload_url was %s', upload_url)
                 if not e.should_retry_upload():
                     raise
                 exception_info_list.append(e)
@@ -488,6 +493,7 @@ class Bucket(object):
         # Set up a progress listener
         part_progress_listener = PartProgressReporter(large_file_upload_state)
 
+        upload_url = None
         # Retry the upload as needed
         exception_list = []
         for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
@@ -515,6 +521,7 @@ class Bucket(object):
                     return response
 
             except B2Error as e:
+                logger.exception('error when uploading, upload_url was %s', upload_url)
                 if not e.should_retry_upload():
                     raise
                 exception_list.append(e)
