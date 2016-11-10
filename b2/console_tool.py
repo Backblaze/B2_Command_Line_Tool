@@ -20,6 +20,7 @@ import platform
 import signal
 import sys
 import textwrap
+import time
 
 import six
 
@@ -959,6 +960,7 @@ class ConsoleTool(object):
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
+            formatter.converter = time.gmtime
             handler = logging.FileHandler('b2_cli.log')
             handler.setLevel(logging.DEBUG)
             handler.setFormatter(formatter)
