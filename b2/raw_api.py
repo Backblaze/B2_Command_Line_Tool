@@ -357,14 +357,24 @@ class B2RawApi(AbstractRawApi):
             contentType=content_type
         )
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type=None, bucket_info=None, ifRevisionIs=None):
+        assert bucket_info or bucket_type
+
+        kwargs = {}
+        if ifRevisionIs is not None:
+            kwargs['ifRevisionIs'] = ifRevisionIs
+        if bucket_info is not None:
+            kwargs['bucketInfo'] = bucket_info
+        if bucket_type is not None:
+            kwargs['bucketType'] = bucket_type
+
         return self._post_json(
             api_url,
             'b2_update_bucket',
             account_auth_token,
             accountId=account_id,
             bucketId=bucket_id,
-            bucketType=bucket_type
+            **kwargs
         )
 
     def upload_file(

@@ -99,14 +99,20 @@ class Bucket(object):
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_LARGE_FILE_SIZE = 10 * 1000 * 1000 * 1000 * 1000  # 10 TB
 
-    def __init__(self, api, id_, name=None, type_=None):
+    def __init__(self, api, id_, name=None, type_=None, bucket_info=None, revision=None):
         self.api = api
         self.id_ = id_
         self.name = name
         self.type_ = type_
+        self.bucket_info = bucket_info or {}
+        self.revision = revision
 
     def get_id(self):
         return self.id_
+
+    def set_info(self, new_bucket_info, ifRevisionIs=None):
+        account_id = self.api.account_info.get_account_id()
+        return self.api.session.update_bucket(account_id, self.id_, bucket_info=new_bucket_info, ifRevisionIs=ifRevisionIs)
 
     def set_type(self, type_):
         account_id = self.api.account_info.get_account_id()
@@ -600,13 +606,17 @@ class BucketFactory(object):
                 "bucketType": "allPrivate",
                 "bucketId": "a4ba6a39d8b6b5fd561f0010",
                 "bucketName": "zsdfrtsazsdfafr",
-                "accountId": "4aa9865d6f00"
+                "accountId": "4aa9865d6f00",
+                "bucketInfo": {},
+                "revision": 1
             }
             into a Bucket object
         """
         bucket_name = bucket_dict['bucketName']
         bucket_id = bucket_dict['bucketId']
         type_ = bucket_dict['bucketType']
+        bucket_info = bucket_dict['bucketInfo']
+        revision = bucket_dict['revision']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(api, bucket_id, bucket_name, type_)
+        return Bucket(api, bucket_id, bucket_name, type_, bucket_info, revision)

@@ -176,12 +176,14 @@ class BucketSimulator(object):
 
     FIRST_FILE_ID = str(FIRST_FILE_NUMBER)
 
-    def __init__(self, account_id, bucket_id, bucket_name, bucket_type):
+    def __init__(self, account_id, bucket_id, bucket_name, bucket_type, bucket_info=None, revision=1):
         assert bucket_type in ['allPrivate', 'allPublic']
         self.account_id = account_id
         self.bucket_name = bucket_name
         self.bucket_id = bucket_id
         self.bucket_type = bucket_type
+        self.bucket_info = bucket_info or {}
+        self.revision = revision
         self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
         self.file_id_counter = iter(range(self.FIRST_FILE_NUMBER, 0, -1))
@@ -195,7 +197,9 @@ class BucketSimulator(object):
             accountId=self.account_id,
             bucketName=self.bucket_name,
             bucketId=self.bucket_id,
-            bucketType=self.bucket_type
+            bucketType=self.bucket_type,
+            bucketInfo=self.bucket_info,
+            revision=self.revision,
         )
 
     def cancel_large_file(self, file_id):
@@ -346,8 +350,14 @@ class BucketSimulator(object):
         self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
         return file_sim.as_start_large_file_result()
 
-    def update_bucket(self, bucket_type):
-        self.bucket_type = bucket_type
+    def update_bucket(self, bucket_type=None, bucket_info=None, ifRevisionIs=None):
+        if ifRevisionIs is not None and self.revision != ifRevisionIs:
+            return self.bucket_dict()  # XXX
+
+        if bucket_type is not None:
+            self.bucket_type = bucket_type
+        if bucket_info is not None:
+            self.bucket_info = bucket_info
         return self.bucket_dict()
 
     def upload_file(
@@ -563,10 +573,11 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[result['fileId']] = bucket_id
         return result
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type=None, bucket_info=None, ifRevisionIs=None):
+        assert bucket_type or bucket_info
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        return bucket.update_bucket(bucket_type)
+        return bucket.update_bucket(bucket_type=None, bucket_info=None, ifRevisionIs=None)
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
