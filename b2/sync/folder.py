@@ -125,6 +125,9 @@ class LocalFolder(AbstractFolder):
             if not os.path.exists(full_path):
                 if reporter is not None:
                     reporter.local_access_error(full_path)
+            elif not os.access(full_path, os.R_OK):
+                if reporter is not None:
+                    reporter.local_permission_error(full_path)
             else:
                 if os.path.isdir(full_path):
                     name += six.u('/')
