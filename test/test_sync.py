@@ -59,12 +59,15 @@ class TestLocalFolder(TestSync):
             full_path = os.path.join(root_dir, relative_path)
             write_file(full_path, b'')
 
-    def _prepare_folder(self, root_dir, broken_symlink=False):
+    def _prepare_folder(self, root_dir, broken_symlink=False, invalid_permissions=False):
+        assert not (broken_symlink and invalid_permissions)
         self._create_files(root_dir, self.NAMES)
         if broken_symlink:
             os.symlink(
                 os.path.join(root_dir, 'non_existant_file'), os.path.join(root_dir, 'bad_symlink')
             )
+        elif invalid_permissions:
+            os.chmod(os.path.join(root_dir, self.NAMES[0]), 0)
         return LocalFolder(root_dir)
 
     def test_slash_sorting(self):
@@ -82,6 +85,15 @@ class TestLocalFolder(TestSync):
                 pass  # just generate all the files
             self.reporter.local_access_error.assert_called_once_with(
                 os.path.join(tmpdir, 'bad_symlink')
+            )
+
+    def test_invalid_permissions(self):
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir, invalid_permissions=True)
+            for _ in folder.all_files(self.reporter):
+                pass  # just generate all the files
+            self.reporter.local_permission_error.assert_called_once_with(
+                os.path.join(tmpdir, self.NAMES[0])
             )
 
 

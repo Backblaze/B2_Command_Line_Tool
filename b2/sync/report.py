@@ -176,6 +176,11 @@ class SyncReport(object):
     def local_access_error(self, path):
         self.warnings.append('WARNING: %s could not be accessed (broken symlink?)' % (path,))
 
+    def local_permission_error(self, path):
+        self.warnings.append(
+            'WARNING: %s could not be accessed (no permissions to read?)' % (path,)
+        )
+
 
 class SyncFileReporter(AbstractProgressListener):
     """
