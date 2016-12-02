@@ -74,15 +74,13 @@ class TestLocalFolder(TestSync):
         # '/' should sort between '.' and '0'
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
-            actual_names = list(f.name for f in folder.all_files(self.reporter))
-            self.assertEqual(self.NAMES, actual_names)
+            self.assertEqual(self.NAMES, list(f.name for f in folder.all_files(self.reporter)))
             self.reporter.local_access_error.assert_not_called()
 
     def test_broken_symlink(self):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir, broken_symlink=True)
-            for _ in folder.all_files(self.reporter):
-                pass  # just generate all the files
+            self.assertEqual(self.NAMES, list(f.name for f in folder.all_files(self.reporter)))
             self.reporter.local_access_error.assert_called_once_with(
                 os.path.join(tmpdir, 'bad_symlink')
             )
@@ -90,8 +88,7 @@ class TestLocalFolder(TestSync):
     def test_invalid_permissions(self):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir, invalid_permissions=True)
-            for _ in folder.all_files(self.reporter):
-                pass  # just generate all the files
+            self.assertEqual(self.NAMES[1:], list(f.name for f in folder.all_files(self.reporter)))
             self.reporter.local_permission_error.assert_called_once_with(
                 os.path.join(tmpdir, self.NAMES[0])
             )
