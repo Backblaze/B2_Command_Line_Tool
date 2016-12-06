@@ -464,7 +464,9 @@ class ListFileVersions(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_versions(args.startFileName, args.startFileId, args.maxToShow, prefix=args.prefix)
+        response = bucket.list_file_versions(
+            args.startFileName, args.startFileId, args.maxToShow, prefix=args.prefix
+        )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
@@ -531,10 +533,8 @@ class ListUnfinishedLargeFiles(Command):
                 for k in sorted(six.iterkeys(unfinished.file_info))
             )
             self._print(
-                '%s %s %s %s' % (
-                    unfinished.file_id, unfinished.file_name, unfinished.content_type,
-                    file_info_text
-                )
+                '%s %s %s %s' %
+                (unfinished.file_id, unfinished.file_name, unfinished.content_type, file_info_text)
             )
         return 0
 

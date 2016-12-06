@@ -292,7 +292,13 @@ class B2RawApi(AbstractRawApi):
         return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
 
     def list_file_names(
-        self, api_url, account_auth_token, bucket_id, start_file_name=None, max_file_count=None, prefix=None
+        self,
+        api_url,
+        account_auth_token,
+        bucket_id,
+        start_file_name=None,
+        max_file_count=None,
+        prefix=None
     ):
         if prefix is None:
             prefix = ""
