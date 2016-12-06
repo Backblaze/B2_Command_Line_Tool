@@ -443,15 +443,20 @@ class ListBuckets(Command):
 
 class ListFileVersions(Command):
     """
-    b2 list_file_versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
+    b2 list_file_versions [--prefix <fileNamePrefix>] <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
         given point.  This is a low-level operation that reports the
         raw JSON returned from the service.  'b2 ls' provides a higher-
         level view.
+
+        When a prefix is specified, only files names that start with
+        the prefix are displayed.
     """
 
     REQUIRED = ['bucketName']
+
+    OPTION_ARGS = ['prefix']
 
     OPTIONAL = ['startFileName', 'startFileId', 'maxToShow']
 
@@ -459,20 +464,25 @@ class ListFileVersions(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_versions(args.startFileName, args.startFileId, args.maxToShow)
+        response = bucket.list_file_versions(args.startFileName, args.startFileId, args.maxToShow, prefix=args.prefix)
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
 
 class ListFileNames(Command):
     """
-    b2 list_file_names <bucketName> [<startFileName>] [<maxToShow>]
+    b2 list_file_names [--prefix <fileNamePrefix>] <bucketName> [<startFileName>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
         given point.
+
+        When a prefix is specified, only files names that start with
+        the prefix are displayed.
     """
 
     REQUIRED = ['bucketName']
+
+    OPTION_ARGS = ['prefix']
 
     OPTIONAL = ['startFileName', 'maxToShow']
 
@@ -480,7 +490,7 @@ class ListFileNames(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_names(args.startFileName, args.maxToShow)
+        response = bucket.list_file_names(args.startFileName, args.maxToShow, prefix=args.prefix)
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 

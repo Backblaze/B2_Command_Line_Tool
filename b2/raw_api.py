@@ -292,15 +292,18 @@ class B2RawApi(AbstractRawApi):
         return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
 
     def list_file_names(
-        self, api_url, account_auth_token, bucket_id, start_file_name=None, max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_name=None, max_file_count=None, prefix=None
     ):
+        if prefix is None:
+            prefix = ""
         return self._post_json(
             api_url,
             'b2_list_file_names',
             account_auth_token,
             bucketId=bucket_id,
             startFileName=start_file_name,
-            maxFileCount=max_file_count
+            maxFileCount=max_file_count,
+            prefix=prefix
         )
 
     def list_file_versions(
@@ -310,8 +313,11 @@ class B2RawApi(AbstractRawApi):
         bucket_id,
         start_file_name=None,
         start_file_id=None,
-        max_file_count=None
+        max_file_count=None,
+        prefix=None
     ):
+        if prefix is None:
+            prefix = ""
         return self._post_json(
             api_url,
             'b2_list_file_versions',
@@ -319,7 +325,8 @@ class B2RawApi(AbstractRawApi):
             bucketId=bucket_id,
             startFileName=start_file_name,
             startFileId=start_file_id,
-            maxFileCount=max_file_count
+            maxFileCount=max_file_count,
+            prefix=prefix
         )
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):

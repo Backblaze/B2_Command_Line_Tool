@@ -226,14 +226,14 @@ class Bucket(object):
                     prefix + current_dir[:-1] + '0',
                 )
 
-    def list_file_names(self, start_filename=None, max_entries=None):
+    def list_file_names(self, start_filename=None, max_entries=None, prefix=None):
         """ legacy interface which just returns whatever remote API returns """
-        return self.api.session.list_file_names(self.id_, start_filename, max_entries)
+        return self.api.session.list_file_names(self.id_, start_filename, max_entries, prefix=prefix)
 
-    def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None):
+    def list_file_versions(self, start_filename=None, start_file_id=None, max_entries=None, prefix=None):
         """ legacy interface which just returns whatever remote API returns """
         return self.api.session.list_file_versions(
-            self.id_, start_filename, start_file_id, max_entries
+            self.id_, start_filename, start_file_id, max_entries, prefix=prefix
         )
 
     def list_unfinished_large_files(self, start_file_id=None, batch_size=None):
