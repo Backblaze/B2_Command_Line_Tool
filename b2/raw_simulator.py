@@ -523,6 +523,15 @@ class RawSimulator(AbstractRawApi):
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return bucket.finish_large_file(file_id, part_sha1_array)
 
+    def get_download_authorization(self, api_url, account_auth_token, bucket_id, file_name_prefix, valid_duration_in_seconds):
+        bucket = self._get_bucket_by_id(bucket_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        return {
+            'bucketId': bucket_id,
+            'fileNamePrefix': file_name_prefix,
+            'authorizationToken': 'fake_download_auth_token_%s_%s_%d' % (bucket_id, file_name_prefix, valid_duration_in_seconds)
+        }
+
     def get_file_info(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)

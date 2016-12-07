@@ -293,6 +293,16 @@ class B2RawApi(AbstractRawApi):
             partSha1Array=part_sha1_array
         )
 
+    def get_download_authorization(self, api_url, account_auth_token, bucket_id, file_name_prefix, valid_duration_in_seconds):
+        return self._post_json(
+            api_url,
+            'b2_get_download_authorization',
+            account_auth_token,
+            bucketId=bucket_id,
+            fileNamePrefix=file_name_prefix,
+            validDurationInSeconds=valid_duration_in_seconds
+        )
+
     def get_file_info(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
 
@@ -560,6 +570,19 @@ def test_raw_api_helper(raw_api):
     print('b2_download_file_by_name (no auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_name(download_url, None, bucket_name, file_name, download_dest)
+    assert file_contents == download_dest.bytes_io.getvalue()
+
+    # b2_get_download_authorization
+    print('b2_get_download_authorization')
+    download_auth = raw_api.get_download_authorization(api_url, account_auth_token, bucket_id, "prefix", 12345)
+    download_auth_token = download_auth['authorizationToken']
+
+    # b2_download_file_by_name with download auth
+    print('b2_download_file_by_name (download auth)')
+    download_dest = DownloadDestBytes()
+    raw_api.download_file_by_name(
+        download_url, download_auth_token, bucket_name, file_name, download_dest
+    )
     assert file_contents == download_dest.bytes_io.getvalue()
 
     # b2_list_file_names

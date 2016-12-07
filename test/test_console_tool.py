@@ -314,6 +314,21 @@ class TestConsoleTool(TestBase):
 
             self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
 
+    def test_get_download_auth_defaults(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        self._run_command(['get_download_auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0)
+
+    def test_get_download_auth_explicit(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        self._run_command(
+            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'],
+            'fake_download_auth_token_bucket_0_prefix_12345\n',
+            '',
+            0
+        )
+
     def test_list_parts_with_none(self):
         self._authorize_account()
         self._create_my_bucket()
