@@ -36,6 +36,7 @@ this:
     b2 delete_file_version [<fileName>] <fileId>
     b2 download_file_by_id [--noProgress] <fileId> <localFileName>
     b2 download_file_by_name [--noProgress] <bucketName> <fileName> <localFileName>
+    b2 get_download_auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
     b2 get_file_info <fileId>
     b2 help [commandName]
     b2 hide_file <bucketName> <fileName>
