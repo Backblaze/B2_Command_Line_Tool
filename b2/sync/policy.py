@@ -20,6 +20,9 @@ ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
 
 @six.add_metaclass(ABCMeta)
 class AbstractFileSyncPolicy(object):
+    DESTINATION_PREFIX = NotImplemented
+    SOURCE_PREFIX = NotImplemented
+
     def __init__(self, source_file, source_folder, dest_file, dest_folder, now_millis, args):
         self._source_file = source_file
         self._source_folder = source_folder
@@ -76,7 +79,9 @@ class AbstractFileSyncPolicy(object):
                 elif args.skipNewer:
                     return False
                 else:
-                    raise DestFileNewer(dest_file.name,)
+                    raise DestFileNewer(
+                        dest_file, source_file, cls.DESTINATION_PREFIX, cls.SOURCE_PREFIX
+                    )
 
         # Compare using file size
         elif compareVersions == 'size':
@@ -117,6 +122,8 @@ class DownPolicy(AbstractFileSyncPolicy):
     """
     file is synced down (from the cloud to disk)
     """
+    DESTINATION_PREFIX = 'local://'
+    SOURCE_PREFIX = 'b2://'
 
     def _make_transfer_action(self):
         return B2DownloadAction(
@@ -132,6 +139,8 @@ class UpPolicy(AbstractFileSyncPolicy):
     """
     file is synced up (from disk the cloud)
     """
+    DESTINATION_PREFIX = 'b2://'
+    SOURCE_PREFIX = 'local://'
 
     def _make_transfer_action(self):
         return B2UploadAction(
