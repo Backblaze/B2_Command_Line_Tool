@@ -19,6 +19,7 @@ import six
 import time
 
 from .exception import B2Error, BrokenPipe, B2ConnectionError, B2RequestTimeout, interpret_b2_error, UnknownError, UnknownHost
+from .utils import B2TraceMeta
 from .version import USER_AGENT
 from six.moves import range
 
@@ -117,6 +118,7 @@ class ResponseContextManager(object):
         self.response.close()
 
 
+@six.add_metaclass(B2TraceMeta)
 class B2Http(object):
     """
     A wrapper for the requests module.  Provides the operations
