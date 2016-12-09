@@ -104,6 +104,7 @@ class TestConsoleTool(TestBase):
             "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
+            "lifecycleRules": [],
             "revision": 2
         }
         '''
@@ -126,6 +127,7 @@ class TestConsoleTool(TestBase):
             "bucketInfo": {},
             "bucketName": "your-bucket",
             "bucketType": "allPrivate",
+            "lifecycleRules": [],
             "revision": 1
         }
         '''
