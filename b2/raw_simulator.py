@@ -459,14 +459,25 @@ class RawSimulator(AbstractRawApi):
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return bucket.cancel_large_file(file_id)
 
-    def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
+    def create_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_name,
+        bucket_type,
+        bucket_info=None,
+        lifecycle_rules=None
+    ):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):
             raise BadJson('illegal bucket name: ' + bucket_name)
         self._assert_account_auth(api_url, account_auth_token, account_id)
         if bucket_name in self.bucket_name_to_bucket:
             raise DuplicateBucketName(bucket_name)
         bucket_id = 'bucket_' + str(six.next(self.bucket_id_counter))
-        bucket = BucketSimulator(account_id, bucket_id, bucket_name, bucket_type)
+        bucket = BucketSimulator(
+            account_id, bucket_id, bucket_name, bucket_type, bucket_info, lifecycle_rules
+        )
         self.bucket_name_to_bucket[bucket_name] = bucket
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_dict()

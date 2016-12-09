@@ -120,6 +120,17 @@ class Bucket(object):
         account_id = self.api.account_info.get_account_id()
         return self.api.session.update_bucket(account_id, self.id_, type_)
 
+    def update(self, bucket_type=None, bucket_info=None, lifecycle_rules=None, if_revision_is=None):
+        account_id = self.api.account_info.get_account_id()
+        return self.api.session.update_bucket(
+            account_id,
+            self.id_,
+            bucket_type=bucket_type,
+            bucket_info=bucket_info,
+            lifecycle_rules=lifecycle_rules,
+            if_revision_is=if_revision_is
+        )
+
     def cancel_large_file(self, file_id):
         return self.api.cancel_large_file(file_id)
 

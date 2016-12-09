@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import json
 import os
 
 import six
@@ -67,13 +68,15 @@ class TestConsoleTool(TestBase):
     def test_help_with_bad_args(self):
         expected_stderr = '''
 
-        b2 create_bucket <bucketName> [allPublic | allPrivate]
+        b2 list_parts <largeFileId>
 
-            Creates a new bucket.  Prints the ID of the bucket created.
+            Lists all of the parts that have been uploaded for the given
+            large file, which must be a file that was started but not
+            finished or canceled.
 
         '''
 
-        self._run_command(['create_bucket'], '', expected_stderr, 1)
+        self._run_command(['list_parts'], '', expected_stderr, 1)
 
     def test_clear_account(self):
         # Initial condition
@@ -133,6 +136,62 @@ class TestConsoleTool(TestBase):
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+
+    def test_bucket_info_from_file(self):
+
+        self._authorize_account()
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            bucket_info = {'color': 'blue'}
+            bucket_info_file = self._make_local_file(temp_dir, 'bucket_info.json')
+            with open(bucket_info_file, 'wb') as f:
+                f.write(six.b(json.dumps(bucket_info)))
+
+            expected_stdout = '''
+                {
+                    "accountId": "my-account",
+                    "bucketId": "bucket_0",
+                    "bucketInfo": {
+                        "color": "blue"
+                    },
+                    "bucketName": "my-bucket",
+                    "bucketType": "allPrivate",
+                    "lifecycleRules": [],
+                    "revision": 2
+                }
+                '''
+            self._run_command(
+                [
+                    'update_bucket', '--bucketInfo', '@' + bucket_info_file, 'my-bucket',
+                    'allPrivate'
+                ], expected_stdout, '', 0
+            )
+
+    def test_bucket_info_from_json(self):
+
+        self._authorize_account()
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        bucket_info = {'color': 'blue'}
+
+        expected_stdout = '''
+            {
+                "accountId": "my-account",
+                "bucketId": "bucket_0",
+                "bucketInfo": {
+                    "color": "blue"
+                },
+                "bucketName": "my-bucket",
+                "bucketType": "allPrivate",
+                "lifecycleRules": [],
+                "revision": 2
+            }
+            '''
+        self._run_command(
+            ['update_bucket', '--bucketInfo', json.dumps(bucket_info), 'my-bucket', 'allPrivate'],
+            expected_stdout, '', 0
+        )
 
     def test_cancel_large_file(self):
         self._authorize_account()

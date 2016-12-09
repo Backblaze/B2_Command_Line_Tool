@@ -64,6 +64,14 @@ def mixed_case_to_underscores(s):
     return s[0].lower() + ''.join(c if c.islower() else '_' + c.lower() for c in s[1:])
 
 
+def json_or_file(arg):
+    if arg.startswith('@'):
+        with open(arg[1:], 'r') as f:
+            return json.load(f)
+    else:
+        return json.loads(arg)
+
+
 class Command(object):
     """
     Base class for commands.  Has basic argument parsing and printing.
@@ -273,15 +281,29 @@ class ClearAccount(Command):
 
 class CreateBucket(Command):
     """
-    b2 create_bucket <bucketName> [allPublic | allPrivate]
+    b2 create_bucket [--bucketInfo <jsonOrFile>] [--lifecycleRules <jsonOrFile] <bucketName> [allPublic | allPrivate]
 
         Creates a new bucket.  Prints the ID of the bucket created.
+
+        Optionally stores bucket info and lifecycle rules with the bucket.
+        These can be given as JSON on the command line, or as a file name
+        prefixed with "@".
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
+    OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
+
+    ARG_PARSER = {'bucketInfo': json_or_file, 'lifecycleRules': json_or_file}
+
     def run(self, args):
-        self._print(self.api.create_bucket(args.bucketName, args.bucketType).id_)
+        bucket = self.api.create_bucket(
+            args.bucketName,
+            args.bucketType,
+            bucket_info=args.bucketInfo,
+            lifecycle_rules=args.lifecycleRules
+        )
+        self._print(bucket.id_)
         return 0
 
 
@@ -521,10 +543,8 @@ class ListUnfinishedLargeFiles(Command):
                 for k in sorted(six.iterkeys(unfinished.file_info))
             )
             self._print(
-                '%s %s %s %s' % (
-                    unfinished.file_id, unfinished.file_name, unfinished.content_type,
-                    file_info_text
-                )
+                '%s %s %s %s' %
+                (unfinished.file_id, unfinished.file_name, unfinished.content_type, file_info_text)
             )
         return 0
 
@@ -746,17 +766,29 @@ class TestUploadUrlConcurrency(Command):
 
 class UpdateBucket(Command):
     """
-    b2 update_bucket <bucketName> [allPublic | allPrivate]
+    b2 update_bucket [--bucketInfo <jsonOrFile>] [--lifecycleRules <jsonOrFile] <bucketName> [allPublic | allPrivate]
 
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
+
+        Optionally stores bucket info and lifecycle rules with the bucket.
+        These can be given as JSON on the command line, or as a file name
+        prefixed with "@".
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
+    OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
+
+    ARG_PARSER = {'bucketInfo': json_or_file, 'lifecycleRules': json_or_file}
+
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.set_type(args.bucketType)
+        response = bucket.update(
+            bucket_type=args.bucketType,
+            bucket_info=args.bucketInfo,
+            lifecycle_rules=args.lifecycleRules
+        )
         self._print(json.dumps(response, indent=4, sort_keys=True))
         return 0
 

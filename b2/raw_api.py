@@ -387,13 +387,13 @@ class B2RawApi(AbstractRawApi):
         bucket_type=None,
         bucket_info=None,
         lifecycle_rules=None,
-        ifRevisionIs=None
+        if_revision_is=None
     ):
         assert bucket_info or bucket_type
 
         kwargs = {}
-        if ifRevisionIs is not None:
-            kwargs['ifRevisionIs'] = ifRevisionIs
+        if if_revision_is is not None:
+            kwargs['ifRevisionIs'] = if_revision_is
         if bucket_info is not None:
             kwargs['bucketInfo'] = bucket_info
         if bucket_type is not None:
@@ -628,7 +628,7 @@ def test_raw_api_helper(raw_api):
 
     # b2_update_bucket
     print('b2_update_bucket')
-    raw_api.update_bucket(
+    updated_bucket = raw_api.update_bucket(
         api_url,
         account_auth_token,
         account_id,
@@ -636,6 +636,7 @@ def test_raw_api_helper(raw_api):
         'allPrivate',
         bucket_info={'color': 'blue'}
     )
+    assert updated_bucket['revision'] == 2
 
     # clean up this test
     _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
