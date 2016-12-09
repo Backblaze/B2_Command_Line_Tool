@@ -14,7 +14,7 @@ import six
 from six.moves import range
 
 from .exception import (
-    BadJson, BadUploadUrl, ChecksumMismatch, DuplicateBucketName, FileNotPresent, InvalidAuthToken,
+    BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent, InvalidAuthToken,
     MissingPart, NonExistentBucket
 )
 from .raw_api import AbstractRawApi
@@ -350,14 +350,15 @@ class BucketSimulator(object):
         self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
         return file_sim.as_start_large_file_result()
 
-    def update_bucket(self, bucket_type=None, bucket_info=None, ifRevisionIs=None):
-        if ifRevisionIs is not None and self.revision != ifRevisionIs:
-            return self.bucket_dict()  # XXX
+    def update_bucket(self, bucket_type=None, bucket_info=None, if_revision_is=None):
+        if if_revision_is is not None and self.revision != if_revision_is:
+            raise Conflict()
 
         if bucket_type is not None:
             self.bucket_type = bucket_type
         if bucket_info is not None:
             self.bucket_info = bucket_info
+        self.revision += 1
         return self.bucket_dict()
 
     def upload_file(
@@ -573,11 +574,11 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[result['fileId']] = bucket_id
         return result
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type=None, bucket_info=None, ifRevisionIs=None):
+    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type=None, bucket_info=None, if_revision_is=None):
         assert bucket_type or bucket_info
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        return bucket.update_bucket(bucket_type=None, bucket_info=None, ifRevisionIs=None)
+        return bucket.update_bucket(bucket_type=bucket_type, bucket_info=bucket_info, if_revision_is=if_revision_is)
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,

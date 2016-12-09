@@ -130,6 +130,10 @@ class CommandError(B2Error):
         return self.message
 
 
+class Conflict(B2SimpleError):
+    pass
+
+
 class B2ConnectionError(TransientErrorMixin, B2SimpleError):
     pass
 
@@ -287,6 +291,8 @@ def interpret_b2_error(status, code, message, post_params=None):
         return InvalidAuthToken(message, code)
     elif status == 403 and code == "storage_cap_exceeded":
         return StorageCapExceeded()
+    elif status == 409:
+        return Conflict()
     elif status == 429:
         return TooManyRequests()
     elif 500 <= status and status < 600:

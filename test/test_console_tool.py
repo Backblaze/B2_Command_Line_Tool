@@ -101,8 +101,10 @@ class TestConsoleTool(TestBase):
         {
             "accountId": "my-account",
             "bucketId": "bucket_0",
+            "bucketInfo": {},
             "bucketName": "my-bucket",
-            "bucketType": "allPublic"
+            "bucketType": "allPublic",
+            "revision": 2
         }
         '''
 
@@ -121,8 +123,10 @@ class TestConsoleTool(TestBase):
         {
             "accountId": "my-account",
             "bucketId": "bucket_1",
+            "bucketInfo": {},
             "bucketName": "your-bucket",
-            "bucketType": "allPrivate"
+            "bucketType": "allPrivate",
+            "revision": 1
         }
         '''
 
