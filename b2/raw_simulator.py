@@ -14,8 +14,8 @@ import six
 from six.moves import range
 
 from .exception import (
-    BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent, InvalidAuthToken,
-    MissingPart, NonExistentBucket
+    BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent,
+    InvalidAuthToken, MissingPart, NonExistentBucket
 )
 from .raw_api import AbstractRawApi
 
@@ -176,7 +176,9 @@ class BucketSimulator(object):
 
     FIRST_FILE_ID = str(FIRST_FILE_NUMBER)
 
-    def __init__(self, account_id, bucket_id, bucket_name, bucket_type, bucket_info=None, revision=1):
+    def __init__(
+        self, account_id, bucket_id, bucket_name, bucket_type, bucket_info=None, revision=1
+    ):
         assert bucket_type in ['allPrivate', 'allPublic']
         self.account_id = account_id
         self.bucket_name = bucket_name
@@ -574,11 +576,22 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[result['fileId']] = bucket_id
         return result
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type=None, bucket_info=None, if_revision_is=None):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        if_revision_is=None
+    ):
         assert bucket_type or bucket_info
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        return bucket.update_bucket(bucket_type=bucket_type, bucket_info=bucket_info, if_revision_is=if_revision_is)
+        return bucket.update_bucket(
+            bucket_type=bucket_type, bucket_info=bucket_info, if_revision_is=if_revision_is
+        )
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,

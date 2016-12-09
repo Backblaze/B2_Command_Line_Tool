@@ -357,7 +357,16 @@ class B2RawApi(AbstractRawApi):
             contentType=content_type
         )
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type=None, bucket_info=None, ifRevisionIs=None):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        ifRevisionIs=None
+    ):
         assert bucket_info or bucket_type
 
         kwargs = {}
