@@ -2,7 +2,7 @@ notifications:
   slack:
     secure: naix0bLa/50X1HIXwLtkUC/YH9Iurs18eVy/mhfrfD2YFd7QjUGRz24SQU2r0ev0Qh3CUaH9MJoAUbu4oaXGB1VXzZkV7OIGimZe4gcWJuzItnVhyrQJKpcpC7yafdl7uDA0wjWs2BYRHCJ3c35Gv4SmihuGVXUS3WFsL0i3VyXno8xPOfmyuUT7GZWW80uMnV6eOyhbPCBb17CchI8x7owdXVf3drxCrrjoP3oNbbpByTsDC+hnCmVQbhkZAqS63gZRj5LT6gNh4ZA/qenaGkhzfHFRSUW1+H16ZzYcSSl0PfAQBQYrc7agUjI987PBHdOv6BJS+pKmZ0MvaDwbnzhHZZdb8LXqM5K0zAhPiZMPL2MTq7+eNOBdRuTlbWs3OZfbY1cnewSpMmUGfwrIjVnLtvfhfJXVaFbpIfvNc6eafgmHas23A05f4Gk/IcRLvqICw+GQg76ADUpWubQal7gECTGbeivOdRLnQcQYWCg/a5VR5B+4ELENmWLRD7IQgo6rJKpPiRdGRc0C0E9Mqt3w7w+9NiDnjTbSu8Q6ARBLXjAu+jSbY1VK0iPq6k1Wj8U5EgQF/xVLCEtKDRW1bdllwWNgi2yPo1CrkgKmJj6XPU3Zc744NR85uC+PxAjkIIbm90joevPmUQGwkpAgVX2pxCjVAX6ynQ79TFfdd/Y=
 
-dist: trusty
+#dist: trusty  # on 2016-12-13 pypy builds were broken on trusty, so we'll stick to stable for now
 language: python
 
 python:
@@ -76,12 +76,12 @@ cache:
     # custom pypy versions
     - $HOME/.pyenv
     # jython
-    - $HOME/.virtualenv/jython
+    - $HOME/.virtualenvs/jython
     - $HOME/jython
     - $HOME/jython-pip
     # OS X
-    - $HOME/.virtualenv/osx-python
-    - $HOME/.virtualenv/osx-python3
+    - $HOME/.virtualenvs/osx-python
+    - $HOME/.virtualenvs/osx-python3
     #- /usr/local/Cellar/python  # see comment in the install script
     #- /usr/local/Cellar/python3
 before_install:
@@ -103,25 +103,25 @@ before_install:
                 #
                 # Therefore caching is temporarily disabled until someone figures it out.
                 # Typically brew update and installation of python takes 3 to 4 minutes.
-                brew update
-                brew install "$OS_X_PYTHON_VERSION"
+                travis_retry brew update
+                travis_retry brew install "$OS_X_PYTHON_VERSION"
             else
                 echo 'skip install'
             fi
-            if [ ! -e "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
-                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
+            if [ ! -e "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
+                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION"
             else
                 echo 'skip virtualenv'
             fi
-            source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
+            source "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate"
         else
             echo skip
         fi
   - |
         # get jython
         if [ -n "$JYTHON" ]; then
-            if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
-                wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
+            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+                travis_retry wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
                 java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
             else
                 echo skip
@@ -133,17 +133,18 @@ before_install:
                 echo skip
             fi
             if [ ! -f ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl ]; then
-                wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
+                travis_retry wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
             else
                 echo skip
             fi
             # create jython virtualenv
-            if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
-                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenv/jython"
+            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenvs/jython"
             else
                 echo skip
             fi
-            source "$HOME/.virtualenv/jython/bin/activate"
+            export JAVA_OPTS="-Xms1024m -Xmx1024m"
+            source "$HOME/.virtualenvs/jython/bin/activate"
         else
             echo skip
         fi
@@ -159,11 +160,11 @@ before_install:
                 rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
             fi
             echo "PYPY_VERSION=$PYPY_VERSION"
-            "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
-            if [ ! -e "$HOME/.virtualenv/$PYPY_VERSION/bin/activate" ]; then
-                virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
+            travis_retry "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
+            if [ ! -e "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate" ]; then
+                virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenvs/$PYPY_VERSION"
             fi
-            source "$HOME/.virtualenv/$PYPY_VERSION/bin/activate"
+            source "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate"
         else
             echo skip
         fi
@@ -171,29 +172,19 @@ before_install:
   - python --version
 
 install:
-  - |
-        # install PyYAML on Jython manually before pip tries to do it and fails
-        if [ -n "$JYTHON" -a ! -f "$HOME/.virtualenv/jython/Lib/site-packages/PyYAML-3.11-py2.7.egg-info" ] &&
-                egrep '^pyyaml((>|<|=).+)?$' requirements*.txt -q; then
-            wget https://pypi.python.org/packages/source/P/PyYAML/PyYAML-3.11.tar.gz
-            tar -zxf PyYAML-3.11.tar.gz
-            cd PyYAML-3.11/
-            wget http://pyyaml.org/raw-attachment/ticket/163/jython-setup.patch
-            patch < jython-setup.patch
-            python setup.py install
-            cd -
-        fi
+  # requests==2.11.1 are the newest version that seems to work with jython, versions 2.12.[0-3] crash on install
+  - if [ -n "$JYTHON" ]; then pip install requests==2.11.1; else echo skip; fi  # install old requests earilier
 
-  # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it
+  # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it.
   - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
 
   - |
         # coverage has additional requirements
         if [ "$MODE" == 'coverage' ]; then
-            pip install coverage
-            if [ -n "$CODACY_PROJECT_TOKEN" ]; then pip install codacy-coverage; fi
-            if [ -n "$COVERALLS_REPO_TOKEN" ]; then pip install coveralls; fi
-            if [ -n "$CODECOV_TOKEN" ]; then wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
+            travis_retry pip install coverage
+            if [ -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry pip install codacy-coverage; fi
+            if [ -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry pip install coveralls; fi
+            if [ -n "$CODECOV_TOKEN" ]; then travis_retry wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
         fi
 
 before_script:
@@ -267,6 +258,6 @@ script:
   - if [ -n "$TEST_ACCOUNT_ID" -a "$MODE" == "TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
 
 after_success:
-  - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then python-codacy-coverage -r coverage.xml; else echo skip; fi
-  - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then coveralls; else echo skip; fi
-  - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then ./codecov.sh -X gcov -X coveragepy; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry python-codacy-coverage -r coverage.xml; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry coveralls; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then travis_retry ./codecov.sh -X gcov -X coveragepy; else echo skip; fi
