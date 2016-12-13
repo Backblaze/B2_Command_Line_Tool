@@ -172,19 +172,6 @@ before_install:
   - python --version
 
 install:
-  - |
-        # install PyYAML on Jython manually before pip tries to do it and fails
-        if [ -n "$JYTHON" -a ! -f "$HOME/.virtualenv/jython/Lib/site-packages/PyYAML-3.11-py2.7.egg-info" ] &&
-                egrep '^pyyaml((>|<|=).+)?$' requirements*.txt -q; then
-            wget https://pypi.python.org/packages/source/P/PyYAML/PyYAML-3.11.tar.gz
-            tar -zxf PyYAML-3.11.tar.gz
-            cd PyYAML-3.11/
-            wget http://pyyaml.org/raw-attachment/ticket/163/jython-setup.patch
-            patch < jython-setup.patch
-            python setup.py install
-            cd -
-        fi
-
   # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it
   - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
 
