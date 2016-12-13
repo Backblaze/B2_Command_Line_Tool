@@ -143,6 +143,7 @@ before_install:
             else
                 echo skip
             fi
+            export JAVA_OPTS="-Xms1024m -Xmx1024m"
             source "$HOME/.virtualenv/jython/bin/activate"
         else
             echo skip
