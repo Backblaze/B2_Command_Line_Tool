@@ -103,8 +103,8 @@ before_install:
                 #
                 # Therefore caching is temporarily disabled until someone figures it out.
                 # Typically brew update and installation of python takes 3 to 4 minutes.
-                brew update
-                brew install "$OS_X_PYTHON_VERSION"
+                travis_retry brew update
+                travis_retry brew install "$OS_X_PYTHON_VERSION"
             else
                 echo 'skip install'
             fi
@@ -121,7 +121,7 @@ before_install:
         # get jython
         if [ -n "$JYTHON" ]; then
             if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
-                wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
+                travis_retry wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
                 java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
             else
                 echo skip
@@ -133,7 +133,7 @@ before_install:
                 echo skip
             fi
             if [ ! -f ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl ]; then
-                wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
+                travis_retry wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
             else
                 echo skip
             fi
@@ -160,7 +160,7 @@ before_install:
                 rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
             fi
             echo "PYPY_VERSION=$PYPY_VERSION"
-            "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
+            travis_retry "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
             if [ ! -e "$HOME/.virtualenv/$PYPY_VERSION/bin/activate" ]; then
                 virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
             fi
@@ -178,10 +178,10 @@ install:
   - |
         # coverage has additional requirements
         if [ "$MODE" == 'coverage' ]; then
-            pip install coverage
-            if [ -n "$CODACY_PROJECT_TOKEN" ]; then pip install codacy-coverage; fi
-            if [ -n "$COVERALLS_REPO_TOKEN" ]; then pip install coveralls; fi
-            if [ -n "$CODECOV_TOKEN" ]; then wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
+            travis_retry pip install coverage
+            if [ -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry pip install codacy-coverage; fi
+            if [ -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry pip install coveralls; fi
+            if [ -n "$CODECOV_TOKEN" ]; then travis_retry wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
         fi
 
 before_script:
@@ -255,6 +255,6 @@ script:
   - if [ -n "$TEST_ACCOUNT_ID" -a "$MODE" == "TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
 
 after_success:
-  - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then python-codacy-coverage -r coverage.xml; else echo skip; fi
-  - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then coveralls; else echo skip; fi
-  - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then ./codecov.sh -X gcov -X coveragepy; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry python-codacy-coverage -r coverage.xml; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry coveralls; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then travis_retry ./codecov.sh -X gcov -X coveragepy; else echo skip; fi
