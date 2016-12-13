@@ -76,12 +76,12 @@ cache:
     # custom pypy versions
     - $HOME/.pyenv
     # jython
-    - $HOME/.virtualenv/jython
+    - $HOME/.virtualenvs/jython
     - $HOME/jython
     - $HOME/jython-pip
     # OS X
-    - $HOME/.virtualenv/osx-python
-    - $HOME/.virtualenv/osx-python3
+    - $HOME/.virtualenvs/osx-python
+    - $HOME/.virtualenvs/osx-python3
     #- /usr/local/Cellar/python  # see comment in the install script
     #- /usr/local/Cellar/python3
 before_install:
@@ -108,19 +108,19 @@ before_install:
             else
                 echo 'skip install'
             fi
-            if [ ! -e "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
-                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
+            if [ ! -e "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
+                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION"
             else
                 echo 'skip virtualenv'
             fi
-            source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
+            source "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate"
         else
             echo skip
         fi
   - |
         # get jython
         if [ -n "$JYTHON" ]; then
-            if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
+            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
                 travis_retry wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
                 java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
             else
@@ -138,13 +138,13 @@ before_install:
                 echo skip
             fi
             # create jython virtualenv
-            if [ ! -f "$HOME/.virtualenv/jython/bin/activate" ]; then
-                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenv/jython"
+            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenvs/jython"
             else
                 echo skip
             fi
             export JAVA_OPTS="-Xms1024m -Xmx1024m"
-            source "$HOME/.virtualenv/jython/bin/activate"
+            source "$HOME/.virtualenvs/jython/bin/activate"
         else
             echo skip
         fi
@@ -161,10 +161,10 @@ before_install:
             fi
             echo "PYPY_VERSION=$PYPY_VERSION"
             travis_retry "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
-            if [ ! -e "$HOME/.virtualenv/$PYPY_VERSION/bin/activate" ]; then
-                virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
+            if [ ! -e "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate" ]; then
+                virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenvs/$PYPY_VERSION"
             fi
-            source "$HOME/.virtualenv/$PYPY_VERSION/bin/activate"
+            source "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate"
         else
             echo skip
         fi
