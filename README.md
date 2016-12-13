@@ -31,7 +31,7 @@ this:
     b2 cancel_all_unfinished_large_files <bucketName>
     b2 cancel_large_file <fileId>
     b2 clear_account
-    b2 create_bucket <bucketName> [allPublic | allPrivate]
+    b2 create_bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 delete_bucket <bucketName>
     b2 delete_file_version [<fileName>] <fileId>
     b2 download_file_by_id [--noProgress] <fileId> <localFileName>
@@ -50,7 +50,7 @@ this:
         [--compareVersions <option>] [--threads N] [--noProgress] \
         [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \
         <source> <destination>
-    b2 update_bucket <bucketName> [allPublic | allPrivate]
+    b2 update_bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] \
         [--info <key>=<value>]* [--minPartSize N] \
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>

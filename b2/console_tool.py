@@ -64,14 +64,6 @@ def mixed_case_to_underscores(s):
     return s[0].lower() + ''.join(c if c.islower() else '_' + c.lower() for c in s[1:])
 
 
-def json_or_file(arg):
-    if arg.startswith('@'):
-        with open(arg[1:], 'r') as f:
-            return json.load(f)
-    else:
-        return json.loads(arg)
-
-
 class Command(object):
     """
     Base class for commands.  Has basic argument parsing and printing.
@@ -281,20 +273,19 @@ class ClearAccount(Command):
 
 class CreateBucket(Command):
     """
-    b2 create_bucket [--bucketInfo <jsonOrFile>] [--lifecycleRules <jsonOrFile] <bucketName> [allPublic | allPrivate]
+    b2 create_bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Creates a new bucket.  Prints the ID of the bucket created.
 
         Optionally stores bucket info and lifecycle rules with the bucket.
-        These can be given as JSON on the command line, or as a file name
-        prefixed with "@".
+        These can be given as JSON on the command line.
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
     OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
 
-    ARG_PARSER = {'bucketInfo': json_or_file, 'lifecycleRules': json_or_file}
+    ARG_PARSER = {'bucketInfo': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
         bucket = self.api.create_bucket(
@@ -766,21 +757,20 @@ class TestUploadUrlConcurrency(Command):
 
 class UpdateBucket(Command):
     """
-    b2 update_bucket [--bucketInfo <jsonOrFile>] [--lifecycleRules <jsonOrFile] <bucketName> [allPublic | allPrivate]
+    b2 update_bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
 
         Optionally stores bucket info and lifecycle rules with the bucket.
-        These can be given as JSON on the command line, or as a file name
-        prefixed with "@".
+        These can be given as JSON on the command line.
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
     OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
 
-    ARG_PARSER = {'bucketInfo': json_or_file, 'lifecycleRules': json_or_file}
+    ARG_PARSER = {'bucketInfo': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
