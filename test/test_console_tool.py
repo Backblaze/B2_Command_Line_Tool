@@ -137,37 +137,6 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
 
-    def test_bucket_info_from_file(self):
-
-        self._authorize_account()
-        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
-
-        with TempDir() as temp_dir:
-            bucket_info = {'color': 'blue'}
-            bucket_info_file = self._make_local_file(temp_dir, 'bucket_info.json')
-            with open(bucket_info_file, 'wb') as f:
-                f.write(six.b(json.dumps(bucket_info)))
-
-            expected_stdout = '''
-                {
-                    "accountId": "my-account",
-                    "bucketId": "bucket_0",
-                    "bucketInfo": {
-                        "color": "blue"
-                    },
-                    "bucketName": "my-bucket",
-                    "bucketType": "allPrivate",
-                    "lifecycleRules": [],
-                    "revision": 2
-                }
-                '''
-            self._run_command(
-                [
-                    'update_bucket', '--bucketInfo', '@' + bucket_info_file, 'my-bucket',
-                    'allPrivate'
-                ], expected_stdout, '', 0
-            )
-
     def test_bucket_info_from_json(self):
 
         self._authorize_account()
