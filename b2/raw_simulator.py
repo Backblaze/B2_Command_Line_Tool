@@ -14,8 +14,8 @@ import six
 from six.moves import range
 
 from .exception import (
-    BadJson, BadUploadUrl, ChecksumMismatch, DuplicateBucketName, FileNotPresent, InvalidAuthToken,
-    MissingPart, NonExistentBucket
+    BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent,
+    InvalidAuthToken, MissingPart, NonExistentBucket
 )
 from .raw_api import AbstractRawApi
 
@@ -176,12 +176,23 @@ class BucketSimulator(object):
 
     FIRST_FILE_ID = str(FIRST_FILE_NUMBER)
 
-    def __init__(self, account_id, bucket_id, bucket_name, bucket_type):
+    def __init__(
+        self,
+        account_id,
+        bucket_id,
+        bucket_name,
+        bucket_type,
+        bucket_info=None,
+        lifecycle_rules=None
+    ):
         assert bucket_type in ['allPrivate', 'allPublic']
         self.account_id = account_id
         self.bucket_name = bucket_name
         self.bucket_id = bucket_id
         self.bucket_type = bucket_type
+        self.bucket_info = bucket_info or {}
+        self.lifycycle_rules = lifecycle_rules or []
+        self.revision = 1
         self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
         self.file_id_counter = iter(range(self.FIRST_FILE_NUMBER, 0, -1))
@@ -195,7 +206,10 @@ class BucketSimulator(object):
             accountId=self.account_id,
             bucketName=self.bucket_name,
             bucketId=self.bucket_id,
-            bucketType=self.bucket_type
+            bucketType=self.bucket_type,
+            bucketInfo=self.bucket_info,
+            lifecycleRules=self.lifycycle_rules,
+            revision=self.revision,
         )
 
     def cancel_large_file(self, file_id):
@@ -346,8 +360,19 @@ class BucketSimulator(object):
         self.file_name_and_id_to_file[file_sim.sort_key()] = file_sim
         return file_sim.as_start_large_file_result()
 
-    def update_bucket(self, bucket_type):
-        self.bucket_type = bucket_type
+    def update_bucket(
+        self, bucket_type=None, bucket_info=None, lifecycle_rules=None, if_revision_is=None
+    ):
+        if if_revision_is is not None and self.revision != if_revision_is:
+            raise Conflict()
+
+        if bucket_type is not None:
+            self.bucket_type = bucket_type
+        if bucket_info is not None:
+            self.bucket_info = bucket_info
+        if lifecycle_rules is not None:
+            self.lifecycle_rules = lifecycle_rules
+        self.revision += 1
         return self.bucket_dict()
 
     def upload_file(
@@ -434,14 +459,25 @@ class RawSimulator(AbstractRawApi):
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return bucket.cancel_large_file(file_id)
 
-    def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
+    def create_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_name,
+        bucket_type,
+        bucket_info=None,
+        lifecycle_rules=None
+    ):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):
             raise BadJson('illegal bucket name: ' + bucket_name)
         self._assert_account_auth(api_url, account_auth_token, account_id)
         if bucket_name in self.bucket_name_to_bucket:
             raise DuplicateBucketName(bucket_name)
         bucket_id = 'bucket_' + str(six.next(self.bucket_id_counter))
-        bucket = BucketSimulator(account_id, bucket_id, bucket_name, bucket_type)
+        bucket = BucketSimulator(
+            account_id, bucket_id, bucket_name, bucket_type, bucket_info, lifecycle_rules
+        )
         self.bucket_name_to_bucket[bucket_name] = bucket
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_dict()
@@ -563,10 +599,26 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[result['fileId']] = bucket_id
         return result
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        lifecycle_rules=None,
+        if_revision_is=None
+    ):
+        assert bucket_type or bucket_info
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
-        return bucket.update_bucket(bucket_type)
+        return bucket.update_bucket(
+            bucket_type=bucket_type,
+            bucket_info=bucket_info,
+            lifecycle_rules=lifecycle_rules,
+            if_revision_is=if_revision_is
+        )
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,

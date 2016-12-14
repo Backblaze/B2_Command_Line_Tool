@@ -74,7 +74,17 @@ class AbstractRawApi(object):
         pass
 
     @abstractmethod
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        lifecycle_rules=None,
+        if_revision_is=None
+    ):
         pass
 
     @abstractmethod
@@ -128,14 +138,25 @@ class B2RawApi(AbstractRawApi):
     def cancel_large_file(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_cancel_large_file', account_auth_token, fileId=file_id)
 
-    def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
+    def create_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_name,
+        bucket_type,
+        bucket_info=None,
+        lifecycle_rules=None
+    ):
         return self._post_json(
             api_url,
             'b2_create_bucket',
             account_auth_token,
             accountId=account_id,
             bucketName=bucket_name,
-            bucketType=bucket_type
+            bucketType=bucket_type,
+            bucketInfo=bucket_info,
+            lifecycleRules=lifecycle_rules
         )
 
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
@@ -357,14 +378,36 @@ class B2RawApi(AbstractRawApi):
             contentType=content_type
         )
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        lifecycle_rules=None,
+        if_revision_is=None
+    ):
+        assert bucket_info or bucket_type
+
+        kwargs = {}
+        if if_revision_is is not None:
+            kwargs['ifRevisionIs'] = if_revision_is
+        if bucket_info is not None:
+            kwargs['bucketInfo'] = bucket_info
+        if bucket_type is not None:
+            kwargs['bucketType'] = bucket_type
+        if lifecycle_rules is not None:
+            kwargs['lifecycleRules'] = lifecycle_rules
+
         return self._post_json(
             api_url,
             'b2_update_bucket',
             account_auth_token,
             accountId=account_id,
             bucketId=bucket_id,
-            bucketType=bucket_type
+            **kwargs
         )
 
     def upload_file(
@@ -585,7 +628,15 @@ def test_raw_api_helper(raw_api):
 
     # b2_update_bucket
     print('b2_update_bucket')
-    raw_api.update_bucket(api_url, account_auth_token, account_id, bucket_id, 'allPrivate')
+    updated_bucket = raw_api.update_bucket(
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        'allPrivate',
+        bucket_info={'color': 'blue'}
+    )
+    assert updated_bucket['revision'] == 2
 
     # clean up this test
     _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)

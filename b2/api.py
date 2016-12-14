@@ -138,15 +138,19 @@ class B2Api(object):
 
     # buckets
 
-    def create_bucket(self, name, type_):
+    def create_bucket(self, name, bucket_type, bucket_info=None, lifecycle_rules=None):
         account_id = self.account_info.get_account_id()
 
-        response = self.session.create_bucket(account_id, name, type_)
+        response = self.session.create_bucket(
+            account_id, name, bucket_type, bucket_info=bucket_info, lifecycle_rules=lifecycle_rules
+        )
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
-        assert type_ == bucket.type_, 'API created a bucket with different type\
-                                     than requested: %s != %s' % (type_, bucket.type_)
+        assert bucket_type == bucket.type_, 'API created a bucket with different type\
+                                             than requested: %s != %s' % (
+            bucket_type, bucket.type_
+        )
         self.cache.save_bucket(bucket)
         return bucket
 
