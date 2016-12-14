@@ -578,7 +578,10 @@ class TestMakeSyncActions(TestSync):
             self._check_local_to_b2(src_file, dst_file, FakeArgs(), [])
             self.fail('should have raised DestFileNewer')
         except DestFileNewer as e:
-            self.assertEqual('destination file is newer: a.txt', str(e))
+            self.assertEqual(
+                'source file is older than destination: local://a.txt with a time of 100 cannot be synced to b2://a.txt with a time of 200, unless --skipNewer or --replaceNewer is provided',
+                str(e)
+            )
 
     def test_older_b2_skip(self):
         src_file = local_file('a.txt', [100])
@@ -602,13 +605,16 @@ class TestMakeSyncActions(TestSync):
         self._check_local_to_b2(src_file, dst_file, args, actions)
 
     def test_older_local(self):
-        src_file = b2_file('a.txt', [100])
-        dst_file = local_file('a.txt', [200])
+        src_file = b2_file('directory/a.txt', [100])
+        dst_file = local_file('directory/a.txt', [200])
         try:
             self._check_b2_to_local(src_file, dst_file, FakeArgs(), [])
             self.fail('should have raised DestFileNewer')
         except DestFileNewer as e:
-            self.assertEqual('destination file is newer: a.txt', str(e))
+            self.assertEqual(
+                'source file is older than destination: b2://directory/a.txt with a time of 100 cannot be synced to local://directory/a.txt with a time of 200, unless --skipNewer or --replaceNewer is provided',
+                str(e)
+            )
 
     def test_older_local_skip(self):
         src_file = b2_file('a.txt', [100])

@@ -28,7 +28,7 @@ class File(object):
         return self.versions[0]
 
     def __repr__(self):
-        return 'File(%s, [%s])' % (self.name, ', '.join(map(repr, self.versions)))
+        return 'File(%s, [%s])' % (self.name, ', '.join(repr(v) for v in self.versions))
 
 
 class FileVersion(object):
