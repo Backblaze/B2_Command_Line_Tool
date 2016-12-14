@@ -110,15 +110,11 @@ class Bucket(object):
     def get_id(self):
         return self.id_
 
-    def set_info(self, new_bucket_info, ifRevisionIs=None):
-        account_id = self.api.account_info.get_account_id()
-        return self.api.session.update_bucket(
-            account_id, self.id_, bucket_info=new_bucket_info, ifRevisionIs=ifRevisionIs
-        )
+    def set_info(self, new_bucket_info, if_revision_is=None):
+        return self.update(bucket_info=new_bucket_info, if_revision_is=if_revision_is)
 
-    def set_type(self, type_):
-        account_id = self.api.account_info.get_account_id()
-        return self.api.session.update_bucket(account_id, self.id_, type_)
+    def set_type(self, bucket_type):
+        return self.update(bucket_type=bucket_type)
 
     def update(self, bucket_type=None, bucket_info=None, lifecycle_rules=None, if_revision_is=None):
         account_id = self.api.account_info.get_account_id()
