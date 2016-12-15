@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import logging
 import threading
 import time
 
@@ -15,6 +16,8 @@ import six
 
 from ..progress import AbstractProgressListener
 from ..utils import format_and_scale_number, format_and_scale_fraction, raise_if_shutting_down
+
+logger = logging.getLogger(__name__)
 
 
 class SyncReport(object):
@@ -51,6 +54,7 @@ class SyncReport(object):
         self._last_update_time = 0
         self.closed = False
         self.lock = threading.Lock()
+        self.encoding_warning_was_already_printed = False
         self._update_progress()
         self.warnings = []
 
@@ -127,7 +131,18 @@ class SyncReport(object):
         """
         if len(line) < len(self.current_line):
             line += ' ' * (len(self.current_line) - len(line))
-        self.stdout.write(line)
+        try:
+            self.stdout.write(line)
+        except UnicodeEncodeError:
+            if not self.encoding_warning_was_already_printed:
+                self.encoding_warning_was_already_printed = True
+                self.stdout.write(
+                    '!WARNING! this terminal cannot properly handle progress reporting'
+                )
+            self.stdout.write(line.encode('ascii', 'backslashreplace').decode())
+            logger.warning(
+                'could not output the following line on stdout due to UnicodeEncodeError: %s', line
+            )
         if newline:
             self.stdout.write('\n')
             self.current_line = ''

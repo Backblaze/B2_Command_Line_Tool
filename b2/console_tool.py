@@ -150,29 +150,26 @@ class Command(object):
             arg_parser=self.ARG_PARSER
         )
 
-    def _print(self, *args, **kwargs):
-        try:
-            print(*args, file=self.stdout, **kwargs)
-        except UnicodeEncodeError:
-            print(
-                "\nERROR: Unable to print unicode.  Encoding for stdout is: '%s'" %
-                (sys.stdout.encoding,),
-                file=sys.stderr
-            )
-            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
-            sys.exit(1)
+    def _print(self, *args):
+        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
 
     def _print_stderr(self, *args, **kwargs):
+        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
+
+    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args):
         try:
-            print(*args, file=self.stderr, **kwargs)
+            descriptor.write(' '.join(args))
         except UnicodeEncodeError:
-            print(
-                "\nERROR: Unable to print unicode.  Encoding for stderr is: '%s'" %
-                (sys.stderr.encoding,),
-                file=sys.stderr
+            sys.stderr.write(
+                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
+                    descriptor_name,
+                    descriptor_encoding,
+                )
             )
-            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
-            sys.exit(1)
+            sys.stderr.write("Trying to print: %s\n" % (repr(args),))
+            args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
+            descriptor.write(' '.join(args))
+        descriptor.write('\n')
 
     def __str__(self):
         return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
