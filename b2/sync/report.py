@@ -139,7 +139,7 @@ class SyncReport(object):
                 self.stdout.write(
                     '!WARNING! this terminal cannot properly handle progress reporting'
                 )
-            self.stdout.write(line.encode('ascii', 'backslashreplace'))
+            self.stdout.write(line.encode('ascii', 'backslashreplace').decode())
             logger.warning(
                 'could not output the following line on stdout due to UnicodeEncodeError: %s', line
             )

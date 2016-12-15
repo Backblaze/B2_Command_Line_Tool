@@ -167,7 +167,7 @@ class Command(object):
                 )
             )
             sys.stderr.write("Trying to print: %s\n" % (repr(args),))
-            args = [arg.encode('ascii', 'backslashreplace') for arg in args]
+            args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
             descriptor.write(' '.join(args))
         descriptor.write('\n')
 
