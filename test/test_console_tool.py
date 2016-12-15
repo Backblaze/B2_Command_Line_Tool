@@ -480,6 +480,13 @@ class TestConsoleTool(TestBase):
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
 
+    def test_bad_terminal(self):
+        stdout = mock.MagicMock()
+        stdout.write = mock.MagicMock(side_effect=[UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')] + list(range(25)))
+        stderr = mock.MagicMock()
+        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool.run_command(['b2', 'authorize_account', 'my-account', 'good-app-key'])
+
     def _get_stdouterr(self):
         class MyStringIO(six.StringIO):
             if six.PY2:  # python3 already has this attribute

@@ -150,30 +150,26 @@ class Command(object):
             arg_parser=self.ARG_PARSER
         )
 
-    def _print(self, *args, **kwargs):
-        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args, **kwargs)
+    def _print(self, *args):
+        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
 
     def _print_stderr(self, *args, **kwargs):
-        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args, **kwargs)
+        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
 
-    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args, **kwargs):
+    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args):
         try:
-            print(*args, file=descriptor, **kwargs)
+            descriptor.write(' '.join(args))
         except UnicodeEncodeError:
-            print(
-                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'" % (
+            sys.stderr.write(
+                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
                     descriptor_name,
                     descriptor_encoding,
-                ),
-                file=sys.stderr
+                )
             )
-            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
+            sys.stderr.write("Trying to print: %s\n" % (repr(args),))
             args = [arg.encode('ascii', 'backslashreplace') for arg in args]
-            kwargs = dict(
-                (k.encode('ascii', 'backslashreplace'), v.encode('ascii', 'backslashreplace'))
-                for k, v in six.iteritems(kwargs)
-            )
-            print(*args, file=descriptor, **kwargs)
+            descriptor.write(' '.join(args))
+        descriptor.write('\n')
 
     def __str__(self):
         return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
