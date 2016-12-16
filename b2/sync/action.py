@@ -17,6 +17,7 @@ import six
 from ..download_dest import DownloadDestLocalFile
 from ..upload_source import UploadSourceLocalFile
 from ..utils import raise_if_shutting_down
+from ..raw_api import SRC_LAST_MODIFIED_MILLIS
 from .report import SyncFileReporter
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ class B2UploadAction(AbstractAction):
         bucket.upload(
             UploadSourceLocalFile(self.local_full_path),
             self.b2_file_name,
-            file_info={'src_last_modified_millis': str(self.mod_time_millis)},
+            file_info={SRC_LAST_MODIFIED_MILLIS: str(self.mod_time_millis)},
             progress_listener=SyncFileReporter(reporter)
         )
 

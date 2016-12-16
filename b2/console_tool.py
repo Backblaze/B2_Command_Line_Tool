@@ -35,7 +35,7 @@ from .exception import (B2Error, BadFileInfo)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
-from .raw_api import (test_raw_api)
+from .raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
@@ -858,6 +858,10 @@ class UploadFile(Command):
             if len(parts) == 1:
                 raise BadFileInfo(info)
             file_infos[parts[0]] = parts[1]
+
+        if SRC_LAST_MODIFIED_MILLIS not in file_infos:
+            file_infos[SRC_LAST_MODIFIED_MILLIS
+                      ] = str(int(os.path.getmtime(args.localFilePath) * 1000))
 
         max_workers = args.threads or 10
         self.api.set_thread_pool_size(max_workers)
