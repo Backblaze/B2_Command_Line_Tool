@@ -317,16 +317,16 @@ class TestConsoleTool(TestBase):
     def test_get_download_auth_defaults(self):
         self._authorize_account()
         self._create_my_bucket()
-        self._run_command(['get_download_auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0)
+        self._run_command(
+            ['get_download_auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0
+        )
 
     def test_get_download_auth_explicit(self):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(
             ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'],
-            'fake_download_auth_token_bucket_0_prefix_12345\n',
-            '',
-            0
+            'fake_download_auth_token_bucket_0_prefix_12345\n', '', 0
         )
 
     def test_list_parts_with_none(self):
@@ -531,7 +531,11 @@ class TestConsoleTool(TestBase):
 
     def test_bad_terminal(self):
         stdout = mock.MagicMock()
-        stdout.write = mock.MagicMock(side_effect=[UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')] + list(range(25)))
+        stdout.write = mock.MagicMock(
+            side_effect=[
+                UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')
+            ] + list(range(25))
+        )
         stderr = mock.MagicMock()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         console_tool.run_command(['b2', 'authorize_account', 'my-account', 'good-app-key'])

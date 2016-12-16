@@ -126,9 +126,8 @@ class TestB2Folder(TestSync):
                 ), 'folder'
             ),
             (
-                FileVersionInfo(
-                    'bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500, 'start'
-                ), 'folder'
+                FileVersionInfo('bs', 'folder/b.txt', 150, 'text/plain', 'sha1', {}, 1500, 'start'),
+                'folder'
             ),
             (
                 FileVersionInfo(

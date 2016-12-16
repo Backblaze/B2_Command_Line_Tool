@@ -8,7 +8,6 @@
 #
 ######################################################################
 
-
 from __future__ import print_function
 
 from .test_base import TestBase
@@ -23,6 +22,10 @@ except ImportError:
 class TestSyncReport(TestBase):
     def test_bad_terminal(self):
         stdout = MagicMock()
-        stdout.write = MagicMock(side_effect=[UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')] + list(range(25)))
+        stdout.write = MagicMock(
+            side_effect=[
+                UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')
+            ] + list(range(25))
+        )
         sync_report = SyncReport(stdout, False)
         sync_report.print_completion('transferred: 123.txt')

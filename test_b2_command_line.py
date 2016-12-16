@@ -262,9 +262,7 @@ def delete_files_in_bucket(b2_tool, bucket_name):
             return
         for file_info in files:
             b2_tool.should_succeed(
-                [
-                    'delete_file_version', file_info['fileName'], file_info['fileId']
-                ]
+                ['delete_file_version', file_info['fileName'], file_info['fileId']]
             )
 
 
@@ -330,9 +328,7 @@ def basic_test(b2_tool, bucket_name):
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
 
     uploaded_a = b2_tool.should_succeed_json(
-        [
-            'upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a'
-        ]
+        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
@@ -357,14 +353,10 @@ def basic_test(b2_tool, bucket_name):
     )
 
     b2_tool.should_succeed(
-        [
-            'download_file_by_name', '--noProgress', bucket_name, 'b/1', '/dev/null'
-        ]
+        ['download_file_by_name', '--noProgress', bucket_name, 'b/1', '/dev/null']
     )
     b2_tool.should_succeed(
-        [
-            'download_file_by_id', '--noProgress', uploaded_a['fileId'], '/dev/null'
-        ]
+        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], '/dev/null']
     )
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
@@ -378,29 +370,22 @@ def basic_test(b2_tool, bucket_name):
 
     list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
     should_equal(
-        ['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [
-            f['fileName'] for f in list_of_files['files']
-        ]
+        ['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']]
     )
     should_equal(
-        [
-            'upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'
-        ], [f['action'] for f in list_of_files['files']]
+        ['upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'],
+        [f['action'] for f in list_of_files['files']]
     )
     first_c_version = list_of_files['files'][4]
     second_c_version = list_of_files['files'][5]
     list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c'])
     should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']])
     list_of_files = b2_tool.should_succeed_json(
-        [
-            'list_file_versions', bucket_name, 'c', second_c_version['fileId']
-        ]
+        ['list_file_versions', bucket_name, 'c', second_c_version['fileId']]
     )
     should_equal(['c', 'd'], [f['fileName'] for f in list_of_files['files']])
     list_of_files = b2_tool.should_succeed_json(
-        [
-            'list_file_versions', bucket_name, 'c', second_c_version['fileId'], '1'
-        ]
+        ['list_file_versions', bucket_name, 'c', second_c_version['fileId'], '1']
     )
     should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
 
@@ -507,9 +492,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         write_file(p('c'), b'hello world')
 
         b2_tool.should_succeed(
-            [
-                'sync', '--noProgress', '--keepDays', '10', dir_path, b2_sync_point
-            ]
+            ['sync', '--noProgress', '--keepDays', '10', dir_path, b2_sync_point]
         )
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
@@ -552,14 +535,10 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
 
         # Put a couple files in B2, and sync them down
         b2_tool.should_succeed(
-            [
-                'upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a'
-            ]
+            ['upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
         )
         b2_tool.should_succeed(
-            [
-                'upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b'
-            ]
+            ['upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
         )
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))

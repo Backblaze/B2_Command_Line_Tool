@@ -293,7 +293,9 @@ class B2RawApi(AbstractRawApi):
             partSha1Array=part_sha1_array
         )
 
-    def get_download_authorization(self, api_url, account_auth_token, bucket_id, file_name_prefix, valid_duration_in_seconds):
+    def get_download_authorization(
+        self, api_url, account_auth_token, bucket_id, file_name_prefix, valid_duration_in_seconds
+    ):
         return self._post_json(
             api_url,
             'b2_get_download_authorization',
@@ -574,7 +576,9 @@ def test_raw_api_helper(raw_api):
 
     # b2_get_download_authorization
     print('b2_get_download_authorization')
-    download_auth = raw_api.get_download_authorization(api_url, account_auth_token, bucket_id, "prefix", 12345)
+    download_auth = raw_api.get_download_authorization(
+        api_url, account_auth_token, bucket_id, "prefix", 12345
+    )
     download_auth_token = download_auth['authorizationToken']
 
     # b2_download_file_by_name with download auth

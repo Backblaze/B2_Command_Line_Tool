@@ -421,7 +421,9 @@ class GetDownloadAuth(Command):
         prefix = args.prefix or ""
         duration = args.duration or 86400
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        auth_token = bucket.get_download_authorization(file_name_prefix=prefix, valid_duration_in_seconds=duration)
+        auth_token = bucket.get_download_authorization(
+            file_name_prefix=prefix, valid_duration_in_seconds=duration
+        )
         self._print(auth_token)
         return 0
 

@@ -51,8 +51,7 @@ def check_for_duplicate_args(args_dict):
             names_b = args_dict[category_b]
             for common_name in set(names_a) & set(names_b):
                 raise ValueError(
-                    "argument '%s' is in both '%s' an '%s'" %
-                    (common_name, category_a, category_b)
+                    "argument '%s' is in both '%s' an '%s'" % (common_name, category_a, category_b)
                 )
 
 
