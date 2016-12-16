@@ -116,6 +116,10 @@ class ChecksumMismatch(TransientErrorMixin, B2Error):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
 
 
+class ClockSkew(B2SimpleError):
+    pass
+
+
 class CommandError(B2Error):
     """
     b2 command error (user caused). Accepts exactly one argument.
@@ -139,6 +143,10 @@ class B2ConnectionError(TransientErrorMixin, B2SimpleError):
 
 
 class B2RequestTimeout(TransientErrorMixin, B2SimpleError):
+    pass
+
+
+class DateFormatBad(B2SimpleError):
     pass
 
 

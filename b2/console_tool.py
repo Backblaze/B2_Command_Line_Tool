@@ -10,6 +10,7 @@
 
 from __future__ import absolute_import, print_function
 
+import datetime
 import getpass
 import json
 import locale
@@ -17,6 +18,7 @@ import logging
 import logging.config
 import os
 import platform
+import re
 import signal
 import sys
 import textwrap
@@ -28,14 +30,14 @@ from .account_info.sqlite_account_info import (SqliteAccountInfo)
 from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
 from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
-from .b2http import (test_http)
+from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
-from .exception import (B2Error, BadFileInfo)
+from .exception import (B2Error, BadFileInfo, ClockSkew, DateFormatBad)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
-from .raw_api import (test_raw_api)
+from .raw_api import (test_raw_api, B2RawApi)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
@@ -1036,6 +1038,53 @@ class ConsoleTool(object):
             logger.info('starting command [%s] with arguments: %s', command, argv)
 
 
+DATE_PATTERN = re.compile(r'^..., (\d\d) (...) (\d\d\d\d) (\d\d:\d\d\:\d\d) GMT$')
+
+MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+
+def clock_skew_hook(http_response):
+    """
+    Raises an exception if the clock in the server is too different from the
+    clock on the local host.
+
+    The Date header contains a string that looks like: "Fri, 16 Dec 2016 20:52:30 GMT".
+    The strptime function uses the current locale for month and day names like
+    "Dec" and "Fri", so we convert them to numbers ourselves.
+    """
+    # Make a string that uses month numbers instead of month names
+    server_date_str = http_response.headers['Date']
+    match = DATE_PATTERN.match(server_date_str)
+    if match is None:
+        raise DateFormatBad('date from server is: ' + server_date_str)
+    month_name = match.group(2)
+    month_number = MONTHS.index(month_name) + 1
+    if month_number < 0:
+        raise DateFormatBad('date from server is: ' + server_date_str)
+    server_numeric_date_str = '%s-%02d-%s %s GMT' % (
+        match.group(3), month_number, match.group(1), match.group(4)
+    )
+
+    # Convert the server time to a datetime object
+    server_time = datetime.datetime.strptime(server_numeric_date_str, '%Y-%m-%d %H:%M:%S %Z')
+
+    # Get the local time
+    local_time = datetime.datetime.utcnow()
+
+    # Check the difference.  The timedelta.total_seconds() method is not available
+    # in Python 2.6, so we'll compute it using the formula from the Python docs.
+    max_allowed = 10 * 60  # ten minutes, in seconds
+    skew = local_time - server_time
+    skew_seconds = int(
+        (skew.microseconds + (skew.seconds + skew.days * 24 * 3600) * 1000000) / 1000000
+    )
+    if max_allowed < abs(skew_seconds):
+        if skew_seconds < 0:
+            raise ClockSkew('local clock is %d seconds behind server' % (-skew_seconds,))
+        else:
+            raise ClockSkew('local clock is %d seconds ahead of server' % (skew_seconds,))
+
+
 def decode_sys_argv():
     """
     Returns the command-line arguments as unicode strings, decoding
@@ -1051,7 +1100,9 @@ def decode_sys_argv():
 
 def main():
     info = SqliteAccountInfo()
-    b2_api = B2Api(info, AuthInfoCache(info))
+    b2_http = B2Http(after_request_hook=clock_skew_hook)
+    raw_api = B2RawApi(b2_http)
+    b2_api = B2Api(info, AuthInfoCache(info), raw_api=raw_api)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
