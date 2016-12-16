@@ -155,10 +155,12 @@ class TestB2Http(TestBase):
     def setUp(self):
         self.session = MagicMock()
         self.response = MagicMock()
+        self.hook = MagicMock()
+        self.hook.run = MagicMock()
 
         requests = MagicMock()
         requests.Session.return_value = self.session
-        self.b2_http = B2Http(requests)
+        self.b2_http = B2Http(requests, after_request_hook=self.hook)
 
     def test_post_json_return_json(self):
         self.session.post.return_value = self.response
@@ -172,6 +174,13 @@ class TestB2Http(TestBase):
         actual_data = kw_args['data']
         actual_data.seek(0)
         self.assertEqual(self.PARAMS_JSON_BYTES, actual_data.read())
+
+    def test_after_request_hook(self):
+        self.session.post.return_value = self.response
+        self.response.status_code = 200
+        self.response.content = six.b('{"color": "blue"}')
+        self.b2_http.post_json_return_json(self.URL, self.HEADERS, self.PARAMS)
+        self.hook.assert_called_with(self.response)
 
     def test_get_content(self):
         self.session.get.return_value = self.response
