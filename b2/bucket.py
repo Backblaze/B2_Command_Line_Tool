@@ -144,6 +144,10 @@ class Bucket(object):
         )
         progress_listener.close()
 
+    def get_download_authorization(self, file_name_prefix, valid_duration_in_seconds):
+        response = self.api.session.get_download_authorization(self.id_, file_name_prefix, valid_duration_in_seconds)
+        return response['authorizationToken']
+
     def list_parts(self, file_id, start_part_number=None, batch_size=None):
         return self.api.list_parts(file_id, start_part_number, batch_size)
 

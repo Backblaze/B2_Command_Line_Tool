@@ -396,6 +396,36 @@ class GetFileInfo(Command):
         return 0
 
 
+class GetDownloadAuth(Command):
+    """
+    b2 get_download_auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
+
+        Prints an authorization token that is valid only for downloading
+        files from the given bucket.
+
+        The token is valid for the duration specified, which defaults
+        to 86400 seconds (one day).
+
+        Only files that match that given prefix can be downloaded with
+        the token.  The prefix defaults to "", which matches all files
+        in the bucket.
+    """
+
+    OPTION_ARGS = ['prefix', 'duration']
+
+    REQUIRED = ['bucketName']
+
+    ARG_PARSER = {'duration': int}
+
+    def run(self, args):
+        prefix = args.prefix or ""
+        duration = args.duration or 86400
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        auth_token = bucket.get_download_authorization(file_name_prefix=prefix, valid_duration_in_seconds=duration)
+        self._print(auth_token)
+        return 0
+
+
 class Help(Command):
     """
     b2 help [commandName]
