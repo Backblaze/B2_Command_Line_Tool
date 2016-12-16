@@ -16,6 +16,7 @@ import six
 
 from .exception import EnvironmentEncodingError
 from .file import File, FileVersion
+from ..raw_api import SRC_LAST_MODIFIED_MILLIS
 
 
 @six.add_metaclass(ABCMeta)
@@ -198,8 +199,8 @@ class B2Folder(AbstractFolder):
                 yield File(current_name, current_versions)
                 current_versions = []
             file_info = file_version_info.file_info
-            if 'src_last_modified_millis' in file_info:
-                mod_time_millis = int(file_info['src_last_modified_millis'])
+            if SRC_LAST_MODIFIED_MILLIS in file_info:
+                mod_time_millis = int(file_info[SRC_LAST_MODIFIED_MILLIS])
             else:
                 mod_time_millis = file_version_info.upload_timestamp
             assert file_version_info.size is not None

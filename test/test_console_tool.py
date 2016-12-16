@@ -211,6 +211,27 @@ class TestConsoleTool(TestBase):
                 expected_stdout, '', 0
             )
 
+            # Get file info
+            mod_time_str = str(int(os.path.getmtime(local_file1) * 1000))
+            expected_stdout = '''
+            {
+              "accountId": "my-account",
+              "action": "upload",
+              "bucketId": "bucket_0",
+              "contentLength": 11,
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
+              "fileId": "9999",
+              "fileInfo": {
+                "src_last_modified_millis": "%s"
+              },
+              "fileName": "file1.txt",
+              "uploadTimestamp": 5000
+            }
+            ''' % (mod_time_str,)
+
+            self._run_command(['get_file_info', '9999'], expected_stdout, '', 0)
+
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
             expected_stdout = '''
@@ -219,8 +240,9 @@ class TestConsoleTool(TestBase):
             File size:    11
             Content type: b2/x-auto
             Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            INFO src_last_modified_millis: %s
             checksum matches
-            '''
+            ''' % (mod_time_str,)
 
             self._run_command(
                 [
@@ -270,7 +292,9 @@ class TestConsoleTool(TestBase):
                   "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                   "contentType": "b2/x-auto",
                   "fileId": "9999",
-                  "fileInfo": {},
+                  "fileInfo": {
+                    "src_last_modified_millis": "%s"
+                  },
                   "fileName": "file1.txt",
                   "size": 11,
                   "uploadTimestamp": 5000
@@ -279,7 +303,7 @@ class TestConsoleTool(TestBase):
               "nextFileId": null,
               "nextFileName": null
             }
-            '''
+            ''' % (mod_time_str,)
 
             self._run_command(['list_file_versions', 'my-bucket'], expected_stdout, '', 0)
 
