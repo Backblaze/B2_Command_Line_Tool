@@ -26,6 +26,9 @@ from .download_dest import DownloadDestBytes
 from .exception import ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour
 from .utils import b2_url_encode, hex_sha1_of_stream
 
+# Standard names for file info entries
+SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
+
 
 @six.add_metaclass(ABCMeta)
 class AbstractRawApi(object):
@@ -236,8 +239,8 @@ class B2RawApi(AbstractRawApi):
                     raise UnexpectedCloudBehaviour('Content-Range header was expected')
             file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
 
-            if 'src_last_modified_millis' in file_info:
-                mod_time_millis = int(file_info['src_last_modified_millis'])
+            if SRC_LAST_MODIFIED_MILLIS in file_info:
+                mod_time_millis = int(file_info[SRC_LAST_MODIFIED_MILLIS])
             else:
                 mod_time_millis = int(info['x-bz-upload-timestamp'])
 

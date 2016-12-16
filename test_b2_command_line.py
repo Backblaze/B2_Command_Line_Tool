@@ -324,6 +324,7 @@ def tearDown_envvar_test(envvar_name):
 def basic_test(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
+    file_mod_time_str = str(file_mod_time_millis(file_to_upload))
 
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
 
@@ -398,7 +399,12 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['ls', bucket_name, 'b/'], r'^b/1\nb/2\n')
 
     file_info = b2_tool.should_succeed_json(['get_file_info', second_c_version['fileId']])
-    should_equal({'color': 'blue', 'foo': 'bar=baz'}, file_info['fileInfo'])
+    expected_info = {
+        'color': 'blue',
+        'foo': 'bar=baz',
+        'src_last_modified_millis': file_mod_time_str
+    }
+    should_equal(expected_info, file_info['fileInfo'])
 
     b2_tool.should_succeed(['delete_file_version', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\nd\n')
