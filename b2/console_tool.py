@@ -1058,9 +1058,9 @@ def clock_skew_hook(http_response):
     if match is None:
         raise DateFormatBad('date from server is: ' + server_date_str)
     month_name = match.group(2)
-    month_number = MONTHS.index(month_name) + 1
-    if month_number < 0:
+    if month_name not in MONTHS:
         raise DateFormatBad('date from server is: ' + server_date_str)
+    month_number = MONTHS.index(month_name) + 1
     server_numeric_date_str = '%s-%02d-%s %s GMT' % (
         match.group(3), month_number, match.group(1), match.group(4)
     )
