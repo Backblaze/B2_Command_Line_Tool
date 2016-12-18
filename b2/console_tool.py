@@ -10,7 +10,6 @@
 
 from __future__ import absolute_import, print_function
 
-import datetime
 import getpass
 import json
 import locale
@@ -24,6 +23,7 @@ import sys
 import textwrap
 import time
 
+import arrow
 import six
 
 from .account_info.sqlite_account_info import (SqliteAccountInfo)
@@ -33,7 +33,7 @@ from .api import (B2Api)
 from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
-from .exception import (B2Error, BadFileInfo, ClockSkew, DateFormatBad)
+from .exception import (B2Error, BadFileInfo, ClockSkew, BadDateFormat)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
@@ -1053,27 +1053,21 @@ def clock_skew_hook(http_response):
     clock on the local host.
 
     The Date header contains a string that looks like: "Fri, 16 Dec 2016 20:52:30 GMT".
-    The strptime function uses the current locale for month and day names like
-    "Dec" and "Fri", so we convert them to numbers ourselves.
     """
     # Make a string that uses month numbers instead of month names
     server_date_str = http_response.headers['Date']
-    match = DATE_PATTERN.match(server_date_str)
-    if match is None:
-        raise DateFormatBad('date from server is: ' + server_date_str)
-    month_name = match.group(2)
-    if month_name not in MONTHS:
-        raise DateFormatBad('date from server is: ' + server_date_str)
-    month_number = MONTHS.index(month_name) + 1
-    server_numeric_date_str = '%s-%02d-%s %s GMT' % (
-        match.group(3), month_number, match.group(1), match.group(4)
-    )
 
     # Convert the server time to a datetime object
-    server_time = datetime.datetime.strptime(server_numeric_date_str, '%Y-%m-%d %H:%M:%S %Z')
+    try:
+        server_time = arrow.get(
+            server_date_str, 'ddd, DD MMM YYYY HH:mm:ss ZZZ'
+        )  # this, unlike datetime.datetime.strptime, always uses English locale
+    except arrow.parser.ParserError:
+        logger.exception('server returned date in an inappropriate format')
+        raise BadDateFormat(server_date_str)
 
     # Get the local time
-    local_time = datetime.datetime.utcnow()
+    local_time = arrow.utcnow()
 
     # Check the difference.  The timedelta.total_seconds() method is not available
     # in Python 2.6, so we'll compute it using the formula from the Python docs.

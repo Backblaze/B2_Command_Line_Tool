@@ -85,12 +85,16 @@ class AlreadyFailed(B2SimpleError):
     pass
 
 
-class BadJson(B2SimpleError):
-    prefix = 'Bad request'
+class BadDateFormat(B2SimpleError):
+    prefix = 'Date from server'
 
 
 class BadFileInfo(B2SimpleError):
     pass
+
+
+class BadJson(B2SimpleError):
+    prefix = 'Bad request'
 
 
 class BadUploadUrl(TransientErrorMixin, B2SimpleError):
@@ -143,10 +147,6 @@ class B2ConnectionError(TransientErrorMixin, B2SimpleError):
 
 
 class B2RequestTimeout(TransientErrorMixin, B2SimpleError):
-    pass
-
-
-class DateFormatBad(B2SimpleError):
     pass
 
 
