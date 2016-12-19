@@ -60,8 +60,8 @@ def keyboard_interrupt_handler(signum, frame):
     raise KeyboardInterrupt()
 
 
-def mixed_case_to_underscores(s):
-    return s[0].lower() + ''.join(c if c.islower() else '_' + c.lower() for c in s[1:])
+def mixed_case_to_hyphens(s):
+    return s[0].lower() + ''.join(c if c.islower() else '-' + c.lower() for c in s[1:])
 
 
 class Command(object):
@@ -177,7 +177,7 @@ class Command(object):
 
 class AuthorizeAccount(Command):
     """
-    b2 authorize_account [<accountId>] [<applicationKey>]
+    b2 authorize-account [<accountId>] [<applicationKey>]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
         on the command line).
@@ -226,7 +226,7 @@ class AuthorizeAccount(Command):
 
 class CancelAllUnfinishedLargeFiles(Command):
     """
-    b2 cancel_all_unfinished_large_files <bucketName>
+    b2 cancel-all-unfinished-large-files <bucketName>
 
         Lists all large files that have been started but not
         finsished and cancels them.  Any parts that have been
@@ -245,7 +245,7 @@ class CancelAllUnfinishedLargeFiles(Command):
 
 class CancelLargeFile(Command):
     """
-    b2 cancel_large_file <fileId>
+    b2 cancel-large-file <fileId>
     """
 
     REQUIRED = ['fileId']
@@ -258,7 +258,7 @@ class CancelLargeFile(Command):
 
 class ClearAccount(Command):
     """
-    b2 clear_account
+    b2 clear-account
 
         Erases everything in ~/.b2_account_info
     """
@@ -270,7 +270,7 @@ class ClearAccount(Command):
 
 class CreateBucket(Command):
     """
-    b2 create_bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 create-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Creates a new bucket.  Prints the ID of the bucket created.
 
@@ -297,7 +297,7 @@ class CreateBucket(Command):
 
 class DeleteBucket(Command):
     """
-    b2 delete_bucket <bucketName>
+    b2 delete-bucket <bucketName>
 
         Deletes the bucket with the given name.
     """
@@ -313,7 +313,7 @@ class DeleteBucket(Command):
 
 class DeleteFileVersion(Command):
     """
-    b2 delete_file_version [<fileName>] <fileId>
+    b2 delete-file-version [<fileName>] <fileId>
 
         Permanently and irrevocably deletes one version of a file.
 
@@ -342,7 +342,7 @@ class DeleteFileVersion(Command):
 
 class DownloadFileById(Command):
     """
-    b2 download_file_by_id [--noProgress] <fileId> <localFileName>
+    b2 download-file-by-id [--noProgress] <fileId> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
 
@@ -364,7 +364,7 @@ class DownloadFileById(Command):
 
 class DownloadFileByName(Command):
     """
-    b2 download_file_by_name [--noProgress] <bucketName> <fileName> <localFileName>
+    b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
     """
@@ -383,7 +383,7 @@ class DownloadFileByName(Command):
 
 class GetFileInfo(Command):
     """
-    b2 get_file_info <fileId>
+    b2 get-file-info <fileId>
 
         Prints all of the information about the file, but not its contents.
     """
@@ -398,7 +398,7 @@ class GetFileInfo(Command):
 
 class GetDownloadAuth(Command):
     """
-    b2 get_download_auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
+    b2 get-download-auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
 
         Prints an authorization token that is valid only for downloading
         files from the given bucket.
@@ -450,7 +450,7 @@ class Help(Command):
 
 class HideFile(Command):
     """
-    b2 hide_file <bucketName> <fileName>
+    b2 hide-file <bucketName> <fileName>
 
         Uploads a new, hidden, version of the given file.
     """
@@ -467,7 +467,7 @@ class HideFile(Command):
 
 class ListBuckets(Command):
     """
-    b2 list_buckets
+    b2 list-buckets
 
         Lists all of the buckets in the current account.
 
@@ -485,7 +485,7 @@ class ListBuckets(Command):
 
 class ListFileVersions(Command):
     """
-    b2 list_file_versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
+    b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
         given point.  This is a low-level operation that reports the
@@ -508,7 +508,7 @@ class ListFileVersions(Command):
 
 class ListFileNames(Command):
     """
-    b2 list_file_names <bucketName> [<startFileName>] [<maxToShow>]
+    b2 list-file-names <bucketName> [<startFileName>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
         given point.
@@ -529,7 +529,7 @@ class ListFileNames(Command):
 
 class ListParts(Command):
     """
-    b2 list_parts <largeFileId>
+    b2 list-parts <largeFileId>
 
         Lists all of the parts that have been uploaded for the given
         large file, which must be a file that was started but not
@@ -546,7 +546,7 @@ class ListParts(Command):
 
 class ListUnfinishedLargeFiles(Command):
     """
-    b2 list_unfinished_large_files <bucketName>
+    b2 list-unfinished-large-files <bucketName>
 
         Lists all of the large files in the bucket that were started,
         but not finished or canceled.
@@ -616,7 +616,7 @@ class Ls(Command):
 
 class MakeUrl(Command):
     """
-    b2 make_url <fileId>
+    b2 make-url <fileId>
 
         Prints an URL that can be used to download the given file, if
         it is public.
@@ -744,7 +744,7 @@ class Sync(Command):
 
 class TestHttp(Command):
     """
-    b2 test_http
+    b2 test-http
 
         PRIVATE.  Exercises the HTTP layer.
     """
@@ -758,7 +758,7 @@ class TestHttp(Command):
 
 class TestRawApi(Command):
     """
-    b2 test_raw_api
+    b2 test-raw-api
 
         PRIVATE.  Exercises the B2RawApi class.
     """
@@ -772,7 +772,7 @@ class TestRawApi(Command):
 
 class TestUploadUrlConcurrency(Command):
     """
-    b2 test_upload_url_concurrency
+    b2 test-upload-url-concurrency
 
         PRIVATE.  Exercises the HTTP layer.
     """
@@ -786,7 +786,7 @@ class TestUploadUrlConcurrency(Command):
 
 class UpdateBucket(Command):
     """
-    b2 update_bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
@@ -814,7 +814,7 @@ class UpdateBucket(Command):
 
 class UploadFile(Command):
     """
-    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] \\
+    b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \\
             [--info <key>=<value>]* [--minPartSize N] \\
             [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
 
@@ -915,7 +915,7 @@ class ConsoleTool(object):
 
         # a *magic* registry of commands
         self.command_name_to_class = dict(
-            (mixed_case_to_underscores(cls.__name__), cls) for cls in Command.__subclasses__()
+            (mixed_case_to_hyphens(cls.__name__), cls) for cls in Command.__subclasses__()
         )
 
     def run_command(self, argv):
@@ -925,7 +925,7 @@ class ConsoleTool(object):
             logger.info('ConsoleTool error - insufficient arguments')
             return self._usage_and_fail()
 
-        action = argv[1]
+        action = argv[1].replace('_', '-')
         arg_list = argv[2:]
 
         if action not in self.command_name_to_class:
@@ -951,7 +951,7 @@ class ConsoleTool(object):
             return command.run(args)
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
-            self._print_stderr('ERROR: %s  Use: b2 authorize_account' % (str(e),))
+            self._print_stderr('ERROR: %s  Use: b2 authorize-account' % (str(e),))
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')

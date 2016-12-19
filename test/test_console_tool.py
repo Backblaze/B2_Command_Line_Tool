@@ -49,7 +49,7 @@ class TestConsoleTool(TestBase):
             ['authorize_account', 'my-account', 'bad-app-key'], expected_stdout, expected_stderr, 1
         )
 
-    def test_authorize_with_good_key(self):
+    def test_authorize_with_good_key_using_hyphen(self):
         # Initial condition
         assert self.account_info.get_account_auth_token() is None
 
@@ -59,7 +59,23 @@ class TestConsoleTool(TestBase):
         """
 
         self._run_command(
-            ['authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+            ['authorize-account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+        )
+
+        # Auth token should be in account info now
+        assert self.account_info.get_account_auth_token() is not None
+
+    def test_authorize_with_good_key_using_underscore(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+        expected_stdout = """
+        Using http://production.example.com
+        """
+
+        self._run_command(
+            ['authorize-account', 'my-account', 'good-app-key'], expected_stdout, '', 0
         )
 
         # Auth token should be in account info now
@@ -68,7 +84,7 @@ class TestConsoleTool(TestBase):
     def test_help_with_bad_args(self):
         expected_stderr = '''
 
-        b2 list_parts <largeFileId>
+        b2 list-parts <largeFileId>
 
             Lists all of the parts that have been uploaded for the given
             large file, which must be a file that was started but not
@@ -85,7 +101,7 @@ class TestConsoleTool(TestBase):
 
         # Clearing the account should remove the auth token
         # from the account info.
-        self._run_command(['clear_account'], '', '', 0)
+        self._run_command(['clear-account'], '', '', 0)
         assert self.account_info.get_account_auth_token() is None
 
     def test_buckets(self):
