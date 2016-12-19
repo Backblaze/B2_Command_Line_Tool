@@ -117,6 +117,43 @@ class ResponseContextManager(object):
         self.response.close()
 
 
+class HttpCallback(object):
+    """
+    A callback object that does nothing.  Override pre_request
+    and/or post_request as desired.
+    """
+
+    def pre_request(self, method, url, headers):
+        """
+        Called before processing an HTTP request.
+
+        Returns True if the request should be processed, and False
+        if the request should be aborted.
+
+        Raises an exception if this request should not be processed.
+        The exception raised must inherit from B2Error.
+
+        :param method: One of: 'POST', 'GET', etc.
+        :param url: The URL that will be used.
+        :param headers: The header sent with the request.
+
+        """
+
+    def post_request(self, method, url, headers, response):
+        """
+        Called after processing an HTTP request.
+        Should not raise an exception.
+
+        Raises an exception if this request should be treated as failing.
+        The exception raised must inherit from B2Error.
+
+        :param method: One of: 'POST', 'GET', etc.
+        :param url: The URL that will be used.
+        :param headers: The header sent with the request.
+        :param response: A response object from the requests library.
+        """
+
+
 class B2Http(object):
     """
     A wrapper for the requests module.  Provides the operations
@@ -138,7 +175,7 @@ class B2Http(object):
             ...
     """
 
-    def __init__(self, requests_module=None, after_request_hook=None):
+    def __init__(self, requests_module=None):
         """
         Initialize with a reference to the requests module, which makes
         it easy to mock for testing.
@@ -148,7 +185,13 @@ class B2Http(object):
         """
         requests_to_use = requests_module or requests
         self.session = requests_to_use.Session()
-        self.after_request_hook = after_request_hook
+        self.callbacks = []
+
+    def add_callback(self, callback):
+        """
+        Adds a callback that inherits from HttpCallback.
+        """
+        self.callbacks.append(callback)
 
     def post_content_return_json(self, url, headers, data, try_count=1, post_params=None):
         """
@@ -174,8 +217,10 @@ class B2Http(object):
         # rewind the data back to the beginning.
         def do_post():
             data.seek(0)
+            self._run_pre_request_hooks('POST', url, headers)
             response = self.session.post(url, headers=headers, data=data)
-            return self._run_after_request_hook(response)
+            self._run_post_request_hooks('POST', url, headers, response)
+            return response
 
         response = _translate_and_retry(do_post, try_count, post_params)
 
@@ -234,16 +279,21 @@ class B2Http(object):
 
         # Do the HTTP GET.
         def do_get():
+            self._run_pre_request_hooks('GET', url, headers)
             response = self.session.get(url, headers=headers, stream=True)
-            return self._run_after_request_hook(response)
+            self._run_post_request_hooks('GET', url, headers, response)
+            return response
 
         response = _translate_and_retry(do_get, try_count, None)
         return ResponseContextManager(response)
 
-    def _run_after_request_hook(self, response):
-        if self.after_request_hook is not None:
-            self.after_request_hook(response)
-        return response
+    def _run_pre_request_hooks(self, method, url, headers):
+        for callback in self.callbacks:
+            callback.pre_request(method, url, headers)
+
+    def _run_post_request_hooks(self, method, url, headers, response):
+        for callback in self.callbacks:
+            callback.post_request(method, url, headers, response)
 
 
 def test_http():

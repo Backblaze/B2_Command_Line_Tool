@@ -18,7 +18,7 @@ from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
-from b2.console_tool import ConsoleTool, clock_skew_hook
+from b2.console_tool import ConsoleTool, ClockSkewHook
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
@@ -585,20 +585,20 @@ class TestConsoleTool(TestBase):
         response = mock.MagicMock()
         response.headers = {'Date': 'bad format'}
         with self.assertRaises(BadDateFormat):
-            clock_skew_hook(response)
+            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
 
     def test_clock_skew_hook_bad_month(self):
         response = mock.MagicMock()
         response.headers = {'Date': 'Fri, 16 XXX 2016 20:52:30 GMT'}
         with self.assertRaises(BadDateFormat):
-            clock_skew_hook(response)
+            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
 
     def test_clock_skew_hook_no_skew(self):
         now = datetime.datetime.utcnow()
         now_str = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
         response = mock.MagicMock()
         response.headers = {'Date': now_str}
-        clock_skew_hook(response)
+        ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
 
     def test_clock_skew_hook_positive_skew(self):
         now = datetime.datetime.utcnow() + datetime.timedelta(minutes=11)
@@ -606,7 +606,7 @@ class TestConsoleTool(TestBase):
         response = mock.MagicMock()
         response.headers = {'Date': now_str}
         with self.assertRaises(ClockSkew):
-            clock_skew_hook(response)
+            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
 
     def test_clock_skew_hook_negative_skew(self):
         now = datetime.datetime.utcnow() + datetime.timedelta(minutes=-11)
@@ -614,7 +614,7 @@ class TestConsoleTool(TestBase):
         response = mock.MagicMock()
         response.headers = {'Date': now_str}
         with self.assertRaises(ClockSkew):
-            clock_skew_hook(response)
+            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
 
     def _get_stdouterr(self):
         class MyStringIO(six.StringIO):

@@ -30,7 +30,7 @@ from .account_info.sqlite_account_info import (SqliteAccountInfo)
 from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
 from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
-from .b2http import (test_http, B2Http)
+from .b2http import (test_http, B2Http, HttpCallback)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo, ClockSkew, BadDateFormat)
@@ -1047,40 +1047,41 @@ DATE_PATTERN = re.compile(r'^..., (\d\d) (...) (\d\d\d\d) (\d\d:\d\d\:\d\d) GMT$
 MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
-def clock_skew_hook(http_response):
-    """
-    Raises an exception if the clock in the server is too different from the
-    clock on the local host.
+class ClockSkewHook(HttpCallback):
+    def post_request(self, method, url, headers, http_response):
+        """
+        Raises an exception if the clock in the server is too different from the
+        clock on the local host.
 
-    The Date header contains a string that looks like: "Fri, 16 Dec 2016 20:52:30 GMT".
-    """
-    # Make a string that uses month numbers instead of month names
-    server_date_str = http_response.headers['Date']
+        The Date header contains a string that looks like: "Fri, 16 Dec 2016 20:52:30 GMT".
+        """
+        # Make a string that uses month numbers instead of month names
+        server_date_str = http_response.headers['Date']
 
-    # Convert the server time to a datetime object
-    try:
-        server_time = arrow.get(
-            server_date_str, 'ddd, DD MMM YYYY HH:mm:ss ZZZ'
-        )  # this, unlike datetime.datetime.strptime, always uses English locale
-    except arrow.parser.ParserError:
-        logger.exception('server returned date in an inappropriate format')
-        raise BadDateFormat(server_date_str)
+        # Convert the server time to a datetime object
+        try:
+            server_time = arrow.get(
+                server_date_str, 'ddd, DD MMM YYYY HH:mm:ss ZZZ'
+            )  # this, unlike datetime.datetime.strptime, always uses English locale
+        except arrow.parser.ParserError:
+            logger.exception('server returned date in an inappropriate format')
+            raise BadDateFormat(server_date_str)
 
-    # Get the local time
-    local_time = arrow.utcnow()
+        # Get the local time
+        local_time = arrow.utcnow()
 
-    # Check the difference.  The timedelta.total_seconds() method is not available
-    # in Python 2.6, so we'll compute it using the formula from the Python docs.
-    max_allowed = 10 * 60  # ten minutes, in seconds
-    skew = local_time - server_time
-    skew_seconds = int(
-        (skew.microseconds + (skew.seconds + skew.days * 24 * 3600) * 1000000) / 1000000
-    )
-    if max_allowed < abs(skew_seconds):
-        if skew_seconds < 0:
-            raise ClockSkew('local clock is %d seconds behind server' % (-skew_seconds,))
-        else:
-            raise ClockSkew('local clock is %d seconds ahead of server' % (skew_seconds,))
+        # Check the difference.  The timedelta.total_seconds() method is not available
+        # in Python 2.6, so we'll compute it using the formula from the Python docs.
+        max_allowed = 10 * 60  # ten minutes, in seconds
+        skew = local_time - server_time
+        skew_seconds = int(
+            (skew.microseconds + (skew.seconds + skew.days * 24 * 3600) * 1000000) / 1000000
+        )
+        if max_allowed < abs(skew_seconds):
+            if skew_seconds < 0:
+                raise ClockSkew('local clock is %d seconds behind server' % (-skew_seconds,))
+            else:
+                raise ClockSkew('local clock is %d seconds ahead of server' % (skew_seconds,))
 
 
 def decode_sys_argv():
@@ -1098,7 +1099,8 @@ def decode_sys_argv():
 
 def main():
     info = SqliteAccountInfo()
-    b2_http = B2Http(after_request_hook=clock_skew_hook)
+    b2_http = B2Http()
+    b2_http.add_callback(ClockSkewHook())
     raw_api = B2RawApi(b2_http)
     b2_api = B2Api(info, AuthInfoCache(info), raw_api=raw_api)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
