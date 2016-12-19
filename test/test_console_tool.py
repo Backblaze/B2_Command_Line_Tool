@@ -13,7 +13,7 @@ import json
 import os
 import six
 
-from b2.exception import ClockSkew, DateFormatBad
+from b2.exception import ClockSkew, BadDateFormat
 from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
 from b2.api import B2Api
@@ -568,13 +568,13 @@ class TestConsoleTool(TestBase):
     def test_clock_skew_hook_bad_format(self):
         response = mock.MagicMock()
         response.headers = {'Date': 'bad format'}
-        with self.assertRaises(DateFormatBad):
+        with self.assertRaises(BadDateFormat):
             clock_skew_hook(response)
 
     def test_clock_skew_hook_bad_month(self):
         response = mock.MagicMock()
         response.headers = {'Date': 'Fri, 16 XXX 2016 20:52:30 GMT'}
-        with self.assertRaises(DateFormatBad):
+        with self.assertRaises(BadDateFormat):
             clock_skew_hook(response)
 
     def test_clock_skew_hook_no_skew(self):
