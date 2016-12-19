@@ -47,6 +47,7 @@ this:
     b2 list-unfinished-large-files <bucketName>
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
     b2 make-url <fileId>
+    b2 show-account-info
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--threads N] [--noProgress] \
         [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \

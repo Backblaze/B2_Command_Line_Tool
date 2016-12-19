@@ -631,7 +631,7 @@ class MakeUrl(Command):
 
 class ShowAccountInfo(Command):
     """
-    b2 show_account_info
+    b2 show-account-info
 
         Shows the account ID, key, auth token, and URLs.
     """
