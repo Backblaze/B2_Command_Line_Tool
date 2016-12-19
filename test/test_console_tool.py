@@ -452,6 +452,17 @@ class TestConsoleTool(TestBase):
                 ], expected_stdout, '', 0
             )
 
+    def test_show_account_info(self):
+        self._authorize_account()
+        expected_stdout = '''
+        Account ID:         my-account
+        Application Key:    good-app-key
+        Account Auth Token: AUTH:my-account
+        API URL:            http://api.example.com
+        Download URL:       http://download.example.com
+        '''
+        self._run_command(['show-account-info'], expected_stdout, '', 0)
+
     def test_sync(self):
         self._authorize_account()
         self._create_my_bucket()

@@ -637,11 +637,11 @@ class ShowAccountInfo(Command):
     """
     def run(self, args):
         account_info = self.api.account_info
-        print('Account ID:         %s' % (account_info.get_account_id(),))
-        print('Application Key:    %s' % (account_info.get_application_key(),))
-        print('Account Auth Token: %s' % (account_info.get_account_auth_token(),))
-        print('API URL:            %s' % (account_info.get_api_url(),))
-        print('Download URL:       %s' % (account_info.get_download_url(),))
+        self._print('Account ID:         %s' % (account_info.get_account_id(),))
+        self._print('Application Key:    %s' % (account_info.get_application_key(),))
+        self._print('Account Auth Token: %s' % (account_info.get_account_auth_token(),))
+        self._print('API URL:            %s' % (account_info.get_api_url(),))
+        self._print('Download URL:       %s' % (account_info.get_download_url(),))
         return 0
 
 
