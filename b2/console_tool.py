@@ -635,6 +635,7 @@ class ShowAccountInfo(Command):
 
         Shows the account ID, key, auth token, and URLs.
     """
+
     def run(self, args):
         account_info = self.api.account_info
         self._print('Account ID:         %s' % (account_info.get_account_id(),))
