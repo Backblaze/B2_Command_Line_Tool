@@ -1041,11 +1041,6 @@ class ConsoleTool(object):
             logger.info('starting command [%s] with arguments: %s', command, argv)
 
 
-DATE_PATTERN = re.compile(r'^..., (\d\d) (...) (\d\d\d\d) (\d\d:\d\d\:\d\d) GMT$')
-
-MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-
 def decode_sys_argv():
     """
     Returns the command-line arguments as unicode strings, decoding
