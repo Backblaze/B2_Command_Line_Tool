@@ -381,6 +381,27 @@ class DownloadFileByName(Command):
         return 0
 
 
+class GetBucket(Command):
+    """
+    b2 get-bucket <bucketName>
+
+        Prints all of the information about the bucket, including
+        bucket info and lifecycle rules.
+    """
+
+    REQUIRED = ['bucketName']
+
+    def run(self, args):
+        # This always wants up-to-date info, so it does not use
+        # the bucket cache.
+        for b in self.api.list_buckets():
+            if b.name == args.bucketName:
+                self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
+                return 0
+        self._print_stderr('bucket not found: ' + args.bucketName)
+        return 1
+
+
 class GetFileInfo(Command):
     """
     b2 get-file-info <fileId>
