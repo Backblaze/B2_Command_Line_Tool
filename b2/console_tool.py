@@ -381,6 +381,26 @@ class DownloadFileByName(Command):
         return 0
 
 
+class GetAccountInfo(Command):
+    """
+    b2 get-account-info
+
+        Shows the account ID, key, auth token, and URLs.
+    """
+
+    def run(self, args):
+        account_info = self.api.account_info
+        data = dict(
+            accountId=account_info.get_account_id(),
+            applicationKey=account_info.get_application_key(),
+            accountAuthToken=account_info.get_account_auth_token(),
+            apiUrl=account_info.get_api_url(),
+            downloadUrl=account_info.get_download_url()
+        )
+        self._print(json.dumps(data, indent=4, sort_keys=True))
+        return 0
+
+
 class GetBucket(Command):
     """
     b2 get-bucket <bucketName>
@@ -647,23 +667,6 @@ class MakeUrl(Command):
 
     def run(self, args):
         self._print(self.api.get_download_url_for_fileid(args.fileId))
-        return 0
-
-
-class ShowAccountInfo(Command):
-    """
-    b2 show-account-info
-
-        Shows the account ID, key, auth token, and URLs.
-    """
-
-    def run(self, args):
-        account_info = self.api.account_info
-        self._print('Account ID:         %s' % (account_info.get_account_id(),))
-        self._print('Application Key:    %s' % (account_info.get_application_key(),))
-        self._print('Account Auth Token: %s' % (account_info.get_account_auth_token(),))
-        self._print('API URL:            %s' % (account_info.get_api_url(),))
-        self._print('Download URL:       %s' % (account_info.get_download_url(),))
         return 0
 
 
