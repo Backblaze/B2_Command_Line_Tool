@@ -55,7 +55,7 @@ this:
         <source> <destination>
     b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
-        [--info <ke y>=<value>]* [--minPartSize N] \
+        [--info <key>=<value>]* [--minPartSize N] \
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
     b2 version
 
