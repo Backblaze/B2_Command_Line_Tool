@@ -174,7 +174,7 @@ class BoundedQueueExecutor(object):
     released when an action finishes.
     """
 
-    def __init__(self, executor, queue_limit=100):
+    def __init__(self, executor, queue_limit):
         self.executor = executor
         self.semaphore = threading.Semaphore(queue_limit)
 

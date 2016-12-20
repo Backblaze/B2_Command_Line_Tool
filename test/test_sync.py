@@ -12,6 +12,8 @@ from __future__ import print_function
 
 import os
 import platform
+import threading
+import time
 import unittest
 
 import six
@@ -21,7 +23,7 @@ from b2.exception import CommandError, DestFileNewer
 from b2.file_version import FileVersionInfo
 from b2.sync.folder import AbstractFolder, B2Folder, LocalFolder
 from b2.sync.file import File, FileVersion
-from b2.sync.sync import make_folder_sync_actions, zip_folders
+from b2.sync.sync import BoundedQueueExecutor, make_folder_sync_actions, zip_folders
 from b2.sync.folder_parser import parse_sync_folder
 from b2.utils import TempDir
 
@@ -29,6 +31,11 @@ try:
     from unittest.mock import MagicMock
 except ImportError:
     from mock import MagicMock
+
+try:
+    import concurrent.futures as futures
+except ImportError:
+    import futures
 
 DAY = 86400000  # milliseconds
 TODAY = DAY * 100  # an arbitrary reference time for testing
@@ -687,6 +694,79 @@ class TestMakeSyncActions(TestSync):
             for a in action_strs:
                 print('   ', a)
         self.assertEqual(expected_actions, [str(a) for a in actions])
+
+
+class TestBoundedQueueExecutor(TestBase):
+    def test_run_more_than_queue_size(self):
+        """
+        Makes sure that the executor will run more jobs that the
+        queue size, which ensures that the semaphore gets released,
+        even if an exception is thrown.
+        """
+        raw_executor = futures.ThreadPoolExecutor(1)
+        bounded_executor = BoundedQueueExecutor(raw_executor, 5)
+
+        class Counter():
+            """
+            Counts how many times run() is called.
+            """
+
+            def __init__(self):
+                self.counter = 0
+
+            def run(self):
+                """
+                Always increments the counter.  Sometimes raises an exception.
+                """
+                self.counter += 1
+                if self.counter % 2 == 0:
+                    raise Exception('test')
+
+        counter = Counter()
+        for _ in six.moves.range(10):
+            bounded_executor.submit(counter.run)
+        bounded_executor.shutdown()
+        self.assertEqual(10, counter.counter)
+
+    def test_wait_for_running_jobs(self):
+        """
+        Makes sure that no more than queue_limit workers are
+        running at once, which checks that the semaphore is
+        acquired before submitting an action.
+        """
+        raw_executor = futures.ThreadPoolExecutor(2)
+        bounded_executor = BoundedQueueExecutor(raw_executor, 1)
+        assert_equal = self.assertEqual
+
+        class CountAtOnce():
+            """
+            Counts how many threads are running at once.
+            There should never be more than 1 because that's
+            the limit on the bounded executor.
+            """
+
+            def __init__(self):
+                self.running_at_once = 0
+                self.lock = threading.Lock()
+
+            def run(self):
+                with self.lock:
+                    self.running_at_once += 1
+                    assert_equal(1, self.running_at_once)
+                # While we are sleeping here, no other actions should start
+                # running.  If they do, they will increment the counter and
+                # fail the above assertion.
+                time.sleep(0.05)
+                with self.lock:
+                    self.running_at_once -= 1
+                self.counter += 1
+                if self.counter % 2 == 0:
+                    raise Exception('test')
+
+        count_at_once = CountAtOnce()
+        for _ in six.moves.range(5):
+            bounded_executor.submit(count_at_once.run)
+        bounded_executor.shutdown()
 
 
 if __name__ == '__main__':
