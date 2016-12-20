@@ -10,6 +10,7 @@
 
 from __future__ import print_function
 
+import arrow
 import logging
 import json
 import socket
@@ -18,7 +19,7 @@ import requests
 import six
 import time
 
-from .exception import B2Error, BrokenPipe, B2ConnectionError, B2RequestTimeout, interpret_b2_error, UnknownError, UnknownHost
+from .exception import B2Error, BadDateFormat, BrokenPipe, B2ConnectionError, B2RequestTimeout, ClockSkew, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 from six.moves import range
 
@@ -154,6 +155,40 @@ class HttpCallback(object):
         """
 
 
+class ClockSkewHook(HttpCallback):
+    def post_request(self, method, url, headers, http_response):
+        """
+        Raises an exception if the clock in the server is too different from the
+        clock on the local host.
+
+        The Date header contains a string that looks like: "Fri, 16 Dec 2016 20:52:30 GMT".
+        """
+        # Make a string that uses month numbers instead of month names
+        server_date_str = http_response.headers['Date']
+
+        # Convert the server time to a datetime object
+        try:
+            server_time = arrow.get(
+                server_date_str, 'ddd, DD MMM YYYY HH:mm:ss ZZZ'
+            )  # this, unlike datetime.datetime.strptime, always uses English locale
+        except arrow.parser.ParserError:
+            logger.exception('server returned date in an inappropriate format')
+            raise BadDateFormat(server_date_str)
+
+        # Get the local time
+        local_time = arrow.utcnow()
+
+        # Check the difference.  The timedelta.total_seconds() method is not available
+        # in Python 2.6, so we'll compute it using the formula from the Python docs.
+        max_allowed = 10 * 60  # ten minutes, in seconds
+        skew = local_time - server_time
+        skew_seconds = int(
+            (skew.microseconds + (skew.seconds + skew.days * 24 * 3600) * 1000000) / 1000000
+        )
+        if max_allowed < abs(skew_seconds):
+            raise ClockSkew(skew_seconds)
+
+
 class B2Http(object):
     """
     A wrapper for the requests module.  Provides the operations
@@ -175,7 +210,7 @@ class B2Http(object):
             ...
     """
 
-    def __init__(self, requests_module=None):
+    def __init__(self, requests_module=None, install_clock_skew_hook=True):
         """
         Initialize with a reference to the requests module, which makes
         it easy to mock for testing.
@@ -186,6 +221,8 @@ class B2Http(object):
         requests_to_use = requests_module or requests
         self.session = requests_to_use.Session()
         self.callbacks = []
+        if install_clock_skew_hook:
+            self.add_callback(ClockSkewHook())
 
     def add_callback(self, callback):
         """

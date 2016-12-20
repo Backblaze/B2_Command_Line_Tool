@@ -124,6 +124,7 @@ class ClockSkew(B2Error):
     """
     The clock on the server differs from the local clock by too much.
     """
+
     def __init__(self, clock_skew_seconds):
         """
         :param clock_skew_seconds: The different: local_clock - server_clock
@@ -133,9 +134,13 @@ class ClockSkew(B2Error):
 
     def __str__(self):
         if self.clock_skew_seconds < 0:
-            return 'ClockSkew: local clock is %d seconds behind server' % (-self.clock_skew_seconds,)
+            return 'ClockSkew: local clock is %d seconds behind server' % (
+                -self.clock_skew_seconds,
+            )
         else:
-            return 'ClockSkew; local clock is %d seconds ahead of server' % (self.clock_skew_seconds,)
+            return 'ClockSkew; local clock is %d seconds ahead of server' % (
+                self.clock_skew_seconds,
+            )
 
 
 class CommandError(B2Error):
