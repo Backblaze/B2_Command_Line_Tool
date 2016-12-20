@@ -706,7 +706,7 @@ class TestBoundedQueueExecutor(TestBase):
         raw_executor = futures.ThreadPoolExecutor(1)
         bounded_executor = BoundedQueueExecutor(raw_executor, 5)
 
-        class Counter():
+        class Counter(object):
             """
             Counts how many times run() is called.
             """
@@ -738,7 +738,7 @@ class TestBoundedQueueExecutor(TestBase):
         bounded_executor = BoundedQueueExecutor(raw_executor, 1)
         assert_equal = self.assertEqual
 
-        class CountAtOnce():
+        class CountAtOnce(object):
             """
             Counts how many threads are running at once.
             There should never be more than 1 because that's
