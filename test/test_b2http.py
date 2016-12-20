@@ -232,4 +232,4 @@ class TestClockSkewHook(TestBase):
         response = MagicMock()
         response.headers = {'Date': now_str}
         with self.assertRaises(ClockSkew):
-            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)

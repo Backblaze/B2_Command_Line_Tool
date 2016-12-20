@@ -120,7 +120,19 @@ class ChecksumMismatch(TransientErrorMixin, B2Error):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
 
 
-class ClockSkew(B2Error):
+class B2HttpCallbackException(B2SimpleError):
+    pass
+
+
+class B2HttpCallbackPostRequestException(B2HttpCallbackException):
+    pass
+
+
+class B2HttpCallbackPreRequestException(B2HttpCallbackException):
+    pass
+
+
+class ClockSkew(B2HttpCallbackPostRequestException):
     """
     The clock on the server differs from the local clock by too much.
     """

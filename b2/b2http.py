@@ -128,11 +128,8 @@ class HttpCallback(object):
         """
         Called before processing an HTTP request.
 
-        Returns True if the request should be processed, and False
-        if the request should be aborted.
-
         Raises an exception if this request should not be processed.
-        The exception raised must inherit from B2Error.
+        The exception raised must inherit from B2HttpCallbackPreRequestException.
 
         :param method: One of: 'POST', 'GET', etc.
         :param url: The URL that will be used.
@@ -146,7 +143,7 @@ class HttpCallback(object):
         Should not raise an exception.
 
         Raises an exception if this request should be treated as failing.
-        The exception raised must inherit from B2Error.
+        The exception raised must inherit from B2HttpCallbackPostRequestException.
 
         :param method: One of: 'POST', 'GET', etc.
         :param url: The URL that will be used.
