@@ -203,20 +203,20 @@ class TestClockSkewHook(TestBase):
         response = MagicMock()
         response.headers = {'Date': 'bad format'}
         with self.assertRaises(BadDateFormat):
-            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
 
     def test_bad_month(self):
         response = MagicMock()
         response.headers = {'Date': 'Fri, 16 XXX 2016 20:52:30 GMT'}
         with self.assertRaises(BadDateFormat):
-            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
 
     def test_no_skew(self):
         now = datetime.datetime.utcnow()
         now_str = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
         response = MagicMock()
         response.headers = {'Date': now_str}
-        ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
+        ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
 
     def test_positive_skew(self):
         now = datetime.datetime.utcnow() + datetime.timedelta(minutes=11)
@@ -224,7 +224,7 @@ class TestClockSkewHook(TestBase):
         response = MagicMock()
         response.headers = {'Date': now_str}
         with self.assertRaises(ClockSkew):
-            ClockSkewHook().post_request('POST', 'http://foo.com', {}, response)
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
 
     def test_negative_skew(self):
         now = datetime.datetime.utcnow() + datetime.timedelta(minutes=-11)
