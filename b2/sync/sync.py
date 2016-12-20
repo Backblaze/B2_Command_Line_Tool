@@ -163,7 +163,7 @@ def count_files(local_folder, reporter):
     reporter.end_local()
 
 
-class BoundedQueueThreadPoolExecutor(object):
+class BoundedQueueExecutor(object):
     """
     Wraps a futures.Executor and limits the number of requests that
     can be queued at once.  Requests to submit() tasks block until
@@ -223,7 +223,7 @@ def sync_folders(
         # when syncing lots of files.
         unbounded_executor = futures.ThreadPoolExecutor(max_workers=max_workers)
         queue_limit = max_workers + 1000
-        sync_executor = BoundedQueueThreadPoolExecutor(unbounded_executor, queue_limit=queue_limit)
+        sync_executor = BoundedQueueExecutor(unbounded_executor, queue_limit=queue_limit)
 
         # First, start the thread that counts the local files.  That's the operation
         # that should be fastest, and it provides scale for the progress reporting.
