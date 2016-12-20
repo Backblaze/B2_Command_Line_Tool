@@ -1078,10 +1078,7 @@ class ClockSkewHook(HttpCallback):
             (skew.microseconds + (skew.seconds + skew.days * 24 * 3600) * 1000000) / 1000000
         )
         if max_allowed < abs(skew_seconds):
-            if skew_seconds < 0:
-                raise ClockSkew('local clock is %d seconds behind server' % (-skew_seconds,))
-            else:
-                raise ClockSkew('local clock is %d seconds ahead of server' % (skew_seconds,))
+            raise ClockSkew(skew_seconds)
 
 
 def decode_sys_argv():
