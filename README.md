@@ -36,6 +36,8 @@ this:
     b2 delete-file-version [<fileName>] <fileId>
     b2 download-file-by-id [--noProgress] <fileId> <localFileName>
     b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
+    b2 get-account-info
+    b2 get-bucket <bucketName>
     b2 get-download-auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
     b2 get-file-info <fileId>
     b2 help [commandName]
@@ -47,7 +49,6 @@ this:
     b2 list-unfinished-large-files <bucketName>
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
     b2 make-url <fileId>
-    b2 show-account-info
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--threads N] [--noProgress] \
         [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \
