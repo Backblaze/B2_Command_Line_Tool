@@ -451,16 +451,34 @@ class TestConsoleTool(TestBase):
                 ], expected_stdout, '', 0
             )
 
-    def test_show_account_info(self):
+    def test_get_account_info(self):
         self._authorize_account()
         expected_stdout = '''
-        Account ID:         my-account
-        Application Key:    good-app-key
-        Account Auth Token: AUTH:my-account
-        API URL:            http://api.example.com
-        Download URL:       http://download.example.com
+        {
+            "accountAuthToken": "AUTH:my-account",
+            "accountId": "my-account",
+            "apiUrl": "http://api.example.com",
+            "applicationKey": "good-app-key",
+            "downloadUrl": "http://download.example.com"
+        }
         '''
-        self._run_command(['show-account-info'], expected_stdout, '', 0)
+        self._run_command(['get-account-info'], expected_stdout, '', 0)
+
+    def test_get_bucket(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+        self._run_command(['get-bucket', 'my-bucket'], expected_stdout, '', 0)
 
     def test_sync(self):
         self._authorize_account()

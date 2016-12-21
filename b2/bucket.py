@@ -99,13 +99,16 @@ class Bucket(object):
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_LARGE_FILE_SIZE = 10 * 1000 * 1000 * 1000 * 1000  # 10 TB
 
-    def __init__(self, api, id_, name=None, type_=None, bucket_info=None, revision=None):
+    def __init__(
+        self, api, id_, name=None, type_=None, bucket_info=None, revision=None, bucket_dict=None
+    ):
         self.api = api
         self.id_ = id_
         self.name = name
         self.type_ = type_
         self.bucket_info = bucket_info or {}
         self.revision = revision
+        self.bucket_dict = bucket_dict or {}
 
     def get_id(self):
         return self.id_
@@ -634,4 +637,4 @@ class BucketFactory(object):
         revision = bucket_dict['revision']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(api, bucket_id, bucket_name, type_, bucket_info, revision)
+        return Bucket(api, bucket_id, bucket_name, type_, bucket_info, revision, bucket_dict)
