@@ -13,6 +13,7 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
+import platform
 import sys
 
 # Always prefer setuptools over distutils
@@ -35,6 +36,12 @@ with open('requirements.txt', encoding='utf-8') as f:
 # of python you're running.
 if sys.version_info < (3, 2):
     requirements.append('futures>=3.0.5')
+
+# Jython cannot handle extremely large blocks of code.
+# requests 2.12.x that we rely on, relied on idna, which until 2.2.0 contained such block.
+# https://github.com/kennethreitz/requests/issues/3711#issuecomment-268522266
+if platform.system().lower().startswith('java'):
+    requirements.append('idna>=2.2.0')
 
 with open('requirements-test.txt', encoding='utf-8') as f:
     requirements_test = f.read().splitlines()
