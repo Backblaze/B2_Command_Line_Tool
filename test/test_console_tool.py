@@ -10,7 +10,6 @@
 
 import json
 import os
-
 import six
 
 from .stub_account_info import StubAccountInfo

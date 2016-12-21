@@ -10,6 +10,7 @@
 
 from __future__ import print_function
 
+import arrow
 import logging
 import json
 import socket
@@ -18,7 +19,7 @@ import requests
 import six
 import time
 
-from .exception import B2Error, BrokenPipe, B2ConnectionError, B2RequestTimeout, interpret_b2_error, UnknownError, UnknownHost
+from .exception import B2Error, BadDateFormat, BrokenPipe, B2ConnectionError, B2RequestTimeout, ClockSkew, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 from six.moves import range
 
@@ -117,6 +118,74 @@ class ResponseContextManager(object):
         self.response.close()
 
 
+class HttpCallback(object):
+    """
+    A callback object that does nothing.  Override pre_request
+    and/or post_request as desired.
+    """
+
+    def pre_request(self, method, url, headers):
+        """
+        Called before processing an HTTP request.
+
+        Raises an exception if this request should not be processed.
+        The exception raised must inherit from B2HttpCallbackPreRequestException.
+
+        :param method: One of: 'POST', 'GET', etc.
+        :param url: The URL that will be used.
+        :param headers: The header sent with the request.
+
+        """
+
+    def post_request(self, method, url, headers, response):
+        """
+        Called after processing an HTTP request.
+        Should not raise an exception.
+
+        Raises an exception if this request should be treated as failing.
+        The exception raised must inherit from B2HttpCallbackPostRequestException.
+
+        :param method: One of: 'POST', 'GET', etc.
+        :param url: The URL that will be used.
+        :param headers: The header sent with the request.
+        :param response: A response object from the requests library.
+        """
+
+
+class ClockSkewHook(HttpCallback):
+    def post_request(self, method, url, headers, http_response):
+        """
+        Raises an exception if the clock in the server is too different from the
+        clock on the local host.
+
+        The Date header contains a string that looks like: "Fri, 16 Dec 2016 20:52:30 GMT".
+        """
+        # Make a string that uses month numbers instead of month names
+        server_date_str = http_response.headers['Date']
+
+        # Convert the server time to a datetime object
+        try:
+            server_time = arrow.get(
+                server_date_str, 'ddd, DD MMM YYYY HH:mm:ss ZZZ'
+            )  # this, unlike datetime.datetime.strptime, always uses English locale
+        except arrow.parser.ParserError:
+            logger.exception('server returned date in an inappropriate format')
+            raise BadDateFormat(server_date_str)
+
+        # Get the local time
+        local_time = arrow.utcnow()
+
+        # Check the difference.  The timedelta.total_seconds() method is not available
+        # in Python 2.6, so we'll compute it using the formula from the Python docs.
+        max_allowed = 10 * 60  # ten minutes, in seconds
+        skew = local_time - server_time
+        skew_seconds = int(
+            (skew.microseconds + (skew.seconds + skew.days * 24 * 3600) * 1000000) / 1000000
+        )
+        if max_allowed < abs(skew_seconds):
+            raise ClockSkew(skew_seconds)
+
+
 class B2Http(object):
     """
     A wrapper for the requests module.  Provides the operations
@@ -138,13 +207,25 @@ class B2Http(object):
             ...
     """
 
-    def __init__(self, requests_module=None):
+    def __init__(self, requests_module=None, install_clock_skew_hook=True):
         """
         Initialize with a reference to the requests module, which makes
         it easy to mock for testing.
+
+        The optional after_request_hook is called on the Response
+        object after every request that doesn't throw an exception.
         """
         requests_to_use = requests_module or requests
         self.session = requests_to_use.Session()
+        self.callbacks = []
+        if install_clock_skew_hook:
+            self.add_callback(ClockSkewHook())
+
+    def add_callback(self, callback):
+        """
+        Adds a callback that inherits from HttpCallback.
+        """
+        self.callbacks.append(callback)
 
     def post_content_return_json(self, url, headers, data, try_count=1, post_params=None):
         """
@@ -170,7 +251,10 @@ class B2Http(object):
         # rewind the data back to the beginning.
         def do_post():
             data.seek(0)
-            return self.session.post(url, headers=headers, data=data)
+            self._run_pre_request_hooks('POST', url, headers)
+            response = self.session.post(url, headers=headers, data=data)
+            self._run_post_request_hooks('POST', url, headers, response)
+            return response
 
         response = _translate_and_retry(do_post, try_count, post_params)
 
@@ -229,10 +313,21 @@ class B2Http(object):
 
         # Do the HTTP GET.
         def do_get():
-            return self.session.get(url, headers=headers, stream=True)
+            self._run_pre_request_hooks('GET', url, headers)
+            response = self.session.get(url, headers=headers, stream=True)
+            self._run_post_request_hooks('GET', url, headers, response)
+            return response
 
         response = _translate_and_retry(do_get, try_count, None)
         return ResponseContextManager(response)
+
+    def _run_pre_request_hooks(self, method, url, headers):
+        for callback in self.callbacks:
+            callback.pre_request(method, url, headers)
+
+    def _run_post_request_hooks(self, method, url, headers, response):
+        for callback in self.callbacks:
+            callback.post_request(method, url, headers, response)
 
 
 def test_http():

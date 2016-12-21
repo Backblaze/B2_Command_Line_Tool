@@ -85,12 +85,16 @@ class AlreadyFailed(B2SimpleError):
     pass
 
 
-class BadJson(B2SimpleError):
-    prefix = 'Bad request'
+class BadDateFormat(B2SimpleError):
+    prefix = 'Date from server'
 
 
 class BadFileInfo(B2SimpleError):
     pass
+
+
+class BadJson(B2SimpleError):
+    prefix = 'Bad request'
 
 
 class BadUploadUrl(TransientErrorMixin, B2SimpleError):
@@ -114,6 +118,41 @@ class ChecksumMismatch(TransientErrorMixin, B2Error):
 
     def __str__(self):
         return '%s checksum mismatch -- bad data' % (self.checksum_type,)
+
+
+class B2HttpCallbackException(B2SimpleError):
+    pass
+
+
+class B2HttpCallbackPostRequestException(B2HttpCallbackException):
+    pass
+
+
+class B2HttpCallbackPreRequestException(B2HttpCallbackException):
+    pass
+
+
+class ClockSkew(B2HttpCallbackPostRequestException):
+    """
+    The clock on the server differs from the local clock by too much.
+    """
+
+    def __init__(self, clock_skew_seconds):
+        """
+        :param clock_skew_seconds: The different: local_clock - server_clock
+        """
+        super(ClockSkew, self).__init__()
+        self.clock_skew_seconds = clock_skew_seconds
+
+    def __str__(self):
+        if self.clock_skew_seconds < 0:
+            return 'ClockSkew: local clock is %d seconds behind server' % (
+                -self.clock_skew_seconds,
+            )
+        else:
+            return 'ClockSkew; local clock is %d seconds ahead of server' % (
+                self.clock_skew_seconds,
+            )
 
 
 class CommandError(B2Error):
