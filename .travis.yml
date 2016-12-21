@@ -172,9 +172,6 @@ before_install:
   - python --version
 
 install:
-  # requests==2.11.1 are the newest version that seems to work with jython, versions 2.12.[0-3] crash on install
-  - if [ -n "$JYTHON" ]; then pip install requests==2.11.1; else echo skip; fi  # install old requests earilier
-
   # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it.
   - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
 
