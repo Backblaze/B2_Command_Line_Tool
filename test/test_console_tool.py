@@ -465,6 +465,22 @@ class TestConsoleTool(TestBase):
         '''
         self._run_command(['get-account-info'], expected_stdout, '', 0)
 
+    def test_get_bucket(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+        self._run_command(['get-bucket', 'my-bucket'], expected_stdout, '', 0)
+
     def test_sync(self):
         self._authorize_account()
         self._create_my_bucket()
