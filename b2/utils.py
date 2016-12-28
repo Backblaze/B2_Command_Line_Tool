@@ -11,16 +11,20 @@
 from __future__ import division, print_function
 
 import hashlib
+import re
 import shutil
 import tempfile
 import time
 
+from logfury.v0_1 import DefaultTraceAbstractMeta, DefaultTraceMeta, limit_trace_arguments, disable_trace, trace_call
+
 import six
+
 from six.moves import urllib
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 # Global variable that says whether the app is shutting down
@@ -174,7 +178,7 @@ class BytesIoContextManager(object):
     def __enter__(self):
         return six.BytesIO(self.byte_data)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type_, value, traceback):
         return None  # don't hide exception
 
 
@@ -259,3 +263,30 @@ def format_and_scale_fraction(numerator, denominator, unit):
     # format it
     scaled_numerator = numerator / scale
     return fmt % (scaled_numerator, scaled_denominator, suffix, unit)
+
+
+_CAMELCASE_TO_UNDERSCORE_RE = re.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
+
+
+def camelcase_to_underscore(input_):
+    return _CAMELCASE_TO_UNDERSCORE_RE.sub(r'_\1', input_).lower()
+
+
+def repr_dict_deterministically(dict_):
+    # a simple version had a disadvantage of outputting dictionary keys in random order.
+    # It was hard to read. Therefore we sort items by key.
+    fields = ', '.join('%s: %s' % (repr(k), repr(v)) for k, v in sorted(six.iteritems(dict_)))
+    return '{%s}' % (fields,)
+
+
+class B2TraceMeta(DefaultTraceMeta):
+    pass
+
+
+class B2TraceMetaAbstract(DefaultTraceAbstractMeta):
+    pass
+
+
+assert disable_trace
+assert limit_trace_arguments
+assert trace_call

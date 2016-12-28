@@ -8,18 +8,20 @@
 #
 ######################################################################
 
-from __future__ import absolute_import, division, print_function
+from __future__ import absolute_import, division
 
+from nose import SkipTest
 import os
-import sys
-import unittest
+import platform
 
 import six
 
-from b2.account_info import StubAccountInfo
+from .stub_account_info import StubAccountInfo
+from .test_base import TestBase
 from b2.api import B2Api
+from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
-from b2.exception import B2Error, InvalidAuthToken, MaxRetriesExceeded
+from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
@@ -29,11 +31,8 @@ from b2.utils import hex_sha1_of_bytes, TempDir
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
-
-# The assertRaises context manager isn't in 2.6, so we don't bother running those tests there
-IS_27_OR_LATER = sys.version_info[0] >= 3 or (sys.version_info[0] == 2 and sys.version_info[1] >= 7)
 
 
 def write_file(path, data):
@@ -65,7 +64,6 @@ class StubProgressListener(AbstractProgressListener):
 
     def close(self):
         self.history.append('closed')
-        pass
 
     def __enter__(self):
         return self
@@ -87,7 +85,7 @@ class CanRetry(B2Error):
         return self.can_retry
 
 
-class TestCaseWithBucket(unittest.TestCase):
+class TestCaseWithBucket(TestBase):
     def setUp(self):
         self.bucket_name = 'my-bucket'
         self.simulator = RawSimulator()
@@ -98,6 +96,16 @@ class TestCaseWithBucket(unittest.TestCase):
         self.account_auth_token = self.account_info.get_account_auth_token()
         self.bucket = self.api.create_bucket('my-bucket', 'allPublic')
         self.bucket_id = self.bucket.id_
+
+    def assertBucketContents(self, expected, *args, **kwargs):
+        """
+        *args and **kwargs are passed to self.bucket.ls()
+        """
+        actual = [
+            (info.file_name, info.size, info.action, folder)
+            for (info, folder) in self.bucket.ls(*args, **kwargs)
+        ]
+        self.assertEqual(expected, actual)
 
 
 class TestReauthorization(TestCaseWithBucket):
@@ -146,6 +154,22 @@ class TestListParts(TestCaseWithBucket):
         self.assertEqual(expected_parts, list(self.bucket.list_parts(file1.file_id, batch_size=1)))
 
 
+class TestUploadPart(TestCaseWithBucket):
+    def test_error_in_state(self):
+        file1 = self.bucket.start_large_file('file1.txt', 'text/plain', {})
+        content = six.b('hello world')
+        file_progress_listener = mock.MagicMock()
+        large_file_upload_state = LargeFileUploadState(file_progress_listener)
+        large_file_upload_state.set_error('test error')
+        try:
+            self.bucket._upload_part(
+                file1.file_id, 1, (0, 11), UploadSourceBytes(content), large_file_upload_state
+            )
+            self.fail('should have thrown')
+        except AlreadyFailed:
+            pass
+
+
 class TestListUnfinished(TestCaseWithBucket):
     def test_empty(self):
         self.assertEqual([], list(self.bucket.list_unfinished_large_files()))
@@ -159,8 +183,7 @@ class TestListUnfinished(TestCaseWithBucket):
         file2 = self.bucket.start_large_file('file2.txt', 'text/plain', {})
         file3 = self.bucket.start_large_file('file3.txt', 'text/plain', {})
         self.assertEqual(
-            [file1, file2, file3],
-            list(self.bucket.list_unfinished_large_files(batch_size=1))
+            [file1, file2, file3], list(self.bucket.list_unfinished_large_files(batch_size=1))
         )
 
     def _make_file(self, file_id, file_name):
@@ -175,11 +198,7 @@ class TestLs(TestCaseWithBucket):
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'hello.txt')
         expected = [('hello.txt', 11, 'upload', None)]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('')
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '')
 
     def test_three_files_at_root(self):
         data = six.b('hello world')
@@ -189,11 +208,7 @@ class TestLs(TestCaseWithBucket):
         expected = [
             ('a', 11, 'upload', None), ('bb', 11, 'upload', None), ('ccc', 11, 'upload', None)
         ]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('')
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '')
 
     def test_three_files_in_dir(self):
         data = six.b('hello world')
@@ -207,11 +222,7 @@ class TestLs(TestCaseWithBucket):
             ('bb/1', 11, 'upload', None), ('bb/2/sub1', 11, 'upload', 'bb/2/'),
             ('bb/3', 11, 'upload', None)
         ]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('bb', fetch_count=1)
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, 'bb', fetch_count=1)
 
     def test_three_files_multiple_versions(self):
         data = six.b('hello world')
@@ -229,30 +240,36 @@ class TestLs(TestCaseWithBucket):
         ]
         actual = [
             (info.id_, info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('bb', show_versions=True,
-                                                 fetch_count=1)
+            for (info, folder) in self.bucket.ls('bb', show_versions=True, fetch_count=1)
         ]
         self.assertEqual(expected, actual)
 
     def test_started_large_file(self):
         self.bucket.start_large_file('hello.txt')
         expected = [('hello.txt', 0, 'start', None)]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('', show_versions=True)
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '', show_versions=True)
 
     def test_hidden_file(self):
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'hello.txt')
         self.bucket.hide_file('hello.txt')
         expected = [('hello.txt', 0, 'hide', None), ('hello.txt', 11, 'upload', None)]
-        actual = [
-            (info.file_name, info.size, info.action, folder)
-            for (info, folder) in self.bucket.ls('', show_versions=True)
-        ]
-        self.assertEqual(expected, actual)
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_delete_file_version(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+
+        files = self.bucket.list_file_names('hello.txt', 1)['files']
+        file_dict = files[0]
+        file_id = file_dict['fileId']
+
+        data = six.b('hello new world')
+        self.bucket.upload_bytes(data, 'hello.txt')
+        self.bucket.delete_file_version(file_id, 'hello.txt')
+
+        expected = [('hello.txt', 15, 'upload', None)]
+        self.assertBucketContents(expected, '', show_versions=True)
 
 
 class TestUpload(TestCaseWithBucket):
@@ -276,24 +293,38 @@ class TestUpload(TestCaseWithBucket):
             self.bucket.upload_local_file(path, 'file1')
             self._check_file_contents('file1', data)
 
+    def test_upload_fifo(self):
+        if platform.system().lower().startswith('java'):
+            raise SkipTest('in Jython 2.7.1b3 there is no os.mkfifo()')
+        with TempDir() as d:
+            path = os.path.join(d, 'file1')
+            os.mkfifo(path)
+            with self.assertRaises(InvalidUploadSource):
+                self.bucket.upload_local_file(path, 'file1')
+
+    def test_upload_dead_symlink(self):
+        with TempDir() as d:
+            path = os.path.join(d, 'file1')
+            os.symlink('non-existing', path)
+            with self.assertRaises(InvalidUploadSource):
+                self.bucket.upload_local_file(path, 'file1')
+
     def test_upload_one_retryable_error(self):
         self.simulator.set_upload_errors([CanRetry(True)])
         data = six.b('hello world')
         self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_file_one_fatal_error(self):
-        if IS_27_OR_LATER:
-            self.simulator.set_upload_errors([CanRetry(False)])
-            data = six.b('hello world')
-            with self.assertRaises(CanRetry):
-                self.bucket.upload_bytes(data, 'file1')
+        self.simulator.set_upload_errors([CanRetry(False)])
+        data = six.b('hello world')
+        with self.assertRaises(CanRetry):
+            self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_file_too_many_retryable_errors(self):
-        if IS_27_OR_LATER:
-            self.simulator.set_upload_errors([CanRetry(True)] * 6)
-            data = six.b('hello world')
-            with self.assertRaises(MaxRetriesExceeded):
-                self.bucket.upload_bytes(data, 'file1')
+        self.simulator.set_upload_errors([CanRetry(True)] * 6)
+        data = six.b('hello world')
+        with self.assertRaises(MaxRetriesExceeded):
+            self.bucket.upload_bytes(data, 'file1')
 
     def test_upload_large(self):
         data = self._make_data(self.simulator.MIN_PART_SIZE * 3)
@@ -365,10 +396,7 @@ class TestUpload(TestCaseWithBucket):
         self._upload_part(large_file_id, 1, data[:part_size])
         progress_listener = StubProgressListener()
         file_info = self.bucket.upload_bytes(
-            data,
-            'file1',
-            progress_listener=progress_listener,
-            file_infos={'property': 'value1'}
+            data, 'file1', progress_listener=progress_listener, file_infos={'property': 'value1'}
         )
         self.assertEqual(large_file_id, file_info.id_)
         self._check_file_contents('file1', data)
@@ -381,10 +409,7 @@ class TestUpload(TestCaseWithBucket):
         self._upload_part(large_file_id, 1, data[:part_size])
         progress_listener = StubProgressListener()
         file_info = self.bucket.upload_bytes(
-            data,
-            'file1',
-            progress_listener=progress_listener,
-            file_infos={'property': 'value2'}
+            data, 'file1', progress_listener=progress_listener, file_infos={'property': 'value2'}
         )
         self.assertNotEqual(large_file_id, file_info.id_)
         self._check_file_contents('file1', data)
@@ -437,6 +462,7 @@ class TestDownload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
         self.assertEqual("11: 11 closed", progress_listener.get_history())
+        assert download.bytes_io.getvalue() == six.b('hello world')
 
     def test_download_by_id_no_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
@@ -454,6 +480,16 @@ class TestDownload(TestCaseWithBucket):
         self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
         self.bucket.download_file_by_name('file1', download)
+
+
+class TestPartialDownload(TestCaseWithBucket):
+    def test_download_by_id_progress(self):
+        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        download = DownloadDestBytes()
+        progress_listener = StubProgressListener()
+        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
+        self.assertEqual("6: 6 closed", progress_listener.get_history())
+        assert download.bytes_io.getvalue() == six.b('lo wor'), download.bytes_io.getvalue()
 
 
 # Run same tests with encrypted bucket

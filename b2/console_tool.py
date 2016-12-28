@@ -12,26 +12,37 @@ from __future__ import absolute_import, print_function
 
 import getpass
 import json
+import locale
+import logging
+import logging.config
 import os
+import platform
 import signal
 import sys
 import textwrap
+import time
 
 import six
 
-from .account_info import (SqliteAccountInfo, test_upload_url_concurrency)
+from .account_info.sqlite_account_info import (SqliteAccountInfo)
+from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
+from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
-from .b2http import (test_http)
+from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
-from .exception import (B2Error, BadFileInfo, MissingAccountData)
+from .exception import (B2Error, BadFileInfo)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
-from .raw_api import (test_raw_api)
+from .raw_api import (SRC_LAST_MODIFIED_MILLIS, B2RawApi, test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
+
+logger = logging.getLogger(__name__)
+
+SEPARATOR = '=' * 40
 
 
 def local_path_to_b2_path(path):
@@ -49,8 +60,8 @@ def keyboard_interrupt_handler(signum, frame):
     raise KeyboardInterrupt()
 
 
-def mixed_case_to_underscores(s):
-    return s[0].lower() + ''.join(c if c.islower() else '_' + c.lower() for c in s[1:])
+def mixed_case_to_hyphens(s):
+    return s[0].lower() + ''.join(c if c.islower() else '-' + c.lower() for c in s[1:])
 
 
 class Command(object):
@@ -63,15 +74,25 @@ class Command(object):
     # default to False.
     OPTION_FLAGS = []
 
+    # Global option flags.  Not shown in help.
+    GLOBAL_OPTION_FLAGS = ['debugLogs']
+
     # Explicit arguments.  These always come before the positional arguments.
     # Putting "color" here means you can put something like "--color blue" on
     # the command line, and args.color will be set to "blue".  These all
     # default to None.
     OPTION_ARGS = []
 
+    # Global explicit arguments.  Not shown in help.
+    GLOBAL_OPTION_ARGS = ['logConfig']
+
     # Optional arguments that you can specify zero or more times and the
     # values are collected into a list.  Default is []
     LIST_ARGS = []
+
+    # Optional, positional, parameters that come before the required
+    # arguments.
+    OPTIONAL_BEFORE = []
 
     # Required positional arguments.  Never None.
     REQUIRED = []
@@ -81,6 +102,9 @@ class Command(object):
 
     # Set to True for commands that should not be listed in the summary.
     PRIVATE = False
+
+    # Set to True for commands that receive sensitive information in arguments
+    FORBID_LOGGING_ARGUMENTS = False
 
     # Parsers for each argument.  Each should be a function that
     # takes a string and returns the vaule.
@@ -117,42 +141,43 @@ class Command(object):
     def parse_arg_list(self, arg_list):
         return parse_arg_list(
             arg_list,
-            option_flags=self.OPTION_FLAGS,
-            option_args=self.OPTION_ARGS,
+            option_flags=self.OPTION_FLAGS + self.GLOBAL_OPTION_FLAGS,
+            option_args=self.OPTION_ARGS + self.GLOBAL_OPTION_ARGS,
             list_args=self.LIST_ARGS,
+            optional_before=self.OPTIONAL_BEFORE,
             required=self.REQUIRED,
             optional=self.OPTIONAL,
             arg_parser=self.ARG_PARSER
         )
 
-    def _print(self, *args, **kwargs):
-        try:
-            print(*args, file=self.stdout, **kwargs)
-        except UnicodeEncodeError:
-            print(
-                "\nERROR: Unable to print unicode.  Encoding for stdout is: '%s'" %
-                (sys.stdout.encoding,),
-                file=sys.stderr
-            )
-            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
-            sys.exit(1)
+    def _print(self, *args):
+        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
 
     def _print_stderr(self, *args, **kwargs):
+        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
+
+    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args):
         try:
-            print(*args, file=self.stderr, **kwargs)
-        except:
-            print(
-                "\nERROR: Unable to print unicode.  Encoding for stderr is: '%s'" %
-                (sys.stderr.encoding,),
-                file=sys.stderr
+            descriptor.write(' '.join(args))
+        except UnicodeEncodeError:
+            sys.stderr.write(
+                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
+                    descriptor_name,
+                    descriptor_encoding,
+                )
             )
-            print("Trying to print: %s" % (repr(args),), file=sys.stderr)
-            sys.exit(1)
+            sys.stderr.write("Trying to print: %s\n" % (repr(args),))
+            args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
+            descriptor.write(' '.join(args))
+        descriptor.write('\n')
+
+    def __str__(self):
+        return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
 
 
 class AuthorizeAccount(Command):
     """
-    b2 authorize_account [<accountId>] [<applicationKey>]
+    b2 authorize-account [<accountId>] [<applicationKey>]
 
         Prompts for Backblaze accountID and applicationKey (unless they are given
         on the command line).
@@ -169,6 +194,8 @@ class AuthorizeAccount(Command):
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
 
     OPTIONAL = ['accountId', 'applicationKey']
+
+    FORBID_LOGGING_ARGUMENTS = True
 
     def run(self, args):
         # Handle internal options for testing inside Backblaze.  These
@@ -192,13 +219,14 @@ class AuthorizeAccount(Command):
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
             return 0
         except B2Error as e:
+            logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
 
 
 class CancelAllUnfinishedLargeFiles(Command):
     """
-    b2 cancel_all_unfinished_large_files <bucketName>
+    b2 cancel-all-unfinished-large-files <bucketName>
 
         Lists all large files that have been started but not
         finsished and cancels them.  Any parts that have been
@@ -217,7 +245,7 @@ class CancelAllUnfinishedLargeFiles(Command):
 
 class CancelLargeFile(Command):
     """
-    b2 cancel_large_file <fileId>
+    b2 cancel-large-file <fileId>
     """
 
     REQUIRED = ['fileId']
@@ -230,7 +258,7 @@ class CancelLargeFile(Command):
 
 class ClearAccount(Command):
     """
-    b2 clear_account
+    b2 clear-account
 
         Erases everything in ~/.b2_account_info
     """
@@ -242,21 +270,34 @@ class ClearAccount(Command):
 
 class CreateBucket(Command):
     """
-    b2 create_bucket <bucketName> [allPublic | allPrivate]
+    b2 create-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Creates a new bucket.  Prints the ID of the bucket created.
+
+        Optionally stores bucket info and lifecycle rules with the bucket.
+        These can be given as JSON on the command line.
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
+    OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
+
+    ARG_PARSER = {'bucketInfo': json.loads, 'lifecycleRules': json.loads}
+
     def run(self, args):
-        self._print(self.api.create_bucket(args.bucketName, args.bucketType).id_)
+        bucket = self.api.create_bucket(
+            args.bucketName,
+            args.bucketType,
+            bucket_info=args.bucketInfo,
+            lifecycle_rules=args.lifecycleRules
+        )
+        self._print(bucket.id_)
         return 0
 
 
 class DeleteBucket(Command):
     """
-    b2 delete_bucket <bucketName>
+    b2 delete-bucket <bucketName>
 
         Deletes the bucket with the given name.
     """
@@ -272,23 +313,36 @@ class DeleteBucket(Command):
 
 class DeleteFileVersion(Command):
     """
-    b2 delete_file_version <fileName> <fileId>
+    b2 delete-file-version [<fileName>] <fileId>
 
         Permanently and irrevocably deletes one version of a file.
+
+        Specifying the fileName is more efficient than leaving it out.
+        If you omit the fileName, it requires an initial query to B2
+        to get the file name, before making the call to delete the
+        file.
     """
 
-    REQUIRED = ['fileName', 'fileId']
+    OPTIONAL_BEFORE = ['fileName']
+    REQUIRED = ['fileId']
 
     def run(self, args):
-        file_info = self.api.delete_file_version(args.fileId, args.fileName)
-        response = file_info.as_dict()
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        if args.fileName is not None:
+            file_name = args.fileName
+        else:
+            file_name = self._get_file_name_from_file_id(args.fileId)
+        file_info = self.api.delete_file_version(args.fileId, file_name)
+        self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
         return 0
+
+    def _get_file_name_from_file_id(self, file_id):
+        file_info = self.api.get_file_info(file_id)
+        return file_info['fileName']
 
 
 class DownloadFileById(Command):
     """
-    b2 download_file_by_id [--noProgress] <fileId> <localFileName>
+    b2 download-file-by-id [--noProgress] <fileId> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
 
@@ -310,7 +364,7 @@ class DownloadFileById(Command):
 
 class DownloadFileByName(Command):
     """
-    b2 download_file_by_name [--noProgress] <bucketName> <fileName> <localFileName>
+    b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
     """
@@ -327,9 +381,50 @@ class DownloadFileByName(Command):
         return 0
 
 
+class GetAccountInfo(Command):
+    """
+    b2 get-account-info
+
+        Shows the account ID, key, auth token, and URLs.
+    """
+
+    def run(self, args):
+        account_info = self.api.account_info
+        data = dict(
+            accountId=account_info.get_account_id(),
+            applicationKey=account_info.get_application_key(),
+            accountAuthToken=account_info.get_account_auth_token(),
+            apiUrl=account_info.get_api_url(),
+            downloadUrl=account_info.get_download_url()
+        )
+        self._print(json.dumps(data, indent=4, sort_keys=True))
+        return 0
+
+
+class GetBucket(Command):
+    """
+    b2 get-bucket <bucketName>
+
+        Prints all of the information about the bucket, including
+        bucket info and lifecycle rules.
+    """
+
+    REQUIRED = ['bucketName']
+
+    def run(self, args):
+        # This always wants up-to-date info, so it does not use
+        # the bucket cache.
+        for b in self.api.list_buckets():
+            if b.name == args.bucketName:
+                self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
+                return 0
+        self._print_stderr('bucket not found: ' + args.bucketName)
+        return 1
+
+
 class GetFileInfo(Command):
     """
-    b2 get_file_info <fileId>
+    b2 get-file-info <fileId>
 
         Prints all of the information about the file, but not its contents.
     """
@@ -339,6 +434,38 @@ class GetFileInfo(Command):
     def run(self, args):
         response = self.api.get_file_info(args.fileId)
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+
+
+class GetDownloadAuth(Command):
+    """
+    b2 get-download-auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
+
+        Prints an authorization token that is valid only for downloading
+        files from the given bucket.
+
+        The token is valid for the duration specified, which defaults
+        to 86400 seconds (one day).
+
+        Only files that match that given prefix can be downloaded with
+        the token.  The prefix defaults to "", which matches all files
+        in the bucket.
+    """
+
+    OPTION_ARGS = ['prefix', 'duration']
+
+    REQUIRED = ['bucketName']
+
+    ARG_PARSER = {'duration': int}
+
+    def run(self, args):
+        prefix = args.prefix or ""
+        duration = args.duration or 86400
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        auth_token = bucket.get_download_authorization(
+            file_name_prefix=prefix, valid_duration_in_seconds=duration
+        )
+        self._print(auth_token)
         return 0
 
 
@@ -364,7 +491,7 @@ class Help(Command):
 
 class HideFile(Command):
     """
-    b2 hide_file <bucketName> <fileName>
+    b2 hide-file <bucketName> <fileName>
 
         Uploads a new, hidden, version of the given file.
     """
@@ -381,7 +508,7 @@ class HideFile(Command):
 
 class ListBuckets(Command):
     """
-    b2 list_buckets
+    b2 list-buckets
 
         Lists all of the buckets in the current account.
 
@@ -399,7 +526,7 @@ class ListBuckets(Command):
 
 class ListFileVersions(Command):
     """
-    b2 list_file_versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
+    b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
         given point.  This is a low-level operation that reports the
@@ -422,7 +549,7 @@ class ListFileVersions(Command):
 
 class ListFileNames(Command):
     """
-    b2 list_file_names <bucketName> [<startFileName>] [<maxToShow>]
+    b2 list-file-names <bucketName> [<startFileName>] [<maxToShow>]
 
         Lists the names of the files in a bucket, starting at the
         given point.
@@ -443,7 +570,7 @@ class ListFileNames(Command):
 
 class ListParts(Command):
     """
-    b2 list_parts <largeFileId>
+    b2 list-parts <largeFileId>
 
         Lists all of the parts that have been uploaded for the given
         large file, which must be a file that was started but not
@@ -460,7 +587,7 @@ class ListParts(Command):
 
 class ListUnfinishedLargeFiles(Command):
     """
-    b2 list_unfinished_large_files <bucketName>
+    b2 list-unfinished-large-files <bucketName>
 
         Lists all of the large files in the bucket that were started,
         but not finished or canceled.
@@ -530,7 +657,7 @@ class Ls(Command):
 
 class MakeUrl(Command):
     """
-    b2 make_url <fileId>
+    b2 make-url <fileId>
 
         Prints an URL that can be used to download the given file, if
         it is public.
@@ -547,20 +674,41 @@ class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--threads N] [--noProgress] \\
-            [--excludeRegex <regex>] <source> <destination>
+            [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \\
+            <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
 
-        Work is done in parallel in multiple threads.  The default
-        number of threads is 10.  Progress is displayed on the
-        console unless '--noProgress' is specified.  A list of
-        actions taken is always printed.
+        Progress is displayed on the console unless '--noProgress' is
+        specified.  A list of actions taken is always printed.
+
+        Specify '--dryRun' to simulate the actions that would be taken.
+
+        Users with high-performance networks, or file sets with very small
+        files, will benefit from multi-threaded uploads.  The default number
+        of threads is 10.  Experiment with the --threads parameter if the
+        default is not working well.
+
+        Users with low-performance networks may benefit from reducing the
+        number of threads.  Using just one thread will minimize the impact
+        on other users of the network.
+
+        Note that using multiple threads will usually be detrimental to
+        the other users on your network.
 
         You can specify --excludeRegex to selectively ignore files that
         match the given pattern. Ignored files will not copy during
         the sync operation. The pattern is a regular expression
         that is tested against the full path of each file.
+
+        You can specify --includeRegex to selectively override ignoring
+        files that match the given --excludeRegex pattern by an
+        --includeRegex pattern. Similarly to --excludeRegex, the pattern
+        is a regular expression that is tested against the full path
+        of each file.
+
+        Note that --includeRegex cannot be used without --excludeRegex.
 
         Files are considered to be the same if they have the same name
         and modification time.  This behaviour can be changed using the
@@ -594,19 +742,30 @@ class Sync(Command):
         To make the destination exactly match the source, use:
             b2 sync --delete --replaceNewer ... ...
 
+        WARNING: Using '--delete' deletes files!  We recommend not using it.
+        If you use --keepDays instead, you will have some time to recover your
+        files if you discover they are missing on the source end.
+
         To make the destination match the source, but retain previous versions
         for 30 days:
             b2 sync --keepDays 30 --replaceNewer ... b2://...
 
     """
 
-    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer']
+    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun']
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
-    LIST_ARGS = ['excludeRegex']
+    LIST_ARGS = ['excludeRegex', 'includeRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int}
 
     def run(self, args):
+        if args.includeRegex and not args.excludeRegex:
+            logger.error('ConsoleTool \'includeRegex\' specified without \'excludeRegex\'')
+            self._print_stderr(
+                'ERROR: --includeRegex cannot be used without --excludeRegex at the same time'
+            )
+            return 1
+
         max_workers = args.threads or 10
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
@@ -618,14 +777,15 @@ class Sync(Command):
             now_millis=current_time_millis(),
             stdout=self.stdout,
             no_progress=args.noProgress,
-            max_workers=max_workers
+            max_workers=max_workers,
+            dry_run=args.dryRun,
         )
         return 0
 
 
 class TestHttp(Command):
     """
-    b2 test_http
+    b2 test-http
 
         PRIVATE.  Exercises the HTTP layer.
     """
@@ -639,7 +799,7 @@ class TestHttp(Command):
 
 class TestRawApi(Command):
     """
-    b2 test_raw_api
+    b2 test-raw-api
 
         PRIVATE.  Exercises the B2RawApi class.
     """
@@ -653,7 +813,7 @@ class TestRawApi(Command):
 
 class TestUploadUrlConcurrency(Command):
     """
-    b2 test_upload_url_concurrency
+    b2 test-upload-url-concurrency
 
         PRIVATE.  Exercises the HTTP layer.
     """
@@ -667,24 +827,36 @@ class TestUploadUrlConcurrency(Command):
 
 class UpdateBucket(Command):
     """
-    b2 update_bucket <bucketName> [allPublic | allPrivate]
+    b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
+
+        Optionally stores bucket info and lifecycle rules with the bucket.
+        These can be given as JSON on the command line.
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
+    OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
+
+    ARG_PARSER = {'bucketInfo': json.loads, 'lifecycleRules': json.loads}
+
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.set_type(args.bucketType)
+        response = bucket.update(
+            bucket_type=args.bucketType,
+            bucket_info=args.bucketInfo,
+            lifecycle_rules=args.lifecycleRules
+        )
         self._print(json.dumps(response, indent=4, sort_keys=True))
         return 0
 
 
 class UploadFile(Command):
     """
-    b2 upload_file [--sha1 <sha1sum>] [--contentType <contentType>] [--info <key>=<value>]* \\
+    b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \\
+            [--info <key>=<value>]* [--minPartSize N] \\
             [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
 
         Uploads one file to the given bucket.  Uploads the contents
@@ -696,6 +868,11 @@ class UploadFile(Command):
 
         Content type is optional.  If not set, it will be set based on the
         file extension.
+
+        By default, the file is broken into as many parts as possible to
+        maximize upload parallelism and increase speed.  The minimum that
+        B2 allows is 100MB.  Setting --minPartSize to a larger value will
+        reduce the number of parts uploaded when uploading a large file.
 
         The maximum number of threads to use to upload parts of a large file
         is specified by '--threads'.  It has no effect on small files (under 200MB).
@@ -709,10 +886,10 @@ class UploadFile(Command):
     """
 
     OPTION_FLAGS = ['noProgress', 'quiet']
-    OPTION_ARGS = ['sha1', 'contentType', 'threads']
+    OPTION_ARGS = ['contentType', 'minPartSize', 'sha1', 'threads']
     LIST_ARGS = ['info']
     REQUIRED = ['bucketName', 'localFilePath', 'b2FileName']
-    ARG_PARSER = {'threads': int}
+    ARG_PARSER = {'minPartSize': int, 'threads': int}
 
     def run(self, args):
 
@@ -722,6 +899,10 @@ class UploadFile(Command):
             if len(parts) == 1:
                 raise BadFileInfo(info)
             file_infos[parts[0]] = parts[1]
+
+        if SRC_LAST_MODIFIED_MILLIS not in file_infos:
+            file_infos[SRC_LAST_MODIFIED_MILLIS
+                      ] = str(int(os.path.getmtime(args.localFilePath) * 1000))
 
         max_workers = args.threads or 10
         self.api.set_thread_pool_size(max_workers)
@@ -734,7 +915,8 @@ class UploadFile(Command):
                 content_type=args.contentType,
                 file_infos=file_infos,
                 sha1_sum=args.sha1,
-                progress_listener=progress_listener,
+                min_part_size=args.minPartSize,
+                progress_listener=progress_listener
             )
         response = file_info.as_dict()
         if not args.quiet:
@@ -771,39 +953,58 @@ class ConsoleTool(object):
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
+
+        # a *magic* registry of commands
         self.command_name_to_class = dict(
-            (mixed_case_to_underscores(cls.__name__), cls) for cls in Command.__subclasses__()
+            (mixed_case_to_hyphens(cls.__name__), cls) for cls in Command.__subclasses__()
         )
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
         if len(argv) < 2:
+            logger.info('ConsoleTool error - insufficient arguments')
             return self._usage_and_fail()
 
-        action = argv[1]
+        action = argv[1].replace('_', '-')
         arg_list = argv[2:]
 
         if action not in self.command_name_to_class:
+            logger.info('ConsoleTool error - unknown command')
             return self._usage_and_fail()
+        else:
+            logger.info('Action: %s, arguments: %s', action, arg_list)
 
         command = self.command_name_to_class[action](self)
         args = command.parse_arg_list(arg_list)
         if args is None:
+            logger.info('ConsoleTool \'args is None\' - printing usage')
             self._print_stderr(command.command_usage())
             return 1
+        elif args.logConfig and args.debugLogs:
+            logger.info('ConsoleTool \'args.logConfig and args.debugLogs\' were both specified')
+            self._print_stderr('ERROR: --logConfig and --debugLogs cannot be used at the same time')
+            return 1
+
+        self._setup_logging(args, command, argv)
 
         try:
             return command.run(args)
         except MissingAccountData as e:
-            self._print_stderr('ERROR: %s  Use: b2 authorize_account' % (str(e),))
+            logger.exception('ConsoleTool missing account data error')
+            self._print_stderr('ERROR: %s  Use: b2 authorize-account' % (str(e),))
             return 1
         except B2Error as e:
+            logger.exception('ConsoleTool command error')
             self._print_stderr('ERROR: %s' % (str(e),))
             return 1
         except KeyboardInterrupt:
+            logger.exception('ConsoleTool command interrupt')
             self._print('\nInterrupted.  Shutting down...\n')
             return 1
+        except Exception:
+            logger.exception('ConsoleTool unexpected exception')
+            raise
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
@@ -848,6 +1049,37 @@ class ConsoleTool(object):
             self._print('checksum matches')
         return 0
 
+    def _setup_logging(self, args, command, argv):
+        if args.logConfig:
+            logging.config.fileConfig(args.logConfig)
+        elif args.debugLogs:
+            formatter = logging.Formatter(
+                '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
+            )
+            formatter.converter = time.gmtime
+            handler = logging.FileHandler('b2_cli.log')
+            handler.setLevel(logging.DEBUG)
+            handler.setFormatter(formatter)
+
+            b2_logger = logging.getLogger('b2')
+            b2_logger.setLevel(logging.DEBUG)
+            b2_logger.addHandler(handler)
+            b2_logger.propagate = False
+
+        logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
+        logger.debug('platform is %s', platform.platform())
+        logger.debug(
+            'Python version is %s %s',
+            platform.python_implementation(), sys.version.replace('\n', ' ')
+        )
+        logger.debug('locale is %s', locale.getdefaultlocale())
+        logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
+
+        if command.FORBID_LOGGING_ARGUMENTS:
+            logger.info('starting command [%s] (arguments hidden)', command)
+        else:
+            logger.info('starting command [%s] with arguments: %s', command, argv)
+
 
 def decode_sys_argv():
     """
@@ -864,15 +1096,21 @@ def decode_sys_argv():
 
 def main():
     info = SqliteAccountInfo()
-    b2_api = B2Api(info, AuthInfoCache(info))
+    b2_http = B2Http()
+    raw_api = B2RawApi(b2_http)
+    b2_api = B2Api(info, AuthInfoCache(info), raw_api=raw_api)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
+    logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures
     # packages is hanging on exit sometimes, waiting for a thread to finish.
     # This happens when using sync to upload files.
     sys.stdout.flush()
     sys.stderr.flush()
+
+    logging.shutdown()
+
     os._exit(exit_status)
     # sys.exit(exit_status)

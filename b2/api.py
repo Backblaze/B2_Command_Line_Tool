@@ -8,19 +8,24 @@
 #
 ######################################################################
 
-from .account_info import SqliteAccountInfo
+import six
+
+from .account_info.sqlite_account_info import SqliteAccountInfo
+from .account_info.exception import MissingAccountData
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
-from .exception import MissingAccountData, NonExistentBucket
-from .file_version import FileVersionInfoFactory
+from .download_dest import DownloadDestProgressWrapper
+from .exception import NonExistentBucket
+from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
 from .raw_api import B2RawApi
 from .session import B2Session
+from .utils import B2TraceMeta, limit_trace_arguments
 
 try:
     import concurrent.futures as futures
-except:
+except ImportError:
     import futures
 
 
@@ -32,6 +37,7 @@ def url_for_api(info, api_name):
     return base + '/b2api/v1/' + api_name
 
 
+@six.add_metaclass(B2TraceMeta)
 class B2Api(object):
     """
     Provides file-level access to B2 services.
@@ -71,7 +77,7 @@ class B2Api(object):
             cache = DummyCache()
         self.cache = cache
         self.upload_executor = None
-        self.max_workers = 1
+        self.max_workers = max_upload_workers
 
     def set_thread_pool_size(self, max_workers):
         """
@@ -103,6 +109,7 @@ class B2Api(object):
             return False
         return True
 
+    @limit_trace_arguments(only=('self', 'realm'))
     def authorize_account(self, realm, account_id, application_key):
         try:
             old_account_id = self.account_info.get_account_id()
@@ -130,24 +137,28 @@ class B2Api(object):
 
     # buckets
 
-    def create_bucket(self, name, type_):
+    def create_bucket(self, name, bucket_type, bucket_info=None, lifecycle_rules=None):
         account_id = self.account_info.get_account_id()
 
-        response = self.session.create_bucket(account_id, name, type_)
+        response = self.session.create_bucket(
+            account_id, name, bucket_type, bucket_info=bucket_info, lifecycle_rules=lifecycle_rules
+        )
         bucket = BucketFactory.from_api_bucket_dict(self, response)
         assert name == bucket.name, 'API created a bucket with different name\
                                      than requested: %s != %s' % (name, bucket.name)
-        assert type_ == bucket.type_, 'API created a bucket with different type\
-                                     than requested: %s != %s' % (type_, bucket.type_)
+        assert bucket_type == bucket.type_, 'API created a bucket with different type\
+                                             than requested: %s != %s' % (
+            bucket_type, bucket.type_
+        )
         self.cache.save_bucket(bucket)
         return bucket
 
     def create_encrypted_bucket(self, name):
         return self.create_bucket(name, 'allPrivate')
 
-    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
-        return self.get_bucket_by_file_id(file_id).download_file_by_id(
-            file_id, download_dest, progress_listener
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
+        return self.session.get_bucket_by_file_id(file_id).download_file_by_id(
+            file_id, download_dest, progress_listener, range_=range_
         )
 
     def get_bucket_by_id(self, bucket_id):

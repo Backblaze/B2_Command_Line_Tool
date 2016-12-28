@@ -8,110 +8,90 @@
 #
 ######################################################################
 
+from __future__ import print_function
+
+from abc import ABCMeta, abstractmethod
 import json
+from nose import SkipTest
 import os
-import unittest
+import platform
+import tempfile
 
 import six
 
-from b2.account_info import SqliteAccountInfo
-from b2.exception import CorruptAccountInfo, MissingAccountData
+from .test_base import TestBase
+from b2.account_info.upload_url_pool import UploadUrlPool
+from b2.account_info.exception import CorruptAccountInfo, MissingAccountData
+from b2.account_info import InMemoryAccountInfo
+
+if not platform.system().lower().startswith('java'):
+    # in Jython 2.7.1b3 there is no sqlite3
+    from b2.account_info.sqlite_account_info import SqliteAccountInfo
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 
-class TestSqliteAccountInfo(unittest.TestCase):
-
-    FILE_NAME = '/tmp/test_b2_account_info'
-
+class TestUploadUrlPool(TestBase):
     def setUp(self):
-        try:
-            os.unlink(self.FILE_NAME)
-        except:
-            pass
+        self.pool = UploadUrlPool()
 
-    def tearDown(self):
-        try:
-            os.unlink(self.FILE_NAME)
-        except BaseException:
-            pass
+    def test_take_empty(self):
+        self.assertEqual((None, None), self.pool.take('a'))
 
-    def test_account_info(self):
-        account_info = self._make_info()
-        account_info.set_auth_data(
-            'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
-        )
+    def test_put_and_take(self):
+        self.pool.put('a', 'url_a1', 'auth_token_a1')
+        self.pool.put('a', 'url_a2', 'auth_token_a2')
+        self.pool.put('b', 'url_b1', 'auth_token_b1')
+        self.assertEqual(('url_a2', 'auth_token_a2'), self.pool.take('a'))
+        self.assertEqual(('url_a1', 'auth_token_a1'), self.pool.take('a'))
+        self.assertEqual((None, None), self.pool.take('a'))
+        self.assertEqual(('url_b1', 'auth_token_b1'), self.pool.take('b'))
+        self.assertEqual((None, None), self.pool.take('b'))
 
-        info2 = self._make_info()
-        self.assertEqual('account_id', info2.get_account_id())
-        self.assertEqual('account_auth', info2.get_account_auth_token())
-        self.assertEqual('api_url', info2.get_api_url())
-        self.assertEqual('app_key', info2.get_application_key())
-        self.assertEqual('realm', info2.get_realm())
-        self.assertEqual(100, info2.get_minimum_part_size())
+    def test_clear(self):
+        self.pool.put('a', 'url_a1', 'auth_token_a1')
+        self.pool.clear_for_key('a')
+        self.pool.put('b', 'url_b1', 'auth_token_b1')
+        self.assertEqual((None, None), self.pool.take('a'))
+        self.assertEqual(('url_b1', 'auth_token_b1'), self.pool.take('b'))
+        self.assertEqual((None, None), self.pool.take('b'))
 
-    def test_corrupted(self):
+
+@six.add_metaclass(ABCMeta)
+class AccountInfoBase(object):
+    # it is a mixin to avoid nose from running the tests directly (without inheritance)
+    PERSISTENCE = NotImplemented  # subclass should override this
+
+    @abstractmethod
+    def _make_info(self):
         """
-        Test that a corrupted file will be replaced with a blank file.
+        returns a new object of AccountInfo class which should be tested
         """
-        with open(self.FILE_NAME, 'wb') as f:
-            f.write(six.u('not a valid database').encode('utf-8'))
-
-        try:
-            self._make_info()
-            self.fail('should have thrown CorruptAccountInfo')
-        except CorruptAccountInfo:
-            pass
-
-    def test_convert_from_json(self):
-        """
-        Tests converting from a JSON account info file, which is what version
-        0.5.2 of the command-line tool used.
-        """
-        data = dict(
-            account_auth_token='auth_token',
-            account_id='account_id',
-            api_url='api_url',
-            application_key='application_key',
-            download_url='download_url',
-            minimum_part_size=5000,
-            realm='production'
-        )
-        with open(self.FILE_NAME, 'wb') as f:
-            f.write(json.dumps(data).encode('utf-8'))
-        account_info = self._make_info()
-        self.assertEqual('auth_token', account_info.get_account_auth_token())
 
     def test_clear(self):
         account_info = self._make_info()
         account_info.set_auth_data(
             'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
         )
-        self.assertEqual('account_id', self._make_info().get_account_id())
         account_info.clear()
 
-        try:
-            self._make_info().get_account_id()
-            self.fail('should have raised MissingAccountData')
-        except MissingAccountData:
-            pass
-
-    def test_bucket_upload_data(self):
-        account_info = self._make_info()
-        account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
-        self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'), account_info.take_bucket_upload_url('bucket-0')
-        )
-        self.assertEqual((None, None), self._make_info().take_bucket_upload_url('bucket-0'))
-        account_info.put_bucket_upload_url('bucket-0', 'http://bucket-0', 'bucket-0_auth')
-        self.assertEqual(
-            ('http://bucket-0', 'bucket-0_auth'),
-            self._make_info().take_bucket_upload_url('bucket-0')
-        )
-        self.assertEqual((None, None), account_info.take_bucket_upload_url('bucket-0'))
+        with self.assertRaises(MissingAccountData):
+            account_info.get_account_id()
+        with self.assertRaises(MissingAccountData):
+            account_info.get_account_auth_token()
+        with self.assertRaises(MissingAccountData):
+            account_info.get_api_url()
+        with self.assertRaises(MissingAccountData):
+            account_info.get_application_key()
+        with self.assertRaises(MissingAccountData):
+            account_info.get_download_url()
+        with self.assertRaises(MissingAccountData):
+            account_info.get_realm()
+        with self.assertRaises(MissingAccountData):
+            account_info.get_minimum_part_size()
 
     def test_clear_bucket_upload_data(self):
         account_info = self._make_info()
@@ -143,14 +123,16 @@ class TestSqliteAccountInfo(unittest.TestCase):
         self.assertEqual(
             'bucket-0', account_info.get_bucket_id_or_none_from_bucket_name('my-bucket')
         )
-        self.assertEqual(
-            'bucket-0', self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
-        )
+        if self.PERSISTENCE:
+            self.assertEqual(
+                'bucket-0', self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
+            )
         account_info.remove_bucket_name('my-bucket')
         self.assertEqual(None, account_info.get_bucket_id_or_none_from_bucket_name('my-bucket'))
-        self.assertEqual(
-            None, self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
-        )
+        if self.PERSISTENCE:
+            self.assertEqual(
+                None, self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
+            )
 
     def test_refresh_bucket(self):
         account_info = self._make_info()
@@ -158,10 +140,99 @@ class TestSqliteAccountInfo(unittest.TestCase):
         bucket_names = {'a': 'bucket-0', 'b': 'bucket-1'}
         account_info.refresh_entire_bucket_name_cache(six.iteritems(bucket_names))
         self.assertEqual('bucket-0', account_info.get_bucket_id_or_none_from_bucket_name('a'))
-        self.assertEqual('bucket-0', self._make_info().get_bucket_id_or_none_from_bucket_name('a'))
+        if self.PERSISTENCE:
+            self.assertEqual(
+                'bucket-0', self._make_info().get_bucket_id_or_none_from_bucket_name('a')
+            )
+
+    def _test_account_info(self, check_persistence):
+        account_info = self._make_info()
+        account_info.set_auth_data(
+            'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
+        )
+
+        object_instances = [account_info]
+        if check_persistence:
+            object_instances.append(self._make_info())
+        for info2 in object_instances:
+            print(info2)
+            self.assertEqual('account_id', info2.get_account_id())
+            self.assertEqual('account_auth', info2.get_account_auth_token())
+            self.assertEqual('api_url', info2.get_api_url())
+            self.assertEqual('app_key', info2.get_application_key())
+            self.assertEqual('realm', info2.get_realm())
+            self.assertEqual(100, info2.get_minimum_part_size())
+
+    def test_account_info_same_object(self):
+        self._test_account_info(check_persistence=False)
+
+
+class TestInMemoryAccountInfo(AccountInfoBase, TestBase):
+    PERSISTENCE = False
+
+    def _make_info(self):
+        return InMemoryAccountInfo()
+
+
+class TestSqliteAccountInfo(AccountInfoBase, TestBase):
+    PERSISTENCE = True
+
+    def __init__(self, *args, **kwargs):
+        super(TestSqliteAccountInfo, self).__init__(*args, **kwargs)
+        self.db_path = tempfile.NamedTemporaryFile(
+            prefix='tmp_b2_tests_%s__' % (self.id(),), delete=True
+        ).name
+
+    def setUp(self):
+        if platform.system().lower().startswith('java'):
+            # in Jython 2.7.1b3 there is no sqlite3
+            raise SkipTest()
+        try:
+            os.unlink(self.db_path)
+        except OSError:
+            pass
+        print('using %s' % self.db_path)
+
+    def tearDown(self):
+        try:
+            os.unlink(self.db_path)
+        except OSError:
+            pass
+
+    def test_corrupted(self):
+        """
+        Test that a corrupted file will be replaced with a blank file.
+        """
+        with open(self.db_path, 'wb') as f:
+            f.write(six.u('not a valid database').encode('utf-8'))
+
+        with self.assertRaises(CorruptAccountInfo):
+            self._make_info()
+
+    def test_convert_from_json(self):
+        """
+        Tests converting from a JSON account info file, which is what version
+        0.5.2 of the command-line tool used.
+        """
+        data = dict(
+            account_auth_token='auth_token',
+            account_id='account_id',
+            api_url='api_url',
+            application_key='application_key',
+            download_url='download_url',
+            minimum_part_size=5000,
+            realm='production'
+        )
+        with open(self.db_path, 'wb') as f:
+            f.write(json.dumps(data).encode('utf-8'))
+        account_info = self._make_info()
+        self.assertEqual('auth_token', account_info.get_account_auth_token())
 
     def _make_info(self):
         """
         Returns a new StoredAccountInfo that has just read the data from the file.
         """
-        return SqliteAccountInfo(file_name=self.FILE_NAME)
+        return SqliteAccountInfo(file_name=self.db_path)
+
+    def test_account_info_persistence(self):
+        self._test_account_info(check_persistence=True)

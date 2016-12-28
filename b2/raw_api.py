@@ -23,8 +23,11 @@ import six
 
 from .b2http import (B2Http)
 from .download_dest import DownloadDestBytes
-from .exception import (ChecksumMismatch, TruncatedOutput)
+from .exception import ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour
 from .utils import b2_url_encode, hex_sha1_of_stream
+
+# Standard names for file info entries
+SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 
 
 @six.add_metaclass(ABCMeta)
@@ -63,11 +66,7 @@ class AbstractRawApi(object):
 
     @abstractmethod
     def list_unfinished_large_files(
-        self, api_url,
-        account_auth_token,
-        bucket_id,
-        start_file_id=None,
-        max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_id=None, max_file_count=None
     ):
         pass
 
@@ -78,7 +77,17 @@ class AbstractRawApi(object):
         pass
 
     @abstractmethod
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        lifecycle_rules=None,
+        if_revision_is=None
+    ):
         pass
 
     @abstractmethod
@@ -115,7 +124,7 @@ class B2RawApi(AbstractRawApi):
     def _post_json(self, base_url, api_name, auth, **params):
         """
         Helper method for calling an API with the given auth and params.
-        :param base_url: Something like "https://api001.backblaze.com/"
+        :param base_url: Something like "https://api001.backblazeb2.com/"
         :param auth: Passed in Authorization header.
         :param api_name: Example: "b2_create_bucket"
         :param args: The rest of the parameters are passed to B2.
@@ -132,14 +141,25 @@ class B2RawApi(AbstractRawApi):
     def cancel_large_file(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_cancel_large_file', account_auth_token, fileId=file_id)
 
-    def create_bucket(self, api_url, account_auth_token, account_id, bucket_name, bucket_type):
+    def create_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_name,
+        bucket_type,
+        bucket_info=None,
+        lifecycle_rules=None
+    ):
         return self._post_json(
             api_url,
             'b2_create_bucket',
             account_auth_token,
             accountId=account_id,
             bucketName=bucket_name,
-            bucketType=bucket_type
+            bucketType=bucket_type,
+            bucketInfo=bucket_info,
+            lifecycleRules=lifecycle_rules
         )
 
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
@@ -160,17 +180,29 @@ class B2RawApi(AbstractRawApi):
             fileName=file_name
         )
 
-    def download_file_by_id(self, download_url, account_auth_token_or_none, file_id, download_dest):
+    def download_file_by_id(
+        self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
+    ):
         url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
+        return self._download_file_from_url(
+            url, account_auth_token_or_none, download_dest, range_=range_
+        )
 
     def download_file_by_name(
-        self, download_url, account_auth_token_or_none, bucket_name, file_name, download_dest
+        self,
+        download_url,
+        account_auth_token_or_none,
+        bucket_name,
+        file_name,
+        download_dest,
+        range_=None
     ):
         url = download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
-        return self._download_file_from_url(url, account_auth_token_or_none, download_dest)
+        return self._download_file_from_url(
+            url, account_auth_token_or_none, download_dest, range_=range_
+        )
 
-    def _download_file_from_url(self, url, account_auth_token_or_none, download_dest):
+    def _download_file_from_url(self, url, account_auth_token_or_none, download_dest, range_=None):
         """
         Downloads a file from given url and stores it in the given download_destination.
 
@@ -183,6 +215,13 @@ class B2RawApi(AbstractRawApi):
         :return:
         """
         request_headers = {}
+        if range_ is not None:
+            assert len(range_) == 2, range_
+            assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
+            assert range_[0] >= 0, range_
+            assert range_[1] >= 1, range_
+            request_headers['Range'] = "bytes=%d-%d" % range_
+
         if account_auth_token_or_none is not None:
             request_headers['Authorization'] = account_auth_token_or_none
 
@@ -195,10 +234,13 @@ class B2RawApi(AbstractRawApi):
             content_type = info['content-type']
             content_length = int(info['content-length'])
             content_sha1 = info['x-bz-content-sha1']
+            if range_ is not None:
+                if 'Content-Range' not in info:
+                    raise UnexpectedCloudBehaviour('Content-Range header was expected')
             file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
 
-            if 'src_last_modified_millis' in file_info:
-                mod_time_millis = int(file_info['src_last_modified_millis'])
+            if SRC_LAST_MODIFIED_MILLIS in file_info:
+                mod_time_millis = int(file_info[SRC_LAST_MODIFIED_MILLIS])
             else:
                 mod_time_millis = int(info['x-bz-upload-timestamp'])
 
@@ -207,23 +249,34 @@ class B2RawApi(AbstractRawApi):
             bytes_read = 0
 
             with download_dest.open(
-                file_id, file_name, content_length, content_type, content_sha1, file_info,
-                mod_time_millis
+                file_id,
+                file_name,
+                content_length,
+                content_type,
+                content_sha1,
+                file_info,
+                mod_time_millis,
+                range_=range_
             ) as file:
                 for data in response.iter_content(chunk_size=block_size):
                     file.write(data)
                     digest.update(data)
                     bytes_read += len(data)
 
-                if bytes_read != int(info['content-length']):
-                    raise TruncatedOutput(bytes_read, content_length)
+                if range_ is None:
+                    if bytes_read != int(info['content-length']):
+                        raise TruncatedOutput(bytes_read, content_length)
 
-                if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
-                    raise ChecksumMismatch(
-                        checksum_type='sha1',
-                        expected=content_length,
-                        actual=digest.hexdigest()
-                    )
+                    if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
+                        raise ChecksumMismatch(
+                            checksum_type='sha1',
+                            expected=content_length,
+                            actual=digest.hexdigest()
+                        )
+                else:
+                    desired_length = range_[1] - range_[0]
+                    if bytes_read != desired_length:
+                        raise TruncatedOutput(bytes_read, desired_length)
 
             return dict(
                 fileId=file_id,
@@ -243,6 +296,18 @@ class B2RawApi(AbstractRawApi):
             partSha1Array=part_sha1_array
         )
 
+    def get_download_authorization(
+        self, api_url, account_auth_token, bucket_id, file_name_prefix, valid_duration_in_seconds
+    ):
+        return self._post_json(
+            api_url,
+            'b2_get_download_authorization',
+            account_auth_token,
+            bucketId=bucket_id,
+            fileNamePrefix=file_name_prefix,
+            validDurationInSeconds=valid_duration_in_seconds
+        )
+
     def get_file_info(self, api_url, account_auth_token, file_id):
         return self._post_json(api_url, 'b2_get_file_info', account_auth_token, fileId=file_id)
 
@@ -251,30 +316,19 @@ class B2RawApi(AbstractRawApi):
 
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
         return self._post_json(
-            api_url, 'b2_get_upload_part_url',
-            account_auth_token,
-            fileId=file_id
+            api_url, 'b2_get_upload_part_url', account_auth_token, fileId=file_id
         )
 
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         return self._post_json(
-            api_url,
-            'b2_hide_file',
-            account_auth_token,
-            bucketId=bucket_id,
-            fileName=file_name
+            api_url, 'b2_hide_file', account_auth_token, bucketId=bucket_id, fileName=file_name
         )
 
     def list_buckets(self, api_url, account_auth_token, account_id):
         return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
 
     def list_file_names(
-        self,
-        api_url,
-        account_auth_token,
-        bucket_id,
-        start_file_name=None,
-        max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_name=None, max_file_count=None
     ):
         return self._post_json(
             api_url,
@@ -315,11 +369,7 @@ class B2RawApi(AbstractRawApi):
         )
 
     def list_unfinished_large_files(
-        self, api_url,
-        account_auth_token,
-        bucket_id,
-        start_file_id=None,
-        max_file_count=None
+        self, api_url, account_auth_token, bucket_id, start_file_id=None, max_file_count=None
     ):
         return self._post_json(
             api_url,
@@ -343,14 +393,36 @@ class B2RawApi(AbstractRawApi):
             contentType=content_type
         )
 
-    def update_bucket(self, api_url, account_auth_token, account_id, bucket_id, bucket_type):
+    def update_bucket(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        bucket_type=None,
+        bucket_info=None,
+        lifecycle_rules=None,
+        if_revision_is=None
+    ):
+        assert bucket_info or bucket_type
+
+        kwargs = {}
+        if if_revision_is is not None:
+            kwargs['ifRevisionIs'] = if_revision_is
+        if bucket_info is not None:
+            kwargs['bucketInfo'] = bucket_info
+        if bucket_type is not None:
+            kwargs['bucketType'] = bucket_type
+        if lifecycle_rules is not None:
+            kwargs['lifecycleRules'] = lifecycle_rules
+
         return self._post_json(
             api_url,
             'b2_update_bucket',
             account_auth_token,
             accountId=account_id,
             bucketId=bucket_id,
-            bucketType=bucket_type
+            **kwargs
         )
 
     def upload_file(
@@ -438,7 +510,7 @@ def test_raw_api_helper(raw_api):
     if application_key is None:
         print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
         sys.exit(1)
-    realm_url = 'https://api.backblaze.com'
+    realm_url = 'https://api.backblazeb2.com'
 
     # b2_authorize_account
     print('b2_authorize_account')
@@ -474,8 +546,8 @@ def test_raw_api_helper(raw_api):
     file_contents = six.b('hello world')
     file_sha1 = hex_sha1_of_stream(six.BytesIO(file_contents), len(file_contents))
     file_dict = raw_api.upload_file(
-        upload_url, upload_auth_token, file_name, len(file_contents), 'text/plain', file_sha1,
-        {'color': 'blue'}, six.BytesIO(file_contents)
+        upload_url, upload_auth_token, file_name,
+        len(file_contents), 'text/plain', file_sha1, {'color': 'blue'}, six.BytesIO(file_contents)
     )
     file_id = file_dict['fileId']
 
@@ -505,6 +577,21 @@ def test_raw_api_helper(raw_api):
     raw_api.download_file_by_name(download_url, None, bucket_name, file_name, download_dest)
     assert file_contents == download_dest.bytes_io.getvalue()
 
+    # b2_get_download_authorization
+    print('b2_get_download_authorization')
+    download_auth = raw_api.get_download_authorization(
+        api_url, account_auth_token, bucket_id, "prefix", 12345
+    )
+    download_auth_token = download_auth['authorizationToken']
+
+    # b2_download_file_by_name with download auth
+    print('b2_download_file_by_name (download auth)')
+    download_dest = DownloadDestBytes()
+    raw_api.download_file_by_name(
+        download_url, download_auth_token, bucket_name, file_name, download_dest
+    )
+    assert file_contents == download_dest.bytes_io.getvalue()
+
     # b2_list_file_names
     print('b2_list_file_names')
     list_names_dict = raw_api.list_file_names(api_url, account_auth_token, bucket_id)
@@ -513,10 +600,7 @@ def test_raw_api_helper(raw_api):
     # b2_list_file_names (start, count)
     print('b2_list_file_names (start, count)')
     list_names_dict = raw_api.list_file_names(
-        api_url, account_auth_token,
-        bucket_id,
-        start_file_name=file_name,
-        max_file_count=5
+        api_url, account_auth_token, bucket_id, start_file_name=file_name, max_file_count=5
     )
     assert [file_name] == [f_dict['fileName'] for f_dict in list_names_dict['files']]
 
@@ -548,8 +632,8 @@ def test_raw_api_helper(raw_api):
     part_contents = six.b('hello part')
     part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
     raw_api.upload_part(
-        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
-        six.BytesIO(part_contents)
+        upload_part_url, upload_path_auth, 1,
+        len(part_contents), part_sha1, six.BytesIO(part_contents)
     )
 
     # b2_list_parts
@@ -574,7 +658,15 @@ def test_raw_api_helper(raw_api):
 
     # b2_update_bucket
     print('b2_update_bucket')
-    raw_api.update_bucket(api_url, account_auth_token, account_id, bucket_id, 'allPrivate')
+    updated_bucket = raw_api.update_bucket(
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id,
+        'allPrivate',
+        bucket_info={'color': 'blue'}
+    )
+    assert updated_bucket['revision'] == 2
 
     # clean up this test
     _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)

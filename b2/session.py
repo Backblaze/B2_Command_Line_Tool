@@ -15,8 +15,8 @@ from .exception import (InvalidAuthToken)
 
 class B2Session(object):
     """
-        Facade that supplies the correct api_url and account_auth_token to methods
-        of underlying raw_api and reauthorizes if necessary
+        A *magic* facade that supplies the correct api_url and account_auth_token
+        to methods of underlying raw_api and reauthorizes if necessary
     """
 
     def __init__(self, api, raw_api):

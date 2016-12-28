@@ -1,9 +1,19 @@
+######################################################################
+#
+# File: setup.py
+#
+# Copyright 2016 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
 """A setuptools based setup module.
 See:
 https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
+import platform
 import sys
 
 # Always prefer setuptools over distutils
@@ -27,6 +37,12 @@ with open('requirements.txt', encoding='utf-8') as f:
 if sys.version_info < (3, 2):
     requirements.append('futures>=3.0.5')
 
+# Jython cannot handle extremely large blocks of code.
+# requests 2.12.x that we rely on, relied on idna, which until 2.2.0 contained such block.
+# https://github.com/kennethreitz/requests/issues/3711#issuecomment-268522266
+if platform.system().lower().startswith('java'):
+    requirements.append('idna>=2.2.0')
+
 with open('requirements-test.txt', encoding='utf-8') as f:
     requirements_test = f.read().splitlines()
 
@@ -39,7 +55,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.5.7',
+    version='0.6.9',
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
 
@@ -75,7 +91,6 @@ setup(
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
@@ -117,9 +132,7 @@ setup(
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
-    package_data={
-        # 'sample': ['package_data.dat'],
-    },
+    package_data={'b2': ['requirements.txt', 'requirements-test.txt', 'requirements-setup.txt']},
 
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
@@ -132,9 +145,5 @@ setup(
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
-    entry_points={
-        'console_scripts': [
-            'b2=b2.console_tool:main',
-        ],
-    },
+    entry_points={'console_scripts': ['b2=b2.console_tool:main',],},
 )

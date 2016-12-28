@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import logging
 import six
 import threading
 
@@ -22,6 +23,9 @@ from .progress import DoNothingProgressListener, AbstractProgressListener, Range
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile, UploadSourceEncryptionWrapper
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
+from .utils import B2TraceMeta, disable_trace, limit_trace_arguments
+
+logger = logging.getLogger(__name__)
 
 
 class LargeFileUploadState(object):
@@ -36,7 +40,7 @@ class LargeFileUploadState(object):
     """
 
     def __init__(self, file_progress_listener):
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.error_message = None
         self.file_progress_listener = file_progress_listener
         self.part_number_to_part_state = {}
@@ -49,6 +53,11 @@ class LargeFileUploadState(object):
     def has_error(self):
         with self.lock:
             return self.error_message is not None
+
+    def get_error_message(self):
+        with self.lock:
+            assert self.has_error()
+            return self.error_message
 
     def update_part_bytes(self, bytes_delta):
         with self.lock:
@@ -82,6 +91,7 @@ class PartProgressReporter(AbstractProgressListener):
         pass
 
 
+@six.add_metaclass(B2TraceMeta)
 class Bucket(object):
     """
     Provides access to a bucket in B2: listing files, uploading and downloading.
@@ -91,40 +101,65 @@ class Bucket(object):
     MAX_UPLOAD_ATTEMPTS = 5
     MAX_LARGE_FILE_SIZE = 10 * 1000 * 1000 * 1000 * 1000  # 10 TB
 
-    def __init__(self, api, id_, name=None, type_=None):
+    def __init__(
+        self, api, id_, name=None, type_=None, bucket_info=None, revision=None, bucket_dict=None
+    ):
         self.api = api
         self.id_ = id_
         self.name = name
         self.type_ = type_
+        self.bucket_info = bucket_info or {}
+        self.revision = revision
+        self.bucket_dict = bucket_dict or {}
 
     def get_id(self):
         return self.id_
 
-    def set_type(self, type_):
+    def set_info(self, new_bucket_info, if_revision_is=None):
+        return self.update(bucket_info=new_bucket_info, if_revision_is=if_revision_is)
+
+    def set_type(self, bucket_type):
+        return self.update(bucket_type=bucket_type)
+
+    def update(self, bucket_type=None, bucket_info=None, lifecycle_rules=None, if_revision_is=None):
         account_id = self.api.account_info.get_account_id()
-        return self.api.session.update_bucket(account_id, self.id_, type_)
+        return self.api.session.update_bucket(
+            account_id,
+            self.id_,
+            bucket_type=bucket_type,
+            bucket_info=bucket_info,
+            lifecycle_rules=lifecycle_rules,
+            if_revision_is=if_revision_is
+        )
 
     def cancel_large_file(self, file_id):
         return self.api.cancel_large_file(file_id)
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None):
         progress_listener = progress_listener or DoNothingProgressListener()
-        self.api.session.download_file_by_id(
+        self.api.download_file_by_id(
             file_id,
             DownloadDestProgressWrapper(download_dest, progress_listener),
-            url_factory=self.api.account_info.get_download_url
+            range_=range_
         )
         progress_listener.close()
 
-    def download_file_by_name(self, file_name, download_dest, progress_listener=None):
+    def download_file_by_name(self, file_name, download_dest, progress_listener=None, range_=None):
         progress_listener = progress_listener or DoNothingProgressListener()
         self.api.session.download_file_by_name(
             self.name,
             file_name,
             DownloadDestProgressWrapper(download_dest, progress_listener),
-            url_factory=self.api.account_info.get_download_url
+            url_factory=self.api.account_info.get_download_url,
+            range_=range_,
         )
         progress_listener.close()
+
+    def get_download_authorization(self, file_name_prefix, valid_duration_in_seconds):
+        response = self.api.session.get_download_authorization(
+            self.id_, file_name_prefix, valid_duration_in_seconds
+        )
+        return response['authorizationToken']
 
     def list_parts(self, file_id, start_part_number=None, batch_size=None):
         return self.api.list_parts(file_id, start_part_number, batch_size)
@@ -218,8 +253,10 @@ class Bucket(object):
                 start_file_name = response.get('nextFileName')
                 start_file_id = response.get('nextFileId')
             else:
-                start_file_name = max(response['nextFileName'],
-                                      prefix + current_dir[:-1] + '0',)
+                start_file_name = max(
+                    response['nextFileName'],
+                    prefix + current_dir[:-1] + '0',
+                )
 
     def list_file_names(self, start_filename=None, max_entries=None):
         """ legacy interface which just returns whatever remote API returns """
@@ -253,19 +290,21 @@ class Bucket(object):
             self.api.session.start_large_file(self.id_, file_name, content_type, file_info)
         )
 
+    @limit_trace_arguments(skip=('data_bytes',))
     def upload_bytes(
-        self,
-        data_bytes,
-        file_name,
-        content_type=None,
-        file_infos=None,
-        progress_listener=None
+        self, data_bytes, file_name, content_type=None, file_infos=None, progress_listener=None
     ):
         """
         Upload bytes in memory to a B2 file
         """
         upload_source = UploadSourceBytes(data_bytes)
-        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
+        return self.upload(
+            upload_source,
+            file_name,
+            content_type=content_type,
+            file_info=file_infos,
+            progress_listener=progress_listener
+        )
 
     def upload_local_file(
         self,
@@ -274,13 +313,21 @@ class Bucket(object):
         content_type=None,
         file_infos=None,
         sha1_sum=None,
+        min_part_size=None,
         progress_listener=None
     ):
         """
         Uploads a file on local disk to a B2 file.
         """
         upload_source = UploadSourceLocalFile(local_path=local_file, content_sha1=sha1_sum)
-        return self.upload(upload_source, file_name, content_type, file_infos, progress_listener)
+        return self.upload(
+            upload_source,
+            file_name,
+            content_type=content_type,
+            file_info=file_infos,
+            min_part_size=min_part_size,
+            progress_listener=progress_listener
+        )
 
     def upload(
         self,
@@ -288,6 +335,7 @@ class Bucket(object):
         file_name,
         content_type=None,
         file_info=None,
+        min_part_size=None,
         progress_listener=None
     ):
         """
@@ -301,8 +349,13 @@ class Bucket(object):
         :param file_name: the file name of the new B2 file
         :param content_type: the MIME type, or None to accept the default based on file extension of the B2 file name
         :param file_infos: custom file info to be stored with the file
+        :param min_part_size: the smallest part size to use
         :param progress_listener: object to notify as data is transferred
         :return:
+
+        The function `opener` should return a file-like object, and it
+        must be possible to call it more than once in case the upload
+        is retried.
         """
 
         validate_b2_file_name(file_name)
@@ -312,7 +365,8 @@ class Bucket(object):
 
         # We don't upload any large files unless all of the parts can be at least
         # the minimum part size.
-        min_large_file_size = self.api.account_info.get_minimum_part_size() * 2
+        min_part_size = max(min_part_size or 0, self.api.account_info.get_minimum_part_size())
+        min_large_file_size = min_part_size * 2
         if upload_source.get_content_length() < min_large_file_size:
             # Run small uploads in the same thread pool as large file uploads,
             # so that they share resources during a sync.
@@ -331,6 +385,7 @@ class Bucket(object):
     ):
         content_length = upload_source.get_content_length()
         sha1_sum = upload_source.get_content_sha1()
+        upload_url = None
         exception_info_list = []
         for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
@@ -351,6 +406,7 @@ class Bucket(object):
                     return FileVersionInfoFactory.from_api_response(upload_response)
 
             except B2Error as e:
+                logger.exception('error when uploading, upload_url was %s', upload_url)
                 if not e.should_retry_upload():
                     raise
                 exception_info_list.append(e)
@@ -469,9 +525,10 @@ class Bucket(object):
         # Set up a progress listener
         part_progress_listener = PartProgressReporter(large_file_upload_state)
 
+        upload_url = None
         # Retry the upload as needed
         exception_list = []
-        for i in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+        for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
             # refresh upload data in every attempt to work around a "busy storage pod"
             upload_url, upload_auth_token = self._get_upload_part_data(file_id)
 
@@ -496,6 +553,7 @@ class Bucket(object):
                     return response
 
             except B2Error as e:
+                logger.exception('error when uploading, upload_url was %s', upload_url)
                 if not e.should_retry_upload():
                     raise
                 exception_list.append(e)
@@ -547,9 +605,16 @@ class Bucket(object):
         response = self.api.session.hide_file(self.id_, file_name)
         return FileVersionInfoFactory.from_api_response(response)
 
+    def delete_file_version(self, file_id, file_name):
+        # filename argument is not first, because one day it may become optional
+        return self.api.delete_file_version(file_id, file_name)
+
+    @disable_trace
     def as_dict(self):  # TODO: refactor with other as_dict()
-        result = {'accountId': self.api.account_info.get_account_id(),
-                  'bucketId': self.id_,}
+        result = {
+            'accountId': self.api.account_info.get_account_id(),
+            'bucketId': self.id_,
+        }
         if self.name is not None:
             result['bucketName'] = self.name
         if self.type_ is not None:
@@ -665,13 +730,17 @@ class BucketFactory(object):
                 "bucketType": "allPrivate",
                 "bucketId": "a4ba6a39d8b6b5fd561f0010",
                 "bucketName": "zsdfrtsazsdfafr",
-                "accountId": "4aa9865d6f00"
+                "accountId": "4aa9865d6f00",
+                "bucketInfo": {},
+                "revision": 1
             }
             into a Bucket object
         """
         bucket_name = bucket_dict['bucketName']
         bucket_id = bucket_dict['bucketId']
         type_ = bucket_dict['bucketType']
+        bucket_info = bucket_dict['bucketInfo']
+        revision = bucket_dict['revision']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(api, bucket_id, bucket_name, type_)
+        return Bucket(api, bucket_id, bucket_name, type_, bucket_info, revision, bucket_dict)

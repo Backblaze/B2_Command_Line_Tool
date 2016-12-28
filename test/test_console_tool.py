@@ -8,26 +8,27 @@
 #
 ######################################################################
 
+import json
 import os
-import unittest
-
 import six
 
-from b2.account_info import StubAccountInfo
+from .stub_account_info import StubAccountInfo
+from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
+from test_b2_command_line import file_mod_time_millis
 
 try:
     import unittest.mock as mock
-except:
+except ImportError:
     import mock
 
 
-class TestConsoleTool(unittest.TestCase):
+class TestConsoleTool(TestBase):
     def setUp(self):
         self.account_info = StubAccountInfo()
         self.cache = InMemoryCache()
@@ -47,7 +48,7 @@ class TestConsoleTool(unittest.TestCase):
             ['authorize_account', 'my-account', 'bad-app-key'], expected_stdout, expected_stderr, 1
         )
 
-    def test_authorize_with_good_key(self):
+    def test_authorize_with_good_key_using_hyphen(self):
         # Initial condition
         assert self.account_info.get_account_auth_token() is None
 
@@ -57,7 +58,23 @@ class TestConsoleTool(unittest.TestCase):
         """
 
         self._run_command(
-            ['authorize_account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+            ['authorize-account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+        )
+
+        # Auth token should be in account info now
+        assert self.account_info.get_account_auth_token() is not None
+
+    def test_authorize_with_good_key_using_underscore(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+        expected_stdout = """
+        Using http://production.example.com
+        """
+
+        self._run_command(
+            ['authorize-account', 'my-account', 'good-app-key'], expected_stdout, '', 0
         )
 
         # Auth token should be in account info now
@@ -66,13 +83,15 @@ class TestConsoleTool(unittest.TestCase):
     def test_help_with_bad_args(self):
         expected_stderr = '''
 
-        b2 create_bucket <bucketName> [allPublic | allPrivate]
+        b2 list-parts <largeFileId>
 
-            Creates a new bucket.  Prints the ID of the bucket created.
+            Lists all of the parts that have been uploaded for the given
+            large file, which must be a file that was started but not
+            finished or canceled.
 
         '''
 
-        self._run_command(['create_bucket'], '', expected_stderr, 1)
+        self._run_command(['list_parts'], '', expected_stderr, 1)
 
     def test_clear_account(self):
         # Initial condition
@@ -81,7 +100,7 @@ class TestConsoleTool(unittest.TestCase):
 
         # Clearing the account should remove the auth token
         # from the account info.
-        self._run_command(['clear_account'], '', '', 0)
+        self._run_command(['clear-account'], '', '', 0)
         assert self.account_info.get_account_auth_token() is None
 
     def test_buckets(self):
@@ -100,8 +119,11 @@ class TestConsoleTool(unittest.TestCase):
         {
             "accountId": "my-account",
             "bucketId": "bucket_0",
+            "bucketInfo": {},
             "bucketName": "my-bucket",
-            "bucketType": "allPublic"
+            "bucketType": "allPublic",
+            "lifecycleRules": [],
+            "revision": 2
         }
         '''
 
@@ -120,12 +142,40 @@ class TestConsoleTool(unittest.TestCase):
         {
             "accountId": "my-account",
             "bucketId": "bucket_1",
+            "bucketInfo": {},
             "bucketName": "your-bucket",
-            "bucketType": "allPrivate"
+            "bucketType": "allPrivate",
+            "lifecycleRules": [],
+            "revision": 1
         }
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+
+    def test_bucket_info_from_json(self):
+
+        self._authorize_account()
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        bucket_info = {'color': 'blue'}
+
+        expected_stdout = '''
+            {
+                "accountId": "my-account",
+                "bucketId": "bucket_0",
+                "bucketInfo": {
+                    "color": "blue"
+                },
+                "bucketName": "my-bucket",
+                "bucketType": "allPrivate",
+                "lifecycleRules": [],
+                "revision": 2
+            }
+            '''
+        self._run_command(
+            ['update_bucket', '--bucketInfo', json.dumps(bucket_info), 'my-bucket', 'allPrivate'],
+            expected_stdout, '', 0
+        )
 
     def test_cancel_large_file(self):
         self._authorize_account()
@@ -171,10 +221,30 @@ class TestConsoleTool(unittest.TestCase):
             '''
 
             self._run_command(
-                [
-                    'upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'
-                ], expected_stdout, '', 0
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                expected_stdout, '', 0
             )
+
+            # Get file info
+            mod_time_str = str(int(os.path.getmtime(local_file1) * 1000))
+            expected_stdout = '''
+            {
+              "accountId": "my-account",
+              "action": "upload",
+              "bucketId": "bucket_0",
+              "contentLength": 11,
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
+              "fileId": "9999",
+              "fileInfo": {
+                "src_last_modified_millis": "%s"
+              },
+              "fileName": "file1.txt",
+              "uploadTimestamp": 5000
+            }
+            ''' % (mod_time_str,)
+
+            self._run_command(['get_file_info', '9999'], expected_stdout, '', 0)
 
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
@@ -184,8 +254,9 @@ class TestConsoleTool(unittest.TestCase):
             File size:    11
             Content type: b2/x-auto
             Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            INFO src_last_modified_millis: %s
             checksum matches
-            '''
+            ''' % (mod_time_str,)
 
             self._run_command(
                 [
@@ -198,9 +269,8 @@ class TestConsoleTool(unittest.TestCase):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                [
-                    'download_file_by_id', '--noProgress', '9999', local_download2
-                ], expected_stdout, '', 0
+                ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
+                '', 0
             )
             self.assertEquals(six.b('hello world'), self._read_file(local_download2))
 
@@ -236,7 +306,9 @@ class TestConsoleTool(unittest.TestCase):
                   "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                   "contentType": "b2/x-auto",
                   "fileId": "9999",
-                  "fileInfo": {},
+                  "fileInfo": {
+                    "src_last_modified_millis": "%s"
+                  },
                   "fileName": "file1.txt",
                   "size": 11,
                   "uploadTimestamp": 5000
@@ -245,7 +317,7 @@ class TestConsoleTool(unittest.TestCase):
               "nextFileId": null,
               "nextFileName": null
             }
-            '''
+            ''' % (mod_time_str,)
 
             self._run_command(['list_file_versions', 'my-bucket'], expected_stdout, '', 0)
 
@@ -259,7 +331,7 @@ class TestConsoleTool(unittest.TestCase):
 
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
-            # Delete one file version
+            # Delete one file version, passing the name in
             expected_stdout = '''
             {
               "action": "delete",
@@ -269,6 +341,32 @@ class TestConsoleTool(unittest.TestCase):
             '''
 
             self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
+
+            # Delete one file version, not passing the name in
+            expected_stdout = '''
+            {
+              "action": "delete",
+              "fileId": "9999",
+              "fileName": "file1.txt"
+            }
+            '''
+
+            self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
+
+    def test_get_download_auth_defaults(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        self._run_command(
+            ['get_download_auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0
+        )
+
+    def test_get_download_auth_explicit(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        self._run_command(
+            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'],
+            'fake_download_auth_token_bucket_0_prefix_12345\n', '', 0
+        )
 
     def test_list_parts_with_none(self):
         self._authorize_account()
@@ -353,6 +451,35 @@ class TestConsoleTool(unittest.TestCase):
                 ], expected_stdout, '', 0
             )
 
+    def test_get_account_info(self):
+        self._authorize_account()
+        expected_stdout = '''
+        {
+            "accountAuthToken": "AUTH:my-account",
+            "accountId": "my-account",
+            "apiUrl": "http://api.example.com",
+            "applicationKey": "good-app-key",
+            "downloadUrl": "http://download.example.com"
+        }
+        '''
+        self._run_command(['get-account-info'], expected_stdout, '', 0)
+
+    def test_get_bucket(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+        self._run_command(['get-bucket', 'my-bucket'], expected_stdout, '', 0)
+
     def test_sync(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -367,6 +494,69 @@ class TestConsoleTool(unittest.TestCase):
 
             command = ['sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
+
+    def test_sync_syntax_error(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        expected_stderr = 'ERROR: --includeRegex cannot be used without --excludeRegex at the same time\n'
+        self._run_command(
+            ['sync', '--includeRegex', '.incl', 'non-existent-local-folder', 'b2://my-bucket'],
+            expected_stderr=expected_stderr,
+            expected_status=1
+        )
+
+    def test_sync_dry_run(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            temp_file = self._make_local_file(temp_dir, 'test-dry-run.txt')
+
+            # dry-run
+            expected_stdout = '''
+            upload test-dry-run.txt
+            '''
+            command = ['sync', '--noProgress', '--dryRun', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
+
+            # file should not have been uploaded
+            expected_stdout = '''
+            {
+              "files": [],
+              "nextFileName": null
+            }
+            '''
+            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
+
+            # upload file
+            expected_stdout = '''
+            upload test-dry-run.txt
+            '''
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
+
+            # file should have been uploaded
+            mtime = file_mod_time_millis(temp_file)
+            expected_stdout = '''
+            {
+              "files": [
+                {
+                  "action": "upload",
+                  "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                  "contentType": "b2/x-auto",
+                  "fileId": "9999",
+                  "fileInfo": {
+                    "src_last_modified_millis": "%d"
+                  },
+                  "fileName": "test-dry-run.txt",
+                  "size": 11,
+                  "uploadTimestamp": 5000
+                }
+              ],
+              "nextFileName": null
+            }
+            ''' % (mtime)
+            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
     def _authorize_account(self):
         """
@@ -388,8 +578,7 @@ class TestConsoleTool(unittest.TestCase):
         """
         expected_stdout = self._trim_leading_spaces(expected_stdout)
         expected_stderr = self._trim_leading_spaces(expected_stderr)
-        stdout = six.StringIO()
-        stderr = six.StringIO()
+        stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         actual_status = console_tool.run_command(['b2'] + argv)
 
@@ -408,8 +597,29 @@ class TestConsoleTool(unittest.TestCase):
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
 
+    def test_bad_terminal(self):
+        stdout = mock.MagicMock()
+        stdout.write = mock.MagicMock(
+            side_effect=[
+                UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')
+            ] + list(range(25))
+        )
+        stderr = mock.MagicMock()
+        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool.run_command(['b2', 'authorize_account', 'my-account', 'good-app-key'])
+
+    def _get_stdouterr(self):
+        class MyStringIO(six.StringIO):
+            if six.PY2:  # python3 already has this attribute
+                encoding = 'fake_encoding'
+
+        stdout = MyStringIO()
+        stderr = MyStringIO()
+        return stdout, stderr
+
     def _run_command_no_checks(self, argv):
-        ConsoleTool(self.b2_api, six.StringIO(), six.StringIO()).run_command(['b2'] + argv)
+        stdout, stderr = self._get_stdouterr()
+        ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
 
     def _trim_leading_spaces(self, s):
         """

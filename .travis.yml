@@ -2,18 +2,26 @@ notifications:
   slack:
     secure: naix0bLa/50X1HIXwLtkUC/YH9Iurs18eVy/mhfrfD2YFd7QjUGRz24SQU2r0ev0Qh3CUaH9MJoAUbu4oaXGB1VXzZkV7OIGimZe4gcWJuzItnVhyrQJKpcpC7yafdl7uDA0wjWs2BYRHCJ3c35Gv4SmihuGVXUS3WFsL0i3VyXno8xPOfmyuUT7GZWW80uMnV6eOyhbPCBb17CchI8x7owdXVf3drxCrrjoP3oNbbpByTsDC+hnCmVQbhkZAqS63gZRj5LT6gNh4ZA/qenaGkhzfHFRSUW1+H16ZzYcSSl0PfAQBQYrc7agUjI987PBHdOv6BJS+pKmZ0MvaDwbnzhHZZdb8LXqM5K0zAhPiZMPL2MTq7+eNOBdRuTlbWs3OZfbY1cnewSpMmUGfwrIjVnLtvfhfJXVaFbpIfvNc6eafgmHas23A05f4Gk/IcRLvqICw+GQg76ADUpWubQal7gECTGbeivOdRLnQcQYWCg/a5VR5B+4ELENmWLRD7IQgo6rJKpPiRdGRc0C0E9Mqt3w7w+9NiDnjTbSu8Q6ARBLXjAu+jSbY1VK0iPq6k1Wj8U5EgQF/xVLCEtKDRW1bdllwWNgi2yPo1CrkgKmJj6XPU3Zc744NR85uC+PxAjkIIbm90joevPmUQGwkpAgVX2pxCjVAX6ynQ79TFfdd/Y=
 
+#dist: trusty  # on 2016-12-13 pypy builds were broken on trusty, so we'll stick to stable for now
 language: python
+
 python:
   - 2.6
   - 2.7
-  - 3.2
   - 3.3
   - 3.4
   - 3.5
   - nightly
+  # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
+  #- pypy
+  #- pypy3
 
 branches:
   # https://github.com/travis-ci/travis-ci/issues/1147#issuecomment-160820262
+  # this reduces workload on Travis if there are many pushes in a short time.
+  # It does not have a drawback if:
+  # - pull requests are used for review
+  # - branches that we care about (not work-in-progress) are listed below
   only:
     - master
 
@@ -21,19 +29,12 @@ matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
   include:
-    - python: pypy
-      env: PYPY_VERSION=pypy-4.0.1
-    - python: pypy
-      env: PYPY_VERSION=pypy-5.1
-    - python: pypy3
-      env: PYPY_VERSION=pypy3-2.4.0
-
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
     - python: 2.7
-      env: SCA=true
+      env: MODE=SCA
     - python: 3.5
-      env: SCA=true
+      env: MODE=SCA
 
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us
@@ -46,55 +47,214 @@ matrix:
       language: generic
       env: OS_X_PYTHON_VERSION=python3
 
+    # jython
+    - python: 2.7
+      env: JYTHON=true
+
+    # pypy
+    - python: pypy
+      env: PYPY_VERSION=pypy-4.0.1
+    - python: pypy
+      env: PYPY_VERSION=pypy-5.1
+    - python: pypy3
+      env: PYPY_VERSION=pypy3-2.4.0
+
+    # test_raw_api takes too long to be run in every cell of the build matrix
+    - python: 2.6
+      env: MODE=TEST_RAW_API
+    - python: nightly
+      env: MODE=TEST_RAW_API
+
+    # coverage
+    - python: 3.5
+      env: MODE=coverage
+
 cache:
   - pip
   - directories:
-    - $HOME/.virtualenv/python3-osx
-  - directories:
     - $HOME/.eggs
-
+    # custom pypy versions
+    - $HOME/.pyenv
+    # jython
+    - $HOME/.virtualenvs/jython
+    - $HOME/jython
+    - $HOME/jython-pip
+    # OS X
+    - $HOME/.virtualenvs/osx-python
+    - $HOME/.virtualenvs/osx-python3
+    #- /usr/local/Cellar/python  # see comment in the install script
+    #- /usr/local/Cellar/python3
 before_install:
   - uname -a
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
   - |
-       # install python3 on OS X
-       if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-           brew update
-           brew install "$OS_X_PYTHON_VERSION"
-           virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION"
-           source "$HOME/.virtualenv/osx-$OS_X_PYTHON_VERSION/bin/activate"
-       else
-           echo skip
-       fi
+        # install python on OS X
+        if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+            if [ -n 'ALWAYS TRUE!' -o ! -d "/usr/local/Cellar/$OS_X_PYTHON_VERSION" ]; then
+                # unfortunately caching /usr/local/Cellar/$OS_X_PYTHON_VERSION is not enough.
+                # brew does some kind of side effect which registers the binary in the system
+                # or something. The resulting error error is:
+                #
+                # dyld: Library not loaded: @executable_path/../.Python
+                #
+                # Due to lack of information on the web as well as the lack of appropriate
+                # environment it is very hard to debug out how to properly cache the python
+                # installation on OS X.
+                #
+                # Therefore caching is temporarily disabled until someone figures it out.
+                # Typically brew update and installation of python takes 3 to 4 minutes.
+                travis_retry brew update
+                travis_retry brew install "$OS_X_PYTHON_VERSION"
+            else
+                echo 'skip install'
+            fi
+            if [ ! -e "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
+                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION"
+            else
+                echo 'skip virtualenv'
+            fi
+            source "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate"
+        else
+            echo skip
+        fi
   - |
-       # upgrade pypy to a version that works with Cryptography 1.0
-       if [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
-           export PYENV_ROOT="$HOME/.pyenv"
-           if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
-               pushd "$PYENV_ROOT" && git pull && popd
-           else
-               rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
-           fi
-           echo "PYPY_VERSION=$PYPY_VERSION"
-           "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
-           virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenv/$PYPY_VERSION"
-           source "$HOME/.virtualenv/$PYPY_VERSION/bin/activate"
-       else
-           echo skip
-       fi
+        # get jython
+        if [ -n "$JYTHON" ]; then
+            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+                travis_retry wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
+                java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
+            else
+                echo skip
+            fi
+            # install a custom version of pip, as standard pip doesn't work on jython (https://github.com/jythontools/pip/commits/develop)
+            if [ ! -d "$HOME/jython-pip" ]; then
+                mkdir ~/jython-pip
+            else
+                echo skip
+            fi
+            if [ ! -f ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl ]; then
+                travis_retry wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
+            else
+                echo skip
+            fi
+            # create jython virtualenv
+            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenvs/jython"
+            else
+                echo skip
+            fi
+            export JAVA_OPTS="-Xms1024m -Xmx1024m"
+            source "$HOME/.virtualenvs/jython/bin/activate"
+        else
+            echo skip
+        fi
+  - |
+        # upgrade pypy (to a version that works with Cryptography 1.0)
+        if [ -z "$PYPY_VERSION" ]; then
+            echo 'this is a build of native Travis pypy/pypy3, not the upgraded one'
+        elif [[ "$TRAVIS_PYTHON_VERSION" == "pypy" ]] || [[ "$TRAVIS_PYTHON_VERSION" == "pypy3" ]]; then
+            export PYENV_ROOT="$HOME/.pyenv"
+            if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
+                pushd "$PYENV_ROOT" && git pull && popd
+            else
+                rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/yyuu/pyenv.git "$PYENV_ROOT"
+            fi
+            echo "PYPY_VERSION=$PYPY_VERSION"
+            travis_retry "$PYENV_ROOT/bin/pyenv" install --skip-existing "$PYPY_VERSION"
+            if [ ! -e "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate" ]; then
+                virtualenv -p "$PYENV_ROOT/versions/$PYPY_VERSION/bin/python" "$HOME/.virtualenvs/$PYPY_VERSION"
+            fi
+            source "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate"
+        else
+            echo skip
+        fi
   - virtualenv --version
+  - python --version
 
 install:
-  - if [ -n "$SCA" ]; then pip install pyflakes; else echo skip; fi
-  - if [ -n "$SCA" ]; then pip install yapf; else echo skip; fi
-  # for some strange reason letting setuptools handle dependencies doesn't work for us on some python versions
-  - cat requirements*.txt | xargs pip install
+  # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it.
+  - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
+
+  - |
+        # coverage has additional requirements
+        if [ "$MODE" == 'coverage' ]; then
+            travis_retry pip install coverage
+            if [ -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry pip install codacy-coverage; fi
+            if [ -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry pip install coveralls; fi
+            if [ -n "$CODECOV_TOKEN" ]; then travis_retry wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
+        fi
+
+before_script:
+  - pip freeze
+  # Before runing the test case, we need to make jython run some code as in first run it can put something on stdout
+  - if [ -n "$JYTHON" ]; then python -c "print ''"; else echo skip; fi
 
 script:
-  - pip freeze
-  - if [ -z "$SCA" ]; then python setup.py nosetests; else echo skip; fi
-  - if [ -n "$TEST_ACCOUNT_ID" -o -n "$SCA" ]; then python setup.py install; else echo skip; fi
-  - if [ -n "$TEST_ACCOUNT_ID" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
-  - if [ -n "$SCA" -a -n "$TRAVIS_COMMIT_RANGE" ]; then git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py test_b2_command_line.py || exit; else echo skip; fi
-  - if [ -n "$SCA" -a -z "$TRAVIS_COMMIT_RANGE" ]; then yapf --diff --recursive b2 setup.py test_b2_command_line.py || exit; else echo skip; fi
-  - if [ -n "$SCA" ]; then pyflakes b2; else echo skip; fi
+  - |
+        # nosetests
+        if [ -z "$MODE" ]; then
+            python setup.py nosetests
+        elif [ "$MODE" == 'coverage' ]; then
+            python setup.py nosetests --with-coverage --cover-xml --cover-package "$(python setup.py --name)" --cover-branches
+        else
+            echo skip
+        fi
+  - |
+        # yapf
+        if [ "$MODE" == 'SCA' ]; then
+            if [ -n "$TRAVIS_COMMIT_RANGE" ]; then
+                echo "using commit range: $TRAVIS_COMMIT_RANGE"
+                git diff --name-only "$TRAVIS_COMMIT_RANGE" | grep '\.py$' | xargs yapf --diff setup.py || exit
+            else
+                yapf --diff --recursive . || exit
+            fi
+        else
+            echo skip
+        fi
+  - if [ "$MODE" == 'SCA' ]; then pyflakes . || exit; else echo skip; fi
+
+  # isort doesn't get along with yapf. Hopefully we'll figure it out and re-enable in the future.
+  # - if [ "$MODE" == 'SCA' ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
+
+  # home-made bad code detectors
+  - if [ "$MODE" == 'SCA' ]; then egrep -r '^ *class [^\(]+(\(\))?:' . && exit 1 || true; else echo skip; fi  # old-style class detector
+  - if [ "$MODE" == 'SCA' ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
+  - if [ "$MODE" == 'SCA' ]; then egrep -r '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
+  - if [ "$MODE" == 'SCA' ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
+  - if [ "$MODE" == 'SCA' ]; then grep -P -r '^ *logger = (?!logging\.getLogger\(__name__\)$)' . | grep -v '.eggs/nose-' && exit 1 || true; else echo skip; fi  # bad logger definition: use `logger = logging.getLogger(__name__)`. See the magic logging metaclass.
+  - |
+        if [ "$MODE" == 'SCA' ]; then
+            missing="$(
+                (
+                    grep -l 'All Rights Reserved' $(git ls-files | grep .py)
+                    git ls-files | grep .py
+                ) | sort | uniq -c | sort -n | awk '$1 == 1 && $2 !~ ".*/__init__.py"'
+            )"
+            if [ -n "$missing" ]; then
+                echo 'license is missing from:' >&2
+                echo "$missing" >&2
+                return 1
+            fi
+        else
+            echo skip
+        fi
+
+  # package installation
+  - |
+        if [ "$MODE" == 'SCA' ]; then
+            echo skip
+        else
+            if [ -n "$OS_X_PYTHON_VERSION" ]; then
+                # install action fails on osx for unknown reason
+                python setup.py develop
+            else
+                python setup.py install
+            fi
+        fi
+  # custom things specific to b2 CLI
+  - if [ -n "$TEST_ACCOUNT_ID" -a "$MODE" == "TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
+
+after_success:
+  - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry python-codacy-coverage -r coverage.xml; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry coveralls; else echo skip; fi
+  - if [ "$MODE" == 'coverage' -a -n "$CODECOV_TOKEN" ]; then travis_retry ./codecov.sh -X gcov -X coveragepy; else echo skip; fi

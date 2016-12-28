@@ -8,14 +8,16 @@
 #
 ######################################################################
 
-from b2.b2http import _translate_and_retry, _translate_errors, B2Http
-from b2.exception import BadJson, BrokenPipe, ConnectionError, ServiceError, UnknownError, UnknownHost
-from b2.version import USER_AGENT
+import datetime
 import requests
 import six
 import socket
 import sys
-import unittest
+
+from .test_base import TestBase
+from b2.b2http import _translate_and_retry, _translate_errors, B2Http, ClockSkewHook
+from b2.exception import BadDateFormat, BadJson, BrokenPipe, B2ConnectionError, ClockSkew, ServiceError, UnknownError, UnknownHost
+from b2.version import USER_AGENT
 
 if sys.version_info < (3, 3):
     from mock import call, MagicMock, patch
@@ -23,7 +25,7 @@ else:
     from unittest.mock import call, MagicMock, patch
 
 
-class TestTranslateErrors(unittest.TestCase):
+class TestTranslateErrors(TestBase):
     def test_ok(self):
         response = MagicMock()
         response.status_code = 200
@@ -50,10 +52,10 @@ class TestTranslateErrors(unittest.TestCase):
     def test_broken_pipe(self):
         def fcn():
             raise requests.ConnectionError(
-                requests.packages.urllib3.exceptions.ProtocolError(
-                    "dummy", socket.error(20, 'Broken pipe')
-                )
+                requests.packages.urllib3.exceptions.
+                ProtocolError("dummy", socket.error(20, 'Broken pipe'))
             )
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
@@ -68,6 +70,7 @@ class TestTranslateErrors(unittest.TestCase):
                     'AAA nodename nor servname provided, or not known AAA', 'http://example.com'
                 )
             )
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
@@ -78,16 +81,18 @@ class TestTranslateErrors(unittest.TestCase):
     def test_connection_error(self):
         def fcn():
             raise requests.ConnectionError('a message')
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
             self.fail('should have raised ConnectionError')
-        except ConnectionError:
+        except B2ConnectionError:
             pass
 
     def test_unknown_error(self):
         def fcn():
             raise Exception('a message')
+
         # no assertRaises until 2.7
         try:
             _translate_errors(fcn)
@@ -96,7 +101,7 @@ class TestTranslateErrors(unittest.TestCase):
             pass
 
 
-class TestTranslateAndRetry(unittest.TestCase):
+class TestTranslateAndRetry(TestBase):
     def setUp(self):
         self.response = MagicMock()
         self.response.status_code = 200
@@ -140,7 +145,7 @@ class TestTranslateAndRetry(unittest.TestCase):
             self.assertEqual([call(1.0), call(1.5)], mock_time.mock_calls)
 
 
-class TestB2Http(unittest.TestCase):
+class TestB2Http(TestBase):
 
     URL = 'http://example.com'
     HEADERS = dict(my_header='my_value')
@@ -149,27 +154,82 @@ class TestB2Http(unittest.TestCase):
     PARAMS_JSON_BYTES = six.b('{"fileSize": 100}')
 
     def setUp(self):
-        self.requests = MagicMock()
+        self.session = MagicMock()
         self.response = MagicMock()
-        self.b2_http = B2Http(self.requests)
+
+        requests = MagicMock()
+        requests.Session.return_value = self.session
+        self.b2_http = B2Http(requests, install_clock_skew_hook=False)
 
     def test_post_json_return_json(self):
-        self.requests.post.return_value = self.response
+        self.session.post.return_value = self.response
         self.response.status_code = 200
         self.response.content = six.b('{"color": "blue"}')
         response_dict = self.b2_http.post_json_return_json(self.URL, self.HEADERS, self.PARAMS)
         self.assertEqual({'color': 'blue'}, response_dict)
-        (pos_args, kw_args) = self.requests.post.call_args
+        (pos_args, kw_args) = self.session.post.call_args
         self.assertEqual(self.URL, pos_args[0])
         self.assertEqual(self.EXPECTED_HEADERS, kw_args['headers'])
         actual_data = kw_args['data']
         actual_data.seek(0)
         self.assertEqual(self.PARAMS_JSON_BYTES, actual_data.read())
 
+    def test_callback(self):
+        callback = MagicMock()
+        callback.pre_request = MagicMock()
+        callback.post_request = MagicMock()
+        self.b2_http.add_callback(callback)
+        self.session.post.return_value = self.response
+        self.response.status_code = 200
+        self.response.content = six.b('{"color": "blue"}')
+        self.b2_http.post_json_return_json(self.URL, self.HEADERS, self.PARAMS)
+        expected_headers = {'my_header': 'my_value', 'User-Agent': USER_AGENT}
+        callback.pre_request.assert_called_with('POST', 'http://example.com', expected_headers)
+        callback.post_request.assert_called_with(
+            'POST', 'http://example.com', expected_headers, self.response
+        )
+
     def test_get_content(self):
-        self.requests.get.return_value = self.response
+        self.session.get.return_value = self.response
         self.response.status_code = 200
         with self.b2_http.get_content(self.URL, self.HEADERS) as r:
             self.assertTrue(self.response is r)  # no assertIs until 2.7
-        self.requests.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
+        self.session.get.assert_called_with(self.URL, headers=self.EXPECTED_HEADERS, stream=True)
         self.response.close.assert_called_with()
+
+
+class TestClockSkewHook(TestBase):
+    def test_bad_format(self):
+        response = MagicMock()
+        response.headers = {'Date': 'bad format'}
+        with self.assertRaises(BadDateFormat):
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
+
+    def test_bad_month(self):
+        response = MagicMock()
+        response.headers = {'Date': 'Fri, 16 XXX 2016 20:52:30 GMT'}
+        with self.assertRaises(BadDateFormat):
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
+
+    def test_no_skew(self):
+        now = datetime.datetime.utcnow()
+        now_str = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        response = MagicMock()
+        response.headers = {'Date': now_str}
+        ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
+
+    def test_positive_skew(self):
+        now = datetime.datetime.utcnow() + datetime.timedelta(minutes=11)
+        now_str = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        response = MagicMock()
+        response.headers = {'Date': now_str}
+        with self.assertRaises(ClockSkew):
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
+
+    def test_negative_skew(self):
+        now = datetime.datetime.utcnow() + datetime.timedelta(minutes=-11)
+        now_str = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        response = MagicMock()
+        response.headers = {'Date': now_str}
+        with self.assertRaises(ClockSkew):
+            ClockSkewHook().post_request('POST', 'http://example.com', {}, response)
