@@ -157,7 +157,7 @@ class B2Api(object):
         return self.create_bucket(name, 'allPrivate')
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
-        return self.session.get_bucket_by_file_id(file_id).download_file_by_id(
+        return self.get_bucket_by_file_id(file_id).download_file_by_id(
             file_id, download_dest, progress_listener, range_=range_
         )
 

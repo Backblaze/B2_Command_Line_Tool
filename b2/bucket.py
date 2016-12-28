@@ -135,11 +135,12 @@ class Bucket(object):
     def cancel_large_file(self, file_id):
         return self.api.cancel_large_file(file_id)
 
-    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
         progress_listener = progress_listener or DoNothingProgressListener()
-        self.api.download_file_by_id(
+        self.api.session.download_file_by_id(
             file_id,
             DownloadDestProgressWrapper(download_dest, progress_listener),
+            url_factory=self.api.account_info.get_download_url,
             range_=range_
         )
         progress_listener.close()
@@ -606,8 +607,10 @@ class Bucket(object):
         return FileVersionInfoFactory.from_api_response(response)
 
     def delete_file_version(self, file_id, file_name):
-        # filename argument is not first, because one day it may become optional
-        return self.api.delete_file_version(file_id, file_name)
+        response = self.api.session.delete_file_version(file_id, file_name)
+        assert response['fileId'] == file_id
+        assert response['fileName'] == file_name
+        return FileIdAndName(file_id, file_name)
 
     @disable_trace
     def as_dict(self):  # TODO: refactor with other as_dict()
