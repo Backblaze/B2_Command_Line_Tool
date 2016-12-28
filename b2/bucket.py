@@ -596,12 +596,6 @@ class Bucket(object):
             b2_url_encode(filename),
         )
 
-    def delete_file_version(self, file_id, file_name):
-        response = self.api.session.delete_file_version(file_id, file_name)
-        assert response['fileId'] == file_id
-        assert response['fileName'] == file_name
-        return FileIdAndName(file_id, file_name)
-
     def hide_file(self, file_name):
         response = self.api.session.hide_file(self.id_, file_name)
         return FileVersionInfoFactory.from_api_response(response)
@@ -666,12 +660,7 @@ class EncryptedBucket(Bucket):
             yield file_
 
     def upload(
-        self,
-        upload_source,
-        file_name,
-        content_type=None,
-        file_info=None,
-        progress_listener=None
+        self, upload_source, file_name, content_type=None, file_info=None, progress_listener=None
     ):
         if file_info is None:
             file_info = {}

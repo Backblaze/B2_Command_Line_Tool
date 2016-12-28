@@ -15,9 +15,8 @@ from .account_info.exception import MissingAccountData
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
-from .download_dest import DownloadDestProgressWrapper
 from .exception import NonExistentBucket
-from .file_version import FileVersionInfoFactory, FileIdAndName
+from .file_version import FileVersionInfoFactory
 from .part import PartFactory
 from .raw_api import B2RawApi
 from .session import B2Session

@@ -218,9 +218,7 @@ class FileDecryptionContext(object):
         iv_int = unpack_iv(self.iv)
         decryptor = Cipher(
             algorithms.AES(self.file_key),
-            modes.GCM(
-                pack_iv(iv_int + block_id), tag
-            ),
+            modes.GCM(pack_iv(iv_int + block_id), tag),
             backend=default_backend()
         ).decryptor()
         decryptor.authenticate_additional_data(self.blocks)
@@ -285,7 +283,7 @@ class CryptoContext(object):
         assert isinstance(filename, six.text_type)
         validate_b2_file_name(filename)
         sections = filename.split('/')
-        strings_to_hash = [u'/'.join(sections[0:i+1]) for i in six.moves.range(len(sections))]
+        strings_to_hash = [u'/'.join(sections[0:i + 1]) for i in six.moves.range(len(sections))]
         return u'/'.join(self._base64_hash_for_file(file_hash_salt + s) for s in strings_to_hash)
 
     def _base64_hash_for_file(self, s):
@@ -350,8 +348,7 @@ class CryptoContext(object):
         # encrypt
         enc_key = derive_key(self.master_key, usage, 1)
         encryptor = Cipher(
-            algorithms.AES(enc_key),
-            modes.CBC(iv), backend=default_backend()
+            algorithms.AES(enc_key), modes.CBC(iv), backend=default_backend()
         ).encryptor()
         return iv + encryptor.update(data_padded) + encryptor.finalize()
 
@@ -366,8 +363,7 @@ class CryptoContext(object):
         # decrypt and unpad
         enc_key = derive_key(self.master_key, usage, 1)
         decryptor = Cipher(
-            algorithms.AES(enc_key),
-            modes.CBC(iv), backend=default_backend()
+            algorithms.AES(enc_key), modes.CBC(iv), backend=default_backend()
         ).decryptor()
         unpadder = padding.PKCS7(128).unpadder()
         data_padded = decryptor.update(ciphertext) + decryptor.finalize()
