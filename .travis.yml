@@ -42,10 +42,11 @@ matrix:
       os: osx
       language: generic
       env: OS_X_PYTHON_VERSION=python
-    - python: 3.5
-      os: osx
-      language: generic
-      env: OS_X_PYTHON_VERSION=python3
+# See github issue #311:
+#    - python: 3.5
+#      os: osx
+#      language: generic
+#      env: OS_X_PYTHON_VERSION=python3
 
     # jython
     - python: 2.7
