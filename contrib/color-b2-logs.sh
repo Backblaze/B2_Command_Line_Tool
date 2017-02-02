@@ -1,3 +1,4 @@
+#!/bin/bash -eu
 awk -F '\t' '{print $1 " " $4 " " $5 " " $6}' | colorex --green=DEBUG \
     --bgreen=INFO \
     --bred=ERROR \
