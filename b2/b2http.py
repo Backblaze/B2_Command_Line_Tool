@@ -83,7 +83,7 @@ def _translate_errors(fcn, post_params=None):
         raise UnknownError(repr(e))
 
 
-def _translate_and_retry(fcn, try_count, post_params=None):
+def _translate_and_retry(fcn, try_count, post_params, is_upload):
     """
     Try calling fcn try_count times, retrying only if
     the exception is a retryable B2Error.
@@ -95,6 +95,11 @@ def _translate_and_retry(fcn, try_count, post_params=None):
             return _translate_errors(fcn, post_params)
         except B2Error as e:
             if not e.should_retry_http():
+                raise
+            if is_upload and e.should_retry_upload():
+                # There's no point in sleeping and retrying the upload
+                # if we can just upload to a different place by getting
+                # a new upload URL from b2_get_upload_url.
                 raise
             time.sleep(wait_time)
             wait_time *= 1.5
@@ -227,7 +232,9 @@ class B2Http(object):
         """
         self.callbacks.append(callback)
 
-    def post_content_return_json(self, url, headers, data, try_count=1, post_params=None):
+    def post_content_return_json(
+        self, url, headers, data, try_count=1, post_params=None, is_upload=False
+    ):
         """
         Use like this:
 
@@ -256,7 +263,7 @@ class B2Http(object):
             self._run_post_request_hooks('POST', url, headers, response)
             return response
 
-        response = _translate_and_retry(do_post, try_count, post_params)
+        response = _translate_and_retry(do_post, try_count, post_params, is_upload)
 
         # Decode the JSON that came back.  If we've gotten this far,
         # we know we have a status of 200 OK.  In this case, the body
@@ -318,7 +325,7 @@ class B2Http(object):
             self._run_post_request_hooks('GET', url, headers, response)
             return response
 
-        response = _translate_and_retry(do_get, try_count, None)
+        response = _translate_and_retry(do_get, try_count, None, False)
         return ResponseContextManager(response)
 
     def _run_pre_request_hooks(self, method, url, headers):

@@ -109,25 +109,31 @@ class TestTranslateAndRetry(TestBase):
     def test_works_first_try(self):
         fcn = MagicMock()
         fcn.side_effect = [self.response]
-        self.assertTrue(self.response is _translate_and_retry(fcn, 3))  # no assertIs until 2.7
+        self.assertTrue(self.response is _translate_and_retry(fcn, 3, None, False)
+                       )  # no assertIs until 2.7
 
     def test_non_retryable(self):
         with patch('time.sleep') as mock_time:
             fcn = MagicMock()
             fcn.side_effect = [BadJson('a'), self.response]
-            # no assertRaises until 2.7
-            try:
-                _translate_and_retry(fcn, 3)
-                self.fail('should have raised BadJson')
-            except BadJson:
-                pass
+            with self.assertRaises(BadJson):
+                _translate_and_retry(fcn, 3, None, False)
+            self.assertEqual([], mock_time.mock_calls)
+
+    def test_can_retry_upload(self):
+        with patch('time.sleep') as mock_time:
+            fcn = MagicMock()
+            fcn.side_effect = [ServiceError('a'), self.response]
+            with self.assertRaises(ServiceError):
+                _translate_and_retry(fcn, 3, None, True)
             self.assertEqual([], mock_time.mock_calls)
 
     def test_works_second_try(self):
         with patch('time.sleep') as mock_time:
             fcn = MagicMock()
             fcn.side_effect = [ServiceError('a'), self.response]
-            self.assertTrue(self.response is _translate_and_retry(fcn, 3))  # no assertIs until 2.7
+            self.assertTrue(self.response is _translate_and_retry(fcn, 3, None, False)
+                           )  # no assertIs until 2.7
             self.assertEqual([call(1.0)], mock_time.mock_calls)
 
     def test_never_works(self):
@@ -136,12 +142,8 @@ class TestTranslateAndRetry(TestBase):
             fcn.side_effect = [
                 ServiceError('a'), ServiceError('a'), ServiceError('a'), self.response
             ]
-            # no assertRaises until 2.7
-            try:
-                _translate_and_retry(fcn, 3)
-                self.fail('should have raised ServiceError')
-            except ServiceError:
-                pass
+            with self.assertRaises(ServiceError):
+                _translate_and_retry(fcn, 3, None, False)
             self.assertEqual([call(1.0), call(1.5)], mock_time.mock_calls)
 
 

@@ -452,7 +452,7 @@ class B2RawApi(AbstractRawApi):
         for k, v in six.iteritems(file_infos):
             headers['X-Bz-Info-' + k] = b2_url_encode(v)
 
-        return self.b2_http.post_content_return_json(upload_url, headers, data_stream)
+        return self.b2_http.post_content_return_json(upload_url, headers, data_stream, True)
 
     def upload_part(
         self, upload_url, upload_auth_token, part_number, content_length, content_sha1, data_stream
@@ -464,7 +464,7 @@ class B2RawApi(AbstractRawApi):
             'X-Bz-Content-Sha1': content_sha1
         }
 
-        return self.b2_http.post_content_return_json(upload_url, headers, data_stream)
+        return self.b2_http.post_content_return_json(upload_url, headers, data_stream, True)
 
 
 def test_raw_api():
