@@ -240,7 +240,6 @@ def make_b2_keep_days_actions(
     only the 25-day old version can be deleted.  The 15 day-old version
     was visible 10 days ago.
     """
-    prev_age_days = None
     deleting = False
     if dest_file is None:
         # B2 does not really store folders, so there is no need to hide
@@ -250,8 +249,17 @@ def make_b2_keep_days_actions(
         # How old is this version?
         age_days = (now_millis - version.mod_time) / ONE_DAY_IN_MS
 
-        # We assume that the versions are ordered by time, newest first.
-        assert prev_age_days is None or prev_age_days <= age_days
+        # Mostly, the versions are ordered by time, newest first,
+        # BUT NOT ALWAYS.  The mod time we have is the src_last_modified_millis
+        # from the file info (if present), or the upload start time
+        # (if not present).  The user-specified src_last_modified_millis
+        # may not be in order.  Because of that, we no longer
+        # assert that age_days is non-decreasing.
+        #
+        # Note that if there is an out-of-order date that is old enough
+        # to trigger deletions, all of the versions uploaded before that
+        # (the ones after it in the list) will be deleted, even if they
+        # aren't over the age threshold.
 
         # Do we need to hide this version?
         if version_index == 0 and source_file is None and version.action == 'upload':
@@ -275,6 +283,3 @@ def make_b2_keep_days_actions(
         # age of this one?
         if keep_days < age_days:
             deleting = True
-
-        # Remember this age for next time around the loop.
-        prev_age_days = age_days
