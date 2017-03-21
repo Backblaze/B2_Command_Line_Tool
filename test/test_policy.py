@@ -43,7 +43,7 @@ class TestMakeB2KeepDaysActions(TestBase):
         )
 
     def test_old_upload_causes_delete(self):
-        # An upload that is old gets stays if there is a source file, but things
+        # An upload that is old stays if there is a source file, but things
         # behind it go away.
         self.check_one_answer(
             True, [(1, -5, 'upload'), (2, -10, 'upload'), (3, -20, 'upload')],
