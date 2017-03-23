@@ -13,7 +13,7 @@ import sys
 # To avoid confusion between official Backblaze releases of this tool and
 # the versions on Github, we use the convention that the third number is
 # odd for Github, and even for Backblaze releases.
-VERSION = '0.7.1'
+VERSION = '0.7.2'
 
 PYTHON_VERSION = '.'.join(map(str, sys.version_info[:3]))  # something like: 2.7.11
 
