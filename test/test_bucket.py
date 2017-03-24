@@ -490,3 +490,31 @@ class TestPartialDownload(TestCaseWithBucket):
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
         self.assertEqual("6: 6 closed", progress_listener.get_history())
         assert download.bytes_io.getvalue() == six.b('lo wor'), download.bytes_io.getvalue()
+
+
+# Run same tests with encrypted bucket
+class TestCaseWithEncryptedBucket(TestCaseWithBucket):
+    def setUp(self):
+        TestCaseWithBucket.setUp(self)
+        self.bucket = self.api.create_encrypted_bucket('my-enc-bucket')
+        self.bucket_id = self.bucket.id_
+
+
+class TestEncryptedListParts(TestListParts, TestCaseWithEncryptedBucket):
+    pass
+
+
+class TestEncryptedListUnfinished(TestListUnfinished, TestCaseWithEncryptedBucket):
+    pass
+
+
+class TestEncryptedLs(TestLs, TestCaseWithEncryptedBucket):
+    pass
+
+
+class TestEncryptedUpload(TestUpload, TestCaseWithEncryptedBucket):
+    pass
+
+
+class TestEncryptedDownload(TestDownload, TestCaseWithEncryptedBucket):
+    pass

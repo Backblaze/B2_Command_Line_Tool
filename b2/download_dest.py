@@ -13,6 +13,7 @@ from abc import abstractmethod
 
 import six
 
+from .encryption import DecryptingFileStream
 from .utils import B2TraceMetaAbstract, limit_trace_arguments
 from .progress import StreamWithProgress
 
@@ -181,3 +182,22 @@ class DownloadDestProgressWrapper(AbstractDownloadDestination):
             mod_time_millis, range_
         )
         return StreamWithProgress(stream.__enter__(), self.progress_listener)
+
+
+class DownloadDestDecryptionWrapper(AbstractDownloadDestination):
+    def __init__(self, download_dest, crypto):
+        self.download_dest = download_dest
+        self.crypto = crypto
+
+    def open(
+        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
+        mod_time_millis
+    ):
+        crypto_file = self.crypto.make_decryption_context(content_length)
+        file_name = self.crypto.decrypt_filename(file_info['name'])
+        file_info.pop('name', None)
+        params = (
+            file_id, file_name, crypto_file.decrypted_size(), content_type, content_sha1, file_info,
+            mod_time_millis
+        )
+        return DecryptingFileStream(self.download_dest, params, crypto_file)

@@ -13,13 +13,15 @@ import six
 import threading
 
 from .download_dest import DownloadDestProgressWrapper
+from .encryption import CryptoContext
 from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
-from .file_version import FileVersionInfoFactory
+from .download_dest import DownloadDestDecryptionWrapper
+from .file_version import FileVersionInfoFactory, FileIdAndName
 from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
 from .unfinished_large_file import UnfinishedLargeFile
-from .upload_source import UploadSourceBytes, UploadSourceLocalFile
+from .upload_source import UploadSourceBytes, UploadSourceLocalFile, UploadSourceEncryptionWrapper
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
 from .utils import B2TraceMeta, disable_trace, limit_trace_arguments
 
@@ -134,7 +136,14 @@ class Bucket(object):
         return self.api.cancel_large_file(file_id)
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
-        self.api.download_file_by_id(file_id, download_dest, progress_listener, range_=range_)
+        progress_listener = progress_listener or DoNothingProgressListener()
+        self.api.session.download_file_by_id(
+            file_id,
+            DownloadDestProgressWrapper(download_dest, progress_listener),
+            url_factory=self.api.account_info.get_download_url,
+            range_=range_
+        )
+        progress_listener.close()
 
     def download_file_by_name(self, file_name, download_dest, progress_listener=None, range_=None):
         progress_listener = progress_listener or DoNothingProgressListener()
@@ -592,8 +601,10 @@ class Bucket(object):
         return FileVersionInfoFactory.from_api_response(response)
 
     def delete_file_version(self, file_id, file_name):
-        # filename argument is not first, because one day it may become optional
-        return self.api.delete_file_version(file_id, file_name)
+        response = self.api.session.delete_file_version(file_id, file_name)
+        assert response['fileId'] == file_id
+        assert response['fileName'] == file_name
+        return FileIdAndName(file_id, file_name)
 
     @disable_trace
     def as_dict(self):  # TODO: refactor with other as_dict()
@@ -609,6 +620,93 @@ class Bucket(object):
 
     def __repr__(self):
         return 'Bucket<%s,%s,%s>' % (self.id_, self.name, self.type_)
+
+
+class EncryptedBucket(Bucket):
+    def __init__(self, api, id_, name=None, type_=None):
+        self.crypto = CryptoContext()
+        Bucket.__init__(self, api, id_, name, type_)
+
+    def download_file_by_id(self, file_id, download_dest, progress_listener=None):
+        download_dest = DownloadDestDecryptionWrapper(download_dest, self.crypto)
+        Bucket.download_file_by_id(self, file_id, download_dest, progress_listener)
+
+    def download_file_by_name(self, file_name, download_dest, progress_listener=None):
+        name_hashed = self.crypto.hash_filename(file_name)
+        download_dest = DownloadDestDecryptionWrapper(download_dest, self.crypto)
+        Bucket.download_file_by_name(self, name_hashed, download_dest, progress_listener)
+
+    def ls(
+        self,
+        folder_to_list='',
+        show_versions=False,
+        max_entries=None,
+        recursive=False,
+        fetch_count=100
+    ):
+        files = []
+        folder_hash = self.crypto.hash_filename(folder_to_list)
+        for file_info, folder in Bucket.ls(
+            self, folder_hash, show_versions, max_entries, recursive, fetch_count
+        ):
+            file_info = self.crypto.decrypt_file_version_info(file_info)
+            if folder:
+                folder = '/'.join(file_info.file_name.split('/')[0:-1]) + '/'
+
+            # File list should be sorted so we can't yield here
+            files.append((file_info, folder))
+
+        for file_ in sorted(files, key=lambda f: f[0].file_name):
+            yield file_
+
+    def upload(
+        self, upload_source, file_name, content_type=None, file_info=None, progress_listener=None
+    ):
+        if file_info is None:
+            file_info = {}
+
+        # encrypt
+        name_hash = self.crypto.hash_filename(file_name)
+        file_info['name'] = self.crypto.encrypt_filename(file_name)
+        encrypted_source = UploadSourceEncryptionWrapper(upload_source, self.crypto)
+        #if progress_listener is not None:
+        #    progress_listener = ProgressEncryptionWrapper(progress_listener, self.crypto)
+
+        # upload file
+        result = Bucket.upload(
+            self, encrypted_source, name_hash, content_type, file_info, progress_listener
+        )
+
+        # replace file version with plaintext values
+        result.file_name = file_name
+        result.size = upload_source.get_content_length()
+        return result
+
+    def start_large_file(self, file_name, content_type=None, file_info=None):
+        if file_info is None:
+            file_info = {}
+
+        name_hashed = self.crypto.hash_filename(file_name)
+        file_info['name'] = self.crypto.encrypt_filename(file_name)
+        result = Bucket.start_large_file(self, name_hashed, content_type, file_info)
+        result.file_name = file_name
+        return result
+
+    def get_download_url(self, file_name):
+        name_hashed = self.crypto.hash_filename(file_name)
+        return Bucket.get_download_url(self, name_hashed)
+
+    def delete_file_version(self, file_id, file_name):
+        name_hashed = self.crypto.hash_filename(file_name)
+        result = Bucket.delete_file_version(self, file_id, name_hashed)
+        result.file_name = file_name
+        return result
+
+    def hide_file(self, file_name):
+        name_hashed = self.crypto.hash_filename(file_name)
+        result = Bucket.hide_file(self, name_hashed)
+        result.file_name = file_name
+        return result
 
 
 class BucketFactory(object):
