@@ -17,7 +17,7 @@ from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
 from .file_version import FileVersionInfoFactory
-from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress
+from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress, StreamWithHash
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
@@ -376,7 +376,6 @@ class Bucket(object):
         self, upload_source, file_name, content_type, file_info, progress_listener
     ):
         content_length = upload_source.get_content_length()
-        sha1_sum = upload_source.get_content_sha1()
         upload_url = None
         exception_info_list = []
         for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
@@ -387,15 +386,18 @@ class Bucket(object):
                 with upload_source.open() as file:
                     progress_listener.set_total_bytes(content_length)
                     input_stream = StreamWithProgress(file, progress_listener)
-                    upload_response = self.api.raw_api.upload_file(
-                        upload_url, upload_auth_token, file_name, content_length, content_type,
-                        sha1_sum, file_info, input_stream
+                    hashing_stream = StreamWithHash(input_stream)
+                    length_with_hash = content_length + hashing_stream.hash_size()
+                    response = self.api.raw_api.upload_file(
+                        upload_url, upload_auth_token, file_name, length_with_hash, content_type,
+                        'hex_digits_at_end', file_info, hashing_stream
                     )
+                    assert hashing_stream.hash == response['contentSha1']
                     self.api.account_info.put_bucket_upload_url(
                         self.id_, upload_url, upload_auth_token
                     )
                     progress_listener.close()
-                    return FileVersionInfoFactory.from_api_response(upload_response)
+                    return FileVersionInfoFactory.from_api_response(response)
 
             except B2Error as e:
                 logger.exception('error when uploading, upload_url was %s', upload_url)
@@ -510,9 +512,6 @@ class Bucket(object):
 
         # Compute the SHA1 of the part
         offset, content_length = part_range
-        with upload_source.open() as f:
-            f.seek(offset)
-            sha1_sum = hex_sha1_of_stream(f, content_length)
 
         # Set up a progress listener
         part_progress_listener = PartProgressReporter(large_file_upload_state)
@@ -534,11 +533,14 @@ class Bucket(object):
                     file.seek(offset)
                     range_stream = RangeOfInputStream(file, offset, content_length)
                     input_stream = StreamWithProgress(range_stream, part_progress_listener)
+                    hashing_stream = StreamWithHash(input_stream)
+                    length_with_hash = content_length + hashing_stream.hash_size()
                     response = self.api.raw_api.upload_part(
-                        upload_url, upload_auth_token, part_number, content_length, sha1_sum,
-                        input_stream
+                        upload_url, upload_auth_token, part_number, length_with_hash,
+                        'hex_digits_at_end', hashing_stream
                     )
-                    assert sha1_sum == response['contentSha1']
+                    print(hashing_stream.hash, response['contentSha1'])
+                    assert hashing_stream.hash == response['contentSha1']
                     self.api.account_info.put_large_file_upload_url(
                         file_id, upload_url, upload_auth_token
                     )
@@ -582,8 +584,7 @@ class Bucket(object):
 
     def get_download_url(self, filename):
         return "%s/file/%s/%s" % (
-            self.api.account_info.get_download_url(),
-            b2_url_encode(self.name),
+            self.api.account_info.get_download_url(), b2_url_encode(self.name),
             b2_url_encode(filename),
         )
 
