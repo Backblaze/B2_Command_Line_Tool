@@ -233,7 +233,7 @@ class StreamWithProgress(object):
 
 class StreamWithHash(object):
     """
-    Wraps a file-like object, caculates SHA1 while reading
+    Wraps a file-like object, calculates SHA1 while reading
     and appends hash at the end
     """
 
