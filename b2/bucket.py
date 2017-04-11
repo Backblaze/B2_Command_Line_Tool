@@ -539,7 +539,6 @@ class Bucket(object):
                         upload_url, upload_auth_token, part_number, length_with_hash,
                         'hex_digits_at_end', hashing_stream
                     )
-                    print(hashing_stream.hash, response['contentSha1'])
                     assert hashing_stream.hash == response['contentSha1']
                     self.api.account_info.put_large_file_upload_url(
                         file_id, upload_url, upload_auth_token
