@@ -510,9 +510,6 @@ class Bucket(object):
             # Return SHA1 hash
             return {'contentSha1': part.content_sha1}
 
-        # Compute the SHA1 of the part
-        offset, content_length = part_range
-
         # Set up a progress listener
         part_progress_listener = PartProgressReporter(large_file_upload_state)
 
@@ -530,6 +527,7 @@ class Bucket(object):
 
             try:
                 with upload_source.open() as file:
+                    offset, content_length = part_range
                     file.seek(offset)
                     range_stream = RangeOfInputStream(file, offset, content_length)
                     input_stream = StreamWithProgress(range_stream, part_progress_listener)
