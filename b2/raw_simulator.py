@@ -17,7 +17,7 @@ from .exception import (
     BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent,
     InvalidAuthToken, MissingPart, NonExistentBucket
 )
-from .raw_api import AbstractRawApi
+from .raw_api import AbstractRawApi, HEX_DIGITS_AT_END
 
 
 class PartSimulator(object):
@@ -380,7 +380,7 @@ class BucketSimulator(object):
     ):
         data_bytes = data_stream.read()
         assert len(data_bytes) == content_length
-        if content_sha1 == 'hex_digits_at_end':
+        if content_sha1 == HEX_DIGITS_AT_END:
             content_sha1 = data_bytes[-40:].decode()
             data_bytes = data_bytes[0:-40]
             content_length -= 40
@@ -397,7 +397,7 @@ class BucketSimulator(object):
         file_sim = self.file_id_to_file[file_id]
         part_data = input_stream.read()
         assert len(part_data) == content_length
-        if sha1_sum == 'hex_digits_at_end':
+        if sha1_sum == HEX_DIGITS_AT_END:
             sha1_sum = part_data[-40:].decode()
             part_data = part_data[0:-40]
             content_length -= 40

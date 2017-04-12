@@ -22,6 +22,7 @@ from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
 from .utils import B2TraceMeta, disable_trace, limit_trace_arguments
+from .raw_api import HEX_DIGITS_AT_END
 
 logger = logging.getLogger(__name__)
 
@@ -390,7 +391,7 @@ class Bucket(object):
                     length_with_hash = content_length + hashing_stream.hash_size()
                     response = self.api.raw_api.upload_file(
                         upload_url, upload_auth_token, file_name, length_with_hash, content_type,
-                        'hex_digits_at_end', file_info, hashing_stream
+                        HEX_DIGITS_AT_END, file_info, hashing_stream
                     )
                     assert hashing_stream.hash == response['contentSha1']
                     self.api.account_info.put_bucket_upload_url(
@@ -535,7 +536,7 @@ class Bucket(object):
                     length_with_hash = content_length + hashing_stream.hash_size()
                     response = self.api.raw_api.upload_part(
                         upload_url, upload_auth_token, part_number, length_with_hash,
-                        'hex_digits_at_end', hashing_stream
+                        HEX_DIGITS_AT_END, hashing_stream
                     )
                     assert hashing_stream.hash == response['contentSha1']
                     self.api.account_info.put_large_file_upload_url(
