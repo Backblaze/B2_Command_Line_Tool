@@ -273,14 +273,16 @@ class StreamWithHash(object):
             self.digest.update(data)
 
             # Check for end of stream
-            if size is None or (len(data) == 0 and size != 0):
+            if size is None or len(data) < size:
                 self.hash = self.digest.hexdigest()
+                if size is not None:
+                    size -= len(data)
 
         if self.hash is not None:
             # The end of stream was reached, return hash now
-            read_size = len(self.hash) if size is None else size
-            data += str.encode(self.hash[self.hash_read:self.hash_read + read_size])
-            self.hash_read += read_size
+            size = size or len(self.hash)
+            data += str.encode(self.hash[self.hash_read:self.hash_read + size])
+            self.hash_read += size
 
         return data
 
