@@ -44,7 +44,7 @@ class TestHashingStream(TestBase):
         self.assertEqual(self.expected, output)
 
     def test_one_by_one(self):
-        for expected_byte in self.expected:
+        for expected_byte in six.iterbytes(self.expected):
             self.assertEqual(six.int2byte(expected_byte), self.stream.read(1))
         self.assertEqual(b'', self.stream.read(1))
 
