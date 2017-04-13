@@ -29,6 +29,9 @@ from .utils import b2_url_encode, hex_sha1_of_stream
 # Standard names for file info entries
 SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 
+# Special X-Bz-Content-Sha1 value to verify checksum at the end
+HEX_DIGITS_AT_END = 'hex_digits_at_end'
+
 
 @six.add_metaclass(ABCMeta)
 class AbstractRawApi(object):

@@ -17,7 +17,7 @@ from .exception import (
     BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent,
     InvalidAuthToken, MissingPart, NonExistentBucket
 )
-from .raw_api import AbstractRawApi
+from .raw_api import AbstractRawApi, HEX_DIGITS_AT_END
 
 
 class PartSimulator(object):
@@ -309,9 +309,8 @@ class BucketSimulator(object):
         next_file_id = None
         for key in sorted(six.iterkeys(self.file_name_and_id_to_file)):
             (file_name, file_id) = key
-            if (start_file_name < file_name) or (
-                start_file_name == file_name and start_file_id <= file_id
-            ):
+            if (start_file_name <
+                file_name) or (start_file_name == file_name and start_file_id <= file_id):
                 file_sim = self.file_name_and_id_to_file[key]
                 result_files.append(file_sim.as_list_files_dict())
                 if len(result_files) == max_file_count:
@@ -381,6 +380,10 @@ class BucketSimulator(object):
     ):
         data_bytes = data_stream.read()
         assert len(data_bytes) == content_length
+        if content_sha1 == HEX_DIGITS_AT_END:
+            content_sha1 = data_bytes[-40:].decode()
+            data_bytes = data_bytes[0:-40]
+            content_length -= 40
         file_id = self._next_file_id()
         file_sim = FileSimulator(
             self.account_id, self.bucket_id, file_id, 'upload', file_name, content_type,
@@ -392,8 +395,12 @@ class BucketSimulator(object):
 
     def upload_part(self, file_id, part_number, content_length, sha1_sum, input_stream):
         file_sim = self.file_id_to_file[file_id]
-        part_data = input_stream.read(content_length)
+        part_data = input_stream.read()
         assert len(part_data) == content_length
+        if sha1_sum == HEX_DIGITS_AT_END:
+            sha1_sum = part_data[-40:].decode()
+            part_data = part_data[0:-40]
+            content_length -= 40
         part = PartSimulator(file_sim.file_id, part_number, content_length, sha1_sum, part_data)
         file_sim.add_part(part_number, part)
         return dict(
@@ -529,9 +536,12 @@ class RawSimulator(AbstractRawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
         return {
-            'bucketId': bucket_id,
-            'fileNamePrefix': file_name_prefix,
-            'authorizationToken': 'fake_download_auth_token_%s_%s_%d' %
+            'bucketId':
+            bucket_id,
+            'fileNamePrefix':
+            file_name_prefix,
+            'authorizationToken':
+            'fake_download_auth_token_%s_%s_%d' %
             (bucket_id, file_name_prefix, valid_duration_in_seconds)
         }
 
