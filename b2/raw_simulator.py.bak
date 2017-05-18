@@ -193,10 +193,10 @@ class BucketSimulator(object):
         self.bucket_info = bucket_info or {}
         self.lifycycle_rules = lifecycle_rules or []
         self.revision = 1
-        self.upload_url_counter = iter(list(range(200)))
+        self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
-        self.file_id_counter = iter(list(range(self.FIRST_FILE_NUMBER, 0, -1)))
-        self.upload_timestamp_counter = iter(list(range(5000, 9999)))
+        self.file_id_counter = iter(range(self.FIRST_FILE_NUMBER, 0, -1))
+        self.upload_timestamp_counter = iter(range(5000, 9999))
         self.file_id_to_file = dict()
         # It would be nice to use an OrderedDict for this, but 2.6 doesn't have it.
         self.file_name_and_id_to_file = dict()
@@ -432,7 +432,7 @@ class RawSimulator(AbstractRawApi):
         self.authorized_accounts = set()
         self.bucket_name_to_bucket = dict()
         self.bucket_id_to_bucket = dict()
-        self.bucket_id_counter = iter(list(range(100)))
+        self.bucket_id_counter = iter(range(100))
         self.file_id_to_bucket_id = {}
         self.upload_errors = []
 

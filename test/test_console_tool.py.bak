@@ -587,11 +587,11 @@ class TestConsoleTool(TestBase):
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
         if expected_stdout != actual_stdout:
-            print((repr(expected_stdout)))
-            print((repr(actual_stdout)))
+            print(repr(expected_stdout))
+            print(repr(actual_stdout))
         if expected_stderr != actual_stderr:
-            print((repr(expected_stderr)))
-            print((repr(actual_stderr)))
+            print(repr(expected_stderr))
+            print(repr(actual_stderr))
 
         self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
@@ -601,7 +601,7 @@ class TestConsoleTool(TestBase):
         stdout = mock.MagicMock()
         stdout.write = mock.MagicMock(
             side_effect=[
-                UnicodeEncodeError('codec', 'foo', 100, 105, 'artificial UnicodeEncodeError')
+                UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')
             ] + list(range(25))
         )
         stderr = mock.MagicMock()
