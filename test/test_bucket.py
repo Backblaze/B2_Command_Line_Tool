@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from __future__ import absolute_import, division
+
 
 from nose import SkipTest
 import os

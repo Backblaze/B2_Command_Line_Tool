@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-from __future__ import print_function
+
 
 from .test_base import TestBase
 from b2.sync.report import SyncReport
@@ -24,7 +24,7 @@ class TestSyncReport(TestBase):
         stdout = MagicMock()
         stdout.write = MagicMock(
             side_effect=[
-                UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')
+                UnicodeEncodeError('codec', 'foo', 100, 105, 'artificial UnicodeEncodeError')
             ] + list(range(25))
         )
         sync_report = SyncReport(stdout, False)

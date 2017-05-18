@@ -44,7 +44,7 @@ def test_upload_url_concurrency():
                 if url in available_urls:
                     available_urls.remove(url)
                 else:
-                    print('DOUBLE:', url)
+                    print(('DOUBLE:', url))
 
     threads = []
     for i in six.moves.range(5):
@@ -56,7 +56,7 @@ def test_upload_url_concurrency():
 
     # Check
     if len(available_urls) != 0:
-        print('LEAK:', available_urls)
+        print(('LEAK:', available_urls))
 
     # Clean up
     os.unlink(file_name)

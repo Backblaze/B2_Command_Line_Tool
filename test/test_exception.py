@@ -20,9 +20,9 @@ class TestB2Error(TestBase):
 
     def test_unicode(self):
         if six.PY2:
-            self.assertEqual('\\u81ea\\u7531', str(B2Error(u'\u81ea\u7531')))
+            self.assertEqual('\\u81ea\\u7531', str(B2Error('\u81ea\u7531')))
         else:
-            self.assertEqual(u'\u81ea\u7531', str(B2Error(u'\u81ea\u7531')))
+            self.assertEqual('\u81ea\u7531', str(B2Error('\u81ea\u7531')))
 
 
 class TestExceptions(TestBase):
