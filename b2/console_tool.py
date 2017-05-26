@@ -161,10 +161,8 @@ class Command(object):
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
             sys.stderr.write(
-                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
-                    descriptor_name,
-                    descriptor_encoding,
-                )
+                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" %
+                (descriptor_name, descriptor_encoding,)
             )
             sys.stderr.write("Trying to print: %s\n" % (repr(args),))
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
@@ -1032,6 +1030,13 @@ class ConsoleTool(object):
                 line = '    ' + cls.summary_line()
                 self._print_stderr(line)
 
+        self._print_stderr('')
+        self._print_stderr(
+            'The environment variable B2_ACCOUNT_INFO specifies the sqlite file to use'
+        )
+        self._print_stderr(
+            'for caching authentication information.  Default is: ~/.b2_account_info'
+        )
         self._print_stderr('')
         self._print_stderr('For more details on one command: b2 help <command>')
         self._print_stderr('')
