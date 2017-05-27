@@ -24,6 +24,9 @@ if not platform.system().lower().startswith('java'):
 
 logger = logging.getLogger(__name__)
 
+B2_ACCOUNT_INFO_ENV_VAR = 'B2_ACCOUNT_INFO'
+B2_ACCOUNT_INFO_DEFAULT_FILE = '~/.b2_account_info'
+
 
 class SqliteAccountInfo(UrlPoolAccountInfo):
     """
@@ -34,7 +37,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
     def __init__(self, file_name=None):
         self.thread_local = threading.local()
         user_account_info_path = file_name or os.environ.get(
-            'B2_ACCOUNT_INFO', '~/.b2_account_info'
+            B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
         )
         self.filename = file_name or os.path.expanduser(user_account_info_path)
         self._validate_database()
