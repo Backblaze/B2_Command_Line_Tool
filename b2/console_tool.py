@@ -24,7 +24,9 @@ import time
 
 import six
 
-from .account_info.sqlite_account_info import (SqliteAccountInfo)
+from .account_info.sqlite_account_info import (
+    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE, SqliteAccountInfo
+)
 from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
 from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
@@ -43,6 +45,12 @@ from .version import (VERSION)
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
+
+# Strings available to use when formatting doc strings.
+DOC_STRING_DATA = dict(
+    B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
+    B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE
+)
 
 
 def local_path_to_b2_path(path):
@@ -121,7 +129,7 @@ class Command(object):
         """
         Returns the one-line summary of how to call the command.
         """
-        lines = textwrap.dedent(cls.__doc__).split('\n')
+        lines = cls.command_usage().split('\n')
         while lines[0].strip() == '':
             lines = lines[1:]
         result = []
@@ -134,9 +142,10 @@ class Command(object):
     @classmethod
     def command_usage(cls):
         """
-        Returns the doc string for this class.
+        Returns the doc string for this class, with templated fields
+        filled in, and leading whitespace removed.
         """
-        return textwrap.dedent(cls.__doc__)
+        return textwrap.dedent(cls.__doc__).format(**DOC_STRING_DATA)
 
     def parse_arg_list(self, arg_list):
         return parse_arg_list(
@@ -186,7 +195,8 @@ class AuthorizeAccount(Command):
         The application key is a 40-digit hex number that you can get from
         your account page on backblaze.com.
 
-        Stores an account auth token in ~/.b2_account_info
+        Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
+        or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
     """
 
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
@@ -258,7 +268,8 @@ class ClearAccount(Command):
     """
     b2 clear-account
 
-        Erases everything in ~/.b2_account_info
+        Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
+        of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
     """
 
     def run(self, args):
@@ -483,7 +494,7 @@ class Help(Command):
         command_cls = self.console_tool.command_name_to_class.get(args.commandName)
         if command_cls is None:
             return self.console_tool._usage_and_fail()
-        self._print(textwrap.dedent(command_cls.__doc__))
+        self._print_stderr(command_cls.command_usage())
         return 1
 
 
@@ -944,7 +955,7 @@ class ConsoleTool(object):
     using the B2Api library.
 
     Uses the StoredAccountInfo object to keep account data in
-    ~/.b2_account_info between runs.
+    {B2_ACCOUNT_INFO_DEFAULT_FILE} between runs.
     """
 
     def __init__(self, b2_api, stdout, stderr):
@@ -1030,16 +1041,14 @@ class ConsoleTool(object):
                 line = '    ' + cls.summary_line()
                 self._print_stderr(line)
 
-        self._print_stderr('')
-        self._print_stderr(
-            'The environment variable B2_ACCOUNT_INFO specifies the sqlite file to use'
-        )
-        self._print_stderr(
-            'for caching authentication information.  Default is: ~/.b2_account_info'
-        )
-        self._print_stderr('')
-        self._print_stderr('For more details on one command: b2 help <command>')
-        self._print_stderr('')
+        epilog = '''
+        The environment variable {B2_ACCOUNT_INFO_ENV_VAR} specifies the sqlite
+        file to use for caching authentication information.
+        The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
+
+        For more details on one command: b2 help <command>
+        '''
+        self._print_stderr(textwrap.dedent(epilog).format(**DOC_STRING_DATA))
         return 1
 
     def _print_download_info(self, download_dest):
