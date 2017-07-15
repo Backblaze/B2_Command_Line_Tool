@@ -68,7 +68,7 @@ def _translate_errors(fcn, post_params=None):
         elif isinstance(e1, requests.packages.urllib3.exceptions.ProtocolError):
             e2 = e1.args[1]
             if isinstance(e2, socket.error):
-                if e2.args[1] == 'Broken pipe':
+                if len(e2.args) >= 2 and e2.args[1] == 'Broken pipe':
                     # Broken pipes are usually caused by the service rejecting
                     # an upload request for cause, so we use a 400 Bad Request
                     # code.
