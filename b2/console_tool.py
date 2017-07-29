@@ -719,6 +719,10 @@ class Sync(Command):
 
         Note that --includeRegex cannot be used without --excludeRegex.
 
+        Multiple regex rules can be applied by supplying them as pipe
+        delimitered instructions. Note that the regex for this command
+        is Python regex. Reference: https://docs.python.org/2/library/re.html
+
         Files are considered to be the same if they have the same name
         and modification time.  This behaviour can be changed using the
         --compareVersions option.  Possible values are:
@@ -758,6 +762,10 @@ class Sync(Command):
         To make the destination match the source, but retain previous versions
         for 30 days:
             b2 sync --keepDays 30 --replaceNewer ... b2://...
+
+        Example of sync being used with excludeRegex. This will ignore .DS_Store files
+        and .Spotlight-V100 folders
+            b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
     """
 
