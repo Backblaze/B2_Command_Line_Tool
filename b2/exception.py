@@ -191,12 +191,8 @@ class DestFileNewer(B2Error):
 
     def __str__(self):
         return 'source file is older than destination: %s%s with a time of %s cannot be synced to %s%s with a time of %s, unless --skipNewer or --replaceNewer is provided' % (
-            self.source_prefix,
-            self.source_file.name,
-            self.source_file.latest_version().mod_time,
-            self.dest_prefix,
-            self.dest_file.name,
-            self.dest_file.latest_version().mod_time,
+            self.source_prefix, self.source_file.name, self.source_file.latest_version().mod_time,
+            self.dest_prefix, self.dest_file.name, self.dest_file.latest_version().mod_time,
         )
 
     def should_retry_http(self):
@@ -239,10 +235,7 @@ class MaxFileSizeExceeded(B2Error):
         self.max_allowed_size = max_allowed_size
 
     def __str__(self):
-        return 'Allowed file size of exceeded: %s > %s' % (
-            self.size,
-            self.max_allowed_size,
-        )
+        return 'Allowed file size of exceeded: %s > %s' % (self.size, self.max_allowed_size,)
 
 
 class MaxRetriesExceeded(B2Error):
@@ -254,8 +247,7 @@ class MaxRetriesExceeded(B2Error):
     def __str__(self):
         exceptions = '\n'.join(str(wrapped_error) for wrapped_error in self.exception_info_list)
         return 'FAILED to upload after %s tries. Encountered exceptions: %s' % (
-            self.limit,
-            exceptions,
+            self.limit, exceptions,
         )
 
 
@@ -302,10 +294,7 @@ class TruncatedOutput(TransientErrorMixin, B2Error):
         self.file_size = file_size
 
     def __str__(self):
-        return 'only %d of %d bytes read' % (
-            self.bytes_read,
-            self.file_size,
-        )
+        return 'only %d of %d bytes read' % (self.bytes_read, self.file_size,)
 
 
 class UnexpectedCloudBehaviour(B2SimpleError):

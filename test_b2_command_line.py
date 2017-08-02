@@ -515,7 +515,9 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
 
         b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
-        should_equal(['+ ' + prefix + 'c',], file_version_summary(file_versions))
+        should_equal([
+            '+ ' + prefix + 'c',
+        ], file_version_summary(file_versions))
 
 
 def sync_down_test(b2_tool, bucket_name):

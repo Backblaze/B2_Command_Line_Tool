@@ -27,7 +27,9 @@ class AbstractDownloadDestination(object):
     """
 
     @abstractmethod
-    @limit_trace_arguments(skip=['content_sha1',])
+    @limit_trace_arguments(skip=[
+        'content_sha1',
+    ])
     def open(
         self,
         file_id,
