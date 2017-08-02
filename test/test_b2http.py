@@ -83,7 +83,6 @@ class TestTranslateErrors(TestBase):
         with self.assertRaises(ConnectionReset):
             _translate_errors(fcn)
 
-
     def test_unknown_error(self):
         def fcn():
             raise Exception('a message')
