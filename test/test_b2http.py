@@ -42,12 +42,8 @@ class TestTranslateErrors(TestBase):
         response = MagicMock()
         response.status_code = 503
         response.content = six.b('{"status": 503, "code": "server_busy", "message": "busy"}')
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(ServiceError):
             _translate_errors(lambda: response)
-            self.fail('should have raised ServiceError')
-        except ServiceError:
-            pass
 
     def test_broken_pipe(self):
         def fcn():
@@ -56,12 +52,8 @@ class TestTranslateErrors(TestBase):
                 ProtocolError("dummy", socket.error(20, 'Broken pipe'))
             )
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(BrokenPipe):
             _translate_errors(fcn)
-            self.fail('should have raised BrokenPipe')
-        except BrokenPipe:
-            pass
 
     def test_unknown_host(self):
         def fcn():
@@ -71,34 +63,22 @@ class TestTranslateErrors(TestBase):
                 )
             )
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(UnknownHost):
             _translate_errors(fcn)
-            self.fail('should have raised UnknownHost')
-        except UnknownHost:
-            pass
 
     def test_connection_error(self):
         def fcn():
             raise requests.ConnectionError('a message')
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(B2ConnectionError):
             _translate_errors(fcn)
-            self.fail('should have raised ConnectionError')
-        except B2ConnectionError:
-            pass
 
     def test_unknown_error(self):
         def fcn():
             raise Exception('a message')
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(UnknownError):
             _translate_errors(fcn)
-            self.fail('should have raised UnknownError')
-        except UnknownError:
-            pass
 
 
 class TestTranslateAndRetry(TestBase):
@@ -134,7 +114,9 @@ class TestTranslateAndRetry(TestBase):
         with patch('time.sleep') as mock_time:
             fcn = MagicMock()
             fcn.side_effect = [
-                ServiceError('a'), ServiceError('a'), ServiceError('a'), self.response
+                ServiceError('a'),
+                ServiceError('a'),
+                ServiceError('a'), self.response
             ]
             # no assertRaises until 2.7
             try:
