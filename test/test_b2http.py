@@ -16,7 +16,7 @@ import sys
 
 from .test_base import TestBase
 from b2.b2http import _translate_and_retry, _translate_errors, B2Http, ClockSkewHook
-from b2.exception import BadDateFormat, BadJson, BrokenPipe, B2ConnectionError, ClockSkew, ServiceError, UnknownError, UnknownHost
+from b2.exception import BadDateFormat, BadJson, BrokenPipe, B2ConnectionError, ClockSkew, ConnectionReset, ServiceError, UnknownError, UnknownHost
 from b2.version import USER_AGENT
 
 if sys.version_info < (3, 3):
@@ -72,6 +72,17 @@ class TestTranslateErrors(TestBase):
 
         with self.assertRaises(B2ConnectionError):
             _translate_errors(fcn)
+
+    def test_connection_reset(self):
+        class SysCallError(Exception):
+            pass
+
+        def fcn():
+            raise SysCallError('(104, ECONNRESET)')
+
+        with self.assertRaises(ConnectionReset):
+            _translate_errors(fcn)
+
 
     def test_unknown_error(self):
         def fcn():
