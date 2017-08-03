@@ -173,6 +173,14 @@ class Conflict(B2SimpleError):
     pass
 
 
+class ConnectionReset(B2Error):
+    def __str__(self):
+        return 'Connection reset'
+
+    def should_retry_upload(self):
+        return True
+
+
 class B2ConnectionError(TransientErrorMixin, B2SimpleError):
     pass
 

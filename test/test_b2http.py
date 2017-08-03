@@ -16,7 +16,7 @@ import sys
 
 from .test_base import TestBase
 from b2.b2http import _translate_and_retry, _translate_errors, B2Http, ClockSkewHook
-from b2.exception import BadDateFormat, BadJson, BrokenPipe, B2ConnectionError, ClockSkew, ServiceError, UnknownError, UnknownHost
+from b2.exception import BadDateFormat, BadJson, BrokenPipe, B2ConnectionError, ClockSkew, ConnectionReset, ServiceError, UnknownError, UnknownHost
 from b2.version import USER_AGENT
 
 if sys.version_info < (3, 3):
@@ -42,12 +42,8 @@ class TestTranslateErrors(TestBase):
         response = MagicMock()
         response.status_code = 503
         response.content = six.b('{"status": 503, "code": "server_busy", "message": "busy"}')
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(ServiceError):
             _translate_errors(lambda: response)
-            self.fail('should have raised ServiceError')
-        except ServiceError:
-            pass
 
     def test_broken_pipe(self):
         def fcn():
@@ -56,12 +52,8 @@ class TestTranslateErrors(TestBase):
                 ProtocolError("dummy", socket.error(20, 'Broken pipe'))
             )
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(BrokenPipe):
             _translate_errors(fcn)
-            self.fail('should have raised BrokenPipe')
-        except BrokenPipe:
-            pass
 
     def test_unknown_host(self):
         def fcn():
@@ -71,34 +63,32 @@ class TestTranslateErrors(TestBase):
                 )
             )
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(UnknownHost):
             _translate_errors(fcn)
-            self.fail('should have raised UnknownHost')
-        except UnknownHost:
-            pass
 
     def test_connection_error(self):
         def fcn():
             raise requests.ConnectionError('a message')
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(B2ConnectionError):
             _translate_errors(fcn)
-            self.fail('should have raised ConnectionError')
-        except B2ConnectionError:
+
+    def test_connection_reset(self):
+        class SysCallError(Exception):
             pass
+
+        def fcn():
+            raise SysCallError('(104, ECONNRESET)')
+
+        with self.assertRaises(ConnectionReset):
+            _translate_errors(fcn)
 
     def test_unknown_error(self):
         def fcn():
             raise Exception('a message')
 
-        # no assertRaises until 2.7
-        try:
+        with self.assertRaises(UnknownError):
             _translate_errors(fcn)
-            self.fail('should have raised UnknownError')
-        except UnknownError:
-            pass
 
 
 class TestTranslateAndRetry(TestBase):

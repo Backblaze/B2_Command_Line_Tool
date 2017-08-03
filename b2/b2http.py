@@ -19,7 +19,7 @@ import requests
 import six
 import time
 
-from .exception import B2Error, BadDateFormat, BrokenPipe, B2ConnectionError, B2RequestTimeout, ClockSkew, interpret_b2_error, UnknownError, UnknownHost
+from .exception import B2Error, BadDateFormat, BrokenPipe, B2ConnectionError, B2RequestTimeout, ClockSkew, ConnectionReset, interpret_b2_error, UnknownError, UnknownHost
 from .version import USER_AGENT
 from six.moves import range
 
@@ -79,8 +79,21 @@ def _translate_errors(fcn, post_params=None):
         raise B2RequestTimeout(str(e))
 
     except Exception as e:
+        text = repr(e)
+
+        # This is a special case to handle when urllib3 doesn't translate
+        # ECONNRESET into something that requests can turn into something
+        # we understand.  The SysCallError is from the optional library
+        # pyOpenSsl, which we don't require, so we can't import it and
+        # catch it explicitly.
+        #
+        # The text from one such error looks like this: SysCallError(104, 'ECONNRESET')
+        if text.startswith('SysCallError'):
+            if 'ECONNRESET' in text:
+                raise ConnectionReset()
+
         logger.exception('_translate_errors has intercepted an unexpected exception')
-        raise UnknownError(repr(e))
+        raise UnknownError(text)
 
 
 def _translate_and_retry(fcn, try_count, post_params=None):
