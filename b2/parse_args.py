@@ -23,10 +23,7 @@ class Arguments(object):
     """
 
     def __repr__(self):
-        return '%s(%s)' % (
-            self.__class__.__name__,
-            repr_dict_deterministically(self.__dict__),
-        )
+        return '%s(%s)' % (self.__class__.__name__, repr_dict_deterministically(self.__dict__),)
 
 
 def check_for_duplicate_args(args_dict):

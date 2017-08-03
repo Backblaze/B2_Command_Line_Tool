@@ -173,8 +173,8 @@ class TestConsoleTool(TestBase):
             }
             '''
         self._run_command(
-            ['update_bucket', '--bucketInfo', json.dumps(bucket_info), 'my-bucket', 'allPrivate'],
-            expected_stdout, '', 0
+            ['update_bucket', '--bucketInfo',
+             json.dumps(bucket_info), 'my-bucket', 'allPrivate'], expected_stdout, '', 0
         )
 
     def test_cancel_large_file(self):

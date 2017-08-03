@@ -134,7 +134,9 @@ class TestTranslateAndRetry(TestBase):
         with patch('time.sleep') as mock_time:
             fcn = MagicMock()
             fcn.side_effect = [
-                ServiceError('a'), ServiceError('a'), ServiceError('a'), self.response
+                ServiceError('a'),
+                ServiceError('a'),
+                ServiceError('a'), self.response
             ]
             # no assertRaises until 2.7
             try:

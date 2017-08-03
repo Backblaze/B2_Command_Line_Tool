@@ -56,8 +56,13 @@ class TestSync(TestBase):
 
 class TestLocalFolder(TestSync):
     NAMES = [
-        six.u('.dot_file'), six.u('hello.'), six.u('hello/a/1'), six.u('hello/a/2'),
-        six.u('hello/b'), six.u('hello0'), six.u('\u81ea\u7531')
+        six.u('.dot_file'),
+        six.u('hello.'),
+        six.u('hello/a/1'),
+        six.u('hello/a/2'),
+        six.u('hello/b'),
+        six.u('hello0'),
+        six.u('\u81ea\u7531')
     ]
 
     @classmethod
@@ -342,7 +347,9 @@ class TestExclusions(TestSync):
         self.assertEqual(expected_actions, [str(a) for a in actions])
 
     def test_file_exclusions(self):
-        expected_actions = ['b2_upload(/dir/a.txt, folder/a.txt, 100)',]
+        expected_actions = [
+            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+        ]
         self._check_folder_sync(expected_actions, FakeArgs(excludeRegex=["b\\.txt"]))
 
     def test_file_exclusions_with_delete(self):
