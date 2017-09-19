@@ -95,6 +95,15 @@ class LocalFolder(AbstractFolder):
         elif not os.path.isdir(self.root):
             raise Exception('%s is not a directory' % (self.root,))
 
+    def ensure_non_empty(self):
+        """
+        Makes sure that the directory exists and is non-empty.
+        """
+        self.ensure_present()
+
+        if not os.listdir(self.root):
+            raise Exception('Directory %s is empty' % (self.root,))
+
     def _walk_relative_paths(self, prefix_len, dir_path, reporter):
         """
         Yields all of the file names anywhere under this folder, in the

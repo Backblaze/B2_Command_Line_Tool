@@ -461,7 +461,14 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
 
         p = lambda fname: os.path.join(dir_path, fname)
 
-        b2_tool.should_succeed(['sync', '--noProgress', dir_path, b2_sync_point])
+        #dir_path is empty so sync should fail unless --allowEmptySource is specified
+        b2_tool.should_fail(
+            ['sync', '--noProgress', dir_path, b2_sync_point], r'Exception: Directory .* is empty'
+        )
+
+        b2_tool.should_succeed(
+            ['sync', '--noProgress', '--allowEmptySource', dir_path, b2_sync_point]
+        )
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
 

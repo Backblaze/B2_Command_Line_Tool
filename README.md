@@ -45,7 +45,7 @@ this:
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--threads N] [--noProgress] \
         [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \
-        <source> <destination>
+        [--allowEmptySource] <source> <destination>
     b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
         [--info <key>=<value>]* [--minPartSize N] \

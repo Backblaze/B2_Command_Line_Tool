@@ -198,7 +198,8 @@ class BoundedQueueExecutor(object):
 
 @trace_call(logger)
 def sync_folders(
-    source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers, dry_run=False
+    source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers, dry_run=False,
+    allow_empty_source=False
 ):
     """
     Syncs two folders.  Always ensures that every file in the
@@ -209,6 +210,9 @@ def sync_folders(
     # For downloads, make sure that the target directory is there.
     if dest_folder.folder_type() == 'local' and not dry_run:
         dest_folder.ensure_present()
+
+    if source_folder.folder_type() == 'local' and not allow_empty_source:
+        source_folder.ensure_non_empty()
 
     # Make a reporter to report progress.
     with SyncReport(stdout, no_progress) as reporter:
