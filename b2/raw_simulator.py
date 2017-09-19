@@ -428,6 +428,8 @@ class RawSimulator(AbstractRawApi):
 
     MIN_PART_SIZE = 200
 
+    UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
+
     def __init__(self):
         self.authorized_accounts = set()
         self.bucket_name_to_bucket = dict()
@@ -665,8 +667,7 @@ class RawSimulator(AbstractRawApi):
     def upload_part(
         self, upload_url, upload_auth_token, part_number, content_length, sha1_sum, input_stream
     ):
-        re.compile('https://upload.example.com/part/([^/]*)')
-        url_match = re.match('https://upload.example.com/part/([^/]*)', upload_url)
+        url_match = self.UPLOAD_PART_MATCHER.match(upload_url)
         if url_match is None:
             raise BadUploadUrl(upload_url)
         file_id = url_match.group(1)
