@@ -513,7 +513,6 @@ class GetDownloadUrlWithAuth(Command):
         return 0
 
 
-
 class Help(Command):
     """
     b2 help [commandName]

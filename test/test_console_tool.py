@@ -373,7 +373,8 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', 'my-file'],
-            'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n', '', 0
+            'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
+            '', 0
         )
 
     def test_get_download_auth_url_with_encoding(self):
@@ -381,7 +382,8 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', u'\u81ea'],
-            u'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n', '', 0
+            u'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
+            '', 0
         )
 
     def test_list_parts_with_none(self):

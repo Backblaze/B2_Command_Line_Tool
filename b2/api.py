@@ -246,9 +246,7 @@ class B2Api(object):
         Returns a URL to download the given file by name.
         """
         return '%s/file/%s/%s' % (
-            self.account_info.get_download_url(),
-            bucket_name,
-            b2_url_encode(file_name)
+            self.account_info.get_download_url(), bucket_name, b2_url_encode(file_name)
         )
 
     # other
