@@ -582,7 +582,8 @@ class Bucket(object):
 
     def get_download_url(self, filename):
         return "%s/file/%s/%s" % (
-            self.api.account_info.get_download_url(), b2_url_encode(self.name),
+            self.api.account_info.get_download_url(),
+            b2_url_encode(self.name),
             b2_url_encode(filename),
         )
 

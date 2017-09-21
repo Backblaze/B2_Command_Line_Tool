@@ -46,7 +46,12 @@ class FileVersionInfo(object):
         time_str = dt.strftime('%H:%M:%S')
         size = self.size or 0  # required if self.action == 'hide'
         return self.LS_ENTRY_TEMPLATE % (
-            self.id_, self.action, date_str, time_str, size, self.file_name,
+            self.id_,
+            self.action,
+            date_str,
+            time_str,
+            size,
+            self.file_name,
         )
 
     @classmethod

@@ -198,7 +198,14 @@ class BoundedQueueExecutor(object):
 
 @trace_call(logger)
 def sync_folders(
-    source_folder, dest_folder, args, now_millis, stdout, no_progress, max_workers, dry_run=False,
+    source_folder,
+    dest_folder,
+    args,
+    now_millis,
+    stdout,
+    no_progress,
+    max_workers,
+    dry_run=False,
     allow_empty_source=False
 ):
     """

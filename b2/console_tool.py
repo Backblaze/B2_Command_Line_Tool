@@ -170,8 +170,10 @@ class Command(object):
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
             sys.stderr.write(
-                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" %
-                (descriptor_name, descriptor_encoding,)
+                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
+                    descriptor_name,
+                    descriptor_encoding,
+                )
             )
             sys.stderr.write("Trying to print: %s\n" % (repr(args),))
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
@@ -774,7 +776,9 @@ class Sync(Command):
 
     """
 
-    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource']
+    OPTION_FLAGS = [
+        'delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource'
+    ]
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
     LIST_ARGS = ['excludeRegex', 'includeRegex']
