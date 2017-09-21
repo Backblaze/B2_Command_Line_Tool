@@ -18,6 +18,7 @@ from .exception import (
     InvalidAuthToken, MissingPart, NonExistentBucket
 )
 from .raw_api import AbstractRawApi, HEX_DIGITS_AT_END
+from .utils import b2_url_encode
 
 
 class PartSimulator(object):
@@ -544,7 +545,7 @@ class RawSimulator(AbstractRawApi):
             file_name_prefix,
             'authorizationToken':
             'fake_download_auth_token_%s_%s_%d' %
-            (bucket_id, file_name_prefix, valid_duration_in_seconds)
+            (bucket_id, b2_url_encode(file_name_prefix), valid_duration_in_seconds)
         }
 
     def get_file_info(self, api_url, account_auth_token, file_id):
