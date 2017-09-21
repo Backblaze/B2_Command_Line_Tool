@@ -21,4 +21,7 @@ class EnvironmentEncodingError(B2Error):
         return """file name %s cannot be decoded with system encoding (%s).
 We think this is an environment error which you should workaround by
 setting your system encoding properly, for example like this:
-export LANG=en_US.UTF-8""" % (self.filename, self.encoding,)
+export LANG=en_US.UTF-8""" % (
+            self.filename,
+            self.encoding,
+        )

@@ -268,6 +268,7 @@ class FakeArgs(object):
         includeRegex=None,
         debugLogs=True,
         dryRun=False,
+        allowEmptySource=False,
     ):
         self.delete = delete
         self.keepDays = keepDays
@@ -282,6 +283,7 @@ class FakeArgs(object):
         self.includeRegex = includeRegex
         self.debugLogs = debugLogs
         self.dryRun = dryRun
+        self.allowEmptySource = allowEmptySource
 
 
 def b2_file(name, mod_times, size=10):

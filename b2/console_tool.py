@@ -170,8 +170,10 @@ class Command(object):
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
             sys.stderr.write(
-                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" %
-                (descriptor_name, descriptor_encoding,)
+                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
+                    descriptor_name,
+                    descriptor_encoding,
+                )
             )
             sys.stderr.write("Trying to print: %s\n" % (repr(args),))
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
@@ -684,7 +686,7 @@ class Sync(Command):
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--threads N] [--noProgress] \\
             [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \\
-            <source> <destination>
+            [--allowEmptySource] <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -693,6 +695,11 @@ class Sync(Command):
         specified.  A list of actions taken is always printed.
 
         Specify '--dryRun' to simulate the actions that would be taken.
+
+        To allow sync to run when the source directory is empty, potentially
+        deleting all files in a bucket, specify '--allowEmptySource'.
+        The default is to fail when the specified source directory doesn't exist
+        or is empty.
 
         Users with high-performance networks, or file sets with very small
         files, will benefit from multi-threaded uploads.  The default number
@@ -769,7 +776,9 @@ class Sync(Command):
 
     """
 
-    OPTION_FLAGS = ['delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun']
+    OPTION_FLAGS = [
+        'delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource'
+    ]
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
     REQUIRED = ['source', 'destination']
     LIST_ARGS = ['excludeRegex', 'includeRegex']
@@ -796,6 +805,7 @@ class Sync(Command):
             no_progress=args.noProgress,
             max_workers=max_workers,
             dry_run=args.dryRun,
+            allow_empty_source=args.allowEmptySource,
         )
         return 0
 
