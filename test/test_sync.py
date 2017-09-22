@@ -15,6 +15,8 @@ import platform
 import threading
 import time
 import unittest
+from random import randint, choice
+from string import lowercase
 
 import six
 
@@ -104,6 +106,58 @@ class TestLocalFolder(TestSync):
             self.reporter.local_permission_error.assert_called_once_with(
                 os.path.join(tmpdir, self.NAMES[0])
             )
+
+    def test_prefix_calculation(self):
+        """
+
+            https://github.com/Backblaze/B2_Command_Line_Tool/issues/334
+
+            This test case attempts to stress the prefix calculation for the `all_files`
+                generator in the LocalFolder implementation of AbstractFolder.
+
+            Paths can be generalized to the following cases for linux:
+                  1) `/`
+                  2) `/{m}/`
+                  3) `/{m}`
+                  4) `{m}`
+                  5) `{m}`
+            Where except for case 1), `N = len({m}) + 1` and `N` is the necessary
+                prefix length to yield an empty string when taking the list difference
+                of the absolute and relative paths.
+
+            For windows, case 1) is different (e.g. C:\\) but the others should be the same.
+
+        """
+
+        prefix = os.path.normpath(u'C://') if platform.system() == 'Windows' else unicode(os.path.sep)
+        separator = unicode(os.path.sep)
+        root = os.path.normpath(os.getcwdu())  # Always has leading but not trailing separator.
+        relative = u''.join(choice(lowercase) for _ in range(randint(4, 8)))
+        permutations = dict(**{
+            prefix: 3 if platform.system() == 'Windows' else 1,  # '/' case
+            prefix + relative + separator: len(relative) + 2,  # absolute path with suffix case
+            prefix + relative: len(relative) + 2,  # absolute path case
+            relative + separator: len(root + relative) + 2,  # relative path with suffix case
+            relative: len(root + relative) + 2  # relative path case
+        })
+
+        for base_path, expected_prefix_length in permutations.items():
+            # Build a folder.
+            folder = LocalFolder(base_path)
+
+            # Verify that the prefix truncates the root path correctly.
+            self.assertEqual(folder.root[folder.prefix_len:], u'')
+
+            # Verify full path to relative path conversion.
+            test_path = folder.root
+            test_sub_path = u'test'
+            if not folder.root.endswith(separator):
+                test_path += separator
+            test_path += test_sub_path
+            self.assertEqual(test_path[folder.prefix_len:], test_sub_path)
+
+            # Verify the prefix length.
+            self.assertEqual(folder.prefix_len, expected_prefix_length)
 
 
 class TestB2Folder(TestSync):

@@ -70,14 +70,52 @@ class LocalFolder(AbstractFolder):
         """
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
-        self.root = os.path.abspath(root)
+
+        # Using normpath here allows windows and linux paths to be handled.
+        self.root = os.path.normpath(os.path.abspath(root))
+
+    @property
+    def prefix_len(self):
+        """
+
+            Prefix length calculation:
+                https://github.com/Backblaze/B2_Command_Line_Tool/issues/334
+
+            Using os.path.normpath and os.path.abspath, there are three cases to
+                handle here:
+                  * root paths with a drive specification (windows),
+                  * root paths without a drive specification (not windows),
+                  * non root paths
+
+            To handle the first two cases, os.path.splitdrive is used to differentiate
+                between platforms.
+
+                >>> import posixpath
+                >>> import ntpath
+                >>> posix_root = '/'
+                >>> nt_root = 'C://'
+                >>> posixpath.splitdrive(posixpath.normpath(posix_root))
+                ('', '/')
+                >>> map(len, _)
+                [0, 1]
+                >>> ntpath.splitdrive(ntpath.normpath(nt_root))
+                ('C:', '\\')
+                >>> map(len, _)
+                [2, 1]
+
+        """
+
+        drive, tail = os.path.splitdrive(self.root)
+        if len(tail) == 1:
+            return len(drive) + len(tail)
+        else:
+            return len(self.root) + 1
 
     def folder_type(self):
         return 'local'
 
     def all_files(self, reporter):
-        prefix_len = len(self.root) + 1  # include trailing '/' in prefix length
-        for relative_path in self._walk_relative_paths(prefix_len, self.root, reporter):
+        for relative_path in self._walk_relative_paths(self.prefix_len, self.root, reporter):
             yield self._make_file(relative_path)
 
     def make_full_path(self, file_name):
