@@ -71,8 +71,7 @@ class LocalFolder(AbstractFolder):
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
 
-        # Using normpath here allows windows and linux paths to be handled.
-        self.root = os.path.normpath(os.path.abspath(root))
+        self.root = os.path.abspath(root)
 
     @property
     def prefix_len(self):
@@ -81,8 +80,7 @@ class LocalFolder(AbstractFolder):
             Prefix length calculation:
                 https://github.com/Backblaze/B2_Command_Line_Tool/issues/334
 
-            Using os.path.normpath and os.path.abspath, there are three cases to
-                handle here:
+            Using os.path.abspath, there are three cases to handle here:
                   * root paths with a drive specification (windows),
                   * root paths without a drive specification (not windows),
                   * non root paths
@@ -94,22 +92,25 @@ class LocalFolder(AbstractFolder):
                 >>> import ntpath
                 >>> posix_root = '/'
                 >>> nt_root = 'C://'
-                >>> posixpath.splitdrive(posixpath.normpath(posix_root))
+                >>> posixpath.splitdrive(posixpath.abspath(posix_root))
                 ('', '/')
                 >>> map(len, _)
                 [0, 1]
-                >>> ntpath.splitdrive(ntpath.normpath(nt_root))
+                >>> ntpath.splitdrive(ntpath.abspath(nt_root))
                 ('C:', '\\')
                 >>> map(len, _)
                 [2, 1]
 
+            Furthermore, there is a trailing separator only if the path denotes a root filesystem.
+
         """
 
         drive, tail = os.path.splitdrive(self.root)
-        if len(tail) == 1:
+        if len(tail) == 1:  # If the tail is only one character it must be / or \\
+            # Include the drive if necessary and treat the leading separator as a trailing one.
             return len(drive) + len(tail)
         else:
-            return len(self.root) + 1
+            return len(self.root) + 1  # include trailing '/' in prefix length
 
     def folder_type(self):
         return 'local'
