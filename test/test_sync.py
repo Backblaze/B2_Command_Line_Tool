@@ -129,9 +129,9 @@ class TestLocalFolder(TestSync):
 
         """
 
-        prefix = os.path.normpath(u'C://') if platform.system() == 'Windows' else unicode(os.path.sep)
-        separator = unicode(os.path.sep)
-        root = os.path.normpath(os.getcwdu())  # Always has leading but not trailing separator.
+        prefix = os.path.abspath(u'C://') if platform.system() == 'Windows' else six.u(os.path.sep)
+        separator = six.u(os.path.sep)
+        root = os.path.abspath(six.u(os.getcwd()))  # Always has leading but not trailing separator.
         relative = u''.join(choice(ascii_lowercase) for _ in range(SystemRandom().randint(4, 8)))
 
         permutations = {
