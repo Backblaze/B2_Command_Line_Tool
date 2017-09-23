@@ -15,8 +15,8 @@ import platform
 import threading
 import time
 import unittest
-from random import randint, choice
-from string import lowercase
+from random import SystemRandom, choice
+from string import ascii_lowercase
 
 import six
 
@@ -132,7 +132,8 @@ class TestLocalFolder(TestSync):
         prefix = os.path.normpath(u'C://') if platform.system() == 'Windows' else unicode(os.path.sep)
         separator = unicode(os.path.sep)
         root = os.path.normpath(os.getcwdu())  # Always has leading but not trailing separator.
-        relative = u''.join(choice(lowercase) for _ in range(randint(4, 8)))
+        relative = u''.join(choice(ascii_lowercase) for _ in range(SystemRandom().randint(4, 8)))
+
         permutations = {
             prefix: 3 if platform.system() == 'Windows' else 1,  # '/' case
             prefix + relative + separator: len(relative) + 2,  # absolute path with suffix case
