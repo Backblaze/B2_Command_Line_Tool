@@ -81,36 +81,20 @@ class LocalFolder(AbstractFolder):
                 https://github.com/Backblaze/B2_Command_Line_Tool/issues/334
 
             Using os.path.abspath, there are three cases to handle here:
-                  * root paths with a drive specification (windows),
-                  * root paths without a drive specification (not windows),
-                  * non root paths
+                  * root paths with a drive specification (windows) -> length=3,
+                  * root paths without a drive specification (not windows) -> length=1,
+                  * non root paths -> length=(len(root) + 1)
 
-            To handle the first two cases, os.path.splitdrive is used to differentiate
-                between platforms.
-
-                >>> import posixpath
-                >>> import ntpath
-                >>> posix_root = '/'
-                >>> nt_root = 'C://'
-                >>> posixpath.splitdrive(posixpath.abspath(posix_root))
-                ('', '/')
-                >>> map(len, _)
-                [0, 1]
-                >>> ntpath.splitdrive(ntpath.abspath(nt_root))
-                ('C:', '\\')
-                >>> map(len, _)
-                [2, 1]
-
-            Furthermore, there is a trailing separator only if the path denotes a root filesystem.
+            Furthermore, there is a trailing separator only if the path denotes a root filesystem,
+                hence following a suggestion from @svonohr and the following SO link:
+                    https://stackoverflow.com/q/2736144/1946984
+                the conjunction of os.path.join(..., '') and os.path.abspath will guarantee
+                that the prefix length includes the trailing separator for both the root path
+                cases and arbitrary paths.
 
         """
 
-        drive, tail = os.path.splitdrive(self.root)
-        if len(tail) == 1:  # If the tail is only one character it must be / or \\
-            # Include the drive if necessary and treat the leading separator as a trailing one.
-            return len(drive) + len(tail)
-        else:
-            return len(self.root) + 1  # include trailing '/' in prefix length
+        return len(os.path.join(self.root, ''))
 
     def folder_type(self):
         return 'local'
