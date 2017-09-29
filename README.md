@@ -43,9 +43,10 @@ this:
     b2 ls [--long] [--versions] <bucketName> [<folderName>]
     b2 make-url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
-        [--compareVersions <option>] [--threads N] [--noProgress] \
-        [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \
-        [--allowEmptySource] <source> <destination>
+        [--compareVersions <option>] [--compareThreshold N] \
+        [--threads N] [--noProgress] [--dryRun] [--allowEmptySource] \
+        [--excludeRegex <regex> [--includeRegex <regex>]] \
+        <source> <destination>
     b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
         [--info <key>=<value>]* [--minPartSize N] \
@@ -70,6 +71,8 @@ You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_n
 script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
 
 ## detailed logs
+
+Verbose logs to stdout can be enabled with the `--verbose` flag.
 
 A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file (with log rotation at midnight) in current working directory. Please take care to not launch the tool from the directory that you are syncing, or the logs will get synced to the remote server (unless that is really what you want to do).
 

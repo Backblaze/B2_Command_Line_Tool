@@ -83,7 +83,7 @@ class Command(object):
     OPTION_FLAGS = []
 
     # Global option flags.  Not shown in help.
-    GLOBAL_OPTION_FLAGS = ['debugLogs']
+    GLOBAL_OPTION_FLAGS = ['debugLogs', 'verbose']
 
     # Explicit arguments.  These always come before the positional arguments.
     # Putting "color" here means you can put something like "--color blue" on
@@ -684,9 +684,10 @@ class MakeUrl(Command):
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
-            [--compareVersions <option>] [--threads N] [--noProgress] \\
-            [--excludeRegex <regex> [--includeRegex <regex>]] [--dryRun] \\
-            [--allowEmptySource] <source> <destination>
+            [--compareVersions <option>] [--compareThreshold N] \\
+            [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \\
+            [--excludeRegex <regex> [--includeRegex <regex>]] \\
+            <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
@@ -739,6 +740,13 @@ class Sync(Command):
         A future enhancement may add the ability to compare the SHA1 checksum
         of the files.
 
+        Fuzzy comparison of files based on modTime or size can be enabled by
+        specifying the --compareThreshold option.  This will treat modTimes
+        (in milliseconds) or sizes (in bytes) as the same if they are within
+        the comparison threshold.  Files that match, within the threshold, will
+        not be synced. Specifying --verbose and --dryRun can be useful to
+        determine comparison value differences.
+
         One of the paths must be a local file path, and the other must be
         a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
         "b2://my-bucket-name/a/path/prefix/".
@@ -779,10 +787,10 @@ class Sync(Command):
     OPTION_FLAGS = [
         'delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource'
     ]
-    OPTION_ARGS = ['keepDays', 'threads', 'compareVersions']
+    OPTION_ARGS = ['keepDays', 'threads', 'compareVersions', 'compareThreshold']
     REQUIRED = ['source', 'destination']
     LIST_ARGS = ['excludeRegex', 'includeRegex']
-    ARG_PARSER = {'keepDays': float, 'threads': int}
+    ARG_PARSER = {'keepDays': float, 'threads': int, 'compareThreshold': int}
 
     def run(self, args):
         if args.includeRegex and not args.excludeRegex:
@@ -1008,9 +1016,13 @@ class ConsoleTool(object):
             logger.info('ConsoleTool \'args is None\' - printing usage')
             self._print_stderr(command.command_usage())
             return 1
-        elif args.logConfig and args.debugLogs:
-            logger.info('ConsoleTool \'args.logConfig and args.debugLogs\' were both specified')
-            self._print_stderr('ERROR: --logConfig and --debugLogs cannot be used at the same time')
+        elif [args.logConfig, args.verbose, args.debugLogs].count(True) > 1:
+            logger.info(
+                'ConsoleTool More than one of \'args.logConfig\', \'args.verbose\', or \'args.debugLogs\' was specified'
+            )
+            self._print_stderr(
+                'ERROR: Only one of --logConfig, --verbose, or --debugLogs can be used'
+            )
             return 1
 
         self._setup_logging(args, command, argv)
@@ -1084,6 +1096,8 @@ class ConsoleTool(object):
     def _setup_logging(self, args, command, argv):
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
+        elif args.verbose:
+            logging.basicConfig(level=logging.DEBUG)
         elif args.debugLogs:
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'

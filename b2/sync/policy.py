@@ -11,11 +11,14 @@
 from abc import ABCMeta, abstractmethod
 
 import six
+import logging
 
 from ..exception import CommandError, DestFileNewer
 from .action import LocalDeleteAction, B2DeleteAction, B2DownloadAction, B2HideAction, B2UploadAction
 
 ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
+logger = logging.getLogger(__name__)
 
 
 @six.add_metaclass(ABCMeta)
@@ -58,6 +61,11 @@ class AbstractFileSyncPolicy(object):
         # Compare using modification time by default
         compareVersions = args.compareVersions or 'modTime'
 
+        # Optionally set a compare threshold for fuzzy comparison
+        compareThreshold = args.compareThreshold or 0
+        if compareThreshold < 0:
+            raise CommandError('Invalid option for --compareThreshold (must be a positive integer')
+
         # Compare using file name only
         if compareVersions == 'none':
             return False
@@ -67,30 +75,47 @@ class AbstractFileSyncPolicy(object):
             # Get the modification time of the latest versions
             source_mod_time = source_file.latest_version().mod_time
             dest_mod_time = dest_file.latest_version().mod_time
+            diff_mod_time = abs(source_mod_time - dest_mod_time)
+            compare_threshold_exceeded = diff_mod_time > compareThreshold
 
-            # Source is newer
-            if dest_mod_time < source_mod_time:
-                return True
+            logger.debug(
+                'File %s: source time %s, dest time %s, diff %s, threshold %s, diff > threshold %s',
+                source_file.name, source_mod_time, dest_mod_time, diff_mod_time, compareThreshold,
+                compare_threshold_exceeded
+            )
 
-            # Source is older
-            elif source_mod_time < dest_mod_time:
-                if args.replaceNewer:
+            if compare_threshold_exceeded:
+                # Source is newer
+                if dest_mod_time < source_mod_time:
                     return True
-                elif args.skipNewer:
-                    return False
-                else:
-                    raise DestFileNewer(
-                        dest_file, source_file, cls.DESTINATION_PREFIX, cls.SOURCE_PREFIX
-                    )
+
+                # Source is older
+                elif source_mod_time < dest_mod_time:
+                    if args.replaceNewer:
+                        return True
+                    elif args.skipNewer:
+                        return False
+                    else:
+                        raise DestFileNewer(
+                            dest_file, source_file, cls.DESTINATION_PREFIX, cls.SOURCE_PREFIX
+                        )
 
         # Compare using file size
         elif compareVersions == 'size':
             # Get file size of the latest versions
             source_size = source_file.latest_version().size
             dest_size = dest_file.latest_version().size
+            diff_size = abs(source_size - dest_size)
+            compare_threshold_exceeded = diff_size > compareThreshold
 
-            # Replace if sizes are different
-            return source_size != dest_size
+            logger.debug(
+                'File %s: source size %s, dest size %s, diff %s, threshold %s, diff > threshold %s',
+                source_file.name, source_size, dest_size, diff_size, compareThreshold,
+                compare_threshold_exceeded
+            )
+
+            # Replace if size difference is over threshold
+            return compare_threshold_exceeded
         else:
             raise CommandError('Invalid option for --compareVersions')
 

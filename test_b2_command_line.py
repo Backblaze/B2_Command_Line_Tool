@@ -63,6 +63,10 @@ def file_mod_time_millis(path):
     return int(round(1000 * os.path.getmtime(path)))
 
 
+def set_file_mod_time_millis(path, time):
+    os.utime(path, (os.path.getatime(path), time / 1000))
+
+
 def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for i in six.moves.xrange(length))
 
@@ -525,6 +529,70 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         should_equal([
             '+ ' + prefix + 'c',
         ], file_version_summary(file_versions))
+
+        #test --compareThreshold with file size
+        write_file(p('c'), b'hello world!')
+
+        #should not upload new version of c
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'size',
+                '--compareThreshold', '1', dir_path, b2_sync_point
+            ]
+        )
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal([
+            '+ ' + prefix + 'c',
+        ], file_version_summary(file_versions))
+
+        #should upload new version of c
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'size', dir_path,
+                b2_sync_point
+            ]
+        )
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(
+            [
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+            ], file_version_summary(file_versions)
+        )
+
+        set_file_mod_time_millis(p('c'), file_mod_time_millis(p('c')) + 2000)
+
+        #test --compareThreshold with modTime
+        #should not upload new version of c
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'modTime',
+                '--compareThreshold', '2000', dir_path, b2_sync_point
+            ]
+        )
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(
+            [
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+            ], file_version_summary(file_versions)
+        )
+
+        #should new version of c
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'modTime',
+                dir_path, b2_sync_point
+            ]
+        )
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(
+            [
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+            ], file_version_summary(file_versions)
+        )
 
 
 def sync_down_test(b2_tool, bucket_name):

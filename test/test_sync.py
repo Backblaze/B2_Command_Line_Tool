@@ -264,6 +264,7 @@ class FakeArgs(object):
         skipNewer=False,
         replaceNewer=False,
         compareVersions=None,
+        compareThreshold=None,
         excludeRegex=None,
         includeRegex=None,
         debugLogs=True,
@@ -275,6 +276,7 @@ class FakeArgs(object):
         self.skipNewer = skipNewer
         self.replaceNewer = replaceNewer
         self.compareVersions = compareVersions
+        self.compareThreshold = compareThreshold
         if excludeRegex is None:
             excludeRegex = []
         self.excludeRegex = excludeRegex
