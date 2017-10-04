@@ -173,12 +173,20 @@ class LocalFolder(AbstractFolder):
         # Check whether a path is a relative symlink.
         #
         def validate(x):
+            # type: (str) -> bool
             if not platform.system() == 'Linux':
                 return True  # TODO: Not sure about how this should work in Windows.
-            try:
-                str(os.readlink(x)) not in ['.', '..']
-            except OSError as e:
-                return e.errno == errno.EINVAL
+            if os.path.islink(x):
+                try:
+                    # Check if symlink points up in the directory tree.
+                    a = not os.readlink(x).startswith('../')
+                    # Check if symlink is recursive.
+                    b = os.readlink(x) != '.'
+                    return not(a or b)
+                except OSError as e:
+                    return e.errno == errno.EINVAL
+            else:
+                return True
 
         # Yield all of the answers
         for name in sorted(names):
@@ -187,6 +195,8 @@ class LocalFolder(AbstractFolder):
                 if validate(full_path):  # Don't iterate over relative symlinks.
                     for rp in self._walk_relative_paths(prefix_len, full_path, reporter):
                         yield rp
+                else:
+                    yield relative_path
             else:
                 yield relative_path
 
