@@ -10,8 +10,10 @@
 
 from abc import ABCMeta, abstractmethod
 import os
+import platform
 import sys
 
+import errno
 import six
 
 from .exception import EnvironmentEncodingError
@@ -167,12 +169,24 @@ class LocalFolder(AbstractFolder):
                     dirs.add(name)
                 names[name] = (full_path, relative_path)
 
+        #
+        # Check whether a path is a relative symlink.
+        #
+        def validate(x):
+            if not platform.system() == 'Linux':
+                return True  # TODO: Not sure about how this should work in Windows.
+            try:
+                str(os.readlink(x)) not in ['.', '..']
+            except OSError as e:
+                return e.errno == errno.EINVAL
+
         # Yield all of the answers
         for name in sorted(names):
             (full_path, relative_path) = names[name]
             if name in dirs:
-                for rp in self._walk_relative_paths(prefix_len, full_path, reporter):
-                    yield rp
+                if validate(full_path):  # Don't iterate over relative symlinks.
+                    for rp in self._walk_relative_paths(prefix_len, full_path, reporter):
+                        yield rp
             else:
                 yield relative_path
 
