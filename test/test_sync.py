@@ -157,6 +157,25 @@ class TestLocalFolder(TestSync):
             # Verify the prefix length.
             self.assertEqual(folder.prefix_len, expected_prefix_length)
 
+    def test_parse_root_sync_folder(self):
+        """
+
+            A simple test case to verify that `parse_sync_folder` does lets
+                LocalFolder parse the local folder path in order to generate a
+                prefix correctly.
+
+        """
+
+        cwd = os.path.abspath(six.u(os.getcwd()))
+        permutations = [
+            (six.u('/'), u'/'),
+            (six.u('nope'), cwd + six.u(os.path.sep) + u'nope'),
+            (six.u('/nope'), u'/nope')
+        ]
+        for permutation in permutations:
+            ret = parse_sync_folder(permutation[0], None)
+            self.assertEqual(ret.root, permutation[1])
+
 
 class TestB2Folder(TestSync):
     def setUp(self):
