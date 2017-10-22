@@ -1,0 +1,166 @@
+b2 package
+==========
+
+Subpackages
+-----------
+
+.. toctree::
+
+    b2.account_info
+    b2.sync
+
+Submodules
+----------
+
+b2\.api module
+--------------
+
+.. automodule:: b2.api
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.b2http module
+-----------------
+
+.. automodule:: b2.b2http
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.bucket module
+-----------------
+
+.. automodule:: b2.bucket
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.cache module
+----------------
+
+.. automodule:: b2.cache
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.console\_tool module
+------------------------
+
+.. automodule:: b2.console_tool
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.download\_dest module
+-------------------------
+
+.. automodule:: b2.download_dest
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.exception module
+--------------------
+
+.. automodule:: b2.exception
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.file\_version module
+------------------------
+
+.. automodule:: b2.file_version
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.parse\_args module
+----------------------
+
+.. automodule:: b2.parse_args
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.part module
+---------------
+
+.. automodule:: b2.part
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.progress module
+-------------------
+
+.. automodule:: b2.progress
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.raw\_api module
+-------------------
+
+.. automodule:: b2.raw_api
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.raw\_simulator module
+-------------------------
+
+.. automodule:: b2.raw_simulator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.session module
+------------------
+
+.. automodule:: b2.session
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.unfinished\_large\_file module
+----------------------------------
+
+.. automodule:: b2.unfinished_large_file
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.upload\_source module
+-------------------------
+
+.. automodule:: b2.upload_source
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.utils module
+----------------
+
+.. automodule:: b2.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+b2\.version module
+------------------
+
+.. automodule:: b2.version
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: b2
+    :members:
+    :undoc-members:
+    :show-inheritance:
