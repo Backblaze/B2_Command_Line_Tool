@@ -45,14 +45,9 @@ def _filter_folder(folder, reporter, exclusions, inclusions):
     """
     logging.debug('_filter_folder() exclusions for %s are %s', folder, exclusions)
     logging.debug('_filter_folder() inclusions for %s are %s', folder, inclusions)
-    for f in folder.all_files(reporter):
-        if any(pattern.match(f.name) for pattern in inclusions):
-            logging.debug('_filter_folder() included %s from %s', f, folder)
-            yield f
-            continue
-        if any(pattern.match(f.name) for pattern in exclusions):
-            logging.debug('_filter_folder() excluded %s from %s', f, folder)
-            continue
+    for f in folder.all_files(
+        reporter, filtered=True, inclusions=inclusions, exclusions=exclusions
+    ):
         yield f
 
 

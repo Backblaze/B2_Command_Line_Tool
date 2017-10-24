@@ -161,8 +161,14 @@ class FakeFolder(AbstractFolder):
         self.f_type = f_type
         self.files = files
 
-    def all_files(self, reporter):
-        return iter(self.files)
+    def all_files(self, reporter, filtered=False, inclusions=None, exclusions=None):
+        for file in self.files:
+            if filtered \
+                    and any(pattern.match(file.name) for pattern in exclusions) \
+                    and not any(pattern.match(file.name) for pattern in inclusions):
+                continue
+            else:
+                yield file
 
     def folder_type(self):
         return self.f_type
@@ -248,7 +254,9 @@ class TestZipFolders(TestSync):
         folder_a.all_files = MagicMock(return_value=iter([]))
         folder_b.all_files = MagicMock(return_value=iter([]))
         self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
-        folder_a.all_files.assert_called_once_with(self.reporter)
+        folder_a.all_files.assert_called_once_with(
+            self.reporter, filtered=True, inclusions=(), exclusions=()
+        )
         folder_b.all_files.assert_called_once_with(self.reporter)
 
 
@@ -442,6 +450,11 @@ class TestMakeSyncActions(TestSync):
         self._check_b2_to_local(None, dst_file, FakeArgs(), [])
 
     def test_delete_b2(self):
+        dst_file = b2_file('a.txt', [100])
+        actions = ['b2_delete(folder/a.txt, id_a_100, )']
+        self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
+
+    def test_delete_large_b2(self):
         dst_file = b2_file('a.txt', [100])
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
