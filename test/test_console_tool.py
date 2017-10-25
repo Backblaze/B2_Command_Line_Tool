@@ -537,7 +537,10 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = ['sync', '--threads', '1', '--noProgress', '--allowEmptySource', temp_dir, 'b2://my-bucket']
+            command = [
+                'sync', '--threads', '1', '--noProgress', '--allowEmptySource', temp_dir,
+                'b2://my-bucket'
+            ]
             self._run_command(command, '', '', 0)
 
     def test_sync_syntax_error(self):
