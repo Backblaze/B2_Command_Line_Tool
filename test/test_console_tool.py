@@ -525,6 +525,21 @@ class TestConsoleTool(TestBase):
             command = ['sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
+    def test_sync_empty_folder_when_not_enabled(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
+            expected_stderr = 'ERROR: Directory %s is empty.  Use --allowEmptySource to sync anyway.\n' % temp_dir
+            self._run_command(command, '', expected_stderr, 1)
+
+    def test_sync_empty_folder_when_enabled(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            command = ['sync', '--threads', '1', '--noProgress', '--allowEmptySource', temp_dir, 'b2://my-bucket']
+            self._run_command(command, '', '', 0)
+
     def test_sync_syntax_error(self):
         self._authorize_account()
         self._create_my_bucket()
