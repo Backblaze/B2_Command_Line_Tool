@@ -17,6 +17,11 @@ $PYTHON_PRERELEASE_REGEX = @"
 (?<prerelease>[a-z]{1,2}\d+)
 "@
 
+# Downloading get-pip is failing with "Could not create SSL/TLS secure channel".
+# The appveyor docs say that this may be beacuse the server does not support the
+# latest SSL, and suggest this setting.
+# https://www.appveyor.com/docs/how-to/download-file/#start-filedownload-cmdlet
+[Net.ServicePointManager]::SecurityProtocol = 'Ssl3, Tls, Tls11, Tls12'
 
 function Download ($filename, $url) {
     $webclient = New-Object System.Net.WebClient
