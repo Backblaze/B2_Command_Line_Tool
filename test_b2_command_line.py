@@ -427,6 +427,15 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
+    b2_tool.should_succeed(
+        ['upload_file', '--noProgress', bucket_name, file_to_upload, 'a/rm_test_0.txt']
+    )
+    b2_tool.should_succeed(
+        ['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/rm_test_1.txt']
+    )
+
+    b2_tool.should_succeed(['rm', bucket_name, '*rm_test_*'])
+
 
 def file_version_summary(list_of_files):
     """

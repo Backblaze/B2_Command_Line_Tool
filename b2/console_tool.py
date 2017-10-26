@@ -17,6 +17,7 @@ import logging
 import logging.config
 import os
 import platform
+import fnmatch
 import signal
 import sys
 import textwrap
@@ -717,6 +718,39 @@ class MakeUrl(Command):
 
     def run(self, args):
         self._print(self.api.get_download_url_for_fileid(args.fileId))
+        return 0
+
+
+class Rm(Command):
+    """
+    b2 rm [--report] [--versions] <bucketName> <glob>
+
+        glob argument is used to specify files and folders for removal
+        on regex basis.
+
+        The --report option reports all of the removed files.
+
+        The --version option removes all of versions of each file, not
+        just the most recent.
+    """
+
+    OPTION_FLAGS = ['report', 'versions']
+
+    REQUIRED = ['bucketName', 'glob']
+
+    def run(self, args):
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        for file_version_info, folder_name in bucket.ls(
+            recursive=True, show_versions=True if args.versions else False
+        ):
+            if fnmatch.fnmatch(file_version_info.file_name, args.glob):
+                file_info = self.api.delete_file_version(
+                    file_version_info.id_, file_version_info.file_name
+                )
+                if args.report:
+                    self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
+                else:
+                    self._print('Removed {}'.format(file_version_info.file_name))
         return 0
 
 

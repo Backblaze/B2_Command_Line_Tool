@@ -359,6 +359,56 @@ class TestConsoleTool(TestBase):
 
             self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
 
+    def test_rm_files(self):
+        # Delete files using rm command
+
+        self._authorize_account()
+        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+
+            # prepare list of test files
+            rm_test_files = []
+            number_of_test_files = 4
+            for file in range(number_of_test_files):
+                rm_test_files.append(
+                    (
+                        self._make_local_file(temp_dir, 'rm_test_file_{}.txt'.format(file)),
+                        '900{}'.format(file)
+                    )
+                )
+
+            expected_stdout = '''
+            upload rm_test_file_0.txt
+            upload rm_test_file_1.txt
+            upload rm_test_file_2.txt
+            upload rm_test_file_3.txt
+            '''
+
+            # upload the test files
+            self._run_command(
+                ['sync', '--noProgress', '--threads', '1', temp_dir, 'b2://my-bucket'],
+                expected_stdout, '', 0
+            )
+
+            expected_stdout = '''
+            Removed rm_test_file_1.txt
+            '''
+
+            # remove file by name
+            self._run_command(
+                ['rm', 'my-bucket', os.path.basename(rm_test_files[1][0])], expected_stdout, '', 0
+            )
+
+            expected_stdout = '''
+            Removed rm_test_file_0.txt
+            Removed rm_test_file_2.txt
+            Removed rm_test_file_3.txt
+            '''
+
+            # remove files by glob
+            self._run_command(['rm', 'my-bucket', 'rm_test_file*'], expected_stdout, '', 0)
+
     def test_get_download_auth_defaults(self):
         self._authorize_account()
         self._create_my_bucket()
