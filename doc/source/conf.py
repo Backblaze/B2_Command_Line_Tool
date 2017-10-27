@@ -1,3 +1,13 @@
+######################################################################
+#
+# File: doc/source/conf.py
+#
+# Copyright 2017 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+
 # -*- coding: utf-8 -*-
 #
 # B2_Command_Line_Tool documentation build configuration file, created by
