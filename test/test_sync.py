@@ -161,11 +161,11 @@ class FakeFolder(AbstractFolder):
         self.f_type = f_type
         self.files = files
 
-    def all_files(self, reporter, filtered=False, inclusions=None, exclusions=None):
+    def all_files(self, reporter, exclusions=None, inclusions=None):
         for file in self.files:
-            if filtered \
-                    and any(pattern.match(file.name) for pattern in exclusions) \
-                    and not any(pattern.match(file.name) for pattern in inclusions):
+            if (exclusions is not None
+                    and any(pattern.match(file.name) for pattern in exclusions)
+                    and not any(pattern.match(file.name) for pattern in inclusions)):
                 continue
             else:
                 yield file
@@ -255,7 +255,7 @@ class TestZipFolders(TestSync):
         folder_b.all_files = MagicMock(return_value=iter([]))
         self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
         folder_a.all_files.assert_called_once_with(
-            self.reporter, filtered=True, inclusions=(), exclusions=()
+            self.reporter, exclusions=(), inclusions=()
         )
         folder_b.all_files.assert_called_once_with(self.reporter)
 

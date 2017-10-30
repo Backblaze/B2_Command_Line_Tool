@@ -31,7 +31,7 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self, reporter, filtered, inclusions, exclusions):
+    def all_files(self, reporter, inclusions, exclusions):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
@@ -58,6 +58,12 @@ class AbstractFolder(object):
         """
         Only for local folders, returns the full path to the file.
         """
+
+    def check_file_filters(self, reporter, name, exclusions=None, inclusions=None):
+            if (any(pattern.match(name) for pattern in exclusions)
+                    and not any(pattern.match(name) for pattern in inclusions)):
+                reporter.print_completion("%s file excluded" % (name, ))
+                return True
 
 
 def join_b2_path(b2_dir, b2_name):
@@ -88,8 +94,8 @@ class LocalFolder(AbstractFolder):
     def folder_type(self):
         return 'local'
 
-    def all_files(self, reporter, filtered=False, inclusions=None, exclusions=None):
-        for file_object in self._walk_relative_paths(self.root, '', reporter, filtered, inclusions, exclusions):
+    def all_files(self, reporter, inclusions=None, exclusions=None):
+        for file_object in self._walk_relative_paths(self.root, '', reporter, inclusions, exclusions):
             yield file_object
 
     def make_full_path(self, file_name):
@@ -116,7 +122,7 @@ class LocalFolder(AbstractFolder):
         if not os.listdir(self.root):
             raise Exception('Directory %s is empty' % (self.root,))
 
-    def _walk_relative_paths(self, local_dir, b2_dir, reporter, filtered=False, inclusions=None, exclusions=None):
+    def _walk_relative_paths(self, local_dir, b2_dir, reporter, inclusions=None, exclusions=None):
         """
         Yields a File object for each of the files anywhere under this folder, in the
         order they would appear in B2.
@@ -160,10 +166,9 @@ class LocalFolder(AbstractFolder):
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
             # Skip excluded files
-            if filtered \
-                    and any(pattern.match(name) for pattern in exclusions) \
-                    and not any(pattern.match(name) for pattern in inclusions):
-                reporter.print_completion("% file excluded" % name)
+            if exclusions:
+                if self.check_file_filters(reporter, name, exclusions, inclusions):
+                    continue
             # Skip broken symlinks or other inaccessible files
             elif not os.path.exists(local_path):
                 if reporter is not None:
@@ -222,7 +227,7 @@ class B2Folder(AbstractFolder):
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
 
-    def all_files(self, reporter, filtered=False, inclusions=None, exclusions=None):
+    def all_files(self, reporter, exclusions=None, inclusions=None):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -232,11 +237,9 @@ class B2Folder(AbstractFolder):
             if file_version_info.action == 'start':
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
-            if filtered \
-                    and any(pattern.match(file_name) for pattern in exclusions) \
-                    and not any(pattern.match(file_name) for pattern in inclusions):
-                reporter.print_completion("% file excluded" % file_name)
-                continue
+            if exclusions:
+                if self.check_file_filters(reporter, file_name, exclusions, inclusions):
+                    continue
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
                 current_versions = []
