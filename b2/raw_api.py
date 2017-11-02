@@ -277,7 +277,7 @@ class B2RawApi(AbstractRawApi):
                             actual=digest.hexdigest()
                         )
                 else:
-                    desired_length = range_[1] - range_[0]
+                    desired_length = range_[1] - range_[0] + 1
                     if bytes_read != desired_length:
                         raise TruncatedOutput(bytes_read, desired_length)
 
