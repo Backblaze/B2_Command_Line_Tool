@@ -936,8 +936,9 @@ class UploadFile(Command):
             file_infos[parts[0]] = parts[1]
 
         if SRC_LAST_MODIFIED_MILLIS not in file_infos:
-            file_infos[SRC_LAST_MODIFIED_MILLIS
-                      ] = str(int(os.path.getmtime(args.localFilePath) * 1000))
+            file_infos[SRC_LAST_MODIFIED_MILLIS] = str(
+                int(os.path.getmtime(args.localFilePath) * 1000)
+            )
 
         max_workers = args.threads or 10
         self.api.set_thread_pool_size(max_workers)

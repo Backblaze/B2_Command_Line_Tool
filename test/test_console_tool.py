@@ -408,7 +408,9 @@ class TestConsoleTool(TestBase):
         auth_token = self.account_info.get_account_auth_token()
         self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
         self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {
+                'color': 'blue'
+            }
         )
         self.raw_api.start_large_file(
             api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
@@ -640,8 +642,8 @@ class TestConsoleTool(TestBase):
         # Remove the leading spaces from each line, based on the line
         # with the fewest leading spaces
         leading_spaces = ' ' * space_count
-        assert all(line.startswith(leading_spaces) or line == ''
-                   for line in lines), 'all lines have leading spaces'
+        assert all(line.startswith(leading_spaces) or line == '' for line in lines
+                  ), 'all lines have leading spaces'
         return '\n'.join('' if line == '' else line[space_count:] for line in lines)
 
     def _leading_spaces(self, s):
