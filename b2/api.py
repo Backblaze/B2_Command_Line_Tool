@@ -22,7 +22,7 @@ from .part import PartFactory
 from .progress import DoNothingProgressListener
 from .raw_api import B2RawApi
 from .session import B2Session
-from .utils import B2TraceMeta, limit_trace_arguments
+from .utils import B2TraceMeta, b2_url_encode, limit_trace_arguments
 
 try:
     import concurrent.futures as futures
@@ -240,6 +240,14 @@ class B2Api(object):
     def get_download_url_for_fileid(self, file_id):
         url = url_for_api(self.account_info, 'b2_download_file_by_id')
         return '%s?fileId=%s' % (url, file_id)
+
+    def get_download_url_for_file_name(self, bucket_name, file_name):
+        """
+        Returns a URL to download the given file by name.
+        """
+        return '%s/file/%s/%s' % (
+            self.account_info.get_download_url(), bucket_name, b2_url_encode(file_name)
+        )
 
     # other
     def get_file_info(self, file_id):

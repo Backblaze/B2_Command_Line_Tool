@@ -480,6 +480,41 @@ class GetDownloadAuth(Command):
         return 0
 
 
+class GetDownloadUrlWithAuth(Command):
+    """
+    b2 get-download-url-with-auth [--duration <durationInSeconds>] <bucketName> <fileName>
+
+        Prints a URL to download the given file.  The URL includes an authorization
+        token that allows downloads from the given bucket for files whose names
+        start with the given file name.
+
+        The URL will work for the given file, but is not specific to that file.  Files
+        with longer names that start with the give file name can also be downloaded
+        with the same auth token.
+
+        The token is valid for the duration specified, which defaults
+        to 86400 seconds (one day).
+    """
+
+    OPTION_ARGS = ['duration']
+
+    REQUIRED = ['bucketName', 'fileName']
+
+    ARG_PARSER = {'duration': int}
+
+    def run(self, args):
+        prefix = args.fileName
+        duration = args.duration or 86400
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        auth_token = bucket.get_download_authorization(
+            file_name_prefix=prefix, valid_duration_in_seconds=duration
+        )
+        base_url = self.api.get_download_url_for_file_name(args.bucketName, args.fileName)
+        url = base_url + '?Authorization=' + auth_token
+        self._print(url)
+        return 0
+
+
 class Help(Command):
     """
     b2 help [commandName]
