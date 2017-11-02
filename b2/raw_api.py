@@ -667,7 +667,9 @@ def test_raw_api_helper(raw_api):
         account_id,
         bucket_id,
         'allPrivate',
-        bucket_info={'color': 'blue'}
+        bucket_info={
+            'color': 'blue'
+        }
     )
     assert updated_bucket['revision'] == 2
 
