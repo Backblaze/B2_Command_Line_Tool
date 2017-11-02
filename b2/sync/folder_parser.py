@@ -27,8 +27,6 @@ def parse_sync_folder(folder_name, api):
     elif folder_name.startswith('b2:') and folder_name[3].isalnum():
         return _parse_bucket_and_folder(folder_name[3:], api)
     else:
-        if folder_name.endswith('/'):
-            folder_name = folder_name[:-1]
         return LocalFolder(folder_name)
 
 
