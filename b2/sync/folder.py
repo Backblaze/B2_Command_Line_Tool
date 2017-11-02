@@ -10,8 +10,10 @@
 
 from abc import ABCMeta, abstractmethod
 import os
+import platform
 import sys
 
+import errno
 import six
 
 from .exception import EnvironmentEncodingError
@@ -70,14 +72,37 @@ class LocalFolder(AbstractFolder):
         """
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
+
         self.root = os.path.abspath(root)
+
+    @property
+    def prefix_len(self):
+        """
+
+            Prefix length calculation:
+                https://github.com/Backblaze/B2_Command_Line_Tool/issues/334
+
+            Using os.path.abspath, there are three cases to handle here:
+                  * root paths with a drive specification (windows) -> length=3,
+                  * root paths without a drive specification (not windows) -> length=1,
+                  * non root paths -> length=(len(root) + 1)
+
+            Furthermore, there is a trailing separator only if the path denotes a root filesystem,
+                hence following a suggestion from @svonohr and the following SO link:
+                    https://stackoverflow.com/q/2736144/1946984
+                the conjunction of os.path.join(..., '') and os.path.abspath will guarantee
+                that the prefix length includes the trailing separator for both the root path
+                cases and arbitrary paths.
+
+        """
+
+        return len(os.path.join(self.root, ''))
 
     def folder_type(self):
         return 'local'
 
     def all_files(self, reporter):
-        prefix_len = len(self.root) + 1  # include trailing '/' in prefix length
-        for relative_path in self._walk_relative_paths(prefix_len, self.root, reporter):
+        for relative_path in self._walk_relative_paths(self.prefix_len, self.root, reporter):
             yield self._make_file(relative_path)
 
     def make_full_path(self, file_name):
@@ -144,12 +169,34 @@ class LocalFolder(AbstractFolder):
                     dirs.add(name)
                 names[name] = (full_path, relative_path)
 
+        #
+        # Check whether a path is a relative symlink.
+        #
+        def validate(x):
+            # type: (str) -> bool
+            if not platform.system() == 'Linux':
+                return True  # TODO: Not sure about how this should work in Windows.
+            if os.path.islink(x):
+                try:
+                    # Check if symlink points up in the directory tree.
+                    a = not os.readlink(x).startswith('../')
+                    # Check if symlink is recursive.
+                    b = os.readlink(x) != '.'
+                    return not(a or b)
+                except OSError as e:
+                    return e.errno == errno.EINVAL
+            else:
+                return True
+
         # Yield all of the answers
         for name in sorted(names):
             (full_path, relative_path) = names[name]
             if name in dirs:
-                for rp in self._walk_relative_paths(prefix_len, full_path, reporter):
-                    yield rp
+                if validate(full_path):  # Don't iterate over relative symlinks.
+                    for rp in self._walk_relative_paths(prefix_len, full_path, reporter):
+                        yield rp
+                else:
+                    yield relative_path
             else:
                 yield relative_path
 
