@@ -100,25 +100,13 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
             os.utime(self.local_file_path, (mod_time, mod_time))
 
 
-class BytesCapture(six.BytesIO):
-    """
-    The BytesIO class discards the data on close().  We don't want to do that.
-    """
-
-    def close(self):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-
 class DownloadDestBytes(AbstractDownloadDestination):
     """
     Stores a downloaded file into bytes in memory.
     """
+
+    def __init__(self):
+        self.bytes_written = None
 
     def make_file_context(
         self,
@@ -138,9 +126,29 @@ class DownloadDestBytes(AbstractDownloadDestination):
         self.content_sha1 = content_sha1
         self.file_info = file_info
         self.mod_time_millis = mod_time_millis
-        self.bytes_io = BytesCapture()
         self.range_ = range_
-        return self.bytes_io
+        return self.capture_bytes_context()
+
+    @contextmanager
+    def capture_bytes_context(self):
+        """
+        Remembers the bytes written in self.bytes_written
+        """
+        # Make a place to store the data written
+        bytes_io = six.BytesIO()
+
+        # Let the caller write it
+        yield bytes_io
+
+        # Capture the result.  The BytesIO object won't let you grab
+        # the data after it's closed
+        self.bytes_written = bytes_io.getvalue()
+        bytes_io.close()
+
+    def get_bytes_written(self):
+        if self.bytes_written is None:
+            raise Exception('data not written yet')
+        return self.bytes_written
 
 
 class DownloadDestProgressWrapper(AbstractDownloadDestination):
