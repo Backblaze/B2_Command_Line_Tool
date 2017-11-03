@@ -272,6 +272,69 @@ class TestLs(TestCaseWithBucket):
         self.assertBucketContents(expected, '', show_versions=True)
 
 
+class TestRm(TestCaseWithBucket):
+    def test_rm_by_name_glob(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_1.txt')
+        for file in self.bucket.rm(False, ['test_rm*.txt'], []):
+            pass
+        expected = []
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_rm_by_name_regex(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_2.txt')
+        for file in self.bucket.rm(False, [], ['test_rm_2.txt']):
+            pass
+        expected = []
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_rm_by_glob_pattern(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_3.txt')
+        self.bucket.upload_bytes(data, 'test_rm_4.txt')
+        for file in self.bucket.rm(False, ['*.txt'], []):
+            pass
+        expected = []
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_rm_by_regex_pattern(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_5.txt')
+        self.bucket.upload_bytes(data, 'test_rm_6.txt')
+        for file in self.bucket.rm(False, [], ['test_rm_[56].txt']):
+            pass
+        expected = []
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_rm_by_glob_and_regex(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_7.txt')
+        self.bucket.upload_bytes(data, 'test_rm_8.txt')
+        for file in self.bucket.rm(False, ['*_7.txt'], ['test_rm_[8].txt']):
+            pass
+        expected = []
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_rm_without_versions(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_9.txt')
+        self.bucket.upload_bytes(data, 'test_rm_9.txt')
+        for file in self.bucket.rm(False, ['test_rm_9.txt'], []):
+            pass
+        expected = [('test_rm_9.txt', 11, 'upload', None)]
+        self.assertBucketContents(expected, '', show_versions=True)
+
+    def test_rm_with_versions(self):
+        data = six.b('hello world')
+        self.bucket.upload_bytes(data, 'test_rm_10.txt')
+        self.bucket.upload_bytes(data, 'test_rm_10.txt')
+        for file in self.bucket.rm(True, ['test_rm_10.txt'], []):
+            pass
+        expected = []
+        self.assertBucketContents(expected, '', show_versions=True)
+
+
 class TestUpload(TestCaseWithBucket):
     def test_upload_bytes(self):
         data = six.b('hello world')
