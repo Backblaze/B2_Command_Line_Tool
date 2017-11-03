@@ -11,6 +11,8 @@
 import logging
 import six
 import threading
+import fnmatch
+import re
 
 from .download_dest import DownloadDestProgressWrapper
 from .exception import (
@@ -277,6 +279,34 @@ class Bucket(object):
             start_file_id = batch.get('nextFileId')
             if start_file_id is None:
                 break
+
+    def rm(self, versions, glob, regex):
+        futures = []
+
+        def match_expressions(filename):
+            for expr in glob:
+                if fnmatch.fnmatch(filename, expr):
+                    return True
+            for expr in regex:
+                pat = re.compile(expr)
+                if pat.match(filename):
+                    return True
+
+            return False
+
+        for file_version_info, folder_name in self.ls(
+            recursive=True, show_versions=True if versions else False
+        ):
+            if not match_expressions(file_version_info.file_name):
+                continue
+
+            futures.append(self.api.get_thread_pool().submit(
+                self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
+                ))
+
+        for future in futures:
+            file_info = future.result()
+            yield file_info
 
     def start_large_file(self, file_name, content_type=None, file_info=None):
         return UnfinishedLargeFile(

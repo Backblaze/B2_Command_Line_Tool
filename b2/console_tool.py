@@ -723,34 +723,48 @@ class MakeUrl(Command):
 
 class Rm(Command):
     """
-    b2 rm [--report] [--versions] <bucketName> <glob>
+    b2 rm [--report] [--versions] [--glob <glob>] [--regex <regex>] <bucketName>
 
-        glob argument is used to specify files and folders for removal
-        on regex basis.
+        rm command is used to remove files on b2 storage using either
+        unix shell-like globs or regular expressions
 
         The --report option reports all of the removed files.
 
-        The --version option removes all of versions of each file, not
+        The --versions option removes all of versions of each file, not
         just the most recent.
+
+        The --glob option should be provided with a single glob
+        to match the files to be removed. This argument can be
+        used multiple times with different globs.
+
+        The --regex should be provided with a single regex
+        pattern to match the files to be removed. This
+        argument can be used multiple times with different
+        regex patterns.
+
+        bucketName is the name of the B2 bucket.
     """
 
     OPTION_FLAGS = ['report', 'versions']
 
-    REQUIRED = ['bucketName', 'glob']
+    REQUIRED = ['bucketName']
+
+    LIST_ARGS = ['glob', 'regex']
 
     def run(self, args):
+        if not args.glob and not args.regex:
+            logger.error('ConsoleTool Neither \'glob\' or \'regex\' specified.')
+            self._print_stderr(
+                'ERROR: rm command has to be used with at least one of the \'glob\' or \'regex\' options.'
+            )
+            return 1
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file_version_info, folder_name in bucket.ls(
-            recursive=True, show_versions=True if args.versions else False
-        ):
-            if fnmatch.fnmatch(file_version_info.file_name, args.glob):
-                file_info = self.api.delete_file_version(
-                    file_version_info.id_, file_version_info.file_name
-                )
-                if args.report:
-                    self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
-                else:
-                    self._print('Removed {}'.format(file_version_info.file_name))
+        for file in bucket.rm(args.versions, args.glob, args.regex):
+            if args.report:
+                self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
+            else:
+                self._print("Removed %s" % (file.file_name, ))
         return 0
 
 
