@@ -166,6 +166,8 @@ class FileSimulator(object):
         return dict(parts=parts, nextPartNumber=next_part_number)
 
     def mod_time_millis(self):
+        if 'src_last_modified_millis' in self.file_info:
+            return int(self.file_info['src_last_modified_millis'])
         return 0
 
 
