@@ -148,6 +148,7 @@ class ProgressListenerForTest(AbstractProgressListener):
     """
     Captures all of the calls so they can be checked.
     """
+
     def __init__(self):
         self.calls = []
 

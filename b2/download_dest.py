@@ -100,7 +100,6 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
             os.utime(self.local_file_path, (mod_time, mod_time))
 
 
-
 class BytesCapture(six.BytesIO):
     """
     The BytesIO class discards the data on close().  We don't want to do that.
@@ -148,6 +147,7 @@ class DownloadDestProgressWrapper(AbstractDownloadDestination):
     """
     Wraps a DownloadDestination, and reports progress to a ProgressListener.
     """
+
     def __init__(self, download_dest, progress_listener):
         self.download_dest = download_dest
         self.progress_listener = progress_listener
@@ -164,12 +164,19 @@ class DownloadDestProgressWrapper(AbstractDownloadDestination):
         range_=None
     ):
         return self.write_file_and_report_progress_context(
-            file_id, file_name, content_length, content_type, content_sha1, file_info, mod_time_millis, range_
+            file_id, file_name, content_length, content_type, content_sha1, file_info,
+            mod_time_millis, range_
         )
 
     @contextmanager
-    def write_file_and_report_progress_context(self, file_id, file_name, content_length, content_type, content_sha1, file_info, mod_time_millis, range_):
-        with self.download_dest.make_file_context(file_id, file_name, content_length, content_type, content_sha1, file_info, mod_time_millis, range_) as file_:
+    def write_file_and_report_progress_context(
+        self, file_id, file_name, content_length, content_type, content_sha1, file_info,
+        mod_time_millis, range_
+    ):
+        with self.download_dest.make_file_context(
+            file_id, file_name, content_length, content_type, content_sha1, file_info,
+            mod_time_millis, range_
+        ) as file_:
             total_bytes = content_length
             if range_ is not None:
                 total_bytes = range_[1] - range_[0]
