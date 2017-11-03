@@ -206,6 +206,11 @@ class TestConsoleTool(TestBase):
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            # For this test, use a mod time without millis.  My mac truncates
+            # millis and just leaves seconds.
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
 
             # Upload a file
             expected_stdout = '''
@@ -237,12 +242,12 @@ class TestConsoleTool(TestBase):
               "contentType": "b2/x-auto",
               "fileId": "9999",
               "fileInfo": {
-                "src_last_modified_millis": "%s"
+                "src_last_modified_millis": "1500111222000"
               },
               "fileName": "file1.txt",
               "uploadTimestamp": 5000
             }
-            ''' % (mod_time_str,)
+            '''
 
             self._run_command(['get_file_info', '9999'], expected_stdout, '', 0)
 
@@ -254,9 +259,9 @@ class TestConsoleTool(TestBase):
             File size:    11
             Content type: b2/x-auto
             Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
-            INFO src_last_modified_millis: %s
+            INFO src_last_modified_millis: 1500111222000
             checksum matches
-            ''' % (mod_time_str,)
+            '''
 
             self._run_command(
                 [
@@ -265,6 +270,7 @@ class TestConsoleTool(TestBase):
                 ], expected_stdout, '', 0
             )
             self.assertEquals(six.b('hello world'), self._read_file(local_download1))
+            self.assertEquals(mod_time, os.path.getmtime(local_download1))
 
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
