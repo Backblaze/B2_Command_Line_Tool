@@ -52,6 +52,10 @@ DOC_STRING_DATA = dict(
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE
 )
 
+# Enable to get 0.* behavior in the command-line tool.
+# Disable for 1.* behavior.
+VERSION_0_COMPATIBILITY = True
+
 
 def local_path_to_b2_path(path):
     """
@@ -700,7 +704,7 @@ class Sync(Command):
         To allow sync to run when the source directory is empty, potentially
         deleting all files in a bucket, specify '--allowEmptySource'.
         The default is to fail when the specified source directory doesn't exist
-        or is empty.
+        or is empty.  (This check only applies to version 1.0 and later.)
 
         Users with high-performance networks, or file sets with very small
         files, will benefit from multi-threaded uploads.  The default number
@@ -804,6 +808,7 @@ class Sync(Command):
         self.console_tool.api.set_thread_pool_size(max_workers)
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
+        allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
         sync_folders(
             source_folder=source,
             dest_folder=destination,
@@ -813,7 +818,7 @@ class Sync(Command):
             no_progress=args.noProgress,
             max_workers=max_workers,
             dry_run=args.dryRun,
-            allow_empty_source=args.allowEmptySource,
+            allow_empty_source=allow_empty_source
         )
         return 0
 
@@ -936,8 +941,9 @@ class UploadFile(Command):
             file_infos[parts[0]] = parts[1]
 
         if SRC_LAST_MODIFIED_MILLIS not in file_infos:
-            file_infos[SRC_LAST_MODIFIED_MILLIS
-                      ] = str(int(os.path.getmtime(args.localFilePath) * 1000))
+            file_infos[SRC_LAST_MODIFIED_MILLIS] = str(
+                int(os.path.getmtime(args.localFilePath) * 1000)
+            )
 
         max_workers = args.threads or 10
         self.api.set_thread_pool_size(max_workers)
