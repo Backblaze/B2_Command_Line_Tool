@@ -144,6 +144,26 @@ class DoNothingProgressListener(AbstractProgressListener):
         pass
 
 
+class ProgressListenerForTest(AbstractProgressListener):
+    """
+    Captures all of the calls so they can be checked.
+    """
+    def __init__(self):
+        self.calls = []
+
+    def set_total_bytes(self, total_byte_count):
+        self.calls.append('set_total_bytes(%d)' % (total_byte_count,))
+
+    def bytes_completed(self, byte_count):
+        self.calls.append('bytes_completed(%d)' % (byte_count,))
+
+    def close(self):
+        self.calls.append('close()')
+
+    def get_calls(self):
+        return self.calls
+
+
 def make_progress_listener(description, quiet):
     if quiet:
         return DoNothingProgressListener()
