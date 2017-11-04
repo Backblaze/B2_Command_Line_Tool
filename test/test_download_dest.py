@@ -3,6 +3,8 @@
 #
 # Copyright 2017, Backblaze Inc.  All rights reserved.
 #
+# License https://www.backblaze.com/using_b2_code.html
+#
 
 import os
 
