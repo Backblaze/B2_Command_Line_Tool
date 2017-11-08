@@ -440,7 +440,7 @@ class TestUpload(TestCaseWithBucket):
     def _check_file_contents(self, file_name, expected_contents):
         download = DownloadDestBytes()
         self.bucket.download_file_by_name(file_name, download)
-        self.assertEqual(expected_contents, download.bytes_io.getvalue())
+        self.assertEqual(expected_contents, download.get_bytes_written())
 
     def _make_data(self, approximate_length):
         """
@@ -466,7 +466,7 @@ class TestDownload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
         self.assertEqual("11: 11 closed", progress_listener.get_history())
-        assert download.bytes_io.getvalue() == six.b('hello world')
+        assert download.get_bytes_written() == six.b('hello world')
 
     def test_download_by_id_no_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
@@ -493,4 +493,4 @@ class TestPartialDownload(TestCaseWithBucket):
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
         self.assertEqual("6: 6 closed", progress_listener.get_history())
-        assert download.bytes_io.getvalue() == six.b('lo wor'), download.bytes_io.getvalue()
+        assert download.get_bytes_written() == six.b('lo wor'), download.get_bytes_written()

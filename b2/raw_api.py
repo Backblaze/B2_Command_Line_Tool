@@ -251,7 +251,7 @@ class B2RawApi(AbstractRawApi):
             digest = hashlib.sha1()
             bytes_read = 0
 
-            with download_dest.open(
+            with download_dest.make_file_context(
                 file_id,
                 file_name,
                 content_length,

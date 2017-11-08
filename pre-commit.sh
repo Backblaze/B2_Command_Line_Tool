@@ -68,6 +68,20 @@ else
     fi
 fi
 
+header Check Licenses
+
+missing="$(
+    (
+        grep -l 'All Rights Reserved' $(git ls-files | grep .py)
+        git ls-files | grep .py
+    ) | sort | uniq -c | sort -n | awk '$1 == 1 && $2 !~ ".*/__init__.py"'
+)"
+if [ -n "$missing" ]; then
+    echo 'license is missing from:' >&2
+    echo "$missing" >&2
+    exit 1
+fi
+
 header Pyflakes
 
 for d in b2 test *.py

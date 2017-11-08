@@ -166,6 +166,8 @@ class FileSimulator(object):
         return dict(parts=parts, nextPartNumber=next_part_number)
 
     def mod_time_millis(self):
+        if 'src_last_modified_millis' in self.file_info:
+            return int(self.file_info['src_last_modified_millis'])
         return 0
 
 
@@ -247,7 +249,7 @@ class BucketSimulator(object):
         self._download_file_sim(download_dest, file_sim, range_=range_)
 
     def _download_file_sim(self, download_dest, file_sim, range_=None):
-        with download_dest.open(
+        with download_dest.make_file_context(
             file_sim.file_id, file_sim.name, file_sim.content_length, file_sim.content_type,
             file_sim.content_sha1, file_sim.file_info, file_sim.mod_time_millis(), range_
         ) as f:
