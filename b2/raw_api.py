@@ -328,7 +328,13 @@ class B2RawApi(AbstractRawApi):
         )
 
     def list_buckets(self, api_url, account_auth_token, account_id):
-        return self._post_json(api_url, 'b2_list_buckets', account_auth_token, accountId=account_id)
+        return self._post_json(
+            api_url,
+            'b2_list_buckets',
+            account_auth_token,
+            accountId=account_id,
+            bucketTypes=['all']
+        )
 
     def list_file_names(
         self, api_url, account_auth_token, bucket_id, start_file_name=None, max_file_count=None
