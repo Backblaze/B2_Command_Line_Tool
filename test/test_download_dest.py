@@ -1,7 +1,7 @@
 #
 # File: test_download_dest
 #
-# Copyright 2017, Backblaze Inc.  All rights reserved.
+# Copyright 2017, Backblaze Inc.  All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
