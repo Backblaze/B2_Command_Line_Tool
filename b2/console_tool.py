@@ -54,7 +54,7 @@ DOC_STRING_DATA = dict(
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
-VERSION_0_COMPATIBILITY = True
+VERSION_0_COMPATIBILITY = False
 
 
 def local_path_to_b2_path(path):

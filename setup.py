@@ -55,7 +55,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.7.5',
+    version='1.0.0',
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
 
@@ -75,7 +75,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
 
         # Indicate who your project is intended for
         # ??? What are the right classifiers for a command-line tool? ???

@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.7.5
+Version 1.0.0
 
 # Installation
 
@@ -80,6 +80,12 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.0.0 (November 9, 2017)
+
+This is the same code as 0.7.4, with one incompatible change:
+
+* Require `--allowEmptySource` to sync from empty directory, to help avoid accidental deletion of all files.
 
 ## 0.7.4 (November 9, 2017)
 
