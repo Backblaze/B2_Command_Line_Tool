@@ -11,3 +11,4 @@
   - `rm -rf dist ; python setup.py sdist`
   - `twine upload dist/*`
 - Bump the version number to an odd number and commit.
+- Update https://www.backblaze.com/b2/docs/quick_command_line.html
