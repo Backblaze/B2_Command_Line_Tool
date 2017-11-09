@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 0.7.3
+Version 0.7.4
 
 # Installation
 
@@ -32,6 +32,7 @@ this:
     b2 get-account-info
     b2 get-bucket <bucketName>
     b2 get-download-auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
+    b2 get-download-url-with-auth [--duration <durationInSeconds>] <bucketName> <fileName>
     b2 get-file-info <fileId>
     b2 help [commandName]
     b2 hide-file <bucketName> <fileName>
@@ -44,7 +45,7 @@ this:
     b2 make-url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--compareThreshold N] \
-        [--threads N] [--noProgress] [--dryRun] [--allowEmptySource] \
+        [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \
         [--excludeRegex <regex> [--includeRegex <regex>]] \
         <source> <destination>
     b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
@@ -77,6 +78,20 @@ Verbose logs to stdout can be enabled with the `--verbose` flag.
 A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file (with log rotation at midnight) in current working directory. Please take care to not launch the tool from the directory that you are syncing, or the logs will get synced to the remote server (unless that is really what you want to do).
 
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
+
+# Release History
+
+## 0.7.4 (November 9, 2017)
+
+New features:
+
+* More efficient uploads by sending SHA1 checksum at the end.
+
+Includes a number of bug fixes:
+
+* File modification times are set correctly when downloading.
+* Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
+* Better handling of some errors from the B2 service.
 
 # Developer Info
 
