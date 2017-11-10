@@ -342,6 +342,8 @@ class TestExclusions(TestSync):
         # only local
         file_a = local_file('a.txt', [100])
         file_b = local_file('b.txt', [100])
+        file_d = local_file('d/d.txt', [100])
+        file_e = local_file('e/e.incl', [100])
 
         # both local and remote
         file_bi = local_file('b.txt.incl', [100])
@@ -350,7 +352,7 @@ class TestExclusions(TestSync):
         # only remote
         file_c = local_file('c.txt', [100])
 
-        local_folder = FakeFolder('local', [file_a, file_b, file_bi, file_z])
+        local_folder = FakeFolder('local', [file_a, file_b, file_d, file_e, file_bi, file_z])
         b2_folder = FakeFolder('b2', [file_bi, file_c, file_z])
 
         actions = list(
@@ -361,6 +363,8 @@ class TestExclusions(TestSync):
     def test_file_exclusions(self):
         expected_actions = [
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
         ]
         self._check_folder_sync(expected_actions, FakeArgs(excludeRegex=["b\\.txt"]))
 
@@ -369,6 +373,8 @@ class TestExclusions(TestSync):
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
             'b2_delete(folder/b.txt.incl, /dir/b.txt.incl, )',
             'b2_delete(folder/c.txt, /dir/c.txt, )',
+            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
         ]
         self._check_folder_sync(expected_actions, FakeArgs(delete=True, excludeRegex=["b\\.txt"]))
 
@@ -376,6 +382,9 @@ class TestExclusions(TestSync):
         expected_actions = [
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
             'b2_upload(/dir/b.txt, folder/b.txt, 100)',
+            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
+            'b2_upload(/dir/b.txt.incl, folder/b.txt.incl, 100)',
         ]
         fakeargs = FakeArgs(excludeRegex=["b\\.txt"], includeRegex=["b\\.txt"])
         self._check_folder_sync(expected_actions, fakeargs)
@@ -383,9 +392,20 @@ class TestExclusions(TestSync):
     def test_file_exclusions_inclusions_with_delete(self):
         expected_actions = [
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_delete(folder/b.txt.incl, /dir/b.txt.incl, )',
             'b2_delete(folder/c.txt, /dir/c.txt, )',
+            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
+            'b2_upload(/dir/b.txt.incl, folder/b.txt.incl, 100)',
         ]
         fakeargs = FakeArgs(delete=True, excludeRegex=["b\\.txt"], includeRegex=[".*\\.incl"])
+        self._check_folder_sync(expected_actions, fakeargs)
+
+    def test_recursive_exclusion(self):
+        expected_actions = [
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
+        ]
+        fakeargs = FakeArgs(excludeRegex=['.*\\.txt'])
         self._check_folder_sync(expected_actions, fakeargs)
 
 
