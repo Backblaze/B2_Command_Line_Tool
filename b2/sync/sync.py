@@ -38,19 +38,6 @@ def next_or_none(iterator):
         return None
 
 
-def _filter_folder(folder, reporter, exclusions, inclusions):
-    """
-    Filters a folder through a list of exclusions and inclusions.
-    Inclusions override exclusions.
-    """
-    logging.debug('_filter_folder() exclusions for %s are %s', folder, exclusions)
-    logging.debug('_filter_folder() inclusions for %s are %s', folder, inclusions)
-    for f in folder.all_files(
-        reporter, exclusions=exclusions, inclusions=inclusions
-    ):
-        yield f
-
-
 def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple()):
     """
     An iterator over all of the files in the union of two folders,
@@ -63,7 +50,7 @@ def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tup
     :param folder_b: A Folder object.
     """
 
-    iter_a = _filter_folder(folder_a, reporter, exclusions, inclusions)
+    iter_a = folder_a.all_files(reporter, exclusions=exclusions, inclusions=inclusions)
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
@@ -261,6 +248,7 @@ def sync_folders(
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
+        logging.debug('%d files filtered out' % source_folder.filtered_files)
 
         # Wait for everything to finish
         sync_executor.shutdown()

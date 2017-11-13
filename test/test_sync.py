@@ -12,6 +12,7 @@ from __future__ import print_function
 
 import os
 import platform
+import re
 import threading
 import time
 import unittest
@@ -62,7 +63,13 @@ class TestLocalFolder(TestSync):
         six.u('hello/a/2'),
         six.u('hello/b'),
         six.u('hello0'),
-        six.u('\u81ea\u7531')
+        six.u('inner/a.bin'),
+        six.u('inner/a.txt'),
+        six.u('inner/b.bin'),
+        six.u('inner/b.txt'),
+        six.u('inner/more/a.bin'),
+        six.u('inner/more/a.txt'),
+        six.u('\u81ea\u7531'),
     ]
 
     @classmethod
@@ -104,6 +111,62 @@ class TestLocalFolder(TestSync):
             self.reporter.local_permission_error.assert_called_once_with(
                 os.path.join(tmpdir, self.NAMES[0])
             )
+
+    def test_exclusions(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/a/1'),
+            six.u('hello/a/2'),
+            six.u('hello/b'),
+            six.u('hello0'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.txt'),
+            six.u('inner/more/a.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir)
+            self.assertEqual(
+                expected_list,
+                list(
+                    f.name
+                    for f in folder.all_files(self.reporter, exclusions=[re.compile('.*\\.bin')])
+                )
+            )
+            self.reporter.local_access_error.assert_not_called()
+
+    def test_exclusions_inclusions(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/a/1'),
+            six.u('hello/a/2'),
+            six.u('hello/b'),
+            six.u('hello0'),
+            six.u('inner/a.bin'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.txt'),
+            six.u('inner/more/a.bin'),
+            six.u('inner/more/a.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir)
+            self.assertEqual(
+                expected_list,
+                list(
+                    f.name
+                    for f in folder.all_files(
+                        self.reporter,
+                        exclusions=[re.compile('.*\\.bin')],
+                        inclusions=[re.compile('.*a\\.bin')]
+                    )
+                )
+            )
+            self.reporter.local_access_error.assert_not_called()
 
 
 class TestB2Folder(TestSync):
@@ -160,15 +223,17 @@ class FakeFolder(AbstractFolder):
     def __init__(self, f_type, files):
         self.f_type = f_type
         self.files = files
+        self.filtered_files = 0
 
-    def all_files(self, reporter, exclusions=None, inclusions=None):
-        for file in self.files:
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
+        for single_file in self.files:
             if (exclusions is not None
-                    and any(pattern.match(file.name) for pattern in exclusions)
-                    and not any(pattern.match(file.name) for pattern in inclusions)):
+                    and any(pattern.match(single_file.name) for pattern in exclusions)
+                    and not any(pattern.match(single_file.name) for pattern in inclusions)):
+                self.filtered_files += 1
                 continue
             else:
-                yield file
+                yield single_file
 
     def folder_type(self):
         return self.f_type
@@ -254,9 +319,7 @@ class TestZipFolders(TestSync):
         folder_a.all_files = MagicMock(return_value=iter([]))
         folder_b.all_files = MagicMock(return_value=iter([]))
         self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
-        folder_a.all_files.assert_called_once_with(
-            self.reporter, exclusions=(), inclusions=()
-        )
+        folder_a.all_files.assert_called_once_with(self.reporter, exclusions=(), inclusions=())
         folder_b.all_files.assert_called_once_with(self.reporter)
 
 
@@ -360,14 +423,6 @@ class TestExclusions(TestSync):
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
 
-    def test_file_exclusions(self):
-        expected_actions = [
-            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
-            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
-            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
-        ]
-        self._check_folder_sync(expected_actions, FakeArgs(excludeRegex=["b\\.txt"]))
-
     def test_file_exclusions_with_delete(self):
         expected_actions = [
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
@@ -377,17 +432,6 @@ class TestExclusions(TestSync):
             'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
         ]
         self._check_folder_sync(expected_actions, FakeArgs(delete=True, excludeRegex=["b\\.txt"]))
-
-    def test_file_exclusions_inclusions(self):
-        expected_actions = [
-            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
-            'b2_upload(/dir/b.txt, folder/b.txt, 100)',
-            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
-            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
-            'b2_upload(/dir/b.txt.incl, folder/b.txt.incl, 100)',
-        ]
-        fakeargs = FakeArgs(excludeRegex=["b\\.txt"], includeRegex=["b\\.txt"])
-        self._check_folder_sync(expected_actions, fakeargs)
 
     def test_file_exclusions_inclusions_with_delete(self):
         expected_actions = [
@@ -399,13 +443,6 @@ class TestExclusions(TestSync):
             'b2_upload(/dir/b.txt.incl, folder/b.txt.incl, 100)',
         ]
         fakeargs = FakeArgs(delete=True, excludeRegex=["b\\.txt"], includeRegex=[".*\\.incl"])
-        self._check_folder_sync(expected_actions, fakeargs)
-
-    def test_recursive_exclusion(self):
-        expected_actions = [
-            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
-        ]
-        fakeargs = FakeArgs(excludeRegex=['.*\\.txt'])
         self._check_folder_sync(expected_actions, fakeargs)
 
 

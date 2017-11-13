@@ -31,13 +31,13 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self, reporter, inclusions, exclusions):
+    def all_files(self, reporter, inclusions=tuple(), exclusions=tuple()):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
 
-        It may also perform filtering based on inclusions
-        and exclusions lists.
+        It also performs filtering based on inclusions
+        and exclusions lists which are list of compiled regexes.
 
         No matter what the folder separator on the local file system
         is, "/" is used in the returned file names.
@@ -59,11 +59,23 @@ class AbstractFolder(object):
         Only for local folders, returns the full path to the file.
         """
 
-    def check_file_filters(self, reporter, name, exclusions=None, inclusions=None):
-            if (any(pattern.match(name) for pattern in exclusions)
-                    and not any(pattern.match(name) for pattern in inclusions)):
-                reporter.print_completion("%s file excluded" % (name, ))
+    def _match_file_filters(self, reporter, filepath, exclusions=None, inclusions=None):
+        """
+        Matches the file path against regex patterns passed in exclusions and inclusions.
+
+        :param reporter: reporter object to which info about exclusion will be printed
+        :param filepath: string representing file path to match the patterns with
+        :param exclusions: list of compiled re patterns for exclusions
+        :param inclusions: list of compiled re patterns for inclusions
+        :return: boolean indicating if file path matches the pattern
+        """
+        if any(pattern.match(filepath) for pattern in exclusions):
+            if not any(pattern.match(filepath) for pattern in inclusions):
+                reporter.print_completion('%s file excluded' % (filepath,))
                 return True
+            else:
+                reporter.print_completion('%s file included' % (filepath,))
+        return False
 
 
 def join_b2_path(b2_dir, b2_name):
@@ -90,12 +102,14 @@ class LocalFolder(AbstractFolder):
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
         self.root = os.path.abspath(root)
+        self.filtered_files = 0
 
     def folder_type(self):
         return 'local'
 
-    def all_files(self, reporter, inclusions=None, exclusions=None):
-        for file_object in self._walk_relative_paths(self.root, '', reporter, inclusions, exclusions):
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
+        for internal_filtered_files, file_object in self._walk_relative_paths(self.root, '', reporter, inclusions, exclusions):
+            self.filtered_files = internal_filtered_files
             yield file_object
 
     def make_full_path(self, file_name):
@@ -122,7 +136,8 @@ class LocalFolder(AbstractFolder):
         if not os.listdir(self.root):
             raise Exception('Directory %s is empty' % (self.root,))
 
-    def _walk_relative_paths(self, local_dir, b2_dir, reporter, inclusions=None, exclusions=None):
+
+    def _walk_relative_paths(self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple()):
         """
         Yields a File object for each of the files anywhere under this folder, in the
         order they would appear in B2.
@@ -150,6 +165,7 @@ class LocalFolder(AbstractFolder):
         #    a0.txt
         #
         # This is because in Unicode '.' comes before '/', which comes before '0'.
+        internal_filtered_files = 0
         names = []  # list of (name, local_path, b2_path)
         for name in os.listdir(local_dir):
             # We expect listdir() to return unicode if dir_path is unicode.
@@ -166,9 +182,9 @@ class LocalFolder(AbstractFolder):
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
             # Skip excluded files
-            if exclusions:
-                if self.check_file_filters(reporter, name, exclusions, inclusions):
-                    continue
+            if exclusions and self._match_file_filters(reporter, local_path, exclusions, inclusions):
+                internal_filtered_files += 1
+                continue
             # Skip broken symlinks or other inaccessible files
             elif not os.path.exists(local_path):
                 if reporter is not None:
@@ -187,13 +203,15 @@ class LocalFolder(AbstractFolder):
         # the sort key, is the first thing in the triple.
         for (name, local_path, b2_path) in sorted(names):
             if name.endswith('/'):
-                for subdir_file in self._walk_relative_paths(local_path, b2_path, reporter):
-                    yield subdir_file
+                inner_filtered_files = 0
+                for inner_filtered_files, subdir_file in self._walk_relative_paths(local_path, b2_path, reporter, exclusions, inclusions):
+                    yield internal_filtered_files, subdir_file
+                internal_filtered_files += inner_filtered_files
             else:
                 file_mod_time = int(round(os.path.getmtime(local_path) * 1000))
                 file_size = os.path.getsize(local_path)
                 version = FileVersion(local_path, b2_path, file_mod_time, 'upload', file_size)
-                yield File(b2_path, [version])
+                yield internal_filtered_files, File(b2_path, [version])
 
     def _handle_non_unicode_file_name(self, name):
         """
@@ -226,8 +244,9 @@ class B2Folder(AbstractFolder):
         self.folder_name = folder_name
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
+        self.filtered_files = 0
 
-    def all_files(self, reporter, exclusions=None, inclusions=None):
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -238,7 +257,8 @@ class B2Folder(AbstractFolder):
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
             if exclusions:
-                if self.check_file_filters(reporter, file_name, exclusions, inclusions):
+                if self._match_file_filters(reporter, file_name, exclusions, inclusions):
+                    self.filtered_files += 1
                     continue
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
