@@ -17,7 +17,6 @@ import logging
 import logging.config
 import os
 import platform
-import fnmatch
 import signal
 import sys
 import textwrap

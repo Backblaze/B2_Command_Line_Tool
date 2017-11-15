@@ -8,11 +8,11 @@
 #
 ######################################################################
 
+import fnmatch
 import logging
+import re
 import six
 import threading
-import fnmatch
-import re
 
 from .download_dest import DownloadDestProgressWrapper
 from .exception import (
@@ -281,9 +281,21 @@ class Bucket(object):
                 break
 
     def rm(self, versions, glob, regex):
+        """
+        Used to remove files in b2 bucket based on glob or regex
+        :param versions: indicates if all versions of the file should be removed
+        :param glob: list of globs
+        :param regex: list of regexs
+        :return: removed file info
+        """
         futures = []
 
-        def match_expressions(filename):
+        def is_matching_expressions(filename):
+            """
+            Checks if the filename matches any of the given globs or regexs
+            :param filename: file name to be examined against patterns
+            :return: match-based boolean
+            """
             for expr in glob:
                 if fnmatch.fnmatch(filename, expr):
                     return True
@@ -297,7 +309,7 @@ class Bucket(object):
         for file_version_info, folder_name in self.ls(
             recursive=True, show_versions=True if versions else False
         ):
-            if not match_expressions(file_version_info.file_name):
+            if not is_matching_expressions(file_version_info.file_name):
                 continue
 
             futures.append(self.api.get_thread_pool().submit(
