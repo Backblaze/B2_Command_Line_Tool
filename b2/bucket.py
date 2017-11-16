@@ -11,8 +11,9 @@
 import fnmatch
 import logging
 import re
-import six
 import threading
+
+import six
 
 from .download_dest import DownloadDestProgressWrapper
 from .exception import (
