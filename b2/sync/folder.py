@@ -108,9 +108,11 @@ class LocalFolder(AbstractFolder):
         return 'local'
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
-        for internal_filtered_files, file_object in self._walk_relative_paths(self.root, '', reporter, inclusions, exclusions):
-            self.filtered_files = internal_filtered_files
+        filtered_files = list()
+        filtered_files.append(0)
+        for file_object in self._walk_relative_paths(self.root, '', reporter, exclusions, inclusions, filtered_files):
             yield file_object
+        self.filtered_files = filtered_files[0]
 
     def make_full_path(self, file_name):
         return os.path.join(self.root, file_name.replace('/', os.path.sep))
@@ -136,8 +138,9 @@ class LocalFolder(AbstractFolder):
         if not os.listdir(self.root):
             raise Exception('Directory %s is empty' % (self.root,))
 
-
-    def _walk_relative_paths(self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple()):
+    def _walk_relative_paths(
+            self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None
+    ):
         """
         Yields a File object for each of the files anywhere under this folder, in the
         order they would appear in B2.
@@ -165,7 +168,6 @@ class LocalFolder(AbstractFolder):
         #    a0.txt
         #
         # This is because in Unicode '.' comes before '/', which comes before '0'.
-        internal_filtered_files = 0
         names = []  # list of (name, local_path, b2_path)
         for name in os.listdir(local_dir):
             # We expect listdir() to return unicode if dir_path is unicode.
@@ -183,7 +185,10 @@ class LocalFolder(AbstractFolder):
             b2_path = join_b2_path(b2_dir, name)
             # Skip excluded files
             if exclusions and self._match_file_filters(reporter, local_path, exclusions, inclusions):
-                internal_filtered_files += 1
+                if filtered_files:
+                    print('filtering files')
+                    filtered_files[0] += 1
+                    print(filtered_files[0])
                 continue
             # Skip broken symlinks or other inaccessible files
             elif not os.path.exists(local_path):
@@ -203,15 +208,15 @@ class LocalFolder(AbstractFolder):
         # the sort key, is the first thing in the triple.
         for (name, local_path, b2_path) in sorted(names):
             if name.endswith('/'):
-                inner_filtered_files = 0
-                for inner_filtered_files, subdir_file in self._walk_relative_paths(local_path, b2_path, reporter, exclusions, inclusions):
-                    yield internal_filtered_files, subdir_file
-                internal_filtered_files += inner_filtered_files
+                for subdir_file in self._walk_relative_paths(
+                        local_path, b2_path, reporter, exclusions, inclusions, filtered_files
+                ):
+                    yield subdir_file
             else:
                 file_mod_time = int(round(os.path.getmtime(local_path) * 1000))
                 file_size = os.path.getsize(local_path)
                 version = FileVersion(local_path, b2_path, file_mod_time, 'upload', file_size)
-                yield internal_filtered_files, File(b2_path, [version])
+                yield File(b2_path, [version])
 
     def _handle_non_unicode_file_name(self, name):
         """

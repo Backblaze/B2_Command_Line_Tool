@@ -125,6 +125,7 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
+        files_excluded = 3
 
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
@@ -135,6 +136,23 @@ class TestLocalFolder(TestSync):
                     for f in folder.all_files(self.reporter, exclusions=[re.compile('.*\\.bin')])
                 )
             )
+            self.assertEqual(folder.filtered_files, files_excluded)
+            self.reporter.local_access_error.assert_not_called()
+
+    def test_exclude_all(self):
+        expected_list = []
+        files_excluded = 6
+
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir)
+            self.assertEqual(
+                expected_list,
+                list(
+                    f.name
+                    for f in folder.all_files(self.reporter, exclusions=[re.compile('.*')])
+                )
+            )
+            self.assertEqual(folder.filtered_files, files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
     def test_exclusions_inclusions(self):
@@ -152,6 +170,7 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
+        files_excluded = 1
 
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
@@ -166,6 +185,7 @@ class TestLocalFolder(TestSync):
                     )
                 )
             )
+            self.assertEqual(folder.filtered_files, files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
 
