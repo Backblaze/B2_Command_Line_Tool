@@ -186,9 +186,7 @@ class LocalFolder(AbstractFolder):
             # Skip excluded files
             if exclusions and self._match_file_filters(reporter, local_path, exclusions, inclusions):
                 if filtered_files:
-                    print('filtering files')
                     filtered_files[0] += 1
-                    print(filtered_files[0])
                 continue
             # Skip broken symlinks or other inaccessible files
             elif not os.path.exists(local_path):
