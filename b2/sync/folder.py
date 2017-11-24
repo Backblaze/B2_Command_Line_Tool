@@ -108,6 +108,10 @@ class LocalFolder(AbstractFolder):
         return 'local'
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
+
+        # filtered_files list is used as a one-element container to count all the filtered files.
+        # It is passed by reference to the recursive _walk_relative_paths method, so that we can
+        # count all filtered elements in one, simple object.
         filtered_files = list()
         filtered_files.append(0)
         for file_object in self._walk_relative_paths(self.root, '', reporter, exclusions, inclusions, filtered_files):

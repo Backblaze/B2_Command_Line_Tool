@@ -116,9 +116,9 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     for (source_file,
          dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions, inclusions):
         if source_file is None:
-            logging.debug('determined that %s is not present on source', dest_file)
+            logger.debug('determined that %s is not present on source', dest_file)
         elif dest_file is None:
-            logging.debug('determined that %s is not present on destination', source_file)
+            logger.debug('determined that %s is not present on destination', source_file)
 
         if source_folder.folder_type() == 'local':
             if source_file is not None:
@@ -242,13 +242,13 @@ def sync_folders(
         for action in make_folder_sync_actions(
             source_folder, dest_folder, args, now_millis, reporter
         ):
-            logging.debug('scheduling action %s on bucket %s', action, bucket)
+            logger.debug('scheduling action %s on bucket %s', action, bucket)
             future = sync_executor.submit(action.run, bucket, reporter, dry_run)
             action_futures.append(future)
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
-        logging.debug('%d files filtered out' % source_folder.filtered_files)
+        logger.debug('%d files and folders (and all files inside them which are not counted) filtered out', source_folder.filtered_files)
 
         # Wait for everything to finish
         sync_executor.shutdown()
