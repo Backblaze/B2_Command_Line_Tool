@@ -24,7 +24,7 @@ this:
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
     b2 clear-account
-    b2 create-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 delete-bucket <bucketName>
     b2 delete-file-version [<fileName>] <fileId>
     b2 download-file-by-id [--noProgress] <fileId> <localFileName>
@@ -48,7 +48,7 @@ this:
         [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \
         [--excludeRegex <regex> [--includeRegex <regex>]] \
         <source> <destination>
-    b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
         [--info <key>=<value>]* [--minPartSize N] \
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>

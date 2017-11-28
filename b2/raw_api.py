@@ -88,6 +88,7 @@ class AbstractRawApi(object):
         bucket_id,
         bucket_type=None,
         bucket_info=None,
+        cors_rules=None,
         lifecycle_rules=None,
         if_revision_is=None
     ):
@@ -152,6 +153,7 @@ class B2RawApi(AbstractRawApi):
         bucket_name,
         bucket_type,
         bucket_info=None,
+        cors_rules=None,
         lifecycle_rules=None
     ):
         return self._post_json(
@@ -162,6 +164,7 @@ class B2RawApi(AbstractRawApi):
             bucketName=bucket_name,
             bucketType=bucket_type,
             bucketInfo=bucket_info,
+            corsRules=cors_rules,
             lifecycleRules=lifecycle_rules
         )
 
@@ -410,6 +413,7 @@ class B2RawApi(AbstractRawApi):
         bucket_id,
         bucket_type=None,
         bucket_info=None,
+        cors_rules=None,
         lifecycle_rules=None,
         if_revision_is=None
     ):
@@ -422,6 +426,8 @@ class B2RawApi(AbstractRawApi):
             kwargs['bucketInfo'] = bucket_info
         if bucket_type is not None:
             kwargs['bucketType'] = bucket_type
+        if cors_rules is not None:
+            kwargs['corsRules'] = cors_rules
         if lifecycle_rules is not None:
             kwargs['lifecycleRules'] = lifecycle_rules
 
@@ -555,8 +561,8 @@ def test_raw_api_helper(raw_api):
     file_contents = six.b('hello world')
     file_sha1 = hex_sha1_of_stream(six.BytesIO(file_contents), len(file_contents))
     file_dict = raw_api.upload_file(
-        upload_url, upload_auth_token, file_name,
-        len(file_contents), 'text/plain', file_sha1, {'color': 'blue'}, six.BytesIO(file_contents)
+        upload_url, upload_auth_token, file_name, len(file_contents), 'text/plain', file_sha1,
+        {'color': 'blue'}, six.BytesIO(file_contents)
     )
     file_id = file_dict['fileId']
 
@@ -641,8 +647,8 @@ def test_raw_api_helper(raw_api):
     part_contents = six.b('hello part')
     part_sha1 = hex_sha1_of_stream(six.BytesIO(part_contents), len(part_contents))
     raw_api.upload_part(
-        upload_part_url, upload_path_auth, 1,
-        len(part_contents), part_sha1, six.BytesIO(part_contents)
+        upload_part_url, upload_path_auth, 1, len(part_contents), part_sha1,
+        six.BytesIO(part_contents)
     )
 
     # b2_list_parts
