@@ -101,13 +101,24 @@ class Bucket(object):
     MAX_LARGE_FILE_SIZE = 10 * 1000 * 1000 * 1000 * 1000  # 10 TB
 
     def __init__(
-        self, api, id_, name=None, type_=None, bucket_info=None, revision=None, bucket_dict=None
+        self,
+        api,
+        id_,
+        name=None,
+        type_=None,
+        bucket_info=None,
+        cors_rules=None,
+        lifecycle_rules=None,
+        revision=None,
+        bucket_dict=None
     ):
         self.api = api
         self.id_ = id_
         self.name = name
         self.type_ = type_
         self.bucket_info = bucket_info or {}
+        self.cors_rules = cors_rules or []
+        self.lifecycle_rules = lifecycle_rules or []
         self.revision = revision
         self.bucket_dict = bucket_dict or {}
 
@@ -120,13 +131,21 @@ class Bucket(object):
     def set_type(self, bucket_type):
         return self.update(bucket_type=bucket_type)
 
-    def update(self, bucket_type=None, bucket_info=None, lifecycle_rules=None, if_revision_is=None):
+    def update(
+        self,
+        bucket_type=None,
+        bucket_info=None,
+        cors_rules=None,
+        lifecycle_rules=None,
+        if_revision_is=None
+    ):
         account_id = self.api.account_info.get_account_id()
         return self.api.session.update_bucket(
             account_id,
             self.id_,
             bucket_type=bucket_type,
             bucket_info=bucket_info,
+            cors_rules=cors_rules,
             lifecycle_rules=lifecycle_rules,
             if_revision_is=if_revision_is
         )
@@ -634,7 +653,12 @@ class BucketFactory(object):
         bucket_id = bucket_dict['bucketId']
         type_ = bucket_dict['bucketType']
         bucket_info = bucket_dict['bucketInfo']
+        cors_rules = bucket_dict['corsRules']
+        lifecycle_rules = bucket_dict['lifecycleRules']
         revision = bucket_dict['revision']
         if type_ is None:
             raise UnrecognizedBucketType(bucket_dict['bucketType'])
-        return Bucket(api, bucket_id, bucket_name, type_, bucket_info, revision, bucket_dict)
+        return Bucket(
+            api, bucket_id, bucket_name, type_, bucket_info, cors_rules, lifecycle_rules, revision,
+            bucket_dict
+        )
