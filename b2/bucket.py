@@ -10,6 +10,7 @@
 
 import fnmatch
 import logging
+import os
 import re
 import threading
 
@@ -281,40 +282,94 @@ class Bucket(object):
             if start_file_id is None:
                 break
 
-    def rm(self, versions, glob, regex):
+    def list_files_matching_regex(self, versions, recursive, prefix='', regex=list()):
         """
-        Used to remove files in b2 bucket based on glob or regex
-        :param versions: indicates if all versions of the file should be removed
+        Generator which lists files in a bucket matching a regex pattern.
+        :param versions: bool - if true lists all file versions
+        :param recursive: bool - if true lists the subdirectories
+        :param prefix: str - prefix which is treated as root against matched pattern
+        :param regex: list of regexs to compile and be searched
+        :return:
+        """
+        for file_version_info, folder_name in self.ls(
+                folder_to_list=prefix, recursive=recursive, show_versions=versions
+        ):
+            for expr in regex:
+                if expr.search(file_version_info.file_name.replace(prefix, '')):
+                    yield file_version_info
+
+    def list_files_matching_glob(self, versions, recursive, glob=list()):
+        """
+        Generator which lists files in a bucket matching a glob pattern.
+        :param versions: bool - if true lists all file versions
+        :param recursive: bool - if true lists the subdirectories
+        :param glob: list of globs to be matched
+        :return:
+        """
+        future_dirs = list()
+
+        def list_and_generate_file_version_info(versions, path):
+            """
+            Lists one or all versions of a single file
+            :param versions: bool - if true lists all versions of the file
+            :param path: str - files path to be listed
+            :return:
+            """
+            listing_function = self.list_file_versions if versions else self.list_file_names
+            max_entries = 0 if versions else 1
+            for bucket_file in listing_function(start_filename=path, max_entries=max_entries)['files']:
+                if os.path.basename(bucket_file['fileName']).find(path) != -1:
+                    logger.debug("generate_file_version_info", bucket_file)
+                    yield FileVersionInfoFactory.from_api_response(bucket_file)
+
+        for expr in glob:
+            path = expr
+            pattern = ''
+            if '*' not in path:
+                for file_version in list_and_generate_file_version_info(versions, path):
+                    yield file_version
+            else:
+                while '*' in path:
+                    stripped_path = os.path.split(path)
+                    path = stripped_path[0]
+                    pattern = os.path.join(stripped_path[1], pattern)
+                logger.debug("Appending %s" % path)
+                future_dirs.append(
+                    self.api.get_thread_pool().submit(
+                        self.ls, folder_to_list=path, recursive=recursive, show_versions=versions
+                    )
+                )
+
+        for future in future_dirs:
+            dir_content = future.result()
+            for file_version_info, folder_name in dir_content:
+                for expr in glob:
+                    if fnmatch.fnmatch(file_version_info.file_name, expr):
+                        yield file_version_info
+
+    def rm(self, versions, recursive, prefix='', glob=list(), regex=list()):
+        """
+        Used to remove files in b2 bucket based on given glob and/or regex
+        :param versions: bool - indicates if all versions of the file should be removed
+        :param recursive: bool - should removal be recursive
+        :param prefix: string - prefix path to be used with regex
         :param glob: list of globs
         :param regex: list of regexs
         :return: removed file info
         """
-        futures = []
+        futures = list()
+        regex = [re.compile(pat) for pat in regex]
 
-        def is_matching_expressions(filename):
-            """
-            Checks if the filename matches any of the given globs or regexs
-            :param filename: file name to be examined against patterns
-            :return: match-based boolean
-            """
-            for expr in glob:
-                if fnmatch.fnmatch(filename, expr):
-                    return True
-            for expr in regex:
-                pat = re.compile(expr)
-                if pat.match(filename):
-                    return True
+        if glob:
+            for file_version_info in self.list_files_matching_glob(versions, recursive, glob):
+                futures.append(self.api.get_thread_pool().submit(
+                    self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
+                ))
 
-            return False
-
-        for file_version_info, folder_name in self.ls(
-            recursive=True, show_versions=True if versions else False
-        ):
-            if not is_matching_expressions(file_version_info.file_name):
-                continue
-
-            futures.append(self.api.get_thread_pool().submit(
-                self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
+        if regex:
+            for file_version_info in self.list_files_matching_regex(versions, recursive, prefix, regex):
+                futures.append(self.api.get_thread_pool().submit(
+                    self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
                 ))
 
         for future in futures:

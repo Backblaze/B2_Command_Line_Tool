@@ -722,44 +722,83 @@ class MakeUrl(Command):
 
 class Rm(Command):
     """
-    b2 rm [--report] [--versions] [--glob <glob>] [--regex <regex>] <bucketName>
+    b2 rm [--report] [--versions] <bucketName> <glob>
 
-        rm command is used to remove files on b2 storage using either
-        unix shell-like globs or regular expressions
+        rm command is used to remove files on b2 storage using
+        unix shell-like globs
 
         The --report option reports all of the removed files.
 
         The --versions option removes all of versions of each file, not
         just the most recent.
 
-        The --glob option should be provided with a single glob
-        to match the files to be removed. This argument can be
-        used multiple times with different globs.
-
-        The --regex should be provided with a single regex
-        pattern to match the files to be removed. This
-        argument can be used multiple times with different
-        regex patterns.
-
         bucketName is the name of the B2 bucket.
+
+        glob option has to be provided with a single glob
+        to match the files to be removed.
     """
 
     OPTION_FLAGS = ['report', 'versions']
 
-    REQUIRED = ['bucketName']
-
-    LIST_ARGS = ['glob', 'regex']
+    REQUIRED = ['bucketName', 'glob']
 
     def run(self, args):
-        if not args.glob and not args.regex:
-            logger.error('ConsoleTool Neither \'glob\' or \'regex\' specified.')
+        if not args.glob:
+            logger.error('ConsoleTool \'glob\' not specified.')
             self._print_stderr(
-                'ERROR: rm command has to be used with at least one of the \'glob\' or \'regex\' options.'
+                'ERROR: rm command has to be used with the \'glob\' pattern specified.'
             )
             return 1
 
+        recursive = bool('/' in args.glob)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file in bucket.rm(args.versions, args.glob, args.regex):
+        for file in bucket.rm(bool(args.versions), recursive, glob=[args.glob]):
+            if args.report:
+                self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
+            else:
+                self._print("Removed %s" % (file.file_name, ))
+        return 0
+
+
+class Erm(Command):
+    """
+    b2 erm [--report] [--versions] [--prefix <prefix>] <bucketName> <regex>
+
+        erm works exactly like rm command except the regular
+        expression is used instead of unix-like glob to match
+        files for deletion
+
+        The --report option reports all of the removed files.
+
+        The --versions option removes all of versions of each file, not
+        just the most recent.
+
+        --prefix allows you to pass a specific directory to be treated
+        like a root against regex pattern matching.
+
+        bucketName is the name of the B2 bucket.
+
+        regex should be provided with a single regex
+        pattern to match the files to be removed.
+    """
+
+    OPTION_FLAGS = ['report', 'versions']
+
+    OPTION_ARGS = ['prefix']
+
+    REQUIRED = ['bucketName', 'regex']
+
+    def run(self, args):
+        if not args.regex:
+            logger.error('ConsoleTool \'regex\' not specified.')
+            self._print_stderr(
+                'ERROR: erm command has to be used with the \'regex\' pattern specified.'
+            )
+            return 1
+
+        recursive = bool('/' in args.glob)
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        for file in bucket.rm(args.versions, recursive=recursive, regex=[args.regex]):
             if args.report:
                 self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
             else:

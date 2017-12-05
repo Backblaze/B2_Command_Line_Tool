@@ -397,7 +397,7 @@ class TestConsoleTool(TestBase):
 
             # remove file by name
             self._run_command(
-                ['rm', '--glob', os.path.basename(rm_test_files[1][0]), 'my-bucket'], expected_stdout, '', 0
+                ['rm', 'my-bucket', os.path.basename(rm_test_files[1][0])], expected_stdout, '', 0
             )
 
             expected_stdout = '''
@@ -406,14 +406,14 @@ class TestConsoleTool(TestBase):
             '''
 
             # remove files by simple regex
-            self._run_command(['rm', '--regex', 'rm_test_file_[23].txt', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['erm', 'my-bucket', 'rm_test_file_[23].txt'], expected_stdout, '', 0)
 
             expected_stdout = '''
             Removed rm_test_file_0.txt
             '''
 
             # remove files by glob
-            self._run_command(['rm', '--glob', 'rm_test_file*.txt', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['rm', 'my-bucket', 'rm_test_file*.txt'], expected_stdout, '', 0)
 
     def test_get_download_auth_defaults(self):
         self._authorize_account()
