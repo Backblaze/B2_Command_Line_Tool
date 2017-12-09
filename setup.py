@@ -32,11 +32,6 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 with open('requirements.txt', encoding='utf-8') as f:
     requirements = f.read().splitlines()
 
-# The set of required packages depends on what version
-# of python you're running.
-if sys.version_info < (3, 2):
-    requirements.append('futures>=3.0.5')
-
 # Jython cannot handle extremely large blocks of code.
 # requests 2.12.x that we rely on, relied on idna, which until 2.2.0 contained such block.
 # https://github.com/kennethreitz/requests/issues/3711#issuecomment-268522266
