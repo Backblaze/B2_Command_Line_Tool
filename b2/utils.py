@@ -12,6 +12,7 @@ from __future__ import division, print_function
 
 import hashlib
 import os
+import platform
 import re
 import shutil
 import tempfile
@@ -177,6 +178,25 @@ def is_file_readable(local_path, reporter=None):
             reporter.local_permission_error(local_path)
         return False
     return True
+
+
+def fix_windows_path_limit(path):
+    """
+    Prefix paths when running on Windows to overcome 260 character path length limit
+    See https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx#maxpath
+    """
+    if platform.system() == 'Windows':
+        if path.startswith('\\\\'):
+            # UNC network path
+            return '\\\\?\\UNC\\' + path[2:]
+        elif os.path.isabs(path):
+            # local absolute path
+            return '\\\\?\\' + path
+        else:
+            # relative path, don't alter
+            return path
+    else:
+        return path
 
 
 class BytesIoContextManager(object):

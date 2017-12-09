@@ -25,6 +25,7 @@ import threading
 import unittest
 
 from b2.console_tool import VERSION_0_COMPATIBILITY
+from b2.utils import fix_windows_path_limit
 
 USAGE = """
 This program tests the B2 command-line client.
@@ -86,7 +87,7 @@ class TempDir(object):
         return self.dirpath
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        shutil.rmtree(self.dirpath)
+        shutil.rmtree(fix_windows_path_limit(self.dirpath))
 
 
 class StringReader(object):
@@ -637,6 +638,32 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
 
+def sync_long_path_test(b2_tool, bucket_name):
+    """
+    test sync with very long path (overcome windows 260 character limit)
+    """
+    b2_sync_point = 'b2://' + bucket_name
+
+    long_path = '/'.join(
+        (
+            'extremely_long_path_which_exceeds_windows_unfortunate_260_character_path_limit',
+            'and_needs_special_prefixes_containing_backslashes_added_to_overcome_this_limitation',
+            'when_doing_so_beware_leaning_toothpick_syndrome_as_it_can_cause_frustration',
+            'see_also_xkcd_1638'
+        )
+    )
+
+    with TempDir() as dir_path:
+        local_long_path = os.path.normpath(os.path.join(dir_path, long_path))
+        fixed_local_long_path = fix_windows_path_limit(local_long_path)
+        os.makedirs(os.path.dirname(fixed_local_long_path))
+        write_file(fixed_local_long_path, b'asdf')
+
+        b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(['+ ' + long_path], file_version_summary(file_versions))
+
+
 def main():
 
     if len(sys.argv) < 3:
@@ -650,6 +677,7 @@ def main():
         'sync_down': sync_down_test,
         'sync_up': sync_up_test,
         'sync_up_no_prefix': sync_test_no_prefix,
+        'sync_long_path': sync_long_path_test,
     }
 
     if len(sys.argv) >= 4:
