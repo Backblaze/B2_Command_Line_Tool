@@ -11,6 +11,7 @@
 from __future__ import division, print_function
 
 import hashlib
+import os
 import re
 import shutil
 import tempfile
@@ -164,6 +165,18 @@ def validate_b2_file_name(name):
         raise ValueError("file names must not contain DEL")
     if any(250 < len(segment) for segment in name_utf8.split(six.b('/'))):
         raise ValueError("file names segments (between '/') can be at most 250 utf-8 bytes")
+
+
+def is_file_readable(local_path, reporter=None):
+    if not os.path.exists(local_path):
+        if reporter is not None:
+            reporter.local_access_error(local_path)
+        return False
+    elif not os.access(local_path, os.R_OK):
+        if reporter is not None:
+            reporter.local_permission_error(local_path)
+        return False
+    return True
 
 
 class BytesIoContextManager(object):
