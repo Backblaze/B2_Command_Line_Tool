@@ -130,7 +130,6 @@ before_install:
                 else
                     echo jython is broken.  removing it.
                     rm -rf "$HOME/jython"
-                    rb -rf "$HOME/.virtualenvs/jython"
                 fi
             fi
 
@@ -154,13 +153,28 @@ before_install:
                 echo skip download pip
             fi
 
+            # The virtualenv is another place where the cache can hold broken symlinks.
+            # If the virtualenv doesn't work, remove it.
+            export JAVA_OPTS="-Xms128m -Xmx1024m"
+            if [ -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+                source "$HOME/.virtualenvs/jython/bin/activate"
+                if [ python --version ]; then
+                    echo jython virtualenv works
+                else
+                    echo jython virtualenv broken.  removing it.
+                    rm -rf "$HOME/.virtualenvs/jython"
+                fi
+                deactivate
+            fi
+
             # create jython virtualenv
             if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
                 virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenvs/jython"
             else
                 echo skip virtualenv
             fi
-            export JAVA_OPTS="-Xms128m -Xmx1024m"
+
+            # Activate the virtualenv
             source "$HOME/.virtualenvs/jython/bin/activate"
         else
             echo skip setting up jython
