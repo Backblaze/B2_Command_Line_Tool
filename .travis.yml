@@ -121,33 +121,49 @@ before_install:
   - |
         # get jython
         if [ -n "$JYTHON" ]; then
-            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
+            # When the system python changes version, the symlink to it inside jython
+            # breaks, and jython stops working.  If that happens, remove the installed
+            # version and start over.
+            if [ -d "$HOME/jython" ]; then
+                if "$HOME/jython/bin/jython" --version; then
+                    echo jython version works
+                else
+                    echo jython is broken.  removing it.
+                    rm -rf "$HOME/jython"
+                    rb -rf "$HOME/.virtualenvs/jython"
+                fi
+            fi
+
+            # Install jython if it's not there.
+            if [ ! -d "$HOME/jython" ]; then
                 travis_retry wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
                 java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
             else
-                echo skip
+                echo skip install jython
             fi
+
             # install a custom version of pip, as standard pip doesn't work on jython (https://github.com/jythontools/pip/commits/develop)
             if [ ! -d "$HOME/jython-pip" ]; then
                 mkdir ~/jython-pip
             else
-                echo skip
+                echo skip mkdir jython-pip
             fi
             if [ ! -f ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl ]; then
                 travis_retry wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
             else
-                echo skip
+                echo skip download pip
             fi
+
             # create jython virtualenv
             if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
                 virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenvs/jython"
             else
-                echo skip
+                echo skip virtualenv
             fi
             export JAVA_OPTS="-Xms128m -Xmx1024m"
             source "$HOME/.virtualenvs/jython/bin/activate"
         else
-            echo skip
+            echo skip setting up jython
         fi
   - |
         # upgrade pypy (to a version that works with Cryptography 1.0)
@@ -167,7 +183,7 @@ before_install:
             fi
             source "$HOME/.virtualenvs/$PYPY_VERSION/bin/activate"
         else
-            echo skip
+            echo skip upgrade pypy
         fi
   - virtualenv --version
   - python --version
