@@ -201,10 +201,14 @@ before_install:
         fi
   - virtualenv --version
   - python --version
+  - |
+        # upgrade setuptools if it's too old to support PEP 508
+        # PEP 508 support is needed for python version dependent dependencies in requirements.txt/setup.py (e.g. futures)
+        pip install "setuptools>=20.2"
 
 install:
   # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it.
-  - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | xargs pip install
+  - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | cut -d \; -f 1 | xargs pip install
 
   - |
         # coverage has additional requirements
