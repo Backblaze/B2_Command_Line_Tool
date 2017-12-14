@@ -158,7 +158,7 @@ before_install:
             export JAVA_OPTS="-Xms128m -Xmx1024m"
             if [ -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
                 source "$HOME/.virtualenvs/jython/bin/activate"
-                if [ python --version ]; then
+                if python --version; then
                     echo jython virtualenv works
                 else
                     echo jython virtualenv broken.  removing it.
