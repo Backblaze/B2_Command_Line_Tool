@@ -282,19 +282,19 @@ class Bucket(object):
             if start_file_id is None:
                 break
 
-    def list_files_matching_regexs(self, versions, recursive, prefix='', regexs=list()):
+    def list_files_matching_regexes(self, versions, recursive, prefix='', regexes=list()):
         """
-        Generator which lists files in a bucket matching regexs pattern.
+        Generator which lists files in a bucket matching regexes pattern.
         :param versions: bool - if true lists all file versions
         :param recursive: bool - if true lists the subdirectories
         :param prefix: str - prefix which is treated as root against matched pattern
-        :param regexs: list of regexs to compile and be searched
+        :param regexes: list of regexes to compile and be searched
         :return:
         """
         for file_version_info, _ in self.ls(
                 folder_to_list=prefix, recursive=recursive, show_versions=versions
         ):
-            for expr in regexs:
+            for expr in regexes:
                 if expr.search(file_version_info.file_name.replace(prefix, '')):
                     yield file_version_info
 
@@ -344,18 +344,18 @@ class Bucket(object):
                 if fnmatch.fnmatch(file_.file_name, expr):
                     yield file_
 
-    def rm(self, versions, recursive, prefix='', globs=list(), regexs=list()):
+    def rm(self, versions, recursive, prefix='', globs=list(), regexes=list()):
         """
-        Used to remove files in b2 bucket based on given globs and/or regexs
+        Used to remove files in b2 bucket based on given globs and/or regexes
         :param versions: bool - indicates if all versions of the file should be removed
         :param recursive: bool - should removal be recursive
-        :param prefix: string - prefix path to be used with regexs
+        :param prefix: string - prefix path to be used with regexes
         :param globs: list of globs
-        :param regexs: list of regexs
+        :param regexes: list of regexes
         :return: removed file info
         """
         futures = list()
-        regexs = [re.compile(pat) for pat in regexs]
+        regexes = [re.compile(pat) for pat in regexes]
 
         if globs:
             for file_version_info in self.list_files_matching_globs(versions, recursive, globs):
@@ -363,8 +363,8 @@ class Bucket(object):
                     self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
                 ))
 
-        if regexs:
-            for file_version_info in self.list_files_matching_regexs(versions, recursive, prefix, regexs):
+        if regexes:
+            for file_version_info in self.list_files_matching_regexes(versions, recursive, prefix, regexes):
                 futures.append(self.api.get_thread_pool().submit(
                     self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
                 ))
