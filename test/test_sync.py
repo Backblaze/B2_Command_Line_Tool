@@ -126,33 +126,33 @@ class TestLocalFolder(TestSync):
             six.u('\u81ea\u7531'),
         ]
         files_excluded = 3
+        pattern = [re.compile('.*\\.bin')]
 
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
             self.assertEqual(
                 expected_list,
                 list(
-                    f.name
-                    for f in folder.all_files(self.reporter, exclusions=[re.compile('.*\\.bin')])
+                    f.name for f in folder.all_files(self.reporter, exclusions=pattern)
                 )
             )
-            self.assertEqual(folder.filtered_files, files_excluded)
+            self.assertEqual(folder.filtered_files[pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
     def test_exclude_all(self):
         expected_list = []
         files_excluded = 6
-
+        pattern = [re.compile('.*')]
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
             self.assertEqual(
                 expected_list,
                 list(
                     f.name
-                    for f in folder.all_files(self.reporter, exclusions=[re.compile('.*')])
+                    for f in folder.all_files(self.reporter, exclusions=pattern)
                 )
             )
-            self.assertEqual(folder.filtered_files, files_excluded)
+            self.assertEqual(folder.filtered_files[pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
     def test_exclusions_inclusions(self):
@@ -171,6 +171,8 @@ class TestLocalFolder(TestSync):
             six.u('\u81ea\u7531'),
         ]
         files_excluded = 1
+        exc_pattern = [re.compile('.*\\.bin')]
+        inc_pattern = [re.compile('.*a\\.bin')]
 
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
@@ -180,12 +182,12 @@ class TestLocalFolder(TestSync):
                     f.name
                     for f in folder.all_files(
                         self.reporter,
-                        exclusions=[re.compile('.*\\.bin')],
-                        inclusions=[re.compile('.*a\\.bin')]
+                        exclusions=exc_pattern,
+                        inclusions=inc_pattern
                     )
                 )
             )
-            self.assertEqual(folder.filtered_files, files_excluded)
+            self.assertEqual(folder.filtered_files[exc_pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
 

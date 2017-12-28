@@ -9,6 +9,7 @@
 ######################################################################
 
 from abc import ABCMeta, abstractmethod
+from collections import Counter
 import os
 import sys
 
@@ -67,15 +68,16 @@ class AbstractFolder(object):
         :param filepath: string representing file path to match the patterns with
         :param exclusions: list of compiled re patterns for exclusions
         :param inclusions: list of compiled re patterns for inclusions
-        :return: boolean indicating if file path matches the pattern
+        :return: matching pattern
         """
-        if any(pattern.match(filepath) for pattern in exclusions):
-            if not any(pattern.match(filepath) for pattern in inclusions):
-                reporter.print_completion('%s file excluded' % (filepath,))
-                return True
-            else:
-                reporter.print_completion('%s file included' % (filepath,))
-        return False
+        if not any(inc_pattern.match(filepath) for inc_pattern in inclusions):
+            for pattern in exclusions:
+                if pattern.match(filepath):
+                    reporter.print_completion('%s file excluded' % (filepath,))
+                    return pattern
+        else:
+            reporter.print_completion('%s file included' % (filepath,))
+        return None
 
 
 def join_b2_path(b2_dir, b2_name):
@@ -102,7 +104,7 @@ class LocalFolder(AbstractFolder):
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
         self.root = os.path.abspath(root)
-        self.filtered_files = 0
+        self.filtered_files = Counter()
 
     def folder_type(self):
         return 'local'
@@ -112,11 +114,8 @@ class LocalFolder(AbstractFolder):
         # filtered_files list is used as a one-element container to count all the filtered files.
         # It is passed by reference to the recursive _walk_relative_paths method, so that we can
         # count all filtered elements in one, simple object.
-        filtered_files = list()
-        filtered_files.append(0)
-        for file_object in self._walk_relative_paths(self.root, '', reporter, exclusions, inclusions, filtered_files):
+        for file_object in self._walk_relative_paths(self.root, '', reporter, exclusions, inclusions):
             yield file_object
-        self.filtered_files = filtered_files[0]
 
     def make_full_path(self, file_name):
         return os.path.join(self.root, file_name.replace('/', os.path.sep))
@@ -143,7 +142,7 @@ class LocalFolder(AbstractFolder):
             raise Exception('Directory %s is empty' % (self.root,))
 
     def _walk_relative_paths(
-            self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None
+        self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple()
     ):
         """
         Yields a File object for each of the files anywhere under this folder, in the
@@ -188,12 +187,13 @@ class LocalFolder(AbstractFolder):
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
             # Skip excluded files
-            if exclusions and self._match_file_filters(reporter, local_path, exclusions, inclusions):
-                if filtered_files:
-                    filtered_files[0] += 1
-                continue
+            if exclusions:
+                matched_pattern = self._match_file_filters(reporter, local_path, exclusions, inclusions)
+                if matched_pattern:
+                    self.filtered_files.update([matched_pattern])
+                    continue
             # Skip broken symlinks or other inaccessible files
-            elif not os.path.exists(local_path):
+            if not os.path.exists(local_path):
                 if reporter is not None:
                     reporter.local_access_error(local_path)
             elif not os.access(local_path, os.R_OK):
@@ -209,9 +209,9 @@ class LocalFolder(AbstractFolder):
         # Sorting the list of triples puts them in the right order because 'name',
         # the sort key, is the first thing in the triple.
         for (name, local_path, b2_path) in sorted(names):
-            if name.endswith('/'):
+            if name.endswith(os.path.sep):
                 for subdir_file in self._walk_relative_paths(
-                        local_path, b2_path, reporter, exclusions, inclusions, filtered_files
+                    local_path, b2_path, reporter, exclusions, inclusions
                 ):
                     yield subdir_file
             else:
@@ -251,7 +251,7 @@ class B2Folder(AbstractFolder):
         self.folder_name = folder_name
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
-        self.filtered_files = 0
+        self.filtered_files = Counter()
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
         current_name = None
@@ -264,8 +264,9 @@ class B2Folder(AbstractFolder):
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
             if exclusions:
-                if self._match_file_filters(reporter, file_name, exclusions, inclusions):
-                    self.filtered_files += 1
+                matched_pattern = self._match_file_filters(reporter, file_name, exclusions, inclusions)
+                if matched_pattern:
+                    self.filtered_files.update([matched_pattern])
                     continue
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
