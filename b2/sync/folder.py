@@ -60,7 +60,7 @@ class AbstractFolder(object):
         Only for local folders, returns the full path to the file.
         """
 
-    def _match_file_filters(self, reporter, filepath, exclusions=None, inclusions=None):
+    def _match_file_filters(self, reporter, filepath, exclusions=tuple(), inclusions=tuple()):
         """
         Matches the file path against regex patterns passed in exclusions and inclusions.
 
