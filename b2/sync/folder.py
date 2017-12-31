@@ -70,15 +70,15 @@ class AbstractFolder(object):
         :param inclusions: list of compiled re patterns for inclusions
         :return: matching pattern
         """
-        if not any(inc_pattern.match(filepath) for inc_pattern in inclusions):
-            for pattern in exclusions:
-                if pattern.match(filepath):
+        for pattern in exclusions:
+            if pattern.match(filepath):
+                if not any(inc_pattern.match(filepath) for inc_pattern in inclusions):
                     reporter.print_completion('%s file excluded' % (filepath,))
                     return pattern
-        else:
-            reporter.print_completion('%s file included' % (filepath,))
+                else:
+                    reporter.print_completion('%s file included' % (filepath,))
+                    break
         return None
-
 
 def join_b2_path(b2_dir, b2_name):
     """
