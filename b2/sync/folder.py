@@ -91,11 +91,11 @@ class AbstractFolder(object):
                 return matched_exclusion
         return None
 
-    def exclude_file(self, local_path, exclusions=tuple(), inclusions=tuple()):
+    def exclude_file(self, local_path, exclusions=tuple(), inclusions=tuple(), filtered_files=Counter()):
         if exclusions:
             matched_pattern = self._match_file_filters(local_path, exclusions, inclusions)
             if matched_pattern:
-                self.filtered_files[matched_pattern] += 1
+                filtered_files[matched_pattern] += 1
                 return True
         return False
 
@@ -124,16 +124,18 @@ class LocalFolder(AbstractFolder):
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
         self.root = os.path.abspath(root)
+        self.filtered_files = Counter()
 
     def folder_type(self):
         return 'local'
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
-        self.filtered_files = Counter()
+        filtered_files = Counter()
         for file_object in self._walk_relative_paths(
-            self.root, '', reporter, exclusions, inclusions
+            self.root, '', reporter, exclusions, inclusions, filtered_files
         ):
             yield file_object
+        self.filtered_files += filtered_files
 
     def make_full_path(self, file_name):
         return os.path.join(self.root, file_name.replace('/', os.path.sep))
@@ -160,7 +162,7 @@ class LocalFolder(AbstractFolder):
             raise Exception('Directory %s is empty' % (self.root,))
 
     def _walk_relative_paths(
-        self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple()
+        self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=Counter()
     ):
         """
         Yields a File object for each of the files anywhere under this folder, in the
@@ -206,7 +208,7 @@ class LocalFolder(AbstractFolder):
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
 
-            if self.exclude_file(local_path, exclusions, inclusions):
+            if self.exclude_file(local_path, exclusions, inclusions, filtered_files):
                 continue
 
             # Skip broken symlinks or other inaccessible files
@@ -228,7 +230,7 @@ class LocalFolder(AbstractFolder):
         for (name, local_path, b2_path) in sorted(names):
             if name.endswith('/'):
                 for subdir_file in self._walk_relative_paths(
-                    local_path, b2_path, reporter, exclusions, inclusions
+                    local_path, b2_path, reporter, exclusions, inclusions, filtered_files
                 ):
                     yield subdir_file
             else:
@@ -268,9 +270,10 @@ class B2Folder(AbstractFolder):
         self.folder_name = folder_name
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
+        self.filtered_files = Counter()
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
-        self.filtered_files = Counter()
+        filtered_files = Counter()
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -281,7 +284,7 @@ class B2Folder(AbstractFolder):
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
 
-            if self.exclude_file(file_name, exclusions, inclusions):
+            if self.exclude_file(file_name, exclusions, inclusions, filtered_files):
                 continue
 
             if current_name != file_name and current_name is not None:
@@ -301,6 +304,7 @@ class B2Folder(AbstractFolder):
             current_name = file_name
         if current_name is not None:
             yield File(current_name, current_versions)
+        self.filtered_files += filtered_files
 
     def folder_type(self):
         return 'b2'

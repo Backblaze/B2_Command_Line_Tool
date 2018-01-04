@@ -252,8 +252,10 @@ def sync_folders(
             '%d files and folders (and all files inside them which are not counted) filtered out',
             sum(source_folder.filtered_files.values())
         )
-        for k, v in source_folder.filtered_files:
-            logger.debug('%d items filtered for key "%s"', (v, k))
+
+        if logger.isEnabledFor(logging.DEBUG):
+            for k, v in source_folder.filtered_files:
+                logger.debug('%d items filtered for key "%s"', (v, k))
 
         # Wait for everything to finish
         sync_executor.shutdown()
