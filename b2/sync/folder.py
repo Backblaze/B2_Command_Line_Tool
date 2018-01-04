@@ -10,6 +10,7 @@
 
 from abc import ABCMeta, abstractmethod
 from collections import Counter
+import logging
 import os
 import sys
 
@@ -18,6 +19,8 @@ import six
 from .exception import EnvironmentEncodingError
 from .file import File, FileVersion
 from ..raw_api import SRC_LAST_MODIFIED_MILLIS
+
+logger = logging.getLogger(__name__)
 
 
 @six.add_metaclass(ABCMeta)
@@ -60,25 +63,42 @@ class AbstractFolder(object):
         Only for local folders, returns the full path to the file.
         """
 
-    def _match_file_filters(self, reporter, filepath, exclusions=tuple(), inclusions=tuple()):
+    def _first_match_filepath(self, pattern_list, filepath):
+        """
+        Returns first pattern that matched the filepath or False
+        """
+        for pattern in pattern_list:
+            if pattern.match(filepath):
+                return pattern
+        return False
+
+    def _match_file_filters(self, filepath, exclusions=tuple(), inclusions=tuple()):
         """
         Matches the file path against regex patterns passed in exclusions and inclusions.
 
-        :param reporter: reporter object to which info about exclusion will be printed
         :param filepath: string representing file path to match the patterns with
         :param exclusions: list of compiled re patterns for exclusions
         :param inclusions: list of compiled re patterns for inclusions
         :return: matching pattern
         """
-        for pattern in exclusions:
-            if pattern.match(filepath):
-                if not any(inc_pattern.match(filepath) for inc_pattern in inclusions):
-                    reporter.print_completion('%s file excluded' % (filepath,))
-                    return pattern
-                else:
-                    reporter.print_completion('%s file included' % (filepath,))
-                    break
+        matched_exclusion = self._first_match_filepath(exclusions, filepath)
+        if matched_exclusion:
+            matched_inclusion = self._first_match_filepath(inclusions, filepath)
+            if matched_inclusion:
+                logger.debug('%s file included with pattern "%s"', filepath, matched_inclusion)
+            else:
+                logger.debug('%s file excluded with pattern "%s"', filepath, matched_exclusion)
+                return matched_exclusion
         return None
+
+    def exclude_file(self, local_path, exclusions=tuple(), inclusions=tuple()):
+        if exclusions:
+            matched_pattern = self._match_file_filters(local_path, exclusions, inclusions)
+            if matched_pattern:
+                self.filtered_files[matched_pattern] += 1
+                return True
+        return False
+
 
 def join_b2_path(b2_dir, b2_name):
     """
@@ -104,17 +124,15 @@ class LocalFolder(AbstractFolder):
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
         self.root = os.path.abspath(root)
-        self.filtered_files = Counter()
 
     def folder_type(self):
         return 'local'
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
-
-        # filtered_files list is used as a one-element container to count all the filtered files.
-        # It is passed by reference to the recursive _walk_relative_paths method, so that we can
-        # count all filtered elements in one, simple object.
-        for file_object in self._walk_relative_paths(self.root, '', reporter, exclusions, inclusions):
+        self.filtered_files = Counter()
+        for file_object in self._walk_relative_paths(
+            self.root, '', reporter, exclusions, inclusions
+        ):
             yield file_object
 
     def make_full_path(self, file_name):
@@ -146,13 +164,14 @@ class LocalFolder(AbstractFolder):
     ):
         """
         Yields a File object for each of the files anywhere under this folder, in the
-        order they would appear in B2.
-        Is also able to perform filtering
-        based on inclusions and exclusions compiled regex lists.
+        order they would appear in B2, unless the path is matched by any compiled regex
+        on exclusions list and is not matched by any compiled regex on inclusions list.
 
         :param local_dir: The local directory to list files in
         :param b2_dir: The B2 path of this directory, or '' if at the root.
         :param reporter: A place to report errors
+        :param exclusions: tuple of regexes which are matched against file path, file not yield if matched
+        :param inclusions: tuple of regexes which are matched against file path only if it matches any exclusion pattern
         :return:
         """
         if not isinstance(local_dir, six.text_type):
@@ -186,12 +205,10 @@ class LocalFolder(AbstractFolder):
                 )
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
-            # Skip excluded files
-            if exclusions:
-                matched_pattern = self._match_file_filters(reporter, local_path, exclusions, inclusions)
-                if matched_pattern:
-                    self.filtered_files.update([matched_pattern])
-                    continue
+
+            if self.exclude_file(local_path, exclusions, inclusions):
+                continue
+
             # Skip broken symlinks or other inaccessible files
             if not os.path.exists(local_path):
                 if reporter is not None:
@@ -209,7 +226,7 @@ class LocalFolder(AbstractFolder):
         # Sorting the list of triples puts them in the right order because 'name',
         # the sort key, is the first thing in the triple.
         for (name, local_path, b2_path) in sorted(names):
-            if name.endswith(os.path.sep):
+            if name.endswith('/'):
                 for subdir_file in self._walk_relative_paths(
                     local_path, b2_path, reporter, exclusions, inclusions
                 ):
@@ -251,9 +268,9 @@ class B2Folder(AbstractFolder):
         self.folder_name = folder_name
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
-        self.filtered_files = Counter()
 
     def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
+        self.filtered_files = Counter()
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -263,11 +280,10 @@ class B2Folder(AbstractFolder):
             if file_version_info.action == 'start':
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
-            if exclusions:
-                matched_pattern = self._match_file_filters(reporter, file_name, exclusions, inclusions)
-                if matched_pattern:
-                    self.filtered_files.update([matched_pattern])
-                    continue
+
+            if self.exclude_file(file_name, exclusions, inclusions):
+                continue
+
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
                 current_versions = []

@@ -132,9 +132,7 @@ class TestLocalFolder(TestSync):
             folder = self._prepare_folder(tmpdir)
             self.assertEqual(
                 expected_list,
-                list(
-                    f.name for f in folder.all_files(self.reporter, exclusions=pattern)
-                )
+                list(f.name for f in folder.all_files(self.reporter, exclusions=pattern))
             )
             self.assertEqual(folder.filtered_files[pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
@@ -147,10 +145,7 @@ class TestLocalFolder(TestSync):
             folder = self._prepare_folder(tmpdir)
             self.assertEqual(
                 expected_list,
-                list(
-                    f.name
-                    for f in folder.all_files(self.reporter, exclusions=pattern)
-                )
+                list(f.name for f in folder.all_files(self.reporter, exclusions=pattern))
             )
             self.assertEqual(folder.filtered_files[pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
@@ -180,11 +175,8 @@ class TestLocalFolder(TestSync):
                 expected_list,
                 list(
                     f.name
-                    for f in folder.all_files(
-                        self.reporter,
-                        exclusions=exc_pattern,
-                        inclusions=inc_pattern
-                    )
+                    for f in
+                    folder.all_files(self.reporter, exclusions=exc_pattern, inclusions=inc_pattern)
                 )
             )
             self.assertEqual(folder.filtered_files[exc_pattern[0]], files_excluded)
