@@ -91,11 +91,12 @@ class AbstractFolder(object):
                 return matched_exclusion
         return None
 
-    def exclude_file(self, local_path, exclusions=tuple(), inclusions=tuple(), filtered_files=Counter()):
+    def exclude_file(self, local_path, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
         if exclusions:
             matched_pattern = self._match_file_filters(local_path, exclusions, inclusions)
             if matched_pattern:
-                filtered_files[matched_pattern] += 1
+                if filtered_files:
+                    filtered_files[matched_pattern] += 1
                 return True
         return False
 
@@ -162,7 +163,7 @@ class LocalFolder(AbstractFolder):
             raise Exception('Directory %s is empty' % (self.root,))
 
     def _walk_relative_paths(
-        self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=Counter()
+        self, local_dir, b2_dir, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None
     ):
         """
         Yields a File object for each of the files anywhere under this folder, in the
