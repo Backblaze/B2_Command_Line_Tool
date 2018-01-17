@@ -282,7 +282,7 @@ class Bucket(object):
             if start_file_id is None:
                 break
 
-    def list_files_matching_regexes(self, versions, recursive, prefix='', regexes=list()):
+    def list_files_matching_regexes(self, versions, recursive, prefix='', regexes=()):
         """
         Generator which lists files in a bucket matching regexes pattern.
         :param versions: bool - if true lists all file versions
@@ -298,7 +298,7 @@ class Bucket(object):
                 if expr.search(file_version_info.file_name.replace(prefix, '')):
                     yield file_version_info
 
-    def list_files_matching_globs(self, versions, recursive, globs=list()):
+    def list_files_matching_globs(self, versions, recursive, globs=()):
         """
         Generator which lists files in a bucket matching globs pattern.
         :param versions: bool - if true lists all file versions
@@ -306,7 +306,7 @@ class Bucket(object):
         :param globs: list of globs to be matched
         :return:
         """
-        future_dirs = list()
+        future_dirs = []
 
         def list_file_version_info(versions, path):
             """
@@ -344,30 +344,44 @@ class Bucket(object):
                 if fnmatch.fnmatch(file_.file_name, expr):
                     yield file_
 
-    def rm(self, versions, recursive, prefix='', globs=list(), regexes=list()):
+    def glob_rm(self, versions, recursive, globs=()):
         """
-        Used to remove files in b2 bucket based on given globs and/or regexes
+        Used to remove files in b2 bucket based on given globs
+        :param versions: bool - indicates if all versions of the file should be removed
+        :param recursive: bool - should removal be recursive
+        :param globs: list of globs
+        :return: yields removed file info
+        """
+        files_to_remove = self.list_files_matching_globs(
+            versions, recursive, globs
+        )
+
+        for file_info in self.rm_files(files_to_remove):
+            yield file_info
+
+    def regex_rm(self, versions, recursive, prefix='', regexes=()):
+        """
+        Used to remove files in b2 bucket based on given regexes
         :param versions: bool - indicates if all versions of the file should be removed
         :param recursive: bool - should removal be recursive
         :param prefix: string - prefix path to be used with regexes
-        :param globs: list of globs
         :param regexes: list of regexes
-        :return: removed file info
+        :return: yields removed file info
         """
-        futures = list()
         regexes = [re.compile(pat) for pat in regexes]
+        files_to_remove = self.list_files_matching_regexes(
+                versions, recursive, prefix, regexes
+            )
+        for file_info in self.rm_files(files_to_remove):
+            yield file_info
 
-        if globs:
-            for file_version_info in self.list_files_matching_globs(versions, recursive, globs):
-                futures.append(self.api.get_thread_pool().submit(
-                    self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
-                ))
+    def rm_files(self, files_list):
+        futures = []
 
-        if regexes:
-            for file_version_info in self.list_files_matching_regexes(versions, recursive, prefix, regexes):
-                futures.append(self.api.get_thread_pool().submit(
-                    self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
-                ))
+        for file_version_info in files_list:
+            futures.append(self.api.get_thread_pool().submit(
+                self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
+            ))
 
         for future in futures:
             file_info = future.result()

@@ -752,7 +752,7 @@ class Rm(Command):
 
         recursive = os.path.sep in args.glob
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file in bucket.rm(bool(args.versions), recursive, globs=[args.glob]):
+        for file in bucket.glob_rm(bool(args.versions), recursive, [args.glob]):
             if args.report:
                 self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
             else:
@@ -796,8 +796,11 @@ class Erm(Command):
             )
             return 1
 
+        if not args.prefix:
+            args.prefix = ''
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file in bucket.rm(args.versions, recursive=True, regexes=[args.regex]):
+        for file in bucket.regex_rm(args.versions, True, args.prefix, [args.regex]):
             if args.report:
                 self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
             else:
