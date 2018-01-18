@@ -21,6 +21,7 @@ class TestParseArgs(TestBase):
         'optional_before': [],
         'required': [],
         'optional': [],
+        'optional_repeat': [],
         'arg_parser': {}
     }
 
@@ -31,6 +32,7 @@ class TestParseArgs(TestBase):
         'optional_before': [],
         'required': ['required'],
         'optional': ['optional'],
+        'optional_repeat': ['optionalRepeat'],
         'arg_parser': {
             'optionArg': int
         }
@@ -43,6 +45,7 @@ class TestParseArgs(TestBase):
         'optional_before': ['optionalBefore'],
         'required': ['required'],
         'optional': ['optional'],
+        'optional_repeat': ['optionalRepeat'],
         'arg_parser': {}
     }
 
@@ -65,6 +68,7 @@ class TestParseArgs(TestBase):
         self.assertEqual([], args.list)
         self.assertEqual('req-value', args.required)
         self.assertTrue(args.optional is None)
+        self.assertEqual([], args.optionalRepeat)
 
     def test_all_there(self):
         args = parse_arg_list(

@@ -369,7 +369,7 @@ class TestConsoleTool(TestBase):
 
             # prepare list of test files
             rm_test_files = []
-            number_of_test_files = 4
+            number_of_test_files = 6
             for file in range(number_of_test_files):
                 rm_test_files.append(
                     (
@@ -383,6 +383,8 @@ class TestConsoleTool(TestBase):
             upload rm_test_file_1.txt
             upload rm_test_file_2.txt
             upload rm_test_file_3.txt
+            upload rm_test_file_4.txt
+            upload rm_test_file_5.txt
             '''
 
             # upload the test files
@@ -407,6 +409,14 @@ class TestConsoleTool(TestBase):
 
             # remove files by simple regex
             self._run_command(['erm', 'my-bucket', 'rm_test_file_[23].txt'], expected_stdout, '', 0)
+
+            expected_stdout = '''
+            Removed rm_test_file_4.txt
+            Removed rm_test_file_5.txt
+            '''
+
+            # remove files by glob
+            self._run_command(['rm', 'my-bucket', 'rm_test_file_4.txt', 'rm_test_file_5'], expected_stdout, '', 0)
 
             expected_stdout = '''
             Removed rm_test_file_0.txt

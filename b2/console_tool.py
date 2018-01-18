@@ -112,6 +112,9 @@ class Command(object):
     # Optional positional arguments.  Default to None if not present.
     OPTIONAL = []
 
+    # Optional list parameters.
+    OPTIONAL_REPEAT = []
+
     # Set to True for commands that should not be listed in the summary.
     PRIVATE = False
 
@@ -160,6 +163,7 @@ class Command(object):
             optional_before=self.OPTIONAL_BEFORE,
             required=self.REQUIRED,
             optional=self.OPTIONAL,
+            optional_repeat = self.OPTIONAL_REPEAT,
             arg_parser=self.ARG_PARSER
         )
 
@@ -740,7 +744,9 @@ class Rm(Command):
 
     OPTION_FLAGS = ['report', 'versions']
 
-    REQUIRED = ['bucketName', 'glob']
+    OPTIONAL_REPEAT = ['glob']
+
+    REQUIRED = ['bucketName']
 
     def run(self, args):
         if not args.glob:
@@ -752,7 +758,7 @@ class Rm(Command):
 
         recursive = os.path.sep in args.glob
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file in bucket.glob_rm(bool(args.versions), recursive, [args.glob]):
+        for file in bucket.glob_rm(bool(args.versions), recursive, args.glob):
             if args.report:
                 self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
             else:
@@ -786,7 +792,9 @@ class Erm(Command):
 
     OPTION_ARGS = ['prefix']
 
-    REQUIRED = ['bucketName', 'regex']
+    OPTIONAL_REPEAT = ['regex']
+
+    REQUIRED = ['bucketName']
 
     def run(self, args):
         if not args.regex:
@@ -800,7 +808,7 @@ class Erm(Command):
             args.prefix = ''
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file in bucket.regex_rm(args.versions, True, args.prefix, [args.regex]):
+        for file in bucket.regex_rm(args.versions, True, args.prefix, args.regex):
             if args.report:
                 self._print(json.dumps(file.as_dict(), indent=2, sort_keys=True))
             else:
