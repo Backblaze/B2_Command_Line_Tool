@@ -282,6 +282,18 @@ class Bucket(object):
             if start_file_id is None:
                 break
 
+    def _fold_paths(self, paths):
+        paths = sorted(paths)
+        curr_fold = paths[0]
+        folded = [curr_fold]
+        if curr_fold == '/':
+            return folded
+        for path in paths:
+            if not path.startswith(curr_fold):
+                folded.append(path)
+                curr_fold = path + '/'
+        return folded
+
     def list_files_matching_regexes(self, versions, recursive, prefix='', regexes=()):
         """
         Generator which lists files in a bucket matching regexes pattern.
@@ -307,6 +319,7 @@ class Bucket(object):
         :return:
         """
         future_dirs = []
+        paths = []
 
         def list_file_version_info(versions, path):
             """
@@ -331,11 +344,19 @@ class Bucket(object):
                 while '*' in path:
                     path, _ = os.path.split(path)
                 logger.debug("Appending %s",  (path, ))
-                future_dirs.append(
-                    self.api.get_thread_pool().submit(
-                        self.ls, folder_to_list=path, recursive=recursive, show_versions=versions
-                    )
+                paths.append(path)
+
+        if not paths:
+            return
+
+        paths_to_list = self._fold_paths(paths)
+
+        for path in paths_to_list:
+            future_dirs.append(
+                self.api.get_thread_pool().submit(
+                    self.ls, folder_to_list=path, recursive=recursive, show_versions=versions
                 )
+            )
 
         dir_contents = (file_ for future in future_dirs for file_, _ in future.result())
 
