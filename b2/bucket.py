@@ -347,7 +347,7 @@ class Bucket(object):
                 paths.append(path)
 
         if not paths:
-            return
+            return ()
 
         paths_to_list = self._fold_paths(paths)
 

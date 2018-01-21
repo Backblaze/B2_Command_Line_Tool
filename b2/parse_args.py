@@ -179,9 +179,10 @@ def parse_arg_list(
         if len(arg_list) != 0:
             setattr(result, arg_name, parse_arg(arg_name, arg_list))
     for arg_name in optional_repeat:
-        while(len(arg_list) != 0):
-            actual_arg_list = getattr(result, arg_name, [])
-            setattr(result, arg_name, actual_arg_list + [parse_arg(arg_name, arg_list)])
+        arg_values = []
+        while arg_list:
+            arg_values.append(parse_arg(arg_name, arg_list))
+        setattr(result, arg_name, arg_values)
 
     # Anything left is a problem
     if len(arg_list) != 0:
