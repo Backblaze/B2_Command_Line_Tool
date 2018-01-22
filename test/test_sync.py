@@ -10,6 +10,7 @@
 
 from __future__ import print_function
 
+from collections import Counter
 import os
 import platform
 import re
@@ -130,11 +131,21 @@ class TestLocalFolder(TestSync):
 
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
+            filtered_files = Counter()
+
             self.assertEqual(
                 expected_list,
-                list(f.name for f in folder.all_files(self.reporter, exclusions=pattern))
+                list(
+                    f.name
+                    for f in
+                    folder.all_files(
+                        self.reporter,
+                        exclusions=pattern,
+                        filtered_files=filtered_files
+                    )
+                )
             )
-            self.assertEqual(folder.filtered_files[pattern[0]], files_excluded)
+            self.assertEqual(filtered_files[pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
     def test_exclude_all(self):
@@ -143,11 +154,21 @@ class TestLocalFolder(TestSync):
         pattern = [re.compile('.*')]
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
+            filtered_files = Counter()
+
             self.assertEqual(
                 expected_list,
-                list(f.name for f in folder.all_files(self.reporter, exclusions=pattern))
+                list(
+                    f.name
+                    for f in
+                    folder.all_files(
+                                    self.reporter,
+                                    exclusions=pattern,
+                                    filtered_files=filtered_files
+                    )
+                )
             )
-            self.assertEqual(folder.filtered_files[pattern[0]], files_excluded)
+            self.assertEqual(filtered_files[pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
     def test_exclusions_inclusions(self):
@@ -171,15 +192,23 @@ class TestLocalFolder(TestSync):
 
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
+            filtered_files = Counter()
+
             self.assertEqual(
                 expected_list,
                 list(
                     f.name
                     for f in
-                    folder.all_files(self.reporter, exclusions=exc_pattern, inclusions=inc_pattern)
+                    folder.all_files(
+                        self.reporter,
+                        exclusions=exc_pattern,
+                        inclusions=inc_pattern,
+                        filtered_files=filtered_files
+                    )
                 )
             )
-            self.assertEqual(folder.filtered_files[exc_pattern[0]], files_excluded)
+
+            self.assertEqual(filtered_files[exc_pattern[0]], files_excluded)
             self.reporter.local_access_error.assert_not_called()
 
 
@@ -237,17 +266,12 @@ class FakeFolder(AbstractFolder):
     def __init__(self, f_type, files):
         self.f_type = f_type
         self.files = files
-        self.filtered_files = 0
 
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
         for single_file in self.files:
-            if (exclusions is not None
-                    and any(pattern.match(single_file.name) for pattern in exclusions)
-                    and not any(pattern.match(single_file.name) for pattern in inclusions)):
-                self.filtered_files += 1
+            if self.exclude_file(single_file.name, exclusions, inclusions, filtered_files):
                 continue
-            else:
-                yield single_file
+            yield single_file
 
     def folder_type(self):
         return self.f_type
@@ -333,7 +357,7 @@ class TestZipFolders(TestSync):
         folder_a.all_files = MagicMock(return_value=iter([]))
         folder_b.all_files = MagicMock(return_value=iter([]))
         self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
-        folder_a.all_files.assert_called_once_with(self.reporter, exclusions=(), inclusions=())
+        folder_a.all_files.assert_called_once_with(self.reporter, (), (), None)
         folder_b.all_files.assert_called_once_with(self.reporter)
 
 

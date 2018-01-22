@@ -9,7 +9,6 @@
 ######################################################################
 
 from abc import ABCMeta, abstractmethod
-from collections import Counter
 import logging
 import os
 import sys
@@ -35,7 +34,7 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self, reporter, inclusions=tuple(), exclusions=tuple()):
+    def all_files(self, reporter, inclusions=tuple(), exclusions=tuple(), filtered_files=None):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
@@ -62,13 +61,6 @@ class AbstractFolder(object):
         """
         Only for local folders, returns the full path to the file.
         """
-
-    def _init_file_counters(self):
-        self.filtered_files = Counter()
-        return Counter()
-
-    def _sync_file_counters(self, file_counter):
-        self.filtered_files += file_counter
 
     def _first_match_filepath(self, pattern_list, filepath):
         """
@@ -104,7 +96,7 @@ class AbstractFolder(object):
             if matched_pattern:
                 if filtered_files != None:
                     filtered_files[matched_pattern] += 1
-                    logger.debug('%s: %d', matched_pattern, self.filtered_files[matched_pattern])
+                    logger.debug('%s: %d', matched_pattern, filtered_files[matched_pattern])
                 return True
         return False
 
@@ -137,13 +129,11 @@ class LocalFolder(AbstractFolder):
     def folder_type(self):
         return 'local'
 
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
-        filtered_files = self._init_file_counters()
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
         for file_object in self._walk_relative_paths(
             self.root, '', reporter, exclusions, inclusions, filtered_files
         ):
             yield file_object
-        self._sync_file_counters(filtered_files)
 
     def make_full_path(self, file_name):
         return os.path.join(self.root, file_name.replace('/', os.path.sep))
@@ -279,8 +269,7 @@ class B2Folder(AbstractFolder):
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
 
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple()):
-        filtered_files = self._init_file_counters()
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -311,7 +300,6 @@ class B2Folder(AbstractFolder):
             current_name = file_name
         if current_name is not None:
             yield File(current_name, current_versions)
-        self._sync_file_counters(filtered_files)
 
     def folder_type(self):
         return 'b2'

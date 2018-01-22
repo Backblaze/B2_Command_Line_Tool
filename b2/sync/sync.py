@@ -10,6 +10,7 @@
 
 from __future__ import division
 
+from collections import Counter
 import logging
 import re
 import six
@@ -38,7 +39,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple()):
+def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -50,11 +51,12 @@ def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tup
     :param folder_b: A Folder object.
     """
 
-    iter_a = folder_a.all_files(reporter, exclusions=exclusions, inclusions=inclusions)
+    iter_a = folder_a.all_files(reporter, exclusions, inclusions, filtered_files)
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
     current_b = next_or_none(iter_b)
+
     while current_a is not None or current_b is not None:
         if current_a is None:
             yield (None, current_b)
@@ -89,7 +91,7 @@ def make_file_sync_actions(
         yield action
 
 
-def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
+def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter, filtered_files=None):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
@@ -114,7 +116,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
 
     for (source_file,
-         dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions, inclusions):
+         dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions, inclusions, filtered_files):
         if source_file is None:
             logger.debug('determined that %s is not present on source', dest_file)
         elif dest_file is None:
@@ -239,8 +241,9 @@ def sync_folders(
         action_futures = []
         total_files = 0
         total_bytes = 0
+        filtered_files = Counter()
         for action in make_folder_sync_actions(
-            source_folder, dest_folder, args, now_millis, reporter
+            source_folder, dest_folder, args, now_millis, reporter, filtered_files
         ):
             logger.debug('scheduling action %s on bucket %s', action, bucket)
             future = sync_executor.submit(action.run, bucket, reporter, dry_run)
@@ -250,11 +253,11 @@ def sync_folders(
         reporter.end_compare(total_files, total_bytes)
         logger.info(
             '%d files and folders (and all files inside them which are not counted) filtered out',
-            sum(source_folder.filtered_files.values())
+            sum(filtered_files.values())
         )
 
         if logger.isEnabledFor(logging.DEBUG):
-            for k, v in source_folder.filtered_files:
+            for k, v in filtered_files:
                 logger.debug('%d items filtered for key "%s"', (v, k))
 
         # Wait for everything to finish
