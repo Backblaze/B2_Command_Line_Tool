@@ -162,9 +162,9 @@ class TestLocalFolder(TestSync):
                     f.name
                     for f in
                     folder.all_files(
-                                    self.reporter,
-                                    exclusions=pattern,
-                                    filtered_files=filtered_files
+                        self.reporter,
+                        exclusions=pattern,
+                        filtered_files=filtered_files
                     )
                 )
             )
