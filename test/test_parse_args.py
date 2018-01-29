@@ -21,7 +21,7 @@ class TestParseArgs(TestBase):
         'optional_before': [],
         'required': [],
         'optional': [],
-        'optional_repeat': [],
+        'optional_repeat': None,
         'arg_parser': {}
     }
 
@@ -32,7 +32,7 @@ class TestParseArgs(TestBase):
         'optional_before': [],
         'required': ['required'],
         'optional': ['optional'],
-        'optional_repeat': ['optionalRepeat'],
+        'optional_repeat': 'optionalRepeat',
         'arg_parser': {
             'optionArg': int
         }
@@ -45,7 +45,7 @@ class TestParseArgs(TestBase):
         'optional_before': ['optionalBefore'],
         'required': ['required'],
         'optional': ['optional'],
-        'optional_repeat': ['optionalRepeat'],
+        'optional_repeat': 'optionalRepeat',
         'arg_parser': {}
     }
 

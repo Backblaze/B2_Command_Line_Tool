@@ -56,7 +56,8 @@ def check_for_duplicate_args(args_dict):
 
 
 def parse_arg_list(
-    arg_list, option_flags, option_args, list_args, optional_before, required, optional, optional_repeat, arg_parser
+    arg_list, option_flags, option_args, list_args, optional_before, required, optional,
+    optional_repeat, arg_parser
 ):
     """
     Converts a list of string arguments to an Arguments object, with
@@ -119,8 +120,8 @@ def parse_arg_list(
         setattr(result, name, [])
     for name in optional:
         setattr(result, name, None)
-    for name in optional_repeat:
-        setattr(result, name, [])
+    if optional_repeat:
+        setattr(result, optional_repeat, None)
 
     # Make a function for parsing argument values
     def parse_arg(name, arg_list):
@@ -178,11 +179,12 @@ def parse_arg_list(
     for arg_name in optional:
         if len(arg_list) != 0:
             setattr(result, arg_name, parse_arg(arg_name, arg_list))
-    for arg_name in optional_repeat:
+    # optional_repeat needs some special treatment
+    if optional_repeat:
         arg_values = []
         while arg_list:
-            arg_values.append(parse_arg(arg_name, arg_list))
-        setattr(result, arg_name, arg_values)
+            arg_values.append(parse_arg(optional_repeat, arg_list))
+        setattr(result, optional_repeat, arg_values)
 
     # Anything left is a problem
     if len(arg_list) != 0:

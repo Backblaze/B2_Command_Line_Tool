@@ -3,3 +3,4 @@ logfury>=0.1.2
 requests>=2.9.1
 six>=1.10
 tqdm>=4.5.0
+globre==0.1.5

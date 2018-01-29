@@ -8,7 +8,7 @@
 #
 ######################################################################
 
-import fnmatch
+import globre
 import logging
 import os
 import re
@@ -286,7 +286,7 @@ class Bucket(object):
         paths = sorted(paths)
         curr_fold = paths[0]
         folded = [curr_fold]
-        if curr_fold == '/':
+        if curr_fold == '':
             return folded
         for path in paths:
             if not path.startswith(curr_fold):
@@ -304,7 +304,7 @@ class Bucket(object):
         :return:
         """
         for file_version_info, _ in self.ls(
-                folder_to_list=prefix, recursive=recursive, show_versions=versions
+            folder_to_list=prefix, recursive=recursive, show_versions=versions
         ):
             for expr in regexes:
                 if expr.search(file_version_info.file_name.replace(prefix, '')):
@@ -330,7 +330,9 @@ class Bucket(object):
             """
             listing_function = self.list_file_versions if versions else self.list_file_names
             max_entries = 0 if versions else 1
-            for bucket_file in listing_function(start_filename=path, max_entries=max_entries)['files']:
+            for bucket_file in listing_function(
+                start_filename=path, max_entries=max_entries
+            )['files']:
                 if os.path.basename(bucket_file['fileName']).find(path) != -1:
                     logger.debug("generate_file_version_info", bucket_file)
                     yield FileVersionInfoFactory.from_api_response(bucket_file)
@@ -343,11 +345,11 @@ class Bucket(object):
             else:
                 while '*' in path:
                     path, _ = os.path.split(path)
-                logger.debug("Appending %s",  (path, ))
+                logger.debug("Appending %s", (path,))
                 paths.append(path)
 
         if not paths:
-            return ()
+            return
 
         paths_to_list = self._fold_paths(paths)
 
@@ -362,7 +364,7 @@ class Bucket(object):
 
         for file_ in dir_contents:
             for expr in globs:
-                if fnmatch.fnmatch(file_.file_name, expr):
+                if globre.match(expr, file_.file_name):
                     yield file_
 
     def glob_rm(self, versions, recursive, globs=()):
@@ -373,9 +375,7 @@ class Bucket(object):
         :param globs: list of globs
         :return: yields removed file info
         """
-        files_to_remove = self.list_files_matching_globs(
-            versions, recursive, globs
-        )
+        files_to_remove = self.list_files_matching_globs(versions, recursive, globs)
 
         for file_info in self.rm_files(files_to_remove):
             yield file_info
@@ -390,9 +390,7 @@ class Bucket(object):
         :return: yields removed file info
         """
         regexes = [re.compile(pat) for pat in regexes]
-        files_to_remove = self.list_files_matching_regexes(
-                versions, recursive, prefix, regexes
-            )
+        files_to_remove = self.list_files_matching_regexes(versions, recursive, prefix, regexes)
         for file_info in self.rm_files(files_to_remove):
             yield file_info
 
@@ -400,9 +398,11 @@ class Bucket(object):
         futures = []
 
         for file_version_info in files_list:
-            futures.append(self.api.get_thread_pool().submit(
-                self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
-            ))
+            futures.append(
+                self.api.get_thread_pool().submit(
+                    self.api.delete_file_version, file_version_info.id_, file_version_info.file_name
+                )
+            )
 
         for future in futures:
             file_info = future.result()

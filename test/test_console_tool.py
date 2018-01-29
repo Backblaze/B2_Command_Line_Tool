@@ -416,7 +416,9 @@ class TestConsoleTool(TestBase):
             '''
 
             # remove files by glob
-            self._run_command(['rm', 'my-bucket', 'rm_test_file_4.txt', 'rm_test_file_5'], expected_stdout, '', 0)
+            self._run_command(
+                ['rm', 'my-bucket', 'rm_test_file_4.txt', 'rm_test_file_5'], expected_stdout, '', 0
+            )
 
             expected_stdout = '''
             Removed rm_test_file_0.txt
