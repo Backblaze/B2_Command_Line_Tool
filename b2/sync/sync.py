@@ -115,10 +115,7 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         dest_folder.folder_type()) not in [('b2', 'local'), ('local', 'b2')]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
 
-    for (
-        source_file,
-        dest_file
-    ) in zip_folders(
+    for source_file, dest_file in zip_folders(
         source_folder, dest_folder, reporter, exclusions, inclusions, filtered_files
     ):
         if source_file is None:
