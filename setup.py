@@ -17,10 +17,18 @@ import platform
 import sys
 
 # Always prefer setuptools over distutils
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, __version__ as setuptoolsversion
 # To use a consistent encoding
 from codecs import open
 from os import path
+
+#require at least setuptools 20.2 for PEP 508 conditional dependency support
+MIN_SETUPTOOLS_VERSION = (20, 2)
+if tuple(int(x) for x in setuptoolsversion.split('.')[:2]) < MIN_SETUPTOOLS_VERSION:
+    sys.exit(
+        'setuptools %s.%s or later is required. To fix, try running: pip install "setuptools>=%s.%s"'
+        % (MIN_SETUPTOOLS_VERSION * 2)
+    )
 
 here = path.abspath(path.dirname(__file__))
 
@@ -31,11 +39,6 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 with open('requirements.txt', encoding='utf-8') as f:
     requirements = f.read().splitlines()
-
-# The set of required packages depends on what version
-# of python you're running.
-if sys.version_info < (3, 2):
-    requirements.append('futures>=3.0.5')
 
 # Jython cannot handle extremely large blocks of code.
 # requests 2.12.x that we rely on, relied on idna, which until 2.2.0 contained such block.
@@ -55,7 +58,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.0.0',
+    version='1.1.1',
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
 

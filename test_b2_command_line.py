@@ -13,6 +13,7 @@ from __future__ import print_function
 import hashlib
 import json
 import os.path
+import platform
 import random
 import re
 import shutil
@@ -24,6 +25,7 @@ import threading
 import unittest
 
 from b2.console_tool import VERSION_0_COMPATIBILITY
+from b2.utils import fix_windows_path_limit
 
 USAGE = """
 This program tests the B2 command-line client.
@@ -85,7 +87,7 @@ class TempDir(object):
         return self.dirpath
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        shutil.rmtree(self.dirpath)
+        shutil.rmtree(fix_windows_path_limit(self.dirpath))
 
 
 class StringReader(object):
@@ -104,8 +106,8 @@ class StringReader(object):
 
 
 def remove_insecure_platform_warnings(text):
-    return '\n'.join(
-        line for line in text.split('\n')
+    return os.linesep.join(
+        line for line in text.split(os.linesep)
         if ('SNIMissingWarning' not in line) and ('InsecurePlatformWarning' not in line)
     )
 
@@ -134,7 +136,7 @@ def run_command(path_to_script, args):
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        close_fds=True
+        close_fds=platform.system() != 'Windows'
     )
     p.stdin.close()
     reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
@@ -156,7 +158,7 @@ def print_text_indented(text):
     """
     Prints text that may include weird characters, indented four spaces.
     """
-    for line in text.split('\n'):
+    for line in text.split(os.linesep):
         print('   ', repr(line)[1:-1])
 
 
@@ -202,7 +204,7 @@ class CommandLine(object):
             sys.exit(1)
         if stderr != '':
             failed = False
-            for line in (s.strip() for s in stderr.split('\n')):
+            for line in (s.strip() for s in stderr.split(os.linesep)):
                 if not any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS):
                     print('Unexpected stderr line:', repr(line))
                     failed = True
@@ -281,7 +283,7 @@ def clean_buckets(b2_tool, bucket_name_prefix):
     text = b2_tool.should_succeed(['list_buckets'])
 
     buckets = {}
-    for line in text.split('\n')[:-1]:
+    for line in text.split(os.linesep)[:-1]:
         words = line.split()
         if len(words) != 3:
             error_and_exit('bad list_buckets line: ' + line)
@@ -360,10 +362,10 @@ def basic_test(b2_tool, bucket_name):
     )
 
     b2_tool.should_succeed(
-        ['download_file_by_name', '--noProgress', bucket_name, 'b/1', '/dev/null']
+        ['download_file_by_name', '--noProgress', bucket_name, 'b/1', os.devnull]
     )
     b2_tool.should_succeed(
-        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], '/dev/null']
+        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], os.devnull]
     )
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
@@ -396,13 +398,16 @@ def basic_test(b2_tool, bucket_name):
     )
     should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
 
-    b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nd\n')
+    b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
     b2_tool.should_succeed(
-        ['ls', '--long', bucket_name], r'^4_z.*upload.*a\n.*-.*b/\n4_z.*upload.*d\n'
+        ['ls', '--long', bucket_name],
+        '^4_z.*upload.*a{0}.*-.*b/{0}4_z.*upload.*d{0}'.format(os.linesep)
     )
-    b2_tool.should_succeed(['ls', '--versions', bucket_name], r'^a\na\nb/\nc\nc\nd\n')
-    b2_tool.should_succeed(['ls', bucket_name, 'b'], r'^b/1\nb/2\n')
-    b2_tool.should_succeed(['ls', bucket_name, 'b/'], r'^b/1\nb/2\n')
+    b2_tool.should_succeed(
+        ['ls', '--versions', bucket_name], '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)
+    )
+    b2_tool.should_succeed(['ls', bucket_name, 'b'], '^b/1{0}b/2{0}'.format(os.linesep))
+    b2_tool.should_succeed(['ls', bucket_name, 'b/'], '^b/1{0}b/2{0}'.format(os.linesep))
 
     file_info = b2_tool.should_succeed_json(['get_file_info', second_c_version['fileId']])
     expected_info = {
@@ -413,11 +418,11 @@ def basic_test(b2_tool, bucket_name):
     should_equal(expected_info, file_info['fileInfo'])
 
     b2_tool.should_succeed(['delete_file_version', 'c', first_c_version['fileId']])
-    b2_tool.should_succeed(['ls', bucket_name], r'^a\nb/\nc\nd\n')
+    b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
 
-    new_creds = '/tmp/b2_account_info'
+    new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear_account'])
     bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
@@ -496,7 +501,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         # now upload
         b2_tool.should_succeed(
             ['sync', '--noProgress', dir_path, b2_sync_point],
-            expected_pattern="/d could not be accessed"
+            expected_pattern="d could not be accessed"
         )
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
@@ -584,7 +589,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
             ], file_version_summary(file_versions)
         )
 
-        #should new version of c
+        #should upload new version of c
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'modTime',
@@ -633,6 +638,32 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
 
+def sync_long_path_test(b2_tool, bucket_name):
+    """
+    test sync with very long path (overcome windows 260 character limit)
+    """
+    b2_sync_point = 'b2://' + bucket_name
+
+    long_path = '/'.join(
+        (
+            'extremely_long_path_which_exceeds_windows_unfortunate_260_character_path_limit',
+            'and_needs_special_prefixes_containing_backslashes_added_to_overcome_this_limitation',
+            'when_doing_so_beware_leaning_toothpick_syndrome_as_it_can_cause_frustration',
+            'see_also_xkcd_1638'
+        )
+    )
+
+    with TempDir() as dir_path:
+        local_long_path = os.path.normpath(os.path.join(dir_path, long_path))
+        fixed_local_long_path = fix_windows_path_limit(local_long_path)
+        os.makedirs(os.path.dirname(fixed_local_long_path))
+        write_file(fixed_local_long_path, b'asdf')
+
+        b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(['+ ' + long_path], file_version_summary(file_versions))
+
+
 def main():
 
     if len(sys.argv) < 3:
@@ -646,6 +677,7 @@ def main():
         'sync_down': sync_down_test,
         'sync_up': sync_up_test,
         'sync_up_no_prefix': sync_test_no_prefix,
+        'sync_long_path': sync_long_path_test,
     }
 
     if len(sys.argv) >= 4:

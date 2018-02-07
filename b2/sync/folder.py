@@ -8,16 +8,16 @@
 #
 ######################################################################
 
-from abc import ABCMeta, abstractmethod
 import logging
 import os
+import six
 import sys
 
-import six
-
+from abc import ABCMeta, abstractmethod
 from .exception import EnvironmentEncodingError
 from .file import File, FileVersion
 from ..raw_api import SRC_LAST_MODIFIED_MILLIS
+from ..utils import fix_windows_path_limit, is_file_readable
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ class LocalFolder(AbstractFolder):
         """
         if not isinstance(root, six.text_type):
             raise ValueError('folder path should be unicode: %s' % repr(root))
-        self.root = os.path.abspath(root)
+        self.root = fix_windows_path_limit(os.path.abspath(root))
 
     def folder_type(self):
         return 'local'
@@ -210,13 +210,7 @@ class LocalFolder(AbstractFolder):
                 continue
 
             # Skip broken symlinks or other inaccessible files
-            if not os.path.exists(local_path):
-                if reporter is not None:
-                    reporter.local_access_error(local_path)
-            elif not os.access(local_path, os.R_OK):
-                if reporter is not None:
-                    reporter.local_permission_error(local_path)
-            else:
+            if is_file_readable(local_path, reporter):
                 if os.path.isdir(local_path):
                     name += six.u('/')
                 names.append((name, local_path, b2_path))
@@ -232,10 +226,13 @@ class LocalFolder(AbstractFolder):
                 ):
                     yield subdir_file
             else:
-                file_mod_time = int(round(os.path.getmtime(local_path) * 1000))
-                file_size = os.path.getsize(local_path)
-                version = FileVersion(local_path, b2_path, file_mod_time, 'upload', file_size)
-                yield File(b2_path, [version])
+                # Check that the file still exists and is accessible, since it can take a long time
+                # to iterate through large folders
+                if is_file_readable(local_path, reporter):
+                    file_mod_time = int(round(os.path.getmtime(local_path) * 1000))
+                    file_size = os.path.getsize(local_path)
+                    version = FileVersion(local_path, b2_path, file_mod_time, 'upload', file_size)
+                    yield File(b2_path, [version])
 
     def _handle_non_unicode_file_name(self, name):
         """
