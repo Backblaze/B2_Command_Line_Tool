@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.0.0
+Version 1.1.1
 
 # Installation
 
@@ -24,7 +24,7 @@ this:
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
     b2 clear-account
-    b2 create-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 delete-bucket <bucketName>
     b2 delete-file-version [<fileName>] <fileId>
     b2 download-file-by-id [--noProgress] <fileId> <localFileName>
@@ -50,7 +50,7 @@ this:
         [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \
         [--excludeRegex <regex> [--includeRegex <regex>]] \
         <source> <destination>
-    b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
         [--info <key>=<value>]* [--minPartSize N] \
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
@@ -82,6 +82,12 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.1.0 (November 30, 2017)
+
+Just one change in this release:
+
+* Add support for CORS rules in `create-bucket` and `update-bucket`.  `get-bucket` will display CORS rules.
 
 ## 1.0.0 (November 9, 2017)
 

@@ -95,7 +95,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
         # After it's closed, set the mod time.
         # This is an ugly hack to make the tests work.  I can't think
         # of any other cases where os.utime might fail.
-        if self.local_file_path != '/dev/null':
+        if self.local_file_path != os.devnull:
             mod_time = mod_time_millis / 1000.0
             os.utime(self.local_file_path, (mod_time, mod_time))
 

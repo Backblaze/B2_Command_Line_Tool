@@ -186,6 +186,7 @@ class BucketSimulator(object):
         bucket_name,
         bucket_type,
         bucket_info=None,
+        cors_rules=None,
         lifecycle_rules=None
     ):
         assert bucket_type in ['allPrivate', 'allPublic']
@@ -194,7 +195,8 @@ class BucketSimulator(object):
         self.bucket_id = bucket_id
         self.bucket_type = bucket_type
         self.bucket_info = bucket_info or {}
-        self.lifycycle_rules = lifecycle_rules or []
+        self.cors_rules = cors_rules or []
+        self.lifecycle_rules = lifecycle_rules or []
         self.revision = 1
         self.upload_url_counter = iter(range(200))
         # File IDs count down, so that the most recent will come first when they are sorted.
@@ -211,7 +213,8 @@ class BucketSimulator(object):
             bucketId=self.bucket_id,
             bucketType=self.bucket_type,
             bucketInfo=self.bucket_info,
-            lifecycleRules=self.lifycycle_rules,
+            corsRules=self.cors_rules,
+            lifecycleRules=self.lifecycle_rules,
             revision=self.revision,
         )
 
@@ -363,7 +366,12 @@ class BucketSimulator(object):
         return file_sim.as_start_large_file_result()
 
     def update_bucket(
-        self, bucket_type=None, bucket_info=None, lifecycle_rules=None, if_revision_is=None
+        self,
+        bucket_type=None,
+        bucket_info=None,
+        cors_rules=None,
+        lifecycle_rules=None,
+        if_revision_is=None
     ):
         if if_revision_is is not None and self.revision != if_revision_is:
             raise Conflict()
@@ -372,6 +380,8 @@ class BucketSimulator(object):
             self.bucket_type = bucket_type
         if bucket_info is not None:
             self.bucket_info = bucket_info
+        if cors_rules is not None:
+            self.cors_rules = cors_rules
         if lifecycle_rules is not None:
             self.lifecycle_rules = lifecycle_rules
         self.revision += 1
@@ -479,6 +489,7 @@ class RawSimulator(AbstractRawApi):
         bucket_name,
         bucket_type,
         bucket_info=None,
+        cors_rules=None,
         lifecycle_rules=None
     ):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):
@@ -488,7 +499,8 @@ class RawSimulator(AbstractRawApi):
             raise DuplicateBucketName(bucket_name)
         bucket_id = 'bucket_' + str(six.next(self.bucket_id_counter))
         bucket = BucketSimulator(
-            account_id, bucket_id, bucket_name, bucket_type, bucket_info, lifecycle_rules
+            account_id, bucket_id, bucket_name, bucket_type, bucket_info, cors_rules,
+            lifecycle_rules
         )
         self.bucket_name_to_bucket[bucket_name] = bucket
         self.bucket_id_to_bucket[bucket_id] = bucket
@@ -634,6 +646,7 @@ class RawSimulator(AbstractRawApi):
         bucket_id,
         bucket_type=None,
         bucket_info=None,
+        cors_rules=None,
         lifecycle_rules=None,
         if_revision_is=None
     ):
@@ -643,6 +656,7 @@ class RawSimulator(AbstractRawApi):
         return bucket.update_bucket(
             bucket_type=bucket_type,
             bucket_info=bucket_info,
+            cors_rules=cors_rules,
             lifecycle_rules=lifecycle_rules,
             if_revision_is=if_revision_is
         )

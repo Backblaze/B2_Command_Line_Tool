@@ -289,25 +289,26 @@ class ClearAccount(Command):
 
 class CreateBucket(Command):
     """
-    b2 create-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Creates a new bucket.  Prints the ID of the bucket created.
 
-        Optionally stores bucket info and lifecycle rules with the bucket.
+        Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
         These can be given as JSON on the command line.
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
-    OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
+    OPTION_ARGS = ['bucketInfo', 'corsRules', 'lifecycleRules']
 
-    ARG_PARSER = {'bucketInfo': json.loads, 'lifecycleRules': json.loads}
+    ARG_PARSER = {'bucketInfo': json.loads, 'corsRules': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
         bucket = self.api.create_bucket(
             args.bucketName,
             args.bucketType,
             bucket_info=args.bucketInfo,
+            cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules
         )
         self._print(bucket.id_)
@@ -425,7 +426,7 @@ class GetBucket(Command):
     b2 get-bucket <bucketName>
 
         Prints all of the information about the bucket, including
-        bucket info and lifecycle rules.
+        bucket info, CORS rules and lifecycle rules.
     """
 
     REQUIRED = ['bucketName']
@@ -999,26 +1000,27 @@ class TestUploadUrlConcurrency(Command):
 
 class UpdateBucket(Command):
     """
-    b2 update-bucket [--bucketInfo <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
+    b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
 
         Updates the bucketType of an existing bucket.  Prints the ID
         of the bucket updated.
 
-        Optionally stores bucket info and lifecycle rules with the bucket.
+        Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
         These can be given as JSON on the command line.
     """
 
     REQUIRED = ['bucketName', 'bucketType']
 
-    OPTION_ARGS = ['bucketInfo', 'lifecycleRules']
+    OPTION_ARGS = ['bucketInfo', 'corsRules', 'lifecycleRules']
 
-    ARG_PARSER = {'bucketInfo': json.loads, 'lifecycleRules': json.loads}
+    ARG_PARSER = {'bucketInfo': json.loads, 'corsRules': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
             bucket_type=args.bucketType,
             bucket_info=args.bucketInfo,
+            cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules
         )
         self._print(json.dumps(response, indent=4, sort_keys=True))
@@ -1253,8 +1255,8 @@ class ConsoleTool(object):
         logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
         logger.debug(
-            'Python version is %s %s',
-            platform.python_implementation(), sys.version.replace('\n', ' ')
+            'Python version is %s %s', platform.python_implementation(),
+            sys.version.replace('\n', ' ')
         )
         logger.debug('locale is %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
