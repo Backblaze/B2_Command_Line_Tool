@@ -113,6 +113,27 @@ class TestLocalFolder(TestSync):
                 os.path.join(tmpdir, self.NAMES[0])
             )
 
+    def _check_file_filters_results(
+        self, expected_list, exclusions, files_excluded, inclusions=tuple()
+    ):
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir)
+            filtered_files = Counter()
+            self.assertEqual(
+                expected_list,
+                list(
+                    f.name for f in folder.all_files(
+                        self.reporter,
+                        exclusions=exclusions,
+                        inclusions=inclusions,
+                        filtered_files=filtered_files
+                    )
+                )
+            )
+            for exclusion_regex, excluded_by_regex in six.moves.zip(exclusions, files_excluded):
+                self.assertEqual(filtered_files[exclusion_regex], excluded_by_regex)
+            self.reporter.local_access_error.assert_not_called()
+
     def test_exclusions(self):
         expected_list = [
             six.u('.dot_file'),
@@ -126,50 +147,15 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
-        files_excluded = 3
-        pattern = [re.compile('.*\\.bin')]
-
-        with TempDir() as tmpdir:
-            folder = self._prepare_folder(tmpdir)
-            filtered_files = Counter()
-
-            self.assertEqual(
-                expected_list,
-                list(
-                    f.name
-                    for f in
-                    folder.all_files(
-                        self.reporter,
-                        exclusions=pattern,
-                        filtered_files=filtered_files
-                    )
-                )
-            )
-            self.assertEqual(filtered_files[pattern[0]], files_excluded)
-            self.reporter.local_access_error.assert_not_called()
+        files_excluded = [3]
+        exc_pattern = [re.compile('.*\\.bin')]
+        self._check_file_filters_results(expected_list, exc_pattern, files_excluded)
 
     def test_exclude_all(self):
         expected_list = []
-        files_excluded = 6
+        files_excluded = [6]
         pattern = [re.compile('.*')]
-        with TempDir() as tmpdir:
-            folder = self._prepare_folder(tmpdir)
-            filtered_files = Counter()
-
-            self.assertEqual(
-                expected_list,
-                list(
-                    f.name
-                    for f in
-                    folder.all_files(
-                        self.reporter,
-                        exclusions=pattern,
-                        filtered_files=filtered_files
-                    )
-                )
-            )
-            self.assertEqual(filtered_files[pattern[0]], files_excluded)
-            self.reporter.local_access_error.assert_not_called()
+        self._check_file_filters_results(expected_list, pattern, files_excluded)
 
     def test_exclusions_inclusions(self):
         expected_list = [
@@ -186,30 +172,10 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
-        files_excluded = 1
+        files_excluded = [1]
         exc_pattern = [re.compile('.*\\.bin')]
         inc_pattern = [re.compile('.*a\\.bin')]
-
-        with TempDir() as tmpdir:
-            folder = self._prepare_folder(tmpdir)
-            filtered_files = Counter()
-
-            self.assertEqual(
-                expected_list,
-                list(
-                    f.name
-                    for f in
-                    folder.all_files(
-                        self.reporter,
-                        exclusions=exc_pattern,
-                        inclusions=inc_pattern,
-                        filtered_files=filtered_files
-                    )
-                )
-            )
-
-            self.assertEqual(filtered_files[exc_pattern[0]], files_excluded)
-            self.reporter.local_access_error.assert_not_called()
+        self._check_file_filters_results(expected_list, exc_pattern, files_excluded, inc_pattern)
 
 
 class TestB2Folder(TestSync):
@@ -420,8 +386,8 @@ def b2_file(name, mod_times, size=10):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name,
-            abs(mod_time), 'upload' if 0 < mod_time else 'hide', size
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
+            if 0 < mod_time else 'hide', size
         ) for mod_time in mod_times
     ]  # yapf disable
     return File(name, versions)

@@ -39,7 +39,9 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
+def zip_folders(
+    folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None
+):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -91,7 +93,9 @@ def make_file_sync_actions(
         yield action
 
 
-def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter, filtered_files=None):
+def make_folder_sync_actions(
+    source_folder, dest_folder, args, now_millis, reporter, filtered_files=None
+):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
