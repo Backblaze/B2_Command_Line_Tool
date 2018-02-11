@@ -34,7 +34,7 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self, reporter, inclusions=tuple(), exclusions=tuple(), filtered_files=None):
+    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
