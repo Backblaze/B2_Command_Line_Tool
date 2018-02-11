@@ -10,7 +10,7 @@
 
 from __future__ import print_function
 
-from collections import Counter
+from collections import defaultdict
 import os
 import platform
 import re
@@ -118,7 +118,7 @@ class TestLocalFolder(TestSync):
     ):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
-            filtered_files = Counter()
+            filtered_files = defaultdict(int)
             self.assertEqual(
                 expected_list,
                 list(
