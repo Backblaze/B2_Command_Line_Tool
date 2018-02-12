@@ -353,7 +353,6 @@ class Bucket(object):
                 start_filename=path, max_entries=max_entries
             )['files']:
                 if os.path.basename(bucket_file['fileName']).find(path) != -1:
-                    logger.debug("generate_file_version_info", bucket_file)
                     yield FileVersionInfoFactory.from_api_response(bucket_file)
 
         for expr in globs:
@@ -364,7 +363,6 @@ class Bucket(object):
             else:
                 while '*' in path:
                     path, _ = os.path.split(path)
-                logger.debug("Appending %s", (path,))
                 paths.append(path)
 
         if not paths:
