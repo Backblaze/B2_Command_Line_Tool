@@ -28,6 +28,7 @@ branches:
 matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
+    - python: nightly  # on 2018-02-14 it was found failing installation with ValueError: bad marshal data (unknown type code)
   include:
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
@@ -63,7 +64,7 @@ matrix:
     # test_raw_api takes too long to be run in every cell of the build matrix
     - python: 2.6
       env: MODE=TEST_RAW_API
-    - python: nightly
+    - python: 3.6
       env: MODE=TEST_RAW_API
 
     # coverage
