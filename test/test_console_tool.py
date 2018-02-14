@@ -376,8 +376,8 @@ class TestConsoleTool(TestBase):
             for file in range(number_of_test_files):
                 rm_test_files.append(
                     (
-                        self._make_local_file(temp_dir, 'rm_test_file_{}.txt'.format(file)),
-                        '900{}'.format(file)
+                        self._make_local_file(temp_dir, 'rm_test_file_{0}.txt'.format(file)),
+                        '900{0}'.format(file)
                     )
                 )
 
