@@ -10,7 +10,7 @@
 
 from __future__ import division
 
-from collections import Counter
+from collections import defaultdict
 import logging
 import re
 import six
@@ -246,7 +246,7 @@ def sync_folders(
         action_futures = []
         total_files = 0
         total_bytes = 0
-        filtered_files = Counter()
+        filtered_files = defaultdict(int)
         for action in make_folder_sync_actions(
             source_folder, dest_folder, args, now_millis, reporter, filtered_files
         ):
