@@ -20,11 +20,15 @@ class BoundedQueueExecutor(object):
     The number of available slots in the queue is tracked with a
     semaphore that is acquired before queueing an action, and
     released when an action finishes.
+
+    Counts the number of exceptions thrown by tasks, and makes them
+    available from get_num_exceptions() after shutting down.
     """
 
     def __init__(self, executor, queue_limit):
         self.executor = executor
         self.semaphore = threading.Semaphore(queue_limit)
+        self.num_exceptions = 0
 
     def submit(self, fcn, *args, **kwargs):
         # Wait until there is room in the queue.
@@ -35,6 +39,9 @@ class BoundedQueueExecutor(object):
         def run_it():
             try:
                 return fcn(*args, **kwargs)
+            except Exception:
+                self.num_exceptions += 1
+                raise
             finally:
                 self.semaphore.release()
 
@@ -43,3 +50,6 @@ class BoundedQueueExecutor(object):
 
     def shutdown(self):
         self.executor.shutdown()
+
+    def get_num_exceptions(self):
+        return self.num_exceptions

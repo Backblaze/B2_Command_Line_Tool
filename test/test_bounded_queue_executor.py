@@ -23,7 +23,7 @@ except ImportError:
     import futures
 
 
-class TestChooseParts(TestBase):
+class TestBoundedQueueExecutor(TestBase):
     def setUp(self):
         unbounded_executor = futures.ThreadPoolExecutor(max_workers=1)
         self.executor = BoundedQueueExecutor(unbounded_executor, 1)
@@ -37,9 +37,7 @@ class TestChooseParts(TestBase):
         self.assertEqual(1, future_1.result())
 
     def test_blocking(self):
-        """
-        This doesn't actually test that it waits, but it does exercise the code.
-        """
+        # This doesn't actually test that it waits, but it does exercise the code.
 
         # Make some futures using a function that takes a little time.
         def sleep_and_return_fcn(n):
@@ -54,3 +52,20 @@ class TestChooseParts(TestBase):
         # Check the answers
         answers = list(six.moves.map(lambda f: f.result(), futures))
         self.assertEqual(list(six.moves.range(10)), answers)
+
+    def test_no_exceptions(self):
+        f = self.executor.submit(lambda: 1)
+        self.executor.shutdown()
+        self.assertEqual(0, self.executor.get_num_exceptions())
+        self.assertTrue(f.exception() is None)
+
+    def test_two_exceptions(self):
+        def thrower():
+            raise Exception('test')
+
+        f1 = self.executor.submit(thrower)
+        f2 = self.executor.submit(thrower)
+        self.executor.shutdown()
+        self.assertEqual(2, self.executor.get_num_exceptions())
+        self.assertFalse(f1.exception() is None)
+        self.assertFalse(f2.exception() is None)
