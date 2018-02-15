@@ -13,8 +13,8 @@ from __future__ import division
 import logging
 import re
 import six
-import threading
 
+from ..bounded_queue_executor import BoundedQueueExecutor
 from ..exception import CommandError
 from ..utils import trace_call
 from .policy_manager import POLICY_MANAGER
@@ -162,40 +162,6 @@ def count_files(local_folder, reporter):
     reporter.end_local()
 
 
-class BoundedQueueExecutor(object):
-    """
-    Wraps a futures.Executor and limits the number of requests that
-    can be queued at once.  Requests to submit() tasks block until
-    there is room in the queue.
-
-    The number of available slots in the queue is tracked with a
-    semaphore that is acquired before queueing an action, and
-    released when an action finishes.
-    """
-
-    def __init__(self, executor, queue_limit):
-        self.executor = executor
-        self.semaphore = threading.Semaphore(queue_limit)
-
-    def submit(self, fcn, *args, **kwargs):
-        # Wait until there is room in the queue.
-        self.semaphore.acquire()
-
-        # Wrap the action in a function that will release
-        # the semaphore after it runs.
-        def run_it():
-            try:
-                fcn(*args, **kwargs)
-            finally:
-                self.semaphore.release()
-
-        # Submit the wrapped action.
-        return self.executor.submit(run_it)
-
-    def shutdown(self):
-        self.executor.shutdown()
-
-
 @trace_call(logger)
 def sync_folders(
     source_folder,
@@ -254,20 +220,18 @@ def sync_folders(
             bucket = dest_folder.bucket
         if bucket is None:
             raise ValueError('neither folder is a b2 folder')
-        action_futures = []
         total_files = 0
         total_bytes = 0
         for action in make_folder_sync_actions(
             source_folder, dest_folder, args, now_millis, reporter
         ):
             logging.debug('scheduling action %s on bucket %s', action, bucket)
-            future = sync_executor.submit(action.run, bucket, reporter, dry_run)
-            action_futures.append(future)
+            sync_executor.submit(action.run, bucket, reporter, dry_run)
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
 
         # Wait for everything to finish
         sync_executor.shutdown()
-        if any(1 for f in action_futures if f.exception() is not None):
+        if sync_executor.get_num_exceptions() != 0:
             raise CommandError('sync is incomplete')
