@@ -34,7 +34,7 @@ class BoundedQueueExecutor(object):
         # the semaphore after it runs.
         def run_it():
             try:
-                fcn(*args, **kwargs)
+                return fcn(*args, **kwargs)
             finally:
                 self.semaphore.release()
 
