@@ -24,7 +24,6 @@ import tempfile
 import threading
 import unittest
 
-from b2.console_tool import VERSION_0_COMPATIBILITY
 from b2.utils import fix_windows_path_limit
 
 USAGE = """
