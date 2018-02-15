@@ -61,11 +61,11 @@ class TestBoundedQueueExecutor(TestBase):
 
     def test_two_exceptions(self):
         def thrower():
-            raise Exception('test')
+            raise Exception('test_exception')
 
         f1 = self.executor.submit(thrower)
         f2 = self.executor.submit(thrower)
         self.executor.shutdown()
         self.assertEqual(2, self.executor.get_num_exceptions())
         self.assertFalse(f1.exception() is None)
-        self.assertFalse(f2.exception() is None)
+        self.assertEqual('test_exception', str(f2.exception()))
