@@ -220,20 +220,18 @@ def sync_folders(
             bucket = dest_folder.bucket
         if bucket is None:
             raise ValueError('neither folder is a b2 folder')
-        action_futures = []
         total_files = 0
         total_bytes = 0
         for action in make_folder_sync_actions(
             source_folder, dest_folder, args, now_millis, reporter
         ):
             logging.debug('scheduling action %s on bucket %s', action, bucket)
-            future = sync_executor.submit(action.run, bucket, reporter, dry_run)
-            action_futures.append(future)
+            sync_executor.submit(action.run, bucket, reporter, dry_run)
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
 
         # Wait for everything to finish
         sync_executor.shutdown()
-        if any(1 for f in action_futures if f.exception() is not None):
+        if sync_executor.get_num_exceptions() != 0:
             raise CommandError('sync is incomplete')
