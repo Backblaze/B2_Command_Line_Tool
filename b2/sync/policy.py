@@ -152,11 +152,10 @@ class DownPolicy(AbstractFileSyncPolicy):
 
     def _make_transfer_action(self):
         return B2DownloadAction(
-            self._source_file.name,
-            self._source_folder.make_full_path(self._source_file.name),
+            self._source_file.name, self._source_folder.make_full_path(self._source_file.name),
             self._source_file.latest_version().id_,
-            self._dest_folder.make_full_path(self._source_file.name),
-            self._get_source_mod_time(), self._source_file.latest_version().size
+            self._dest_folder.make_full_path(self._source_file.name), self._get_source_mod_time(),
+            self._source_file.latest_version().size
         )
 
 
@@ -170,8 +169,8 @@ class UpPolicy(AbstractFileSyncPolicy):
     def _make_transfer_action(self):
         return B2UploadAction(
             self._source_folder.make_full_path(self._source_file.name), self._source_file.name,
-            self._dest_folder.make_full_path(self._source_file.name),
-            self._get_source_mod_time(), self._source_file.latest_version().size
+            self._dest_folder.make_full_path(self._source_file.name), self._get_source_mod_time(),
+            self._source_file.latest_version().size
         )
 
 
@@ -246,8 +245,7 @@ def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
         keep = (version_index == 0) and (source_file is not None) and not transferred
         if not keep:
             yield B2DeleteAction(
-                dest_file.name,
-                dest_folder.make_full_path(dest_file.name), version.id_,
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
                 make_b2_delete_note(version, version_index, transferred)
             )
 
@@ -299,8 +297,7 @@ def make_b2_keep_days_actions(
         # Delete this version
         if deleting:
             yield B2DeleteAction(
-                dest_file.name,
-                dest_folder.make_full_path(dest_file.name), version.id_,
+                dest_file.name, dest_folder.make_full_path(dest_file.name), version.id_,
                 make_b2_delete_note(version, version_index, transferred)
             )
 

@@ -435,9 +435,7 @@ class TestConsoleTool(TestBase):
         auth_token = self.account_info.get_account_auth_token()
         self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
         self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {
-                'color': 'blue'
-            }
+            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
         )
         self.raw_api.start_large_file(
             api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
