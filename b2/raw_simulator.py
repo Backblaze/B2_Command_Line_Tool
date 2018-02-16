@@ -558,8 +558,11 @@ class RawSimulator(AbstractRawApi):
             'fileNamePrefix':
                 file_name_prefix,
             'authorizationToken':
-                'fake_download_auth_token_%s_%s_%d' %
-                (bucket_id, b2_url_encode(file_name_prefix), valid_duration_in_seconds)
+                'fake_download_auth_token_%s_%s_%d' % (
+                    bucket_id,
+                    b2_url_encode(file_name_prefix),
+                    valid_duration_in_seconds,
+                )
         }
 
     def get_file_info(self, api_url, account_auth_token, file_id):
