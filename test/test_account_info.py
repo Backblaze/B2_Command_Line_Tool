@@ -125,13 +125,15 @@ class AccountInfoBase(object):
         )
         if self.PERSISTENCE:
             self.assertEqual(
-                'bucket-0', self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
+                'bucket-0',
+                self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
             )
         account_info.remove_bucket_name('my-bucket')
         self.assertEqual(None, account_info.get_bucket_id_or_none_from_bucket_name('my-bucket'))
         if self.PERSISTENCE:
             self.assertEqual(
-                None, self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
+                None,
+                self._make_info().get_bucket_id_or_none_from_bucket_name('my-bucket')
             )
 
     def test_refresh_bucket(self):
@@ -142,7 +144,8 @@ class AccountInfoBase(object):
         self.assertEqual('bucket-0', account_info.get_bucket_id_or_none_from_bucket_name('a'))
         if self.PERSISTENCE:
             self.assertEqual(
-                'bucket-0', self._make_info().get_bucket_id_or_none_from_bucket_name('a')
+                'bucket-0',
+                self._make_info().get_bucket_id_or_none_from_bucket_name('a')
             )
 
     def _test_account_info(self, check_persistence):

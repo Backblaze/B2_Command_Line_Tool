@@ -14,6 +14,7 @@ import six
 import sys
 
 from abc import ABCMeta, abstractmethod
+from b2.exception import CommandError
 from .exception import EnvironmentEncodingError
 from .file import File, FileVersion
 from ..raw_api import SRC_LAST_MODIFIED_MILLIS
@@ -154,7 +155,9 @@ class LocalFolder(AbstractFolder):
         self.ensure_present()
 
         if not os.listdir(self.root):
-            raise Exception('Directory %s is empty' % (self.root,))
+            raise CommandError(
+                'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (self.root,)
+            )
 
     def _walk_relative_paths(
         self,
