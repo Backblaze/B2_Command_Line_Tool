@@ -156,7 +156,8 @@ class DownPolicy(AbstractFileSyncPolicy):
             self._source_folder.make_full_path(self._source_file.name),
             self._source_file.latest_version().id_,
             self._dest_folder.make_full_path(self._source_file.name),
-            self._get_source_mod_time(), self._source_file.latest_version().size
+            self._get_source_mod_time(),
+            self._source_file.latest_version().size,
         )
 
 
@@ -169,9 +170,11 @@ class UpPolicy(AbstractFileSyncPolicy):
 
     def _make_transfer_action(self):
         return B2UploadAction(
-            self._source_folder.make_full_path(self._source_file.name), self._source_file.name,
+            self._source_folder.make_full_path(self._source_file.name),
+            self._source_file.name,
             self._dest_folder.make_full_path(self._source_file.name),
-            self._get_source_mod_time(), self._source_file.latest_version().size
+            self._get_source_mod_time(),
+            self._source_file.latest_version().size,
         )
 
 
@@ -184,7 +187,10 @@ class UpAndDeletePolicy(UpPolicy):
         for action in super(UpAndDeletePolicy, self)._get_hide_delete_actions():
             yield action
         for action in make_b2_delete_actions(
-            self._source_file, self._dest_file, self._dest_folder, self._transferred
+            self._source_file,
+            self._dest_file,
+            self._dest_folder,
+            self._transferred,
         ):
             yield action
 
@@ -247,8 +253,9 @@ def make_b2_delete_actions(source_file, dest_file, dest_folder, transferred):
         if not keep:
             yield B2DeleteAction(
                 dest_file.name,
-                dest_folder.make_full_path(dest_file.name), version.id_,
-                make_b2_delete_note(version, version_index, transferred)
+                dest_folder.make_full_path(dest_file.name),
+                version.id_,
+                make_b2_delete_note(version, version_index, transferred),
             )
 
 
@@ -300,8 +307,9 @@ def make_b2_keep_days_actions(
         if deleting:
             yield B2DeleteAction(
                 dest_file.name,
-                dest_folder.make_full_path(dest_file.name), version.id_,
-                make_b2_delete_note(version, version_index, transferred)
+                dest_folder.make_full_path(dest_file.name),
+                version.id_,
+                make_b2_delete_note(version, version_index, transferred),
             )
 
         # Can we start deleting with the next version, based on the
