@@ -10,10 +10,9 @@
 
 from __future__ import print_function
 
-from collections import defaultdict
+import itertools
 import os
 import platform
-import re
 import threading
 import time
 import unittest
@@ -25,6 +24,9 @@ from b2.exception import CommandError, DestFileNewer
 from b2.file_version import FileVersionInfo
 from b2.sync.folder import AbstractFolder, B2Folder, LocalFolder
 from b2.sync.file import File, FileVersion
+from b2.sync.filters import (
+    FilterManager, ExcludeFileRegexFilter, ExcludeDirRegexFilter, IncludeFileRegexFilter
+)
 from b2.sync.sync import BoundedQueueExecutor, make_folder_sync_actions, zip_folders
 from b2.sync.folder_parser import parse_sync_folder
 from b2.utils import TempDir
@@ -113,25 +115,13 @@ class TestLocalFolder(TestSync):
                 os.path.join(tmpdir, self.NAMES[0])
             )
 
-    def _check_file_filters_results(
-        self, expected_list, exclusions, files_excluded, inclusions=tuple()
-    ):
+    def _check_file_filters_results(self, filters_manager, expected_scan_results):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir)
-            filtered_files = defaultdict(int)
             self.assertEqual(
-                expected_list,
-                list(
-                    f.name for f in folder.all_files(
-                        self.reporter,
-                        exclusions=exclusions,
-                        inclusions=inclusions,
-                        filtered_files=filtered_files
-                    )
-                )
+                expected_scan_results,
+                list(f.name for f in folder.all_files(self.reporter, filters_manager))
             )
-            for exclusion_regex, excluded_by_regex in six.moves.zip(exclusions, files_excluded):
-                self.assertEqual(filtered_files[exclusion_regex], excluded_by_regex)
             self.reporter.local_access_error.assert_not_called()
 
     def test_exclusions(self):
@@ -147,15 +137,17 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
-        files_excluded = [3]
-        exc_pattern = [re.compile('.*\\.bin')]
-        self._check_file_filters_results(expected_list, exc_pattern, files_excluded)
+        filters_manager = FilterManager([
+            ExcludeFileRegexFilter('.*\\.bin'),
+        ])
+        self._check_file_filters_results(filters_manager, expected_list)
 
     def test_exclude_all(self):
         expected_list = []
-        files_excluded = [6]
-        pattern = [re.compile('.*')]
-        self._check_file_filters_results(expected_list, pattern, files_excluded)
+        filters_manager = FilterManager([
+            ExcludeFileRegexFilter('.*'),
+        ])
+        self._check_file_filters_results(filters_manager, expected_list)
 
     def test_exclusions_inclusions(self):
         expected_list = [
@@ -172,10 +164,32 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
-        files_excluded = [1]
-        exc_pattern = [re.compile('.*\\.bin')]
-        inc_pattern = [re.compile('.*a\\.bin')]
-        self._check_file_filters_results(expected_list, exc_pattern, files_excluded, inc_pattern)
+        filters_manager = FilterManager([
+            ExcludeFileRegexFilter('.*\\.bin'),
+            IncludeFileRegexFilter('.*a\\.bin'),
+        ])
+        self._check_file_filters_results(filters_manager, expected_list)
+
+    def test_exclude_directory(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            # six.u('hello/a/1'),
+            # six.u('hello/a/2'),
+            # six.u('hello/b'),
+            six.u('hello0'),
+            six.u('inner/a.bin'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.bin'),
+            six.u('inner/b.txt'),
+            six.u('inner/more/a.bin'),
+            six.u('inner/more/a.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+        filters_manager = FilterManager([
+            ExcludeDirRegexFilter('.*hello')
+        ])
+        self._check_file_filters_results(filters_manager, expected_list)
 
 
 class TestB2Folder(TestSync):
@@ -233,9 +247,9 @@ class FakeFolder(AbstractFolder):
         self.f_type = f_type
         self.files = files
 
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
+    def all_files(self, reporter, filters_manager=None):
         for single_file in self.files:
-            if self.exclude_file(single_file.name, exclusions, inclusions, filtered_files):
+            if filters_manager is not None and filters_manager.exclude(single_file.name):
                 continue
             yield single_file
 
@@ -323,7 +337,7 @@ class TestZipFolders(TestSync):
         folder_a.all_files = MagicMock(return_value=iter([]))
         folder_b.all_files = MagicMock(return_value=iter([]))
         self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
-        folder_a.all_files.assert_called_once_with(self.reporter, (), (), None)
+        folder_a.all_files.assert_called_once_with(self.reporter, None)
         folder_b.all_files.assert_called_once_with(self.reporter)
 
 
@@ -341,6 +355,7 @@ class FakeArgs(object):
         compareVersions=None,
         compareThreshold=None,
         excludeRegex=None,
+        excludeDirRegex=None,
         includeRegex=None,
         debugLogs=True,
         dryRun=False,
@@ -358,6 +373,9 @@ class FakeArgs(object):
         if includeRegex is None:
             includeRegex = []
         self.includeRegex = includeRegex
+        if excludeDirRegex is None:
+            excludeDirRegex = []
+        self.excludeDirRegex = excludeDirRegex
         self.debugLogs = debugLogs
         self.dryRun = dryRun
         self.allowEmptySource = allowEmptySource
@@ -422,8 +440,15 @@ class TestExclusions(TestSync):
         local_folder = FakeFolder('local', [file_a, file_b, file_d, file_e, file_bi, file_z])
         b2_folder = FakeFolder('b2', [file_bi, file_c, file_z])
 
+        filters = list(itertools.chain(
+            (ExcludeDirRegexFilter(regex) for regex in fakeargs.excludeDirRegex),
+            (ExcludeFileRegexFilter(regex) for regex in fakeargs.excludeRegex),
+            (IncludeFileRegexFilter(regex) for regex in fakeargs.includeRegex),
+
+        ))
+        filters_manager = FilterManager(filters)
         actions = list(
-            make_folder_sync_actions(local_folder, b2_folder, fakeargs, TODAY, self.reporter)
+            make_folder_sync_actions(local_folder, b2_folder, fakeargs, TODAY, self.reporter, filters_manager)
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
 

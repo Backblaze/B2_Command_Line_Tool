@@ -11,12 +11,14 @@
 from __future__ import division
 
 from collections import defaultdict
+import itertools
 import logging
 import re
 import six
 
 from ..bounded_queue_executor import BoundedQueueExecutor
 from ..exception import CommandError
+from .filters import ExcludeDirRegexFilter, IncludeFileRegexFilter, ExcludeFileRegexFilter, FilterManager
 from ..utils import trace_call
 from .policy_manager import POLICY_MANAGER
 from .report import SyncReport
@@ -40,7 +42,7 @@ def next_or_none(iterator):
 
 
 def zip_folders(
-    folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None
+    folder_a, folder_b, reporter, filters_manager=None
 ):
     """
     An iterator over all of the files in the union of two folders,
@@ -53,7 +55,7 @@ def zip_folders(
     :param folder_b: A Folder object.
     """
 
-    iter_a = folder_a.all_files(reporter, exclusions, inclusions, filtered_files)
+    iter_a = folder_a.all_files(reporter, filters_manager)
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
@@ -94,7 +96,7 @@ def make_file_sync_actions(
 
 
 def make_folder_sync_actions(
-    source_folder, dest_folder, args, now_millis, reporter, filtered_files=None
+    source_folder, dest_folder, args, now_millis, reporter, filters_manager=None
 ):
     """
     Yields a sequence of actions that will sync the destination
@@ -109,9 +111,6 @@ def make_folder_sync_actions(
     if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
         raise CommandError('--keepDays cannot be used for local files')
 
-    exclusions = [re.compile(ex) for ex in args.excludeRegex]
-    inclusions = [re.compile(inc) for inc in args.includeRegex]
-
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
@@ -120,7 +119,7 @@ def make_folder_sync_actions(
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
 
     for source_file, dest_file in zip_folders(
-        source_folder, dest_folder, reporter, exclusions, inclusions, filtered_files
+        source_folder, dest_folder, reporter, filters_manager
     ):
         if source_file is None:
             logger.debug('determined that %s is not present on source', dest_file)
@@ -160,6 +159,7 @@ def sync_folders(
     stdout,
     no_progress,
     max_workers,
+    filters_manager=None,
     dry_run=False,
     allow_empty_source=False
 ):
@@ -211,23 +211,22 @@ def sync_folders(
             raise ValueError('neither folder is a b2 folder')
         total_files = 0
         total_bytes = 0
-        filtered_files = defaultdict(int)
         for action in make_folder_sync_actions(
-            source_folder, dest_folder, args, now_millis, reporter, filtered_files
+            source_folder, dest_folder, args, now_millis, reporter, filters_manager
         ):
             logging.debug('scheduling action %s on bucket %s', action, bucket)
             sync_executor.submit(action.run, bucket, reporter, dry_run)
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
-        logger.info(
-            '%d files and folders (and all files inside them which are not counted) filtered out',
-            sum(filtered_files.values())
-        )
-
-        if logger.isEnabledFor(logging.DEBUG):
-            for k, v in filtered_files:
-                logger.debug('%d items filtered for key "%s"', v, k)
+        # logger.info(
+        #     '%d files and folders (and all files inside them which are not counted) filtered out',
+        #     sum(filtered_files.values())
+        # )
+        #
+        # if logger.isEnabledFor(logging.DEBUG):
+        #     for k, v in filtered_files:
+        #         logger.debug('%d items filtered for key "%s"', v, k)
 
         # Wait for everything to finish
         sync_executor.shutdown()

@@ -11,6 +11,7 @@
 from __future__ import absolute_import, print_function
 
 import getpass
+import itertools
 import json
 import locale
 import logging
@@ -34,6 +35,7 @@ from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo)
+from .sync.filters import (ExcludeDirRegexFilter, IncludeFileRegexFilter, ExcludeFileRegexFilter, FilterManager)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
@@ -726,7 +728,7 @@ class Sync(Command):
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--compareThreshold N] \\
             [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \\
-            [--excludeRegex <regex> [--includeRegex <regex>]] \\
+            [--excludeRegex <regex> [--includeRegex <regex>]] [--excludeDirRegex <regex>] \\
             <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
@@ -766,6 +768,11 @@ class Sync(Command):
         of each file.
 
         Note that --includeRegex cannot be used without --excludeRegex.
+
+        You can specify --excludeDirRegex to selectively ignore whole directories
+        that match the given pattern. There is not other option, which overrides
+        --excludeDirRegex exclusions. The pattern is a regular expression
+        that is tested against the full path of each file.
 
         Multiple regex rules can be applied by supplying them as pipe
         delimitered instructions. Note that the regex for this command
@@ -829,7 +836,7 @@ class Sync(Command):
     ]
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions', 'compareThreshold']
     REQUIRED = ['source', 'destination']
-    LIST_ARGS = ['excludeRegex', 'includeRegex']
+    LIST_ARGS = ['excludeRegex', 'includeRegex', 'excludeDirRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int, 'compareThreshold': int}
 
     def run(self, args):
@@ -845,6 +852,14 @@ class Sync(Command):
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
+        print("args" + str(args))
+        filters = list(itertools.chain(
+            (ExcludeDirRegexFilter(regex) for regex in args.excludeDirRegex),
+            (ExcludeFileRegexFilter(regex) for regex in args.excludeRegex),
+            (IncludeFileRegexFilter(regex) for regex in args.includeRegex),
+
+        ))
+        filters_manager = FilterManager(filters)
         sync_folders(
             source_folder=source,
             dest_folder=destination,
@@ -853,6 +868,7 @@ class Sync(Command):
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers,
+            filters_manager=filters_manager,
             dry_run=args.dryRun,
             allow_empty_source=allow_empty_source
         )

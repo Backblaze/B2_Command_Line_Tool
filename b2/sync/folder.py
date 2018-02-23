@@ -35,7 +35,7 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
+    def all_files(self, reporter, filters_manager=None):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
@@ -127,10 +127,8 @@ class LocalFolder(AbstractFolder):
     def folder_type(self):
         return 'local'
 
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
-        for file_object in self._walk_relative_paths(
-            self.root, '', reporter, exclusions, inclusions, filtered_files
-        ):
+    def all_files(self, reporter, filters_manager=None):
+        for file_object in self._walk_relative_paths(self.root, '', reporter, filters_manager):
             yield file_object
 
     def make_full_path(self, file_name):
@@ -164,9 +162,7 @@ class LocalFolder(AbstractFolder):
         local_dir,
         b2_dir,
         reporter,
-        exclusions=tuple(),
-        inclusions=tuple(),
-        filtered_files=None
+        filters_manager=None
     ):
         """
         Yields a File object for each of the files anywhere under this folder, in the
@@ -212,7 +208,7 @@ class LocalFolder(AbstractFolder):
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
 
-            if self.exclude_file(local_path, exclusions, inclusions, filtered_files):
+            if filters_manager is not None and filters_manager.exclude(local_path):
                 continue
 
             # Skip broken symlinks or other inaccessible files
@@ -228,7 +224,7 @@ class LocalFolder(AbstractFolder):
         for (name, local_path, b2_path) in sorted(names):
             if name.endswith('/'):
                 for subdir_file in self._walk_relative_paths(
-                    local_path, b2_path, reporter, exclusions, inclusions, filtered_files
+                    local_path, b2_path, reporter, filters_manager
                 ):
                     yield subdir_file
             else:
@@ -272,7 +268,7 @@ class B2Folder(AbstractFolder):
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
 
-    def all_files(self, reporter, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
+    def all_files(self, reporter, filters_manager=None):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -283,7 +279,7 @@ class B2Folder(AbstractFolder):
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
 
-            if self.exclude_file(file_name, exclusions, inclusions, filtered_files):
+            if filters_manager is not None and filters_manager.exclude(file_name):
                 continue
 
             if current_name != file_name and current_name is not None:
