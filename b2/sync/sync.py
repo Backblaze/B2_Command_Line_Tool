@@ -10,15 +10,11 @@
 
 from __future__ import division
 
-from collections import defaultdict
-import itertools
 import logging
-import re
 import six
 
 from ..bounded_queue_executor import BoundedQueueExecutor
 from ..exception import CommandError
-from .filters import ExcludeDirRegexFilter, IncludeFileRegexFilter, ExcludeFileRegexFilter, FilterManager
 from ..utils import trace_call
 from .policy_manager import POLICY_MANAGER
 from .report import SyncReport
@@ -41,9 +37,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(
-    folder_a, folder_b, reporter, filters_manager=None
-):
+def zip_folders(folder_a, folder_b, reporter, filters_manager=None):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.

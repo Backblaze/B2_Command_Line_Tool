@@ -157,13 +157,7 @@ class LocalFolder(AbstractFolder):
                 'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (self.root,)
             )
 
-    def _walk_relative_paths(
-        self,
-        local_dir,
-        b2_dir,
-        reporter,
-        filters_manager=None
-    ):
+    def _walk_relative_paths(self, local_dir, b2_dir, reporter, filters_manager=None):
         """
         Yields a File object for each of the files anywhere under this folder, in the
         order they would appear in B2, unless the path is matched by any compiled regex

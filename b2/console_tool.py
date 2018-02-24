@@ -35,7 +35,9 @@ from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo)
-from .sync.filters import (ExcludeDirRegexFilter, IncludeFileRegexFilter, ExcludeFileRegexFilter, FilterManager)
+from .sync.filters import (
+    ExcludeDirRegexFilter, IncludeFileRegexFilter, ExcludeFileRegexFilter, FilterManager
+)
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
@@ -853,12 +855,13 @@ class Sync(Command):
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
         print("args" + str(args))
-        filters = list(itertools.chain(
-            (ExcludeDirRegexFilter(regex) for regex in args.excludeDirRegex),
-            (ExcludeFileRegexFilter(regex) for regex in args.excludeRegex),
-            (IncludeFileRegexFilter(regex) for regex in args.includeRegex),
-
-        ))
+        filters = list(
+            itertools.chain(
+                (ExcludeDirRegexFilter(regex) for regex in args.excludeDirRegex),
+                (ExcludeFileRegexFilter(regex) for regex in args.excludeRegex),
+                (IncludeFileRegexFilter(regex) for regex in args.includeRegex),
+            )
+        )
         filters_manager = FilterManager(filters)
         sync_folders(
             source_folder=source,

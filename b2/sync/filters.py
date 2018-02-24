@@ -1,12 +1,22 @@
+######################################################################
+#
+# File: b2/sync/filters.py
+#
+# Copyright 2016 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+
 import re
 import six
+import os.path
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict
 
 
 @six.add_metaclass(ABCMeta)
 class FileFilter(object):
-
     @abstractmethod
     def is_exclude_filter(self):
         pass
@@ -18,6 +28,7 @@ class ExcludeFileFilter(FileFilter):
     Policy object that decides which files should be excluded in a scan.
     Exclude filters never force file. Matched files are dropped.
     """
+
     @abstractmethod
     def should_exclude_file(self, file_path):
         """
@@ -38,6 +49,7 @@ class IncludeFileFilter(FileFilter):
     Policy object that decides which files should be included in a scan.
     Include filters always force matched file. Once forced file is always in scan.
     """
+
     @abstractmethod
     def should_include_file(self, file_path):
         """
@@ -55,7 +67,7 @@ class IncludeFileFilter(FileFilter):
 class ExcludeDirRegexFilter(ExcludeFileFilter):
     def __init__(self, regex):
         self.regex_str = regex
-        self.regex = re.compile(regex + '.*')
+        self.regex = re.compile(regex)
 
     def __hash__(self):
         return hash(self.regex_str)
@@ -70,7 +82,8 @@ class ExcludeDirRegexFilter(ExcludeFileFilter):
         return 'ExcludeDirRegexFilter(%s)' % (self.regex_str,)
 
     def should_exclude_file(self, file_path):
-        return self.regex.match(file_path)
+        head, tail = os.path.split(file_path)
+        return self.regex.match(head)
 
 
 class ExcludeFileRegexFilter(ExcludeFileFilter):
@@ -131,7 +144,6 @@ class FilterManager(object):
         self._included_files = defaultdict(list)
 
     def exclude(self, file_path):
-        print(self._filters)
         for filter_obj in self._filters:
             if filter_obj.is_exclude_filter():
                 if filter_obj.should_exclude_file(file_path):
