@@ -40,8 +40,7 @@ class AbstractFolder(object):
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
 
-        It also performs filtering based on inclusions
-        and exclusions lists which are list of compiled regexes.
+        It also performs filtering using filters manager.
 
         No matter what the folder separator on the local file system
         is, "/" is used in the returned file names.
@@ -62,41 +61,6 @@ class AbstractFolder(object):
         """
         Only for local folders, returns the full path to the file.
         """
-
-    def _first_match_filepath(self, pattern_list, filepath):
-        """
-        Returns first pattern that matched the filepath or None
-        """
-        for pattern in pattern_list:
-            if pattern.match(filepath):
-                return pattern
-
-    def _match_file_filters(self, filepath, exclusions=tuple(), inclusions=tuple()):
-        """
-        Matches the file path against regex patterns passed in exclusions and inclusions.
-
-        :param filepath: string representing file path to match the patterns with
-        :param exclusions: list of compiled re patterns for exclusions
-        :param inclusions: list of compiled re patterns for inclusions
-        :return: matching pattern
-        """
-        matched_exclusion = self._first_match_filepath(exclusions, filepath)
-        if matched_exclusion is not None:
-            matched_inclusion = self._first_match_filepath(inclusions, filepath)
-            if matched_inclusion is not None:
-                logger.debug('%s file included with pattern "%s"', filepath, matched_inclusion)
-            else:
-                logger.debug('%s file excluded with pattern "%s"', filepath, matched_exclusion)
-                return matched_exclusion
-
-    def exclude_file(self, local_path, exclusions=tuple(), inclusions=tuple(), filtered_files=None):
-        if exclusions:
-            matched_pattern = self._match_file_filters(local_path, exclusions, inclusions)
-            if matched_pattern:
-                if filtered_files is not None:
-                    filtered_files[matched_pattern] += 1
-                return True
-        return False
 
 
 def join_b2_path(b2_dir, b2_name):
@@ -166,8 +130,7 @@ class LocalFolder(AbstractFolder):
         :param local_dir: The local directory to list files in
         :param b2_dir: The B2 path of this directory, or '' if at the root.
         :param reporter: A place to report errors
-        :param exclusions: tuple of regexes which are matched against file path, file will not be yielded if a match is found
-        :param inclusions: tuple of regexes which are matched against file path only if it matches any exclusion pattern
+        :param filters_manager: A manager for filtering scan results
         :return:
         """
         if not isinstance(local_dir, six.text_type):
