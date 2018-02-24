@@ -14,7 +14,6 @@ import six
 import os.path
 from abc import ABCMeta, abstractmethod
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -76,7 +75,7 @@ class ExcludeDirRegexFilter(ExcludeFileFilter):
         return 'ExcludeDirRegexFilter(%s)' % (self.regex_str,)
 
     def should_exclude_file(self, file_path):
-        head, tail = os.path.split(file_path)
+        head, _ = os.path.split(file_path)
         return self.regex.match(head)
 
 
