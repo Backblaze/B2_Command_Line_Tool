@@ -854,7 +854,6 @@ class Sync(Command):
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
-        print("args" + str(args))
         filters = list(
             itertools.chain(
                 (ExcludeDirRegexFilter(regex) for regex in args.excludeDirRegex),

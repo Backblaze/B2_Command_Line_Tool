@@ -213,15 +213,6 @@ def sync_folders(
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
-        # logger.info(
-        #     '%d files and folders (and all files inside them which are not counted) filtered out',
-        #     sum(filtered_files.values())
-        # )
-        #
-        # if logger.isEnabledFor(logging.DEBUG):
-        #     for k, v in filtered_files:
-        #         logger.debug('%d items filtered for key "%s"', v, k)
-
         # Wait for everything to finish
         sync_executor.shutdown()
         if sync_executor.get_num_exceptions() != 0:
