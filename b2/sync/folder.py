@@ -41,7 +41,7 @@ class AbstractFolder(object):
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
 
-        It also performs filtering using filters manager.
+        It also performs filtering using policies manager.
 
         No matter what the folder separator on the local file system
         is, "/" is used in the returned file names.
@@ -125,9 +125,7 @@ class LocalFolder(AbstractFolder):
     def _walk_relative_paths(self, local_dir, b2_dir, reporter, policies_manager):
         """
         Yields a File object for each of the files anywhere under this folder, in the
-        order they would appear in B2, unless the path is matched by any compiled regex
-        on exclusions list and is not matched by any compiled regex on inclusions list.
-
+        order they would appear in B2, unless the path is excluded by policies manager.
         :param local_dir: The local directory to list files in
         :param b2_dir: The B2 path of this directory, or '' if at the root.
         :param reporter: A place to report errors

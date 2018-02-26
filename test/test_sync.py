@@ -175,8 +175,7 @@ class TestLocalFolder(TestSync):
             six.u('\u81ea\u7531'),
         ]
         polices_manager = ScanPoliciesManager(
-            exclude_dir_regexes=['.*hello', '.*more', '.*hello0'],
-            exclude_file_regexes=['inner']
+            exclude_dir_regexes=['.*hello', '.*more', '.*hello0'], exclude_file_regexes=['inner']
         )
         self._check_file_filters_results(polices_manager, expected_list)
 
