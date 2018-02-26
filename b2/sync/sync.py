@@ -17,6 +17,7 @@ from ..bounded_queue_executor import BoundedQueueExecutor
 from ..exception import CommandError
 from ..utils import trace_call
 from .policy_manager import POLICY_MANAGER
+from .scan_policies import DEFAULT_SCAN_MANAGER
 from .report import SyncReport
 
 try:
@@ -37,7 +38,7 @@ def next_or_none(iterator):
         return None
 
 
-def zip_folders(folder_a, folder_b, reporter, filters_manager=None):
+def zip_folders(folder_a, folder_b, reporter, policies_manager=DEFAULT_SCAN_MANAGER):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -49,7 +50,7 @@ def zip_folders(folder_a, folder_b, reporter, filters_manager=None):
     :param folder_b: A Folder object.
     """
 
-    iter_a = folder_a.all_files(reporter, filters_manager)
+    iter_a = folder_a.all_files(reporter, policies_manager)
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
@@ -90,7 +91,7 @@ def make_file_sync_actions(
 
 
 def make_folder_sync_actions(
-    source_folder, dest_folder, args, now_millis, reporter, filters_manager=None
+    source_folder, dest_folder, args, now_millis, reporter, policies_manager=DEFAULT_SCAN_MANAGER
 ):
     """
     Yields a sequence of actions that will sync the destination
@@ -113,7 +114,7 @@ def make_folder_sync_actions(
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
 
     for source_file, dest_file in zip_folders(
-        source_folder, dest_folder, reporter, filters_manager
+        source_folder, dest_folder, reporter, policies_manager
     ):
         if source_file is None:
             logger.debug('determined that %s is not present on source', dest_file)
@@ -153,7 +154,7 @@ def sync_folders(
     stdout,
     no_progress,
     max_workers,
-    filters_manager=None,
+    policies_manager=DEFAULT_SCAN_MANAGER,
     dry_run=False,
     allow_empty_source=False
 ):
@@ -206,7 +207,7 @@ def sync_folders(
         total_files = 0
         total_bytes = 0
         for action in make_folder_sync_actions(
-            source_folder, dest_folder, args, now_millis, reporter, filters_manager
+            source_folder, dest_folder, args, now_millis, reporter, policies_manager
         ):
             logging.debug('scheduling action %s on bucket %s', action, bucket)
             sync_executor.submit(action.run, bucket, reporter, dry_run)

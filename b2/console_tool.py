@@ -11,7 +11,6 @@
 from __future__ import absolute_import, print_function
 
 import getpass
-import itertools
 import json
 import locale
 import logging
@@ -35,9 +34,7 @@ from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo)
-from .sync.filters import (
-    ExcludeDirRegexFilter, IncludeFileRegexFilter, ExcludeFileRegexFilter, FilterManager
-)
+from .sync.scan_policies import ScanPoliciesManager
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
@@ -771,9 +768,8 @@ class Sync(Command):
 
         Note that --includeRegex cannot be used without --excludeRegex.
 
-        You can specify --excludeDirRegex to selectively ignore whole directories
-        that match the given pattern. There is not other option, which overrides
-        --excludeDirRegex exclusions. The pattern is a regular expression
+        When a directory is excluded, all of the files within it are excluded,
+        even if they match an --includeRegex pattern. The pattern is a regular expression
         that is tested against the full path of each file.
 
         Multiple regex rules can be applied by supplying them as pipe
@@ -854,14 +850,11 @@ class Sync(Command):
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
-        filters = list(
-            itertools.chain(
-                (ExcludeDirRegexFilter(regex) for regex in args.excludeDirRegex),
-                (ExcludeFileRegexFilter(regex) for regex in args.excludeRegex),
-                (IncludeFileRegexFilter(regex) for regex in args.includeRegex),
-            )
+        policies_manager = ScanPoliciesManager(
+            exclude_dir_regexes=args.excludeDirRegex,
+            exclude_file_regexes=args.excludeRegex,
+            include_file_regexes=args.includeRegex,
         )
-        filters_manager = FilterManager(filters)
         sync_folders(
             source_folder=source,
             dest_folder=destination,
@@ -870,7 +863,7 @@ class Sync(Command):
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers,
-            filters_manager=filters_manager,
+            policies_manager=policies_manager,
             dry_run=args.dryRun,
             allow_empty_source=allow_empty_source
         )
