@@ -23,6 +23,7 @@ from b2.exception import CommandError, DestFileNewer
 from b2.file_version import FileVersionInfo
 from b2.sync.folder import AbstractFolder, B2Folder, LocalFolder
 from b2.sync.file import File, FileVersion
+from b2.sync.scan_policies import ScanPoliciesManager, DEFAULT_SCAN_MANAGER
 from b2.sync.sync import BoundedQueueExecutor, make_folder_sync_actions, zip_folders
 from b2.sync.folder_parser import parse_sync_folder
 from b2.utils import TempDir
@@ -62,7 +63,13 @@ class TestLocalFolder(TestSync):
         six.u('hello/a/2'),
         six.u('hello/b'),
         six.u('hello0'),
-        six.u('\u81ea\u7531')
+        six.u('inner/a.bin'),
+        six.u('inner/a.txt'),
+        six.u('inner/b.bin'),
+        six.u('inner/b.txt'),
+        six.u('inner/more/a.bin'),
+        six.u('inner/more/a.txt'),
+        six.u('\u81ea\u7531'),
     ]
 
     @classmethod
@@ -104,6 +111,87 @@ class TestLocalFolder(TestSync):
             self.reporter.local_permission_error.assert_called_once_with(
                 os.path.join(tmpdir, self.NAMES[0])
             )
+
+    def _check_file_filters_results(self, policies_manager, expected_scan_results):
+        with TempDir() as tmpdir:
+            folder = self._prepare_folder(tmpdir)
+            self.assertEqual(
+                expected_scan_results,
+                list(f.name for f in folder.all_files(self.reporter, policies_manager))
+            )
+            self.reporter.local_access_error.assert_not_called()
+
+    def test_exclusions(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/a/1'),
+            six.u('hello/a/2'),
+            six.u('hello/b'),
+            six.u('hello0'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.txt'),
+            six.u('inner/more/a.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(exclude_file_regexes=['.*\\.bin'])
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclude_all(self):
+        expected_list = []
+        polices_manager = ScanPoliciesManager(exclude_file_regexes=['.*'])
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclusions_inclusions(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/a/1'),
+            six.u('hello/a/2'),
+            six.u('hello/b'),
+            six.u('hello0'),
+            six.u('inner/a.bin'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.txt'),
+            six.u('inner/more/a.bin'),
+            six.u('inner/more/a.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(
+            exclude_file_regexes=['.*\\.bin'],
+            include_file_regexes=['.*a\\.bin'],
+        )
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclude_directory(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello0'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(
+            exclude_dir_regexes=['hello', 'more', 'hello0'], exclude_file_regexes=['inner']
+        )
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclusion_with_exact_match(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/a/1'),
+            six.u('hello/a/2'),
+            six.u('hello/b'),
+            six.u('inner/a.bin'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.bin'),
+            six.u('inner/b.txt'),
+            six.u('inner/more/a.bin'),
+            six.u('inner/more/a.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(exclude_file_regexes=['hello0'],)
+        self._check_file_filters_results(polices_manager, expected_list)
 
 
 class TestB2Folder(TestSync):
@@ -161,8 +249,15 @@ class FakeFolder(AbstractFolder):
         self.f_type = f_type
         self.files = files
 
-    def all_files(self, reporter):
-        return iter(self.files)
+    def all_files(self, reporter, policies_manager=DEFAULT_SCAN_MANAGER):
+        for single_file in self.files:
+            if single_file.name.endswith('/'):
+                if policies_manager.should_exclude_directory(single_file.name):
+                    continue
+            else:
+                if policies_manager.should_exclude_file(single_file.name):
+                    continue
+            yield single_file
 
     def folder_type(self):
         return self.f_type
@@ -248,7 +343,7 @@ class TestZipFolders(TestSync):
         folder_a.all_files = MagicMock(return_value=iter([]))
         folder_b.all_files = MagicMock(return_value=iter([]))
         self.assertEqual([], list(zip_folders(folder_a, folder_b, self.reporter)))
-        folder_a.all_files.assert_called_once_with(self.reporter)
+        folder_a.all_files.assert_called_once_with(self.reporter, DEFAULT_SCAN_MANAGER)
         folder_b.all_files.assert_called_once_with(self.reporter)
 
 
@@ -266,6 +361,7 @@ class FakeArgs(object):
         compareVersions=None,
         compareThreshold=None,
         excludeRegex=None,
+        excludeDirRegex=None,
         includeRegex=None,
         debugLogs=True,
         dryRun=False,
@@ -283,6 +379,9 @@ class FakeArgs(object):
         if includeRegex is None:
             includeRegex = []
         self.includeRegex = includeRegex
+        if excludeDirRegex is None:
+            excludeDirRegex = []
+        self.excludeDirRegex = excludeDirRegex
         self.debugLogs = debugLogs
         self.dryRun = dryRun
         self.allowEmptySource = allowEmptySource
@@ -334,6 +433,8 @@ class TestExclusions(TestSync):
         # only local
         file_a = local_file('a.txt', [100])
         file_b = local_file('b.txt', [100])
+        file_d = local_file('d/d.txt', [100])
+        file_e = local_file('e/e.incl', [100])
 
         # both local and remote
         file_bi = local_file('b.txt.incl', [100])
@@ -342,40 +443,39 @@ class TestExclusions(TestSync):
         # only remote
         file_c = local_file('c.txt', [100])
 
-        local_folder = FakeFolder('local', [file_a, file_b, file_bi, file_z])
+        local_folder = FakeFolder('local', [file_a, file_b, file_d, file_e, file_bi, file_z])
         b2_folder = FakeFolder('b2', [file_bi, file_c, file_z])
 
+        policies_manager = ScanPoliciesManager(
+            exclude_dir_regexes=fakeargs.excludeDirRegex,
+            exclude_file_regexes=fakeargs.excludeRegex,
+            include_file_regexes=fakeargs.includeRegex,
+        )
         actions = list(
-            make_folder_sync_actions(local_folder, b2_folder, fakeargs, TODAY, self.reporter)
+            make_folder_sync_actions(
+                local_folder, b2_folder, fakeargs, TODAY, self.reporter, policies_manager
+            )
         )
         self.assertEqual(expected_actions, [str(a) for a in actions])
-
-    def test_file_exclusions(self):
-        expected_actions = [
-            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
-        ]
-        self._check_folder_sync(expected_actions, FakeArgs(excludeRegex=["b\\.txt"]))
 
     def test_file_exclusions_with_delete(self):
         expected_actions = [
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
             'b2_delete(folder/b.txt.incl, /dir/b.txt.incl, )',
             'b2_delete(folder/c.txt, /dir/c.txt, )',
+            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
         ]
         self._check_folder_sync(expected_actions, FakeArgs(delete=True, excludeRegex=["b\\.txt"]))
-
-    def test_file_exclusions_inclusions(self):
-        expected_actions = [
-            'b2_upload(/dir/a.txt, folder/a.txt, 100)',
-            'b2_upload(/dir/b.txt, folder/b.txt, 100)',
-        ]
-        fakeargs = FakeArgs(excludeRegex=["b\\.txt"], includeRegex=["b\\.txt"])
-        self._check_folder_sync(expected_actions, fakeargs)
 
     def test_file_exclusions_inclusions_with_delete(self):
         expected_actions = [
             'b2_upload(/dir/a.txt, folder/a.txt, 100)',
+            'b2_delete(folder/b.txt.incl, /dir/b.txt.incl, )',
             'b2_delete(folder/c.txt, /dir/c.txt, )',
+            'b2_upload(/dir/d/d.txt, folder/d/d.txt, 100)',
+            'b2_upload(/dir/e/e.incl, folder/e/e.incl, 100)',
+            'b2_upload(/dir/b.txt.incl, folder/b.txt.incl, 100)',
         ]
         fakeargs = FakeArgs(delete=True, excludeRegex=["b\\.txt"], includeRegex=[".*\\.incl"])
         self._check_folder_sync(expected_actions, fakeargs)
@@ -442,6 +542,11 @@ class TestMakeSyncActions(TestSync):
         self._check_b2_to_local(None, dst_file, FakeArgs(), [])
 
     def test_delete_b2(self):
+        dst_file = b2_file('a.txt', [100])
+        actions = ['b2_delete(folder/a.txt, id_a_100, )']
+        self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)
+
+    def test_delete_large_b2(self):
         dst_file = b2_file('a.txt', [100])
         actions = ['b2_delete(folder/a.txt, id_a_100, )']
         self._check_local_to_b2(None, dst_file, FakeArgs(delete=True), actions)

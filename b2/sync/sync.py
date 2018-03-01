@@ -11,13 +11,13 @@
 from __future__ import division
 
 import logging
-import re
 import six
 
 from ..bounded_queue_executor import BoundedQueueExecutor
 from ..exception import CommandError
 from ..utils import trace_call
 from .policy_manager import POLICY_MANAGER
+from .scan_policies import DEFAULT_SCAN_MANAGER
 from .report import SyncReport
 
 try:
@@ -38,25 +38,7 @@ def next_or_none(iterator):
         return None
 
 
-def _filter_folder(folder, reporter, exclusions, inclusions):
-    """
-    Filters a folder through a list of exclusions and inclusions.
-    Inclusions override exclusions.
-    """
-    logging.debug('_filter_folder() exclusions for %s are %s', folder, exclusions)
-    logging.debug('_filter_folder() inclusions for %s are %s', folder, inclusions)
-    for f in folder.all_files(reporter):
-        if any(pattern.match(f.name) for pattern in inclusions):
-            logging.debug('_filter_folder() included %s from %s', f, folder)
-            yield f
-            continue
-        if any(pattern.match(f.name) for pattern in exclusions):
-            logging.debug('_filter_folder() excluded %s from %s', f, folder)
-            continue
-        yield f
-
-
-def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tuple()):
+def zip_folders(folder_a, folder_b, reporter, policies_manager=DEFAULT_SCAN_MANAGER):
     """
     An iterator over all of the files in the union of two folders,
     matching file names.
@@ -68,11 +50,12 @@ def zip_folders(folder_a, folder_b, reporter, exclusions=tuple(), inclusions=tup
     :param folder_b: A Folder object.
     """
 
-    iter_a = _filter_folder(folder_a, reporter, exclusions, inclusions)
+    iter_a = folder_a.all_files(reporter, policies_manager)
     iter_b = folder_b.all_files(reporter)
 
     current_a = next_or_none(iter_a)
     current_b = next_or_none(iter_b)
+
     while current_a is not None or current_b is not None:
         if current_a is None:
             yield (None, current_b)
@@ -107,7 +90,9 @@ def make_file_sync_actions(
         yield action
 
 
-def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, reporter):
+def make_folder_sync_actions(
+    source_folder, dest_folder, args, now_millis, reporter, policies_manager=DEFAULT_SCAN_MANAGER
+):
     """
     Yields a sequence of actions that will sync the destination
     folder to the source folder.
@@ -121,9 +106,6 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
     if (args.keepDays is not None) and (dest_folder.folder_type() == 'local'):
         raise CommandError('--keepDays cannot be used for local files')
 
-    exclusions = [re.compile(ex) for ex in args.excludeRegex]
-    inclusions = [re.compile(inc) for inc in args.includeRegex]
-
     source_type = source_folder.folder_type()
     dest_type = dest_folder.folder_type()
     sync_type = '%s-to-%s' % (source_type, dest_type)
@@ -131,12 +113,13 @@ def make_folder_sync_actions(source_folder, dest_folder, args, now_millis, repor
         dest_folder.folder_type()) not in [('b2', 'local'), ('local', 'b2')]:
         raise NotImplementedError("Sync support only local-to-b2 and b2-to-local")
 
-    for (source_file,
-         dest_file) in zip_folders(source_folder, dest_folder, reporter, exclusions, inclusions):
+    for source_file, dest_file in zip_folders(
+        source_folder, dest_folder, reporter, policies_manager
+    ):
         if source_file is None:
-            logging.debug('determined that %s is not present on source', dest_file)
+            logger.debug('determined that %s is not present on source', dest_file)
         elif dest_file is None:
-            logging.debug('determined that %s is not present on destination', source_file)
+            logger.debug('determined that %s is not present on destination', source_file)
 
         if source_folder.folder_type() == 'local':
             if source_file is not None:
@@ -171,6 +154,7 @@ def sync_folders(
     stdout,
     no_progress,
     max_workers,
+    policies_manager=DEFAULT_SCAN_MANAGER,
     dry_run=False,
     allow_empty_source=False
 ):
@@ -223,14 +207,13 @@ def sync_folders(
         total_files = 0
         total_bytes = 0
         for action in make_folder_sync_actions(
-            source_folder, dest_folder, args, now_millis, reporter
+            source_folder, dest_folder, args, now_millis, reporter, policies_manager
         ):
             logging.debug('scheduling action %s on bucket %s', action, bucket)
             sync_executor.submit(action.run, bucket, reporter, dry_run)
             total_files += 1
             total_bytes += action.get_bytes()
         reporter.end_compare(total_files, total_bytes)
-
         # Wait for everything to finish
         sync_executor.shutdown()
         if sync_executor.get_num_exceptions() != 0:

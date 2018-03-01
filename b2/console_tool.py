@@ -34,6 +34,7 @@ from .b2http import (test_http, B2Http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo)
+from .sync.scan_policies import ScanPoliciesManager
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
@@ -726,7 +727,7 @@ class Sync(Command):
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--compareThreshold N] \\
             [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \\
-            [--excludeRegex <regex> [--includeRegex <regex>]] \\
+            [--excludeRegex <regex> [--includeRegex <regex>]] [--excludeDirRegex <regex>] \\
             <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
@@ -766,6 +767,10 @@ class Sync(Command):
         of each file.
 
         Note that --includeRegex cannot be used without --excludeRegex.
+
+        When a directory is excluded, all of the files within it are excluded,
+        even if they match an --includeRegex pattern. The pattern is a regular expression
+        that is tested against the full path of each file.
 
         Multiple regex rules can be applied by supplying them as pipe
         delimitered instructions. Note that the regex for this command
@@ -829,7 +834,7 @@ class Sync(Command):
     ]
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions', 'compareThreshold']
     REQUIRED = ['source', 'destination']
-    LIST_ARGS = ['excludeRegex', 'includeRegex']
+    LIST_ARGS = ['excludeRegex', 'includeRegex', 'excludeDirRegex']
     ARG_PARSER = {'keepDays': float, 'threads': int, 'compareThreshold': int}
 
     def run(self, args):
@@ -845,6 +850,11 @@ class Sync(Command):
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
+        policies_manager = ScanPoliciesManager(
+            exclude_dir_regexes=args.excludeDirRegex,
+            exclude_file_regexes=args.excludeRegex,
+            include_file_regexes=args.includeRegex,
+        )
         sync_folders(
             source_folder=source,
             dest_folder=destination,
@@ -853,6 +863,7 @@ class Sync(Command):
             stdout=self.stdout,
             no_progress=args.noProgress,
             max_workers=max_workers,
+            policies_manager=policies_manager,
             dry_run=args.dryRun,
             allow_empty_source=allow_empty_source
         )

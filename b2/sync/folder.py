@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import logging
 import os
 import six
 import sys
@@ -16,8 +17,11 @@ from abc import ABCMeta, abstractmethod
 from b2.exception import CommandError
 from .exception import EnvironmentEncodingError
 from .file import File, FileVersion
+from .scan_policies import DEFAULT_SCAN_MANAGER
 from ..raw_api import SRC_LAST_MODIFIED_MILLIS
 from ..utils import fix_windows_path_limit, is_file_readable
+
+logger = logging.getLogger(__name__)
 
 
 @six.add_metaclass(ABCMeta)
@@ -32,10 +36,12 @@ class AbstractFolder(object):
     """
 
     @abstractmethod
-    def all_files(self, reporter):
+    def all_files(self, reporter, policies_manager):
         """
         Returns an iterator over all of the files in the folder, in
         the order that B2 uses.
+
+        It also performs filtering using policies manager.
 
         No matter what the folder separator on the local file system
         is, "/" is used in the returned file names.
@@ -86,8 +92,8 @@ class LocalFolder(AbstractFolder):
     def folder_type(self):
         return 'local'
 
-    def all_files(self, reporter):
-        for file_object in self._walk_relative_paths(self.root, '', reporter):
+    def all_files(self, reporter, policies_manager=DEFAULT_SCAN_MANAGER):
+        for file_object in self._walk_relative_paths(self.root, '', reporter, policies_manager):
             yield file_object
 
     def make_full_path(self, file_name):
@@ -116,14 +122,14 @@ class LocalFolder(AbstractFolder):
                 'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (self.root,)
             )
 
-    def _walk_relative_paths(self, local_dir, b2_dir, reporter):
+    def _walk_relative_paths(self, local_dir, b2_dir, reporter, policies_manager):
         """
         Yields a File object for each of the files anywhere under this folder, in the
-        order they would appear in B2.
-
+        order they would appear in B2, unless the path is excluded by policies manager.
         :param local_dir: The local directory to list files in
         :param b2_dir: The B2 path of this directory, or '' if at the root.
         :param reporter: A place to report errors
+        :param policies_manager: A manager for polices scan results
         :return:
         """
         if not isinstance(local_dir, six.text_type):
@@ -155,13 +161,23 @@ class LocalFolder(AbstractFolder):
                     "sync does not support file names that include '/': %s in dir %s" %
                     (name, local_dir)
                 )
+
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
+
             # Skip broken symlinks or other inaccessible files
-            if is_file_readable(local_path, reporter):
-                if os.path.isdir(local_path):
-                    name += six.u('/')
-                names.append((name, local_path, b2_path))
+            if not is_file_readable(local_path, reporter):
+                continue
+
+            if os.path.isdir(local_path):
+                name += six.u('/')
+                if policies_manager.should_exclude_directory(b2_path):
+                    continue
+            else:
+                if policies_manager.should_exclude_file(b2_path):
+                    continue
+
+            names.append((name, local_path, b2_path))
 
         # Yield all of the answers.
         #
@@ -169,7 +185,9 @@ class LocalFolder(AbstractFolder):
         # the sort key, is the first thing in the triple.
         for (name, local_path, b2_path) in sorted(names):
             if name.endswith('/'):
-                for subdir_file in self._walk_relative_paths(local_path, b2_path, reporter):
+                for subdir_file in self._walk_relative_paths(
+                    local_path, b2_path, reporter, policies_manager
+                ):
                     yield subdir_file
             else:
                 # Check that the file still exists and is accessible, since it can take a long time
@@ -212,7 +230,7 @@ class B2Folder(AbstractFolder):
         self.bucket = api.get_bucket_by_name(bucket_name)
         self.prefix = '' if self.folder_name == '' else self.folder_name + '/'
 
-    def all_files(self, reporter):
+    def all_files(self, reporter, policies_manager=DEFAULT_SCAN_MANAGER):
         current_name = None
         current_versions = []
         for (file_version_info, folder_name) in self.bucket.ls(
@@ -222,6 +240,10 @@ class B2Folder(AbstractFolder):
             if file_version_info.action == 'start':
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
+
+            if policies_manager.should_exclude_file(file_name):
+                continue
+
             if current_name != file_name and current_name is not None:
                 yield File(current_name, current_versions)
                 current_versions = []
