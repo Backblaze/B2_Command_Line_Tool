@@ -10,31 +10,21 @@
 
 import logging
 import re
-import six
-import os.path
-from abc import ABCMeta, abstractmethod
 
 logger = logging.getLogger(__name__)
 
 
-@six.add_metaclass(ABCMeta)
-class ScanExcludePolicy(object):
+class ScanExcludeDirRegex(object):
     """
     Policy object that decides which files should be excluded in a scan.
-    Exclude policies never force file. Matched files are dropped irreversibly.
     """
+    def __init__(self, regex):
+        self.regex_str = regex
+        self.regex = re.compile(regex)
 
-    @abstractmethod
-    def should_exclude_file(self, file_path):
-        """
-        Given the full path of a file, should it be excluded from the scan?
+    def __repr__(self):
+        return 'ScanExcludeDirRegex(%s)' % (self.regex_str,)
 
-        :param file_path: The path of the file, relative to the root directory
-                          being scanned.
-        :return: True iff excluded.
-        """
-
-    @abstractmethod
     def should_exclude_directory(self, dir_path):
         """
         Given the full path of a directory, should all of the files in it be
@@ -45,94 +35,51 @@ class ScanExcludePolicy(object):
                          always end in '/'.
         :return: True iff excluded.
         """
-
-    def should_exclude(self, path):
-        if path.endswith('/'):
-            return self.should_exclude_directory(path)
-        return self.should_exclude_file(path)
-
-
-@six.add_metaclass(ABCMeta)
-class ScanIncludePolicy(object):
-    """
-    Policy object that decides which files should be included in a scan.
-    Include policies always force matched file. Once forced file is always in scan.
-    """
-
-    @abstractmethod
-    def should_include_file(self, file_path):
-        """
-        Given the full path of a file, should it be included from the scan?
-
-        :param file_path: The path of the file, relative to the root directory
-                          being scanned.
-        :return: True iff included.
-        """
-
-    @abstractmethod
-    def should_include_directory(self, dir_path):
-        """
-        Given the full path of a directory, should all of the files in it be
-        included from the scan?
-
-        :param dir_path: The path of the directory, relative to the root directory
-                         being scanned.  This is a directory, so the path will
-                         always end in '/'.
-        :return: True iff excluded.
-        """
-
-    def should_include(self, path):
-        if path.endswith('/'):
-            return self.should_include_directory(path)
-        return self.should_include_file(path)
-
-
-class ScanExcludeDirRegex(ScanExcludePolicy):
-    def __init__(self, regex):
-        self.regex_str = regex
-        self.regex = re.compile(regex)
-
-    def __repr__(self):
-        return 'ExcludeDirRegex(%s)' % (self.regex_str,)
-
-    def should_exclude_file(self, file_path):
-        head, _ = os.path.split(file_path)
-        return self.regex.match(head)
-
-    def should_exclude_directory(self, dir_path):
         return self.regex.match(dir_path)
 
 
-class ScanExcludeFileRegex(ScanExcludePolicy):
+class ScanExcludeFileRegex(object):
+    """
+    Policy object that decides which files should be excluded in a scan.
+    """
     def __init__(self, regex):
         self.regex_str = regex
         self.regex = re.compile(regex)
 
     def __repr__(self):
-        return 'ExcludeFileRegex(%s)' % (self.regex_str,)
+        return 'ScanExcludeFileRegex(%s)' % (self.regex_str,)
 
     def should_exclude_file(self, file_path):
+        """
+        Given the full path of a file, should it be excluded from the scan?
+
+        :param file_path: The path of the file, relative to the root directory
+                          being scanned.
+        :return: True iff excluded.
+        """
         return self.regex.match(file_path)
 
-    def should_exclude_directory(self, dir_path):
-        # exclude file regex never excludes directories
-        return False
 
-
-class ScanIncludeFileRegex(ScanIncludePolicy):
+class ScanIncludeFileRegex(object):
+    """
+    Policy object that decides which files should be included in a scan.
+    """
     def __init__(self, regex):
         self.regex_str = regex
         self.regex = re.compile(regex)
 
     def __repr__(self):
-        return 'IncludeFileRegex(%s)' % (self.regex_str,)
+        return 'ScanIncludeFileRegex(%s)' % (self.regex_str,)
 
     def should_include_file(self, file_path):
-        return self.regex.match(file_path)
+        """
+        Given the full path of a file, should it be included into the scan?
 
-    def should_include_directory(self, dir_path):
-        # include file regex never includes directories
-        return False
+        :param file_path: The path of the file, relative to the root directory
+                          being scanned.
+        :return: True iff excluded.
+        """
+        return self.regex.match(file_path)
 
 
 class ScanPoliciesManager(object):
@@ -146,12 +93,13 @@ class ScanPoliciesManager(object):
         self._include_file_polices = [ScanIncludeFileRegex(regex) for regex in include_file_regexes]
         self._exclude_file_polices = [ScanExcludeFileRegex(regex) for regex in exclude_file_regexes]
 
-    def exclude(self, path):
-        if any(policy.should_exclude(path) for policy in self._exclude_dir_polices):
-            return True
-        if any(policy.should_include(path) for policy in self._include_file_polices):
+    def should_exclude_file(self, file_path):
+        if any(policy.should_include_file(file_path) for policy in self._include_file_polices):
             return False
-        return any(policy.should_exclude(path) for policy in self._exclude_file_polices)
+        return any(policy.should_exclude_file(file_path) for policy in self._exclude_file_polices)
+
+    def should_exclude_directory(self, dir_path):
+        return any(policy.should_exclude_directory(dir_path) for policy in self._exclude_dir_polices)
 
 
 DEFAULT_SCAN_MANAGER = ScanPoliciesManager()

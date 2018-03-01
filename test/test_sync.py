@@ -168,14 +168,30 @@ class TestLocalFolder(TestSync):
             six.u('.dot_file'),
             six.u('hello.'),
             six.u('hello0'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(
+            exclude_dir_regexes=['hello', 'more', 'hello0'], exclude_file_regexes=['inner']
+        )
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclusion_with_exact_match(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/a/1'),
+            six.u('hello/a/2'),
+            six.u('hello/b'),
             six.u('inner/a.bin'),
             six.u('inner/a.txt'),
             six.u('inner/b.bin'),
             six.u('inner/b.txt'),
+            six.u('inner/more/a.bin'),
+            six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
         polices_manager = ScanPoliciesManager(
-            exclude_dir_regexes=['.*hello', '.*more', '.*hello0'], exclude_file_regexes=['inner']
+            exclude_file_regexes=['hello0'],
         )
         self._check_file_filters_results(polices_manager, expected_list)
 
@@ -237,8 +253,12 @@ class FakeFolder(AbstractFolder):
 
     def all_files(self, reporter, policies_manager=DEFAULT_SCAN_MANAGER):
         for single_file in self.files:
-            if policies_manager.exclude(single_file.name):
-                continue
+            if single_file.name.endswith('/'):
+                if policies_manager.should_exclude_directory(single_file.name):
+                    continue
+            else:
+                if policies_manager.should_exclude_file(single_file.name):
+                    continue
             yield single_file
 
     def folder_type(self):

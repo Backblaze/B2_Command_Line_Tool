@@ -161,17 +161,23 @@ class LocalFolder(AbstractFolder):
                     "sync does not support file names that include '/': %s in dir %s" %
                     (name, local_dir)
                 )
+
             local_path = os.path.join(local_dir, name)
             b2_path = join_b2_path(b2_dir, name)
 
-            if policies_manager.exclude(local_path):
+            # Skip broken symlinks or other inaccessible files
+            if not is_file_readable(local_path, reporter):
                 continue
 
-            # Skip broken symlinks or other inaccessible files
-            if is_file_readable(local_path, reporter):
-                if os.path.isdir(local_path):
-                    name += six.u('/')
-                names.append((name, local_path, b2_path))
+            if os.path.isdir(local_path):
+                name += six.u('/')
+                if policies_manager.should_exclude_directory(b2_path):
+                    continue
+            else:
+                if policies_manager.should_exclude_file(b2_path):
+                    continue
+
+            names.append((name, local_path, b2_path))
 
         # Yield all of the answers.
         #
@@ -235,7 +241,7 @@ class B2Folder(AbstractFolder):
                 continue
             file_name = file_version_info.file_name[len(self.prefix):]
 
-            if policies_manager.exclude(file_name):
+            if policies_manager.should_exclude_file(file_name):
                 continue
 
             if current_name != file_name and current_name is not None:
