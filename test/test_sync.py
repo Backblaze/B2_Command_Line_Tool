@@ -190,9 +190,7 @@ class TestLocalFolder(TestSync):
             six.u('inner/more/a.txt'),
             six.u('\u81ea\u7531'),
         ]
-        polices_manager = ScanPoliciesManager(
-            exclude_file_regexes=['hello0'],
-        )
+        polices_manager = ScanPoliciesManager(exclude_file_regexes=['hello0'],)
         self._check_file_filters_results(polices_manager, expected_list)
 
 

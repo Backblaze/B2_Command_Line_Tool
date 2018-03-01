@@ -18,6 +18,7 @@ class ScanExcludeDirRegex(object):
     """
     Policy object that decides which files should be excluded in a scan.
     """
+
     def __init__(self, regex):
         self.regex_str = regex
         self.regex = re.compile(regex)
@@ -42,6 +43,7 @@ class ScanExcludeFileRegex(object):
     """
     Policy object that decides which files should be excluded in a scan.
     """
+
     def __init__(self, regex):
         self.regex_str = regex
         self.regex = re.compile(regex)
@@ -64,6 +66,7 @@ class ScanIncludeFileRegex(object):
     """
     Policy object that decides which files should be included in a scan.
     """
+
     def __init__(self, regex):
         self.regex_str = regex
         self.regex = re.compile(regex)
@@ -99,7 +102,9 @@ class ScanPoliciesManager(object):
         return any(policy.should_exclude_file(file_path) for policy in self._exclude_file_polices)
 
     def should_exclude_directory(self, dir_path):
-        return any(policy.should_exclude_directory(dir_path) for policy in self._exclude_dir_polices)
+        return any(
+            policy.should_exclude_directory(dir_path) for policy in self._exclude_dir_polices
+        )
 
 
 DEFAULT_SCAN_MANAGER = ScanPoliciesManager()
