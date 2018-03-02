@@ -173,9 +173,7 @@ class TestLocalFolder(TestSync):
             six.u('inner/b.txt'),
             six.u('\u81ea\u7531'),
         ]
-        polices_manager = ScanPoliciesManager(
-            exclude_file_regexes=['.*a']
-        )
+        polices_manager = ScanPoliciesManager(exclude_file_regexes=['.*a'])
         self._check_file_filters_results(polices_manager, expected_list)
 
     def test_exclude_directory(self):
