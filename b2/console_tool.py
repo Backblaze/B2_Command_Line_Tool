@@ -781,7 +781,13 @@ class Sync(Command):
 
         Multiple regex rules can be applied by supplying them as pipe
         delimitered instructions. Note that the regex for this command
-        is Python regex. Reference: https://docs.python.org/2/library/re.html
+        is Python regex. Reference: https://docs.python.org/2/library/re.html.
+
+        Regular expressions are considered a match if they match a substring
+        starting at the first character.  ".*e" will match "hello".  This is
+        not ideal, but we will maintain this behavior for compatibility.
+        If you want to match the entire path, put a "$" at the end of the
+        regex, such as ".*llo$".
 
         Files are considered to be the same if they have the same name
         and modification time.  This behaviour can be changed using the
