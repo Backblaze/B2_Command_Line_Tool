@@ -86,6 +86,11 @@ class ScanIncludeFileRegex(object):
 
 
 class ScanPoliciesManager(object):
+    """
+    Policy object used when scanning folders for syncing, used to decide
+    which files to include in the list of files to be synced.
+    """
+
     def __init__(
         self,
         exclude_dir_regexes=tuple(),
@@ -97,11 +102,26 @@ class ScanPoliciesManager(object):
         self._exclude_file_polices = [ScanExcludeFileRegex(regex) for regex in exclude_file_regexes]
 
     def should_exclude_file(self, file_path):
+        """
+        Given the full path of a file, should it be excluded from the scan?
+
+        :param file_path: The path of the file, relative to the root directory
+                          being scanned.
+        :return: True iff excluded.
+        """
         if any(policy.should_include_file(file_path) for policy in self._include_file_polices):
             return False
         return any(policy.should_exclude_file(file_path) for policy in self._exclude_file_polices)
 
     def should_exclude_directory(self, dir_path):
+        """
+        Given the full path of a directory, should all of the files in it be
+        excluded from the scan?
+
+        :param dir_path: The path of the directory, relative to the root directory
+                         being scanned.  The path will never end in '/'.
+        :return: True iff excluded.
+        """
         return any(
             policy.should_exclude_directory(dir_path) for policy in self._exclude_dir_polices
         )
