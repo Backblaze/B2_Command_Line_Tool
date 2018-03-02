@@ -32,10 +32,10 @@ class ScanExcludeDirRegex(object):
         excluded from the scan?
 
         :param dir_path: The path of the directory, relative to the root directory
-                         being scanned.  This is a directory, so the path will
-                         always end in '/'.
+                         being scanned.  Never ends in '/'.
         :return: True iff excluded.
         """
+        assert not dir_path.endswith('/')
         return self.regex.match(dir_path)
 
 
