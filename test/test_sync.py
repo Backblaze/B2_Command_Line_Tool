@@ -163,6 +163,19 @@ class TestLocalFolder(TestSync):
         )
         self._check_file_filters_results(polices_manager, expected_list)
 
+    def test_exclude_matches_prefix(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello/b'),
+            six.u('hello0'),
+            six.u('inner/b.bin'),
+            six.u('inner/b.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(exclude_file_regexes=['.*a'])
+        self._check_file_filters_results(polices_manager, expected_list)
+
     def test_exclude_directory(self):
         expected_list = [
             six.u('.dot_file'),
@@ -173,6 +186,30 @@ class TestLocalFolder(TestSync):
         polices_manager = ScanPoliciesManager(
             exclude_dir_regexes=['hello', 'more', 'hello0'], exclude_file_regexes=['inner']
         )
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclude_directory2(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello0'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(exclude_dir_regexes=['hello$', 'inner'],)
+        self._check_file_filters_results(polices_manager, expected_list)
+
+    def test_exclude_directory_trailing_slash_does_not_match(self):
+        expected_list = [
+            six.u('.dot_file'),
+            six.u('hello.'),
+            six.u('hello0'),
+            six.u('inner/a.bin'),
+            six.u('inner/a.txt'),
+            six.u('inner/b.bin'),
+            six.u('inner/b.txt'),
+            six.u('\u81ea\u7531'),
+        ]
+        polices_manager = ScanPoliciesManager(exclude_dir_regexes=['hello$', 'inner/'],)
         self._check_file_filters_results(polices_manager, expected_list)
 
     def test_exclusion_with_exact_match(self):

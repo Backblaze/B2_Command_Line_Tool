@@ -727,7 +727,8 @@ class Sync(Command):
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
             [--compareVersions <option>] [--compareThreshold N] \\
             [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \\
-            [--excludeRegex <regex> [--includeRegex <regex>]] [--excludeDirRegex <regex>] \\
+            [--excludeRegex <regex> [--includeRegex <regex>]] \\
+            [--excludeDirRegex <regex>] \\
             <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
@@ -768,13 +769,25 @@ class Sync(Command):
 
         Note that --includeRegex cannot be used without --excludeRegex.
 
-        When a directory is excluded, all of the files within it are excluded,
-        even if they match an --includeRegex pattern. The pattern is a regular expression
-        that is tested against the full path of each file.
+        When a directory is excluded by using --excludeDirRegex, all of
+        the files within it are excluded, even if they match an --includeRegex
+        pattern.   This means that there is no need to look inside excluded
+        directories, and you can exclude directories containing files for which
+        you don't have read permission and avoid getting errors.
+
+        The --excludeDirRegex is a regular expression that is tested against
+        the full path of each directory.  The path being matched does not have
+        a trailing '/', so don't include on in your regular expression.
 
         Multiple regex rules can be applied by supplying them as pipe
         delimitered instructions. Note that the regex for this command
-        is Python regex. Reference: https://docs.python.org/2/library/re.html
+        is Python regex. Reference: https://docs.python.org/2/library/re.html.
+
+        Regular expressions are considered a match if they match a substring
+        starting at the first character.  ".*e" will match "hello".  This is
+        not ideal, but we will maintain this behavior for compatibility.
+        If you want to match the entire path, put a "$" at the end of the
+        regex, such as ".*llo$".
 
         Files are considered to be the same if they have the same name
         and modification time.  This behaviour can be changed using the
