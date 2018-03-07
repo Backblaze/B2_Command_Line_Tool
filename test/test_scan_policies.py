@@ -30,8 +30,20 @@ class TestScanPolicies(TestBase):
 
     def test_exclude_dir(self):
         policy = ScanPoliciesManager(
-            include_file_regexes=['.*[.]txt$'], exclude_dir_regexes=['alfa$']
+            include_file_regexes=['.*[.]txt$'], exclude_dir_regexes=['alfa', 'bravo$']
         )
         self.assertTrue(policy.should_exclude_directory('alfa'))
-        self.assertFalse(policy.should_exclude_directory('alfa2'))
-        self.assertFalse(policy.should_exclude_directory('alfa/hello'))
+        self.assertTrue(policy.should_exclude_directory('alfa2'))
+        self.assertTrue(policy.should_exclude_directory('alfa/hello'))
+
+        self.assertTrue(policy.should_exclude_directory('bravo'))
+        self.assertFalse(policy.should_exclude_directory('bravo2'))
+        self.assertFalse(policy.should_exclude_directory('bravo/hello'))
+
+        self.assertTrue(policy.should_exclude_file('alfa/foo'))
+        self.assertTrue(policy.should_exclude_file('alfa2/hello/foo'))
+        self.assertTrue(policy.should_exclude_file('alfa/hello/foo.txt'))
+
+        self.assertTrue(policy.should_exclude_file('bravo/foo'))
+        self.assertFalse(policy.should_exclude_file('bravo2/hello/foo'))
+        self.assertTrue(policy.should_exclude_file('bravo/hello/foo.txt'))
