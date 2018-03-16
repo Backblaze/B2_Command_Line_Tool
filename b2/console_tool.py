@@ -449,7 +449,7 @@ class GetBucket(Command):
                 else:
                     # `files` is a generator. We don't want to collect all of the values from the
                     # generator, as there many be billions of files in a large bucket.
-                    files = b.ls("", args.bucketName)
+                    files = b.ls("", show_versions=True, recursive=True)
                     # `files` yields tuples of (file_version_info, folder_name). We don't care about
                     # `folder_name`, so just access the first slot of the tuple directly in the
                     # reducer. We can't ask a generator for its size, as the elements are yielded

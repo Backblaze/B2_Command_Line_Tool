@@ -508,6 +508,64 @@ class TestConsoleTool(TestBase):
         '''
         self._run_command(['get-bucket', 'my-bucket'], expected_stdout, '', 0)
 
+    def test_get_bucket_empty_show_size(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "fileCount": 0,
+            "lifecycleRules": [],
+            "revision": 1,
+            "totalSize": 0
+        }
+        '''
+        self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_get_bucket_show_size(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            # Upload a standard test file.
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            expected_stdout = '''
+            URL by file name: http://download.example.com/file/my-bucket/file1.txt
+            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
+            {
+              "action": "upload",
+              "fileId": "9999",
+              "fileName": "file1.txt",
+              "size": 11,
+              "uploadTimestamp": 5000
+            }
+            '''
+            self._run_command(
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                expected_stdout, '', 0
+            )
+
+            # Now check the size information for the bucket.
+            expected_stdout = '''
+            {
+                "accountId": "my-account",
+                "bucketId": "bucket_0",
+                "bucketInfo": {},
+                "bucketName": "my-bucket",
+                "bucketType": "allPublic",
+                "corsRules": [],
+                "fileCount": 1,
+                "lifecycleRules": [],
+                "revision": 1,
+                "totalSize": 11
+            }
+            '''
+            self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
     def test_sync(self):
         self._authorize_account()
         self._create_my_bucket()
