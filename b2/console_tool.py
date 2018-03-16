@@ -10,6 +10,8 @@
 
 from __future__ import absolute_import, print_function
 
+import copy
+import functools
 import getpass
 import json
 import locale
@@ -420,11 +422,17 @@ class GetAccountInfo(Command):
 
 class GetBucket(Command):
     """
-    b2 get-bucket <bucketName>
+    b2 get-bucket [--showSize] <bucketName>
 
         Prints all of the information about the bucket, including
         bucket info, CORS rules and lifecycle rules.
+
+        If --showSize is specified, then display the number of files
+        (fileCount) in the bucket and the aggregate size of all files
+        (totalSize).
     """
+
+    OPTION_FLAGS = ['showSize']
 
     REQUIRED = ['bucketName']
 
@@ -433,8 +441,23 @@ class GetBucket(Command):
         # the bucket cache.
         for b in self.api.list_buckets():
             if b.name == args.bucketName:
-                self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
-                return 0
+                if not args.showSize:
+                    self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
+                    return 0
+                else:
+                    files = list(b.ls("", args.bucketName))
+                    # Note that `files` is a list of tuples of (file_version_info, folder_name). We
+                    # don't care about `folder_name`, so just access the first slot of the tuple
+                    # directly in the reducer.
+                    total_size = functools.reduce(
+                        (lambda partial, f: partial + f[0].size),
+                        files,
+                        0)
+                    result = copy.copy(b.bucket_dict)
+                    result['fileCount'] = len(files)
+                    result['totalSize'] = total_size
+                    self._print(json.dumps(result, indent=4, sort_keys=True))
+                    return 0
         self._print_stderr('bucket not found: ' + args.bucketName)
         return 1
 
