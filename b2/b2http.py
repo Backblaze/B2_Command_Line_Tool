@@ -19,9 +19,10 @@ import requests
 import six
 import time
 
-from .exception import (B2Error, BadDateFormat, BrokenPipe, B2ConnectionError,
-                        B2RequestTimeout, ClockSkew, ConnectionReset, interpret_b2_error,
-                        UnknownError, UnknownHost)
+from .exception import (
+    B2Error, BadDateFormat, BrokenPipe, B2ConnectionError, B2RequestTimeout, ClockSkew,
+    ConnectionReset, interpret_b2_error, UnknownError, UnknownHost
+)
 from .version import USER_AGENT
 from six.moves import range
 
