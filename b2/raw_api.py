@@ -492,7 +492,7 @@ class B2RawApi(AbstractRawApi):
         :param data_stream: A file like object from which the contents of the file can be read.
         :return:
         """
-        # Raise an appropriate exception if the file_name is unusable.
+        # If the file_name is unusable, don't try to use it for the upload.
         try:
             self.check_b2_filename(file_name)
         except UnusableFileName as e:
