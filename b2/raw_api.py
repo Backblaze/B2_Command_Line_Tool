@@ -21,9 +21,10 @@ from abc import (ABCMeta, abstractmethod)
 
 import six
 
-from .b2http import (B2Http)
+from .b2http import B2Http
 from .download_dest import DownloadDestBytes
-from .exception import ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour
+from .exception import (ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour,
+                        UnusableFileName)
 from .utils import b2_url_encode, hex_sha1_of_stream
 
 # Standard names for file info entries
@@ -440,6 +441,38 @@ class B2RawApi(AbstractRawApi):
             **kwargs
         )
 
+    def unprintable_to_question(self, string):
+        """Replace unprintable chars with a question mark."""
+        return re.sub(r'[^\x20-\x7E]', '?', string)
+
+    def check_b2_filename(self, filename):
+        """
+        Raise an appropriate exception with details if the filename is unusable.
+
+        See https://www.backblaze.com/b2/docs/files.html for the rules.
+
+        :param filename: A proposed filename in utf-8.
+        :return: None if the filename is usable."""
+        if len(filename) < 1:
+            raise UnusableFileName("Filename must be at least 1 character.")
+        if len(filename) > 1024:
+            raise UnusableFileName("Filename must be at most 1025 characters.")
+        lowest_unicode_value = ord(min(filename.decode('utf-8', 'ignore')))
+        if lowest_unicode_value < 32:
+            message = "Filename \"{}\" contains code {}, which is less than 32.".format(
+                self.unprintable_to_question(filename), lowest_unicode_value)
+            raise UnusableFileName(message)
+        # No DEL for you.
+        if '\x7f' in filename:
+            raise UnusableFileName("ASCII DEL (0x7f) not allowed.")
+        if filename[0] == '/' or filename[-1] == '/':
+            raise UnusableFileName("Filename may not start or end with '/'.")
+        if '//' in filename:
+            raise UnusableFileName("Filename may not contain \"//\".")
+        longest_segment = max([len(segment) for segment in filename.split('/')])
+        if longest_segment > 250:
+            raise UnusableFileName("No filename segment may exceed 250 characters.")
+
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
         file_infos, data_stream
@@ -457,6 +490,13 @@ class B2RawApi(AbstractRawApi):
         :param data_stream: A file like object from which the contents of the file can be read.
         :return:
         """
+        # Raise an appropriate exception if the file_name is unusable.
+        try:
+            self.check_b2_filename(file_name)
+        except UnusableFileName as e:
+            sys.stderr.write("\nUpload fails.  Exception is:\n{}\n".format(repr(e)))
+            sys.stderr.write("Exiting.\n")
+            os._exit(1)
         headers = {
             'Authorization': upload_auth_token,
             'Content-Length': str(content_length),
