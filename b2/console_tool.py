@@ -445,17 +445,22 @@ class GetBucket(Command):
                     self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
                     return 0
                 else:
-                    files = list(b.ls("", args.bucketName))
-                    # Note that `files` is a list of tuples of (file_version_info, folder_name). We
-                    # don't care about `folder_name`, so just access the first slot of the tuple
-                    # directly in the reducer.
-                    total_size = functools.reduce(
-                        (lambda partial, f: partial + f[0].size),
-                        files,
-                        0)
+                    # `files` is a generator. We don't want to collect all of the values from the
+                    # generator, as there many be billions of files in a large bucket.
+                    files = b.ls("", args.bucketName)
+                    # `files` yields tuples of (file_version_info, folder_name). We don't care about
+                    # `folder_name`, so just access the first slot of the tuple directly in the
+                    # reducer. We can't ask a generator for its size, as the elements are yielded
+                    # lazily, so we need to accumulate the count as we go. By using a tuple of
+                    # (file count, total size), we can obtain the desired information very compactly
+                    # and efficiently.
+                    count_size_tuple = functools.reduce(
+                        (lambda partial, f: (partial[0] + 1, partial[1] + f[0].size)), files,
+                        (0, 0)
+                    )
                     result = copy.copy(b.bucket_dict)
-                    result['fileCount'] = len(files)
-                    result['totalSize'] = total_size
+                    result['fileCount'] = count_size_tuple[0]
+                    result['totalSize'] = count_size_tuple[1]
                     self._print(json.dumps(result, indent=4, sort_keys=True))
                     return 0
         self._print_stderr('bucket not found: ' + args.bucketName)
