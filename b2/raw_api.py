@@ -23,8 +23,9 @@ import six
 
 from .b2http import B2Http
 from .download_dest import DownloadDestBytes
-from .exception import (ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour,
-                        UnusableFileName)
+from .exception import (
+    ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour, UnusableFileName
+)
 from .utils import b2_url_encode, hex_sha1_of_stream
 
 # Standard names for file info entries
@@ -460,7 +461,8 @@ class B2RawApi(AbstractRawApi):
         lowest_unicode_value = ord(min(filename.decode('utf-8', 'ignore')))
         if lowest_unicode_value < 32:
             message = "Filename \"{}\" contains code {}, which is less than 32.".format(
-                self.unprintable_to_question(filename), lowest_unicode_value)
+                self.unprintable_to_question(filename), lowest_unicode_value
+            )
             raise UnusableFileName(message)
         # No DEL for you.
         if '\x7f' in filename:
