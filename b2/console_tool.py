@@ -10,6 +10,8 @@
 
 from __future__ import absolute_import, print_function
 
+import copy
+import functools
 import getpass
 import json
 import locale
@@ -420,11 +422,19 @@ class GetAccountInfo(Command):
 
 class GetBucket(Command):
     """
-    b2 get-bucket <bucketName>
+    b2 get-bucket [--showSize] <bucketName>
 
         Prints all of the information about the bucket, including
         bucket info, CORS rules and lifecycle rules.
+
+        If --showSize is specified, then display the number of files
+        (fileCount) in the bucket and the aggregate size of all files
+        (totalSize). Note that this entails additional API calls, so
+        will incur additional latency, computation, and Class C
+        transactions.
     """
+
+    OPTION_FLAGS = ['showSize']
 
     REQUIRED = ['bucketName']
 
@@ -433,8 +443,28 @@ class GetBucket(Command):
         # the bucket cache.
         for b in self.api.list_buckets():
             if b.name == args.bucketName:
-                self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
-                return 0
+                if not args.showSize:
+                    self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
+                    return 0
+                else:
+                    # `files` is a generator. We don't want to collect all of the values from the
+                    # generator, as there many be billions of files in a large bucket.
+                    files = b.ls("", show_versions=True, recursive=True)
+                    # `files` yields tuples of (file_version_info, folder_name). We don't care about
+                    # `folder_name`, so just access the first slot of the tuple directly in the
+                    # reducer. We can't ask a generator for its size, as the elements are yielded
+                    # lazily, so we need to accumulate the count as we go. By using a tuple of
+                    # (file count, total size), we can obtain the desired information very compactly
+                    # and efficiently.
+                    count_size_tuple = functools.reduce(
+                        (lambda partial, f: (partial[0] + 1, partial[1] + f[0].size)), files,
+                        (0, 0)
+                    )
+                    result = copy.copy(b.bucket_dict)
+                    result['fileCount'] = count_size_tuple[0]
+                    result['totalSize'] = count_size_tuple[1]
+                    self._print(json.dumps(result, indent=4, sort_keys=True))
+                    return 0
         self._print_stderr('bucket not found: ' + args.bucketName)
         return 1
 
