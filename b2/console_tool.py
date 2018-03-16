@@ -429,7 +429,9 @@ class GetBucket(Command):
 
         If --showSize is specified, then display the number of files
         (fileCount) in the bucket and the aggregate size of all files
-        (totalSize).
+        (totalSize). Note that this entails additional API calls, so
+        will incur additional latency, computation, and Class C
+        transactions.
     """
 
     OPTION_FLAGS = ['showSize']
