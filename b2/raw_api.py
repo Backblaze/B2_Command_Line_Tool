@@ -454,11 +454,13 @@ class B2RawApi(AbstractRawApi):
 
         :param filename: A proposed filename in utf-8.
         :return: None if the filename is usable."""
-        if len(filename) < 1:
+        decoded_filename = filename.decode("utf-8", 'ignore')
+        name_length = len(decoded_filename)
+        if name_length < 1:
             raise UnusableFileName("Filename must be at least 1 character.")
-        if len(filename) > 1024:
+        if name_length > 1024:
             raise UnusableFileName("Filename must be at most 1025 characters.")
-        lowest_unicode_value = ord(min(filename.decode('utf-8', 'ignore')))
+        lowest_unicode_value = ord(min(decoded_filename))
         if lowest_unicode_value < 32:
             message = "Filename \"{}\" contains code {}, which is less than 32.".format(
                 self.unprintable_to_question(filename), lowest_unicode_value
@@ -492,13 +494,8 @@ class B2RawApi(AbstractRawApi):
         :param data_stream: A file like object from which the contents of the file can be read.
         :return:
         """
-        # If the file_name is unusable, don't try to use it for the upload.
-        try:
-            self.check_b2_filename(file_name)
-        except UnusableFileName as e:
-            sys.stderr.write("\nUpload fails.  Exception is:\n{}\n".format(repr(e)))
-            sys.stderr.write("Exiting.\n")
-            os._exit(1)
+        # This will raise UnusableFileName if the file_name doesn't meet the rules.
+        self.check_b2_filename(file_name)
         headers = {
             'Authorization': upload_auth_token,
             'Content-Length': str(content_length),
