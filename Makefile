@@ -14,5 +14,5 @@ test:  ## Run unit tests
 .PHONY: clean
 clean: ## Remove stuff you can regenerate
 	rm -rf b2.egg-info build TAGS
-	find . -name \*~ | xargs rm -f
-	find . -name \*.pyc | xargs rm -f
+	find . -name __pycache__ | xargs rm -rf
+	find . -name \*~ -o -name \*.pyc | xargs rm -f
