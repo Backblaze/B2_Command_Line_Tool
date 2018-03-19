@@ -527,7 +527,7 @@ class TestConsoleTool(TestBase):
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
-    def test_get_bucket_show_size(self):
+    def test_get_bucket_one_item_show_size(self):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
@@ -549,7 +549,7 @@ class TestConsoleTool(TestBase):
                 expected_stdout, '', 0
             )
 
-            # Now check the size information for the bucket.
+            # Now check the output of get-bucket against the canon.
             expected_stdout = '''
             {
                 "accountId": "my-account",
@@ -565,6 +565,183 @@ class TestConsoleTool(TestBase):
             }
             '''
             self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_get_bucket_with_versions(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Put many versions of a file into the test bucket. Unroll the loop here for convenience.
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+
+        # Now check the output of get-bucket against the canon.
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "fileCount": 10,
+            "lifecycleRules": [],
+            "revision": 1,
+            "totalSize": 40
+        }
+        '''
+        self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_get_bucket_with_folders(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Create a hierarchical structure within the test bucket. Unroll the loop here for
+        # convenience.
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/4/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/4/5/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/4/5/6/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/4/5/6/7/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/4/5/6/7/8/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/4/5/6/7/8/9/test')
+        bucket.upload(UploadSourceBytes(b'check'), 'check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/7/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/7/8/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/7/8/9/check')
+
+        # Now check the output of get-bucket against the canon.
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "fileCount": 20,
+            "lifecycleRules": [],
+            "revision": 1,
+            "totalSize": 90
+        }
+        '''
+        self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_get_bucket_with_hidden(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Put some files into the test bucket. Unroll the loop for convenience.
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.upload(UploadSourceBytes(b'test'), 'upload1')
+        bucket.upload(UploadSourceBytes(b'test'), 'upload2')
+        bucket.upload(UploadSourceBytes(b'test'), 'upload3')
+        bucket.upload(UploadSourceBytes(b'test'), 'upload4')
+        bucket.upload(UploadSourceBytes(b'test'), 'upload5')
+        bucket.upload(UploadSourceBytes(b'test'), 'upload6')
+
+        # Hide some new files. Don't check the results here; it will be clear enough that
+        # something has failed if the output of 'get-bucket' does not match the canon.
+        stdout, stderr = self._get_stdouterr()
+        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden1'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden2'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden3'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden4'])
+
+        # Now check the output of get-bucket against the canon.
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "fileCount": 10,
+            "lifecycleRules": [],
+            "revision": 1,
+            "totalSize": 24
+        }
+        '''
+        self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_get_bucket_complex(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Create a hierarchical structure within the test bucket. Unroll the loop here for
+        # convenience.
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), 'test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/test')
+        bucket.upload(UploadSourceBytes(b'test'), '1/2/3/test')
+        bucket.upload(UploadSourceBytes(b'check'), 'check')
+        bucket.upload(UploadSourceBytes(b'check'), 'check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/check')
+        bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/check')
+
+        # Hide some new files. Don't check the results here; it will be clear enough that
+        # something has failed if the output of 'get-bucket' does not match the canon.
+        stdout, stderr = self._get_stdouterr()
+        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/hidden2'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
+
+        # Now check the output of get-bucket against the canon.
+        expected_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "fileCount": 29,
+            "lifecycleRules": [],
+            "revision": 1,
+            "totalSize": 99
+        }
+        '''
+        self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
     def test_sync(self):
         self._authorize_account()

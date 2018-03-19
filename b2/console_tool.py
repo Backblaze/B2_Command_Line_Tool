@@ -429,9 +429,14 @@ class GetBucket(Command):
 
         If --showSize is specified, then display the number of files
         (fileCount) in the bucket and the aggregate size of all files
-        (totalSize). Note that this entails additional API calls, so
-        will incur additional latency, computation, and Class C
-        transactions.
+        (totalSize). Hidden files and hide markers are accounted for
+        in the reported number of files, and hidden files also
+        contribute toward the reported aggregate size, whereas hide
+        markers do not. Each version of a file counts as an individual
+        file, and its size contributes toward the aggregate size.
+        Analysis is recursive. Note that --showSize requires multiple
+        API calls, and will therefore incur additional latency,
+        computation, and Class C transactions.
     """
 
     OPTION_FLAGS = ['showSize']
