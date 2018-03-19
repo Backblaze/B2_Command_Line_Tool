@@ -450,14 +450,18 @@ class B2RawApi(AbstractRawApi):
             **kwargs
         )
 
-    def unprintable_to_hex(self, str):
-        """Replace unprintable chars with a hex representation."""
+    def unprintable_to_hex(self, string):
+        """Replace unprintable chars in string with a hex representation.
+
+        :param string: An arbitrary string, possibly with unprintable characters.
+        :return The string, with unprintable characters changed to hex (e.g., "\x07")
+        """
         unprintables_pattern = re.compile(r'[\x00-\x1f]')
 
         def hexify(match):
             return r'\x{0:02x}'.format(ord(match.group()))
 
-        return unprintables_pattern.sub(hexify, str)
+        return unprintables_pattern.sub(hexify, string)
 
     def check_b2_filename(self, filename):
         """
@@ -466,7 +470,8 @@ class B2RawApi(AbstractRawApi):
         See https://www.backblaze.com/b2/docs/files.html for the rules.
 
         :param filename: A proposed filename in unicode.
-        :return: None if the filename is usable."""
+        :return: None if the filename is usable.
+        """
         encoded_name = filename.encode('utf-8')
         length_in_bytes = len(encoded_name)
         if length_in_bytes < 1:
@@ -793,6 +798,7 @@ def test_raw_api_filename_rules(raw_api):
     - File names cannot start with "/", end with "/", or contain "//".
     - Maximum of 250 bytes of UTF-8 in each segment (part between slashes) of a file name.
     """
+
     def should_be_ok(filename):
         # print(u"    \"{}\" is an OK filename.".format(filename))
         assert raw_api.check_b2_filename(filename) is None
@@ -818,12 +824,12 @@ def test_raw_api_filename_rules(raw_api):
 
     # Check length
     # 1024 bytes is ok if the segments are at most 250 chars.
-    s_1024 = 4*(250*'x' + '/') + 20*'y'
+    s_1024 = 4 * (250 * 'x' + '/') + 20 * 'y'
     should_be_ok(s_1024)
     # 1025 is too long.
     should_raise(s_1024 + u'x')
     # 1024 bytes with two byte characters should also work.
-    s_1024_two_byte = 4*(125*TWO_BYTE_UNICHR + u'/') + 20*u'y'
+    s_1024_two_byte = 4 * (125 * TWO_BYTE_UNICHR + u'/') + 20 * u'y'
     should_be_ok(s_1024_two_byte)
     # But 1025 bytes is too long.
     should_raise(s_1024_two_byte + u'x')
@@ -838,6 +844,6 @@ def test_raw_api_filename_rules(raw_api):
     should_raise(u'not//allowed')
 
     # Reject segments longer than 250 bytes
-    should_raise(u'foo/' + 251*u'x')
+    should_raise(u'foo/' + 251 * u'x')
     # So a segment of 125 two-byte chars plus one should also fail.
-    should_raise(u'foo/' + 125*TWO_BYTE_UNICHR + u'x')
+    should_raise(u'foo/' + 125 * TWO_BYTE_UNICHR + u'x')
