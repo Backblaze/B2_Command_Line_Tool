@@ -17,7 +17,7 @@ import random
 import re
 import sys
 import time
-from abc import (ABCMeta, abstractmethod)
+from abc import ABCMeta, abstractmethod
 
 import six
 
@@ -33,6 +33,14 @@ SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 
 # Special X-Bz-Content-Sha1 value to verify checksum at the end
 HEX_DIGITS_AT_END = 'hex_digits_at_end'
+
+if six.PY3:
+    unichr = chr
+
+# Unicode characters for testing filenames.  (0x0394 is a letter Delta.)
+TWO_BYTE_UNICHR = unichr(0x0394)
+CHAR_UNDER_32 = unichr(31)
+DEL_CHAR = unichr(127)
 
 
 @six.add_metaclass(ABCMeta)
@@ -442,9 +450,14 @@ class B2RawApi(AbstractRawApi):
             **kwargs
         )
 
-    def unprintable_to_question(self, string):
-        """Replace unprintable chars with a question mark."""
-        return re.sub(r'[^\x20-\x7E]', '?', string)
+    def unprintable_to_hex(self, str):
+        """Replace unprintable chars with a hex representation."""
+        unprintables_pattern = re.compile(r'[\x00-\x1f]')
+
+        def hexify(match):
+            return r'\x{0:02x}'.format(ord(match.group()))
+
+        return unprintables_pattern.sub(hexify, str)
 
     def check_b2_filename(self, filename):
         """
@@ -452,18 +465,18 @@ class B2RawApi(AbstractRawApi):
 
         See https://www.backblaze.com/b2/docs/files.html for the rules.
 
-        :param filename: A proposed filename in utf-8.
+        :param filename: A proposed filename in unicode.
         :return: None if the filename is usable."""
-        decoded_filename = filename.decode("utf-8", 'ignore')
-        name_length = len(decoded_filename)
-        if name_length < 1:
+        encoded_name = filename.encode('utf-8')
+        length_in_bytes = len(encoded_name)
+        if length_in_bytes < 1:
             raise UnusableFileName("Filename must be at least 1 character.")
-        if name_length > 1024:
-            raise UnusableFileName("Filename must be at most 1025 characters.")
-        lowest_unicode_value = ord(min(decoded_filename))
+        if length_in_bytes > 1024:
+            raise UnusableFileName("Filename can be at most 1024 bytes.")
+        lowest_unicode_value = ord(min(filename))
         if lowest_unicode_value < 32:
-            message = "Filename \"{}\" contains code {}, which is less than 32.".format(
-                self.unprintable_to_question(filename), lowest_unicode_value
+            message = "Filename \"{}\" contains code {} (hex {:02x}), less than 32.".format(
+                self.unprintable_to_hex(filename), lowest_unicode_value, lowest_unicode_value
             )
             raise UnusableFileName(message)
         # No DEL for you.
@@ -473,9 +486,9 @@ class B2RawApi(AbstractRawApi):
             raise UnusableFileName("Filename may not start or end with '/'.")
         if '//' in filename:
             raise UnusableFileName("Filename may not contain \"//\".")
-        longest_segment = max([len(segment) for segment in filename.split('/')])
-        if longest_segment > 250:
-            raise UnusableFileName("No filename segment may exceed 250 characters.")
+        long_segment = max([len(segment.encode('utf-8')) for segment in filename.split('/')])
+        if long_segment > 250:
+            raise UnusableFileName("No filename segment may exceed 250 bytes in utf-8.")
 
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
@@ -525,7 +538,7 @@ def test_raw_api():
     """
     Exercises the code in B2RawApi by making each call once, just
     to make sure the parameters are passed in, and the result is
-    passed back.
+    passed back.  Also tests the filename rule checker
 
     The goal is to be a complete test of B2RawApi, so the tests for
     the rest of the code can use the simulator.
@@ -536,6 +549,7 @@ def test_raw_api():
     """
     try:
         raw_api = B2RawApi(B2Http())
+        test_raw_api_filename_rules(raw_api)
         test_raw_api_helper(raw_api)
         return 0
     except Exception as e:
@@ -609,13 +623,13 @@ def test_raw_api_helper(raw_api):
     print('b2_download_file_by_id (auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_id(download_url, account_auth_token, file_id, download_dest)
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_id no auth
     print('b2_download_file_by_id (no auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_id(download_url, None, file_id, download_dest)
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_name with auth
     print('b2_download_file_by_name (auth)')
@@ -623,13 +637,13 @@ def test_raw_api_helper(raw_api):
     raw_api.download_file_by_name(
         download_url, account_auth_token, bucket_name, file_name, download_dest
     )
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_name no auth
     print('b2_download_file_by_name (no auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_name(download_url, None, bucket_name, file_name, download_dest)
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_get_download_authorization
     print('b2_get_download_authorization')
@@ -644,7 +658,7 @@ def test_raw_api_helper(raw_api):
     raw_api.download_file_by_name(
         download_url, download_auth_token, bucket_name, file_name, download_dest
     )
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_list_file_names
     print('b2_list_file_names')
@@ -765,3 +779,65 @@ def _should_delete_bucket(bucket_name):
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 3600 <= now
+
+
+def test_raw_api_filename_rules(raw_api):
+    """
+    Test to ensure that the checker passes conforming names and rejects those that don't.
+
+    From the B2 docs (https://www.backblaze.com/b2/docs/files.html):
+    - Names can be pretty much any UTF-8 string up to 1024 bytes long.
+    - No character codes below 32 are allowed.
+    - Backslashes are not allowed.
+    - DEL characters (127) are not allowed.
+    - File names cannot start with "/", end with "/", or contain "//".
+    - Maximum of 250 bytes of UTF-8 in each segment (part between slashes) of a file name.
+    """
+    def should_be_ok(filename):
+        # print(u"    \"{}\" is an OK filename.".format(filename))
+        assert raw_api.check_b2_filename(filename) is None
+
+    def should_raise(filename):
+        # print(u"    \"{}\" is a disallowed filename.".format(filename))
+        try:
+            raw_api.check_b2_filename(filename)
+        except UnusableFileName as e:
+            if six.PY3:
+                msg = e.args[0]
+            else:
+                msg = e.message
+            print("    Rule is:  {}".format(msg))
+            return
+        print(u"    \"{}\" should have been disallowed.".format(filename))
+        assert False
+
+    print("b2 test filename rules")
+    # Examples from doc:
+    should_be_ok('Kitten Videos')
+    should_be_ok(u'\u81ea\u7531.txt')
+
+    # Check length
+    # 1024 bytes is ok if the segments are at most 250 chars.
+    s_1024 = 4*(250*'x' + '/') + 20*'y'
+    should_be_ok(s_1024)
+    # 1025 is too long.
+    should_raise(s_1024 + u'x')
+    # 1024 bytes with two byte characters should also work.
+    s_1024_two_byte = 4*(125*TWO_BYTE_UNICHR + u'/') + 20*u'y'
+    should_be_ok(s_1024_two_byte)
+    # But 1025 bytes is too long.
+    should_raise(s_1024_two_byte + u'x')
+
+    # Names with unicode values < 32, and DEL aren't allowed.
+    should_raise(u'hey ' + CHAR_UNDER_32 + u' joe')
+    should_raise(DEL_CHAR)
+
+    # Names can't start or end with '/' or contain '//'
+    should_raise(u'/hey')
+    should_raise(u'hey/')
+    should_raise(u'not//allowed')
+
+    # Reject segments longer than 250 bytes
+    should_raise(u'foo/' + 251*u'x')
+    # So a segment of 125 two-byte chars plus one should also fail.
+    should_raise(u'foo/' + 125*TWO_BYTE_UNICHR + u'x')
