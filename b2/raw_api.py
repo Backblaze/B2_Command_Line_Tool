@@ -788,7 +788,7 @@ def _should_delete_bucket(bucket_name):
 
 def test_raw_api_filename_rules(raw_api):
     """
-    Test to ensure that the checker passes conforming names and rejects those that don't.
+    Test that the filename checker passes conforming names and rejects those that don't.
 
     From the B2 docs (https://www.backblaze.com/b2/docs/files.html):
     - Names can be pretty much any UTF-8 string up to 1024 bytes long.
