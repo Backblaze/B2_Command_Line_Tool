@@ -4,7 +4,7 @@ base_remote="${1:-origin}"
 base_branch="${2:-master}"
 base_remote_branch="${3:-master}"
 
-function header 
+function header
 {
     echo
     echo "#"
@@ -39,7 +39,7 @@ git pull --ff-only
 then checkout your topic branch and run $0.
 If the base branch on github is not called 'origin', invoke as $0 proper_origin_remote_name. Then your remote needs to be synched with your master too.
 """
-    yapf --in-place --recursive .
+    yapf --in-place --parallel --recursive --exclude '*eggs/*' .
 else
     echo 'running yapf in incremental mode'
     head=`mktemp`
