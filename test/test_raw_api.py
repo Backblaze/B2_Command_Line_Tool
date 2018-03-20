@@ -11,6 +11,7 @@
 from __future__ import print_function
 
 import six
+import sys
 
 from b2.raw_api import B2RawApi
 from b2.b2http import B2Http
@@ -35,7 +36,7 @@ class TestRawAPIFilenames(TestBase):
         :param filename: unicode (or str) that follows the rules
         """
         print(u"Filename \"{0}\" should be OK".format(filename))
-        self.assertIsNone(self.raw_api.check_b2_filename(filename))
+        assert self.raw_api.check_b2_filename(filename) is None
 
     def _should_raise(self, filename, exception_message):
         """Call with filenames that don't follow the rules (so the rule checker should raise).
