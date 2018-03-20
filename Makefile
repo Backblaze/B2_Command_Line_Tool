@@ -5,7 +5,9 @@ help: ## Show this help.
 
 .PHONY: setup
 setup: ## Set up (to run tests) using your current python environment
+setup: ## and enable pre-commit hook for this repo only.
 	python -m pip install -r requirements-test.txt
+	ln -s $(PWD)/pre-commit.sh .git/hooks/pre-commit || true
 
 .PHONY: test
 test:  ## Run unit tests
