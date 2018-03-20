@@ -472,7 +472,7 @@ class B2RawApi(AbstractRawApi):
             raise UnusableFileName("Filename is too long (can be at most 1024 bytes).")
         lowest_unicode_value = ord(min(filename))
         if lowest_unicode_value < 32:
-            message = "Filename \"{}\" contains code {} (hex {:02x}), less than 32.".format(
+            message = u"Filename \"{}\" contains code {} (hex {:02x}), less than 32.".format(
                 self.unprintable_to_hex(filename), lowest_unicode_value, lowest_unicode_value
             )
             raise UnusableFileName(message)

@@ -81,6 +81,8 @@ class TestRawAPIFilenames(TestBase):
 
         # Names with unicode values < 32, and DEL aren't allowed.
         self._should_raise(u'hey' + CHAR_UNDER_32, "contains code.*less than 32")
+        # Unicode in the filename shouldn't break the exception message.
+        self._should_raise(TWO_BYTE_UNICHR + CHAR_UNDER_32, "contains code.*less than 32")
         self._should_raise(DEL_CHAR, "DEL.*not allowed")
 
         # Names can't start or end with '/' or contain '//'
