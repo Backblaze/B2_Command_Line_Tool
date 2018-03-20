@@ -11,7 +11,6 @@
 from __future__ import print_function
 
 import six
-import sys
 
 from b2.raw_api import B2RawApi
 from b2.b2http import B2Http
