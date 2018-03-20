@@ -546,7 +546,7 @@ def test_raw_api():
     """
     try:
         raw_api = B2RawApi(B2Http())
-        test_raw_api(raw_api)
+        test_raw_api_helper(raw_api)
         return 0
     except Exception as e:
         print('Caught exception: %s' % (repr(e),), file=sys.stdout)
