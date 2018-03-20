@@ -32,7 +32,8 @@ class TestRawAPIFilenames(TestBase):
     def _should_be_ok(self, filename):
         """Call with test filenames that follow the filename rules.
 
-        :param filename: unicode (or str) that follows the rules"""
+        :param filename: unicode (or str) that follows the rules
+        """
         print(u"Filename \"{}\" should be OK".format(filename))
         self.assertIsNone(self.raw_api.check_b2_filename(filename))
 

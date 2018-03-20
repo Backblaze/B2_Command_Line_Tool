@@ -504,7 +504,7 @@ class B2RawApi(AbstractRawApi):
         :param data_stream: A file like object from which the contents of the file can be read.
         :return:
         """
-        # This will raise UnusableFileName if the file_name doesn't meet the rules.
+        # Raise UnusableFileName if the file_name doesn't meet the rules.
         self.check_b2_filename(file_name)
         headers = {
             'Authorization': upload_auth_token,
@@ -546,7 +546,7 @@ def test_raw_api():
     """
     try:
         raw_api = B2RawApi(B2Http())
-        test_raw_api(raw_api)
+        test_raw_api_helper(raw_api)
         return 0
     except Exception as e:
         print('Caught exception: %s' % (repr(e),), file=sys.stdout)
@@ -565,7 +565,6 @@ def test_raw_api_helper(raw_api):
     this test will break and we'll have to do something about
     it.
     """
-
     account_id = os.environ.get('TEST_ACCOUNT_ID')
     if account_id is None:
         print('TEST_ACCOUNT_ID is not set.', file=sys.stderr)
