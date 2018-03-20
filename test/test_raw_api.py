@@ -34,7 +34,7 @@ class TestRawAPIFilenames(TestBase):
 
         :param filename: unicode (or str) that follows the rules
         """
-        print(u"Filename \"{}\" should be OK".format(filename))
+        print(u"Filename \"{0}\" should be OK".format(filename))
         self.assertIsNone(self.raw_api.check_b2_filename(filename))
 
     def _should_raise(self, filename, exception_message):
@@ -44,7 +44,7 @@ class TestRawAPIFilenames(TestBase):
         :param exception_message: regexp that matches the exception's detailed message
         """
         print(
-            u"Filename \"{}\" should raise UnusableFileName(\".*{}.*\")."
+            u"Filename \"{0}\" should raise UnusableFileName(\".*{1}.*\")."
             .format(filename, exception_message)
         )
         with self.assertRaisesRegexp(UnusableFileName, exception_message):
