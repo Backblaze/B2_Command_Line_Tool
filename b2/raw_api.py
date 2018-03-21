@@ -17,13 +17,15 @@ import random
 import re
 import sys
 import time
-from abc import (ABCMeta, abstractmethod)
+from abc import ABCMeta, abstractmethod
 
 import six
 
-from .b2http import (B2Http)
+from .b2http import B2Http
 from .download_dest import DownloadDestBytes
-from .exception import ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour
+from .exception import (
+    ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour, UnusableFileName
+)
 from .utils import b2_url_encode, hex_sha1_of_stream
 
 # Standard names for file info entries
@@ -440,6 +442,51 @@ class B2RawApi(AbstractRawApi):
             **kwargs
         )
 
+    def unprintable_to_hex(self, string):
+        """Replace unprintable chars in string with a hex representation.
+
+        :param string: An arbitrary string, possibly with unprintable characters.
+        :return The string, with unprintable characters changed to hex (e.g., "\x07")
+        """
+        unprintables_pattern = re.compile(r'[\x00-\x1f]')
+
+        def hexify(match):
+            return r'\x{0:02x}'.format(ord(match.group()))
+
+        return unprintables_pattern.sub(hexify, string)
+
+    def check_b2_filename(self, filename):
+        """
+        Raise an appropriate exception with details if the filename is unusable.
+
+        See https://www.backblaze.com/b2/docs/files.html for the rules.
+
+        :param filename: A proposed filename in unicode.
+        :return: None if the filename is usable.
+        """
+        encoded_name = filename.encode('utf-8')
+        length_in_bytes = len(encoded_name)
+        if length_in_bytes < 1:
+            raise UnusableFileName("Filename must be at least 1 character.")
+        if length_in_bytes > 1024:
+            raise UnusableFileName("Filename is too long (can be at most 1024 bytes).")
+        lowest_unicode_value = ord(min(filename))
+        if lowest_unicode_value < 32:
+            message = u"Filename \"{0}\" contains code {1} (hex {2:02x}), less than 32.".format(
+                self.unprintable_to_hex(filename), lowest_unicode_value, lowest_unicode_value
+            )
+            raise UnusableFileName(message)
+        # No DEL for you.
+        if '\x7f' in filename:
+            raise UnusableFileName("DEL character (0x7f) not allowed.")
+        if filename[0] == '/' or filename[-1] == '/':
+            raise UnusableFileName("Filename may not start or end with '/'.")
+        if '//' in filename:
+            raise UnusableFileName("Filename may not contain \"//\".")
+        long_segment = max([len(segment.encode('utf-8')) for segment in filename.split('/')])
+        if long_segment > 250:
+            raise UnusableFileName("Filename segment too long (maximum 250 bytes in utf-8).")
+
     def upload_file(
         self, upload_url, upload_auth_token, file_name, content_length, content_type, content_sha1,
         file_infos, data_stream
@@ -457,6 +504,8 @@ class B2RawApi(AbstractRawApi):
         :param data_stream: A file like object from which the contents of the file can be read.
         :return:
         """
+        # Raise UnusableFileName if the file_name doesn't meet the rules.
+        self.check_b2_filename(file_name)
         headers = {
             'Authorization': upload_auth_token,
             'Content-Length': str(content_length),
@@ -516,7 +565,6 @@ def test_raw_api_helper(raw_api):
     this test will break and we'll have to do something about
     it.
     """
-
     account_id = os.environ.get('TEST_ACCOUNT_ID')
     if account_id is None:
         print('TEST_ACCOUNT_ID is not set.', file=sys.stderr)
@@ -570,13 +618,13 @@ def test_raw_api_helper(raw_api):
     print('b2_download_file_by_id (auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_id(download_url, account_auth_token, file_id, download_dest)
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_id no auth
     print('b2_download_file_by_id (no auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_id(download_url, None, file_id, download_dest)
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_name with auth
     print('b2_download_file_by_name (auth)')
@@ -584,13 +632,13 @@ def test_raw_api_helper(raw_api):
     raw_api.download_file_by_name(
         download_url, account_auth_token, bucket_name, file_name, download_dest
     )
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_name no auth
     print('b2_download_file_by_name (no auth)')
     download_dest = DownloadDestBytes()
     raw_api.download_file_by_name(download_url, None, bucket_name, file_name, download_dest)
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_get_download_authorization
     print('b2_get_download_authorization')
@@ -605,7 +653,7 @@ def test_raw_api_helper(raw_api):
     raw_api.download_file_by_name(
         download_url, download_auth_token, bucket_name, file_name, download_dest
     )
-    assert file_contents == download_dest.bytes_io.getvalue()
+    assert file_contents == download_dest.get_bytes_written()
 
     # b2_list_file_names
     print('b2_list_file_names')
