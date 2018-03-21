@@ -839,6 +839,55 @@ class TestConsoleTool(TestBase):
             ''' % (mtime)
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
+    def test_ls(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Check with no files
+        self._run_command(['ls', 'my-bucket'], '', '', 0)
+
+        # Create some files, including files in a folder
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        bucket.upload(UploadSourceBytes(b''), 'a')
+        bucket.upload(UploadSourceBytes(b' '), 'b/b1')
+        bucket.upload(UploadSourceBytes(b'   '), 'b/b2')
+        bucket.upload(UploadSourceBytes(b'     '), 'c')
+        bucket.upload(UploadSourceBytes(b'      '), 'c')
+
+        # Condensed output
+        expected_stdout = '''
+        a
+        b/
+        c
+        '''
+        self._run_command(['ls', 'my-bucket'], expected_stdout, '', 0)
+
+        # Recursive output
+        expected_stdout = '''
+        a
+        b/b1
+        b/b2
+        c
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout, '', 0)
+
+        # Check long output.   (The format expects full-length file ids, so it causes whitespace here)
+        expected_stdout = '''
+                                                                                       9999  upload  1970-01-01  00:00:05          0  a
+                                                                                          -       -           -         -          0  b/
+                                                                                       9995  upload  1970-01-01  00:00:05          6  c
+        '''
+        self._run_command(['ls', '--long', 'my-bucket'], expected_stdout, '', 0)
+
+        # Check long versions output   (The format expects full-length file ids, so it causes whitespace here)
+        expected_stdout = '''
+                                                                                       9999  upload  1970-01-01  00:00:05          0  a
+                                                                                          -       -           -         -          0  b/
+                                                                                       9995  upload  1970-01-01  00:00:05          6  c
+                                                                                       9996  upload  1970-01-01  00:00:05          5  c
+        '''
+        self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
@@ -868,11 +917,11 @@ class TestConsoleTool(TestBase):
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
         if expected_stdout != actual_stdout:
-            print(repr(expected_stdout))
-            print(repr(actual_stdout))
+            print('EXPECTED STDOUT:', repr(expected_stdout))
+            print('ACTUAL STDOUT:  ', repr(actual_stdout))
         if expected_stderr != actual_stderr:
-            print(repr(expected_stderr))
-            print(repr(actual_stderr))
+            print('EXPECTED STDERR:', repr(expected_stderr))
+            print('ACTUAL STDERR:  ', repr(actual_stderr))
 
         self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')

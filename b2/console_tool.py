@@ -699,7 +699,7 @@ class ListUnfinishedLargeFiles(Command):
 
 class Ls(Command):
     """
-    b2 ls [--long] [--versions] <bucketName> [<folderName>]
+    b2 ls [--long] [--versions] [--recursive] <bucketName> [<folderName>]
 
         Using the file naming convention that "/" separates folder
         names from their contents, returns a list of the files
@@ -714,9 +714,12 @@ class Ls(Command):
 
         The --version option shows all of versions of each file, not
         just the most recent.
+
+        The --recursive option will descend into folders, and will show
+        only files, not folders.
     """
 
-    OPTION_FLAGS = ['long', 'versions']
+    OPTION_FLAGS = ['long', 'versions', 'recursive']
 
     REQUIRED = ['bucketName']
 
@@ -731,7 +734,9 @@ class Ls(Command):
                 prefix += '/'
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file_version_info, folder_name in bucket.ls(prefix, args.versions):
+        for file_version_info, folder_name in bucket.ls(
+            prefix, show_versions=args.versions, recursive=args.recursive
+        ):
             if not args.long:
                 self._print(folder_name or file_version_info.file_name)
             elif folder_name is not None:
