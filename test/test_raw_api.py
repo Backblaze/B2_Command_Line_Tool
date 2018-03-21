@@ -26,6 +26,9 @@ DEL_CHAR = unichr(127)
 class TestRawAPIFilenames(TestBase):
     """Test that the filename checker passes conforming names and rejects those that don't."""
 
+    def setUp(self):
+        self.raw_api = B2RawApi(B2Http())
+
     def _should_be_ok(self, filename):
         """Call with test filenames that follow the filename rules.
 
@@ -59,7 +62,6 @@ class TestRawAPIFilenames(TestBase):
         - Maximum of 250 bytes of UTF-8 in each segment (part between slashes) of a file name.
         """
         print("test b2 filename rules")
-        self.raw_api = B2RawApi(B2Http())
 
         # Examples from doc:
         self._should_be_ok('Kitten Videos')
