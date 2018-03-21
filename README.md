@@ -127,7 +127,10 @@ You'll need to have these packages installed:
 
 There is a `Makefile` with a rule to run the unit tests using the currently active Python:
 
+    make setup
     make test
+
+will install the required packages, then run the unit tests.
 
 To test in multiple python virtual environments, set the enviroment variable `PYTHON_VIRTUAL_ENVS`
 to be a space-separated list of their root directories.  When set, the makefile will run the
