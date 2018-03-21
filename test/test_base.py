@@ -14,7 +14,6 @@ import unittest
 
 
 class TestBase(unittest.TestCase):
-
     @contextmanager
     def assertRaises(self, exc):
         try:
