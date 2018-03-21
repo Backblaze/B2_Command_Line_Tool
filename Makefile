@@ -13,6 +13,10 @@ setup: ## and enable pre-commit hook for this repo only.
 test:  ## Run unit tests
 	./run-unit-tests.sh
 
+.PHONY:
+format:	## Format code using yapf
+	yapf --verbose --in-place --parallel --recursive --exclude '*eggs/*' .
+
 .PHONY: clean
 clean: ## Remove stuff you can regenerate
 	rm -rf b2.egg-info build TAGS
