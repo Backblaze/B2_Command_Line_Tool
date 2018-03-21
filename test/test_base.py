@@ -14,7 +14,6 @@ import unittest
 
 
 class TestBase(unittest.TestCase):
-
     def assertIsNone(self, expr, msg=None):
         """Fail the test unless the expression is None."""
         if expr is not None:
