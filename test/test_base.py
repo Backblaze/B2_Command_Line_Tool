@@ -14,10 +14,10 @@ import unittest
 
 
 class TestBase(unittest.TestCase):
-
     @contextmanager
     def assertIsNone(self, expr):
         """Fail the test unless the expression is None."""
+        yield
         if expr is not None:
             assert False, '%s is not None' % (repr(expr))
 

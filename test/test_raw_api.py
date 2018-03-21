@@ -10,15 +10,12 @@
 
 from __future__ import print_function
 
-import six
+from six import unichr
 
 from b2.raw_api import B2RawApi
 from b2.b2http import B2Http
 from b2.exception import UnusableFileName
 from .test_base import TestBase
-
-if six.PY3:
-    unichr = chr
 
 # Unicode characters for testing filenames.  (0x0394 is a letter Delta.)
 TWO_BYTE_UNICHR = unichr(0x0394)
@@ -35,7 +32,7 @@ class TestRawAPIFilenames(TestBase):
         :param filename: unicode (or str) that follows the rules
         """
         print(u"Filename \"{0}\" should be OK".format(filename))
-        assert self.raw_api.check_b2_filename(filename) is None
+        self.assertIsNone(self.raw_api.check_b2_filename(filename))
 
     def _should_raise(self, filename, exception_message):
         """Call with filenames that don't follow the rules (so the rule checker should raise).
