@@ -12,6 +12,7 @@ from __future__ import division, print_function
 
 import hashlib
 import os
+import stat
 import platform
 import re
 import shutil
@@ -173,7 +174,7 @@ def is_file_readable(local_path, reporter=None):
         if reporter is not None:
             reporter.local_access_error(local_path)
         return False
-    elif not os.access(local_path, os.R_OK):
+    elif not os.stat(local_path).st_mode & (stat.S_IRUSR|stat.S_IRGRP|stat.S_IROTH):
         if reporter is not None:
             reporter.local_permission_error(local_path)
         return False
