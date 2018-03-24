@@ -107,10 +107,15 @@ class TestLocalFolder(TestSync):
     def test_invalid_permissions(self):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir, invalid_permissions=True)
-            self.assertEqual(self.NAMES[1:], list(f.name for f in folder.all_files(self.reporter)))
-            self.reporter.local_permission_error.assert_called_once_with(
-                os.path.join(tmpdir, self.NAMES[0])
-            )
+            if not os.access(os.path.join(tmpdir, self.NAMES[0]), os.R_OK):
+                self.assertEqual(
+                    self.NAMES[1:], list(f.name for f in folder.all_files(self.reporter))
+                )
+                self.reporter.local_permission_error.assert_called_once_with(
+                    os.path.join(tmpdir, self.NAMES[0])
+                )
+            else:
+                self.assertEqual(self.NAMES, list(f.name for f in folder.all_files(self.reporter)))
 
     def _check_file_filters_results(self, policies_manager, expected_scan_results):
         with TempDir() as tmpdir:
