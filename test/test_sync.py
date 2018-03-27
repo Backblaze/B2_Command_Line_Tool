@@ -107,6 +107,10 @@ class TestLocalFolder(TestSync):
     def test_invalid_permissions(self):
         with TempDir() as tmpdir:
             folder = self._prepare_folder(tmpdir, invalid_permissions=True)
+            # tests differ depending on the user running them. "root" will
+            # succeed in os.access(path, os.R_OK) even if the permissions of
+            # the file are 0 as implemented on self._prepare_folder().
+            # use-case: running test suite inside a docker container
             if not os.access(os.path.join(tmpdir, self.NAMES[0]), os.R_OK):
                 self.assertEqual(
                     self.NAMES[1:], list(f.name for f in folder.all_files(self.reporter))
