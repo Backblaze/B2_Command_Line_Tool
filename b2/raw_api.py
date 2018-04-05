@@ -170,6 +170,29 @@ class B2RawApi(AbstractRawApi):
             lifecycleRules=lifecycle_rules
         )
 
+    def create_key(
+            self,
+            api_url,
+            account_auth_token,
+            account_id,
+            capabilities,
+            key_name,
+            valid_duration_seconds,
+            bucket_id,
+            name_prefix
+    ):
+        return self._post_json(
+            api_url,
+            'b2_create_key',
+            account_auth_token,
+            accountId=account_id,
+            capabilities=capabilities,
+            keyName=key_name,
+            validDurationSeconds=valid_duration_seconds,
+            bucketId=bucket_id,
+            namePrefix=name_prefix
+        )
+
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
         return self._post_json(
             api_url,
@@ -186,6 +209,14 @@ class B2RawApi(AbstractRawApi):
             account_auth_token,
             fileId=file_id,
             fileName=file_name
+        )
+
+    def delete_key(self, api_url, account_auth_token, application_key_id):
+        return self._post_json(
+            api_url,
+            'b2_delete_key',
+            account_auth_token,
+            applicationKeyId=application_key_id
         )
 
     def download_file_by_id(
@@ -370,6 +401,23 @@ class B2RawApi(AbstractRawApi):
             startFileName=start_file_name,
             startFileId=start_file_id,
             maxFileCount=max_file_count
+        )
+
+    def list_keys(
+            self,
+            api_url,
+            account_auth_token,
+            account_id,
+            max_key_count=None,
+            start_application_key_id=None
+    ):
+        return self._post_json(
+            api_url,
+            'b2_list_keys',
+            account_auth_token,
+            accountId=account_id,
+            maxKeyCount=max_key_count,
+            startApplicationKeyId=start_application_key_id
         )
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
@@ -574,6 +622,7 @@ def test_raw_api_helper(raw_api):
         print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
         sys.exit(1)
     realm_url = 'https://api.backblazeb2.com'
+    realm_url = 'http://api.test.blaze:8180'
 
     # b2_authorize_account
     print('b2_authorize_account')
@@ -581,6 +630,19 @@ def test_raw_api_helper(raw_api):
     account_auth_token = auth_dict['authorizationToken']
     api_url = auth_dict['apiUrl']
     download_url = auth_dict['downloadUrl']
+
+    # b2_create_key
+    print('b2_create_key')
+    key_dict = raw_api.create_key(api_url, account_auth_token, account_id, ['readFiles'], 'testKey', None, None, None)
+    print(key_dict)
+
+    # b2_list_keys
+    print('b2_list_keys')
+    raw_api.list_keys(api_url, account_auth_token, account_id, 10)
+
+    # b2_delete_key
+    print('b2_delete_key')
+    raw_api.delete_key(api_url, account_auth_token, key_dict['applicationKeyId'])
 
     # b2_create_bucket, with a unique bucket name
     # Include the account ID in the bucket name to be
