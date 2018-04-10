@@ -348,10 +348,19 @@ def interpret_b2_error(status, code, message, post_params=None):
         return FileAlreadyHidden(post_params['fileName'])
     elif status == 400 and code == 'bad_json':
         return BadJson(message)
-    elif status == 400 and code in ("no_such_file", "file_not_present"):
-        # hide_file returns "no_such_file"
-        # delete_file_version returns "file_not_present"
-        return FileNotPresent(post_params['fileName'])
+    elif (
+        (status == 400 and code in ("no_such_file", "file_not_present")) or
+        (status == 404 and code == "not_found")
+    ):
+        # hide_file returns 400 and "no_such_file"
+        # delete_file_version returns 400 and "file_not_present"
+        # get_file_info returns 404 and "not_found"
+        # download_file_by_name/download_file_by_id return 404 and "not_found"
+        # but don't have post_params
+        if 'fileName' in post_params:
+            return FileNotPresent(post_params['fileName'])
+        else:
+            return FileNotPresent()
     elif status == 400 and code == "duplicate_bucket_name":
         return DuplicateBucketName(post_params['bucketName'])
     elif status == 400 and code == "missing_part":
