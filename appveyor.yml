@@ -11,13 +11,8 @@ environment:
 
     # Python names come from: https://www.appveyor.com/docs/build-environment/#python
 
-    - PYTHON: "C://Python26"
-      PYTHON_VERSION: "2.6.6"
-      PYTHON_ARCH: "32"
-
-    - PYTHON: "C://Python26-x64"
-      PYTHON_VERSION: "2.6.6"
-      PYTHON_ARCH: "64"
+    # Python 2.6 does not work any more.  It gets errors installing arrow.
+    # I'm not going to take the time right now to figure out why.
 
     - PYTHON: "C://Python27"
       PYTHON_VERSION: "2.7"
