@@ -38,6 +38,8 @@ class FileVersionInfo(object):
             result['uploadTimestamp'] = self.upload_timestamp
         if self.action is not None:
             result['action'] = self.action
+        if self.content_sha1 is not None:
+            result['contentSha1'] = self.content_sha1
         return result
 
     def format_ls_entry(self):
