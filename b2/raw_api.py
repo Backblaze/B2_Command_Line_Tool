@@ -353,13 +353,22 @@ class B2RawApi(AbstractRawApi):
             api_url, 'b2_hide_file', account_auth_token, bucketId=bucket_id, fileName=file_name
         )
 
-    def list_buckets(self, api_url, account_auth_token, account_id):
+    def list_buckets(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        bucket_id=None,
+        bucket_name=None,
+    ):
         return self._post_json(
             api_url,
             'b2_list_buckets',
             account_auth_token,
             accountId=account_id,
-            bucketTypes=['all']
+            bucketTypes=['all'],
+            bucketId=bucket_id,
+            bucketName=bucket_name,
         )
 
     def list_file_names(
