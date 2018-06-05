@@ -33,13 +33,13 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         super(InMemoryAccountInfo, self).__init__(*args, **kwargs)
 
     def clear(self):
-        self.set_auth_data(None, None, None, None, None, None, None)
+        self.set_auth_data(None, None, None, None, None, None, None, None)
         self._buckets = {}
         return super(InMemoryAccountInfo, self).clear()
 
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-        realm
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
+        application_key, realm
     ):
         self._account_id = account_id
         self._auth_token = auth_token
@@ -48,6 +48,7 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         self._minimum_part_size = minimum_part_size
         self._application_key = application_key
         self._realm = realm
+        self._allowed = allowed
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         self._buckets = dict(name_id_iterable)
@@ -88,4 +89,8 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
 
     @_raise_missing_if_result_is_none
     def get_realm(self):
+        return self._realm
+
+    @_raise_missing_if_result_is_none
+    def get_allowed(self):
         return self._realm

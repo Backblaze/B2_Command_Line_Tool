@@ -123,12 +123,14 @@ class B2Api(object):
         realm_url = self.account_info.REALM_URLS[realm]
         response = self.raw_api.authorize_account(realm_url, account_id, application_key)
 
+        # TODO: make 'allowed' required once production servers start returning it
         self.account_info.set_auth_data(
             response['accountId'],
             response['authorizationToken'],
             response['apiUrl'],
             response['downloadUrl'],
             response['minimumPartSize'],
+            response.get('allowed'),
             application_key,
             realm,
         )

@@ -74,7 +74,7 @@ class AccountInfoBase(object):
     def test_clear(self):
         account_info = self._make_info()
         account_info.set_auth_data(
-            'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
+            'account_id', 'account_auth', 'api_url', 'download_url', 100, None, 'app_key', 'realm'
         )
         account_info.clear()
 
@@ -151,7 +151,7 @@ class AccountInfoBase(object):
     def _test_account_info(self, check_persistence):
         account_info = self._make_info()
         account_info.set_auth_data(
-            'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
+            'account_id', 'account_auth', 'api_url', 'download_url', 100, None, 'app_key', 'realm'
         )
 
         object_instances = [account_info]

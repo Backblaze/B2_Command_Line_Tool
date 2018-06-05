@@ -102,10 +102,20 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    def get_allowed(self):
+        """
+        The 'allowed' structure may be None if thi account info was stored
+        before the B2 service supported the field.  None should be treated
+        as allowing everything.
+
+        :return: returns the 'allowed' structure return by B2 as a dict
+        """
+
+    @abstractmethod
     @limit_trace_arguments(only=['self', 'api_url', 'download_url', 'minimum_part_size', 'realm'])
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-        realm
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
+        application_key, realm
     ):
         pass
 

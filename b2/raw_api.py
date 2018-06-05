@@ -171,15 +171,8 @@ class B2RawApi(AbstractRawApi):
         )
 
     def create_key(
-            self,
-            api_url,
-            account_auth_token,
-            account_id,
-            capabilities,
-            key_name,
-            valid_duration_seconds,
-            bucket_id,
-            name_prefix
+        self, api_url, account_auth_token, account_id, capabilities, key_name,
+        valid_duration_seconds, bucket_id, name_prefix
     ):
         return self._post_json(
             api_url,
@@ -213,10 +206,7 @@ class B2RawApi(AbstractRawApi):
 
     def delete_key(self, api_url, account_auth_token, application_key_id):
         return self._post_json(
-            api_url,
-            'b2_delete_key',
-            account_auth_token,
-            applicationKeyId=application_key_id
+            api_url, 'b2_delete_key', account_auth_token, applicationKeyId=application_key_id
         )
 
     def download_file_by_id(
@@ -404,12 +394,12 @@ class B2RawApi(AbstractRawApi):
         )
 
     def list_keys(
-            self,
-            api_url,
-            account_auth_token,
-            account_id,
-            max_key_count=None,
-            start_application_key_id=None
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        max_key_count=None,
+        start_application_key_id=None
     ):
         return self._post_json(
             api_url,
@@ -633,7 +623,16 @@ def test_raw_api_helper(raw_api):
 
     # b2_create_key
     print('b2_create_key')
-    key_dict = raw_api.create_key(api_url, account_auth_token, account_id, ['readFiles'], 'testKey', None, None, None)
+    key_dict = raw_api.create_key(
+        api_url,
+        account_auth_token,
+        account_id,
+        ['readFiles'],
+        'testKey',
+        None,
+        None,
+        None,
+    )
     print(key_dict)
 
     # b2_list_keys

@@ -38,8 +38,8 @@ class StubAccountInfo(AbstractAccountInfo):
             del self.buckets[bucket_id]
 
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-        realm
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
+        application_key, realm
     ):
         self.account_id = account_id
         self.auth_token = auth_token
@@ -48,6 +48,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.minimum_part_size = minimum_part_size
         self.application_key = application_key
         self.realm = realm
+        self.allowed = allowed
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         self.buckets = {}
@@ -87,6 +88,9 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_realm(self):
         return self.realm
+
+    def get_allowed(self):
+        return None
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))
