@@ -63,7 +63,7 @@ def write_file(path, contents):
 
 
 def file_mod_time_millis(path):
-    return int(round(1000 * os.path.getmtime(path)))
+    return int(os.path.getmtime(path) * 1000)
 
 
 def set_file_mod_time_millis(path, time):
@@ -428,6 +428,7 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_fail(
         ['authorize_account', sys.argv[1], bad_application_key], r'nvalid authorization'
     )
+    print('######### ' + sys.argv[2])
     b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 

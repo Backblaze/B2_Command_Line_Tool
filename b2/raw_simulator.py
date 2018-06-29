@@ -441,6 +441,8 @@ class RawSimulator(AbstractRawApi):
 
     MIN_PART_SIZE = 200
 
+    MAX_DURATION_IN_SECONDS = 86400000
+
     UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
 
     def __init__(self):
@@ -506,6 +508,34 @@ class RawSimulator(AbstractRawApi):
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_dict()
 
+    def create_key(
+        self, api_url, account_auth_token, account_id, capabilities, key_name,
+        valid_duration_seconds, bucket_id, name_prefix
+    ):
+
+        if not re.match(r'^[A-Za-z0-9-]{1,100}$', key_name):
+            raise BadJson('illegal key name: ' + key_name)
+        if valid_duration_seconds is not None:
+            if not re.match(r'^[0-9]+$', valid_duration_seconds):
+                raise BadJson('illegal duration number: ' + valid_duration_seconds)
+            if int(valid_duration_seconds
+                  ) < 1 or int(valid_duration_seconds) > self.MAX_DURATION_IN_SECONDS:
+                raise BadJson(
+                    'valid duration must be greater than 0, and less than 1000 days in seconds'
+                )
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+
+        return dict(
+            applicationKeyId='appKeyId',
+            applicationKey='appKey',
+            capabilities=capabilities,
+            accountId=account_id,
+            bucketId=bucket_id,
+            expirationTimeStamp='123',
+            keyName=key_name,
+            namePrefix=name_prefix
+        )
+
     def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
@@ -540,6 +570,15 @@ class RawSimulator(AbstractRawApi):
         # TODO: check auth token if bucket is not public
         bucket = self._get_bucket_by_name(bucket_name)
         bucket.download_file_by_name(file_name, download_dest)
+
+    def delete_key(self, api_url, account_auth_token, application_key_id):
+        assert api_url == self.API_URL
+        return dict(
+            accountId='accountId',
+            applicationKeyId=application_key_id,
+            keyName='keyName',
+            capabilities=['listBuckets', 'readBuckets', 'writeBuckets']
+        )
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -616,6 +655,43 @@ class RawSimulator(AbstractRawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
+
+    def list_keys(
+        self, api_url, account_auth_token, account_id, max_key_count, start_application_key_id
+    ):
+
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+        if max_key_count is not None:
+            if not re.match(r'^[0-9]+$', max_key_count):
+                raise BadJson('illegal key count number: ' + max_key_count)
+            if int(max_key_count) < 1 or int(max_key_count) > 10000:
+                raise BadJson('valid max key count is greater than 0 and less than 10001')
+
+        return dict(
+            keys=[
+                {
+                    "accountId": account_id,
+                    "applicationKeyId": 'applicationKeyOne',
+                    "keyName": 'KeyOne',
+                    "capabilities": ['listKeys', 'writeKeys', 'deleteKeys']
+                }, {
+                    "accountId": account_id,
+                    "applicationKeyId": 'applicationKeyTwo',
+                    "keyName": 'KeyTwo',
+                    "capabilities": ['listBuckets', 'writeBuckets', 'deleteBuckets']
+                }, {
+                    "accountId":
+                        account_id,
+                    "applicationKeyId":
+                        'applicationKeyThree',
+                    "keyName":
+                        'KeyThree',
+                    "capabilities":
+                        ['listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles']
+                }
+            ],
+            nextApplicationKeyId="nextKey"
+        )
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
         bucket_id = self.file_id_to_bucket_id[file_id]

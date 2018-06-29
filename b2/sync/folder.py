@@ -193,7 +193,7 @@ class LocalFolder(AbstractFolder):
                 # Check that the file still exists and is accessible, since it can take a long time
                 # to iterate through large folders
                 if is_file_readable(local_path, reporter):
-                    file_mod_time = int(round(os.path.getmtime(local_path) * 1000))
+                    file_mod_time = int(os.path.getmtime(local_path) * 1000)
                     file_size = os.path.getsize(local_path)
                     version = FileVersion(local_path, b2_path, file_mod_time, 'upload', file_size)
                     yield File(b2_path, [version])

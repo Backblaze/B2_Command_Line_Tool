@@ -314,6 +314,41 @@ class CreateBucket(Command):
         return 0
 
 
+class CreateKey(Command):
+    """
+    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketId>] [--prefix <namePrefix>]
+    <capabilities> <keyName>
+
+       Creates a new application key.  Prints the application key information, and is the only time the
+       actual application key is returned.
+
+       Optionally sets:
+       - the duration of which the key is valid for.
+       - the bucketId, which when specified is limited to bucket 'capabilities'
+       - the namePrefix, which when specified is limited to actions on just that file and the bucket its in
+    """
+
+    REQUIRED = ['capabilities', 'keyName']
+
+    OPTION_ARGS = ['bucketId', 'namePrefix', 'duration']
+
+    ARG_PARSER = {'capabilities': json.loads}
+
+    def run(self, args):
+        response = self.api.create_key(
+            capabilities=args.capabilities,
+            key_name=args.keyName,
+            valid_duration_seconds=args.duration,
+            bucket_id=args.bucketId,
+            name_prefix=args.namePrefix
+        )
+
+        application_key_id = response['applicationKeyId']
+        application_key = response['applicationKey']
+        self._print(application_key_id + " : " + application_key)
+        return 0
+
+
 class DeleteBucket(Command):
     """
     b2 delete-bucket <bucketName>
@@ -357,6 +392,21 @@ class DeleteFileVersion(Command):
     def _get_file_name_from_file_id(self, file_id):
         file_info = self.api.get_file_info(file_id)
         return file_info['fileName']
+
+
+class DeleteKey(Command):
+    """
+    b2 delete-key <applicationKeyId>
+
+       Deletes the specified application key by its 'ID'.
+    """
+
+    REQUIRED = ['applicationKeyId']
+
+    def run(self, args):
+        response = self.api.delete_key(application_key_id=args.applicationKeyId)
+        self._print(response['applicationKeyId'])
+        return 0
 
 
 class DownloadFileById(Command):
@@ -652,6 +702,33 @@ class ListFileNames(Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.list_file_names(args.startFileName, args.maxToShow)
         self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+
+
+class ListKeys(Command):
+    """
+    b2 list-keys [--keyCount <maxKeyCount>] [--startKey <startApplicationKeyId>]
+
+       Lists the application keys for a given account.
+
+       Optionally sets:
+       - the maximum number of keys returned (the default is 100, the max is 10000).
+       - the first key to return when listing keys
+    """
+
+    OPTION_ARGS = ['keyCount', 'startKey']
+
+    def run(self, args):
+        response = self.api.list_keys(
+            max_key_count=args.keyCount, start_application_key_id=args.startKey
+        )
+
+        self._print('Next Application Key Id: ' + response['nextApplicationKeyId'])
+
+        for key in response['keys']:
+            self._print(
+                '%s  %-10s  %s' % (key['applicationKeyId'], key['keyName'], key['capabilities'])
+            )
         return 0
 
 
