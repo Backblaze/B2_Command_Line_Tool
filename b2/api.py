@@ -283,14 +283,10 @@ class B2Api(object):
         response = self.session.delete_key(application_key_id=application_key_id)
         return response
 
-    def list_keys(self, max_key_count=None, start_application_key_id=None):
+    def list_keys(self):
         account_id = self.account_info.get_account_id()
 
-        return self.session.list_keys(
-            account_id,
-            max_key_count=max_key_count,
-            start_application_key_id=start_application_key_id
-        )
+        return self.session.list_keys(account_id)
 
     # other
     def get_file_info(self, file_id):

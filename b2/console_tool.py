@@ -316,8 +316,7 @@ class CreateBucket(Command):
 
 class CreateKey(Command):
     """
-    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketId>] [--prefix <namePrefix>]
-    <capabilities> <keyName>
+    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <capabilities> <keyName>
 
        Creates a new application key.  Prints the application key information, and is the only time the
        actual application key is returned.
@@ -707,27 +706,19 @@ class ListFileNames(Command):
 
 class ListKeys(Command):
     """
-    b2 list-keys [--keyCount <maxKeyCount>] [--startKey <startApplicationKeyId>]
+    b2 list-keys
 
        Lists the application keys for a given account.
-
-       Optionally sets:
-       - the maximum number of keys returned (the default is 100, the max is 10000).
-       - the first key to return when listing keys
     """
 
-    OPTION_ARGS = ['keyCount', 'startKey']
-
     def run(self, args):
-        response = self.api.list_keys(
-            max_key_count=args.keyCount, start_application_key_id=args.startKey
-        )
+        response = self.api.list_keys()
 
         self._print('Next Application Key Id: ' + response['nextApplicationKeyId'])
 
         for key in response['keys']:
             self._print(
-                '%s  %-10s  %s' % (key['applicationKeyId'], key['keyName'], key['capabilities'])
+                '%s  %s  %s' % (key['applicationKeyId'], key['keyName'], key['capabilities'])
             )
         return 0
 

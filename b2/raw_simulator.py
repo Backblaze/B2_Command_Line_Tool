@@ -441,6 +441,7 @@ class RawSimulator(AbstractRawApi):
 
     MIN_PART_SIZE = 200
 
+    # This is the maximum duration in seconds that an application key can be valid (100 days).
     MAX_DURATION_IN_SECONDS = 86400000
 
     UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
@@ -656,17 +657,9 @@ class RawSimulator(AbstractRawApi):
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
-    def list_keys(
-        self, api_url, account_auth_token, account_id, max_key_count, start_application_key_id
-    ):
+    def list_keys(self, api_url, account_auth_token, account_id):
 
         self._assert_account_auth(api_url, account_auth_token, account_id)
-        if max_key_count is not None:
-            if not re.match(r'^[0-9]+$', max_key_count):
-                raise BadJson('illegal key count number: ' + max_key_count)
-            if int(max_key_count) < 1 or int(max_key_count) > 10000:
-                raise BadJson('valid max key count is greater than 0 and less than 10001')
-
         return dict(
             keys=[
                 {

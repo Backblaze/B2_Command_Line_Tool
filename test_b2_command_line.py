@@ -428,7 +428,6 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_fail(
         ['authorize_account', sys.argv[1], bad_application_key], r'nvalid authorization'
     )
-    print('######### ' + sys.argv[2])
     b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 

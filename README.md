@@ -25,7 +25,7 @@ this:
     b2 cancel-large-file <fileId>
     b2 clear-account
     b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
-    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketId>] [--prefix <namePrefix>]
+    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <capabilities> <keyName>
     b2 delete-bucket <bucketName>
     b2 delete-file-version [<fileName>] <fileId>
     b2 delete-key <applicationKeyId>
@@ -41,7 +41,7 @@ this:
     b2 list-buckets
     b2 list-file-names <bucketName> [<startFileName>] [<maxToShow>]
     b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
-    b2 list-keys [--keyCount <maxKeyCount>] [--startKey <startApplicationKeyId>]
+    b2 list-keys
     b2 list-parts <largeFileId>
     b2 list-unfinished-large-files <bucketName>
     b2 ls [--long] [--versions] [--recursive] <bucketName> [<folderName>]

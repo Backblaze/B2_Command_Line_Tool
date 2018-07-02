@@ -210,27 +210,11 @@ class TestConsoleTool(TestBase):
 
         # List keys
         expected_list_keys_out = 'Next Application Key Id: nextKey\n' +\
-                                 'applicationKeyOne  KeyOne      [\'listKeys\', \'writeKeys\', \'deleteKeys\']\n' + \
-                                 'applicationKeyTwo  KeyTwo      [\'listBuckets\', \'writeBuckets\', \'deleteBuckets\']\n' +\
-                                 'applicationKeyThree  KeyThree    [\'listFiles\', \'readFiles\', \'shareFiles\', \'writeFiles\', \'deleteFiles\']\n'
+                                 'applicationKeyOne  KeyOne  [\'listKeys\', \'writeKeys\', \'deleteKeys\']\n' + \
+                                 'applicationKeyTwo  KeyTwo  [\'listBuckets\', \'writeBuckets\', \'deleteBuckets\']\n' +\
+                                 'applicationKeyThree  KeyThree  [\'listFiles\', \'readFiles\', \'shareFiles\', \'writeFiles\', \'deleteFiles\']\n'
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
-
-        # List keys with bad key count
-        self._run_command(
-            ['list_keys', '--keyCount', ".)xyz"], '',
-            'ERROR: Bad request: illegal key count number: .)xyz\n', 1
-        )
-
-        self._run_command(
-            ['list_keys', '--keyCount', "0"], '',
-            'ERROR: Bad request: valid max key count is greater than 0 and less than 10001\n', 1
-        )
-
-        self._run_command(
-            ['list_keys', '--keyCount', "19000"], '',
-            'ERROR: Bad request: valid max key count is greater than 0 and less than 10001\n', 1
-        )
 
     def test_bucket_info_from_json(self):
 
