@@ -55,8 +55,10 @@ matrix:
 #      env: OS_X_PYTHON_VERSION=python3
 
     # jython
-    - python: 2.7
-      env: JYTHON=true
+    # It looks like Jython has a similar TLS problem to the Mac:
+    #   An HTTPS request has been made, but the SNI (Subject Name Indication) extension to TLS is not available on this platform.
+#    - python: 2.7
+#      env: JYTHON=true
 
     # pypy
     - python: pypy
