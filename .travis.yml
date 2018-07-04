@@ -209,7 +209,7 @@ before_install:
 
 install:
   # regex cannot be installed on jython.  jython can't compile the native extension
-  - if [ -n "$JYTHON" ]; then JYTHON_SKIP=regex; else JYTHON_SKIP=no_skip; fi
+  - if [ -n "$JYTHON" ]; then $REGEX_SKIP=regex; else $REGEX_SKIP=no_skip; fi
 
   # pyflakes is not longer supported on Python 2.6
   - if [ "$TRAVIS_PYTHON_VERSION" = "2.6" ]; then PYFLAKES_SKIP=pyflakes; else PYFLAKES_SKIP=no_skip; fi
