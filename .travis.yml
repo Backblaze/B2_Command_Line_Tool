@@ -11,6 +11,8 @@ python:
   - 3.3
   - 3.4
   - 3.5
+  - 3.6
+  - 3.7
   - nightly
   # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
   #- pypy
