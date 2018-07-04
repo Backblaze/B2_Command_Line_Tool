@@ -38,11 +38,16 @@ matrix:
       env: MODE=SCA
 
     # Travis CI doesn't support OSX python builds officially,
-    # but that won't stop us
-    - python: 2.7
-      os: osx
-      language: generic
-      env: OS_X_PYTHON_VERSION=python
+    # but that won't stop us...
+    # ... or maybe it will. It's now getting this error:
+    #    Could not fetch URL https://pypi.python.org/simple/arrow/: There was a problem confirming the ssl certificate: [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:590)
+    # which stackoverflow says means the python interpreter needs to be upgraded:
+    #    https://stackoverflow.com/questions/16370583/pip-issue-installing-almost-any-library
+#    - python: 2.7
+#      os: osx
+#      language: generic
+#      env: OS_X_PYTHON_VERSION=python
+
 # See github issue #311:
 #    - python: 3.5
 #      os: osx
