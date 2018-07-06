@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.1.1
+Version 1.2.0
 
 # Installation
 
@@ -30,7 +30,7 @@ this:
     b2 download-file-by-id [--noProgress] <fileId> <localFileName>
     b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
     b2 get-account-info
-    b2 get-bucket <bucketName>
+    b2 get-bucket [--showSize] <bucketName>
     b2 get-download-auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
     b2 get-download-url-with-auth [--duration <durationInSeconds>] <bucketName> <fileName>
     b2 get-file-info <fileId>
@@ -41,12 +41,13 @@ this:
     b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
     b2 list-parts <largeFileId>
     b2 list-unfinished-large-files <bucketName>
-    b2 ls [--long] [--versions] <bucketName> [<folderName>]
+    b2 ls [--long] [--versions] [--recursive] <bucketName> [<folderName>]
     b2 make-url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--compareThreshold N] \
         [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \
         [--excludeRegex <regex> [--includeRegex <regex>]] \
+        [--excludeDirRegex <regex>] \
         <source> <destination>
     b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
@@ -54,7 +55,11 @@ this:
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
     b2 version
 
-    For more details on one command: b2 help <command>
+The environment variable B2_ACCOUNT_INFO specifies the sqlite
+file to use for caching authentication information.
+The default file to use is: ~/.b2_account_info
+
+For more details on one command: b2 help <command>
 
 ## Parallelism and the --threads parameter
 
@@ -80,6 +85,23 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.2.0 (July 6, 2018)
+
+New features:
+
+* New `--recursive` option for ls
+* New `--showSize` option for get-bucket
+* New `--excludeDirRegex` option for sync
+
+And some bug fixes:
+
+* Include LICENSE file in the source tarball. Fixes #433
+* Test suite now runs as root (fixes #427)
+* Validate file names before trying to upload
+* Fix scaling problems when syncing large numbers of files
+* Prefix Windows paths during sync to handle long paths (fixes #265)
+* Check if file to be synced is still accessible before syncing (fixes #397)
 
 ## 1.1.0 (November 30, 2017)
 
