@@ -11,6 +11,7 @@ python:
   - 3.3
   - 3.4
   - 3.5
+  - 3.6
   - nightly
   # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
   #- pypy
@@ -38,11 +39,16 @@ matrix:
       env: MODE=SCA
 
     # Travis CI doesn't support OSX python builds officially,
-    # but that won't stop us
-    - python: 2.7
-      os: osx
-      language: generic
-      env: OS_X_PYTHON_VERSION=python
+    # but that won't stop us...
+    # ... or maybe it will. It's now getting this error:
+    #    Could not fetch URL https://pypi.python.org/simple/arrow/: There was a problem confirming the ssl certificate: [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:590)
+    # which stackoverflow says means the python interpreter needs to be upgraded:
+    #    https://stackoverflow.com/questions/16370583/pip-issue-installing-almost-any-library
+#    - python: 2.7
+#      os: osx
+#      language: generic
+#      env: OS_X_PYTHON_VERSION=python
+
 # See github issue #311:
 #    - python: 3.5
 #      os: osx
@@ -50,8 +56,10 @@ matrix:
 #      env: OS_X_PYTHON_VERSION=python3
 
     # jython
-    - python: 2.7
-      env: JYTHON=true
+    # It looks like Jython has a similar TLS problem to the Mac:
+    #   An HTTPS request has been made, but the SNI (Subject Name Indication) extension to TLS is not available on this platform.
+#    - python: 2.7
+#      env: JYTHON=true
 
     # pypy
     - python: pypy
@@ -208,8 +216,9 @@ before_install:
         pip install "setuptools>=20.2"
 
 install:
-  # installing regex on jython fails (jython can't compile the native extension), this awk filter prevents it.
-  - cat requirements*.txt | awk \"${JYTHON:-False}'" == "True" && /^regex/ || ! /^regex/' | cut -d \; -f 1 | xargs pip install
+  - pip install -r requirements.txt
+  - pip install -r requirements-setup.txt
+  - pip install -r requirements-test.txt
 
   - |
         # coverage has additional requirements

@@ -389,7 +389,7 @@ def test_http():
     try:
         b2_http.post_json_return_json('https://unknown.backblazeb2.com', {}, {})
         assert False, 'should have failed with unknown host'
-    except UnknownHost as e:
+    except UnknownHost:
         pass
 
     # Broken pipe
@@ -398,7 +398,7 @@ def test_http():
         data = six.BytesIO(six.b(chr(0)) * 10000000)
         b2_http.post_content_return_json('https://api.backblazeb2.com/bad_url', {}, data)
         assert False, 'should have failed with broken pipe'
-    except BrokenPipe as e:
+    except BrokenPipe:
         pass
 
     # Generic connection error
@@ -407,5 +407,5 @@ def test_http():
         with b2_http.get_content('https://www.backblazeb2.com:80/bad_url', {}) as response:
             assert False, 'should have failed with connection error'
             response.iter_content()  # make pyflakes happy
-    except B2ConnectionError as e:
+    except B2ConnectionError:
         pass
