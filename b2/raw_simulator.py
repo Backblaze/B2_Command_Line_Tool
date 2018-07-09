@@ -441,7 +441,7 @@ class RawSimulator(AbstractRawApi):
 
     MIN_PART_SIZE = 200
 
-    # This is the maximum duration in seconds that an application key can be valid (100 days).
+    # This is the maximum duration in seconds that an application key can be valid (1000 days).
     MAX_DURATION_IN_SECONDS = 86400000
 
     UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
@@ -657,7 +657,14 @@ class RawSimulator(AbstractRawApi):
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
-    def list_keys(self, api_url, account_auth_token, account_id):
+    def list_keys(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        max_key_count=1000,
+        start_application_key_id=None
+    ):
 
         self._assert_account_auth(api_url, account_auth_token, account_id)
         return dict(
@@ -683,7 +690,7 @@ class RawSimulator(AbstractRawApi):
                         ['listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles']
                 }
             ],
-            nextApplicationKeyId="nextKey"
+            # nextApplicationKeyId="nextKey"
         )
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):

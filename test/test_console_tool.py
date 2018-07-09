@@ -209,10 +209,9 @@ class TestConsoleTool(TestBase):
         self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
 
         # List keys
-        expected_list_keys_out = 'Next Application Key Id: nextKey\n' +\
-                                 'applicationKeyOne  KeyOne  [\'listKeys\', \'writeKeys\', \'deleteKeys\']\n' + \
-                                 'applicationKeyTwo  KeyTwo  [\'listBuckets\', \'writeBuckets\', \'deleteBuckets\']\n' +\
-                                 'applicationKeyThree  KeyThree  [\'listFiles\', \'readFiles\', \'shareFiles\', \'writeFiles\', \'deleteFiles\']\n'
+        expected_list_keys_out = "applicationKeyOne    KeyOne    ['listKeys', 'writeKeys', 'deleteKeys']\n" \
+                                 "applicationKeyTwo    KeyTwo    ['listBuckets', 'writeBuckets', 'deleteBuckets']\n" \
+                                 "applicationKeyThree    KeyThree    ['listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles']\n"
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
 
@@ -334,8 +333,8 @@ class TestConsoleTool(TestBase):
                     local_download1
                 ], expected_stdout, '', 0
             )
-            self.assertEquals(six.b('hello world'), self._read_file(local_download1))
-            self.assertEquals(mod_time, os.path.getmtime(local_download1))
+            self.assertEqual(six.b('hello world'), self._read_file(local_download1))
+            self.assertEqual(mod_time, os.path.getmtime(local_download1))
 
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
@@ -343,7 +342,7 @@ class TestConsoleTool(TestBase):
                 ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
                 '', 0
             )
-            self.assertEquals(six.b('hello world'), self._read_file(local_download2))
+            self.assertEqual(six.b('hello world'), self._read_file(local_download2))
 
             # Hide the file
             expected_stdout = '''
