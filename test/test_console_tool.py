@@ -154,6 +154,67 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
 
+    def test_keys(self):
+        self._authorize_account()
+
+        capabilities = ['readFiles', 'listBuckets']
+
+        # Make a key with an illegal name
+        expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
+        self._run_command(
+            ['create_key', json.dumps(capabilities), 'bad_key_name'], '', expected_stderr, 1
+        )
+
+        # Make a key with an illegal validDurationInSeconds
+        expected_stderr = 'ERROR: Bad request: illegal duration number: 100.64\n'
+        self._run_command(
+            ['create_key', '--duration', '100.64',
+             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+        )
+
+        # Make a key with negative validDurationInSeconds
+        expected_stderr = 'ERROR: Bad request: illegal duration number: -456\n'
+        self._run_command(
+            ['create_key', '--duration', '-456',
+             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+        )
+
+        # Make a key with validDurationInSeconds outside of range
+        expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, ' \
+                          'and less than 1000 days in seconds\n'
+        self._run_command(
+            ['create_key', '--duration', '0',
+             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+        )
+        self._run_command(
+            ['create_key', '--duration', '86400001',
+             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+        )
+
+        # Create three keys
+        self._run_command(
+            ['create_key', json.dumps(capabilities), 'goodKeyName-One'], 'appKeyId : appKey\n', '',
+            0
+        )
+        self._run_command(
+            ['create_key', json.dumps(capabilities), 'goodKeyName-Two'], 'appKeyId : appKey\n', '',
+            0
+        )
+        self._run_command(
+            ['create_key', json.dumps(capabilities), 'goodKeyName-Three'], 'appKeyId : appKey\n',
+            '', 0
+        )
+
+        # Delete one key
+        self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
+
+        # List keys
+        expected_list_keys_out = "applicationKeyOne    KeyOne    ['listKeys', 'writeKeys', 'deleteKeys']\n" \
+                                 "applicationKeyTwo    KeyTwo    ['listBuckets', 'writeBuckets', 'deleteBuckets']\n" \
+                                 "applicationKeyThree    KeyThree    ['listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles']\n"
+
+        self._run_command(['list_keys'], expected_list_keys_out, '', 0)
+
     def test_bucket_info_from_json(self):
 
         self._authorize_account()
@@ -272,8 +333,8 @@ class TestConsoleTool(TestBase):
                     local_download1
                 ], expected_stdout, '', 0
             )
-            self.assertEquals(six.b('hello world'), self._read_file(local_download1))
-            self.assertEquals(mod_time, os.path.getmtime(local_download1))
+            self.assertEqual(six.b('hello world'), self._read_file(local_download1))
+            self.assertEqual(mod_time, os.path.getmtime(local_download1))
 
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
@@ -281,7 +342,7 @@ class TestConsoleTool(TestBase):
                 ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
                 '', 0
             )
-            self.assertEquals(six.b('hello world'), self._read_file(local_download2))
+            self.assertEqual(six.b('hello world'), self._read_file(local_download2))
 
             # Hide the file
             expected_stdout = '''

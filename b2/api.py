@@ -258,6 +258,38 @@ class B2Api(object):
             self.account_info.get_download_url(), bucket_name, b2_url_encode(file_name)
         )
 
+    # keys
+    def create_key(
+        self, capabilities, key_name, valid_duration_seconds=None, bucket_id=None, name_prefix=None
+    ):
+        account_id = self.account_info.get_account_id()
+
+        response = self.session.create_key(
+            account_id,
+            capabilities=capabilities,
+            key_name=key_name,
+            valid_duration_seconds=valid_duration_seconds,
+            bucket_id=bucket_id,
+            name_prefix=name_prefix
+        )
+
+        assert response['capabilities'] == capabilities
+        assert response['keyName'] == key_name
+
+        return response
+
+    def delete_key(self, application_key_id):
+
+        response = self.session.delete_key(application_key_id=application_key_id)
+        return response
+
+    def list_keys(self, start_application_key_id=None):
+        account_id = self.account_info.get_account_id()
+
+        return self.session.list_keys(
+            account_id, max_key_count=1000, start_application_key_id=start_application_key_id
+        )
+
     # other
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
