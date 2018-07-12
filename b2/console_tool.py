@@ -467,6 +467,10 @@ class DownloadFileByName(Command):
     b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
+
+        If the 'tqdm' library is installed, progress bar is displayed
+        on stderr.  Without it, simple text progress is printed.
+        Use '--noProgress' to disable progress reporting.
     """
 
     OPTION_FLAGS = ['noProgress']
