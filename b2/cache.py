@@ -23,6 +23,10 @@ class AbstractCache(object):
         pass
 
     @abstractmethod
+    def get_bucket_name_or_none_from_allowed(self):
+        pass
+
+    @abstractmethod
     def save_bucket(self, bucket):
         pass
 
@@ -40,6 +44,9 @@ class DummyCache(AbstractCache):
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return None
 
+    def get_bucket_name_or_none_from_allowed(self):
+        return None
+
     def save_bucket(self, bucket):
         pass
 
@@ -52,9 +59,13 @@ class InMemoryCache(AbstractCache):
 
     def __init__(self):
         self.name_id_map = {}
+        self.bucket_name = ''
 
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.name_id_map.get(name)
+
+    def get_bucket_name_or_none_from_allowed(self):
+        return self.bucket_name
 
     def save_bucket(self, bucket):
         self.name_id_map[bucket.name] = bucket.id_
@@ -71,6 +82,9 @@ class AuthInfoCache(AbstractCache):
 
     def get_bucket_id_or_none_from_bucket_name(self, name):
         return self.info.get_bucket_id_or_none_from_bucket_name(name)
+
+    def get_bucket_name_or_none_from_allowed(self):
+        return self.info.get_bucket_name_or_none_from_allowed()
 
     def save_bucket(self, bucket):
         self.info.save_bucket(bucket)
