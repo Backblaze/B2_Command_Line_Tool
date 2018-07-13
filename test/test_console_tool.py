@@ -158,50 +158,51 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
 
         capabilities = ['readFiles', 'listBuckets']
+        capabilities_with_commas = ','.join(capabilities)
 
         # Make a key with an illegal name
         expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
         self._run_command(
-            ['create_key', json.dumps(capabilities), 'bad_key_name'], '', expected_stderr, 1
+            ['create_key', capabilities_with_commas, 'bad_key_name'], '', expected_stderr, 1
         )
 
         # Make a key with an illegal validDurationInSeconds
         expected_stderr = 'ERROR: Bad request: illegal duration number: 100.64\n'
         self._run_command(
-            ['create_key', '--duration', '100.64',
-             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+            ['create_key', '--duration', '100.64', capabilities_with_commas, 'goodKeyName'], '',
+            expected_stderr, 1
         )
 
         # Make a key with negative validDurationInSeconds
         expected_stderr = 'ERROR: Bad request: illegal duration number: -456\n'
         self._run_command(
-            ['create_key', '--duration', '-456',
-             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+            ['create_key', '--duration', '-456', capabilities_with_commas, 'goodKeyName'], '',
+            expected_stderr, 1
         )
 
         # Make a key with validDurationInSeconds outside of range
         expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, ' \
                           'and less than 1000 days in seconds\n'
         self._run_command(
-            ['create_key', '--duration', '0',
-             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+            ['create_key', '--duration', '0', capabilities_with_commas, 'goodKeyName'], '',
+            expected_stderr, 1
         )
         self._run_command(
-            ['create_key', '--duration', '86400001',
-             json.dumps(capabilities), 'goodKeyName'], '', expected_stderr, 1
+            ['create_key', '--duration', '86400001', capabilities_with_commas, 'goodKeyName'], '',
+            expected_stderr, 1
         )
 
         # Create three keys
         self._run_command(
-            ['create_key', json.dumps(capabilities), 'goodKeyName-One'], 'appKeyId : appKey\n', '',
+            ['create_key', capabilities_with_commas, 'goodKeyName-One'], 'appKeyId : appKey\n', '',
             0
         )
         self._run_command(
-            ['create_key', json.dumps(capabilities), 'goodKeyName-Two'], 'appKeyId : appKey\n', '',
+            ['create_key', capabilities_with_commas, 'goodKeyName-Two'], 'appKeyId : appKey\n', '',
             0
         )
         self._run_command(
-            ['create_key', json.dumps(capabilities), 'goodKeyName-Three'], 'appKeyId : appKey\n',
+            ['create_key', capabilities_with_commas, 'goodKeyName-Three'], 'appKeyId : appKey\n',
             '', 0
         )
 

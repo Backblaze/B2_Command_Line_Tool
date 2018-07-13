@@ -79,6 +79,10 @@ def mixed_case_to_hyphens(s):
     return s[0].lower() + ''.join(c if c.islower() else '-' + c.lower() for c in s[1:])
 
 
+def parse_comma_separated_list(s):
+    return [word.strip() for word in s.split(',')]
+
+
 class Command(object):
     """
     Base class for commands.  Has basic argument parsing and printing.
@@ -318,8 +322,11 @@ class CreateKey(Command):
     """
     b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <capabilities> <keyName>
 
-       Creates a new application key.  Prints the application key information, and is the only time the
-       actual application key is returned.
+       Creates a new application key.  Prints the application key information.  This is the only
+       time the application key itself will be returned.  Listing application keys will show
+       their IDs, but not the secret keys.
+
+       The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles"
 
        Optionally sets:
        - the duration of which the key is valid for.
@@ -331,7 +338,7 @@ class CreateKey(Command):
 
     OPTION_ARGS = ['bucketId', 'namePrefix', 'duration']
 
-    ARG_PARSER = {'capabilities': json.loads}
+    ARG_PARSER = {'capabilities': parse_comma_separated_list}
 
     def run(self, args):
         response = self.api.create_key(
