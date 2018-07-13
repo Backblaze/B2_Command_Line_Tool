@@ -181,7 +181,7 @@ class B2RawApi(AbstractRawApi):
             accountId=account_id,
             capabilities=capabilities,
             keyName=key_name,
-            validDurationSeconds=valid_duration_seconds,
+            validDurationInSeconds=valid_duration_seconds,
             bucketId=bucket_id,
             namePrefix=name_prefix
         )
