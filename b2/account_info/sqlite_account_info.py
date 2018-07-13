@@ -343,11 +343,11 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
                     allowed_bucket_name
                 )
 
-    def file_prefix_matches_restriction(self, file_name):
+    def file_prefix_matches_restriction(self, file_prefix):
         file_prefix_restriction = self.get_allowed_name_prefix()
         if file_prefix_restriction:
-            assert isinstance(file_name, six.text_type)
-            if not file_name.startswith(file_prefix_restriction):
+            assert isinstance(file_prefix, six.text_type)
+            if not file_prefix.startswith(file_prefix_restriction):
                 raise B2Error(
                     'Invalid File Prefix given in command, authorization is limited to: ' +
                     file_prefix_restriction
