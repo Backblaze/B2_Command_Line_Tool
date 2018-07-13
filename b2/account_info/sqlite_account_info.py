@@ -15,6 +15,9 @@ import platform
 import stat
 import threading
 
+import six
+
+from b2.exception import B2Error
 from .exception import (CorruptAccountInfo, MissingAccountData)
 from .upload_url_pool import UrlPoolAccountInfo
 
@@ -254,6 +257,20 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         else:
             return json.loads(allowed_json)
 
+    def get_allowed_bucket_id(self):
+        allowed = self.get_allowed()
+        if allowed is None:
+            return None
+        else:
+            return allowed.get('bucketId')
+
+    def get_allowed_name_prefix(self):
+        allowed = self.get_allowed()
+        if allowed is None:
+            return ''
+        else:
+            return allowed.get('namePrefix')
+
     def _get_account_info_or_raise(self, column_name):
         try:
             with self._get_connection() as conn:
@@ -299,3 +316,39 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             return None
         except sqlite3.Error:
             return None
+
+    def get_bucket_name_from_allowed_or_none(self):
+        allowed_bucket_id = self.get_allowed_bucket_id()
+        if allowed_bucket_id:
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.execute(
+                        'SELECT bucket_name FROM bucket WHERE bucket_id = ?;', (allowed_bucket_id,)
+                    )
+                    return cursor.fetchone()[0]
+            except TypeError:  # TypeError: 'NoneType' object is unsubscriptable
+                return None
+            except sqlite3.Error:
+                return None
+        else:
+            return None
+
+    # restriction checks
+    def bucket_name_matches_restriction(self, request_bucket_name):
+        allowed_bucket_name = self.get_bucket_name_from_allowed_or_none()
+        if allowed_bucket_name is not None:
+            if allowed_bucket_name != request_bucket_name:
+                raise B2Error(
+                    'Invalid Bucket Name given in command, authorization is limited to: ' +
+                    allowed_bucket_name
+                )
+
+    def file_prefix_matches_restriction(self, file_prefix):
+        file_prefix_restriction = self.get_allowed_name_prefix()
+        if file_prefix_restriction:
+            assert isinstance(file_prefix, six.text_type)
+            if not file_prefix.startswith(file_prefix_restriction):
+                raise B2Error(
+                    'Invalid File Prefix given in command, authorization is limited to: ' +
+                    file_prefix_restriction
+                )

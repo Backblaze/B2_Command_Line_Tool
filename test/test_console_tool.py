@@ -17,7 +17,7 @@ from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
-from b2.raw_simulator import RawSimulator
+from b2.raw_simulator import RawSimulator, BucketSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
 from test_b2_command_line import file_mod_time_millis
@@ -969,6 +969,315 @@ class TestConsoleTool(TestBase):
                                                                                        9996  upload  1970-01-01  00:00:05          5  c
         '''
         self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_restrictions(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+        expected_authorize_account_stdout = """
+               Using http://production.example.com
+               """
+
+        account_id = 'my-account'
+        bucket_name = 'restrictedBucket'
+        bucket_id = 'restrictedBucketId'
+        bucket_type = 'allPrivate'
+
+        # we need to make a bucket for the bucket prefix to be checked and set correctly
+        bucket = BucketSimulator(account_id, bucket_id, bucket_name, bucket_type)
+
+        # set the bucket
+        self.raw_api.bucket_name_to_bucket[bucket_name] = bucket
+        self.raw_api.bucket_id_to_bucket[bucket_id] = bucket
+        self.account_info.save_bucket(bucket)
+
+        self._run_command(
+            ['authorize-account', account_id, 'new-app-key'], expected_authorize_account_stdout, '',
+            0
+        )
+
+        file_prefix = 'some/file/prefix/'
+
+        # Auth token should be in account info now
+        assert self.account_info.get_account_auth_token() is not None
+        # Assertions that the restrictions not only are saved but what they are supposed to be
+        assert self.account_info.get_allowed_bucket_id() == bucket_id
+        assert self.account_info.get_allowed_name_prefix() == file_prefix
+        assert self.account_info.get_bucket_name_from_allowed_or_none() == bucket_name
+        assert len(self.account_info.buckets) == 1
+
+        # Test API calls using bucketName and filePrefix with pass/fail for each
+
+        # Below are the errors we expect to see when calling a command without the correct restriction requirement.
+        expected_bucket_stderr = 'ERROR: Invalid Bucket Name given in command, authorization is limited to: ' \
+                                  + bucket_name + '\n'
+
+        expected_file_prefix_stderr = 'ERROR: Invalid File Prefix given in command, authorization is limited to: ' + \
+                                      file_prefix + '\n'
+        # KEY OPERATIONS ***
+        # create-key
+        expected_create_key_stderr = 'ERROR: create-key is not allowed when application key is restricted to a bucket\n'
+        self._run_command(
+            ['create_key',
+             json.dumps(['readFiles', 'listBuckets']), 'goodKeyName-One'], '',
+            expected_create_key_stderr, 1
+        )
+
+        # FILE OPERATIONS ***
+
+        # LARGE FILE commands
+        bucket_by_name = self.b2_api.get_bucket_by_name('restrictedBucket')
+        bucket_by_name.start_large_file('file1', 'text/plain', {})
+        bucket_by_name.start_large_file('file2', 'text/plain', {})
+
+        # list-unfinished-large-files
+        list_unfinished_large_files_stdout = '9999 file1 text/plain\n9998 file2 text/plain\n'
+        self._run_command(
+            ['list_unfinished_large_files', 'my-bucket'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['list_unfinished_large_files', bucket_name], list_unfinished_large_files_stdout, '', 0
+        )
+
+        # cancel-all-unfinished-large-files
+        cancel_all__unfinished_large_files_stdout = '''
+                                     9999 canceled
+                                     9998 canceled
+                                     '''
+        self._run_command(
+            ['cancel_all_unfinished_large_files', 'my-bucket'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['cancel_all_unfinished_large_files', bucket_name],
+            cancel_all__unfinished_large_files_stdout, '', 0
+        )
+
+        file_name = 'file1.txt'
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, file_name)
+
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # upload-file
+            self._run_command(
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, file_name], '',
+                expected_bucket_stderr, 1
+            )
+            self._run_command(
+                ['upload_file', '--noProgress', bucket_name, local_file1, file_name], '',
+                expected_file_prefix_stderr, 1
+            )
+
+            upload_file_stdout = '''
+            URL by file name: http://download.example.com/file/restrictedBucket/some/file/prefix/file1.txt
+            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9997
+            {
+              "action": "upload",
+              "fileId": "9997",
+              "fileName": "some/file/prefix/file1.txt",
+              "size": 11,
+              "uploadTimestamp": 5002
+            }
+            '''
+
+            self._run_command(
+                ['upload_file', '--noProgress', bucket_name, local_file1, file_prefix + file_name],
+                upload_file_stdout, '', 0
+            )
+
+            # download-file-by-name
+            local_download1 = os.path.join(temp_dir, 'download1.txt')
+            self._run_command(
+                ['download_file_by_name', '--noProgress', 'my-bucket', file_name, local_download1],
+                '', expected_bucket_stderr, 1
+            )
+            self._run_command(
+                ['download_file_by_name', '--noProgress', bucket_name, file_name, local_download1],
+                '', expected_file_prefix_stderr, 1
+            )
+            download_file_by_name_stdout = '''
+            File name:    some/file/prefix/file1.txt
+            File id:      9997
+            File size:    11
+            Content type: b2/x-auto
+            Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            INFO src_last_modified_millis: 1500111222000
+            checksum matches
+            '''
+            self._run_command(
+                [
+                    'download_file_by_name', '--noProgress', bucket_name, file_prefix + file_name,
+                    local_download1
+                ], download_file_by_name_stdout, '', 0
+            )
+
+        # hide-file
+        self._run_command(['hide_file', 'my-bucket', file_name], '', expected_bucket_stderr, 1)
+        self._run_command(['hide_file', bucket_name, file_name], '', expected_file_prefix_stderr, 1)
+
+        hide_file_stdout = '''
+        {
+          "action": "hide",
+          "fileId": "9996",
+          "fileName": "some/file/prefix/file1.txt",
+          "size": 0,
+          "uploadTimestamp": 5003
+        }
+        '''
+
+        self._run_command(
+            ['hide_file', bucket_name, file_prefix + file_name], hide_file_stdout, '', 0
+        )
+
+        # list-file-versions
+        self._run_command(['list_file_versions', 'my-bucket'], '', expected_bucket_stderr, 1)
+        self._run_command(
+            ['list_file_versions', bucket_name, file_name], '', expected_file_prefix_stderr, 1
+        )
+        list_file_versions_stdout = '''
+        {
+          "files": [
+            {
+              "action": "hide",
+              "contentSha1": "none",
+              "contentType": null,
+              "fileId": "9996",
+              "fileInfo": {},
+              "fileName": "some/file/prefix/file1.txt",
+              "size": 0,
+              "uploadTimestamp": 5003
+            },
+            {
+              "action": "upload",
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
+              "fileId": "9997",
+              "fileInfo": {
+                "src_last_modified_millis": "1500111222000"
+              },
+              "fileName": "some/file/prefix/file1.txt",
+              "size": 11,
+              "uploadTimestamp": 5002
+            }
+          ],
+          "nextFileId": null,
+          "nextFileName": null
+        }
+        '''
+        self._run_command(
+            ['list_file_versions', bucket_name, file_prefix + file_name], list_file_versions_stdout,
+            '', 0
+        )
+
+        # list-file-names (the file simulator determines whether files are visible when listed by name)
+        self._run_command(
+            ['list_file_names', 'my-bucket', file_name], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['list_file_names', bucket_name, file_name], '', expected_file_prefix_stderr, 1
+        )
+        list_files_names_stdout = '''
+        {
+          "files": [],
+          "nextFileName": null
+        }
+        '''
+        self._run_command(
+            ['list_file_names', bucket_name, file_prefix + file_name], list_files_names_stdout, '',
+            0
+        )
+
+        # ls
+        ls_stderr = 'ERROR: ls is not allowed when application key is restricted to a bucket\n'
+        self._run_command(['ls', 'my-bucket'], '', ls_stderr, 1)
+
+        # delete-file-versions
+        self._run_command(
+            ['delete_file_version', file_name, '9997'], '', expected_file_prefix_stderr, 1
+        )
+
+        delete_file_stdout = '''
+        {
+          "action": "delete",
+          "fileId": "9997",
+          "fileName": "some/file/prefix/file1.txt"
+        }
+        '''
+
+        self._run_command(
+            ['delete_file_version', file_prefix + file_name, '9997'], delete_file_stdout, '', 0
+        )
+
+        # AUTH OPERATIONS
+        # get-download-auth
+        self._run_command(
+            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'], '',
+            expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', bucket_name], '',
+            expected_file_prefix_stderr, 1
+        )
+        get_download_auth_stdout = 'fake_download_auth_token_restrictedBucketId_some/file/prefix/_12345\n'
+        self._run_command(
+            ['get_download_auth', '--prefix', file_prefix, '--duration', '12345', bucket_name],
+            get_download_auth_stdout, '', 0
+        )
+
+        # get-download-url-with-auth
+        self._run_command(
+            ['get-download-url-with-auth', 'my-bucket', u'\u81ea'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['get-download-url-with-auth', bucket_name, u'\u81ea'], '', expected_file_prefix_stderr,
+            1
+        )
+        get_download_auth_url_stdout = 'http://download.example.com/file/restrictedBucket/some/file/prefix/file1.txt?' \
+                                       'Authorization=fake_download_auth_token_restrictedBucketId_some/' \
+                                       'file/prefix/file1.txt_86400\n'
+        self._run_command(
+            ['get-download-url-with-auth', bucket_name, file_prefix + file_name],
+            get_download_auth_url_stdout, '', 0
+        )
+
+        # BUCKET OPERATIONS ***
+        expected_bucket_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "restrictedBucketId",
+            "bucketInfo": {},
+            "bucketName": "restrictedBucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "lifecycleRules": [],
+            "revision": 2
+        }
+        '''
+        # create-bucket
+        expected_create_bucket_stderr = 'ERROR: create-bucket is not allowed when application key is ' \
+                                        'restricted to a bucket\n'
+        self._run_command(
+            ['create_bucket', 'my-bucket', 'allPrivate'], '', expected_create_bucket_stderr, 1
+        )
+
+        # update-bucket
+        self._run_command(
+            ['update_bucket', 'my-bucket', 'allPublic'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['update_bucket', bucket_name, 'allPublic'], expected_bucket_stdout, '', 0
+        )
+
+        # get-bucket
+        self._run_command(['get-bucket', 'my-bucket'], '', expected_bucket_stderr, 1)
+        self._run_command(['get-bucket', bucket_name], expected_bucket_stdout, '', 0)
+
+        # delete-bucket (Do this last because we need the bucket for other tests)
+        self._run_command(['delete_bucket', 'my-bucket'], '', expected_bucket_stderr, 1)
+        self._run_command(['delete_bucket', bucket_name], expected_bucket_stdout, '', 0)
 
     def _authorize_account(self):
         """

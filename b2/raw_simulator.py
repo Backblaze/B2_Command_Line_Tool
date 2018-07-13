@@ -444,6 +444,27 @@ class RawSimulator(AbstractRawApi):
     # This is the maximum duration in seconds that an application key can be valid (1000 days).
     MAX_DURATION_IN_SECONDS = 86400000
 
+    # allowed variations
+    ALLOWED = {
+        'capabilities':
+            [
+                'listKeys', 'writeKeys', 'deleteKeys', 'listBuckets', 'writeBuckets',
+                'deleteBuckets', 'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+            ],
+    }
+
+    ALLOWED_WITH_BUCKET_AND_FILE_PREFIX = {
+        'capabilities':
+            [
+                'listKeys', 'writeKeys', 'deleteKeys', 'listBuckets', 'writeBuckets',
+                'deleteBuckets', 'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+            ],
+        'bucketId':
+            'restrictedBucketId',
+        'namePrefix':
+            'some/file/prefix/'
+    }
+
     UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
 
     def __init__(self):
@@ -467,18 +488,30 @@ class RawSimulator(AbstractRawApi):
 
     def authorize_account(self, realm_url, account_id, application_key):
         assert realm_url == 'http://production.example.com'
-        if application_key != 'good-app-key':
+        if application_key == 'new-app-key':
+            self.authorized_accounts.add(account_id)
+            return dict(
+                accountId=account_id,
+                authorizationToken='AUTH:' + account_id,
+                apiUrl=self.API_URL,
+                downloadUrl=self.DOWNLOAD_URL,
+                minimumPartSize=self.MIN_PART_SIZE,
+                allowed=self.ALLOWED_WITH_BUCKET_AND_FILE_PREFIX
+            )
+        elif application_key == 'good-app-key':
+            self.authorized_accounts.add(account_id)
+            return dict(
+                accountId=account_id,
+                authorizationToken='AUTH:' + account_id,
+                apiUrl=self.API_URL,
+                downloadUrl=self.DOWNLOAD_URL,
+                minimumPartSize=self.MIN_PART_SIZE,
+                allowed=self.ALLOWED
+            )  # yapf: disable
+        else:
             raise InvalidAuthToken(
                 'invalid application key: %s' % (application_key,), 'bad_auth_token'
             )
-        self.authorized_accounts.add(account_id)
-        return dict(
-            accountId=account_id,
-            authorizationToken='AUTH:' + account_id,
-            apiUrl=self.API_URL,
-            downloadUrl=self.DOWNLOAD_URL,
-            minimumPartSize=self.MIN_PART_SIZE
-        )  # yapf: disable
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -636,7 +669,7 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[response['fileId']] = bucket_id
         return response
 
-    def list_buckets(self, api_url, account_auth_token, account_id):
+    def list_buckets(self, api_url, account_auth_token, account_id, bucket_id=None):
         self._assert_account_auth(api_url, account_auth_token, account_id)
         sorted_buckets = [
             self.bucket_name_to_bucket[bucket_name]
