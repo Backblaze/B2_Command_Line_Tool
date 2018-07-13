@@ -66,6 +66,12 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    def get_bucket_name_from_allowed_or_none(self):
+        """
+        Looks up the bucket name from the allowed bucket Id stored in account_info.
+        """
+
+    @abstractmethod
     def clear_bucket_upload_data(self, bucket_id):
         """
         Removes all upload URLs for the given bucket.
@@ -112,6 +118,18 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    def get_allowed_bucket_id(self):
+        """
+        returns the bucketId from allowed or None
+        """
+
+    @abstractmethod
+    def get_allowed_name_prefix(self):
+        """
+        returns the namePrefix from allowed or an empty string
+        """
+
+    @abstractmethod
     @limit_trace_arguments(only=['self', 'api_url', 'download_url', 'minimum_part_size', 'realm'])
     def set_auth_data(
         self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
@@ -147,3 +165,19 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def clear_large_file_upload_urls(self, file_id):
         pass
+
+    def bucket_name_matches_restriction(self, request_bucket_name):
+        """
+        Checks to see whether or not the bucket_name matches the bucket restriction from
+        allowed or it will Raise a B2 Error.
+        :param request_bucket_name: bucket being acted on
+        :return: nothing, or Raise B2 Error
+        """
+
+    def file_prefix_matches_restriction(self, file_prefix):
+        """
+        Checks to see whether or not the file name or prefix matches the namePrefix restriction from
+        allowed or it will Raise a B2 Error.
+        :param file_prefix: the file prefix or name being acted on
+        :return: nothing, or Raise B2 Error
+        """

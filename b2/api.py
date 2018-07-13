@@ -122,18 +122,38 @@ class B2Api(object):
 
         realm_url = self.account_info.REALM_URLS[realm]
         response = self.raw_api.authorize_account(realm_url, account_id, application_key)
+        allowed = response['allowed']
 
-        # TODO: make 'allowed' required once production servers start returning it
         self.account_info.set_auth_data(
             response['accountId'],
             response['authorizationToken'],
             response['apiUrl'],
             response['downloadUrl'],
             response['minimumPartSize'],
-            response.get('allowed'),
+            allowed,
             application_key,
             realm,
         )
+
+        restricted_bucket_id = allowed.get('bucketId')
+        # for bucket level restrictions, save the bucket and set the bucket name
+        if restricted_bucket_id:
+            # call list buckets on the restricted bucket
+            list_buckets_response = self.session.list_buckets(
+                account_id, bucket_id=restricted_bucket_id
+            )
+
+            # get the list of buckets (which should be one)
+            buckets = BucketFactory.from_api_response(self, list_buckets_response)
+            assert len(buckets) == 1
+
+            # make sure the bucket in the list
+            bucket_from_response = next(iter(buckets))
+            assert bucket_from_response.get_id() == restricted_bucket_id, 'Unable to authorize because bucketId' \
+                                                                          'restriction for ' + \
+                                                                          restricted_bucket_id + ' is not valid.'
+            # now save the bucket
+            self.cache.set_bucket_name_cache(buckets)
 
     def get_account_id(self):
         return self.account_info.get_account_id()

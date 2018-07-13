@@ -11,7 +11,10 @@
 import collections
 import threading
 
+import six
+
 from b2.account_info.abstract import AbstractAccountInfo
+from b2.exception import B2Error
 
 
 class StubAccountInfo(AbstractAccountInfo):
@@ -56,8 +59,15 @@ class StubAccountInfo(AbstractAccountInfo):
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
         return None
 
+    def get_bucket_name_from_allowed_or_none(self):
+        allowed_bucket_id = self.get_allowed_bucket_id()
+        if allowed_bucket_id:
+            return self.buckets.get(allowed_bucket_id).bucket_name
+        else:
+            return None
+
     def save_bucket(self, bucket):
-        pass
+        self.buckets[bucket.bucket_id] = bucket
 
     def remove_bucket_name(self, bucket_name):
         pass
@@ -90,7 +100,38 @@ class StubAccountInfo(AbstractAccountInfo):
         return self.realm
 
     def get_allowed(self):
-        return None
+        return self.allowed
+
+    def get_allowed_bucket_id(self):
+        if self.allowed:
+            return self.allowed.get('bucketId')
+        else:
+            return None
+
+    def get_allowed_name_prefix(self):
+        if self.allowed:
+            return self.allowed.get('namePrefix')
+        else:
+            return None
+
+    def bucket_name_matches_restriction(self, request_bucket_name):
+        allowed_bucket_name = self.get_bucket_name_from_allowed_or_none()
+        if allowed_bucket_name:
+            if allowed_bucket_name != request_bucket_name:
+                raise B2Error(
+                    'Invalid Bucket Name given in command, authorization is limited to: ' +
+                    allowed_bucket_name
+                )
+
+    def file_prefix_matches_restriction(self, file_name):
+        allowed_prefix = self.get_allowed_name_prefix()
+        if allowed_prefix:
+            assert isinstance(file_name, six.text_type)
+            if not file_name.startswith(allowed_prefix):
+                raise B2Error(
+                    'Invalid File Prefix given in command, authorization is limited to: ' +
+                    allowed_prefix
+                )
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))
