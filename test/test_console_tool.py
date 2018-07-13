@@ -157,6 +157,9 @@ class TestConsoleTool(TestBase):
     def test_keys(self):
         self._authorize_account()
 
+        self._run_command(['create_bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['create_bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
 
@@ -194,25 +197,36 @@ class TestConsoleTool(TestBase):
 
         # Create three keys
         self._run_command(
-            ['create_key', capabilities_with_commas, 'goodKeyName-One'], 'appKeyId : appKey\n', '',
-            0
+            ['create-key', capabilities_with_commas, 'goodKeyName-One'],
+            'appKeyId0 : appKey0\n',
+            '',
+            0,
         )
         self._run_command(
-            ['create_key', capabilities_with_commas, 'goodKeyName-Two'], 'appKeyId : appKey\n', '',
-            0
+            ['create-key', '--bucketId', 'bucket_0', capabilities_with_commas, 'goodKeyName-Two'],
+            'appKeyId1 : appKey1\n',
+            '',
+            0,
         )
         self._run_command(
-            ['create_key', capabilities_with_commas, 'goodKeyName-Three'], 'appKeyId : appKey\n',
-            '', 0
+            ['create-key', '--bucketId', 'bucket_1', capabilities_with_commas, 'goodKeyName-Three'],
+            'appKeyId2 : appKey2\n',
+            '',
+            0,
         )
 
         # Delete one key
         self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
 
+        # Delete one bucket, to test listing when a bucket is gone.
+        self._run_command_no_checks(['delete-bucket', 'my-bucket-b'])
+
         # List keys
-        expected_list_keys_out = "applicationKeyOne    KeyOne    ['listKeys', 'writeKeys', 'deleteKeys']\n" \
-                                 "applicationKeyTwo    KeyTwo    ['listBuckets', 'writeBuckets', 'deleteBuckets']\n" \
-                                 "applicationKeyThree    KeyThree    ['listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles']\n"
+        expected_list_keys_out = """
+            appKeyId0   goodKeyName-One        -                      ''   readFiles,listBuckets
+            appKeyId1   goodKeyName-Two        my-bucket-a            ''   readFiles,listBuckets
+            appKeyId2   goodKeyName-Three      id=bucket_1            ''   readFiles,listBuckets
+            """
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
 

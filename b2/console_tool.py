@@ -715,46 +715,67 @@ class ListKeys(Command):
     """
     b2 list-keys
 
-       Lists the application keys for a given account.
+       Lists the application keys for the current account.
+
+       The columns in the output are:
+           - ID of the application key
+           - Name of the application key
+           - Name of the bucket the key is restricted to, or '-' for no restriction
+           - File name prefix, in single quotes
+           - Command-separated list of capabilities
+
+        None of the values contain whitespace.
+
+        For keys restricted to buckets that do not exist any more, the bucket name is
+        replaced with 'id=<bucketId>', because deleted buckets do not have names any
+        more.
     """
 
+    def __init__(self, console_tool):
+        super(ListKeys, self).__init__(console_tool)
+        self.bucket_id_to_bucket_name = None
+
     def run(self, args):
-        self.list_all_keys()
+        # The first query doesn't pass in a starting key id
+        start_id = None
+
+        # Keep querying until there are no more.
+        while True:
+            # Get some keys and print them
+            response = self.api.list_keys(start_id)
+            self.print_keys(response['keys'])
+
+            # Are there more?  If so, we'll set the start_id for the next time around.
+            next_id = response.get('nextApplicationKeyId')
+            if next_id is None:
+                break
+            else:
+                start_id = next_id
+
         return 0
 
-    def list_all_keys(self):
-        # make the first call
-        response = self.api.list_keys()
-        next_id = response.get('nextApplicationKeyId')
-
-        # print the first keys
-        self.print_all_keys(response['keys'])
-
-        # do we need to list more keys?
-        has_next = False
-        if next_id:
-            has_next = True
-
-        while has_next:
-            next_response = self.api.list_keys(next_id)
-            self.print_all_keys(next_response['keys'])
-
-            inner_next_id = next_response.get('nextApplicationKeyId')
-
-            if inner_next_id:
-                next_id = inner_next_id
-            else:
-                has_next = False
-
-    def print_all_keys(self, keys_from_response):
+    def print_keys(self, keys_from_response):
         if keys_from_response:
             for key in keys_from_response:
-                key_str = '{0}    {1}    {2}'.format(
-                    key['applicationKeyId'], key['keyName'], key['capabilities']
+                key_str = "{keyId}   {keyName:20s}   {bucketName:20s}   '{namePrefix}'   {capabilities}".format(
+                    keyId=key['applicationKeyId'],
+                    keyName=key['keyName'],
+                    bucketName=self.bucket_display_name(key.get('bucketId')),
+                    namePrefix=(key.get('namePrefix') or ''),
+                    capabilities=','.join(key['capabilities']),
                 )
                 self._print(key_str)
-        else:
-            self._print("No keys from response.")
+
+    def bucket_display_name(self, bucket_id):
+        # Special case for no bucket ID
+        if bucket_id is None:
+            return '-'
+
+        # Make sure we have the map
+        if self.bucket_id_to_bucket_name is None:
+            self.bucket_id_to_bucket_name = dict((b.id_, b.name) for b in self.api.list_buckets())
+
+        return self.bucket_id_to_bucket_name.get(bucket_id, 'id=' + bucket_id)
 
 
 class ListParts(Command):

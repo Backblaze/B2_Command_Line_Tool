@@ -452,6 +452,8 @@ class RawSimulator(AbstractRawApi):
         self.bucket_id_to_bucket = dict()
         self.bucket_id_counter = iter(range(100))
         self.file_id_to_bucket_id = {}
+        self.all_application_keys = []
+        self.app_key_counter = 0
         self.upload_errors = []
 
     def set_upload_errors(self, errors):
@@ -526,16 +528,22 @@ class RawSimulator(AbstractRawApi):
                 )
         self._assert_account_auth(api_url, account_auth_token, account_id)
 
-        return dict(
-            applicationKeyId='appKeyId',
-            applicationKey='appKey',
+        index = self.app_key_counter
+        self.app_key_counter += 1
+        app_key_id = 'appKeyId%d' % (index,)
+        app_key = 'appKey%d' % (index,)
+        app_key = dict(
+            applicationKeyId=app_key_id,
+            applicationKey=app_key,
             capabilities=capabilities,
             accountId=account_id,
             bucketId=bucket_id,
             expirationTimeStamp='123',
             keyName=key_name,
-            namePrefix=name_prefix
+            namePrefix=name_prefix,
         )
+        self.all_application_keys.append(app_key)
+        return app_key
 
     def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -665,33 +673,8 @@ class RawSimulator(AbstractRawApi):
         max_key_count=1000,
         start_application_key_id=None
     ):
-
         self._assert_account_auth(api_url, account_auth_token, account_id)
-        return dict(
-            keys=[
-                {
-                    "accountId": account_id,
-                    "applicationKeyId": 'applicationKeyOne',
-                    "keyName": 'KeyOne',
-                    "capabilities": ['listKeys', 'writeKeys', 'deleteKeys']
-                }, {
-                    "accountId": account_id,
-                    "applicationKeyId": 'applicationKeyTwo',
-                    "keyName": 'KeyTwo',
-                    "capabilities": ['listBuckets', 'writeBuckets', 'deleteBuckets']
-                }, {
-                    "accountId":
-                        account_id,
-                    "applicationKeyId":
-                        'applicationKeyThree',
-                    "keyName":
-                        'KeyThree',
-                    "capabilities":
-                        ['listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles']
-                }
-            ],
-            # nextApplicationKeyId="nextKey"
-        )
+        return dict(keys=self.all_application_keys, nextKeyId=None)
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
         bucket_id = self.file_id_to_bucket_id[file_id]
