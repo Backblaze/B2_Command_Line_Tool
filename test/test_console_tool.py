@@ -166,20 +166,20 @@ class TestConsoleTool(TestBase):
         # Make a key with an illegal name
         expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
         self._run_command(
-            ['create_key', capabilities_with_commas, 'bad_key_name'], '', expected_stderr, 1
+            ['create_key', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
         )
 
         # Make a key with an illegal validDurationInSeconds
         expected_stderr = 'ERROR: Bad request: illegal duration number: 100.64\n'
         self._run_command(
-            ['create_key', '--duration', '100.64', capabilities_with_commas, 'goodKeyName'], '',
+            ['create_key', '--duration', '100.64', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
         # Make a key with negative validDurationInSeconds
         expected_stderr = 'ERROR: Bad request: illegal duration number: -456\n'
         self._run_command(
-            ['create_key', '--duration', '-456', capabilities_with_commas, 'goodKeyName'], '',
+            ['create_key', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
@@ -187,29 +187,35 @@ class TestConsoleTool(TestBase):
         expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, ' \
                           'and less than 1000 days in seconds\n'
         self._run_command(
-            ['create_key', '--duration', '0', capabilities_with_commas, 'goodKeyName'], '',
+            ['create_key', '--duration', '0', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
         self._run_command(
-            ['create_key', '--duration', '86400001', capabilities_with_commas, 'goodKeyName'], '',
+            ['create_key', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
         # Create three keys
         self._run_command(
-            ['create-key', capabilities_with_commas, 'goodKeyName-One'],
+            ['create-key', 'goodKeyName-One', capabilities_with_commas],
             'appKeyId0 : appKey0\n',
             '',
             0,
         )
         self._run_command(
-            ['create-key', '--bucketId', 'bucket_0', capabilities_with_commas, 'goodKeyName-Two'],
+            [
+                'create-key', '--bucketName', 'my-bucket-a', 'goodKeyName-Two',
+                capabilities_with_commas
+            ],
             'appKeyId1 : appKey1\n',
             '',
             0,
         )
         self._run_command(
-            ['create-key', '--bucketId', 'bucket_1', capabilities_with_commas, 'goodKeyName-Three'],
+            [
+                'create-key', '--bucketName', 'my-bucket-b', 'goodKeyName-Three',
+                capabilities_with_commas
+            ],
             'appKeyId2 : appKey2\n',
             '',
             0,

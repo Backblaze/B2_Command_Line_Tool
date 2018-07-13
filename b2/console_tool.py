@@ -320,32 +320,41 @@ class CreateBucket(Command):
 
 class CreateKey(Command):
     """
-    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <capabilities> <keyName>
+    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <keyName> <capabilities>
 
        Creates a new application key.  Prints the application key information.  This is the only
        time the application key itself will be returned.  Listing application keys will show
        their IDs, but not the secret keys.
 
-       The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles"
+       The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
 
-       Optionally sets:
-       - the duration of which the key is valid for.
-       - the bucketId, which when specified is limited to bucket 'capabilities'
-       - the namePrefix, which when specified is limited to actions on just that file and the bucket its in
+       The 'validDurationSeconds' is the length of time the new application key will exist.
+       When the time expires the key will disappear and will no longer be usable.  If not
+       specified, the key will not expire.
+
+       The 'bucketName' is the name of a bucket in the account.  When specified, the key
+       will only allow access to that bucket.
+
+       The 'namePrefix' restricts file access to files whose names start with the prefix.
     """
 
-    REQUIRED = ['capabilities', 'keyName']
+    REQUIRED = ['keyName', 'capabilities']
 
-    OPTION_ARGS = ['bucketId', 'namePrefix', 'duration']
+    OPTION_ARGS = ['bucketName', 'namePrefix', 'duration']
 
     ARG_PARSER = {'capabilities': parse_comma_separated_list}
 
     def run(self, args):
+        if args.bucketName is None:
+            bucket_id_or_none = None
+        else:
+            bucket_id_or_none = self.api.get_bucket_by_name(args.bucketName).id_
+
         response = self.api.create_key(
             capabilities=args.capabilities,
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
-            bucket_id=args.bucketId,
+            bucket_id=bucket_id_or_none,
             name_prefix=args.namePrefix
         )
 
