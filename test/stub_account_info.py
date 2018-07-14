@@ -11,8 +11,6 @@
 import collections
 import threading
 
-import six
-
 from b2.account_info.abstract import AbstractAccountInfo
 from b2.exception import B2Error
 
