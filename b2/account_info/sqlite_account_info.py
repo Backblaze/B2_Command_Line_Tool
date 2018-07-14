@@ -15,8 +15,6 @@ import platform
 import stat
 import threading
 
-import six
-
 from b2.exception import B2Error
 from .exception import (CorruptAccountInfo, MissingAccountData)
 from .upload_url_pool import UrlPoolAccountInfo
