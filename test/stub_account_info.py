@@ -126,7 +126,6 @@ class StubAccountInfo(AbstractAccountInfo):
     def file_prefix_matches_restriction(self, file_prefix):
         allowed_prefix = self.get_allowed_name_prefix()
         if allowed_prefix:
-            assert isinstance(file_prefix, six.text_type)
             if not file_prefix.startswith(allowed_prefix):
                 raise B2Error(
                     'Invalid File Prefix given in command, authorization is limited to: ' +
