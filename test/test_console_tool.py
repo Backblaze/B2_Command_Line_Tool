@@ -41,7 +41,7 @@ class TestConsoleTool(TestBase):
         '''
 
         expected_stderr = '''
-        ERROR: unable to authorize account: Invalid authorization token. Server said: invalid application key: bad-app-key (bad_auth_token)
+        ERROR: unable to authorize account: Invalid authorization token. Server said: secret key is wrong (unauthorized)
         '''
 
         self._run_command(
@@ -564,7 +564,7 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         expected_stdout = '''
         {
-            "accountAuthToken": "AUTH:my-account",
+            "accountAuthToken": "auth_token_0",
             "accountId": "my-account",
             "apiUrl": "http://api.example.com",
             "applicationKey": "good-app-key",
@@ -993,8 +993,10 @@ class TestConsoleTool(TestBase):
         self.account_info.save_bucket(bucket)
 
         self._run_command(
-            ['authorize-account', account_id, 'new-app-key'], expected_authorize_account_stdout, '',
-            0
+            ['authorize-account', 'new-app-key', 'good-app-key'],
+            expected_authorize_account_stdout,
+            '',
+            0,
         )
 
         file_prefix = 'some/file/prefix/'
