@@ -864,6 +864,7 @@ class RawSimulator(AbstractRawApi):
         key_sim = self.auth_token_to_key.get(account_auth_token)
         assert key_sim is not None
         assert api_url == self.API_URL
+        assert account_id == key_sim.account_id
 
     def _get_bucket_by_id(self, bucket_id):
         if bucket_id not in self.bucket_id_to_bucket:

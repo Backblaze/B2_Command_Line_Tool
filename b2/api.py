@@ -111,17 +111,17 @@ class B2Api(object):
         return True
 
     @limit_trace_arguments(only=('self', 'realm'))
-    def authorize_account(self, realm, account_id, application_key):
+    def authorize_account(self, realm, account_id_or_key_id, application_key):
         try:
             old_account_id = self.account_info.get_account_id()
             old_realm = self.account_info.get_realm()
-            if account_id != old_account_id or realm != old_realm:
+            if account_id_or_key_id != old_account_id or realm != old_realm:
                 self.cache.clear()
         except MissingAccountData:
             self.cache.clear()
 
         realm_url = self.account_info.REALM_URLS[realm]
-        response = self.raw_api.authorize_account(realm_url, account_id, application_key)
+        response = self.raw_api.authorize_account(realm_url, account_id_or_key_id, application_key)
         allowed = response['allowed']
 
         self.account_info.set_auth_data(
@@ -140,7 +140,7 @@ class B2Api(object):
         if restricted_bucket_id:
             # call list buckets on the restricted bucket
             list_buckets_response = self.session.list_buckets(
-                account_id, bucket_id=restricted_bucket_id
+                response['accountId'], bucket_id=restricted_bucket_id,
             )
 
             # get the list of buckets (which should be one)

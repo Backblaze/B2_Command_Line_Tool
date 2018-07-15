@@ -348,7 +348,7 @@ class CreateKey(Command):
 
     REQUIRED = ['keyName', 'capabilities']
 
-    OPTION_ARGS = ['bucketName', 'namePrefix', 'duration']
+    OPTION_ARGS = ['bucket', 'namePrefix', 'duration']
 
     ARG_PARSER = {'capabilities': parse_comma_separated_list}
 
@@ -359,10 +359,10 @@ class CreateKey(Command):
             )
 
         # Translate the bucket name into a bucketId
-        if args.bucketName is None:
+        if args.bucket is None:
             bucket_id_or_none = None
         else:
-            bucket_id_or_none = self.api.get_bucket_by_name(args.bucketName).id_
+            bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
 
         response = self.api.create_key(
             capabilities=args.capabilities,
