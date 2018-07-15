@@ -88,7 +88,10 @@ class TestConsoleTool(TestBase):
         self._run_command(['create-key', 'key1', 'list-keys'], 'appKeyId0 : appKey0\n', '', 0)
 
         # Authorize with the key
-        self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n', '', 0)
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            '', 0
+        )
 
     def test_create_bucket_key_and_authorize_with_it(self):
         # Start with authorizing with the master key
@@ -98,10 +101,16 @@ class TestConsoleTool(TestBase):
         self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
 
         # Create a key restricted to that bucket
-        self._run_command(['create-key', '--bucket', 'my-bucket', 'key1', 'list-keys'], 'appKeyId0 : appKey0\n', '', 0)
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'key1', 'list-keys'], 'appKeyId0 : appKey0\n',
+            '', 0
+        )
 
         # Authorize with the key
-        self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n', '', 0)
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            '', 0
+        )
 
     def test_help_with_bad_args(self):
         expected_stderr = '''
@@ -226,17 +235,14 @@ class TestConsoleTool(TestBase):
             0,
         )
         self._run_command(
-            [
-                'create-key', '--bucketName', 'my-bucket-a', 'goodKeyName-Two',
-                capabilities_with_commas
-            ],
+            ['create-key', '--bucket', 'my-bucket-a', 'goodKeyName-Two', capabilities_with_commas],
             'appKeyId1 : appKey1\n',
             '',
             0,
         )
         self._run_command(
             [
-                'create-key', '--bucketName', 'my-bucket-b', 'goodKeyName-Three',
+                'create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Three',
                 capabilities_with_commas
             ],
             'appKeyId2 : appKey2\n',
@@ -589,6 +595,23 @@ class TestConsoleTool(TestBase):
         {
             "accountAuthToken": "auth_token_0",
             "accountId": "my-account",
+            "allowed": {
+                "bucketId": null,
+                "capabilities": [
+                    "listKeys",
+                    "writeKeys",
+                    "deleteKeys",
+                    "listBuckets",
+                    "writeBuckets",
+                    "deleteBuckets",
+                    "listFiles",
+                    "readFiles",
+                    "shareFiles",
+                    "writeFiles",
+                    "deleteFiles"
+                ],
+                "namePrefix": null
+            },
             "apiUrl": "http://api.example.com",
             "applicationKey": "good-app-key",
             "downloadUrl": "http://download.example.com"

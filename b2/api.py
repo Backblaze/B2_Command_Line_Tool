@@ -140,7 +140,8 @@ class B2Api(object):
         if restricted_bucket_id:
             # call list buckets on the restricted bucket
             list_buckets_response = self.session.list_buckets(
-                response['accountId'], bucket_id=restricted_bucket_id,
+                response['accountId'],
+                bucket_id=restricted_bucket_id,
             )
 
             # get the list of buckets (which should be one)

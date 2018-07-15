@@ -495,13 +495,15 @@ class GetAccountInfo(Command):
     """
     b2 get-account-info
 
-        Shows the account ID, key, auth token, and URLs.
+        Shows the account ID, key, auth token, URLs, and what capabilities
+        the current application keys has.
     """
 
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
+            allowed=account_info.get_allowed(),
             applicationKey=account_info.get_application_key(),
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
