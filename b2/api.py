@@ -293,7 +293,7 @@ class B2Api(object):
             name_prefix=name_prefix
         )
 
-        assert response['capabilities'] == capabilities
+        assert set(response['capabilities']) == set(capabilities)
         assert response['keyName'] == key_name
 
         return response
