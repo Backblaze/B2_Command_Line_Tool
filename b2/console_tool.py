@@ -11,6 +11,7 @@
 from __future__ import absolute_import, print_function
 
 import copy
+import datetime
 import functools
 import getpass
 import json
@@ -82,6 +83,16 @@ def mixed_case_to_hyphens(s):
 
 def parse_comma_separated_list(s):
     return [word.strip() for word in s.split(',')]
+
+
+def apply_or_none(fcn, value):
+    """
+    If the value is None, return None, otherwise return the result of applying the function to it.
+    """
+    if value is None:
+        return None
+    else:
+        return fcn(value)
 
 
 class Command(object):
@@ -773,6 +784,8 @@ class ListKeys(Command):
         more.
     """
 
+    OPTION_FLAGS = ['long']
+
     def __init__(self, console_tool):
         super(ListKeys, self).__init__(console_tool)
         self.bucket_id_to_bucket_name = None
@@ -787,7 +800,7 @@ class ListKeys(Command):
         while True:
             # Get some keys and print them
             response = self.api.list_keys(start_id)
-            self.print_keys(response['keys'])
+            self.print_keys(response['keys'], args.long)
 
             # Are there more?  If so, we'll set the start_id for the next time around.
             next_id = response.get('nextApplicationKeyId')
@@ -798,17 +811,24 @@ class ListKeys(Command):
 
         return 0
 
-    def print_keys(self, keys_from_response):
-        if keys_from_response:
-            for key in keys_from_response:
-                key_str = "{keyId}   {keyName:20s}   {bucketName:20s}   '{namePrefix}'   {capabilities}".format(
-                    keyId=key['applicationKeyId'],
-                    keyName=key['keyName'],
-                    bucketName=self.bucket_display_name(key.get('bucketId')),
-                    namePrefix=(key.get('namePrefix') or ''),
-                    capabilities=','.join(key['capabilities']),
-                )
-                self._print(key_str)
+    def print_keys(self, keys_from_response, is_long_format):
+        if is_long_format:
+            format_str = "{keyId}   {keyName:20s}   {bucketName:20s}   {dateStr:10s}   {timeStr:8s}   '{namePrefix}'   {capabilities}"
+        else:
+            format_str = '{keyId}   {keyName:20s}'
+        for key in keys_from_response:
+            timestamp_or_none = apply_or_none(int, key.get('expirationTimestamp'))
+            (date_str, time_str) = self.timestamp_display(timestamp_or_none)
+            key_str = format_str.format(
+                keyId=key['applicationKeyId'],
+                keyName=key['keyName'],
+                bucketName=self.bucket_display_name(key.get('bucketId')),
+                namePrefix=(key.get('namePrefix') or ''),
+                capabilities=','.join(key['capabilities']),
+                dateStr=date_str,
+                timeStr=time_str
+            )
+            self._print(key_str)
 
     def bucket_display_name(self, bucket_id):
         # Special case for no bucket ID
@@ -820,6 +840,17 @@ class ListKeys(Command):
             self.bucket_id_to_bucket_name = dict((b.id_, b.name) for b in self.api.list_buckets())
 
         return self.bucket_id_to_bucket_name.get(bucket_id, 'id=' + bucket_id)
+
+    def timestamp_display(self, timestamp_or_none):
+        """
+        Returns a pair (date_str, time_str) for the given timestamp
+        """
+        if timestamp_or_none is None:
+            return '-', '-'
+        else:
+            timestamp = timestamp_or_none
+            dt = datetime.datetime.utcfromtimestamp(timestamp / 1000)
+            return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
 class ListParts(Command):

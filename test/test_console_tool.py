@@ -258,12 +258,19 @@ class TestConsoleTool(TestBase):
 
         # List keys
         expected_list_keys_out = """
-            appKeyId0   goodKeyName-One        -                      ''   readFiles,listBuckets
-            appKeyId1   goodKeyName-Two        my-bucket-a            ''   readFiles,listBuckets
-            appKeyId2   goodKeyName-Three      id=bucket_1            ''   readFiles,listBuckets
+            appKeyId0   goodKeyName-One
+            appKeyId1   goodKeyName-Two
+            appKeyId2   goodKeyName-Three
+            """
+
+        expected_list_keys_out_long = """
+            appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
+            appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets
+            appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
             """
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
+        self._run_command(['list_keys', '--long'], expected_list_keys_out_long, '', 0)
 
     def test_bucket_info_from_json(self):
 
@@ -1280,9 +1287,11 @@ class TestConsoleTool(TestBase):
         if expected_stdout != actual_stdout:
             print('EXPECTED STDOUT:', repr(expected_stdout))
             print('ACTUAL STDOUT:  ', repr(actual_stdout))
+            print(actual_stdout)
         if expected_stderr != actual_stderr:
             print('EXPECTED STDERR:', repr(expected_stderr))
             print('ACTUAL STDERR:  ', repr(actual_stderr))
+            print(actual_stderr)
 
         self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
