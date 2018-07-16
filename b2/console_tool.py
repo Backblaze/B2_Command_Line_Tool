@@ -362,7 +362,7 @@ class CreateKey(Command):
 
     OPTION_ARGS = ['bucket', 'namePrefix', 'duration']
 
-    ARG_PARSER = {'capabilities': parse_comma_separated_list}
+    ARG_PARSER = {'capabilities': parse_comma_separated_list, 'duration': int}
 
     def run(self, args):
         check_command_allowed('writeKeys', None, None, self.api.account_info)
