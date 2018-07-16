@@ -1059,14 +1059,17 @@ class TestConsoleTool(TestBase):
         # Test API calls using bucketName and filePrefix with pass/fail for each
 
         # Below are the errors we expect to see when calling a command without the correct restriction requirement.
-        expected_bucket_stderr = 'ERROR: Invalid Bucket Name given in command, authorization is limited to: ' \
-                                  + bucket_name + '\n'
+        expected_bucket_stderr = """
+            ERROR: Bucket not allowed: application key does not allow access to buckets other than 'restrictedBucket'
+            """
 
-        expected_file_prefix_stderr = 'ERROR: Invalid File Prefix given in command, authorization is limited to: ' + \
-                                      file_prefix + '\n'
+        expected_file_prefix_stderr = """
+            ERROR: File name not allowed: application key does not allow access to files whose name does not start with 'some/file/prefix/'
+            """
+
         # KEY OPERATIONS ***
         # create-key
-        expected_create_key_stderr = 'ERROR: create-key is not allowed when application key is restricted to a bucket\n'
+        expected_create_key_stderr = "ERROR: application key does not allow 'writeKeys'\n"
         self._run_command(
             ['create_key',
              json.dumps(['readFiles', 'listBuckets']), 'goodKeyName-One'], '',
@@ -1081,25 +1084,19 @@ class TestConsoleTool(TestBase):
         bucket_by_name.start_large_file('file2', 'text/plain', {})
 
         # list-unfinished-large-files
-        list_unfinished_large_files_stdout = '9999 file1 text/plain\n9998 file2 text/plain\n'
         self._run_command(
             ['list_unfinished_large_files', 'my-bucket'], '', expected_bucket_stderr, 1
         )
         self._run_command(
-            ['list_unfinished_large_files', bucket_name], list_unfinished_large_files_stdout, '', 0
+            ['list_unfinished_large_files', bucket_name], '', expected_file_prefix_stderr, 1
         )
 
         # cancel-all-unfinished-large-files
-        cancel_all__unfinished_large_files_stdout = '''
-                                     9999 canceled
-                                     9998 canceled
-                                     '''
         self._run_command(
             ['cancel_all_unfinished_large_files', 'my-bucket'], '', expected_bucket_stderr, 1
         )
         self._run_command(
-            ['cancel_all_unfinished_large_files', bucket_name],
-            cancel_all__unfinished_large_files_stdout, '', 0
+            ['cancel_all_unfinished_large_files', bucket_name], '', expected_file_prefix_stderr, 1
         )
 
         file_name = 'file1.txt'
@@ -1186,39 +1183,9 @@ class TestConsoleTool(TestBase):
         self._run_command(
             ['list_file_versions', bucket_name, file_name], '', expected_file_prefix_stderr, 1
         )
-        list_file_versions_stdout = '''
-        {
-          "files": [
-            {
-              "action": "hide",
-              "contentSha1": "none",
-              "contentType": null,
-              "fileId": "9996",
-              "fileInfo": {},
-              "fileName": "some/file/prefix/file1.txt",
-              "size": 0,
-              "uploadTimestamp": 5003
-            },
-            {
-              "action": "upload",
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9997",
-              "fileInfo": {
-                "src_last_modified_millis": "1500111222000"
-              },
-              "fileName": "some/file/prefix/file1.txt",
-              "size": 11,
-              "uploadTimestamp": 5002
-            }
-          ],
-          "nextFileId": null,
-          "nextFileName": null
-        }
-        '''
         self._run_command(
-            ['list_file_versions', bucket_name, file_prefix + file_name], list_file_versions_stdout,
-            '', 0
+            ['list_file_versions', bucket_name, file_prefix + file_name], '',
+            expected_file_prefix_stderr, 1
         )
 
         # list-file-names (the file simulator determines whether files are visible when listed by name)
@@ -1228,37 +1195,9 @@ class TestConsoleTool(TestBase):
         self._run_command(
             ['list_file_names', bucket_name, file_name], '', expected_file_prefix_stderr, 1
         )
-        list_files_names_stdout = '''
-        {
-          "files": [],
-          "nextFileName": null
-        }
-        '''
-        self._run_command(
-            ['list_file_names', bucket_name, file_prefix + file_name], list_files_names_stdout, '',
-            0
-        )
 
         # ls
-        ls_stderr = 'ERROR: ls is not allowed when application key is restricted to a bucket\n'
-        self._run_command(['ls', 'my-bucket'], '', ls_stderr, 1)
-
-        # delete-file-versions
-        self._run_command(
-            ['delete_file_version', file_name, '9997'], '', expected_file_prefix_stderr, 1
-        )
-
-        delete_file_stdout = '''
-        {
-          "action": "delete",
-          "fileId": "9997",
-          "fileName": "some/file/prefix/file1.txt"
-        }
-        '''
-
-        self._run_command(
-            ['delete_file_version', file_prefix + file_name, '9997'], delete_file_stdout, '', 0
-        )
+        self._run_command(['ls', 'my-bucket'], '', expected_bucket_stderr, 1)
 
         # AUTH OPERATIONS
         # get-download-auth
@@ -1293,40 +1232,22 @@ class TestConsoleTool(TestBase):
         )
 
         # BUCKET OPERATIONS ***
-        expected_bucket_stdout = '''
-        {
-            "accountId": "my-account",
-            "bucketId": "restrictedBucketId",
-            "bucketInfo": {},
-            "bucketName": "restrictedBucket",
-            "bucketType": "allPublic",
-            "corsRules": [],
-            "lifecycleRules": [],
-            "revision": 2
-        }
-        '''
+
         # create-bucket
-        expected_create_bucket_stderr = 'ERROR: create-bucket is not allowed when application key is ' \
-                                        'restricted to a bucket\n'
+        expected_create_bucket_stderr = """
+            ERROR: application key does not allow 'writeBuckets'
+            """
         self._run_command(
             ['create_bucket', 'my-bucket', 'allPrivate'], '', expected_create_bucket_stderr, 1
         )
 
         # update-bucket
         self._run_command(
-            ['update_bucket', 'my-bucket', 'allPublic'], '', expected_bucket_stderr, 1
-        )
-        self._run_command(
-            ['update_bucket', bucket_name, 'allPublic'], expected_bucket_stdout, '', 0
+            ['update_bucket', 'my-bucket', 'allPublic'], '', expected_create_bucket_stderr, 1
         )
 
         # get-bucket
         self._run_command(['get-bucket', 'my-bucket'], '', expected_bucket_stderr, 1)
-        self._run_command(['get-bucket', bucket_name], expected_bucket_stdout, '', 0)
-
-        # delete-bucket (Do this last because we need the bucket for other tests)
-        self._run_command(['delete_bucket', 'my-bucket'], '', expected_bucket_stderr, 1)
-        self._run_command(['delete_bucket', bucket_name], expected_bucket_stdout, '', 0)
 
     def _authorize_account(self):
         """

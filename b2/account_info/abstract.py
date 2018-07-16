@@ -110,11 +110,11 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def get_allowed(self):
         """
-        The 'allowed' structure may be None if thi account info was stored
+        The 'allowed' structure may be None if the account info was stored
         before the B2 service supported the field.  None should be treated
         as allowing everything.
 
-        :return: returns the 'allowed' structure return by B2 as a dict
+        :return: returns the 'allowed' structure returned by B2 as a dict
         """
 
     @abstractmethod
@@ -175,22 +175,6 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def clear_large_file_upload_urls(self, file_id):
         pass
-
-    def bucket_name_matches_restriction(self, request_bucket_name):
-        """
-        Checks to see whether or not the bucket_name matches the bucket restriction from
-        allowed or it will Raise a B2 Error.
-        :param request_bucket_name: bucket being acted on
-        :return: nothing, or Raise B2 Error
-        """
-
-    def file_prefix_matches_restriction(self, file_prefix):
-        """
-        Checks to see whether or not the file name or prefix matches the namePrefix restriction from
-        allowed or it will Raise a B2 Error.
-        :param file_prefix: the file prefix or name being acted on
-        :return: nothing, or Raise B2 Error
-        """
 
     @staticmethod
     def allowed_is_valid(allowed):

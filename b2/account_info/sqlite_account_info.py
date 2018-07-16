@@ -15,7 +15,6 @@ import platform
 import stat
 import threading
 
-from b2.exception import B2Error
 from .exception import (CorruptAccountInfo, MissingAccountData)
 from .upload_url_pool import UrlPoolAccountInfo
 
@@ -331,22 +330,3 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
                 return None
         else:
             return None
-
-    # restriction checks
-    def bucket_name_matches_restriction(self, request_bucket_name):
-        allowed_bucket_name = self.get_bucket_name_from_allowed_or_none()
-        if allowed_bucket_name is not None:
-            if allowed_bucket_name != request_bucket_name:
-                raise B2Error(
-                    'Invalid Bucket Name given in command, authorization is limited to: ' +
-                    allowed_bucket_name
-                )
-
-    def file_prefix_matches_restriction(self, file_prefix):
-        file_prefix_restriction = self.get_allowed_name_prefix()
-        if file_prefix_restriction:
-            if not file_prefix.startswith(file_prefix_restriction):
-                raise B2Error(
-                    'Invalid File Prefix given in command, authorization is limited to: ' +
-                    file_prefix_restriction
-                )

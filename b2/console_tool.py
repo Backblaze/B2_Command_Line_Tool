@@ -44,6 +44,7 @@ from .raw_api import (SRC_LAST_MODIFIED_MILLIS, B2RawApi, test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
+from b2.account_info.allowed_policy import check_command_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -257,8 +258,8 @@ class CancelAllUnfinishedLargeFiles(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
+        check_command_allowed('writeFiles', args.bucketName, None, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for file_version in bucket.list_unfinished_large_files():
@@ -310,10 +311,7 @@ class CreateBucket(Command):
     ARG_PARSER = {'bucketInfo': json.loads, 'corsRules': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
-        if self.api.account_info.get_allowed_bucket_id() is not None:
-            raise B2Error(
-                'create-bucket is not allowed when application key is restricted to a bucket'
-            )
+        check_command_allowed('writeBuckets', None, None, self.api.account_info)
 
         bucket = self.api.create_bucket(
             args.bucketName,
@@ -353,10 +351,7 @@ class CreateKey(Command):
     ARG_PARSER = {'capabilities': parse_comma_separated_list}
 
     def run(self, args):
-        if self.api.account_info.get_allowed_bucket_id() is not None:
-            raise B2Error(
-                'create-key is not allowed when application key is restricted to a bucket'
-            )
+        check_command_allowed('writeKeys', None, None, self.api.account_info)
 
         # Translate the bucket name into a bucketId
         if args.bucket is None:
@@ -388,8 +383,7 @@ class DeleteBucket(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
+        check_command_allowed('deleteBuckets', args.bucketName, None, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = self.api.delete_bucket(bucket)
@@ -413,13 +407,11 @@ class DeleteFileVersion(Command):
     REQUIRED = ['fileId']
 
     def run(self, args):
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.fileName)
-
         if args.fileName is not None:
             file_name = args.fileName
         else:
             file_name = self._get_file_name_from_file_id(args.fileId)
+
         file_info = self.api.delete_file_version(args.fileId, file_name)
         self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
         return 0
@@ -439,6 +431,7 @@ class DeleteKey(Command):
     REQUIRED = ['applicationKeyId']
 
     def run(self, args):
+        check_command_allowed('deleteKeys', None, None, self.api.account_info)
         response = self.api.delete_key(application_key_id=args.applicationKeyId)
         self._print(response['applicationKeyId'])
         return 0
@@ -477,11 +470,7 @@ class DownloadFileByName(Command):
     REQUIRED = ['bucketName', 'b2FileName', 'localFileName']
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.b2FileName)
+        check_command_allowed('readFiles', args.bucketName, args.b2FileName, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
@@ -537,8 +526,7 @@ class GetBucket(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
+        check_command_allowed('listBuckets', args.bucketName, None, self.api.account_info)
 
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
@@ -607,11 +595,7 @@ class GetDownloadAuth(Command):
     ARG_PARSER = {'duration': int}
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.prefix)
+        check_command_allowed('shareFiles', args.bucketName, args.prefix, self.api.account_info)
 
         prefix = args.prefix or ""
         duration = args.duration or 86400
@@ -646,11 +630,7 @@ class GetDownloadUrlWithAuth(Command):
     ARG_PARSER = {'duration': int}
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.fileName)
+        check_command_allowed('shareFiles', args.bucketName, args.fileName, self.api.account_info)
 
         prefix = args.fileName
         duration = args.duration or 86400
@@ -694,11 +674,7 @@ class HideFile(Command):
     REQUIRED = ['bucketName', 'fileName']
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.fileName)
+        check_command_allowed('writeFiles', args.bucketName, args.fileName, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
@@ -720,6 +696,7 @@ class ListBuckets(Command):
     """
 
     def run(self, args):
+        check_command_allowed('listBuckets', None, None, self.api.account_info)
         for b in self.api.list_buckets():
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
         return 0
@@ -742,11 +719,7 @@ class ListFileVersions(Command):
     ARG_PARSER = {'maxToShow': int}
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.startFileName)
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.list_file_versions(args.startFileName, args.startFileId, args.maxToShow)
@@ -769,11 +742,7 @@ class ListFileNames(Command):
     ARG_PARSER = {'maxToShow': int}
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.startFileName)
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.list_file_names(args.startFileName, args.maxToShow)
@@ -806,6 +775,8 @@ class ListKeys(Command):
         self.bucket_id_to_bucket_name = None
 
     def run(self, args):
+        check_command_allowed('listKeys', None, None, self.api.account_info)
+
         # The first query doesn't pass in a starting key id
         start_id = None
 
@@ -877,8 +848,7 @@ class ListUnfinishedLargeFiles(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
@@ -922,8 +892,8 @@ class Ls(Command):
     OPTIONAL = ['folderName']
 
     def run(self, args):
-        if self.api.account_info.get_allowed_bucket_id() is not None:
-            raise B2Error('ls is not allowed when application key is restricted to a bucket')
+        check_command_allowed('listFiles', args.bucketName, args.folderName, self.api.account_info)
+
         if args.folderName is None:
             prefix = ""
         else:
@@ -1181,8 +1151,7 @@ class UpdateBucket(Command):
     ARG_PARSER = {'bucketInfo': json.loads, 'corsRules': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
+        check_command_allowed('writeBuckets', args.bucketName, None, self.api.account_info)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
@@ -1234,11 +1203,7 @@ class UploadFile(Command):
     ARG_PARSER = {'minPartSize': int, 'threads': int}
 
     def run(self, args):
-        # check for bucket restrictions
-        self.api.account_info.bucket_name_matches_restriction(args.bucketName)
-
-        # check for filePrefix restrictions
-        self.api.account_info.file_prefix_matches_restriction(args.b2FileName)
+        check_command_allowed('writeFiles', args.bucketName, args.b2FileName, self.api.account_info)
 
         file_infos = {}
         for info in args.info:

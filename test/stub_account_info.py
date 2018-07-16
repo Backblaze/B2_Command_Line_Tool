@@ -12,7 +12,6 @@ import collections
 import threading
 
 from b2.account_info.abstract import AbstractAccountInfo
-from b2.exception import B2Error
 
 
 class StubAccountInfo(AbstractAccountInfo):
@@ -112,24 +111,6 @@ class StubAccountInfo(AbstractAccountInfo):
             return self.allowed.get('namePrefix')
         else:
             return None
-
-    def bucket_name_matches_restriction(self, request_bucket_name):
-        allowed_bucket_name = self.get_bucket_name_from_allowed_or_none()
-        if allowed_bucket_name:
-            if allowed_bucket_name != request_bucket_name:
-                raise B2Error(
-                    'Invalid Bucket Name given in command, authorization is limited to: ' +
-                    allowed_bucket_name
-                )
-
-    def file_prefix_matches_restriction(self, file_prefix):
-        allowed_prefix = self.get_allowed_name_prefix()
-        if allowed_prefix:
-            if not file_prefix.startswith(allowed_prefix):
-                raise B2Error(
-                    'Invalid File Prefix given in command, authorization is limited to: ' +
-                    allowed_prefix
-                )
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))

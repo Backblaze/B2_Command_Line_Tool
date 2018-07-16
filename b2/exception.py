@@ -109,6 +109,10 @@ class BrokenPipe(B2Error):
         return True
 
 
+class CapabilityNotAllowed(B2Error):
+    pass
+
+
 class ChecksumMismatch(TransientErrorMixin, B2Error):
     def __init__(self, checksum_type, expected, actual):
         super(ChecksumMismatch, self).__init__()
@@ -129,6 +133,10 @@ class B2HttpCallbackPostRequestException(B2HttpCallbackException):
 
 
 class B2HttpCallbackPreRequestException(B2HttpCallbackException):
+    pass
+
+
+class BucketNotAllowed(B2SimpleError):
     pass
 
 
@@ -216,6 +224,10 @@ class DuplicateBucketName(B2SimpleError):
 
 
 class FileAlreadyHidden(B2SimpleError):
+    pass
+
+
+class FileNameNotAllowed(B2SimpleError):
     pass
 
 
