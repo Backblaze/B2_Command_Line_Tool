@@ -618,10 +618,7 @@ class RawSimulator(AbstractRawApi):
         if not re.match(r'^[A-Za-z0-9-]{1,100}$', key_name):
             raise BadJson('illegal key name: ' + key_name)
         if valid_duration_seconds is not None:
-            if not re.match(r'^[0-9]+$', valid_duration_seconds):
-                raise BadJson('illegal duration number: ' + valid_duration_seconds)
-            if int(valid_duration_seconds
-                  ) < 1 or int(valid_duration_seconds) > self.MAX_DURATION_IN_SECONDS:
+            if valid_duration_seconds < 1 or valid_duration_seconds > self.MAX_DURATION_IN_SECONDS:
                 raise BadJson(
                     'valid duration must be greater than 0, and less than 1000 days in seconds'
                 )

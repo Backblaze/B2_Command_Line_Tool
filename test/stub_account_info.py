@@ -38,8 +38,15 @@ class StubAccountInfo(AbstractAccountInfo):
             del self.buckets[bucket_id]
 
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
-        application_key, realm
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed=None
     ):
         assert self.allowed_is_valid(allowed)
         self.account_id = account_id

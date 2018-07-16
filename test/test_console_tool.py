@@ -201,15 +201,8 @@ class TestConsoleTool(TestBase):
             ['create_key', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
         )
 
-        # Make a key with an illegal validDurationInSeconds
-        expected_stderr = 'ERROR: Bad request: illegal duration number: 100.64\n'
-        self._run_command(
-            ['create_key', '--duration', '100.64', 'goodKeyName', capabilities_with_commas], '',
-            expected_stderr, 1
-        )
-
         # Make a key with negative validDurationInSeconds
-        expected_stderr = 'ERROR: Bad request: illegal duration number: -456\n'
+        expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, and less than 1000 days in seconds\n'
         self._run_command(
             ['create_key', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1

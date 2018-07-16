@@ -39,8 +39,15 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         return super(InMemoryAccountInfo, self).clear()
 
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
-        application_key, realm
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed=None,
     ):
         assert self.allowed_is_valid(allowed)
         self._account_id = account_id
@@ -96,9 +103,8 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
     def get_realm(self):
         return self._realm
 
-    @_raise_missing_if_result_is_none
     def get_allowed(self):
-        return self._realm
+        return self._allowed
 
     @_raise_missing_if_result_is_none
     def get_allowed_bucket_id(self):

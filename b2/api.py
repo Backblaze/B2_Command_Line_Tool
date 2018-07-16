@@ -151,9 +151,9 @@ class B2Api(object):
             response['apiUrl'],
             response['downloadUrl'],
             response['minimumPartSize'],
-            allowed,
             application_key,
             realm,
+            allowed,
         )
 
     def get_account_id(self):

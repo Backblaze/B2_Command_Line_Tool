@@ -132,8 +132,15 @@ class AbstractAccountInfo(object):
     @abstractmethod
     @limit_trace_arguments(only=['self', 'api_url', 'download_url', 'minimum_part_size', 'realm'])
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
-        application_key, realm
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed=None,
     ):
         """
         Stores the results of b2_authorize_account.
