@@ -44,8 +44,10 @@ def check_command_allowed(capability, named_bucket, named_file, account_info):
         return
 
     # Check that the requested capability is in the allowed list.
+    # TODO: remove the check for 'all' after the service bug is fixed
     if capability not in allowed['capabilities']:
-        raise CapabilityNotAllowed("application key does not allow '%s'" % capability)
+        if 'all' not in allowed['capabilities']:
+            raise CapabilityNotAllowed("application key does not allow '%s'" % capability)
 
     # If there is a bucket restriction, then all requests must name the bucket.
     restricted_bucket = allowed.get('bucketName')
