@@ -30,19 +30,27 @@ def _raise_missing_if_result_is_none(function):
 
 class InMemoryAccountInfo(UrlPoolAccountInfo):
     def __init__(self, *args, **kwargs):
-        self.clear()
         super(InMemoryAccountInfo, self).__init__(*args, **kwargs)
+        self._account_id = None
+        self._allowed = None
+        self._api_url = None
+        self._application_key = None
+        self._auth_token = None
+        self._buckets = {}
+        self._download_url = None
+        self._minimum_part_size = None
+        self._realm = None
 
     def clear(self):
         self._account_id = None
-        self._auth_token = None
+        self._allowed = None
         self._api_url = None
+        self._application_key = None
+        self._auth_token = None
+        self._buckets = {}
         self._download_url = None
         self._minimum_part_size = None
-        self._application_key = None
         self._realm = None
-        self._allowed = None
-        self._buckets = {}
         return super(InMemoryAccountInfo, self).clear()
 
     def set_auth_data(
