@@ -112,6 +112,7 @@ class B2Api(object):
 
     @limit_trace_arguments(only=('self', 'realm'))
     def authorize_account(self, realm, account_id_or_key_id, application_key):
+        # Clean up any previous account info if it was for a different account.
         try:
             old_account_id = self.account_info.get_account_id()
             old_realm = self.account_info.get_realm()
@@ -120,10 +121,30 @@ class B2Api(object):
         except MissingAccountData:
             self.cache.clear()
 
+        # Authorize
         realm_url = self.account_info.REALM_URLS[realm]
         response = self.raw_api.authorize_account(realm_url, account_id_or_key_id, application_key)
         allowed = response['allowed']
 
+        # If there is a bucket restriction, get the name of the bucket.
+        # And, if we have a list of the one allowed bucket, go ahead and
+        # save it.
+        if allowed['bucketId'] is not None:
+            allowed_bucket_response = self.raw_api.list_buckets(
+                api_url=response['apiUrl'],
+                account_auth_token=response['authorizationToken'],
+                account_id=response['accountId'],
+                bucket_id=allowed['bucketId']
+            )
+            allowed_bucket_list = allowed_bucket_response['buckets']
+            allowed['bucketName'] = allowed_bucket_list[0]['bucketName']
+            self.cache.set_bucket_name_cache(
+                BucketFactory.from_api_response(self, allowed_bucket_response)
+            )
+        else:
+            allowed['bucketName'] = None
+
+        # Store the auth data
         self.account_info.set_auth_data(
             response['accountId'],
             response['authorizationToken'],
@@ -134,27 +155,6 @@ class B2Api(object):
             application_key,
             realm,
         )
-
-        restricted_bucket_id = allowed.get('bucketId')
-        # for bucket level restrictions, save the bucket and set the bucket name
-        if restricted_bucket_id:
-            # call list buckets on the restricted bucket
-            list_buckets_response = self.session.list_buckets(
-                response['accountId'],
-                bucket_id=restricted_bucket_id,
-            )
-
-            # get the list of buckets (which should be one)
-            buckets = BucketFactory.from_api_response(self, list_buckets_response)
-            assert len(buckets) == 1
-
-            # make sure the bucket in the list
-            bucket_from_response = next(iter(buckets))
-            assert bucket_from_response.get_id() == restricted_bucket_id, 'Unable to authorize because bucketId' \
-                                                                          'restriction for ' + \
-                                                                          restricted_bucket_id + ' is not valid.'
-            # now save the bucket
-            self.cache.set_bucket_name_cache(buckets)
 
     def get_account_id(self):
         return self.account_info.get_account_id()

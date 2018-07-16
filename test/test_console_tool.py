@@ -597,6 +597,7 @@ class TestConsoleTool(TestBase):
             "accountId": "my-account",
             "allowed": {
                 "bucketId": null,
+                "bucketName": null,
                 "capabilities": [
                     "listKeys",
                     "writeKeys",

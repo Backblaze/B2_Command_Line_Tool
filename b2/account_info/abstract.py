@@ -135,7 +135,17 @@ class AbstractAccountInfo(object):
         self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
         application_key, realm
     ):
-        pass
+        """
+        Stores the results of b2_authorize_account.
+
+        All of the information returned by b2_authorize_account is saved, because all of it is
+        needed by some command.
+
+        The allowed structure is the one returned b2_authorize_account, with the addition of
+        a bucketName field.  For keys with bucket restrictions, the name of the bucket is looked
+        up and stored, too.  The console_tool does everything by bucket name, so it's convenient
+        to have the restricted bucket name handy.
+        """
 
     @abstractmethod
     def take_bucket_upload_url(self, bucket_id):
@@ -181,3 +191,20 @@ class AbstractAccountInfo(object):
         :param file_prefix: the file prefix or name being acted on
         :return: nothing, or Raise B2 Error
         """
+
+    @staticmethod
+    def allowed_is_valid(allowed):
+        """
+        Returns true iff the 'allowed' dict passed in is legal.
+
+        For now, we are assuming that what comes back from the service is legal.  The
+        point of this method is to make sure that bucketName is set appropriately.
+        """
+        # Special case.  Some unit tests do not have 'allowed'.
+        if allowed is None:
+            return True
+
+        return (
+            ('bucketId' in allowed) and ('bucketName' in allowed) and
+            ((allowed['bucketId'] is None) == (allowed['bucketName'] is None))
+        )

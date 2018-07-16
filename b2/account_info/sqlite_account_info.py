@@ -207,6 +207,7 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         self, account_id, account_auth_token, api_url, download_url, minimum_part_size, allowed,
         application_key, realm
     ):
+        assert self.allowed_is_valid(allowed)
         with self._get_connection() as conn:
             conn.execute('DELETE FROM account;')
             conn.execute('DELETE FROM bucket;')

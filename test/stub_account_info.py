@@ -42,6 +42,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
         application_key, realm
     ):
+        assert self.allowed_is_valid(allowed)
         self.account_id = account_id
         self.auth_token = auth_token
         self.api_url = api_url

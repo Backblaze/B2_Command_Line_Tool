@@ -42,6 +42,7 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         self, account_id, auth_token, api_url, download_url, minimum_part_size, allowed,
         application_key, realm
     ):
+        assert self.allowed_is_valid(allowed)
         self._account_id = account_id
         self._auth_token = auth_token
         self._api_url = api_url
