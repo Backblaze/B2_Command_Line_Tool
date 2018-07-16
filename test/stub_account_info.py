@@ -19,19 +19,12 @@ class StubAccountInfo(AbstractAccountInfo):
     REALM_URLS = {'production': 'http://production.example.com'}
 
     def __init__(self):
-        self.application_key = None
-        self.buckets = {}
-        self.account_id = None
-        self.allowed = None
-        self.api_url = None
-        self.auth_token = None
-        self.download_url = None
-        self.minimum_part_size = None
-        self.realm = None
-        self._large_file_uploads = collections.defaultdict(list)
-        self._large_file_uploads_lock = threading.Lock()
+        self._clear_stub_account_fields()
 
     def clear(self):
+        self._clear_stub_account_fields()
+
+    def _clear_stub_account_fields(self):
         self.application_key = None
         self.buckets = {}
         self.account_id = None
