@@ -23,6 +23,7 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def clear(self):
         self.account_id = None
+        self.allowed = None
         self.auth_token = None
         self.api_url = None
         self.download_url = None

@@ -13,14 +13,6 @@ from b2.exception import BucketNotAllowed, CapabilityNotAllowed, FileNameNotAllo
 
 def check_command_allowed(capability, named_bucket, named_file, account_info):
     """
-
-    :param capability:
-    :param named_bucket:
-    :param named_file:
-    :param account_info:
-    :return:
-    """
-    """
     Checks whether the 'allowed' information for the account allows the requested
     operation.
 

@@ -34,7 +34,14 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         super(InMemoryAccountInfo, self).__init__(*args, **kwargs)
 
     def clear(self):
-        self.set_auth_data(None, None, None, None, None, None, None, None)
+        self._account_id = None
+        self._auth_token = None
+        self._api_url = None
+        self._download_url = None
+        self._minimum_part_size = None
+        self._application_key = None
+        self._realm = None
+        self._allowed = None
         self._buckets = {}
         return super(InMemoryAccountInfo, self).clear()
 
