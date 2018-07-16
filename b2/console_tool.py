@@ -342,6 +342,9 @@ class CreateKey(Command):
        will only allow access to that bucket.
 
        The 'namePrefix' restricts file access to files whose names start with the prefix.
+
+       The output is the new application key ID, followed by the application key itself.
+       The two values returned are the two that you pass to authorize-account to use the key.
     """
 
     REQUIRED = ['keyName', 'capabilities']
@@ -369,7 +372,7 @@ class CreateKey(Command):
 
         application_key_id = response['applicationKeyId']
         application_key = response['applicationKey']
-        self._print(application_key_id + " : " + application_key)
+        self._print(application_key_id + " " + application_key)
         return 0
 
 

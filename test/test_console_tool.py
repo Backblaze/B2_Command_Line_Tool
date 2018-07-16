@@ -85,7 +85,7 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
 
         # Create a key
-        self._run_command(['create-key', 'key1', 'list-keys'], 'appKeyId0 : appKey0\n', '', 0)
+        self._run_command(['create-key', 'key1', 'list-keys'], 'appKeyId0 appKey0\n', '', 0)
 
         # Authorize with the key
         self._run_command(
@@ -102,8 +102,8 @@ class TestConsoleTool(TestBase):
 
         # Create a key restricted to that bucket
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket', 'key1', 'list-keys'], 'appKeyId0 : appKey0\n',
-            '', 0
+            ['create-key', '--bucket', 'my-bucket', 'key1', 'list-keys'], 'appKeyId0 appKey0\n', '',
+            0
         )
 
         # Authorize with the key
@@ -230,13 +230,13 @@ class TestConsoleTool(TestBase):
         # Create three keys
         self._run_command(
             ['create-key', 'goodKeyName-One', capabilities_with_commas],
-            'appKeyId0 : appKey0\n',
+            'appKeyId0 appKey0\n',
             '',
             0,
         )
         self._run_command(
             ['create-key', '--bucket', 'my-bucket-a', 'goodKeyName-Two', capabilities_with_commas],
-            'appKeyId1 : appKey1\n',
+            'appKeyId1 appKey1\n',
             '',
             0,
         )
@@ -245,7 +245,7 @@ class TestConsoleTool(TestBase):
                 'create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Three',
                 capabilities_with_commas
             ],
-            'appKeyId2 : appKey2\n',
+            'appKeyId2 appKey2\n',
             '',
             0,
         )
