@@ -20,6 +20,7 @@ import tempfile
 import six
 
 from .test_base import TestBase
+from b2.account_info.abstract import AbstractAccountInfo
 from b2.account_info.upload_url_pool import UploadUrlPool
 from b2.account_info.exception import CorruptAccountInfo, MissingAccountData
 from b2.account_info import InMemoryAccountInfo
@@ -101,7 +102,7 @@ class AccountInfoBase(object):
             'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
         )
         actual = account_info.get_allowed()
-        self.assertEqual(None, actual, 'default allowed')
+        self.assertEqual(AbstractAccountInfo.DEFAULT_ALLOWED, actual, 'default allowed')
 
         # allowed was added later
         allowed = dict(

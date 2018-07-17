@@ -202,16 +202,9 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             conn.execute('DELETE FROM bucket;')
             conn.execute('DELETE FROM bucket_upload_url;')
 
-    def set_auth_data(
-        self,
-        account_id,
-        account_auth_token,
-        api_url,
-        download_url,
-        minimum_part_size,
-        application_key,
-        realm,
-        allowed=None
+    def _set_auth_data(
+        self, account_id, account_auth_token, api_url, download_url, minimum_part_size,
+        application_key, realm, allowed
     ):
         assert self.allowed_is_valid(allowed)
         with self._get_connection() as conn:
@@ -258,23 +251,9 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         """
         allowed_json = self._get_account_info_or_raise('allowed')
         if allowed_json is None:
-            return None
+            return self.DEFAULT_ALLOWED
         else:
             return json.loads(allowed_json)
-
-    def get_allowed_bucket_id(self):
-        allowed = self.get_allowed()
-        if allowed is None:
-            return None
-        else:
-            return allowed.get('bucketId')
-
-    def get_allowed_name_prefix(self):
-        allowed = self.get_allowed()
-        if allowed is None:
-            return ''
-        else:
-            return allowed.get('namePrefix')
 
     def _get_account_info_or_raise(self, column_name):
         try:
@@ -320,20 +299,4 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
         except TypeError:  # TypeError: 'NoneType' object is unsubscriptable
             return None
         except sqlite3.Error:
-            return None
-
-    def get_bucket_name_from_allowed_or_none(self):
-        allowed_bucket_id = self.get_allowed_bucket_id()
-        if allowed_bucket_id:
-            try:
-                with self._get_connection() as conn:
-                    cursor = conn.execute(
-                        'SELECT bucket_name FROM bucket WHERE bucket_id = ?;', (allowed_bucket_id,)
-                    )
-                    return cursor.fetchone()[0]
-            except TypeError:  # TypeError: 'NoneType' object is unsubscriptable
-                return None
-            except sqlite3.Error:
-                return None
-        else:
             return None

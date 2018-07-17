@@ -7,7 +7,6 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-import json
 
 from .exception import MissingAccountData
 from .upload_url_pool import UrlPoolAccountInfo
@@ -48,7 +47,7 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         self._minimum_part_size = None
         self._realm = None
 
-    def set_auth_data(
+    def _set_auth_data(
         self,
         account_id,
         auth_token,
@@ -57,9 +56,8 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
         minimum_part_size,
         application_key,
         realm,
-        allowed=None,
+        allowed,
     ):
-        assert self.allowed_is_valid(allowed)
         self._account_id = account_id
         self._auth_token = auth_token
         self._api_url = api_url
@@ -74,9 +72,6 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
 
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
         return self._buckets.get(bucket_name)
-
-    def get_bucket_name_from_allowed_or_none(self):
-        return next(iter(self._buckets)).name
 
     def save_bucket(self, bucket):
         self._buckets[bucket.name] = bucket.id_
@@ -113,15 +108,6 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
     def get_realm(self):
         return self._realm
 
+    @_raise_missing_if_result_is_none
     def get_allowed(self):
         return self._allowed
-
-    @_raise_missing_if_result_is_none
-    def get_allowed_bucket_id(self):
-        allowed = json.loads(self._allowed)
-        return allowed['bucketId']
-
-    @_raise_missing_if_result_is_none
-    def get_allowed_name_prefix(self):
-        allowed = json.loads(self._allowed)
-        return allowed['namePrefix']

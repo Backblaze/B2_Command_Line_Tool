@@ -41,7 +41,7 @@ class StubAccountInfo(AbstractAccountInfo):
         if bucket_id in self.buckets:
             del self.buckets[bucket_id]
 
-    def set_auth_data(
+    def _set_auth_data(
         self,
         account_id,
         auth_token,
@@ -50,9 +50,8 @@ class StubAccountInfo(AbstractAccountInfo):
         minimum_part_size,
         application_key,
         realm,
-        allowed=None
+        allowed,
     ):
-        assert self.allowed_is_valid(allowed)
         self.account_id = account_id
         self.auth_token = auth_token
         self.api_url = api_url
@@ -67,13 +66,6 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
         return None
-
-    def get_bucket_name_from_allowed_or_none(self):
-        allowed_bucket_id = self.get_allowed_bucket_id()
-        if allowed_bucket_id:
-            return self.buckets.get(allowed_bucket_id).bucket_name
-        else:
-            return None
 
     def save_bucket(self, bucket):
         self.buckets[bucket.bucket_id] = bucket
@@ -110,18 +102,6 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_allowed(self):
         return self.allowed
-
-    def get_allowed_bucket_id(self):
-        if self.allowed:
-            return self.allowed.get('bucketId')
-        else:
-            return None
-
-    def get_allowed_name_prefix(self):
-        if self.allowed:
-            return self.allowed.get('namePrefix')
-        else:
-            return None
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))

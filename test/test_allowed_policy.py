@@ -22,10 +22,6 @@ class TestAllowedPolicy(TestBase):
     def setUp(self):
         self.account_info = MagicMock()
 
-    def test_no_allowed(self):
-        self.account_info.get_allowed = MagicMock(return_value=None)
-        check_command_allowed('whatever', None, None, self.account_info)
-
     def test_unrestricted_allowed(self):
         self._allow_list_files_unrestricted()
         check_command_allowed('listFiles', 'bucket-a', 'prefix/', self.account_info)
@@ -76,7 +72,12 @@ class TestAllowedPolicy(TestBase):
             check_command_allowed('listFiles', 'bucket-a', None, self.account_info)
 
     def _allow_list_files_unrestricted(self):
-        allowed = dict(capabilities=['listFiles'], buckedId=None, bucketName=None)
+        allowed = dict(
+            capabilities=['listFiles'],
+            buckedId=None,
+            bucketName=None,
+            namePrefix=None,
+        )
         self.account_info.get_allowed = MagicMock(return_value=allowed)
 
     def _allow_list_files_restricted(self):
@@ -84,6 +85,6 @@ class TestAllowedPolicy(TestBase):
             capabilities=['listFiles'],
             buckedId='bucketId',
             bucketName='bucket-a',
-            namePrefix='prefix/'
+            namePrefix='prefix/',
         )
         self.account_info.get_allowed = MagicMock(return_value=allowed)

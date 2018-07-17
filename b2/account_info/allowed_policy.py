@@ -28,12 +28,8 @@ def check_command_allowed(capability, named_bucket, named_file, account_info):
     :param account_info: The stored account info.
     """
 
-    # Special case for account info stored before capabilities were implemented.
-    # If that happened, it must have been authorized with an account master key,
-    # and everything will be allowed.
+    # Get the information about what's allowed
     allowed = account_info.get_allowed()
-    if allowed is None:
-        return
 
     # Check that the requested capability is in the allowed list.
     # TODO: remove the check for 'all' after the service bug is fixed
@@ -42,7 +38,7 @@ def check_command_allowed(capability, named_bucket, named_file, account_info):
             raise CapabilityNotAllowed("application key does not allow '%s'" % capability)
 
     # If there is a bucket restriction, then all requests must name the bucket.
-    restricted_bucket = allowed.get('bucketName')
+    restricted_bucket = allowed['bucketName']
     if restricted_bucket is not None:
         if named_bucket is None or named_bucket != restricted_bucket:
             raise BucketNotAllowed(
@@ -52,7 +48,7 @@ def check_command_allowed(capability, named_bucket, named_file, account_info):
 
     # If there is a name restriction, then all requests that deal with files
     # must stay within the restriction.
-    restricted_prefix = allowed.get('namePrefix')
+    restricted_prefix = allowed['namePrefix']
     if restricted_prefix is not None:
         if named_file is None or not named_file.startswith(restricted_prefix):
             raise FileNameNotAllowed(

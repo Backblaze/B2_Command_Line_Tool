@@ -1019,7 +1019,7 @@ class TestConsoleTool(TestBase):
 
     def test_restrictions(self):
         # Initial condition
-        assert self.account_info.get_account_auth_token() is None
+        self.assertEqual(None, self.account_info.get_account_auth_token())
 
         # Authorize an account with a good api key.
         expected_authorize_account_stdout = """
@@ -1049,12 +1049,19 @@ class TestConsoleTool(TestBase):
         file_prefix = 'some/file/prefix/'
 
         # Auth token should be in account info now
-        assert self.account_info.get_account_auth_token() is not None
+        self.assertEqual(None, self.account_info.get_account_auth_token)
         # Assertions that the restrictions not only are saved but what they are supposed to be
-        assert self.account_info.get_allowed_bucket_id() == bucket_id
-        assert self.account_info.get_allowed_name_prefix() == file_prefix
-        assert self.account_info.get_bucket_name_from_allowed_or_none() == bucket_name
-        assert len(self.account_info.buckets) == 1
+        self.assertEqual(
+            dict(
+                bucketId=bucket_id,
+                bucketName=bucket_name,
+                capabilities=[
+                    'listBuckets', 'listFiles', 'readFiles', 'shareFiles', 'writeFiles',
+                    'deleteFiles'
+                ],
+                namePrefix=file_prefix,
+            ), self.account_info.get_allowed()
+        )
 
         # Test API calls using bucketName and filePrefix with pass/fail for each
 

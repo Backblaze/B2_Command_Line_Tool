@@ -34,6 +34,17 @@ class AbstractAccountInfo(object):
         'staging': 'https://api.backblaze.net',
     }
 
+    # The 'allowed' structure to use for old account info that was saved without 'allowed'.
+    DEFAULT_ALLOWED = dict(
+        bucketId=None,
+        bucketName=None,
+        capabilities=[
+            'listKeys', 'writeKeys', 'deleteKeys', 'listBuckets', 'writeBuckets', 'deleteBuckets',
+            'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+        ],
+        namePrefix=None,
+    )
+
     @abstractmethod
     def clear(self):
         """
@@ -63,12 +74,6 @@ class AbstractAccountInfo(object):
     def get_bucket_id_or_none_from_bucket_name(self, bucket_name):
         """
         Looks up the bucket ID for a given bucket name.
-        """
-
-    @abstractmethod
-    def get_bucket_name_from_allowed_or_none(self):
-        """
-        Looks up the bucket name from the allowed bucket Id stored in account_info.
         """
 
     @abstractmethod
@@ -110,26 +115,11 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def get_allowed(self):
         """
-        The 'allowed' structure may be None if the account info was stored
-        before the B2 service supported the field.  None should be treated
-        as allowing everything.
-
-        :return: returns the 'allowed' structure returned by B2 as a dict
+        An 'allowed' dict, as returned by b2_authorize_account.
+        Never None; for account info that was saved before 'allowed' existed,
+        returns DEFAULT_ALLOWED.
         """
 
-    @abstractmethod
-    def get_allowed_bucket_id(self):
-        """
-        returns the bucketId from allowed or None
-        """
-
-    @abstractmethod
-    def get_allowed_name_prefix(self):
-        """
-        returns the namePrefix from allowed or an empty string
-        """
-
-    @abstractmethod
     @limit_trace_arguments(only=['self', 'api_url', 'download_url', 'minimum_part_size', 'realm'])
     def set_auth_data(
         self,
@@ -152,6 +142,34 @@ class AbstractAccountInfo(object):
         a bucketName field.  For keys with bucket restrictions, the name of the bucket is looked
         up and stored, too.  The console_tool does everything by bucket name, so it's convenient
         to have the restricted bucket name handy.
+        """
+        if allowed is None:
+            allowed = self.DEFAULT_ALLOWED
+        assert self.allowed_is_valid(allowed)
+        self._set_auth_data(
+            account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
+            realm, allowed
+        )
+
+    @classmethod
+    def allowed_is_valid(cls, allowed):
+        """
+        Makes sure that all of the required fields are present, and that
+        bucketId and bucketName are either both set or neither set.
+        """
+        return (
+            ('bucketId' in allowed) and ('bucketName' in allowed) and
+            ((allowed['bucketId'] is None) == (allowed['bucketName'] is None)) and
+            ('capabilities' in allowed) and ('namePrefix' in allowed)
+        )
+
+    @abstractmethod
+    def _set_auth_data(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
+        realm, allowed
+    ):
+        """
+        Stores the auth data.  Can assume that 'allowed' is present and valid.
         """
 
     @abstractmethod
@@ -182,20 +200,3 @@ class AbstractAccountInfo(object):
     @abstractmethod
     def clear_large_file_upload_urls(self, file_id):
         pass
-
-    @staticmethod
-    def allowed_is_valid(allowed):
-        """
-        Returns true iff the 'allowed' dict passed in is legal.
-
-        For now, we are assuming that what comes back from the service is legal.  The
-        point of this method is to make sure that bucketName is set appropriately.
-        """
-        # Special case.  Some unit tests do not have 'allowed'.
-        if allowed is None:
-            return True
-
-        return (
-            ('bucketId' in allowed) and ('bucketName' in allowed) and
-            ((allowed['bucketId'] is None) == (allowed['bucketName'] is None))
-        )
