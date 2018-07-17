@@ -203,8 +203,15 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             conn.execute('DELETE FROM bucket_upload_url;')
 
     def _set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size,
-        application_key, realm, allowed
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed,
     ):
         assert self.allowed_is_valid(allowed)
         with self._get_connection() as conn:
