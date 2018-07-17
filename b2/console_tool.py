@@ -774,6 +774,8 @@ class ListKeys(Command):
            - ID of the application key
            - Name of the application key
            - Name of the bucket the key is restricted to, or '-' for no restriction
+           - Date of expiration, or '-'
+           - Time of expiration, or '-'
            - File name prefix, in single quotes
            - Command-separated list of capabilities
 
