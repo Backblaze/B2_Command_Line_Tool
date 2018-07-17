@@ -1049,7 +1049,8 @@ class TestConsoleTool(TestBase):
         file_prefix = 'some/file/prefix/'
 
         # Auth token should be in account info now
-        self.assertEqual(None, self.account_info.get_account_auth_token)
+        self.assertEqual('auth_token_0', self.account_info.get_account_auth_token())
+
         # Assertions that the restrictions not only are saved but what they are supposed to be
         self.assertEqual(
             dict(
