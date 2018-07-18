@@ -19,17 +19,21 @@ class StubAccountInfo(AbstractAccountInfo):
     REALM_URLS = {'production': 'http://production.example.com'}
 
     def __init__(self):
-        self.clear()
+        self._clear_stub_account_fields()
 
     def clear(self):
+        self._clear_stub_account_fields()
+
+    def _clear_stub_account_fields(self):
+        self.application_key = None
+        self.buckets = {}
         self.account_id = None
-        self.auth_token = None
+        self.allowed = None
         self.api_url = None
+        self.auth_token = None
         self.download_url = None
         self.minimum_part_size = None
-        self.application_key = None
         self.realm = None
-        self.buckets = {}
         self._large_file_uploads = collections.defaultdict(list)
         self._large_file_uploads_lock = threading.Lock()
 
@@ -37,9 +41,16 @@ class StubAccountInfo(AbstractAccountInfo):
         if bucket_id in self.buckets:
             del self.buckets[bucket_id]
 
-    def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-        realm
+    def _set_auth_data(
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed,
     ):
         self.account_id = account_id
         self.auth_token = auth_token
@@ -48,6 +59,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.minimum_part_size = minimum_part_size
         self.application_key = application_key
         self.realm = realm
+        self.allowed = allowed
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         self.buckets = {}
@@ -56,7 +68,7 @@ class StubAccountInfo(AbstractAccountInfo):
         return None
 
     def save_bucket(self, bucket):
-        pass
+        self.buckets[bucket.bucket_id] = bucket
 
     def remove_bucket_name(self, bucket_name):
         pass
@@ -87,6 +99,9 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_realm(self):
         return self.realm
+
+    def get_allowed(self):
+        return self.allowed
 
     def get_bucket_upload_data(self, bucket_id):
         return self.buckets.get(bucket_id, (None, None))

@@ -73,6 +73,13 @@ class B2SimpleError(B2Error):
 
 
 @six.add_metaclass(ABCMeta)
+class NotAllowedByAppKeyError(B2SimpleError):
+    """
+    Base class for errors caused by restrictions on an application key.
+    """
+
+
+@six.add_metaclass(ABCMeta)
 class TransientErrorMixin(object):
     def should_retry_http(self):
         return True
@@ -109,6 +116,10 @@ class BrokenPipe(B2Error):
         return True
 
 
+class CapabilityNotAllowed(NotAllowedByAppKeyError):
+    pass
+
+
 class ChecksumMismatch(TransientErrorMixin, B2Error):
     def __init__(self, checksum_type, expected, actual):
         super(ChecksumMismatch, self).__init__()
@@ -129,6 +140,10 @@ class B2HttpCallbackPostRequestException(B2HttpCallbackException):
 
 
 class B2HttpCallbackPreRequestException(B2HttpCallbackException):
+    pass
+
+
+class BucketNotAllowed(NotAllowedByAppKeyError):
     pass
 
 
@@ -216,6 +231,10 @@ class DuplicateBucketName(B2SimpleError):
 
 
 class FileAlreadyHidden(B2SimpleError):
+    pass
+
+
+class FileNameNotAllowed(NotAllowedByAppKeyError):
     pass
 
 

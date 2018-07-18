@@ -32,6 +32,9 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
     """
     Stores account information in an sqlite database, which is
     used to manage concurrent access to the data.
+
+    The 'update_done' table tracks the schema updates that have been
+    completed.
     """
 
     def __init__(self, file_name=None):
@@ -127,6 +130,14 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
     def _create_tables(self, conn):
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS
+            update_done (
+                update_number INT NOT NULL
+            );
+        """
+        )
+        conn.execute(
+            """
            CREATE TABLE IF NOT EXISTS
            account (
                account_id TEXT NOT NULL,
@@ -161,6 +172,29 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
            );
         """
         )
+        # Add the 'allowed' column if it hasn't been yet.
+        self._ensure_update(1, 'ALTER TABLE account ADD COLUMN allowed TEXT;')
+
+    def _ensure_update(self, update_number, update_command):
+        """
+        Runs the update with the given number if it hasn't been done yet.
+
+        Does the update and stores the number as a single transaction,
+        so they will always be in sync.
+        """
+        with self._get_connection() as conn:
+            conn.execute('BEGIN')
+            cursor = conn.execute(
+                'SELECT COUNT(*) AS count FROM update_done WHERE update_number = ?;',
+                (update_number,)
+            )
+            update_count = cursor.fetchone()[0]
+            assert update_count in [0, 1]
+            if update_count == 0:
+                conn.execute(update_command)
+                conn.execute(
+                    'INSERT INTO update_done (update_number) VALUES (?);', (update_number,)
+                )
 
     def clear(self):
         with self._get_connection() as conn:
@@ -168,24 +202,32 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
             conn.execute('DELETE FROM bucket;')
             conn.execute('DELETE FROM bucket_upload_url;')
 
-    def set_auth_data(
-        self, account_id, account_auth_token, api_url, download_url, minimum_part_size,
-        application_key, realm
+    def _set_auth_data(
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed,
     ):
+        assert self.allowed_is_valid(allowed)
         with self._get_connection() as conn:
             conn.execute('DELETE FROM account;')
             conn.execute('DELETE FROM bucket;')
             conn.execute('DELETE FROM bucket_upload_url;')
             insert_statement = """
                 INSERT INTO account
-                (account_id, application_key, account_auth_token, api_url, download_url, minimum_part_size, realm)
-                values (?, ?, ?, ?, ?, ?, ?);
+                (account_id, application_key, account_auth_token, api_url, download_url, minimum_part_size, realm, allowed)
+                values (?, ?, ?, ?, ?, ?, ?, ?);
             """
 
             conn.execute(
                 insert_statement, (
-                    account_id, application_key, account_auth_token, api_url, download_url,
-                    minimum_part_size, realm
+                    account_id, application_key, auth_token, api_url, download_url,
+                    minimum_part_size, realm, json.dumps(allowed)
                 )
             )
 
@@ -209,6 +251,16 @@ class SqliteAccountInfo(UrlPoolAccountInfo):
 
     def get_minimum_part_size(self):
         return self._get_account_info_or_raise('minimum_part_size')
+
+    def get_allowed(self):
+        """
+        The 'allowed" column was not in the original schema, so it may be NULL.
+        """
+        allowed_json = self._get_account_info_or_raise('allowed')
+        if allowed_json is None:
+            return self.DEFAULT_ALLOWED
+        else:
+            return json.loads(allowed_json)
 
     def _get_account_info_or_raise(self, column_name):
         try:

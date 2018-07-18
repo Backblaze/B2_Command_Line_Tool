@@ -20,6 +20,7 @@ import tempfile
 import six
 
 from .test_base import TestBase
+from b2.account_info.abstract import AbstractAccountInfo
 from b2.account_info.upload_url_pool import UploadUrlPool
 from b2.account_info.exception import CorruptAccountInfo, MissingAccountData
 from b2.account_info import InMemoryAccountInfo
@@ -92,6 +93,35 @@ class AccountInfoBase(object):
             account_info.get_realm()
         with self.assertRaises(MissingAccountData):
             account_info.get_minimum_part_size()
+
+    def test_set_auth_data_compatibility(self):
+        account_info = self._make_info()
+
+        # The original set_auth_data
+        account_info.set_auth_data(
+            'account_id', 'account_auth', 'api_url', 'download_url', 100, 'app_key', 'realm'
+        )
+        actual = account_info.get_allowed()
+        self.assertEqual(AbstractAccountInfo.DEFAULT_ALLOWED, actual, 'default allowed')
+
+        # allowed was added later
+        allowed = dict(
+            bucketId=None,
+            bucketName=None,
+            capabilities=['readFiles'],
+            namePrefix=None,
+        )
+        account_info.set_auth_data(
+            'account_id',
+            'account_auth',
+            'api_url',
+            'download_url',
+            100,
+            'app_key',
+            'realm',
+            allowed=allowed
+        )
+        self.assertEqual(allowed, account_info.get_allowed())
 
     def test_clear_bucket_upload_data(self):
         account_info = self._make_info()

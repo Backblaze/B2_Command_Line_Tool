@@ -111,18 +111,40 @@ class B2Api(object):
         return True
 
     @limit_trace_arguments(only=('self', 'realm'))
-    def authorize_account(self, realm, account_id, application_key):
+    def authorize_account(self, realm, account_id_or_key_id, application_key):
+        # Clean up any previous account info if it was for a different account.
         try:
             old_account_id = self.account_info.get_account_id()
             old_realm = self.account_info.get_realm()
-            if account_id != old_account_id or realm != old_realm:
+            if account_id_or_key_id != old_account_id or realm != old_realm:
                 self.cache.clear()
         except MissingAccountData:
             self.cache.clear()
 
+        # Authorize
         realm_url = self.account_info.REALM_URLS[realm]
-        response = self.raw_api.authorize_account(realm_url, account_id, application_key)
+        response = self.raw_api.authorize_account(realm_url, account_id_or_key_id, application_key)
+        allowed = response['allowed']
 
+        # If there is a bucket restriction, get the name of the bucket.
+        # And, if we have a list of the one allowed bucket, go ahead and
+        # save it.
+        if allowed['bucketId'] is not None:
+            allowed_bucket_response = self.raw_api.list_buckets(
+                api_url=response['apiUrl'],
+                account_auth_token=response['authorizationToken'],
+                account_id=response['accountId'],
+                bucket_id=allowed['bucketId'],
+            )
+            allowed_bucket_list = allowed_bucket_response['buckets']
+            allowed['bucketName'] = allowed_bucket_list[0]['bucketName']
+            self.cache.set_bucket_name_cache(
+                BucketFactory.from_api_response(self, allowed_bucket_response)
+            )
+        else:
+            allowed['bucketName'] = None
+
+        # Store the auth data
         self.account_info.set_auth_data(
             response['accountId'],
             response['authorizationToken'],
@@ -131,6 +153,7 @@ class B2Api(object):
             response['minimumPartSize'],
             application_key,
             realm,
+            allowed,
         )
 
     def get_account_id(self):
@@ -254,6 +277,38 @@ class B2Api(object):
         """
         return '%s/file/%s/%s' % (
             self.account_info.get_download_url(), bucket_name, b2_url_encode(file_name)
+        )
+
+    # keys
+    def create_key(
+        self, capabilities, key_name, valid_duration_seconds=None, bucket_id=None, name_prefix=None
+    ):
+        account_id = self.account_info.get_account_id()
+
+        response = self.session.create_key(
+            account_id,
+            capabilities=capabilities,
+            key_name=key_name,
+            valid_duration_seconds=valid_duration_seconds,
+            bucket_id=bucket_id,
+            name_prefix=name_prefix
+        )
+
+        assert set(response['capabilities']) == set(capabilities)
+        assert response['keyName'] == key_name
+
+        return response
+
+    def delete_key(self, application_key_id):
+
+        response = self.session.delete_key(application_key_id=application_key_id)
+        return response
+
+    def list_keys(self, start_application_key_id=None):
+        account_id = self.account_info.get_account_id()
+
+        return self.session.list_keys(
+            account_id, max_key_count=1000, start_application_key_id=start_application_key_id
         )
 
     # other

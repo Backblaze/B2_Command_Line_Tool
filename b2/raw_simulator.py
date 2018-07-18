@@ -9,6 +9,7 @@
 ######################################################################
 
 import re
+import time
 
 import six
 from six.moves import range
@@ -19,6 +20,63 @@ from .exception import (
 )
 from .raw_api import AbstractRawApi, HEX_DIGITS_AT_END
 from .utils import b2_url_encode
+
+ALL_CAPABILITES = [
+    'listKeys', 'writeKeys', 'deleteKeys', 'listBuckets', 'writeBuckets', 'deleteBuckets',
+    'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+]
+
+
+class KeySimulator(object):
+    """
+    Holds information about one application key, which can be either
+    a master application key, or one created with create_key().
+    """
+
+    def __init__(
+        self, account_id, name, key_id, key, capabilities, expiration_timestamp_or_none,
+        bucket_id_or_none, name_prefix_or_none
+    ):
+        self.name = name
+        self.account_id = account_id
+        self.key_id = key_id
+        self.key = key
+        self.capabilities = capabilities
+        self.expiration_timestamp_or_none = expiration_timestamp_or_none
+        self.bucket_id_or_none = bucket_id_or_none
+        self.name_prefix_or_none = name_prefix_or_none
+
+    def as_key(self):
+        return dict(
+            accountId=self.account_id,
+            bucketId=self.bucket_id_or_none,
+            applicationKey=self.key,
+            applicationKeyId=self.key_id,
+            capabilities=self.capabilities,
+            expirationTimestamp=self.expiration_timestamp_or_none,
+            keyName=self.name,
+            namePrefix=self.name_prefix_or_none,
+        )
+
+    def as_created_key(self):
+        """
+        Returns the dict returned by b2_create_key.
+
+        This is just like the one for b2_list_keys, but also includes the secret key.
+        """
+        result = self.as_key()
+        result['applicationKey'] = self.key
+        return result
+
+    def get_allowed(self):
+        """
+        Returns the 'allowed' structure to include in the response from b2_authorize_account.
+        """
+        return dict(
+            bucketId=self.bucket_id_or_none,
+            capabilities=self.capabilities,
+            namePrefix=self.name_prefix_or_none,
+        )
 
 
 class PartSimulator(object):
@@ -441,15 +499,59 @@ class RawSimulator(AbstractRawApi):
 
     MIN_PART_SIZE = 200
 
+    # This is the maximum duration in seconds that an application key can be valid (1000 days).
+    MAX_DURATION_IN_SECONDS = 86400000
+
     UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
 
     def __init__(self):
-        self.authorized_accounts = set()
+        # Map from account_id or application_key_id to KeySimulator.
+        # The entry for the account_id is for the master application
+        # key for the account, and the entries with application_key_id
+        # are for keys created b2 createKey().
+        self.key_id_to_key = dict()
+
+        # Map from auth token to the KeySimulator for it.
+        self.auth_token_to_key = dict()
+
+        # Counter for generating auth tokens.
+        self.auth_token_counter = 0
+
         self.bucket_name_to_bucket = dict()
         self.bucket_id_to_bucket = dict()
         self.bucket_id_counter = iter(range(100))
         self.file_id_to_bucket_id = {}
+        self.all_application_keys = []
+        self.app_key_counter = 0
         self.upload_errors = []
+
+        # There are tests hard-coded to use 'my-account' and 'good-app-key'.
+        # TODO: stop hard-coding
+        self.key_id_to_key['my-account'] = KeySimulator(
+            account_id='my-account',
+            name='master',
+            key_id='my-account',
+            key='good-app-key',
+            capabilities=ALL_CAPABILITES,
+            expiration_timestamp_or_none=None,
+            bucket_id_or_none=None,
+            name_prefix_or_none=None,
+        )
+
+        # And some tests are hard-coded to use this application key.
+        # TODO: stop hard-coding
+        self.key_id_to_key['new-app-key'] = KeySimulator(
+            account_id='my-account',
+            name='key0',
+            key_id='my-account',
+            key='good-app-key',
+            capabilities=[
+                'listBuckets', 'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+            ],
+            expiration_timestamp_or_none=None,
+            bucket_id_or_none='restrictedBucketId',
+            name_prefix_or_none='some/file/prefix/',
+        )
 
     def set_upload_errors(self, errors):
         """
@@ -461,19 +563,22 @@ class RawSimulator(AbstractRawApi):
         self.upload_errors = errors
 
     def authorize_account(self, realm_url, account_id, application_key):
-        assert realm_url == 'http://production.example.com'
-        if application_key != 'good-app-key':
-            raise InvalidAuthToken(
-                'invalid application key: %s' % (application_key,), 'bad_auth_token'
-            )
-        self.authorized_accounts.add(account_id)
+        key_sim = self.key_id_to_key.get(account_id)
+        if key_sim is None:
+            raise InvalidAuthToken('account/key ID not valid', 'unauthorized')
+        if application_key != key_sim.key:
+            raise InvalidAuthToken('secret key is wrong', 'unauthorized')
+        auth_token = 'auth_token_%d' % (self.auth_token_counter,)
+        self.auth_token_counter += 1
+        self.auth_token_to_key[auth_token] = key_sim
         return dict(
-            accountId=account_id,
-            authorizationToken='AUTH:' + account_id,
+            accountId=key_sim.account_id,
+            authorizationToken=auth_token,
             apiUrl=self.API_URL,
             downloadUrl=self.DOWNLOAD_URL,
-            minimumPartSize=self.MIN_PART_SIZE
-        )  # yapf: disable
+            minimumPartSize=self.MIN_PART_SIZE,
+            allowed=key_sim.get_allowed(),
+        )
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -505,6 +610,42 @@ class RawSimulator(AbstractRawApi):
         self.bucket_name_to_bucket[bucket_name] = bucket
         self.bucket_id_to_bucket[bucket_id] = bucket
         return bucket.bucket_dict()
+
+    def create_key(
+        self, api_url, account_auth_token, account_id, capabilities, key_name,
+        valid_duration_seconds, bucket_id, name_prefix
+    ):
+        if not re.match(r'^[A-Za-z0-9-]{1,100}$', key_name):
+            raise BadJson('illegal key name: ' + key_name)
+        if valid_duration_seconds is not None:
+            if valid_duration_seconds < 1 or valid_duration_seconds > self.MAX_DURATION_IN_SECONDS:
+                raise BadJson(
+                    'valid duration must be greater than 0, and less than 1000 days in seconds'
+                )
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+
+        if valid_duration_seconds is None:
+            expiration_timestamp_or_none = None
+        else:
+            expiration_timestamp_or_none = int(time.time() + valid_duration_seconds)
+
+        index = self.app_key_counter
+        self.app_key_counter += 1
+        app_key_id = 'appKeyId%d' % (index,)
+        app_key = 'appKey%d' % (index,)
+        key_sim = KeySimulator(
+            account_id=account_id,
+            name=key_name,
+            key_id=app_key_id,
+            key=app_key,
+            capabilities=capabilities,
+            expiration_timestamp_or_none=expiration_timestamp_or_none,
+            bucket_id_or_none=bucket_id,
+            name_prefix_or_none=name_prefix
+        )
+        self.key_id_to_key[app_key_id] = key_sim
+        self.all_application_keys.append(key_sim)
+        return key_sim.as_created_key()
 
     def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -540,6 +681,15 @@ class RawSimulator(AbstractRawApi):
         # TODO: check auth token if bucket is not public
         bucket = self._get_bucket_by_name(bucket_name)
         bucket.download_file_by_name(file_name, download_dest)
+
+    def delete_key(self, api_url, account_auth_token, application_key_id):
+        assert api_url == self.API_URL
+        return dict(
+            accountId='accountId',
+            applicationKeyId=application_key_id,
+            keyName='keyName',
+            capabilities=['listBuckets', 'readBuckets', 'writeBuckets']
+        )
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -588,7 +738,7 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[response['fileId']] = bucket_id
         return response
 
-    def list_buckets(self, api_url, account_auth_token, account_id):
+    def list_buckets(self, api_url, account_auth_token, account_id, bucket_id=None):
         self._assert_account_auth(api_url, account_auth_token, account_id)
         sorted_buckets = [
             self.bucket_name_to_bucket[bucket_name]
@@ -616,6 +766,18 @@ class RawSimulator(AbstractRawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         self._assert_account_auth(api_url, account_auth, bucket.account_id)
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
+
+    def list_keys(
+        self,
+        api_url,
+        account_auth_token,
+        account_id,
+        max_key_count=1000,
+        start_application_key_id=None
+    ):
+        self._assert_account_auth(api_url, account_auth_token, account_id)
+        keys = map(lambda key: key.as_key(), self.all_application_keys)
+        return dict(keys=keys, nextKeyId=None)
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
         bucket_id = self.file_id_to_bucket_id[file_id]
@@ -696,9 +858,10 @@ class RawSimulator(AbstractRawApi):
         return bucket.upload_part(file_id, part_number, content_length, sha1_sum, input_stream)
 
     def _assert_account_auth(self, api_url, account_auth_token, account_id):
+        key_sim = self.auth_token_to_key.get(account_auth_token)
+        assert key_sim is not None
         assert api_url == self.API_URL
-        assert account_auth_token == 'AUTH:' + account_id
-        assert account_id in self.authorized_accounts
+        assert account_id == key_sim.account_id
 
     def _get_bucket_by_id(self, bucket_id):
         if bucket_id not in self.bucket_id_to_bucket:

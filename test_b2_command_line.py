@@ -63,7 +63,7 @@ def write_file(path, contents):
 
 
 def file_mod_time_millis(path):
-    return int(round(1000 * os.path.getmtime(path)))
+    return int(os.path.getmtime(path) * 1000)
 
 
 def set_file_mod_time_millis(path, time):

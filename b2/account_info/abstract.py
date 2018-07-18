@@ -34,6 +34,26 @@ class AbstractAccountInfo(object):
         'staging': 'https://api.backblaze.net',
     }
 
+    # The 'allowed' structure to use for old account info that was saved without 'allowed'.
+    DEFAULT_ALLOWED = dict(
+        bucketId=None,
+        bucketName=None,
+        capabilities=[
+            'listKeys',
+            'writeKeys',
+            'deleteKeys',
+            'listBuckets',
+            'writeBuckets',
+            'deleteBuckets',
+            'listFiles',
+            'readFiles',
+            'shareFiles',
+            'writeFiles',
+            'deleteFiles',
+        ],
+        namePrefix=None,
+    )
+
     @abstractmethod
     def clear(self):
         """
@@ -102,12 +122,70 @@ class AbstractAccountInfo(object):
         """
 
     @abstractmethod
+    def get_allowed(self):
+        """
+        An 'allowed' dict, as returned by b2_authorize_account.
+        Never None; for account info that was saved before 'allowed' existed,
+        returns DEFAULT_ALLOWED.
+        """
+
     @limit_trace_arguments(only=['self', 'api_url', 'download_url', 'minimum_part_size', 'realm'])
     def set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-        realm
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed=None,
     ):
-        pass
+        """
+        Stores the results of b2_authorize_account.
+
+        All of the information returned by b2_authorize_account is saved, because all of it is
+        needed by some command.
+
+        The allowed structure is the one returned b2_authorize_account, with the addition of
+        a bucketName field.  For keys with bucket restrictions, the name of the bucket is looked
+        up and stored, too.  The console_tool does everything by bucket name, so it's convenient
+        to have the restricted bucket name handy.
+        """
+        if allowed is None:
+            allowed = self.DEFAULT_ALLOWED
+        assert self.allowed_is_valid(allowed)
+        self._set_auth_data(
+            account_id,
+            auth_token,
+            api_url,
+            download_url,
+            minimum_part_size,
+            application_key,
+            realm,
+            allowed,
+        )
+
+    @classmethod
+    def allowed_is_valid(cls, allowed):
+        """
+        Makes sure that all of the required fields are present, and that
+        bucketId and bucketName are either both set or neither set.
+        """
+        return (
+            ('bucketId' in allowed) and ('bucketName' in allowed) and
+            ((allowed['bucketId'] is None) == (allowed['bucketName'] is None)) and
+            ('capabilities' in allowed) and ('namePrefix' in allowed)
+        )
+
+    @abstractmethod
+    def _set_auth_data(
+        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
+        realm, allowed
+    ):
+        """
+        Stores the auth data.  Can assume that 'allowed' is present and valid.
+        """
 
     @abstractmethod
     def take_bucket_upload_url(self, bucket_id):

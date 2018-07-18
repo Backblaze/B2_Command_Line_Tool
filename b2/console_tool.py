@@ -11,6 +11,7 @@
 from __future__ import absolute_import, print_function
 
 import copy
+import datetime
 import functools
 import getpass
 import json
@@ -44,6 +45,7 @@ from .raw_api import (SRC_LAST_MODIFIED_MILLIS, B2RawApi, test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
+from b2.account_info.allowed_policy import check_command_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,20 @@ def keyboard_interrupt_handler(signum, frame):
 
 def mixed_case_to_hyphens(s):
     return s[0].lower() + ''.join(c if c.islower() else '-' + c.lower() for c in s[1:])
+
+
+def parse_comma_separated_list(s):
+    return [word.strip() for word in s.split(',')]
+
+
+def apply_or_none(fcn, value):
+    """
+    If the value is None, return None, otherwise return the result of applying the function to it.
+    """
+    if value is None:
+        return None
+    else:
+        return fcn(value)
 
 
 class Command(object):
@@ -253,6 +269,9 @@ class CancelAllUnfinishedLargeFiles(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
+        check_command_allowed('writeFiles', args.bucketName, None, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for file_version in bucket.list_unfinished_large_files():
             bucket.cancel_large_file(file_version.file_id)
@@ -303,6 +322,8 @@ class CreateBucket(Command):
     ARG_PARSER = {'bucketInfo': json.loads, 'corsRules': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
+        check_command_allowed('writeBuckets', None, None, self.api.account_info)
+
         bucket = self.api.create_bucket(
             args.bucketName,
             args.bucketType,
@@ -311,6 +332,58 @@ class CreateBucket(Command):
             lifecycle_rules=args.lifecycleRules
         )
         self._print(bucket.id_)
+        return 0
+
+
+class CreateKey(Command):
+    """
+    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <keyName> <capabilities>
+
+       Creates a new application key.  Prints the application key information.  This is the only
+       time the application key itself will be returned.  Listing application keys will show
+       their IDs, but not the secret keys.
+
+       The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
+
+       The 'validDurationSeconds' is the length of time the new application key will exist.
+       When the time expires the key will disappear and will no longer be usable.  If not
+       specified, the key will not expire.
+
+       The 'bucketName' is the name of a bucket in the account.  When specified, the key
+       will only allow access to that bucket.
+
+       The 'namePrefix' restricts file access to files whose names start with the prefix.
+
+       The output is the new application key ID, followed by the application key itself.
+       The two values returned are the two that you pass to authorize-account to use the key.
+    """
+
+    REQUIRED = ['keyName', 'capabilities']
+
+    OPTION_ARGS = ['bucket', 'namePrefix', 'duration']
+
+    ARG_PARSER = {'capabilities': parse_comma_separated_list, 'duration': int}
+
+    def run(self, args):
+        check_command_allowed('writeKeys', None, None, self.api.account_info)
+
+        # Translate the bucket name into a bucketId
+        if args.bucket is None:
+            bucket_id_or_none = None
+        else:
+            bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
+
+        response = self.api.create_key(
+            capabilities=args.capabilities,
+            key_name=args.keyName,
+            valid_duration_seconds=args.duration,
+            bucket_id=bucket_id_or_none,
+            name_prefix=args.namePrefix
+        )
+
+        application_key_id = response['applicationKeyId']
+        application_key = response['applicationKey']
+        self._print(application_key_id + " " + application_key)
         return 0
 
 
@@ -324,6 +397,8 @@ class DeleteBucket(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
+        check_command_allowed('deleteBuckets', args.bucketName, None, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = self.api.delete_bucket(bucket)
         self._print(json.dumps(response, indent=4, sort_keys=True))
@@ -350,6 +425,7 @@ class DeleteFileVersion(Command):
             file_name = args.fileName
         else:
             file_name = self._get_file_name_from_file_id(args.fileId)
+
         file_info = self.api.delete_file_version(args.fileId, file_name)
         self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
         return 0
@@ -357,6 +433,22 @@ class DeleteFileVersion(Command):
     def _get_file_name_from_file_id(self, file_id):
         file_info = self.api.get_file_info(file_id)
         return file_info['fileName']
+
+
+class DeleteKey(Command):
+    """
+    b2 delete-key <applicationKeyId>
+
+       Deletes the specified application key by its 'ID'.
+    """
+
+    REQUIRED = ['applicationKeyId']
+
+    def run(self, args):
+        check_command_allowed('deleteKeys', None, None, self.api.account_info)
+        response = self.api.delete_key(application_key_id=args.applicationKeyId)
+        self._print(response['applicationKeyId'])
+        return 0
 
 
 class DownloadFileById(Command):
@@ -392,6 +484,8 @@ class DownloadFileByName(Command):
     REQUIRED = ['bucketName', 'b2FileName', 'localFileName']
 
     def run(self, args):
+        check_command_allowed('readFiles', args.bucketName, args.b2FileName, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
@@ -404,13 +498,15 @@ class GetAccountInfo(Command):
     """
     b2 get-account-info
 
-        Shows the account ID, key, auth token, and URLs.
+        Shows the account ID, key, auth token, URLs, and what capabilities
+        the current application keys has.
     """
 
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
+            allowed=account_info.get_allowed(),
             applicationKey=account_info.get_application_key(),
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
@@ -444,6 +540,8 @@ class GetBucket(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
+        check_command_allowed('listBuckets', args.bucketName, None, self.api.account_info)
+
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
         for b in self.api.list_buckets():
@@ -511,6 +609,8 @@ class GetDownloadAuth(Command):
     ARG_PARSER = {'duration': int}
 
     def run(self, args):
+        check_command_allowed('shareFiles', args.bucketName, args.prefix, self.api.account_info)
+
         prefix = args.prefix or ""
         duration = args.duration or 86400
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -544,6 +644,8 @@ class GetDownloadUrlWithAuth(Command):
     ARG_PARSER = {'duration': int}
 
     def run(self, args):
+        check_command_allowed('shareFiles', args.bucketName, args.fileName, self.api.account_info)
+
         prefix = args.fileName
         duration = args.duration or 86400
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -586,6 +688,8 @@ class HideFile(Command):
     REQUIRED = ['bucketName', 'fileName']
 
     def run(self, args):
+        check_command_allowed('writeFiles', args.bucketName, args.fileName, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
         response = file_info.as_dict()
@@ -606,6 +710,7 @@ class ListBuckets(Command):
     """
 
     def run(self, args):
+        check_command_allowed('listBuckets', None, None, self.api.account_info)
         for b in self.api.list_buckets():
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
         return 0
@@ -628,6 +733,8 @@ class ListFileVersions(Command):
     ARG_PARSER = {'maxToShow': int}
 
     def run(self, args):
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.list_file_versions(args.startFileName, args.startFileId, args.maxToShow)
         self._print(json.dumps(response, indent=2, sort_keys=True))
@@ -649,10 +756,103 @@ class ListFileNames(Command):
     ARG_PARSER = {'maxToShow': int}
 
     def run(self, args):
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.list_file_names(args.startFileName, args.maxToShow)
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
+
+
+class ListKeys(Command):
+    """
+    b2 list-keys
+
+       Lists the application keys for the current account.
+
+       The columns in the output are:
+           - ID of the application key
+           - Name of the application key
+           - Name of the bucket the key is restricted to, or '-' for no restriction
+           - Date of expiration, or '-'
+           - Time of expiration, or '-'
+           - File name prefix, in single quotes
+           - Command-separated list of capabilities
+
+        None of the values contain whitespace.
+
+        For keys restricted to buckets that do not exist any more, the bucket name is
+        replaced with 'id=<bucketId>', because deleted buckets do not have names any
+        more.
+    """
+
+    OPTION_FLAGS = ['long']
+
+    def __init__(self, console_tool):
+        super(ListKeys, self).__init__(console_tool)
+        self.bucket_id_to_bucket_name = None
+
+    def run(self, args):
+        check_command_allowed('listKeys', None, None, self.api.account_info)
+
+        # The first query doesn't pass in a starting key id
+        start_id = None
+
+        # Keep querying until there are no more.
+        while True:
+            # Get some keys and print them
+            response = self.api.list_keys(start_id)
+            self.print_keys(response['keys'], args.long)
+
+            # Are there more?  If so, we'll set the start_id for the next time around.
+            next_id = response.get('nextApplicationKeyId')
+            if next_id is None:
+                break
+            else:
+                start_id = next_id
+
+        return 0
+
+    def print_keys(self, keys_from_response, is_long_format):
+        if is_long_format:
+            format_str = "{keyId}   {keyName:20s}   {bucketName:20s}   {dateStr:10s}   {timeStr:8s}   '{namePrefix}'   {capabilities}"
+        else:
+            format_str = '{keyId}   {keyName:20s}'
+        for key in keys_from_response:
+            timestamp_or_none = apply_or_none(int, key.get('expirationTimestamp'))
+            (date_str, time_str) = self.timestamp_display(timestamp_or_none)
+            key_str = format_str.format(
+                keyId=key['applicationKeyId'],
+                keyName=key['keyName'],
+                bucketName=self.bucket_display_name(key.get('bucketId')),
+                namePrefix=(key.get('namePrefix') or ''),
+                capabilities=','.join(key['capabilities']),
+                dateStr=date_str,
+                timeStr=time_str
+            )
+            self._print(key_str)
+
+    def bucket_display_name(self, bucket_id):
+        # Special case for no bucket ID
+        if bucket_id is None:
+            return '-'
+
+        # Make sure we have the map
+        if self.bucket_id_to_bucket_name is None:
+            self.bucket_id_to_bucket_name = dict((b.id_, b.name) for b in self.api.list_buckets())
+
+        return self.bucket_id_to_bucket_name.get(bucket_id, 'id=' + bucket_id)
+
+    def timestamp_display(self, timestamp_or_none):
+        """
+        Returns a pair (date_str, time_str) for the given timestamp
+        """
+        if timestamp_or_none is None:
+            return '-', '-'
+        else:
+            timestamp = timestamp_or_none
+            dt = datetime.datetime.utcfromtimestamp(timestamp / 1000)
+            return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
 class ListParts(Command):
@@ -684,6 +884,8 @@ class ListUnfinishedLargeFiles(Command):
     REQUIRED = ['bucketName']
 
     def run(self, args):
+        check_command_allowed('listFiles', args.bucketName, None, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
             file_info_text = six.u(' ').join(
@@ -726,6 +928,8 @@ class Ls(Command):
     OPTIONAL = ['folderName']
 
     def run(self, args):
+        check_command_allowed('listFiles', args.bucketName, args.folderName, self.api.account_info)
+
         if args.folderName is None:
             prefix = ""
         else:
@@ -983,6 +1187,8 @@ class UpdateBucket(Command):
     ARG_PARSER = {'bucketInfo': json.loads, 'corsRules': json.loads, 'lifecycleRules': json.loads}
 
     def run(self, args):
+        check_command_allowed('writeBuckets', args.bucketName, None, self.api.account_info)
+
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
             bucket_type=args.bucketType,
@@ -1033,6 +1239,7 @@ class UploadFile(Command):
     ARG_PARSER = {'minPartSize': int, 'threads': int}
 
     def run(self, args):
+        check_command_allowed('writeFiles', args.bucketName, args.b2FileName, self.api.account_info)
 
         file_infos = {}
         for info in args.info:

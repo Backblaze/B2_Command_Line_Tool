@@ -17,7 +17,7 @@ from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
-from b2.raw_simulator import RawSimulator
+from b2.raw_simulator import RawSimulator, BucketSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
 from test_b2_command_line import file_mod_time_millis
@@ -41,7 +41,7 @@ class TestConsoleTool(TestBase):
         '''
 
         expected_stderr = '''
-        ERROR: unable to authorize account: Invalid authorization token. Server said: invalid application key: bad-app-key (bad_auth_token)
+        ERROR: unable to authorize account: Invalid authorization token. Server said: secret key is wrong (unauthorized)
         '''
 
         self._run_command(
@@ -79,6 +79,38 @@ class TestConsoleTool(TestBase):
 
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
+
+    def test_create_key_and_authorize_with_it(self):
+        # Start with authorizing with the master key
+        self._authorize_account()
+
+        # Create a key
+        self._run_command(['create-key', 'key1', 'list-keys'], 'appKeyId0 appKey0\n', '', 0)
+
+        # Authorize with the key
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            '', 0
+        )
+
+    def test_create_bucket_key_and_authorize_with_it(self):
+        # Start with authorizing with the master key
+        self._authorize_account()
+
+        # Make a bucket
+        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+
+        # Create a key restricted to that bucket
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'key1', 'list-keys'], 'appKeyId0 appKey0\n', '',
+            0
+        )
+
+        # Authorize with the key
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            '', 0
+        )
 
     def test_help_with_bad_args(self):
         expected_stderr = '''
@@ -153,6 +185,85 @@ class TestConsoleTool(TestBase):
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+
+    def test_keys(self):
+        self._authorize_account()
+
+        self._run_command(['create_bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['create_bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+
+        capabilities = ['readFiles', 'listBuckets']
+        capabilities_with_commas = ','.join(capabilities)
+
+        # Make a key with an illegal name
+        expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
+        self._run_command(
+            ['create_key', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
+        )
+
+        # Make a key with negative validDurationInSeconds
+        expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, and less than 1000 days in seconds\n'
+        self._run_command(
+            ['create_key', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
+            expected_stderr, 1
+        )
+
+        # Make a key with validDurationInSeconds outside of range
+        expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, ' \
+                          'and less than 1000 days in seconds\n'
+        self._run_command(
+            ['create_key', '--duration', '0', 'goodKeyName', capabilities_with_commas], '',
+            expected_stderr, 1
+        )
+        self._run_command(
+            ['create_key', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
+            expected_stderr, 1
+        )
+
+        # Create three keys
+        self._run_command(
+            ['create-key', 'goodKeyName-One', capabilities_with_commas],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket-a', 'goodKeyName-Two', capabilities_with_commas],
+            'appKeyId1 appKey1\n',
+            '',
+            0,
+        )
+        self._run_command(
+            [
+                'create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Three',
+                capabilities_with_commas
+            ],
+            'appKeyId2 appKey2\n',
+            '',
+            0,
+        )
+
+        # Delete one key
+        self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
+
+        # Delete one bucket, to test listing when a bucket is gone.
+        self._run_command_no_checks(['delete-bucket', 'my-bucket-b'])
+
+        # List keys
+        expected_list_keys_out = """
+            appKeyId0   goodKeyName-One
+            appKeyId1   goodKeyName-Two
+            appKeyId2   goodKeyName-Three
+            """
+
+        expected_list_keys_out_long = """
+            appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
+            appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets
+            appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
+            """
+
+        self._run_command(['list_keys'], expected_list_keys_out, '', 0)
+        self._run_command(['list_keys', '--long'], expected_list_keys_out_long, '', 0)
 
     def test_bucket_info_from_json(self):
 
@@ -272,8 +383,8 @@ class TestConsoleTool(TestBase):
                     local_download1
                 ], expected_stdout, '', 0
             )
-            self.assertEquals(six.b('hello world'), self._read_file(local_download1))
-            self.assertEquals(mod_time, os.path.getmtime(local_download1))
+            self.assertEqual(six.b('hello world'), self._read_file(local_download1))
+            self.assertEqual(mod_time, os.path.getmtime(local_download1))
 
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
@@ -281,7 +392,7 @@ class TestConsoleTool(TestBase):
                 ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
                 '', 0
             )
-            self.assertEquals(six.b('hello world'), self._read_file(local_download2))
+            self.assertEqual(six.b('hello world'), self._read_file(local_download2))
 
             # Hide the file
             expected_stdout = '''
@@ -482,8 +593,26 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         expected_stdout = '''
         {
-            "accountAuthToken": "AUTH:my-account",
+            "accountAuthToken": "auth_token_0",
             "accountId": "my-account",
+            "allowed": {
+                "bucketId": null,
+                "bucketName": null,
+                "capabilities": [
+                    "listKeys",
+                    "writeKeys",
+                    "deleteKeys",
+                    "listBuckets",
+                    "writeBuckets",
+                    "deleteBuckets",
+                    "listFiles",
+                    "readFiles",
+                    "shareFiles",
+                    "writeFiles",
+                    "deleteFiles"
+                ],
+                "namePrefix": null
+            },
             "apiUrl": "http://api.example.com",
             "applicationKey": "good-app-key",
             "downloadUrl": "http://download.example.com"
@@ -888,6 +1017,246 @@ class TestConsoleTool(TestBase):
         '''
         self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
 
+    def test_restrictions(self):
+        # Initial condition
+        self.assertEqual(None, self.account_info.get_account_auth_token())
+
+        # Authorize an account with a good api key.
+        expected_authorize_account_stdout = """
+               Using http://production.example.com
+               """
+
+        account_id = 'my-account'
+        bucket_name = 'restrictedBucket'
+        bucket_id = 'restrictedBucketId'
+        bucket_type = 'allPrivate'
+
+        # we need to make a bucket for the bucket prefix to be checked and set correctly
+        bucket = BucketSimulator(account_id, bucket_id, bucket_name, bucket_type)
+
+        # set the bucket
+        self.raw_api.bucket_name_to_bucket[bucket_name] = bucket
+        self.raw_api.bucket_id_to_bucket[bucket_id] = bucket
+        self.account_info.save_bucket(bucket)
+
+        self._run_command(
+            ['authorize-account', 'new-app-key', 'good-app-key'],
+            expected_authorize_account_stdout,
+            '',
+            0,
+        )
+
+        file_prefix = 'some/file/prefix/'
+
+        # Auth token should be in account info now
+        self.assertEqual('auth_token_0', self.account_info.get_account_auth_token())
+
+        # Assertions that the restrictions not only are saved but what they are supposed to be
+        self.assertEqual(
+            dict(
+                bucketId=bucket_id,
+                bucketName=bucket_name,
+                capabilities=[
+                    'listBuckets', 'listFiles', 'readFiles', 'shareFiles', 'writeFiles',
+                    'deleteFiles'
+                ],
+                namePrefix=file_prefix,
+            ), self.account_info.get_allowed()
+        )
+
+        # Test API calls using bucketName and filePrefix with pass/fail for each
+
+        # Below are the errors we expect to see when calling a command without the correct restriction requirement.
+        expected_bucket_stderr = """
+            ERROR: Bucket not allowed: application key does not allow access to buckets other than 'restrictedBucket'
+            """
+
+        expected_file_prefix_stderr = """
+            ERROR: File name not allowed: application key does not allow access to files whose name does not start with 'some/file/prefix/'
+            """
+
+        # KEY OPERATIONS ***
+        # create-key
+        expected_create_key_stderr = "ERROR: Capability not allowed: application key does not allow 'writeKeys'\n"
+        self._run_command(
+            ['create_key',
+             json.dumps(['readFiles', 'listBuckets']), 'goodKeyName-One'], '',
+            expected_create_key_stderr, 1
+        )
+
+        # FILE OPERATIONS ***
+
+        # LARGE FILE commands
+        bucket_by_name = self.b2_api.get_bucket_by_name('restrictedBucket')
+        bucket_by_name.start_large_file('file1', 'text/plain', {})
+        bucket_by_name.start_large_file('file2', 'text/plain', {})
+
+        # list-unfinished-large-files
+        self._run_command(
+            ['list_unfinished_large_files', 'my-bucket'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['list_unfinished_large_files', bucket_name], '', expected_file_prefix_stderr, 1
+        )
+
+        # cancel-all-unfinished-large-files
+        self._run_command(
+            ['cancel_all_unfinished_large_files', 'my-bucket'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['cancel_all_unfinished_large_files', bucket_name], '', expected_file_prefix_stderr, 1
+        )
+
+        file_name = 'file1.txt'
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, file_name)
+
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # upload-file
+            self._run_command(
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, file_name], '',
+                expected_bucket_stderr, 1
+            )
+            self._run_command(
+                ['upload_file', '--noProgress', bucket_name, local_file1, file_name], '',
+                expected_file_prefix_stderr, 1
+            )
+
+            upload_file_stdout = '''
+            URL by file name: http://download.example.com/file/restrictedBucket/some/file/prefix/file1.txt
+            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9997
+            {
+              "action": "upload",
+              "fileId": "9997",
+              "fileName": "some/file/prefix/file1.txt",
+              "size": 11,
+              "uploadTimestamp": 5002
+            }
+            '''
+
+            self._run_command(
+                ['upload_file', '--noProgress', bucket_name, local_file1, file_prefix + file_name],
+                upload_file_stdout, '', 0
+            )
+
+            # download-file-by-name
+            local_download1 = os.path.join(temp_dir, 'download1.txt')
+            self._run_command(
+                ['download_file_by_name', '--noProgress', 'my-bucket', file_name, local_download1],
+                '', expected_bucket_stderr, 1
+            )
+            self._run_command(
+                ['download_file_by_name', '--noProgress', bucket_name, file_name, local_download1],
+                '', expected_file_prefix_stderr, 1
+            )
+            download_file_by_name_stdout = '''
+            File name:    some/file/prefix/file1.txt
+            File id:      9997
+            File size:    11
+            Content type: b2/x-auto
+            Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            INFO src_last_modified_millis: 1500111222000
+            checksum matches
+            '''
+            self._run_command(
+                [
+                    'download_file_by_name', '--noProgress', bucket_name, file_prefix + file_name,
+                    local_download1
+                ], download_file_by_name_stdout, '', 0
+            )
+
+        # hide-file
+        self._run_command(['hide_file', 'my-bucket', file_name], '', expected_bucket_stderr, 1)
+        self._run_command(['hide_file', bucket_name, file_name], '', expected_file_prefix_stderr, 1)
+
+        hide_file_stdout = '''
+        {
+          "action": "hide",
+          "fileId": "9996",
+          "fileName": "some/file/prefix/file1.txt",
+          "size": 0,
+          "uploadTimestamp": 5003
+        }
+        '''
+
+        self._run_command(
+            ['hide_file', bucket_name, file_prefix + file_name], hide_file_stdout, '', 0
+        )
+
+        # list-file-versions
+        self._run_command(['list_file_versions', 'my-bucket'], '', expected_bucket_stderr, 1)
+        self._run_command(
+            ['list_file_versions', bucket_name, file_name], '', expected_file_prefix_stderr, 1
+        )
+        self._run_command(
+            ['list_file_versions', bucket_name, file_prefix + file_name], '',
+            expected_file_prefix_stderr, 1
+        )
+
+        # list-file-names (the file simulator determines whether files are visible when listed by name)
+        self._run_command(
+            ['list_file_names', 'my-bucket', file_name], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['list_file_names', bucket_name, file_name], '', expected_file_prefix_stderr, 1
+        )
+
+        # ls
+        self._run_command(['ls', 'my-bucket'], '', expected_bucket_stderr, 1)
+
+        # AUTH OPERATIONS
+        # get-download-auth
+        self._run_command(
+            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'], '',
+            expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', bucket_name], '',
+            expected_file_prefix_stderr, 1
+        )
+        get_download_auth_stdout = 'fake_download_auth_token_restrictedBucketId_some/file/prefix/_12345\n'
+        self._run_command(
+            ['get_download_auth', '--prefix', file_prefix, '--duration', '12345', bucket_name],
+            get_download_auth_stdout, '', 0
+        )
+
+        # get-download-url-with-auth
+        self._run_command(
+            ['get-download-url-with-auth', 'my-bucket', u'\u81ea'], '', expected_bucket_stderr, 1
+        )
+        self._run_command(
+            ['get-download-url-with-auth', bucket_name, u'\u81ea'], '', expected_file_prefix_stderr,
+            1
+        )
+        get_download_auth_url_stdout = 'http://download.example.com/file/restrictedBucket/some/file/prefix/file1.txt?' \
+                                       'Authorization=fake_download_auth_token_restrictedBucketId_some/' \
+                                       'file/prefix/file1.txt_86400\n'
+        self._run_command(
+            ['get-download-url-with-auth', bucket_name, file_prefix + file_name],
+            get_download_auth_url_stdout, '', 0
+        )
+
+        # BUCKET OPERATIONS ***
+
+        # create-bucket
+        expected_create_bucket_stderr = """
+            ERROR: Capability not allowed: application key does not allow 'writeBuckets'
+            """
+        self._run_command(
+            ['create_bucket', 'my-bucket', 'allPrivate'], '', expected_create_bucket_stderr, 1
+        )
+
+        # update-bucket
+        self._run_command(
+            ['update_bucket', 'my-bucket', 'allPublic'], '', expected_create_bucket_stderr, 1
+        )
+
+        # get-bucket
+        self._run_command(['get-bucket', 'my-bucket'], '', expected_bucket_stderr, 1)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
@@ -919,9 +1288,11 @@ class TestConsoleTool(TestBase):
         if expected_stdout != actual_stdout:
             print('EXPECTED STDOUT:', repr(expected_stdout))
             print('ACTUAL STDOUT:  ', repr(actual_stdout))
+            print(actual_stdout)
         if expected_stderr != actual_stderr:
             print('EXPECTED STDERR:', repr(expected_stderr))
             print('ACTUAL STDERR:  ', repr(actual_stderr))
+            print(actual_stderr)
 
         self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
