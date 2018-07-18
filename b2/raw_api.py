@@ -624,7 +624,6 @@ def test_raw_api_helper(raw_api):
         print('TEST_APPLICATION_KEY is not set.', file=sys.stderr)
         sys.exit(1)
     realm_url = 'https://api.backblazeb2.com'
-    realm_url = 'http://api.test.blaze:8180'
 
     # b2_authorize_account
     print('b2_authorize_account')
