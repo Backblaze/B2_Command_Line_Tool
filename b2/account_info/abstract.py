@@ -39,8 +39,17 @@ class AbstractAccountInfo(object):
         bucketId=None,
         bucketName=None,
         capabilities=[
-            'listKeys', 'writeKeys', 'deleteKeys', 'listBuckets', 'writeBuckets', 'deleteBuckets',
-            'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+            'listKeys',
+            'writeKeys',
+            'deleteKeys',
+            'listBuckets',
+            'writeBuckets',
+            'deleteBuckets',
+            'listFiles',
+            'readFiles',
+            'shareFiles',
+            'writeFiles',
+            'deleteFiles',
         ],
         namePrefix=None,
     )
@@ -147,8 +156,14 @@ class AbstractAccountInfo(object):
             allowed = self.DEFAULT_ALLOWED
         assert self.allowed_is_valid(allowed)
         self._set_auth_data(
-            account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-            realm, allowed
+            account_id,
+            auth_token,
+            api_url,
+            download_url,
+            minimum_part_size,
+            application_key,
+            realm,
+            allowed,
         )
 
     @classmethod

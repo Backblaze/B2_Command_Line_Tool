@@ -1077,7 +1077,7 @@ class TestConsoleTool(TestBase):
 
         # KEY OPERATIONS ***
         # create-key
-        expected_create_key_stderr = "ERROR: application key does not allow 'writeKeys'\n"
+        expected_create_key_stderr = "ERROR: Capability not allowed: application key does not allow 'writeKeys'\n"
         self._run_command(
             ['create_key',
              json.dumps(['readFiles', 'listBuckets']), 'goodKeyName-One'], '',
@@ -1243,7 +1243,7 @@ class TestConsoleTool(TestBase):
 
         # create-bucket
         expected_create_bucket_stderr = """
-            ERROR: application key does not allow 'writeBuckets'
+            ERROR: Capability not allowed: application key does not allow 'writeBuckets'
             """
         self._run_command(
             ['create_bucket', 'my-bucket', 'allPrivate'], '', expected_create_bucket_stderr, 1

@@ -134,7 +134,7 @@ class B2Api(object):
                 api_url=response['apiUrl'],
                 account_auth_token=response['authorizationToken'],
                 account_id=response['accountId'],
-                bucket_id=allowed['bucketId']
+                bucket_id=allowed['bucketId'],
             )
             allowed_bucket_list = allowed_bucket_response['buckets']
             allowed['bucketName'] = allowed_bucket_list[0]['bucketName']

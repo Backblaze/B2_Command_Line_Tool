@@ -183,7 +183,7 @@ class B2RawApi(AbstractRawApi):
             keyName=key_name,
             validDurationInSeconds=valid_duration_seconds,
             bucketId=bucket_id,
-            namePrefix=name_prefix
+            namePrefix=name_prefix,
         )
 
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
@@ -206,7 +206,10 @@ class B2RawApi(AbstractRawApi):
 
     def delete_key(self, api_url, account_auth_token, application_key_id):
         return self._post_json(
-            api_url, 'b2_delete_key', account_auth_token, applicationKeyId=application_key_id
+            api_url,
+            'b2_delete_key',
+            account_auth_token,
+            applicationKeyId=application_key_id,
         )
 
     def download_file_by_id(
@@ -416,7 +419,7 @@ class B2RawApi(AbstractRawApi):
             account_auth_token,
             accountId=account_id,
             maxKeyCount=max_key_count,
-            startApplicationKeyId=start_application_key_id
+            startApplicationKeyId=start_application_key_id,
         )
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
