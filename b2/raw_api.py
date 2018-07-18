@@ -265,12 +265,7 @@ class B2RawApi(AbstractRawApi):
         :return:
         """
         request_headers = {}
-        if range_ is not None:
-            assert len(range_) == 2, range_
-            assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
-            assert range_[0] >= 0, range_
-            assert range_[1] >= 1, range_
-            request_headers['Range'] = "bytes=%d-%d" % range_
+        _add_range_header(request_headers, range_)
 
         if account_auth_token_or_none is not None:
             request_headers['Authorization'] = account_auth_token_or_none
@@ -869,3 +864,12 @@ def _should_delete_bucket(bucket_name):
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 3600 <= now
+
+
+def _add_range_header(headers, range_):
+    if range_ is not None:
+        assert len(range_) == 2, range_
+        assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
+        assert range_[0] >= 0, range_
+        assert range_[1] >= 1, range_
+        headers['Range'] = "bytes=%d-%d" % range_
