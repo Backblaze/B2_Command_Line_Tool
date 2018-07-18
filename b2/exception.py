@@ -364,7 +364,7 @@ class UnrecognizedBucketType(B2Error):
 def interpret_b2_error(status, code, message, post_params=None):
     post_params = post_params or {}
     if status == 400 and code == "already_hidden":
-        return FileAlreadyHidden(post_params['fileName'])
+        return FileAlreadyHidden(post_params.get('fileName'))
     elif status == 400 and code == 'bad_json':
         return BadJson(message)
     elif (
@@ -377,15 +377,15 @@ def interpret_b2_error(status, code, message, post_params=None):
         # download_file_by_name/download_file_by_id return 404 and "not_found"
         # but don't have post_params
         if 'fileName' in post_params:
-            return FileNotPresent(post_params['fileName'])
+            return FileNotPresent(post_params.get('fileName'))
         else:
             return FileNotPresent()
     elif status == 400 and code == "duplicate_bucket_name":
-        return DuplicateBucketName(post_params['bucketName'])
+        return DuplicateBucketName(post_params.get('bucketName'))
     elif status == 400 and code == "missing_part":
-        return MissingPart(post_params['fileId'])
+        return MissingPart(post_params.get('fileId'))
     elif status == 400 and code == "part_sha1_mismatch":
-        return PartSha1Mismatch(post_params['fileId'])
+        return PartSha1Mismatch(post_params.get('fileId'))
     elif status == 401 and code in ("bad_auth_token", "expired_auth_token"):
         return InvalidAuthToken(message, code)
     elif status == 403 and code == "storage_cap_exceeded":
