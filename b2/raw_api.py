@@ -49,6 +49,9 @@ SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 # Special X-Bz-Content-Sha1 value to verify checksum at the end
 HEX_DIGITS_AT_END = 'hex_digits_at_end'
 
+# block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
+BLOCK_SIZE = 4096
+
 
 @six.add_metaclass(ABCMeta)
 class AbstractRawApi(object):
@@ -291,7 +294,6 @@ class B2RawApi(AbstractRawApi):
             else:
                 mod_time_millis = int(info['x-bz-upload-timestamp'])
 
-            block_size = 4096
             digest = hashlib.sha1()
             bytes_read = 0
 
@@ -303,9 +305,9 @@ class B2RawApi(AbstractRawApi):
                 content_sha1,
                 file_info,
                 mod_time_millis,
-                range_=range_
+                range_=range_,
             ) as file:
-                for data in response.iter_content(chunk_size=block_size):
+                for data in response.iter_content(chunk_size=BLOCK_SIZE):
                     file.write(data)
                     digest.update(data)
                     bytes_read += len(data)
