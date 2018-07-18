@@ -291,6 +291,7 @@ class B2RawApi(AbstractRawApi):
 
             digest = hashlib.sha1()
             bytes_read = 0
+            info_dict = _response_to_info_dict(response)
 
             with download_dest.make_file_context(
                 file_id,
@@ -322,14 +323,7 @@ class B2RawApi(AbstractRawApi):
                     if bytes_read != desired_length:
                         raise TruncatedOutput(bytes_read, desired_length)
 
-            return dict(
-                fileId=file_id,
-                fileName=file_name,
-                contentType=content_type,
-                contentLength=content_length,
-                contentSha1=content_sha1,
-                fileInfo=file_info
-            )
+            return info_dict
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         return self._post_json(
@@ -864,6 +858,18 @@ def _should_delete_bucket(bucket_name):
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 3600 <= now
+
+
+def _response_to_info_dict(response):
+    info = response.headers
+    return dict(
+        fileId=info['x-bz-file-id'],
+        fileName=info['x-bz-file-name'],
+        contentType=info['content-type'],
+        contentLength=int(info['content-length']),
+        contentSha1=info['x-bz-content-sha1'],
+        fileInfo=dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-')),
+    )
 
 
 def _add_range_header(headers, range_):
