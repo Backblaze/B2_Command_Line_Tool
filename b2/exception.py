@@ -255,17 +255,29 @@ class InvalidUploadSource(B2SimpleError):
     pass
 
 
-class InvalidAuthToken(B2Error):
-    def __init__(self, message, _type):
-        super(InvalidAuthToken, self).__init__()
+class Unauthorized(B2Error):
+    def __init__(self, message, code):
+        super(Unauthorized, self).__init__()
         self.message = message
-        self._type = _type
+        self.code = code
 
     def __str__(self):
-        return 'Invalid authorization token. Server said: %s (%s)' % (self.message, self._type)
+        return '%s (%s)' % (self.message, self.code)
 
     def should_retry_upload(self):
         return True
+
+
+class InvalidAuthToken(Unauthorized):
+    """
+    Specific type of Unauthorized that means the auth token is invalid.
+    This is not the case where the auth token is valid but does not
+    allow access.
+    """
+
+    def __init__(self, message, code):
+        super(InvalidAuthToken,
+              self).__init__('Invalid authorization token. Server said: ' + message, code)
 
 
 class MaxFileSizeExceeded(B2Error):
@@ -388,6 +400,8 @@ def interpret_b2_error(status, code, message, post_params=None):
         return PartSha1Mismatch(post_params.get('fileId'))
     elif status == 401 and code in ("bad_auth_token", "expired_auth_token"):
         return InvalidAuthToken(message, code)
+    elif status == 401:
+        return Unauthorized(message, code)
     elif status == 403 and code == "storage_cap_exceeded":
         return StorageCapExceeded()
     elif status == 409:

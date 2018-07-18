@@ -25,6 +25,7 @@ from b2.exception import (
     ServiceError,
     StorageCapExceeded,
     TooManyRequests,
+    Unauthorized,
     UnknownError,
 )
 from .test_base import TestBase
@@ -105,6 +106,9 @@ class TestInterpretError(TestBase):
             'Part number my-file-id has wrong SHA1',
             str(interpret_b2_error(400, 'part_sha1_mismatch', '', {'fileId': 'my-file-id'})),
         )
+
+    def test_unauthorized(self):
+        self._check_one(Unauthorized, 401, '', '')
 
     def test_invalid_auth_token(self):
         self._check_one(InvalidAuthToken, 401, 'bad_auth_token', '')
