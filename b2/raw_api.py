@@ -284,14 +284,17 @@ class B2RawApi(AbstractRawApi):
                     raise UnexpectedCloudBehaviour('Content-Range header was expected')
             file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
 
-            if SRC_LAST_MODIFIED_MILLIS in file_info:
-                mod_time_millis = int(file_info[SRC_LAST_MODIFIED_MILLIS])
-            else:
-                mod_time_millis = int(info['x-bz-upload-timestamp'])
-
             digest = hashlib.sha1()
             bytes_read = 0
+
             info_dict = _response_to_info_dict(response)
+
+            mod_time_millis = int(
+                info_dict['fileInfo'].get(
+                    SRC_LAST_MODIFIED_MILLIS,
+                    info['x-bz-upload-timestamp'],
+                )
+            )
 
             with download_dest.make_file_context(
                 file_id,
