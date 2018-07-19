@@ -230,10 +230,16 @@ class B2RawApi(AbstractRawApi):
             applicationKeyId=application_key_id,
         )
 
+    def get_download_url_by_id(self, download_url, file_id):
+        return download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+
+    def get_download_url_by_name(self, download_url, bucket_name, file_name):
+        return download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
+
     def download_file_by_id(
         self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
     ):
-        url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+        url = self.get_download_url_by_id(download_url, file_id)
         return self._download_file_from_url(
             url, account_auth_token_or_none, download_dest, range_=range_
         )
@@ -247,7 +253,7 @@ class B2RawApi(AbstractRawApi):
         download_dest,
         range_=None
     ):
-        url = download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
+        url = self.get_download_url_by_name(download_url, bucket_name, file_name)
         return self._download_file_from_url(
             url, account_auth_token_or_none, download_dest, range_=range_
         )
