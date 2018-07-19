@@ -31,7 +31,7 @@ This program tests the B2 command-line client.
 
 Usages:
 
-    {command} <accountId> <applicationKey> [basic | sync]
+    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path | download | account]
 
         The optional last argument specifies which of the tests to run.  If not
         specified, all test will run.  Runs the b2 package in the current directory.
@@ -191,6 +191,14 @@ class CommandLine(object):
     def __init__(self, path_to_script):
         self.path_to_script = path_to_script
 
+    def run_command(self, args):
+        """
+        Runs the command with the given arguments, returns a tuple in form of
+        (succeeded, stdout)
+        """
+        status, stdout, stderr = run_command(self.path_to_script, args)
+        return status == 0 and stderr == '', stdout
+
     def should_succeed(self, args, expected_pattern=None):
         """
         Runs the command-line with the given arguments.  Raises an exception
@@ -328,6 +336,29 @@ def tearDown_envvar_test(envvar_name):
         del os.environ[envvar_name]
 
 
+def download_test(b2_tool, bucket_name):
+
+    file_to_upload = 'README.md'
+
+    uploaded_a = b2_tool.should_succeed_json(
+        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
+    )
+    with TempDir() as dir_path:
+        p = lambda fname: os.path.join(dir_path, fname)
+        b2_tool.should_succeed(['download_file_by_name', '--noProgress', bucket_name, 'a', p('a')])
+        assert read_file(p('a')) == read_file(file_to_upload)
+        b2_tool.should_succeed(
+            ['download_file_by_id', '--noProgress', uploaded_a['fileId'],
+             p('b')]
+        )
+        assert read_file(p('b')) == read_file(file_to_upload)
+
+    # there is just one file, so clean after itself for faster execution
+    b2_tool.should_succeed(['delete_file_version', uploaded_a['fileName'], uploaded_a['fileId']])
+    b2_tool.should_succeed(['delete_bucket', bucket_name])
+    return True
+
+
 def basic_test(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
@@ -335,7 +366,7 @@ def basic_test(b2_tool, bucket_name):
 
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
 
-    uploaded_a = b2_tool.should_succeed_json(
+    b2_tool.should_succeed(
         ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'a'])
@@ -362,9 +393,6 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(
         ['download_file_by_name', '--noProgress', bucket_name, 'b/1', os.devnull]
-    )
-    b2_tool.should_succeed(
-        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], os.devnull]
     )
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
@@ -420,6 +448,16 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
+
+
+def account_test(b2_tool, bucket_name):
+    # actually a high level operations test - we run bucket tests here since this test doesn't use it
+    b2_tool.should_succeed(['delete_bucket', bucket_name])
+    new_bucket_name = bucket_name[:-8] + random_hex(
+        8
+    )  # apparently server behaves erratically when we delete a bucket and recreate it right away
+    b2_tool.should_succeed(['create_bucket', new_bucket_name, 'allPrivate'])
+    b2_tool.should_succeed(['update_bucket', new_bucket_name, 'allPublic'])
 
     new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
@@ -658,13 +696,16 @@ def main():
     path_to_script = 'b2'
     account_id = sys.argv[1]
     application_key = sys.argv[2]
+    defer_cleanup = True
 
     test_map = {
+        'account': account_test,
         'basic': basic_test,
         'sync_down': sync_down_test,
         'sync_up': sync_up_test,
         'sync_up_no_prefix': sync_test_no_prefix,
         'sync_long_path': sync_long_path_test,
+        'download': download_test,
     }
 
     if len(sys.argv) >= 4:
@@ -680,6 +721,7 @@ def main():
 
     b2_tool = CommandLine(path_to_script)
 
+    global_dirty = False
     # Run each of the tests in its own empty bucket
     for test_name in tests_to_run:
 
@@ -690,18 +732,17 @@ def main():
 
         b2_tool.should_succeed(['clear_account'])
 
-        bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
-        b2_tool.should_fail(
-            ['authorize_account', account_id, bad_application_key], r'Invalid authorization'
-        )
         b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
         bucket_name_prefix = 'test-b2-command-line-' + account_id
-        clean_buckets(b2_tool, bucket_name_prefix)
+        if not defer_cleanup:
+            clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)
 
-        b2_tool.should_succeed(['create_bucket', bucket_name, 'allPrivate'])
-        b2_tool.should_succeed(['update_bucket', bucket_name, 'allPublic'])
+        success, _ = b2_tool.run_command(['create_bucket', bucket_name, 'allPublic'])
+        if not success:
+            clean_buckets(b2_tool, bucket_name_prefix)
+            b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
 
         print('#')
         print('# Running test:', test_name)
@@ -709,8 +750,17 @@ def main():
         print()
 
         test_fcn = test_map[test_name]
-        test_fcn(b2_tool, bucket_name)
+        dirty = not test_fcn(b2_tool, bucket_name)
+        global_dirty = global_dirty or dirty
 
+    if global_dirty:
+        print('#' * 70)
+        print('#')
+        print('# The last test was run, cleaning up')
+        print('#')
+        print('#' * 70)
+        print()
+        clean_buckets(b2_tool, bucket_name_prefix)
     print()
     print("ALL OK")
 
