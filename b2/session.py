@@ -1,8 +1,8 @@
 ######################################################################
 #
-# File: b2/raw_api.py
+# File: b2/session.py
 #
-# Copyright 2016 Backblaze Inc. All Rights Reserved.
+# Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -10,7 +10,8 @@
 
 import functools
 
-from .exception import (InvalidAuthToken)
+from b2.account_info.abstract import ALL_CAPABILITIES
+from b2.exception import (InvalidAuthToken, Unauthorized)
 
 
 class B2Session(object):
@@ -45,5 +46,37 @@ class B2Session(object):
                         # TODO: exception chaining could be added here
                         #       to help debug reauthorization failures
                     raise
+                except Unauthorized as e:
+                    raise self._add_app_key_info_to_unauthorized(e)
 
         return wrapper
+
+    def _add_app_key_info_to_unauthorized(self, unauthorized):
+        """
+        Takes an Unauthorized error and adds information from the application key
+        about why it might have failed.
+        """
+        # What's allowed?
+        allowed = self._api.account_info.get_allowed()
+        capabilities = allowed['capabilities']
+        bucket_name = allowed['bucketName']
+        name_prefix = allowed['namePrefix']
+
+        # Make a list of messages about the application key restrictions
+        key_messages = []
+        if set(capabilities) != set(ALL_CAPABILITIES):
+            key_messages.append("with capabilites '" + ','.join(capabilities) + "'")
+        if bucket_name is not None:
+            key_messages.append("restricted to bucket '" + bucket_name + "'")
+        if name_prefix is not None:
+            key_messages.append("restricted to files that start with '" + name_prefix + "'")
+        if not key_messages:
+            key_messages.append('with no restrictions')
+
+        # Make a new message
+        new_message = unauthorized.message
+        if new_message == '':
+            new_message = 'unauthorized'
+        new_message += ' for application key ' + ', '.join(key_messages)
+
+        return Unauthorized(new_message, unauthorized.code)
