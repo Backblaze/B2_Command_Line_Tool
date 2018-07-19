@@ -31,7 +31,7 @@ This program tests the B2 command-line client.
 
 Usages:
 
-    {command} <accountId> <applicationKey> [basic | sync]
+    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path]
 
         The optional last argument specifies which of the tests to run.  If not
         specified, all test will run.  Runs the b2 package in the current directory.
