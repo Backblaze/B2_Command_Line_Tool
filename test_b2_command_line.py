@@ -31,7 +31,7 @@ This program tests the B2 command-line client.
 
 Usages:
 
-    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path | download]
+    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path | download | account]
 
         The optional last argument specifies which of the tests to run.  If not
         specified, all test will run.  Runs the b2 package in the current directory.
@@ -430,6 +430,13 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
 
+def account_test(b2_tool, bucket_name):
+    # actually a high level operations test - we run bucket tests here since this test doesn't use it
+    b2_tool.should_succeed(['delete_bucket', bucket_name])
+    new_bucket_name = bucket_name[:-8] + random_hex(8)  # apparently server behaves erratically when we delete a bucket and recreate it right away
+    b2_tool.should_succeed(['create_bucket', new_bucket_name, 'allPrivate'])
+    b2_tool.should_succeed(['update_bucket', new_bucket_name, 'allPublic'])
+
     new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear_account'])
@@ -669,6 +676,7 @@ def main():
     application_key = sys.argv[2]
 
     test_map = {
+        'account': account_test,
         'basic': basic_test,
         'sync_down': sync_down_test,
         'sync_up': sync_up_test,
@@ -700,18 +708,13 @@ def main():
 
         b2_tool.should_succeed(['clear_account'])
 
-        bad_application_key = application_key[:-8] + ''.join(reversed(application_key[-8:]))
-        b2_tool.should_fail(
-            ['authorize_account', account_id, bad_application_key], r'Invalid authorization'
-        )
         b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
         bucket_name_prefix = 'test-b2-command-line-' + account_id
         clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)
 
-        b2_tool.should_succeed(['create_bucket', bucket_name, 'allPrivate'])
-        b2_tool.should_succeed(['update_bucket', bucket_name, 'allPublic'])
+        b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
 
         print('#')
         print('# Running test:', test_name)
