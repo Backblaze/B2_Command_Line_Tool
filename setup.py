@@ -33,7 +33,6 @@ if tuple(int(x) for x in setuptoolsversion.split('.')[:2]) < MIN_SETUPTOOLS_VERS
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-# ??? Is a markdown file OK?  Sample used .rst ???
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
@@ -61,6 +60,7 @@ setup(
     version='1.2.1',
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
+    long_description_content_type='text/markdown',
 
     # The project's main homepage.
     url='https://github.com/Backblaze/B2_Command_Line_Tool',
