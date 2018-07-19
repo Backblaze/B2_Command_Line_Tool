@@ -31,7 +31,7 @@ This program tests the B2 command-line client.
 
 Usages:
 
-    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path]
+    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path | download]
 
         The optional last argument specifies which of the tests to run.  If not
         specified, all test will run.  Runs the b2 package in the current directory.
@@ -328,6 +328,20 @@ def tearDown_envvar_test(envvar_name):
         del os.environ[envvar_name]
 
 
+def download_test(b2_tool, bucket_name):
+
+    file_to_upload = 'README.md'
+
+    uploaded_a = b2_tool.should_succeed_json(
+        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
+    )
+    b2_tool.should_succeed(
+        ['download_file_by_name', '--noProgress', bucket_name, 'a', os.devnull]
+    )
+    b2_tool.should_succeed(
+        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], os.devnull]
+    )
+
 def basic_test(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
@@ -335,9 +349,7 @@ def basic_test(b2_tool, bucket_name):
 
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
 
-    uploaded_a = b2_tool.should_succeed_json(
-        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
-    )
+    b2_tool.should_succeed(['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
@@ -362,9 +374,6 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(
         ['download_file_by_name', '--noProgress', bucket_name, 'b/1', os.devnull]
-    )
-    b2_tool.should_succeed(
-        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], os.devnull]
     )
 
     b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
@@ -665,6 +674,7 @@ def main():
         'sync_up': sync_up_test,
         'sync_up_no_prefix': sync_test_no_prefix,
         'sync_long_path': sync_long_path_test,
+        'download': download_test,
     }
 
     if len(sys.argv) >= 4:
