@@ -15,15 +15,32 @@ import six
 from six.moves import range
 
 from .exception import (
-    BadJson, BadUploadUrl, ChecksumMismatch, Conflict, DuplicateBucketName, FileNotPresent,
-    InvalidAuthToken, MissingPart, NonExistentBucket
+    BadJson,
+    BadUploadUrl,
+    ChecksumMismatch,
+    Conflict,
+    DuplicateBucketName,
+    FileNotPresent,
+    InvalidAuthToken,
+    MissingPart,
+    NonExistentBucket,
+    Unauthorized,
 )
 from .raw_api import AbstractRawApi, HEX_DIGITS_AT_END
 from .utils import b2_url_encode
 
 ALL_CAPABILITES = [
-    'listKeys', 'writeKeys', 'deleteKeys', 'listBuckets', 'writeBuckets', 'deleteBuckets',
-    'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
+    'listKeys',
+    'writeKeys',
+    'deleteKeys',
+    'listBuckets',
+    'writeBuckets',
+    'deleteBuckets',
+    'listFiles',
+    'readFiles',
+    'shareFiles',
+    'writeFiles',
+    'deleteFiles',
 ]
 
 
@@ -35,7 +52,7 @@ class KeySimulator(object):
 
     def __init__(
         self, account_id, name, key_id, key, capabilities, expiration_timestamp_or_none,
-        bucket_id_or_none, name_prefix_or_none
+        bucket_id_or_none, bucket_name_or_none, name_prefix_or_none
     ):
         self.name = name
         self.account_id = account_id
@@ -44,6 +61,7 @@ class KeySimulator(object):
         self.capabilities = capabilities
         self.expiration_timestamp_or_none = expiration_timestamp_or_none
         self.bucket_id_or_none = bucket_id_or_none
+        self.bucket_name_or_none = bucket_name_or_none
         self.name_prefix_or_none = name_prefix_or_none
 
     def as_key(self):
@@ -74,6 +92,7 @@ class KeySimulator(object):
         """
         return dict(
             bucketId=self.bucket_id_or_none,
+            bucketName=self.bucket_name_or_none,
             capabilities=self.capabilities,
             namePrefix=self.name_prefix_or_none,
         )
@@ -535,22 +554,8 @@ class RawSimulator(AbstractRawApi):
             capabilities=ALL_CAPABILITES,
             expiration_timestamp_or_none=None,
             bucket_id_or_none=None,
+            bucket_name_or_none=None,
             name_prefix_or_none=None,
-        )
-
-        # And some tests are hard-coded to use this application key.
-        # TODO: stop hard-coding
-        self.key_id_to_key['new-app-key'] = KeySimulator(
-            account_id='my-account',
-            name='key0',
-            key_id='my-account',
-            key='good-app-key',
-            capabilities=[
-                'listBuckets', 'listFiles', 'readFiles', 'shareFiles', 'writeFiles', 'deleteFiles'
-            ],
-            expiration_timestamp_or_none=None,
-            bucket_id_or_none='restrictedBucketId',
-            name_prefix_or_none='some/file/prefix/',
         )
 
     def set_upload_errors(self, errors):
@@ -583,7 +588,7 @@ class RawSimulator(AbstractRawApi):
     def cancel_large_file(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         return bucket.cancel_large_file(file_id)
 
     def create_bucket(
@@ -599,7 +604,7 @@ class RawSimulator(AbstractRawApi):
     ):
         if not re.match(r'^[-a-zA-Z]*$', bucket_name):
             raise BadJson('illegal bucket name: ' + bucket_name)
-        self._assert_account_auth(api_url, account_auth_token, account_id)
+        self._assert_account_auth(api_url, account_auth_token, account_id, 'writeBuckets')
         if bucket_name in self.bucket_name_to_bucket:
             raise DuplicateBucketName(bucket_name)
         bucket_id = 'bucket_' + str(six.next(self.bucket_id_counter))
@@ -622,7 +627,7 @@ class RawSimulator(AbstractRawApi):
                 raise BadJson(
                     'valid duration must be greater than 0, and less than 1000 days in seconds'
                 )
-        self._assert_account_auth(api_url, account_auth_token, account_id)
+        self._assert_account_auth(api_url, account_auth_token, account_id, 'writeKeys')
 
         if valid_duration_seconds is None:
             expiration_timestamp_or_none = None
@@ -633,6 +638,10 @@ class RawSimulator(AbstractRawApi):
         self.app_key_counter += 1
         app_key_id = 'appKeyId%d' % (index,)
         app_key = 'appKey%d' % (index,)
+        if bucket_id is None:
+            bucket_name_or_none = None
+        else:
+            bucket_name_or_none = self._get_bucket_by_id(bucket_id).bucket_name
         key_sim = KeySimulator(
             account_id=account_id,
             name=key_name,
@@ -641,6 +650,7 @@ class RawSimulator(AbstractRawApi):
             capabilities=capabilities,
             expiration_timestamp_or_none=expiration_timestamp_or_none,
             bucket_id_or_none=bucket_id,
+            bucket_name_or_none=bucket_name_or_none,
             name_prefix_or_none=name_prefix
         )
         self.key_id_to_key[app_key_id] = key_sim
@@ -650,11 +660,11 @@ class RawSimulator(AbstractRawApi):
     def delete_file_version(self, api_url, account_auth_token, file_id, file_name):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'deleteFiles')
         return bucket.delete_file_version(file_id, file_name)
 
     def delete_bucket(self, api_url, account_auth_token, account_id, bucket_id):
-        self._assert_account_auth(api_url, account_auth_token, account_id)
+        self._assert_account_auth(api_url, account_auth_token, account_id, 'deleteBuckets')
         bucket = self._get_bucket_by_id(bucket_id)
         del self.bucket_name_to_bucket[bucket.bucket_name]
         del self.bucket_id_to_bucket[bucket_id]
@@ -694,14 +704,14 @@ class RawSimulator(AbstractRawApi):
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         return bucket.finish_large_file(file_id, part_sha1_array)
 
     def get_download_authorization(
         self, api_url, account_auth_token, bucket_id, file_name_prefix, valid_duration_in_seconds
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'shareFiles')
         return {
             'bucketId':
                 bucket_id,
@@ -722,36 +732,39 @@ class RawSimulator(AbstractRawApi):
 
     def get_upload_url(self, api_url, account_auth_token, bucket_id):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         return self._get_bucket_by_id(bucket_id).get_upload_url()
 
     def get_upload_part_url(self, api_url, account_auth_token, file_id):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         return self._get_bucket_by_id(bucket_id).get_upload_part_url(file_id)
 
     def hide_file(self, api_url, account_auth_token, bucket_id, file_name):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         response = bucket.hide_file(file_name)
         self.file_id_to_bucket_id[response['fileId']] = bucket_id
         return response
 
     def list_buckets(self, api_url, account_auth_token, account_id, bucket_id=None):
-        self._assert_account_auth(api_url, account_auth_token, account_id)
+        self._assert_account_auth(api_url, account_auth_token, account_id, 'listBuckets', bucket_id)
         sorted_buckets = [
             self.bucket_name_to_bucket[bucket_name]
             for bucket_name in sorted(six.iterkeys(self.bucket_name_to_bucket))
         ]
-        bucket_list = [bucket.bucket_dict() for bucket in sorted_buckets]
+        bucket_list = [
+            bucket.bucket_dict()
+            for bucket in sorted_buckets if bucket_id is None or bucket.bucket_id == bucket_id
+        ]
         return dict(buckets=bucket_list)
 
     def list_file_names(
         self, api_url, account_auth, bucket_id, start_file_name=None, max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
         return bucket.list_file_names(start_file_name, max_file_count)
 
     def list_file_versions(
@@ -764,7 +777,7 @@ class RawSimulator(AbstractRawApi):
         max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
     def list_keys(
@@ -775,21 +788,21 @@ class RawSimulator(AbstractRawApi):
         max_key_count=1000,
         start_application_key_id=None
     ):
-        self._assert_account_auth(api_url, account_auth_token, account_id)
+        self._assert_account_auth(api_url, account_auth_token, account_id, 'listKeys')
         keys = map(lambda key: key.as_key(), self.all_application_keys)
         return dict(keys=keys, nextKeyId=None)
 
     def list_parts(self, api_url, account_auth_token, file_id, start_part_number, max_part_count):
         bucket_id = self.file_id_to_bucket_id[file_id]
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         return bucket.list_parts(file_id, start_part_number, max_part_count)
 
     def list_unfinished_large_files(
         self, api_url, account_auth, bucket_id, start_file_id=None, max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
         start_file_id = start_file_id or ''
         max_file_count = max_file_count or 100
         return bucket.list_unfinished_large_files(start_file_id, max_file_count)
@@ -798,7 +811,7 @@ class RawSimulator(AbstractRawApi):
         self, api_url, account_auth_token, bucket_id, file_name, content_type, file_info
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeFiles')
         result = bucket.start_large_file(file_name, content_type, file_info)
         self.file_id_to_bucket_id[result['fileId']] = bucket_id
         return result
@@ -817,7 +830,7 @@ class RawSimulator(AbstractRawApi):
     ):
         assert bucket_type or bucket_info
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth_token, bucket.account_id)
+        self._assert_account_auth(api_url, account_auth_token, bucket.account_id, 'writeBuckets')
         return bucket.update_bucket(
             bucket_type=bucket_type,
             bucket_info=bucket_info,
@@ -857,11 +870,20 @@ class RawSimulator(AbstractRawApi):
         bucket = self._get_bucket_by_id(bucket_id)
         return bucket.upload_part(file_id, part_number, content_length, sha1_sum, input_stream)
 
-    def _assert_account_auth(self, api_url, account_auth_token, account_id):
+    def _assert_account_auth(
+        self, api_url, account_auth_token, account_id, capability, bucket_id=None, file_name=None
+    ):
         key_sim = self.auth_token_to_key.get(account_auth_token)
         assert key_sim is not None
         assert api_url == self.API_URL
         assert account_id == key_sim.account_id
+        if capability not in key_sim.capabilities:
+            raise Unauthorized('', 'unauthorized')
+        if key_sim.bucket_id_or_none is not None and key_sim.bucket_id_or_none != bucket_id:
+            raise Unauthorized('', 'unauthorized')
+        if key_sim.name_prefix_or_none is not None:
+            if file_name is not None and not file_name.startswith(key_sim.name_prefix_or_none):
+                raise Unauthorized('', 'unauthorized')
 
     def _get_bucket_by_id(self, bucket_id):
         if bucket_id not in self.bucket_id_to_bucket:
