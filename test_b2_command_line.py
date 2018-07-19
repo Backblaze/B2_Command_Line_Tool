@@ -345,19 +345,16 @@ def download_test(b2_tool, bucket_name):
     )
     with TempDir() as dir_path:
         p = lambda fname: os.path.join(dir_path, fname)
-        b2_tool.should_succeed(
-            ['download_file_by_name', '--noProgress', bucket_name, 'a', p('a')]
-        )
+        b2_tool.should_succeed(['download_file_by_name', '--noProgress', bucket_name, 'a', p('a')])
         assert read_file(p('a')) == read_file(file_to_upload)
         b2_tool.should_succeed(
-            ['download_file_by_id', '--noProgress', uploaded_a['fileId'], p('b')]
+            ['download_file_by_id', '--noProgress', uploaded_a['fileId'],
+             p('b')]
         )
         assert read_file(p('b')) == read_file(file_to_upload)
 
     # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(
-        ['delete_file_version', uploaded_a['fileName'], uploaded_a['fileId']]
-    )
+    b2_tool.should_succeed(['delete_file_version', uploaded_a['fileName'], uploaded_a['fileId']])
     b2_tool.should_succeed(['delete_bucket', bucket_name])
     return True
 
@@ -369,7 +366,9 @@ def basic_test(b2_tool, bucket_name):
 
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
 
-    b2_tool.should_succeed(['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(
+        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
+    )
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
     b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
@@ -450,10 +449,13 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
 
+
 def account_test(b2_tool, bucket_name):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
     b2_tool.should_succeed(['delete_bucket', bucket_name])
-    new_bucket_name = bucket_name[:-8] + random_hex(8)  # apparently server behaves erratically when we delete a bucket and recreate it right away
+    new_bucket_name = bucket_name[:-8] + random_hex(
+        8
+    )  # apparently server behaves erratically when we delete a bucket and recreate it right away
     b2_tool.should_succeed(['create_bucket', new_bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['update_bucket', new_bucket_name, 'allPublic'])
 
@@ -752,11 +754,11 @@ def main():
         global_dirty = global_dirty or dirty
 
     if global_dirty:
-        print('#'*70)
+        print('#' * 70)
         print('#')
         print('# The last test was run, cleaning up')
         print('#')
-        print('#'*70)
+        print('#' * 70)
         print()
         clean_buckets(b2_tool, bucket_name_prefix)
     print()
