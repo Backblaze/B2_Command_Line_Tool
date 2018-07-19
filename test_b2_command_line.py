@@ -343,18 +343,24 @@ def download_test(b2_tool, bucket_name):
     uploaded_a = b2_tool.should_succeed_json(
         ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
-    b2_tool.should_succeed(
-        ['download_file_by_name', '--noProgress', bucket_name, 'a', os.devnull]
-    )
-    b2_tool.should_succeed(
-        ['download_file_by_id', '--noProgress', uploaded_a['fileId'], os.devnull]
-    )
+    with TempDir() as dir_path:
+        p = lambda fname: os.path.join(dir_path, fname)
+        b2_tool.should_succeed(
+            ['download_file_by_name', '--noProgress', bucket_name, 'a', p('a')]
+        )
+        assert read_file(p('a')) == read_file(file_to_upload)
+        b2_tool.should_succeed(
+            ['download_file_by_id', '--noProgress', uploaded_a['fileId'], p('b')]
+        )
+        assert read_file(p('b')) == read_file(file_to_upload)
+
     # there is just one file, so clean after itself for faster execution
     b2_tool.should_succeed(
         ['delete_file_version', uploaded_a['fileName'], uploaded_a['fileId']]
     )
     b2_tool.should_succeed(['delete_bucket', bucket_name])
     return True
+
 
 def basic_test(b2_tool, bucket_name):
 
