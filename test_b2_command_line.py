@@ -191,6 +191,14 @@ class CommandLine(object):
     def __init__(self, path_to_script):
         self.path_to_script = path_to_script
 
+    def run_command(self, args):
+        """
+        Runs the command with the given arguments, returns a tuple in form of
+        (succeeded, stdout)
+        """
+        status, stdout, stderr = run_command(self.path_to_script, args)
+        return status == 0 and stderr == '', stdout
+
     def should_succeed(self, args, expected_pattern=None):
         """
         Runs the command-line with the given arguments.  Raises an exception
@@ -341,6 +349,12 @@ def download_test(b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['download_file_by_id', '--noProgress', uploaded_a['fileId'], os.devnull]
     )
+    # there is just one file, so clean after itself for faster execution
+    b2_tool.should_succeed(
+        ['delete_file_version', uploaded_a['fileName'], uploaded_a['fileId']]
+    )
+    b2_tool.should_succeed(['delete_bucket', bucket_name])
+    return True
 
 def basic_test(b2_tool, bucket_name):
 
@@ -674,6 +688,7 @@ def main():
     path_to_script = 'b2'
     account_id = sys.argv[1]
     application_key = sys.argv[2]
+    defer_cleanup = True
 
     test_map = {
         'account': account_test,
@@ -698,6 +713,7 @@ def main():
 
     b2_tool = CommandLine(path_to_script)
 
+    global_dirty = False
     # Run each of the tests in its own empty bucket
     for test_name in tests_to_run:
 
@@ -711,10 +727,14 @@ def main():
         b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
         bucket_name_prefix = 'test-b2-command-line-' + account_id
-        clean_buckets(b2_tool, bucket_name_prefix)
+        if not defer_cleanup:
+            clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)
 
-        b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
+        success, _ = b2_tool.run_command(['create_bucket', bucket_name, 'allPublic'])
+        if not success:
+            clean_buckets(b2_tool, bucket_name_prefix)
+            b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
 
         print('#')
         print('# Running test:', test_name)
@@ -722,8 +742,17 @@ def main():
         print()
 
         test_fcn = test_map[test_name]
-        test_fcn(b2_tool, bucket_name)
+        dirty = not test_fcn(b2_tool, bucket_name)
+        global_dirty = global_dirty or dirty
 
+    if global_dirty:
+        print('#'*70)
+        print('#')
+        print('# The last test was run, cleaning up')
+        print('#')
+        print('#'*70)
+        print()
+        clean_buckets(b2_tool, bucket_name_prefix)
     print()
     print("ALL OK")
 
