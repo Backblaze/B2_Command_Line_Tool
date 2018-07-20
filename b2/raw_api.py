@@ -696,8 +696,14 @@ def test_raw_api_helper(raw_api):
     file_contents = six.b('hello world')
     file_sha1 = hex_sha1_of_stream(six.BytesIO(file_contents), len(file_contents))
     file_dict = raw_api.upload_file(
-        upload_url, upload_auth_token, file_name,
-        len(file_contents), 'text/plain', file_sha1, {'color': 'blue'}, six.BytesIO(file_contents)
+        upload_url,
+        upload_auth_token,
+        file_name,
+        len(file_contents),
+        'text/plain',
+        file_sha1,
+        {'color': 'blue'},
+        six.BytesIO(file_contents),
     )
     file_id = file_dict['fileId']
 
