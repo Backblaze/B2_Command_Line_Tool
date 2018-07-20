@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.2.1
+Version 1.3.0
 
 # Installation
 
@@ -25,7 +25,7 @@ this:
     b2 cancel-large-file <fileId>
     b2 clear-account
     b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
-    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--prefix <namePrefix>] <capabilities> <keyName>
+    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--namePrefix <namePrefix>] <keyName> <capabilities>
     b2 delete-bucket <bucketName>
     b2 delete-file-version [<fileName>] <fileId>
     b2 delete-key <applicationKeyId>
@@ -88,6 +88,23 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.3.0 (July 20, 2018)
+
+New features:
+
+* Support for [application keys](https://www.backblaze.com/b2/docs/application_keys.html).
+* Support for Python 3.6
+* Drop support for Python 3.3 (`setuptools` no longer supports 3.3)
+
+Bug fixes:
+
+* Fix content type so markdown displays properly in PyPI
+* The testing package is called `test`, not `tests`
+
+Internal upgrades:
+
+* Faster and more complete integration tests
 
 ## 1.2.0 (July 6, 2018)
 
