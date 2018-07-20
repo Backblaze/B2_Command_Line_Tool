@@ -6,7 +6,7 @@
 - Copy the main usage string (from `python -m b2`) to README.md.
 - Run full tests (currently: `pre-commit.sh`)
 - Commit and push to GitHub, then wait for build to complete successfully.
-- Tag in git.  Version tags look like "v0.4.6"
+- Tag in git and push tag to origin.  (Version tags look like "v0.4.6".)
 - Upload to PyPI.
   - `cd ~/sandbox/B2_Command_Line_Tool`    # or wherever your git repository is
   - `rm -rf dist ; python setup.py sdist`
