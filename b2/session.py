@@ -10,8 +10,8 @@
 
 import functools
 
-from b2.account_info.abstract import ALL_CAPABILITIES
 from b2.exception import (InvalidAuthToken, Unauthorized)
+from b2.raw_api import ALL_CAPABILITIES
 
 
 class B2Session(object):

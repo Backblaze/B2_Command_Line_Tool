@@ -12,22 +12,8 @@ from abc import abstractmethod
 
 import six
 
-from ..utils import B2TraceMetaAbstract, limit_trace_arguments
-
-# All possible capabilities
-ALL_CAPABILITIES = [
-    'listKeys',
-    'writeKeys',
-    'deleteKeys',
-    'listBuckets',
-    'writeBuckets',
-    'deleteBuckets',
-    'listFiles',
-    'readFiles',
-    'shareFiles',
-    'writeFiles',
-    'deleteFiles',
-]
+from b2.raw_api import ALL_CAPABILITIES
+from b2.utils import B2TraceMetaAbstract, limit_trace_arguments
 
 
 @six.add_metaclass(B2TraceMetaAbstract)

@@ -8,8 +8,8 @@
 #
 ######################################################################
 
-from b2.account_info.abstract import ALL_CAPABILITIES
 from b2.exception import InvalidAuthToken, Unauthorized
+from b2.raw_api import ALL_CAPABILITIES
 from b2.session import B2Session
 from .test_base import TestBase
 
