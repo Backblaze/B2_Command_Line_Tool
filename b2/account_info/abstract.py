@@ -2,7 +2,7 @@
 #
 # File: b2/account_info/abstract.py
 #
-# Copyright 2016 Backblaze Inc. All Rights Reserved.
+# Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -12,7 +12,8 @@ from abc import abstractmethod
 
 import six
 
-from ..utils import B2TraceMetaAbstract, limit_trace_arguments
+from b2.raw_api import ALL_CAPABILITIES
+from b2.utils import B2TraceMetaAbstract, limit_trace_arguments
 
 
 @six.add_metaclass(B2TraceMetaAbstract)
@@ -38,21 +39,13 @@ class AbstractAccountInfo(object):
     DEFAULT_ALLOWED = dict(
         bucketId=None,
         bucketName=None,
-        capabilities=[
-            'listKeys',
-            'writeKeys',
-            'deleteKeys',
-            'listBuckets',
-            'writeBuckets',
-            'deleteBuckets',
-            'listFiles',
-            'readFiles',
-            'shareFiles',
-            'writeFiles',
-            'deleteFiles',
-        ],
+        capabilities=ALL_CAPABILITIES,
         namePrefix=None,
     )
+
+    @classmethod
+    def all_capabilities(cls):
+        return cls.ALL_CAPABILITIES
 
     @abstractmethod
     def clear(self):

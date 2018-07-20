@@ -255,17 +255,29 @@ class InvalidUploadSource(B2SimpleError):
     pass
 
 
-class InvalidAuthToken(B2Error):
-    def __init__(self, message, _type):
-        super(InvalidAuthToken, self).__init__()
+class Unauthorized(B2Error):
+    def __init__(self, message, code):
+        super(Unauthorized, self).__init__()
         self.message = message
-        self._type = _type
+        self.code = code
 
     def __str__(self):
-        return 'Invalid authorization token. Server said: %s (%s)' % (self.message, self._type)
+        return '%s (%s)' % (self.message, self.code)
 
     def should_retry_upload(self):
         return True
+
+
+class InvalidAuthToken(Unauthorized):
+    """
+    Specific type of Unauthorized that means the auth token is invalid.
+    This is not the case where the auth token is valid but does not
+    allow access.
+    """
+
+    def __init__(self, message, code):
+        super(InvalidAuthToken,
+              self).__init__('Invalid authorization token. Server said: ' + message, code)
 
 
 class MaxFileSizeExceeded(B2Error):
@@ -364,7 +376,7 @@ class UnrecognizedBucketType(B2Error):
 def interpret_b2_error(status, code, message, post_params=None):
     post_params = post_params or {}
     if status == 400 and code == "already_hidden":
-        return FileAlreadyHidden(post_params['fileName'])
+        return FileAlreadyHidden(post_params.get('fileName'))
     elif status == 400 and code == 'bad_json':
         return BadJson(message)
     elif (
@@ -377,17 +389,19 @@ def interpret_b2_error(status, code, message, post_params=None):
         # download_file_by_name/download_file_by_id return 404 and "not_found"
         # but don't have post_params
         if 'fileName' in post_params:
-            return FileNotPresent(post_params['fileName'])
+            return FileNotPresent(post_params.get('fileName'))
         else:
             return FileNotPresent()
     elif status == 400 and code == "duplicate_bucket_name":
-        return DuplicateBucketName(post_params['bucketName'])
+        return DuplicateBucketName(post_params.get('bucketName'))
     elif status == 400 and code == "missing_part":
-        return MissingPart(post_params['fileId'])
+        return MissingPart(post_params.get('fileId'))
     elif status == 400 and code == "part_sha1_mismatch":
-        return PartSha1Mismatch(post_params['fileId'])
+        return PartSha1Mismatch(post_params.get('fileId'))
     elif status == 401 and code in ("bad_auth_token", "expired_auth_token"):
         return InvalidAuthToken(message, code)
+    elif status == 401:
+        return Unauthorized(message, code)
     elif status == 403 and code == "storage_cap_exceeded":
         return StorageCapExceeded()
     elif status == 409:
