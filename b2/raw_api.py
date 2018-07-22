@@ -660,7 +660,6 @@ def test_raw_api_helper(raw_api):
         None,
         None,
     )
-    print(key_dict)
 
     # b2_list_keys
     print('b2_list_keys')
