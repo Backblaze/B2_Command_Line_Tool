@@ -243,8 +243,8 @@ class TestUrlEncoding(TestBase):
                     (repr(string), encoded, expected_encoded)
                 )
             self.assertTrue(encoded in expected_encoded)
-            # TODO: self.assertEquals(string, b2.utils.b2_url_decode(fully_encoded))
-            # TODO: self.assertEquals(string, b2.utils.b2_url_decode(minimally_encoded))
+            self.assertEqual(string, b2.utils.b2_url_decode(fully_encoded))
+            self.assertEqual(string, b2.utils.b2_url_decode(minimally_encoded))
 
 
 class TestChooseParts(TestBase):
