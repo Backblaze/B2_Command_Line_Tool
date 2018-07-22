@@ -674,7 +674,9 @@ def test_raw_api_helper(raw_api):
     # sure it doesn't collide with bucket names from
     # other accounts.
     print('b2_create_bucket')
-    bucket_name = '%s-%d-%d' % (account_id, int(time.time()), random.randint(1000, 9999))
+    bucket_name = 'test-raw-api-%s-%d-%d' % (
+        account_id, int(time.time()), random.randint(1000, 9999)
+    )
     bucket_dict = raw_api.create_bucket(
         api_url, account_auth_token, account_id, bucket_name, 'allPublic'
     )
@@ -859,7 +861,7 @@ def _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, b
 def _should_delete_bucket(bucket_name):
     # Bucket names for this test look like: c7b22d0b0ad7-1460060364-5670
     # Other buckets should not be deleted.
-    match = re.match(r'^[a-f0-9]+-([0-9]+)-([0-9]+)', bucket_name)
+    match = re.match(r'^test-raw-api-[a-f0-9]+-([0-9]+)-([0-9]+)', bucket_name)
     if match is None:
         return False
 
