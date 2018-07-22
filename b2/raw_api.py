@@ -888,5 +888,4 @@ def _add_range_header(headers, range_):
         assert len(range_) == 2, range_
         assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
         assert range_[0] >= 0, range_
-        assert range_[1] >= 1, range_
         headers['Range'] = "bytes=%d-%d" % range_
