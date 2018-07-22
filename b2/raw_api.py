@@ -17,6 +17,7 @@ import random
 import re
 import sys
 import time
+import traceback
 from abc import ABCMeta, abstractmethod
 
 import six
@@ -613,8 +614,8 @@ def test_raw_api():
         raw_api = B2RawApi(B2Http())
         test_raw_api_helper(raw_api)
         return 0
-    except Exception as e:
-        print('Caught exception: %s' % (repr(e),), file=sys.stdout)
+    except Exception:
+        traceback.print_exc(file=sys.stdout)
         return 1
 
 
