@@ -75,10 +75,7 @@ def b2_url_decode(s):
 
     Returns a Python unicode string.
     """
-    # Use str() to make sure that the input to unquote is a str, not
-    # unicode, which ensures that the result is a str, which allows
-    # the decoding to work properly.
-    return urllib.parse.unquote_plus(str(s)).decode('utf-8')
+    return six.b(urllib.parse.unquote_plus(s)).decode('utf-8')
 
 
 def choose_part_ranges(content_length, minimum_part_size):
