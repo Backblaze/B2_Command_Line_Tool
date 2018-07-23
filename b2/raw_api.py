@@ -683,6 +683,7 @@ def test_raw_api_helper(raw_api):
         api_url, account_auth_token, account_id, bucket_name, 'allPublic'
     )
     bucket_id = bucket_dict['bucketId']
+    first_bucket_revision = bucket_dict['revision']
 
     # b2_list_buckets
     print('b2_list_buckets')
@@ -740,7 +741,7 @@ def test_raw_api_helper(raw_api):
     # b2_get_download_authorization
     print('b2_get_download_authorization')
     download_auth = raw_api.get_download_authorization(
-        api_url, account_auth_token, bucket_id, "prefix", 12345
+        api_url, account_auth_token, bucket_id, file_name[:-2], 12345
     )
     download_auth_token = download_auth['authorizationToken']
 
@@ -826,7 +827,7 @@ def test_raw_api_helper(raw_api):
         'allPrivate',
         bucket_info={'color': 'blue'}
     )
-    assert updated_bucket['revision'] == 2
+    assert first_bucket_revision < updated_bucket['revision']
 
     # clean up this test
     _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, bucket_id)
