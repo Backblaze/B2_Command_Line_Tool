@@ -1123,8 +1123,7 @@ class TestRawApi(Command):
     PRIVATE = True
 
     def run(self, args):
-        test_raw_api()
-        return 0
+        return test_raw_api()
 
 
 class TestUploadUrlConcurrency(Command):
