@@ -33,7 +33,7 @@ from .account_info.sqlite_account_info import (
 from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
 from .account_info.exception import (MissingAccountData)
 from .api import (B2Api)
-from .b2http import (test_http, B2Http)
+from .b2http import (test_http)
 from .cache import (AuthInfoCache)
 from .download_dest import (DownloadDestLocalFile)
 from .exception import (B2Error, BadFileInfo)
@@ -41,7 +41,7 @@ from .sync.scan_policies import ScanPoliciesManager
 from .file_version import (FileVersionInfo)
 from .parse_args import parse_arg_list
 from .progress import (make_progress_listener)
-from .raw_api import (SRC_LAST_MODIFIED_MILLIS, B2RawApi, test_raw_api)
+from .raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
 from .sync import parse_sync_folder, sync_folders
 from .utils import (current_time_millis, set_shutting_down)
 from .version import (VERSION)
@@ -467,6 +467,10 @@ class DownloadFileByName(Command):
     b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
 
         Downloads the given file, and stores it in the given local file.
+
+        If the 'tqdm' library is installed, progress bar is displayed
+        on stderr.  Without it, simple text progress is printed.
+        Use '--noProgress' to disable progress reporting.
     """
 
     OPTION_FLAGS = ['noProgress']
@@ -1420,9 +1424,7 @@ def decode_sys_argv():
 
 def main():
     info = SqliteAccountInfo()
-    b2_http = B2Http()
-    raw_api = B2RawApi(b2_http)
-    b2_api = B2Api(info, AuthInfoCache(info), raw_api=raw_api)
+    b2_api = B2Api(info, AuthInfoCache(info))
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)

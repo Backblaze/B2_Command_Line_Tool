@@ -22,9 +22,6 @@ from .progress import StreamWithProgress
 class AbstractDownloadDestination(object):
     """
     Interface to a destination for a downloaded file.
-
-    This isn't an abstract base class because there is just
-    one kind of download destination so far: a local file.
     """
 
     @abstractmethod

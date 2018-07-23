@@ -17,6 +17,7 @@ import random
 import re
 import sys
 import time
+import traceback
 from abc import ABCMeta, abstractmethod
 
 import six
@@ -48,6 +49,9 @@ SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 
 # Special X-Bz-Content-Sha1 value to verify checksum at the end
 HEX_DIGITS_AT_END = 'hex_digits_at_end'
+
+# block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
+BLOCK_SIZE = 4096
 
 
 @six.add_metaclass(ABCMeta)
@@ -116,6 +120,12 @@ class AbstractRawApi(object):
         self, upload_url, upload_auth_token, part_number, content_length, sha1_sum, input_stream
     ):
         pass
+
+    def get_download_url_by_id(self, download_url, account_auth_token, file_id):
+        return download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+
+    def get_download_url_by_name(self, download_url, account_auth_token, bucket_name, file_name):
+        return download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
 
 
 class B2RawApi(AbstractRawApi):
@@ -230,7 +240,7 @@ class B2RawApi(AbstractRawApi):
     def download_file_by_id(
         self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
     ):
-        url = download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+        url = self.get_download_url_by_id(download_url, account_auth_token_or_none, file_id)
         return self._download_file_from_url(
             url, account_auth_token_or_none, download_dest, range_=range_
         )
@@ -244,7 +254,9 @@ class B2RawApi(AbstractRawApi):
         download_dest,
         range_=None
     ):
-        url = download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
+        url = self.get_download_url_by_name(
+            download_url, account_auth_token_or_none, bucket_name, file_name
+        )
         return self._download_file_from_url(
             url, account_auth_token_or_none, download_dest, range_=range_
         )
@@ -262,12 +274,7 @@ class B2RawApi(AbstractRawApi):
         :return:
         """
         request_headers = {}
-        if range_ is not None:
-            assert len(range_) == 2, range_
-            assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
-            assert range_[0] >= 0, range_
-            assert range_[1] >= 1, range_
-            request_headers['Range'] = "bytes=%d-%d" % range_
+        _add_range_header(request_headers, range_)
 
         if account_auth_token_or_none is not None:
             request_headers['Authorization'] = account_auth_token_or_none
@@ -286,14 +293,17 @@ class B2RawApi(AbstractRawApi):
                     raise UnexpectedCloudBehaviour('Content-Range header was expected')
             file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
 
-            if SRC_LAST_MODIFIED_MILLIS in file_info:
-                mod_time_millis = int(file_info[SRC_LAST_MODIFIED_MILLIS])
-            else:
-                mod_time_millis = int(info['x-bz-upload-timestamp'])
-
-            block_size = 4096
             digest = hashlib.sha1()
             bytes_read = 0
+
+            info_dict = _response_to_info_dict(response)
+
+            mod_time_millis = int(
+                info_dict['fileInfo'].get(
+                    SRC_LAST_MODIFIED_MILLIS,
+                    info['x-bz-upload-timestamp'],
+                )
+            )
 
             with download_dest.make_file_context(
                 file_id,
@@ -303,9 +313,9 @@ class B2RawApi(AbstractRawApi):
                 content_sha1,
                 file_info,
                 mod_time_millis,
-                range_=range_
+                range_=range_,
             ) as file:
-                for data in response.iter_content(chunk_size=block_size):
+                for data in response.iter_content(chunk_size=BLOCK_SIZE):
                     file.write(data)
                     digest.update(data)
                     bytes_read += len(data)
@@ -325,14 +335,7 @@ class B2RawApi(AbstractRawApi):
                     if bytes_read != desired_length:
                         raise TruncatedOutput(bytes_read, desired_length)
 
-            return dict(
-                fileId=file_id,
-                fileName=file_name,
-                contentType=content_type,
-                contentLength=content_length,
-                contentSha1=content_sha1,
-                fileInfo=file_info
-            )
+            return info_dict
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         return self._post_json(
@@ -613,8 +616,8 @@ def test_raw_api():
         raw_api = B2RawApi(B2Http())
         test_raw_api_helper(raw_api)
         return 0
-    except Exception as e:
-        print('Caught exception: %s' % (repr(e),), file=sys.stdout)
+    except Exception:
+        traceback.print_exc(file=sys.stdout)
         return 1
 
 
@@ -659,7 +662,6 @@ def test_raw_api_helper(raw_api):
         None,
         None,
     )
-    print(key_dict)
 
     # b2_list_keys
     print('b2_list_keys')
@@ -674,7 +676,9 @@ def test_raw_api_helper(raw_api):
     # sure it doesn't collide with bucket names from
     # other accounts.
     print('b2_create_bucket')
-    bucket_name = '%s-%d-%d' % (account_id, int(time.time()), random.randint(1000, 9999))
+    bucket_name = 'test-raw-api-%s-%d-%d' % (
+        account_id, int(time.time()), random.randint(1000, 9999)
+    )
     bucket_dict = raw_api.create_bucket(
         api_url, account_auth_token, account_id, bucket_name, 'allPublic'
     )
@@ -859,7 +863,7 @@ def _clean_and_delete_bucket(raw_api, api_url, account_auth_token, account_id, b
 def _should_delete_bucket(bucket_name):
     # Bucket names for this test look like: c7b22d0b0ad7-1460060364-5670
     # Other buckets should not be deleted.
-    match = re.match(r'^[a-f0-9]+-([0-9]+)-([0-9]+)', bucket_name)
+    match = re.match(r'^test-raw-api-[a-f0-9]+-([0-9]+)-([0-9]+)', bucket_name)
     if match is None:
         return False
 
@@ -867,3 +871,23 @@ def _should_delete_bucket(bucket_name):
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 3600 <= now
+
+
+def _response_to_info_dict(response):
+    info = response.headers
+    return dict(
+        fileId=info['x-bz-file-id'],
+        fileName=info['x-bz-file-name'],
+        contentType=info['content-type'],
+        contentLength=int(info['content-length']),
+        contentSha1=info['x-bz-content-sha1'],
+        fileInfo=dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-')),
+    )
+
+
+def _add_range_header(headers, range_):
+    if range_ is not None:
+        assert len(range_) == 2, range_
+        assert (range_[0] + 0) <= (range_[1] + 0), range_  # not strings
+        assert range_[0] >= 0, range_
+        headers['Range'] = "bytes=%d-%d" % range_
