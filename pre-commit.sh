@@ -97,7 +97,13 @@ done
 
 header test_raw_api
 
-TEST_ACCOUNT_ID="$(head -n 1 ~/.b2_auth)" TEST_APPLICATION_KEY="$(tail -n 1 ~/.b2_auth)" python -m b2.__main__ test_raw_api
+if TEST_ACCOUNT_ID="$(head -n 1 ~/.b2_auth)" TEST_APPLICATION_KEY="$(tail -n 1 ~/.b2_auth)" python -m b2.__main__ test_raw_api
+then
+    echo "raw API test PASSED"
+else
+    echo "raw API test FAILED"
+    exit 1
+fi
 
 if [[ $# -ne 0 && "${4:-}" == quick ]]
 then
