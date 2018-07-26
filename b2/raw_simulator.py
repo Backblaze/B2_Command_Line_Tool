@@ -764,7 +764,13 @@ class RawSimulator(AbstractRawApi):
         self, api_url, account_auth, bucket_id, start_file_name=None, max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
+        self._assert_account_auth(
+            api_url,
+            account_auth,
+            bucket.account_id,
+            'listFiles',
+            bucket_id=bucket_id,
+        )
         return bucket.list_file_names(start_file_name, max_file_count)
 
     def list_file_versions(
@@ -777,7 +783,13 @@ class RawSimulator(AbstractRawApi):
         max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
+        self._assert_account_auth(
+            api_url,
+            account_auth,
+            bucket.account_id,
+            'listFiles',
+            bucket_id=bucket_id,
+        )
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
     def list_keys(
