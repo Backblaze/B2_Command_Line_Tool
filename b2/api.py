@@ -230,7 +230,14 @@ class B2Api(object):
         """
         account_id = self.account_info.get_account_id()
 
-        response = self.session.list_buckets(account_id)
+        allowed = self.account_info.get_allowed()
+        allowed_bucket_id = allowed['bucketId']
+
+        response = None
+        if allowed_bucket_id is None:
+            response = self.session.list_buckets(account_id)
+        else:
+            response = self.session.list_buckets(account_id, allowed_bucket_id)
 
         buckets = BucketFactory.from_api_response(self, response)
 
