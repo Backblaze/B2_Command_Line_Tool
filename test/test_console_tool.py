@@ -247,7 +247,7 @@ class TestConsoleTool(TestBase):
         self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
 
         # Delete one bucket, to test listing when a bucket is gone.
-        self._run_command_no_checks(['delete-bucket', 'my-bucket-b'])
+        self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
 
         # List keys
         expected_list_keys_out = """
@@ -1023,7 +1023,7 @@ class TestConsoleTool(TestBase):
 
         # Authorize an account with the master key.
         account_id = 'my-account'
-        self._run_command_no_checks(['authorize-account', account_id, 'good-app-key'])
+        self._run_command_ignore_output(['authorize-account', account_id, 'good-app-key'])
 
         # Create a bucket to use
         bucket_name = 'restrictedBucket'
@@ -1032,7 +1032,7 @@ class TestConsoleTool(TestBase):
 
         # Create another bucket
         other_bucket_name = 'otherBucket'
-        self._run_command_no_checks(['create-bucket', other_bucket_name, 'allPrivate'])
+        self._run_command_ignore_output(['create-bucket', other_bucket_name, 'allPrivate'])
 
         # Create a key restricted to a bucket
         app_key_id = 'appKeyId0'
@@ -1049,7 +1049,7 @@ class TestConsoleTool(TestBase):
             0,
         )
 
-        self._run_command_no_checks(['authorize-account', app_key_id, app_key])
+        self._run_command_ignore_output(['authorize-account', app_key_id, app_key])
 
         # Auth token should be in account info now
         self.assertEqual('auth_token_1', self.account_info.get_account_auth_token())
@@ -1085,7 +1085,7 @@ class TestConsoleTool(TestBase):
         Prepare for a test by authorizing an account and getting an
         account auth token
         """
-        self._run_command_no_checks(['authorize_account', 'my-account', 'good-app-key'])
+        self._run_command_ignore_output(['authorize_account', 'my-account', 'good-app-key'])
 
     def _create_my_bucket(self):
         self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
@@ -1141,9 +1141,21 @@ class TestConsoleTool(TestBase):
         stderr = MyStringIO()
         return stdout, stderr
 
-    def _run_command_no_checks(self, argv):
+    def _run_command_ignore_output(self, argv):
+        """
+        Runs the given command in the console tool, checking that it
+        success, but ignoring the stdout.
+        """
         stdout, stderr = self._get_stdouterr()
-        ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
+        actual_status = ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
+        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
+
+        if '' != actual_stderr:
+            print('ACTUAL STDERR:  ', repr(actual_stderr))
+            print(actual_stderr)
+
+        self.assertEqual('', actual_stderr, 'stderr')
+        self.assertEqual(0, actual_status, 'exit status code')
 
     def _trim_leading_spaces(self, s):
         """
