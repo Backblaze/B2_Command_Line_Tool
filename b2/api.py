@@ -129,8 +129,8 @@ class B2Api(object):
         # If there is a bucket restriction, get the name of the bucket.
         # And, if we have a list of the one allowed bucket, go ahead and
         # save it.
-        if allowed['bucketId'] is not None:
-            if 'listBuckets' in allowed['capabilities']:
+        if 'listBuckets' in allowed['capabilities']:
+            if allowed['bucketId'] is not None:
                 allowed_bucket_response = self.raw_api.list_buckets(
                     api_url=response['apiUrl'],
                     account_auth_token=response['authorizationToken'],

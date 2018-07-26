@@ -250,23 +250,22 @@ class AuthorizeAccount(Command):
         try:
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
             allowed = self.api.account_info.get_allowed()
-            if allowed['bucketId'] is not None:
-                if 'listBuckets' not in allowed['capabilities']:
-                    logger.exception(
-                        'ConsoleTool cannot work with a bucket-restricted key and no listBuckets capability'
-                    )
-                    self._print_stderr(
-                        'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool'
-                    )
-                    return 1
-                if allowed['bucketName'] is None:
-                    logger.exception(
-                        'ConsoleTool has bucket-restricted key and the bucket does not exist'
-                    )
-                    self._print_stderr(
-                        'ERROR: application key is restricted to a bucket that no longer exists'
-                    )
-                    return 1
+            if 'listBuckets' not in allowed['capabilities']:
+                logger.exception(
+                    'ConsoleTool cannot work with a bucket-restricted key and no listBuckets capability'
+                )
+                self._print_stderr(
+                    'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool'
+                )
+                return 1
+            if allowed['bucketId'] is not None and allowed['bucketName'] is None:
+                logger.exception(
+                    'ConsoleTool has bucket-restricted key and the bucket does not exist'
+                )
+                self._print_stderr(
+                    'ERROR: application key is restricted to a bucket that no longer exists'
+                )
+                return 1
             return 0
         except B2Error as e:
             logger.exception('ConsoleTool account authorization error')

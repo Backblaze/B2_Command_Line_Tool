@@ -85,12 +85,19 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
 
         # Create a key
-        self._run_command(['create-key', 'key1', 'list-keys'], 'appKeyId0 appKey0\n', '', 0)
+        self._run_command(
+            ['create-key', 'key1', 'listKeys,listBuckets'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
-            '', 0
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            '',
+            0,
         )
 
     def test_create_bucket_key_and_authorize_with_it(self):
@@ -1080,7 +1087,7 @@ class TestConsoleTool(TestBase):
             1,
         )
 
-    def test_list_buckets_not_allowed_for_bucket_key(self):
+    def test_list_buckets_not_allowed_for_app_key(self):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
         self._run_command(
@@ -1093,7 +1100,7 @@ class TestConsoleTool(TestBase):
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listFiles'],
+            ['create-key', 'my-key', 'listFiles'],
             'appKeyId0 appKey0\n',
             '',
             0,
