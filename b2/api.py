@@ -130,17 +130,26 @@ class B2Api(object):
         # And, if we have a list of the one allowed bucket, go ahead and
         # save it.
         if allowed['bucketId'] is not None:
-            allowed_bucket_response = self.raw_api.list_buckets(
-                api_url=response['apiUrl'],
-                account_auth_token=response['authorizationToken'],
-                account_id=response['accountId'],
-                bucket_id=allowed['bucketId'],
-            )
-            allowed_bucket_list = allowed_bucket_response['buckets']
-            allowed['bucketName'] = allowed_bucket_list[0]['bucketName']
-            self.cache.set_bucket_name_cache(
-                BucketFactory.from_api_response(self, allowed_bucket_response)
-            )
+            if 'listBuckets' in allowed['capabilities']:
+                allowed_bucket_response = self.raw_api.list_buckets(
+                    api_url=response['apiUrl'],
+                    account_auth_token=response['authorizationToken'],
+                    account_id=response['accountId'],
+                    bucket_id=allowed['bucketId'],
+                )
+                allowed_bucket_list = allowed_bucket_response['buckets']
+                allowed_bucket_count = len(allowed_bucket_list)
+                assert allowed_bucket_count in [0, 1]
+                if allowed_bucket_count == 0:
+                    # bucket has been deleted since the key was made
+                    allowed['bucketName'] = None
+                else:
+                    allowed['bucketName'] = allowed_bucket_list[0]['bucketName']
+                    self.cache.set_bucket_name_cache(
+                        BucketFactory.from_api_response(self, allowed_bucket_response)
+                    )
+            else:
+                allowed['bucketName'] = None
         else:
             allowed['bucketName'] = None
 

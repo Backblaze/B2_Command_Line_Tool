@@ -1080,6 +1080,61 @@ class TestConsoleTool(TestBase):
             1,
         )
 
+    def test_list_buckets_not_allowed_for_bucket_key(self):
+        # Create a bucket and a key restricted to that bucket.
+        self._authorize_account()
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'],
+            'bucket_0\n',
+            '',
+            0,
+        )
+
+        # Authorizing with the key will fail because the ConsoleTool needs
+        # to be able to look up the name of the bucket.
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listFiles'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # Authorize with the key, which should result in an error.
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
+            1,
+        )
+
+    def test_bucket_missing_for_bucket_key(self):
+        # Create a bucket and a key restricted to that bucket.
+        self._authorize_account()
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'],
+            'bucket_0\n',
+            '',
+            0,
+        )
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # Get rid of the bucket, leaving the key with a dangling pointer to it.
+        self._run_command_ignore_output(['delete-bucket', 'my-bucket'])
+
+        # Authorizing with the key will fail because the ConsoleTool needs
+        # to be able to look up the name of the bucket.
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            'ERROR: application key is restricted to a bucket that no longer exists\n',
+            1,
+        )
+
     def test_ls_for_restricted_bucket(self):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
@@ -1097,7 +1152,7 @@ class TestConsoleTool(TestBase):
         )
 
         # Authorize with the key and list the files
-        self._run_command_ignore_output(['authorize-account', 'appKeyId0', 'appKey0'])
+        self._run_command_ignore_output(['authorize-account', 'appKeyId0', 'appKey0'],)
         self._run_command(
             ['ls', 'my-bucket'],
             '',

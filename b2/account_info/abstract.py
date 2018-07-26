@@ -163,11 +163,14 @@ class AbstractAccountInfo(object):
     def allowed_is_valid(cls, allowed):
         """
         Makes sure that all of the required fields are present, and that
-        bucketId and bucketName are either both set or neither set.
+        bucketId is set if bucketName is.
+
+        If the bucketId is for a bucket that no longer exists, or the
+        capabilities do not allow listBuckets, then we won't have a bucketName.
         """
         return (
             ('bucketId' in allowed) and ('bucketName' in allowed) and
-            ((allowed['bucketId'] is None) == (allowed['bucketName'] is None)) and
+            ((allowed['bucketId'] is not None) or (allowed['bucketName'] is None)) and
             ('capabilities' in allowed) and ('namePrefix' in allowed)
         )
 
