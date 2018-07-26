@@ -121,6 +121,8 @@ class TestConsoleTool(TestBase):
             large file, which must be a file that was started but not
             finished or canceled.
 
+            Requires capability: writeFiles
+
         '''
 
         self._run_command(['list_parts'], '', expected_stderr, 1)
