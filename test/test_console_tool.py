@@ -1080,6 +1080,16 @@ class TestConsoleTool(TestBase):
             1,
         )
 
+    def test_ls_for_restricted_bucket(self):
+        # Create a bucket and a key restricted to that bucket.
+        self._authorize_account()
+        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0,)
+        self._run_command(['create-key', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'], 'appKeyId0 appKey0\n', '', 0,)
+
+        # Authorize with the key and list the files
+        self._run_command_ignore_output(['authorize-account', 'appKeyId0', 'appKey0'])
+        self._run_command(['ls', 'my-bucket'], '', '', 0,)
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
