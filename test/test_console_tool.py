@@ -198,6 +198,7 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['create_bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
         self._run_command(['create_bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+        self._run_command(['create_bucket', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
 
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
@@ -271,6 +272,69 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
         self._run_command(['list_keys', '--long'], expected_list_keys_out_long, '', 0)
+
+        # make sure calling list_buckets with one bucket doesn't clear the cache
+        cache_map_before = self.cache.name_id_map
+        self.b2_api.list_buckets('my-bucket-a ')
+        cache_map_after = self.cache.name_id_map
+        assert cache_map_before == cache_map_after
+
+        # authorize and make calls using application key with no restrictions
+        self._run_command(
+            ['authorize_account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            '', 0
+        )
+        self._run_command(
+            ['list-buckets'],
+            'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n', '', 0
+        )
+
+        get_bucket_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket-a",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+        self._run_command(['get-bucket', 'my-bucket-a'], get_bucket_stdout, '', 0)
+
+        # authorize and make calls using an application key with bucket restrictions
+        self._run_command(
+            ['authorize_account', 'appKeyId1', 'appKey1'], 'Using http://production.example.com\n',
+            '', 0
+        )
+
+        self._run_command(
+            ['list-buckets'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+        )
+        self._run_command(
+            ['get-bucket', 'my-bucket-c'], '',
+            'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+        )
+
+        expected_get_bucket_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket-a",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+
+        self._run_command(['get-bucket', 'my-bucket-a'], expected_get_bucket_stdout, '', 0)
+        self._run_command(
+            ['list-file-names', 'my-bucket-c'], '',
+            'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+        )
 
     def test_bucket_info_from_json(self):
 

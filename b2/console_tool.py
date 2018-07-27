@@ -550,7 +550,7 @@ class GetBucket(Command):
     def run(self, args):
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
-        for b in self.api.list_buckets():
+        for b in self.api.list_buckets(args.bucketName):
             if b.name == args.bucketName:
                 if not args.showSize:
                     self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
