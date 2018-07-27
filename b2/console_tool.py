@@ -221,6 +221,8 @@ class AuthorizeAccount(Command):
 
         Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
         or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
+
+        Requires capability: listBuckets
     """
 
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
@@ -249,11 +251,20 @@ class AuthorizeAccount(Command):
 
         try:
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
-            return 0
         except B2Error as e:
             logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
+
+        allowed = self.api.account_info.get_allowed()
+        if 'listBuckets' not in allowed['capabilities']:
+            self._print_stderr(
+                'ERROR: application key does not have listBuckets capability, which this b2 tool requires'
+            )
+            self.api.account_info.clear()
+            return 1
+
+        return 0
 
 
 class CancelAllUnfinishedLargeFiles(Command):
@@ -263,6 +274,8 @@ class CancelAllUnfinishedLargeFiles(Command):
         Lists all large files that have been started but not
         finsished and cancels them.  Any parts that have been
         uploaded will be deleted.
+
+        Requires capability: writeFiles
     """
 
     REQUIRED = ['bucketName']
@@ -278,6 +291,13 @@ class CancelAllUnfinishedLargeFiles(Command):
 class CancelLargeFile(Command):
     """
     b2 cancel-large-file <fileId>
+
+        Cancels a large file upload.  Used to undo a start-large-file.
+
+        Cannot be used once the file is finished.  After finishing,
+        using delete-file-version to delete the large file.
+
+        Requires capability: writeFiles
     """
 
     REQUIRED = ['fileId']
@@ -309,6 +329,8 @@ class CreateBucket(Command):
 
         Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
         These can be given as JSON on the command line.
+
+        Requires capability: writeBuckets
     """
 
     REQUIRED = ['bucketName', 'bucketType']
@@ -333,23 +355,25 @@ class CreateKey(Command):
     """
     b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--namePrefix <namePrefix>] <keyName> <capabilities>
 
-       Creates a new application key.  Prints the application key information.  This is the only
-       time the application key itself will be returned.  Listing application keys will show
-       their IDs, but not the secret keys.
+        Creates a new application key.  Prints the application key information.  This is the only
+        time the application key itself will be returned.  Listing application keys will show
+        their IDs, but not the secret keys.
 
-       The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
+        The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
 
-       The 'validDurationSeconds' is the length of time the new application key will exist.
-       When the time expires the key will disappear and will no longer be usable.  If not
-       specified, the key will not expire.
+        The 'validDurationSeconds' is the length of time the new application key will exist.
+        When the time expires the key will disappear and will no longer be usable.  If not
+        specified, the key will not expire.
 
-       The 'bucketName' is the name of a bucket in the account.  When specified, the key
-       will only allow access to that bucket.
+        The 'bucketName' is the name of a bucket in the account.  When specified, the key
+        will only allow access to that bucket.
 
-       The 'namePrefix' restricts file access to files whose names start with the prefix.
+        The 'namePrefix' restricts file access to files whose names start with the prefix.
 
-       The output is the new application key ID, followed by the application key itself.
-       The two values returned are the two that you pass to authorize-account to use the key.
+        The output is the new application key ID, followed by the application key itself.
+        The two values returned are the two that you pass to authorize-account to use the key.
+
+        Requires capability: writeKeys
     """
 
     REQUIRED = ['keyName', 'capabilities']
@@ -384,6 +408,8 @@ class DeleteBucket(Command):
     b2 delete-bucket <bucketName>
 
         Deletes the bucket with the given name.
+
+        Requires capability: deleteBuckets
     """
 
     REQUIRED = ['bucketName']
@@ -405,6 +431,8 @@ class DeleteFileVersion(Command):
         If you omit the fileName, it requires an initial query to B2
         to get the file name, before making the call to delete the
         file.
+
+        Requires capability: deleteFiles
     """
 
     OPTIONAL_BEFORE = ['fileName']
@@ -429,7 +457,9 @@ class DeleteKey(Command):
     """
     b2 delete-key <applicationKeyId>
 
-       Deletes the specified application key by its 'ID'.
+        Deletes the specified application key by its 'ID'.
+
+        Requires capability: deleteKeys
     """
 
     REQUIRED = ['applicationKeyId']
@@ -449,6 +479,8 @@ class DownloadFileById(Command):
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
         Use '--noProgress' to disable progress reporting.
+
+        Requires capability: readFiles
     """
 
     OPTION_FLAGS = ['noProgress']
@@ -471,6 +503,8 @@ class DownloadFileByName(Command):
         If the 'tqdm' library is installed, progress bar is displayed
         on stderr.  Without it, simple text progress is printed.
         Use '--noProgress' to disable progress reporting.
+
+        Requires capability: readFiles
     """
 
     OPTION_FLAGS = ['noProgress']
@@ -524,6 +558,8 @@ class GetBucket(Command):
         Analysis is recursive. Note that --showSize requires multiple
         API calls, and will therefore incur additional latency,
         computation, and Class C transactions.
+
+        Requires capability: listBuckets
     """
 
     OPTION_FLAGS = ['showSize']
@@ -566,6 +602,8 @@ class GetFileInfo(Command):
     b2 get-file-info <fileId>
 
         Prints all of the information about the file, but not its contents.
+
+        Requires capability: readFiles
     """
 
     REQUIRED = ['fileId']
@@ -589,6 +627,8 @@ class GetDownloadAuth(Command):
         Only files that match that given prefix can be downloaded with
         the token.  The prefix defaults to "", which matches all files
         in the bucket.
+
+        Requires capability: shareFiles
     """
 
     OPTION_ARGS = ['prefix', 'duration']
@@ -622,6 +662,8 @@ class GetDownloadUrlWithAuth(Command):
 
         The token is valid for the duration specified, which defaults
         to 86400 seconds (one day).
+
+        Requires capability: shareFiles
     """
 
     OPTION_ARGS = ['duration']
@@ -668,6 +710,8 @@ class HideFile(Command):
     b2 hide-file <bucketName> <fileName>
 
         Uploads a new, hidden, version of the given file.
+
+        Requires capability: writeFiles
     """
 
     REQUIRED = ['bucketName', 'fileName']
@@ -690,6 +734,8 @@ class ListBuckets(Command):
         and look like this:
 
             98c960fd1cb4390c5e0f0519  allPublic   my-bucket
+
+        Requires capability: listBuckets
     """
 
     def run(self, args):
@@ -706,6 +752,8 @@ class ListFileVersions(Command):
         given point.  This is a low-level operation that reports the
         raw JSON returned from the service.  'b2 ls' provides a higher-
         level view.
+
+        Requires capability: listFiles
     """
 
     REQUIRED = ['bucketName']
@@ -727,6 +775,8 @@ class ListFileNames(Command):
 
         Lists the names of the files in a bucket, starting at the
         given point.
+
+        Requires capability: listFiles
     """
 
     REQUIRED = ['bucketName']
@@ -762,6 +812,8 @@ class ListKeys(Command):
         For keys restricted to buckets that do not exist any more, the bucket name is
         replaced with 'id=<bucketId>', because deleted buckets do not have names any
         more.
+
+        Requires capability: listKeys
     """
 
     OPTION_FLAGS = ['long']
@@ -838,6 +890,8 @@ class ListParts(Command):
         Lists all of the parts that have been uploaded for the given
         large file, which must be a file that was started but not
         finished or canceled.
+
+        Requires capability: writeFiles
     """
 
     REQUIRED = ['largeFileId']
@@ -854,6 +908,8 @@ class ListUnfinishedLargeFiles(Command):
 
         Lists all of the large files in the bucket that were started,
         but not finished or canceled.
+
+        Requires capability: listFiles
 
     """
 
@@ -893,6 +949,8 @@ class Ls(Command):
 
         The --recursive option will descend into folders, and will show
         only files, not folders.
+
+        Requires capability: listFiles
     """
 
     OPTION_FLAGS = ['long', 'versions', 'recursive']
@@ -1056,6 +1114,8 @@ class Sync(Command):
         and .Spotlight-V100 folders
             b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
+        Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
+
     """
 
     OPTION_FLAGS = [
@@ -1149,6 +1209,8 @@ class UpdateBucket(Command):
 
         Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
         These can be given as JSON on the command line.
+
+        Requires capability: writeBuckets
     """
 
     REQUIRED = ['bucketName', 'bucketType']
@@ -1199,6 +1261,8 @@ class UploadFile(Command):
         Use '--noProgress' to disable progress reporting.
 
         Each fileInfo is of the form "a=b".
+
+        Requires capability: writeFiles
     """
 
     OPTION_FLAGS = ['noProgress', 'quiet']
@@ -1358,6 +1422,13 @@ class ConsoleTool(object):
         The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
 
         For more details on one command: b2 help <command>
+        
+        When authorizing with application keys, this tool requires thath the key
+        have the 'listBuckets' capability so that it can take the bucket names 
+        you provide on the command line and translate them into bucket IDs for the 
+        B2 Storage service.  Each different command may required additional 
+        capabilities.  You can find the details for each command in the help for 
+        that command.
         '''
         self._print_stderr(textwrap.dedent(epilog).format(**DOC_STRING_DATA))
         return 1

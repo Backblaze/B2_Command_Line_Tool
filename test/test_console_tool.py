@@ -85,12 +85,33 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
 
         # Create a key
-        self._run_command(['create-key', 'key1', 'list-keys'], 'appKeyId0 appKey0\n', '', 0)
+        self._run_command(
+            ['create-key', 'key1', 'listBuckets,listKeys'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
-            '', 0
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            '',
+            0,
+        )
+
+    def test_authorize_key_without_list_buckets(self):
+        self._authorize_account()
+
+        # Create a key without listBuckets
+        self._run_command(['create-key', 'key1', 'listKeys'], 'appKeyId0 appKey0\n', '', 0)
+
+        # Authorize with the key
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            'ERROR: application key does not have listBuckets capability, which this b2 tool requires\n',
+            1,
         )
 
     def test_create_bucket_key_and_authorize_with_it(self):
@@ -120,6 +141,8 @@ class TestConsoleTool(TestBase):
             Lists all of the parts that have been uploaded for the given
             large file, which must be a file that was started but not
             finished or canceled.
+
+            Requires capability: writeFiles
 
         '''
 
