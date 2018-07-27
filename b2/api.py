@@ -16,7 +16,7 @@ from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
 from .download_dest import DownloadDestProgressWrapper
-from .exception import NonExistentBucket
+from .exception import NonExistentBucket, RestrictedBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
 from .progress import DoNothingProgressListener
@@ -205,6 +205,7 @@ class B2Api(object):
         the B2 service.
         """
         # If we can get it from the stored info, do that.
+        self.check_bucket_restrictions(bucket_name)
         id_ = self.cache.get_bucket_id_or_none_from_bucket_name(bucket_name)
         if id_ is not None:
             return Bucket(self, id_, name=bucket_name)
@@ -224,24 +225,28 @@ class B2Api(object):
         account_id = self.account_info.get_account_id()
         return self.session.delete_bucket(account_id, bucket.id_)
 
-    def list_buckets(self):
+    def list_buckets(self, bucket_name=None):
         """
         Calls b2_list_buckets and returns the JSON for *all* buckets.
         """
         account_id = self.account_info.get_account_id()
+        self.check_bucket_restrictions(bucket_name)
 
-        allowed = self.account_info.get_allowed()
-        allowed_bucket_id = allowed['bucketId']
+        # this is a temporary work around until we fix the API endpoint bug that doesn't check bucketName
+        bucket_id = self.account_info.get_allowed()['bucketId']
 
-        response = None
-        if allowed_bucket_id is None:
-            response = self.session.list_buckets(account_id)
-        else:
-            response = self.session.list_buckets(account_id, allowed_bucket_id)
-
+        response = self.session.list_buckets(account_id, bucket_id=bucket_id)
         buckets = BucketFactory.from_api_response(self, response)
 
-        self.cache.set_bucket_name_cache(buckets)
+        if bucket_name is not None:
+            # If a bucket_name is specified we don't clear the cache because the other buckets could still
+            # be valid. So we save the one bucket returned from the list_buckets call.
+            for bucket in buckets:
+                self.cache.save_bucket(bucket)
+        else:
+            # Otherwise we want to clear the cache and save the buckets returned from list_buckets
+            # since we just got a new list of all the buckets for this account.
+            self.cache.set_bucket_name_cache(buckets)
         return buckets
 
     def list_parts(self, file_id, start_part_number=None, batch_size=None):
@@ -282,6 +287,7 @@ class B2Api(object):
         """
         Returns a URL to download the given file by name.
         """
+        self.check_bucket_restrictions(bucket_name)
         return '%s/file/%s/%s' % (
             self.account_info.get_download_url(), bucket_name, b2_url_encode(file_name)
         )
@@ -322,3 +328,20 @@ class B2Api(object):
     def get_file_info(self, file_id):
         """ legacy interface which just returns whatever remote API returns """
         return self.session.get_file_info(file_id)
+
+    def check_bucket_restrictions(self, bucket_name):
+        """
+        Checks to see if the allowed field from authorize-account
+        has a bucket restriction.
+
+        If it does, does the bucket_name for a given api call match that.
+        If not it Raises a RestrictedBucket error.
+        :param bucket_name:
+        :return:
+        """
+        allowed = self.account_info.get_allowed()
+        allowed_bucket_name = allowed['bucketName']
+
+        if allowed_bucket_name is not None:
+            if allowed_bucket_name != bucket_name:
+                raise RestrictedBucket(allowed_bucket_name)

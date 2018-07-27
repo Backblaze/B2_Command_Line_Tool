@@ -31,7 +31,8 @@ This program tests the B2 command-line client.
 
 Usages:
 
-    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix | sync_long_path | download | account]
+    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix 
+                                               keys | sync_long_path | download | account]
 
         The optional last argument specifies which of the tests to run.  If not
         specified, all test will run.  Runs the b2 package in the current directory.
@@ -244,6 +245,8 @@ class CommandLine(object):
             print('ERROR: should have failed')
             sys.exit(1)
         if re.search(expected_pattern, stdout + stderr) is None:
+            print(expected_pattern)
+            print(stdout + stderr)
             error_and_exit('did not match pattern: ' + expected_pattern)
 
     def list_file_versions(self, bucket_name):
@@ -448,6 +451,55 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
+
+
+def key_restrictions_test(b2_tool, bucket_name):
+
+    second_bucket_name = 'test-b2-command-line-' + random_hex(8)
+    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
+
+    key_one_name = 'clt-testKey-01' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_one_name,
+            'listFiles,listBuckets,readFiles,writeKeys',
+        ]
+    )
+    key_one_id, key_one = created_key_stdout.split()
+
+    b2_tool.should_succeed(['authorize_account', key_one_id, key_one],)
+
+    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['get-bucket', second_bucket_name],)
+
+    key_two_name = 'clt-testKey-02' + random_hex(6)
+    created_key_two_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            '--bucket',
+            bucket_name,
+            key_two_name,
+            'listFiles,listBuckets,readFiles',
+        ]
+    )
+    key_two_id, key_two = created_key_two_stdout.split()
+
+    b2_tool.should_succeed(['authorize_account', key_two_id, key_two],)
+    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['list-file-names', bucket_name],)
+
+    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
+
+    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    b2_tool.should_fail(['list-file-names', second_bucket_name], failed_list_files_err)
+
+    # reauthorize with more capabilities for clean up
+    b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
+    b2_tool.should_succeed(['delete-bucket', second_bucket_name])
+    b2_tool.should_succeed(['delete-key', key_one_id])
+    b2_tool.should_succeed(['delete-key', key_two_id])
 
 
 def account_test(b2_tool, bucket_name):
@@ -701,6 +753,7 @@ def main():
     test_map = {
         'account': account_test,
         'basic': basic_test,
+        'keys': key_restrictions_test,
         'sync_down': sync_down_test,
         'sync_up': sync_up_test,
         'sync_up_no_prefix': sync_test_no_prefix,
