@@ -251,11 +251,20 @@ class AuthorizeAccount(Command):
 
         try:
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
-            return 0
         except B2Error as e:
             logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
+
+        allowed = self.api.account_info.get_allowed()
+        if 'listBuckets' not in allowed['capabilities']:
+            self._print_stderr(
+                'ERROR: application key does not have listBuckets capability, which this b2 tool requires'
+            )
+            self.api.account_info.clear()
+            return 1
+
+        return 0
 
 
 class CancelAllUnfinishedLargeFiles(Command):
