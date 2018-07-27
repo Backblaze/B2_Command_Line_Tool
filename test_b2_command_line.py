@@ -245,8 +245,6 @@ class CommandLine(object):
             print('ERROR: should have failed')
             sys.exit(1)
         if re.search(expected_pattern, stdout + stderr) is None:
-            print(expected_pattern)
-            print(stdout + stderr)
             error_and_exit('did not match pattern: ' + expected_pattern)
 
     def list_file_versions(self, bucket_name):
@@ -489,11 +487,9 @@ def key_restrictions_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['list-file-names', bucket_name],)
 
-    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
-
-    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['list-file-names', second_bucket_name], failed_list_files_err)
+    failed_restrictions_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    b2_tool.should_fail(['get-bucket', second_bucket_name], failed_restrictions_err)
+    b2_tool.should_fail(['list-file-names', second_bucket_name], failed_restrictions_err)
 
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
