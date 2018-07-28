@@ -275,7 +275,7 @@ class TestConsoleTool(TestBase):
 
         # make sure calling list_buckets with one bucket doesn't clear the cache
         cache_map_before = self.cache.name_id_map
-        self.b2_api.list_buckets('my-bucket-a ')
+        self.b2_api.list_buckets('my-bucket-a')
         cache_map_after = self.cache.name_id_map
         assert cache_map_before == cache_map_after
 

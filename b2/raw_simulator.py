@@ -602,7 +602,7 @@ class RawSimulator(AbstractRawApi):
         cors_rules=None,
         lifecycle_rules=None
     ):
-        if not re.match(r'^[-a-zA-Z]*$', bucket_name):
+        if not re.match(r'^[-a-zA-Z0-9]*$', bucket_name):
             raise BadJson('illegal bucket name: ' + bucket_name)
         self._assert_account_auth(api_url, account_auth_token, account_id, 'writeBuckets')
         if bucket_name in self.bucket_name_to_bucket:

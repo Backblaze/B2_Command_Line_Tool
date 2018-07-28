@@ -236,13 +236,34 @@ class B2Api(object):
 
     def list_buckets(self, bucket_name=None):
         """
-        Calls b2_list_buckets and returns the JSON for *all* buckets.
+        Calls b2_list_buckets and returns a list of buckets.
+
+        When no bucket name is specified, returns *all* of the buckets
+        in the account.  When a bucket name is given, returns just that
+        bucket.  When authorized with an application key restricted to
+        one bucket, you must specify the bucket name, or the request
+        will be unauthorized.
+
+        :param bucket_name: Optional: the name of the one bucket to return.
+        :return: A list of Bucket objects.
         """
         account_id = self.account_info.get_account_id()
         self.check_bucket_restrictions(bucket_name)
 
-        # this is a temporary work around until we fix the API endpoint bug that doesn't check bucketName
-        bucket_id = self.account_info.get_allowed()['bucketId']
+        # TEMPORARY work around until we fix the API endpoint bug that things requests
+        # with a bucket name are not authorized.  When it's fixed, well just pass the
+        # bucket name (or None) to the raw API.
+        if bucket_name is None:
+            bucket_id = None
+        else:
+            allowed = self.account_info.get_allowed()
+            if allowed['bucketId'] is not None:
+                # We just checked that if there is a bucket restriction we have a bucket name
+                # and it matches.  So if there's a restriction we know that's the bucket we're
+                # looking for.
+                bucket_id = allowed['bucketId']
+            else:
+                bucket_id = self.get_bucket_by_name(bucket_name).id_
 
         response = self.session.list_buckets(account_id, bucket_id=bucket_id)
         buckets = BucketFactory.from_api_response(self, response)
