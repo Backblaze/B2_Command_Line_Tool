@@ -344,9 +344,7 @@ class B2Api(object):
         has a bucket restriction.
 
         If it does, does the bucket_name for a given api call match that.
-        If not it Raises a RestrictedBucket error.
-        :param bucket_name:
-        :return:
+        If not it raises a RestrictedBucket error.
         """
         allowed = self.account_info.get_allowed()
         allowed_bucket_name = allowed['bucketName']

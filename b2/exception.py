@@ -281,11 +281,12 @@ class InvalidAuthToken(Unauthorized):
 
 
 class RestrictedBucket(B2Error):
-    def __init__(self, allowed_bucket):
-        self.bucket = allowed_bucket
+    def __init__(self, bucket_name):
+        super(RestrictedBucket, self).__init__()
+        self.bucket_name = bucket_name
 
     def __str__(self):
-        return 'Application key is restricted to bucket: %s' % self.bucket
+        return 'Application key is restricted to bucket: %s' % self.bucket_name
 
 
 class MaxFileSizeExceeded(B2Error):
