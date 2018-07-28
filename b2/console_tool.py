@@ -1433,7 +1433,7 @@ class ConsoleTool(object):
 
         For more details on one command: b2 help <command>
         
-        When authorizing with application keys, this tool requires thath the key
+        When authorizing with application keys, this tool requires that the key
         have the 'listBuckets' capability so that it can take the bucket names 
         you provide on the command line and translate them into bucket IDs for the 
         B2 Storage service.  Each different command may required additional 
