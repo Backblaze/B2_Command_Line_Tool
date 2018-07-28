@@ -254,7 +254,7 @@ class AuthorizeAccount(Command):
 
             allowed = self.api.account_info.get_allowed()
             if 'listBuckets' not in allowed['capabilities']:
-                logger.exception(
+                logger.error(
                     'ConsoleTool cannot work with a bucket-restricted key and no listBuckets capability'
                 )
                 self._print_stderr(
@@ -263,9 +263,7 @@ class AuthorizeAccount(Command):
                 self.api.account_info.clear()
                 return 1
             if allowed['bucketId'] is not None and allowed['bucketName'] is None:
-                logger.exception(
-                    'ConsoleTool has bucket-restricted key and the bucket does not exist'
-                )
+                logger.error('ConsoleTool has bucket-restricted key and the bucket does not exist')
                 self._print_stderr(
                     "ERROR: application key is restricted to bucket id '%s', which no longer exists"
                     % (allowed['bucketId'],)
