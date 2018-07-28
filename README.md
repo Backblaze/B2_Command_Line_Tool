@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.3.1
+Version 1.3.2
 
 # Installation
 
@@ -64,6 +64,13 @@ The default file to use is: ~/.b2_account_info
 
 For more details on one command: b2 help <command>
 
+When authorizing with application keys, this tool requires that the key
+have the 'listBuckets' capability so that it can take the bucket names 
+you provide on the command line and translate them into bucket IDs for the 
+B2 Storage service.  Each different command may required additional 
+capabilities.  You can find the details for each command in the help for 
+that command.
+
 ## Parallelism and the --threads parameter
 
 Users with high performance networks, or file sets with very small files, may benefit from
@@ -88,6 +95,14 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.3.2 (July 28, 2018)
+
+Bug fixes:
+
+* Tests fixed for Python 3.7
+* Add documentation about what capabilites are required for different commands.
+* Better error messages for authorization problems with application keys.
 
 ## 1.3.0 (July 20, 2018)
 
