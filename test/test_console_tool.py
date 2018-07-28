@@ -110,7 +110,7 @@ class TestConsoleTool(TestBase):
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
             'Using http://production.example.com\n',
-            'ERROR: application key does not have listBuckets capability, which this b2 tool requires\n',
+            'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
         )
 
@@ -129,8 +129,10 @@ class TestConsoleTool(TestBase):
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
-            '', 0
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            '',
+            0,
         )
 
     def test_help_with_bad_args(self):
@@ -214,6 +216,7 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['create_bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
         self._run_command(['create_bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+        self._run_command(['create_bucket', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
 
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
@@ -270,7 +273,7 @@ class TestConsoleTool(TestBase):
         self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
 
         # Delete one bucket, to test listing when a bucket is gone.
-        self._run_command_no_checks(['delete-bucket', 'my-bucket-b'])
+        self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
 
         # List keys
         expected_list_keys_out = """
@@ -287,6 +290,69 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
         self._run_command(['list_keys', '--long'], expected_list_keys_out_long, '', 0)
+
+        # make sure calling list_buckets with one bucket doesn't clear the cache
+        cache_map_before = self.cache.name_id_map
+        self.b2_api.list_buckets('my-bucket-a')
+        cache_map_after = self.cache.name_id_map
+        assert cache_map_before == cache_map_after
+
+        # authorize and make calls using application key with no restrictions
+        self._run_command(
+            ['authorize_account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            '', 0
+        )
+        self._run_command(
+            ['list-buckets'],
+            'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n', '', 0
+        )
+
+        get_bucket_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket-a",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+        self._run_command(['get-bucket', 'my-bucket-a'], get_bucket_stdout, '', 0)
+
+        # authorize and make calls using an application key with bucket restrictions
+        self._run_command(
+            ['authorize_account', 'appKeyId1', 'appKey1'], 'Using http://production.example.com\n',
+            '', 0
+        )
+
+        self._run_command(
+            ['list-buckets'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+        )
+        self._run_command(
+            ['get-bucket', 'my-bucket-c'], '',
+            'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+        )
+
+        expected_get_bucket_stdout = '''
+        {
+            "accountId": "my-account",
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket-a",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "lifecycleRules": [],
+            "revision": 1
+        }
+        '''
+
+        self._run_command(['get-bucket', 'my-bucket-a'], expected_get_bucket_stdout, '', 0)
+        self._run_command(
+            ['list-file-names', 'my-bucket-c'], '',
+            'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+        )
 
     def test_bucket_info_from_json(self):
 
@@ -1046,7 +1112,7 @@ class TestConsoleTool(TestBase):
 
         # Authorize an account with the master key.
         account_id = 'my-account'
-        self._run_command_no_checks(['authorize-account', account_id, 'good-app-key'])
+        self._run_command_ignore_output(['authorize-account', account_id, 'good-app-key'])
 
         # Create a bucket to use
         bucket_name = 'restrictedBucket'
@@ -1055,7 +1121,7 @@ class TestConsoleTool(TestBase):
 
         # Create another bucket
         other_bucket_name = 'otherBucket'
-        self._run_command_no_checks(['create-bucket', other_bucket_name, 'allPrivate'])
+        self._run_command_ignore_output(['create-bucket', other_bucket_name, 'allPrivate'])
 
         # Create a key restricted to a bucket
         app_key_id = 'appKeyId0'
@@ -1072,7 +1138,7 @@ class TestConsoleTool(TestBase):
             0,
         )
 
-        self._run_command_no_checks(['authorize-account', app_key_id, app_key])
+        self._run_command_ignore_output(['authorize-account', app_key_id, app_key])
 
         # Auth token should be in account info now
         self.assertEqual('auth_token_1', self.account_info.get_account_auth_token())
@@ -1093,7 +1159,7 @@ class TestConsoleTool(TestBase):
 
         # Test that the application key info gets added to the unauthorized error message.
         expected_create_key_stderr = "ERROR: unauthorized for application key " \
-                                     "with capabilites 'listBuckets,readFiles', " \
+                                     "with capabilities 'listBuckets,readFiles', " \
                                      "restricted to bucket 'restrictedBucket', " \
                                      "restricted to files that start with 'some/file/prefix/' (unauthorized)\n"
         self._run_command(
@@ -1103,12 +1169,92 @@ class TestConsoleTool(TestBase):
             1,
         )
 
+    def test_list_buckets_not_allowed_for_app_key(self):
+        # Create a bucket and a key restricted to that bucket.
+        self._authorize_account()
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'],
+            'bucket_0\n',
+            '',
+            0,
+        )
+
+        # Authorizing with the key will fail because the ConsoleTool needs
+        # to be able to look up the name of the bucket.
+        self._run_command(
+            ['create-key', 'my-key', 'listFiles'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # Authorize with the key, which should result in an error.
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
+            1,
+        )
+
+    def test_bucket_missing_for_bucket_key(self):
+        # Create a bucket and a key restricted to that bucket.
+        self._authorize_account()
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'],
+            'bucket_0\n',
+            '',
+            0,
+        )
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # Get rid of the bucket, leaving the key with a dangling pointer to it.
+        self._run_command_ignore_output(['delete-bucket', 'my-bucket'])
+
+        # Authorizing with the key will fail because the ConsoleTool needs
+        # to be able to look up the name of the bucket.
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            "ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n",
+            1,
+        )
+
+    def test_ls_for_restricted_bucket(self):
+        # Create a bucket and a key restricted to that bucket.
+        self._authorize_account()
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'],
+            'bucket_0\n',
+            '',
+            0,
+        )
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # Authorize with the key and list the files
+        self._run_command_ignore_output(['authorize-account', 'appKeyId0', 'appKey0'],)
+        self._run_command(
+            ['ls', 'my-bucket'],
+            '',
+            '',
+            0,
+        )
+
     def _authorize_account(self):
         """
         Prepare for a test by authorizing an account and getting an
         account auth token
         """
-        self._run_command_no_checks(['authorize_account', 'my-account', 'good-app-key'])
+        self._run_command_ignore_output(['authorize_account', 'my-account', 'good-app-key'])
 
     def _create_my_bucket(self):
         self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
@@ -1164,9 +1310,21 @@ class TestConsoleTool(TestBase):
         stderr = MyStringIO()
         return stdout, stderr
 
-    def _run_command_no_checks(self, argv):
+    def _run_command_ignore_output(self, argv):
+        """
+        Runs the given command in the console tool, checking that it
+        success, but ignoring the stdout.
+        """
         stdout, stderr = self._get_stdouterr()
-        ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
+        actual_status = ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
+        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
+
+        if '' != actual_stderr:
+            print('ACTUAL STDERR:  ', repr(actual_stderr))
+            print(actual_stderr)
+
+        self.assertEqual('', actual_stderr, 'stderr')
+        self.assertEqual(0, actual_status, 'exit status code')
 
     def _trim_leading_spaces(self, s):
         """

@@ -65,7 +65,7 @@ class B2Session(object):
         # Make a list of messages about the application key restrictions
         key_messages = []
         if set(capabilities) != set(ALL_CAPABILITIES):
-            key_messages.append("with capabilites '" + ','.join(capabilities) + "'")
+            key_messages.append("with capabilities '" + ','.join(capabilities) + "'")
         if bucket_name is not None:
             key_messages.append("restricted to bucket '" + bucket_name + "'")
         if name_prefix is not None:

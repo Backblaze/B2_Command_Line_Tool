@@ -251,20 +251,30 @@ class AuthorizeAccount(Command):
 
         try:
             self.api.authorize_account(realm, args.accountId, args.applicationKey)
+
+            allowed = self.api.account_info.get_allowed()
+            if 'listBuckets' not in allowed['capabilities']:
+                logger.error(
+                    'ConsoleTool cannot work with a bucket-restricted key and no listBuckets capability'
+                )
+                self._print_stderr(
+                    'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool'
+                )
+                self.api.account_info.clear()
+                return 1
+            if allowed['bucketId'] is not None and allowed['bucketName'] is None:
+                logger.error('ConsoleTool has bucket-restricted key and the bucket does not exist')
+                self._print_stderr(
+                    "ERROR: application key is restricted to bucket id '%s', which no longer exists"
+                    % (allowed['bucketId'],)
+                )
+                self.api.account_info.clear()
+                return 1
+            return 0
         except B2Error as e:
             logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
-
-        allowed = self.api.account_info.get_allowed()
-        if 'listBuckets' not in allowed['capabilities']:
-            self._print_stderr(
-                'ERROR: application key does not have listBuckets capability, which this b2 tool requires'
-            )
-            self.api.account_info.clear()
-            return 1
-
-        return 0
 
 
 class CancelAllUnfinishedLargeFiles(Command):
@@ -569,30 +579,28 @@ class GetBucket(Command):
     def run(self, args):
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
-        for b in self.api.list_buckets():
-            if b.name == args.bucketName:
-                if not args.showSize:
-                    self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
-                    return 0
-                else:
-                    # `files` is a generator. We don't want to collect all of the values from the
-                    # generator, as there many be billions of files in a large bucket.
-                    files = b.ls("", show_versions=True, recursive=True)
-                    # `files` yields tuples of (file_version_info, folder_name). We don't care about
-                    # `folder_name`, so just access the first slot of the tuple directly in the
-                    # reducer. We can't ask a generator for its size, as the elements are yielded
-                    # lazily, so we need to accumulate the count as we go. By using a tuple of
-                    # (file count, total size), we can obtain the desired information very compactly
-                    # and efficiently.
-                    count_size_tuple = functools.reduce(
-                        (lambda partial, f: (partial[0] + 1, partial[1] + f[0].size)), files,
-                        (0, 0)
-                    )
-                    result = copy.copy(b.bucket_dict)
-                    result['fileCount'] = count_size_tuple[0]
-                    result['totalSize'] = count_size_tuple[1]
-                    self._print(json.dumps(result, indent=4, sort_keys=True))
-                    return 0
+        for b in self.api.list_buckets(args.bucketName):
+            if not args.showSize:
+                self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
+                return 0
+            else:
+                # `files` is a generator. We don't want to collect all of the values from the
+                # generator, as there many be billions of files in a large bucket.
+                files = b.ls("", show_versions=True, recursive=True)
+                # `files` yields tuples of (file_version_info, folder_name). We don't care about
+                # `folder_name`, so just access the first slot of the tuple directly in the
+                # reducer. We can't ask a generator for its size, as the elements are yielded
+                # lazily, so we need to accumulate the count as we go. By using a tuple of
+                # (file count, total size), we can obtain the desired information very compactly
+                # and efficiently.
+                count_size_tuple = functools.reduce(
+                    (lambda partial, f: (partial[0] + 1, partial[1] + f[0].size)), files, (0, 0)
+                )
+                result = copy.copy(b.bucket_dict)
+                result['fileCount'] = count_size_tuple[0]
+                result['totalSize'] = count_size_tuple[1]
+                self._print(json.dumps(result, indent=4, sort_keys=True))
+                return 0
         self._print_stderr('bucket not found: ' + args.bucketName)
         return 1
 
@@ -1423,7 +1431,7 @@ class ConsoleTool(object):
 
         For more details on one command: b2 help <command>
         
-        When authorizing with application keys, this tool requires thath the key
+        When authorizing with application keys, this tool requires that the key
         have the 'listBuckets' capability so that it can take the bucket names 
         you provide on the command line and translate them into bucket IDs for the 
         B2 Storage service.  Each different command may required additional 

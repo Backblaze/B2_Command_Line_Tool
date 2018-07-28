@@ -602,7 +602,7 @@ class RawSimulator(AbstractRawApi):
         cors_rules=None,
         lifecycle_rules=None
     ):
-        if not re.match(r'^[-a-zA-Z]*$', bucket_name):
+        if not re.match(r'^[-a-zA-Z0-9]*$', bucket_name):
             raise BadJson('illegal bucket name: ' + bucket_name)
         self._assert_account_auth(api_url, account_auth_token, account_id, 'writeBuckets')
         if bucket_name in self.bucket_name_to_bucket:
@@ -764,7 +764,13 @@ class RawSimulator(AbstractRawApi):
         self, api_url, account_auth, bucket_id, start_file_name=None, max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
+        self._assert_account_auth(
+            api_url,
+            account_auth,
+            bucket.account_id,
+            'listFiles',
+            bucket_id=bucket_id,
+        )
         return bucket.list_file_names(start_file_name, max_file_count)
 
     def list_file_versions(
@@ -777,7 +783,13 @@ class RawSimulator(AbstractRawApi):
         max_file_count=None
     ):
         bucket = self._get_bucket_by_id(bucket_id)
-        self._assert_account_auth(api_url, account_auth, bucket.account_id, 'listFiles')
+        self._assert_account_auth(
+            api_url,
+            account_auth,
+            bucket.account_id,
+            'listFiles',
+            bucket_id=bucket_id,
+        )
         return bucket.list_file_versions(start_file_name, start_file_id, max_file_count)
 
     def list_keys(
