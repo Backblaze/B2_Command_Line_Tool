@@ -86,7 +86,7 @@ class TestConsoleTool(TestBase):
 
         # Create a key
         self._run_command(
-            ['create-key', 'key1', 'listKeys,listBuckets'],
+            ['create-key', 'key1', 'listBuckets,listKeys'],
             'appKeyId0 appKey0\n',
             '',
             0,
@@ -98,6 +98,20 @@ class TestConsoleTool(TestBase):
             'Using http://production.example.com\n',
             '',
             0,
+        )
+
+    def test_authorize_key_without_list_buckets(self):
+        self._authorize_account()
+
+        # Create a key without listBuckets
+        self._run_command(['create-key', 'key1', 'listKeys'], 'appKeyId0 appKey0\n', '', 0)
+
+        # Authorize with the key
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
+            1,
         )
 
     def test_create_bucket_key_and_authorize_with_it(self):
@@ -115,8 +129,10 @@ class TestConsoleTool(TestBase):
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
-            '', 0
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            '',
+            0,
         )
 
     def test_help_with_bad_args(self):
@@ -127,6 +143,8 @@ class TestConsoleTool(TestBase):
             Lists all of the parts that have been uploaded for the given
             large file, which must be a file that was started but not
             finished or canceled.
+
+            Requires capability: writeFiles
 
         '''
 
@@ -1202,7 +1220,7 @@ class TestConsoleTool(TestBase):
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
             'Using http://production.example.com\n',
-            'ERROR: application key is restricted to a bucket that no longer exists\n',
+            "ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n",
             1,
         )
 
