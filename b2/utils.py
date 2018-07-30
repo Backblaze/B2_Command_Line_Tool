@@ -22,8 +22,6 @@ from logfury.v0_1 import DefaultTraceAbstractMeta, DefaultTraceMeta, limit_trace
 
 import six
 
-from six.moves import urllib
-
 try:
     import concurrent.futures as futures
 except ImportError:
@@ -67,7 +65,7 @@ def interruptible_get_result(future):
 def b2_url_encode(s):
     """URL-encodes a unicode string to be sent to B2 in an HTTP header.
     """
-    return urllib.parse.quote(s.encode('utf-8'))
+    return six.moves.urllib.parse.quote(s.encode('utf-8'))
 
 
 def b2_url_decode(s):
@@ -75,10 +73,12 @@ def b2_url_decode(s):
 
     Returns a Python unicode string.
     """
-    # Use str() to make sure that the input to unquote is a str, not
-    # unicode, which ensures that the result is a str, which allows
-    # the decoding to work properly.
-    return urllib.parse.unquote_plus(str(s)).decode('utf-8')
+    result = six.moves.urllib.parse.unquote_plus(s)
+    if six.PY2:
+        # The behavior of unquote_plus is different in python 2 and 3.
+        # In Python 3, it decodes the UTF-8, while in Python 2 it does not.
+        result = result.decode('utf-8')
+    return result
 
 
 def choose_part_ranges(content_length, minimum_part_size):
