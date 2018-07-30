@@ -73,12 +73,12 @@ def b2_url_decode(s):
 
     Returns a Python unicode string.
     """
-    # The behavior of unquote_plus is different in python 2 and 3.
-    # In Python 3, it decodes the UTF-8, while in Python 2 it does not.
+    result = six.moves.urllib.parse.unquote_plus(s)
     if six.PY2:
-        return six.moves.urllib.parse.unquote_plus(s).decode('utf-8')
-    else:
-        return six.moves.urllib.parse.unquote_plus(s)
+        # The behavior of unquote_plus is different in python 2 and 3.
+        # In Python 3, it decodes the UTF-8, while in Python 2 it does not.
+        result = result.decode('utf-8')
+    return result
 
 
 def choose_part_ranges(content_length, minimum_part_size):
