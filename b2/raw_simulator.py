@@ -27,7 +27,7 @@ from .exception import (
     Unauthorized,
 )
 from .raw_api import AbstractRawApi, HEX_DIGITS_AT_END
-from .utils import b2_url_encode
+from .utils import b2_url_decode, b2_url_encode
 
 ALL_CAPABILITES = [
     'listKeys',
@@ -522,6 +522,14 @@ class RawSimulator(AbstractRawApi):
     MAX_DURATION_IN_SECONDS = 86400000
 
     UPLOAD_PART_MATCHER = re.compile('https://upload.example.com/part/([^/]*)')
+    DOWNLOAD_URL_MATCHER = re.compile(
+        DOWNLOAD_URL + '(?:' + '|'.join(
+            (
+                '/b2api/v1/b2_download_file_by_id\?fileId=(?P<file_id>[^/]+)',
+                '/file/(?P<bucket_name>[^/]+)/(?P<file_name>.+)',
+            )
+        ) + ')$'
+    )  # yapf: disable
 
     def __init__(self):
         # Map from account_id or application_key_id to KeySimulator.
@@ -670,27 +678,28 @@ class RawSimulator(AbstractRawApi):
         del self.bucket_id_to_bucket[bucket_id]
         return bucket.bucket_dict()
 
-    def download_file_by_id(
-        self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
+    def download_file_from_url(
+        self, _, account_auth_token_or_none, url, download_dest, range_=None
     ):
         # TODO: check auth token if bucket is not public
-        bucket_id = self.file_id_to_bucket_id[file_id]
-        bucket = self._get_bucket_by_id(bucket_id)
-        bucket.download_file_by_id(file_id, download_dest, range_=range_)
-
-    def download_file_by_name(
-        self,
-        download_url,
-        account_auth_token_or_none,
-        bucket_name,
-        file_name,
-        download_dest,
-        range_=None
-    ):
-        assert download_url == self.DOWNLOAD_URL
-        # TODO: check auth token if bucket is not public
-        bucket = self._get_bucket_by_name(bucket_name)
-        bucket.download_file_by_name(file_name, download_dest)
+        matcher = self.DOWNLOAD_URL_MATCHER.match(url)
+        assert matcher is not None, url
+        groupdict = matcher.groupdict()
+        file_id = groupdict['file_id']
+        bucket_name = groupdict['bucket_name']
+        file_name = groupdict['file_name']
+        if file_id is not None:
+            bucket_id = self.file_id_to_bucket_id[file_id]
+            bucket = self._get_bucket_by_id(bucket_id)
+            bucket.download_file_by_id(file_id, download_dest, range_=range_)
+        elif bucket_name is not None and file_name is not None:
+            bucket = self._get_bucket_by_name(bucket_name)
+            bucket.download_file_by_name(
+                b2_url_decode(file_name),
+                download_dest,
+            )
+        else:
+            assert False
 
     def delete_key(self, api_url, account_auth_token, application_key_id):
         assert api_url == self.API_URL

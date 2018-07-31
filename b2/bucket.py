@@ -12,7 +12,6 @@ import logging
 import six
 import threading
 
-from .download_dest import DownloadDestProgressWrapper
 from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
@@ -154,18 +153,19 @@ class Bucket(object):
         return self.api.cancel_large_file(file_id)
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
-        self.api.download_file_by_id(file_id, download_dest, progress_listener, range_=range_)
+        return self.api.download_file_by_id(
+            file_id, download_dest, progress_listener, range_=range_
+        )
 
     def download_file_by_name(self, file_name, download_dest, progress_listener=None, range_=None):
-        progress_listener = progress_listener or DoNothingProgressListener()
-        self.api.session.download_file_by_name(
+        url = self.api.session.get_download_url_by_name(
             self.name,
             file_name,
-            DownloadDestProgressWrapper(download_dest, progress_listener),
             url_factory=self.api.account_info.get_download_url,
-            range_=range_,
         )
-        progress_listener.close()
+        return self.api.transferer.download_file_from_url(
+            url, download_dest, progress_listener, range_
+        )
 
     def get_download_authorization(self, file_name_prefix, valid_duration_in_seconds):
         response = self.api.session.get_download_authorization(

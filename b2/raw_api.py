@@ -237,38 +237,17 @@ class B2RawApi(AbstractRawApi):
             applicationKeyId=application_key_id,
         )
 
-    def download_file_by_id(
-        self, download_url, account_auth_token_or_none, file_id, download_dest, range_=None
+    def download_file_from_url(
+        self, _, account_auth_token_or_none, url, download_dest, range_=None
     ):
-        url = self.get_download_url_by_id(download_url, account_auth_token_or_none, file_id)
-        return self._download_file_from_url(
-            url, account_auth_token_or_none, download_dest, range_=range_
-        )
-
-    def download_file_by_name(
-        self,
-        download_url,
-        account_auth_token_or_none,
-        bucket_name,
-        file_name,
-        download_dest,
-        range_=None
-    ):
-        url = self.get_download_url_by_name(
-            download_url, account_auth_token_or_none, bucket_name, file_name
-        )
-        return self._download_file_from_url(
-            url, account_auth_token_or_none, download_dest, range_=range_
-        )
-
-    def _download_file_from_url(self, url, account_auth_token_or_none, download_dest, range_=None):
         """
         Downloads a file from given url and stores it in the given download_destination.
 
         Returns a dict containing all of the file info from the headers in the reply.
 
-        :param url: The full URL to download from
+        :param _: unused (caused by B2Session magic)
         :param account_auth_token_or_none: an optional account auth token to pass in
+        :param url: The full URL to download from
         :param download_dest: where to put the file when it is downloaded
         :param progress_listener: where to notify about progress downloading
         :return:
@@ -715,27 +694,29 @@ def test_raw_api_helper(raw_api):
     # b2_download_file_by_id with auth
     print('b2_download_file_by_id (auth)')
     download_dest = DownloadDestBytes()
-    raw_api.download_file_by_id(download_url, account_auth_token, file_id, download_dest)
+    url = raw_api.get_download_url_by_id(download_url, None, file_id)
+    raw_api.download_file_from_url(None, account_auth_token, url, download_dest)
     assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_id no auth
     print('b2_download_file_by_id (no auth)')
     download_dest = DownloadDestBytes()
-    raw_api.download_file_by_id(download_url, None, file_id, download_dest)
+    url = raw_api.get_download_url_by_id(download_url, None, file_id)
+    raw_api.download_file_from_url(None, None, url, download_dest)
     assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_name with auth
     print('b2_download_file_by_name (auth)')
     download_dest = DownloadDestBytes()
-    raw_api.download_file_by_name(
-        download_url, account_auth_token, bucket_name, file_name, download_dest
-    )
+    url = raw_api.get_download_url_by_name(download_url, None, bucket_name, file_name)
+    raw_api.download_file_from_url(None, account_auth_token, url, download_dest)
     assert file_contents == download_dest.get_bytes_written()
 
     # b2_download_file_by_name no auth
     print('b2_download_file_by_name (no auth)')
     download_dest = DownloadDestBytes()
-    raw_api.download_file_by_name(download_url, None, bucket_name, file_name, download_dest)
+    url = raw_api.get_download_url_by_name(download_url, None, bucket_name, file_name)
+    raw_api.download_file_from_url(None, None, url, download_dest)
     assert file_contents == download_dest.get_bytes_written()
 
     # b2_get_download_authorization
@@ -748,9 +729,8 @@ def test_raw_api_helper(raw_api):
     # b2_download_file_by_name with download auth
     print('b2_download_file_by_name (download auth)')
     download_dest = DownloadDestBytes()
-    raw_api.download_file_by_name(
-        download_url, download_auth_token, bucket_name, file_name, download_dest
-    )
+    url = raw_api.get_download_url_by_name(download_url, None, bucket_name, file_name)
+    raw_api.download_file_from_url(None, download_auth_token, url, download_dest)
     assert file_contents == download_dest.get_bytes_written()
 
     # b2_list_file_names
