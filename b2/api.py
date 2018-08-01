@@ -15,11 +15,10 @@ from .account_info.exception import MissingAccountData
 from .b2http import B2Http
 from .bucket import Bucket, BucketFactory
 from .cache import AuthInfoCache, DummyCache
-from .download_dest import DownloadDestProgressWrapper
+from .transferer import Transferer
 from .exception import NonExistentBucket, RestrictedBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
-from .progress import DoNothingProgressListener
 from .raw_api import B2RawApi
 from .session import B2Session
 from .utils import B2TraceMeta, b2_url_encode, limit_trace_arguments
@@ -73,6 +72,7 @@ class B2Api(object):
             if cache is None:
                 cache = AuthInfoCache(account_info)
         self.session = B2Session(self, self.raw_api)
+        self.transferer = Transferer(self.session, account_info)
         self.account_info = account_info
         if cache is None:
             cache = DummyCache()
@@ -194,14 +194,11 @@ class B2Api(object):
         return bucket
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
-        progress_listener = progress_listener or DoNothingProgressListener()
-        self.session.download_file_by_id(
+        url = self.session.get_download_url_by_id(
             file_id,
-            DownloadDestProgressWrapper(download_dest, progress_listener),
             url_factory=self.account_info.get_download_url,
-            range_=range_,
         )
-        progress_listener.close()
+        return self.transferer.download_file_from_url(url, download_dest, progress_listener, range_)
 
     def get_bucket_by_id(self, bucket_id):
         return Bucket(self, bucket_id)
