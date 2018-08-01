@@ -153,6 +153,7 @@ class Bucket(object):
         return self.api.cancel_large_file(file_id)
 
     def download_file_by_id(self, file_id, download_dest, progress_listener=None, range_=None):
+        # download_file_by_id actually belongs in B2Api, not in Bucket, we just provide a convenient redirect here
         return self.api.download_file_by_id(
             file_id, download_dest, progress_listener, range_=range_
         )

@@ -2,7 +2,7 @@
 #
 # File: b2/transferer.py
 #
-# Copyright 2016 Backblaze Inc. All Rights Reserved.
+# Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -13,6 +13,8 @@ from .progress import DoNothingProgressListener
 
 
 class Transferer(object):
+    """ Manage downloads and uploads """
+
     def __init__(self, session, account_info):
         self.session = session
         self.account_info = account_info
