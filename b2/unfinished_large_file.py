@@ -2,7 +2,7 @@
 #
 # File: b2/unfinished_large_file.py
 #
-# Copyright 2016 Backblaze Inc. All Rights Reserved.
+# Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #

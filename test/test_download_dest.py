@@ -1,10 +1,12 @@
+######################################################################
 #
-# File: test_download_dest
+# File: test/test_download_dest.py
 #
-# Copyright 2017, Backblaze Inc.  All Rights Reserved.
+# Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
+######################################################################
 
 import os
 

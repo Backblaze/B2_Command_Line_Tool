@@ -270,7 +270,7 @@ script:
         if [ "$MODE" == 'SCA' ]; then
             missing="$(
                 (
-                    grep -l 'All Rights Reserved' $(git ls-files | grep .py)
+                    grep -l "Copyright $(date +%Y).*\\. All Rights Reserved." $(git ls-files | grep .py)
                     git ls-files | grep .py
                 ) | sort | uniq -c | sort -n | awk '$1 == 1 && $2 !~ ".*/__init__.py"'
             )"
