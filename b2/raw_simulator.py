@@ -14,6 +14,7 @@ import time
 import six
 from six.moves import range
 
+from .b2http import ResponseContextManager
 from .exception import (
     BadJson,
     BadUploadUrl,
@@ -147,8 +148,6 @@ class FileSimulator(object):
         self.data_bytes = data_bytes
         self.upload_timestamp = upload_timestamp
         self.range_ = range_
-        if range_ is not None:
-            self.data_bytes = data_bytes[range_[0]:range_[1]]
 
         if action == 'start':
             self.parts = []
@@ -159,6 +158,20 @@ class FileSimulator(object):
         bucket in the order that b2_list_file_versions returns them.
         """
         return (self.name, self.file_id)
+
+    def as_download_headers(self):
+        # range has to be added by the caller!
+        headers = {
+            'content-length': len(self.data_bytes) if self.data_bytes is not None else 0,
+            'content-type': self.content_type,
+            'x-bz-content-sha1': self.content_sha1,
+            'x-bz-upload-timestamp': self.upload_timestamp,
+            'x-bz-file-id': self.file_id,
+            'x-bz-file-name': self.name,
+        }  # yapf: disable
+        for key, value in six.iteritems(self.file_info):
+            headers['x-bz-info-' + key] = value
+        return headers
 
     def as_upload_result(self):
         return dict(
@@ -242,11 +255,6 @@ class FileSimulator(object):
             parts = parts[:max_part_count]
         return dict(parts=parts, nextPartNumber=next_part_number)
 
-    def mod_time_millis(self):
-        if 'src_last_modified_millis' in self.file_info:
-            return int(self.file_info['src_last_modified_millis'])
-        return 0
-
 
 class BucketSimulator(object):
 
@@ -314,11 +322,11 @@ class BucketSimulator(object):
         del self.file_id_to_file[file_id]
         return dict(fileId=file_id, fileName=file_name, uploadTimestamp=file_sim.upload_timestamp)
 
-    def download_file_by_id(self, file_id, download_dest, range_=None):
+    def download_file_by_id(self, file_id, range_=None):
         file_sim = self.file_id_to_file[file_id]
-        self._download_file_sim(download_dest, file_sim, range_=range_)
+        return self._download_file_sim(file_sim, range_=range_)
 
-    def download_file_by_name(self, file_name, download_dest, range_=None):
+    def download_file_by_name(self, file_name, range_=None):
         files = self.list_file_names(file_name, 1)['files']
         if len(files) == 0:
             raise FileNotPresent(file_name)
@@ -326,17 +334,10 @@ class BucketSimulator(object):
         if file_dict['fileName'] != file_name or file_dict['action'] != 'upload':
             raise FileNotPresent(file_name)
         file_sim = self.file_name_and_id_to_file[(file_name, file_dict['fileId'])]
-        self._download_file_sim(download_dest, file_sim, range_=range_)
+        return self._download_file_sim(file_sim, range_=range_)
 
-    def _download_file_sim(self, download_dest, file_sim, range_=None):
-        with download_dest.make_file_context(
-            file_sim.file_id, file_sim.name, file_sim.content_length, file_sim.content_type,
-            file_sim.content_sha1, file_sim.file_info, file_sim.mod_time_millis(), range_
-        ) as f:
-            if range_ is None:
-                f.write(file_sim.data_bytes)
-            else:
-                f.write(file_sim.data_bytes[range_[0]:range_[1]])
+    def _download_file_sim(self, file_sim, range_=None):
+        return ResponseContextManager(FakeResponse(file_sim, range_))
 
     def finish_large_file(self, file_id, part_sha1_array):
         file_sim = self.file_id_to_file[file_id]
@@ -678,9 +679,7 @@ class RawSimulator(AbstractRawApi):
         del self.bucket_id_to_bucket[bucket_id]
         return bucket.bucket_dict()
 
-    def download_file_from_url(
-        self, _, account_auth_token_or_none, url, download_dest, range_=None
-    ):
+    def download_file_from_url(self, _, account_auth_token_or_none, url, range_=None):
         # TODO: check auth token if bucket is not public
         matcher = self.DOWNLOAD_URL_MATCHER.match(url)
         assert matcher is not None, url
@@ -691,13 +690,10 @@ class RawSimulator(AbstractRawApi):
         if file_id is not None:
             bucket_id = self.file_id_to_bucket_id[file_id]
             bucket = self._get_bucket_by_id(bucket_id)
-            bucket.download_file_by_id(file_id, download_dest, range_=range_)
+            return bucket.download_file_by_id(file_id, range_=range_)
         elif bucket_name is not None and file_name is not None:
             bucket = self._get_bucket_by_name(bucket_name)
-            bucket.download_file_by_name(
-                b2_url_decode(file_name),
-                download_dest,
-            )
+            return bucket.download_file_by_name(b2_url_decode(file_name), range_=range_)
         else:
             assert False
 
@@ -915,3 +911,21 @@ class RawSimulator(AbstractRawApi):
         if bucket_name not in self.bucket_name_to_bucket:
             raise NonExistentBucket(bucket_name)
         return self.bucket_name_to_bucket[bucket_name]
+
+
+class FakeResponse(object):
+    def __init__(self, file_sim, range_=None):
+        self.data_bytes = file_sim.data_bytes
+        self.headers = file_sim.as_download_headers()
+        if range_ is not None:
+            self.data_bytes = self.data_bytes[range_[0]:range_[1] + 1]
+            self.headers['Content-Range'] = '%s-%s' % range_
+
+    def iter_content(self, chunk_size=1):
+        start = 0
+        while start <= len(self.data_bytes):
+            yield self.data_bytes[start:start + chunk_size]
+            start += chunk_size
+
+    def close(self):
+        pass
