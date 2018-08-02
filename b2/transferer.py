@@ -50,9 +50,6 @@ class Transferer(object):
 
             metadata = FileMetadata.from_response(response)
 
-            digest = hashlib.sha1()
-            bytes_read = 0
-
             mod_time_millis = int(
                 metadata.file_info.get(
                     SRC_LAST_MODIFIED_MILLIS,
@@ -70,21 +67,19 @@ class Transferer(object):
                 mod_time_millis,
                 range_=range_,
             ) as file:
-                for data in response.iter_content(chunk_size=BLOCK_SIZE):
-                    file.write(data)
-                    digest.update(data)
-                    bytes_read += len(data)
+
+                bytes_read, actual_sha1 = self._download_file_simple(file, response)
 
                 if range_ is None:
                     if bytes_read != metadata.content_length:
                         raise TruncatedOutput(bytes_read, metadata.content_length)
 
                     if metadata.content_sha1 != 'none' and \
-                        digest.hexdigest() != metadata.content_sha1:  # no yapf
+                        actual_sha1 != metadata.content_sha1:  # no yapf
                         raise ChecksumMismatch(
                             checksum_type='sha1',
                             expected=metadata.content_length,
-                            actual=digest.hexdigest()
+                            actual=actual_sha1,
                         )
                 else:
                     desired_length = range_[1] - range_[0] + 1
@@ -92,6 +87,15 @@ class Transferer(object):
                         raise TruncatedOutput(bytes_read, desired_length)
 
                 return metadata.as_info_dict()
+
+    def _download_file_simple(self, file, response):
+        digest = hashlib.sha1()
+        bytes_read = 0
+        for data in response.iter_content(chunk_size=BLOCK_SIZE):
+            file.write(data)
+            digest.update(data)
+            bytes_read += len(data)
+        return bytes_read, digest.hexdigest()
 
 
 class FileMetadata(object):
