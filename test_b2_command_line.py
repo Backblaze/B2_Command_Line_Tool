@@ -765,7 +765,7 @@ def main():
         tests_to_run = sys.argv[3:]
         for test_name in tests_to_run:
             if test_name not in test_map:
-                error_and_exit('unknown test: ' + test_name)
+                error_and_exit('unknown test: "%s"' % (test_name,))
     else:
         tests_to_run = sorted(six.iterkeys(test_map))
 
