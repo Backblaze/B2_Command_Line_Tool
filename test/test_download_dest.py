@@ -51,5 +51,10 @@ class TestDownloadDestProgressWrapper(TestBase):
                 self.assertEqual(b'hello world\n', f.read())
             self.assertEqual(1500222333, os.path.getmtime(file_path))
             self.assertEqual(
-                ['set_total_bytes(100)', 'bytes_completed(12)'], progress_listener.get_calls()
+                [
+                    'set_total_bytes(100)',
+                    'bytes_completed(12)',
+                    'close()',
+                ],
+                progress_listener.get_calls(),
             )

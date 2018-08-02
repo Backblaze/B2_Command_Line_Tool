@@ -399,33 +399,33 @@ class Bucket(object):
         content_length = upload_source.get_content_length()
         upload_url = None
         exception_info_list = []
-        for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
-            # refresh upload data in every attempt to work around a "busy storage pod"
-            upload_url, upload_auth_token = self._get_upload_data()
+        progress_listener.set_total_bytes(content_length)
+        with progress_listener:
+            for _ in six.moves.xrange(self.MAX_UPLOAD_ATTEMPTS):
+                # refresh upload data in every attempt to work around a "busy storage pod"
+                upload_url, upload_auth_token = self._get_upload_data()
 
-            try:
-                with upload_source.open() as file:
-                    progress_listener.set_total_bytes(content_length)
-                    input_stream = StreamWithProgress(file, progress_listener)
-                    hashing_stream = StreamWithHash(input_stream)
-                    length_with_hash = content_length + hashing_stream.hash_size()
-                    response = self.api.raw_api.upload_file(
-                        upload_url, upload_auth_token, file_name, length_with_hash, content_type,
-                        HEX_DIGITS_AT_END, file_info, hashing_stream
-                    )
-                    assert hashing_stream.hash == response['contentSha1']
-                    self.api.account_info.put_bucket_upload_url(
-                        self.id_, upload_url, upload_auth_token
-                    )
-                    progress_listener.close()
-                    return FileVersionInfoFactory.from_api_response(response)
+                try:
+                    with upload_source.open() as file:
+                        input_stream = StreamWithProgress(file, progress_listener)
+                        hashing_stream = StreamWithHash(input_stream)
+                        length_with_hash = content_length + hashing_stream.hash_size()
+                        response = self.api.raw_api.upload_file(
+                            upload_url, upload_auth_token, file_name, length_with_hash,
+                            content_type, HEX_DIGITS_AT_END, file_info, hashing_stream
+                        )
+                        assert hashing_stream.hash == response['contentSha1']
+                        self.api.account_info.put_bucket_upload_url(
+                            self.id_, upload_url, upload_auth_token
+                        )
+                        return FileVersionInfoFactory.from_api_response(response)
 
-            except B2Error as e:
-                logger.exception('error when uploading, upload_url was %s', upload_url)
-                if not e.should_retry_upload():
-                    raise
-                exception_info_list.append(e)
-                self.api.account_info.clear_bucket_upload_data(self.id_)
+                except B2Error as e:
+                    logger.exception('error when uploading, upload_url was %s', upload_url)
+                    if not e.should_retry_upload():
+                        raise
+                    exception_info_list.append(e)
+                    self.api.account_info.clear_bucket_upload_data(self.id_)
 
         raise MaxRetriesExceeded(self.MAX_UPLOAD_ATTEMPTS, exception_info_list)
 
@@ -439,7 +439,6 @@ class Bucket(object):
 
         # Set up the progress reporting for the parts
         progress_listener.set_total_bytes(content_length)
-        large_file_upload_state = LargeFileUploadState(progress_listener)
 
         # Select the part boundaries
         part_ranges = choose_part_ranges(content_length, minimum_part_size)
@@ -454,27 +453,28 @@ class Bucket(object):
             unfinished_file = self.start_large_file(file_name, content_type, file_info)
         file_id = unfinished_file.file_id
 
-        # Tell the executor to upload each of the parts
-        part_futures = [
-            self.api.get_thread_pool().submit(
-                self._upload_part,
-                file_id,
-                part_index + 1,  # part number
-                part_range,
-                upload_source,
-                large_file_upload_state,
-                finished_parts
-            ) for (part_index, part_range) in enumerate(part_ranges)
-        ]
+        with progress_listener:
+            large_file_upload_state = LargeFileUploadState(progress_listener)
+            # Tell the executor to upload each of the parts
+            part_futures = [
+                self.api.get_thread_pool().submit(
+                    self._upload_part,
+                    file_id,
+                    part_index + 1,  # part number
+                    part_range,
+                    upload_source,
+                    large_file_upload_state,
+                    finished_parts
+                ) for (part_index, part_range) in enumerate(part_ranges)
+            ]
 
-        # Collect the sha1 checksums of the parts as the uploads finish.
-        # If any of them raised an exception, that same exception will
-        # be raised here by result()
-        part_sha1_array = [interruptible_get_result(f)['contentSha1'] for f in part_futures]
+            # Collect the sha1 checksums of the parts as the uploads finish.
+            # If any of them raised an exception, that same exception will
+            # be raised here by result()
+            part_sha1_array = [interruptible_get_result(f)['contentSha1'] for f in part_futures]
 
         # Finish the large file
         response = self.api.session.finish_large_file(file_id, part_sha1_array)
-        progress_listener.close()
         return FileVersionInfoFactory.from_api_response(response)
 
     def _find_unfinished_file(self, upload_source, file_name, file_info, part_ranges):
