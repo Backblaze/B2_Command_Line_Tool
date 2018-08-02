@@ -75,26 +75,25 @@ class Transferer(object):
                 mod_time_millis,
                 range_=range_,
             ) as file:
-                with progress_listener:
-                    for data in response.iter_content(chunk_size=BLOCK_SIZE):
-                        file.write(data)
-                        digest.update(data)
-                        bytes_read += len(data)
+                for data in response.iter_content(chunk_size=BLOCK_SIZE):
+                    file.write(data)
+                    digest.update(data)
+                    bytes_read += len(data)
 
-                    if range_ is None:
-                        if bytes_read != int(info['content-length']):
-                            raise TruncatedOutput(bytes_read, content_length)
+                if range_ is None:
+                    if bytes_read != int(info['content-length']):
+                        raise TruncatedOutput(bytes_read, content_length)
 
-                        if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
-                            raise ChecksumMismatch(
-                                checksum_type='sha1',
-                                expected=content_length,
-                                actual=digest.hexdigest()
-                            )
-                    else:
-                        desired_length = range_[1] - range_[0] + 1
-                        if bytes_read != desired_length:
-                            raise TruncatedOutput(bytes_read, desired_length)
+                    if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
+                        raise ChecksumMismatch(
+                            checksum_type='sha1',
+                            expected=content_length,
+                            actual=digest.hexdigest()
+                        )
+                else:
+                    desired_length = range_[1] - range_[0] + 1
+                    if bytes_read != desired_length:
+                        raise TruncatedOutput(bytes_read, desired_length)
 
                 return info_dict
 

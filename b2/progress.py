@@ -38,6 +38,9 @@ class AbstractProgressListener(object):
     a percent done.
     """
 
+    def __init__(self):
+        self._closed = False
+
     @abstractmethod
     def set_total_bytes(self, total_byte_count):
         """
@@ -58,7 +61,11 @@ class AbstractProgressListener(object):
     def close(self):
         """
         Must be called when you're done with the listener.
+        In well-structured code, should be called only once.
         """
+        #import traceback, sys; traceback.print_stack(file=sys.stdout)
+        assert self._closed is False, 'progress listener was closed twice! uncomment the line above to debug this'
+        self._closed = True
 
     def __enter__(self):
         """
@@ -74,10 +81,11 @@ class AbstractProgressListener(object):
 
 
 class TqdmProgressListener(AbstractProgressListener):
-    def __init__(self, description):
+    def __init__(self, description, *args, **kwargs):
         self.description = description
         self.tqdm = None  # set in set_total_bytes()
         self.prev_value = 0
+        super(TqdmProgressListener, self).__init__(*args, **kwargs)
 
     def set_total_bytes(self, total_byte_count):
         raise_if_shutting_down()
@@ -103,14 +111,16 @@ class TqdmProgressListener(AbstractProgressListener):
     def close(self):
         if self.tqdm is not None:
             self.tqdm.close()
+        super(TqdmProgressListener, self).close()
 
 
 class SimpleProgressListener(AbstractProgressListener):
-    def __init__(self, description):
+    def __init__(self, description, *args, **kwargs):
         self.desc = description
         self.complete = 0
         self.last_time = time.time()
         self.any_printed = False
+        super(SimpleProgressListener, self).__init__(*args, **kwargs)
 
     def set_total_bytes(self, total_byte_count):
         raise_if_shutting_down()
@@ -131,6 +141,7 @@ class SimpleProgressListener(AbstractProgressListener):
         raise_if_shutting_down()
         if self.any_printed:
             print('    DONE.')
+        super(SimpleProgressListener, self).close()
 
 
 class DoNothingProgressListener(AbstractProgressListener):
@@ -141,7 +152,7 @@ class DoNothingProgressListener(AbstractProgressListener):
         raise_if_shutting_down()
 
     def close(self):
-        pass
+        super(DoNothingProgressListener, self).close()
 
 
 class ProgressListenerForTest(AbstractProgressListener):
@@ -149,8 +160,9 @@ class ProgressListenerForTest(AbstractProgressListener):
     Captures all of the calls so they can be checked.
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.calls = []
+        super(ProgressListenerForTest, self).__init__(*args, **kwargs)
 
     def set_total_bytes(self, total_byte_count):
         self.calls.append('set_total_bytes(%d)' % (total_byte_count,))
@@ -160,6 +172,7 @@ class ProgressListenerForTest(AbstractProgressListener):
 
     def close(self):
         self.calls.append('close()')
+        super(ProgressListenerForTest, self).close()
 
     def get_calls(self):
         return self.calls
