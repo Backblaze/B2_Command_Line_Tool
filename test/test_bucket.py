@@ -56,7 +56,7 @@ class StubProgressListener(AbstractProgressListener):
         return ' '.join(self.history)
 
     def set_total_bytes(self, total_byte_count):
-        assert len(self.history) == 0
+        assert len(self.history) == 0, self.history
         self.history.append('%d:' % (total_byte_count,))
 
     def bytes_completed(self, byte_count):
@@ -482,5 +482,5 @@ class TestPartialDownload(TestCaseWithBucket):
         download = DownloadDestBytes()
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
-        self.assertEqual("6: 6 closed", progress_listener.get_history())
-        assert download.get_bytes_written() == six.b('lo wor'), download.get_bytes_written()
+        self.assertEqual("7: 7 closed", progress_listener.get_history())
+        assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()

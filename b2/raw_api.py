@@ -11,7 +11,6 @@
 from __future__ import print_function
 
 import base64
-import hashlib
 import os
 import random
 import re
@@ -23,10 +22,7 @@ from abc import ABCMeta, abstractmethod
 import six
 
 from .b2http import B2Http
-from .download_dest import DownloadDestBytes
-from .exception import (
-    ChecksumMismatch, TruncatedOutput, UnexpectedCloudBehaviour, UnusableFileName
-)
+from .exception import UnusableFileName
 from .utils import b2_url_encode, hex_sha1_of_stream
 
 # All possible capabilities
@@ -49,9 +45,6 @@ SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 
 # Special X-Bz-Content-Sha1 value to verify checksum at the end
 HEX_DIGITS_AT_END = 'hex_digits_at_end'
-
-# block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
-BLOCK_SIZE = 4096
 
 
 @six.add_metaclass(ABCMeta)
@@ -237,84 +230,22 @@ class B2RawApi(AbstractRawApi):
             applicationKeyId=application_key_id,
         )
 
-    def download_file_from_url(
-        self, _, account_auth_token_or_none, url, download_dest, range_=None
-    ):
+    def download_file_from_url(self, _, account_auth_token_or_none, url, range_=None):
         """
-        Downloads a file from given url and stores it in the given download_destination.
-
-        Returns a dict containing all of the file info from the headers in the reply.
+        Issues a streaming request for download of a file, potentially authorized.
 
         :param _: unused (caused by B2Session magic)
         :param account_auth_token_or_none: an optional account auth token to pass in
         :param url: The full URL to download from
-        :param download_dest: where to put the file when it is downloaded
-        :param progress_listener: where to notify about progress downloading
-        :return:
+        :param range: two-element tuple for http Range header
+        :return: b2_http response
         """
         request_headers = {}
         _add_range_header(request_headers, range_)
 
         if account_auth_token_or_none is not None:
             request_headers['Authorization'] = account_auth_token_or_none
-
-        with self.b2_http.get_content(url, request_headers) as response:
-
-            info = response.headers
-
-            file_id = info['x-bz-file-id']
-            file_name = info['x-bz-file-name']
-            content_type = info['content-type']
-            content_length = int(info['content-length'])
-            content_sha1 = info['x-bz-content-sha1']
-            if range_ is not None:
-                if 'Content-Range' not in info:
-                    raise UnexpectedCloudBehaviour('Content-Range header was expected')
-            file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
-
-            digest = hashlib.sha1()
-            bytes_read = 0
-
-            info_dict = _response_to_info_dict(response)
-
-            mod_time_millis = int(
-                info_dict['fileInfo'].get(
-                    SRC_LAST_MODIFIED_MILLIS,
-                    info['x-bz-upload-timestamp'],
-                )
-            )
-
-            with download_dest.make_file_context(
-                file_id,
-                file_name,
-                content_length,
-                content_type,
-                content_sha1,
-                file_info,
-                mod_time_millis,
-                range_=range_,
-            ) as file:
-                for data in response.iter_content(chunk_size=BLOCK_SIZE):
-                    file.write(data)
-                    digest.update(data)
-                    bytes_read += len(data)
-
-                if range_ is None:
-                    if bytes_read != int(info['content-length']):
-                        raise TruncatedOutput(bytes_read, content_length)
-
-                    if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
-                        raise ChecksumMismatch(
-                            checksum_type='sha1',
-                            expected=content_length,
-                            actual=digest.hexdigest()
-                        )
-                else:
-                    desired_length = range_[1] - range_[0] + 1
-                    if bytes_read != desired_length:
-                        raise TruncatedOutput(bytes_read, desired_length)
-
-            return info_dict
+        return self.b2_http.get_content(url, request_headers)
 
     def finish_large_file(self, api_url, account_auth_token, file_id, part_sha1_array):
         return self._post_json(
@@ -693,31 +624,31 @@ def test_raw_api_helper(raw_api):
 
     # b2_download_file_by_id with auth
     print('b2_download_file_by_id (auth)')
-    download_dest = DownloadDestBytes()
     url = raw_api.get_download_url_by_id(download_url, None, file_id)
-    raw_api.download_file_from_url(None, account_auth_token, url, download_dest)
-    assert file_contents == download_dest.get_bytes_written()
+    with raw_api.download_file_from_url(None, account_auth_token, url) as response:
+        data = next(response.iter_content(chunk_size=len(file_contents)))
+        assert data == file_contents, data
 
     # b2_download_file_by_id no auth
     print('b2_download_file_by_id (no auth)')
-    download_dest = DownloadDestBytes()
     url = raw_api.get_download_url_by_id(download_url, None, file_id)
-    raw_api.download_file_from_url(None, None, url, download_dest)
-    assert file_contents == download_dest.get_bytes_written()
+    with raw_api.download_file_from_url(None, None, url) as response:
+        data = next(response.iter_content(chunk_size=len(file_contents)))
+        assert data == file_contents, data
 
     # b2_download_file_by_name with auth
     print('b2_download_file_by_name (auth)')
-    download_dest = DownloadDestBytes()
     url = raw_api.get_download_url_by_name(download_url, None, bucket_name, file_name)
-    raw_api.download_file_from_url(None, account_auth_token, url, download_dest)
-    assert file_contents == download_dest.get_bytes_written()
+    with raw_api.download_file_from_url(None, account_auth_token, url) as response:
+        data = next(response.iter_content(chunk_size=len(file_contents)))
+        assert data == file_contents, data
 
     # b2_download_file_by_name no auth
     print('b2_download_file_by_name (no auth)')
-    download_dest = DownloadDestBytes()
     url = raw_api.get_download_url_by_name(download_url, None, bucket_name, file_name)
-    raw_api.download_file_from_url(None, None, url, download_dest)
-    assert file_contents == download_dest.get_bytes_written()
+    with raw_api.download_file_from_url(None, None, url) as response:
+        data = next(response.iter_content(chunk_size=len(file_contents)))
+        assert data == file_contents, data
 
     # b2_get_download_authorization
     print('b2_get_download_authorization')
@@ -728,10 +659,10 @@ def test_raw_api_helper(raw_api):
 
     # b2_download_file_by_name with download auth
     print('b2_download_file_by_name (download auth)')
-    download_dest = DownloadDestBytes()
     url = raw_api.get_download_url_by_name(download_url, None, bucket_name, file_name)
-    raw_api.download_file_from_url(None, download_auth_token, url, download_dest)
-    assert file_contents == download_dest.get_bytes_written()
+    with raw_api.download_file_from_url(None, download_auth_token, url) as response:
+        data = next(response.iter_content(chunk_size=len(file_contents)))
+        assert data == file_contents, data
 
     # b2_list_file_names
     print('b2_list_file_names')
@@ -852,18 +783,6 @@ def _should_delete_bucket(bucket_name):
     bucket_time = int(match.group(1))
     now = time.time()
     return bucket_time + 3600 <= now
-
-
-def _response_to_info_dict(response):
-    info = response.headers
-    return dict(
-        fileId=info['x-bz-file-id'],
-        fileName=info['x-bz-file-name'],
-        contentType=info['content-type'],
-        contentLength=int(info['content-length']),
-        contentSha1=info['x-bz-content-sha1'],
-        fileInfo=dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-')),
-    )
 
 
 def _add_range_header(headers, range_):
