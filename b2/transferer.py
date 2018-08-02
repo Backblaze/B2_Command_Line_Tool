@@ -28,10 +28,10 @@ class Transferer(object):
 
     def download_file_from_url(self, url, download_dest, progress_listener=None, range_=None):
         """
-        :param url: url from which the file should be downloaded from
+        :param url: url from which the file should be downloaded
         :param download_dest: where to put the file when it is downloaded
         :param progress_listener: where to notify about progress downloading
-        :param range: 2-element tuple containing data of http Range header
+        :param range_: 2-element tuple containing data of http Range header
         """
         progress_listener = progress_listener or DoNothingProgressListener()
         download_dest = DownloadDestProgressWrapper(download_dest, progress_listener)
