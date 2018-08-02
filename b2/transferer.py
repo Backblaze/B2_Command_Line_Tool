@@ -10,15 +10,19 @@
 
 import hashlib
 
+import six
+
 from .download_dest import DownloadDestProgressWrapper
 from .exception import ChecksumMismatch, UnexpectedCloudBehaviour, TruncatedOutput
 from .progress import DoNothingProgressListener
 from .raw_api import SRC_LAST_MODIFIED_MILLIS
+from .utils import B2TraceMetaAbstract
 
 # block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
 BLOCK_SIZE = 4096
 
 
+@six.add_metaclass(B2TraceMetaAbstract)
 class Transferer(object):
     """ Handles complex actions around downloads and uploads to free raw_api from that responsibility """
 
