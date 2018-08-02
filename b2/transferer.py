@@ -40,38 +40,29 @@ class Transferer(object):
             url_factory=self.account_info.get_download_url,
             range_=range_,
         ) as response:
-
-            info = response.headers
-
-            file_id = info['x-bz-file-id']
-            file_name = info['x-bz-file-name']
-            content_type = info['content-type']
-            content_length = int(info['content-length'])
-            content_sha1 = info['x-bz-content-sha1']
             if range_ is not None:
-                if 'Content-Range' not in info:
+                if 'Content-Range' not in response.headers:
                     raise UnexpectedCloudBehaviour('Content-Range header was expected')
-            file_info = dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-'))
+
+            metadata = FileMetadata.from_response(response)
 
             digest = hashlib.sha1()
             bytes_read = 0
 
-            info_dict = self._download_response_to_info_dict(response)
-
             mod_time_millis = int(
-                info_dict['fileInfo'].get(
+                metadata.file_info.get(
                     SRC_LAST_MODIFIED_MILLIS,
-                    info['x-bz-upload-timestamp'],
+                    response.headers['x-bz-upload-timestamp'],
                 )
             )
 
             with download_dest.make_file_context(
-                file_id,
-                file_name,
-                content_length,
-                content_type,
-                content_sha1,
-                file_info,
+                metadata.file_id,
+                metadata.file_name,
+                metadata.content_length,
+                metadata.content_type,
+                metadata.content_sha1,
+                metadata.file_info,
                 mod_time_millis,
                 range_=range_,
             ) as file:
@@ -81,13 +72,14 @@ class Transferer(object):
                     bytes_read += len(data)
 
                 if range_ is None:
-                    if bytes_read != int(info['content-length']):
-                        raise TruncatedOutput(bytes_read, content_length)
+                    if bytes_read != metadata.content_length:
+                        raise TruncatedOutput(bytes_read, metadata.content_length)
 
-                    if content_sha1 != 'none' and digest.hexdigest() != content_sha1:
+                    if metadata.content_sha1 != 'none' and \
+                        digest.hexdigest() != metadata.content_sha1:  # no yapf
                         raise ChecksumMismatch(
                             checksum_type='sha1',
-                            expected=content_length,
+                            expected=metadata.content_length,
                             actual=digest.hexdigest()
                         )
                 else:
@@ -95,16 +87,53 @@ class Transferer(object):
                     if bytes_read != desired_length:
                         raise TruncatedOutput(bytes_read, desired_length)
 
-                return info_dict
+                return metadata.as_info_dict()
+
+
+class FileMetadata(object):
+    __slots__ = (
+        'file_id',
+        'file_name',
+        'content_type',
+        'content_length',
+        'content_sha1',
+        'file_info',
+    )
+
+    def __init__(
+        self,
+        file_id,
+        file_name,
+        content_type,
+        content_length,
+        content_sha1,
+        file_info,
+    ):
+        self.file_id = file_id
+        self.file_name = file_name
+        self.content_type = content_type
+        self.content_length = content_length
+        self.content_sha1 = content_sha1
+        self.file_info = file_info
 
     @classmethod
-    def _download_response_to_info_dict(cls, response):
+    def from_response(cls, response):
         info = response.headers
-        return dict(
-            fileId=info['x-bz-file-id'],
-            fileName=info['x-bz-file-name'],
-            contentType=info['content-type'],
-            contentLength=int(info['content-length']),
-            contentSha1=info['x-bz-content-sha1'],
-            fileInfo=dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-')),
+        return cls(
+            file_id=info['x-bz-file-id'],
+            file_name=info['x-bz-file-name'],
+            content_type=info['content-type'],
+            content_length=int(info['content-length']),
+            content_sha1=info['x-bz-content-sha1'],
+            file_info=dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-')),
         )
+
+    def as_info_dict(self):
+        return {
+            'fileId': self.file_id,
+            'fileName': self.file_name,
+            'contentType': self.content_type,
+            'contentLength': self.content_length,
+            'contentSha1': self.content_sha1,
+            'fileInfo': self.file_info,
+        }
