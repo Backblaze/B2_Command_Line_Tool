@@ -322,11 +322,11 @@ class BucketSimulator(object):
         del self.file_id_to_file[file_id]
         return dict(fileId=file_id, fileName=file_name, uploadTimestamp=file_sim.upload_timestamp)
 
-    def download_file_by_id(self, file_id, range_=None):
+    def download_file_by_id(self, file_id, url, range_=None):
         file_sim = self.file_id_to_file[file_id]
-        return self._download_file_sim(file_sim, range_=range_)
+        return self._download_file_sim(file_sim, url, range_=range_)
 
-    def download_file_by_name(self, file_name, range_=None):
+    def download_file_by_name(self, file_name, url, range_=None):
         files = self.list_file_names(file_name, 1)['files']
         if len(files) == 0:
             raise FileNotPresent(file_name)
@@ -334,10 +334,10 @@ class BucketSimulator(object):
         if file_dict['fileName'] != file_name or file_dict['action'] != 'upload':
             raise FileNotPresent(file_name)
         file_sim = self.file_name_and_id_to_file[(file_name, file_dict['fileId'])]
-        return self._download_file_sim(file_sim, range_=range_)
+        return self._download_file_sim(file_sim, url, range_=range_)
 
-    def _download_file_sim(self, file_sim, range_=None):
-        return ResponseContextManager(FakeResponse(file_sim, range_))
+    def _download_file_sim(self, file_sim, url, range_=None):
+        return ResponseContextManager(FakeResponse(file_sim, url, range_))
 
     def finish_large_file(self, file_id, part_sha1_array):
         file_sim = self.file_id_to_file[file_id]
@@ -690,10 +690,10 @@ class RawSimulator(AbstractRawApi):
         if file_id is not None:
             bucket_id = self.file_id_to_bucket_id[file_id]
             bucket = self._get_bucket_by_id(bucket_id)
-            return bucket.download_file_by_id(file_id, range_=range_)
+            return bucket.download_file_by_id(file_id, range_=range_, url=url)
         elif bucket_name is not None and file_name is not None:
             bucket = self._get_bucket_by_name(bucket_name)
-            return bucket.download_file_by_name(b2_url_decode(file_name), range_=range_)
+            return bucket.download_file_by_name(b2_url_decode(file_name), range_=range_, url=url)
         else:
             assert False
 
@@ -914,9 +914,10 @@ class RawSimulator(AbstractRawApi):
 
 
 class FakeResponse(object):
-    def __init__(self, file_sim, range_=None):
+    def __init__(self, file_sim, url, range_=None):
         self.data_bytes = file_sim.data_bytes
         self.headers = file_sim.as_download_headers()
+        self.url = url
         if range_ is not None:
             self.data_bytes = self.data_bytes[range_[0]:range_[1] + 1]
             self.headers['Content-Range'] = '%s-%s' % range_
@@ -926,6 +927,15 @@ class FakeResponse(object):
         while start <= len(self.data_bytes):
             yield self.data_bytes[start:start + chunk_size]
             start += chunk_size
+
+    @property
+    def request(self):
+        class Dummy(object):
+            pass
+
+        request = Dummy()
+        request.url = self.url
+        return request
 
     def close(self):
         pass
