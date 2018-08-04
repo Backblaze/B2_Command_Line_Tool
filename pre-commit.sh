@@ -1,8 +1,22 @@
 #!/bin/bash -u
 
+#
+# USAGE: ./pre-commit.sh [remote_name] [branch_name] [remote_branch_name] [testname...]
+# if the first test name to execute is "quick", then integration tests are skipped completely
+#
+# for example: ./pre-commit.sh origin master master basic account download
+#
+
+
 base_remote="${1:-origin}"
 base_branch="${2:-master}"
 base_remote_branch="${3:-master}"
+
+# get a list of tests to run into $*
+shift
+shift
+shift
+
 
 function header
 {
@@ -105,7 +119,7 @@ else
     exit 1
 fi
 
-if [[ $# -ne 0 && "${4:-}" == quick ]]
+if [[ $# -ne 0 && "${1:-}" == quick ]]
 then
     header QUICK
     echo Skipping integration tests in quick mode.
@@ -117,7 +131,7 @@ header Integration Tests
 
 function run_integration_tests
 {
-    if time python test_b2_command_line.py $(head -n 1 ~/.b2_auth) $(tail -n 1 ~/.b2_auth)
+    if time python test_b2_command_line.py "$(head -n 1 ~/.b2_auth)" "$(tail -n 1 ~/.b2_auth)" $*
     then
         echo "integration tests passed"
     else
@@ -131,7 +145,7 @@ function run_integration_tests
 # http://stackoverflow.com/a/16753536/95920
 if [[ -z "${PYTHON_VIRTUAL_ENVS:-}" ]]
 then
-    run_integration_tests
+    run_integration_tests $*
 else
     for virtual_env in $PYTHON_VIRTUAL_ENVS
     do
@@ -139,6 +153,6 @@ else
         set +u  # if PS1 is not set and -u is set, $virtual_env/bin/active crashes
         source "$virtual_env/bin/activate"
         set -u
-        run_integration_tests
+        run_integration_tests $*
     done
 fi
