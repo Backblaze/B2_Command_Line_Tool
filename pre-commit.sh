@@ -1,8 +1,22 @@
 #!/bin/bash -u
 
+#
+# USAGE: ./pre-commit.sh [remote_name] [branch_name] [remote_branch_name] [testname...]
+# if the first test name to execute is "quick", then integration tests are skipped completely
+#
+# for example: ./pre-commit.sh origin master master basic account download
+#
+
+
 base_remote="${1:-origin}"
 base_branch="${2:-master}"
 base_remote_branch="${3:-master}"
+
+# get a list of tests to run into $*
+shift
+shift
+shift
+
 
 function header
 {
@@ -105,7 +119,7 @@ else
     exit 1
 fi
 
-if [[ $# -ne 0 && "${4:-}" == quick ]]
+if [[ $# -ne 0 && "${1:-}" == quick ]]
 then
     header QUICK
     echo Skipping integration tests in quick mode.
@@ -126,11 +140,6 @@ function run_integration_tests
         exit 1
     fi
 }
-
-# get a list of tests to run
-shift
-shift
-shift
 
 # Check if the variable is set, without triggering an "unbound variable" warning
 # http://stackoverflow.com/a/16753536/95920
