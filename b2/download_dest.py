@@ -15,7 +15,7 @@ from contextlib import contextmanager
 import six
 
 from .utils import B2TraceMetaAbstract, limit_trace_arguments
-from .progress import StreamWithProgress
+from .progress import WritingStreamWithProgress
 
 
 @six.add_metaclass(B2TraceMetaAbstract)
@@ -187,4 +187,4 @@ class DownloadDestProgressWrapper(AbstractDownloadDestination):
                 total_bytes = range_[1] - range_[0] + 1
             self.progress_listener.set_total_bytes(total_bytes)
             with self.progress_listener:
-                yield StreamWithProgress(file_, self.progress_listener)
+                yield WritingStreamWithProgress(file_, self.progress_listener)
