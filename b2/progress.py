@@ -276,7 +276,6 @@ class ReadingStreamWithProgress(AbstractStreamWithProgress):
         self._update(len(data))
         return data
 
-
 class WritingStreamWithProgress(AbstractStreamWithProgress):
     def write(self, data):
         self._update(len(data))
