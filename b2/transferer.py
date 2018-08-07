@@ -168,7 +168,7 @@ class Transferer(object):
         return bytes_read, hasher.hexdigest()
 
     def _get_parts(self, response, writer, hasher, part_size, number_of_streams):
-        stream = HashingDownloaderThread(response, self.session, writer, hasher, (0, part_size))
+        stream = FirstPartDownloaderThread(response, self.session, writer, hasher, (0, part_size))
         stream.start()
         streams = [stream]
 
@@ -257,7 +257,7 @@ class WriterThread(threading.Thread):
         self.join()
 
 
-class HashingDownloaderThread(threading.Thread):
+class FirstPartDownloaderThread(threading.Thread):
     def __init__(self, response, session, writer, hasher, range_):
         self.response = response
         self.session = session
@@ -265,7 +265,7 @@ class HashingDownloaderThread(threading.Thread):
         self.hasher = hasher
         assert range_[0] == 0, range_[0]
         self.range_ = range_
-        super(HashingDownloaderThread, self).__init__()
+        super(FirstPartDownloaderThread, self).__init__()
 
     def run(self):
         writer_queue = self.writer.queue
