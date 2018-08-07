@@ -143,15 +143,15 @@ class Transferer(object):
 
         content_length = info_dict['contentLength']
         number_of_streams = min(max_streams, content_length // min_part_size)
-        part_size = content_length // number_of_streams
+        ideal_part_size = content_length * 1.0 / number_of_streams
 
         # start offset of the *second* stream, as the first stream will be hashed on the fly
-        start_offset_of_second_stream = part_size
+        start_offset_of_second_stream = int(ideal_part_size)
 
         hasher = hashlib.sha1()
 
         with WriterThread(file) as writer:
-            self._get_parts(response, writer, hasher, part_size, number_of_streams)
+            self._get_parts(response, writer, hasher, ideal_part_size, number_of_streams)
 
         # At this point the hasher already consumed the data until the end of first stream.
         # Consume the rest of the file to complete the hashing process
@@ -167,14 +167,21 @@ class Transferer(object):
         bytes_read = file.tell()
         return bytes_read, hasher.hexdigest()
 
-    def _get_parts(self, response, writer, hasher, part_size, number_of_streams):
-        stream = FirstPartDownloaderThread(response, self.session, writer, hasher, (0, part_size))
+    def _get_parts(self, response, writer, hasher, ideal_part_size, number_of_streams):
+        end_of_first_chunk = int(ideal_part_size)
+        stream = FirstPartDownloaderThread(
+            response,
+            self.session,
+            writer,
+            hasher,
+            (0, end_of_first_chunk),
+        )
         stream.start()
         streams = [stream]
 
-        start = part_size
+        start = end_of_first_chunk
         for part_number in range(1, number_of_streams):
-            end = (part_number + 1) * part_size
+            end = int((part_number + 1) * ideal_part_size)
             stream = NonHashingDownloaderThread(response, self.session, writer, (start, end))
             stream.start()
             streams.append(stream)
