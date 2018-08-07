@@ -182,7 +182,12 @@ class Transferer(object):
         start = end_of_first_chunk
         for part_number in range(1, number_of_streams):
             end = int((part_number + 1) * ideal_part_size)
-            stream = NonHashingDownloaderThread(response, self.session, writer, (start, end))
+            stream = NonHashingDownloaderThread(
+                response.request.url,
+                self.session,
+                writer,
+                (start, end),
+            )
             stream.start()
             streams.append(stream)
             start = end + 1
@@ -298,9 +303,15 @@ class FirstPartDownloaderThread(threading.Thread):
 
 
 class NonHashingDownloaderThread(threading.Thread):
-    def __init__(self, response, session, writer, range_):
+    def __init__(self, url, session, writer, range_):
+        """
+        :param url: url of the target file
+        :param session: raw_api wrapper
+        :param writer: where to write data
+        :param range_: 2-element tuple indicating the range of both local and remote file to get
+        """
         self.session = session
-        self.url = response.request.url
+        self.url = url
         self.writer = writer
         self.range_ = range_
         super(NonHashingDownloaderThread, self).__init__()
