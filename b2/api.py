@@ -205,7 +205,7 @@ class B2Api(object):
 
     def get_bucket_by_name(self, bucket_name):
         """
-        Returns the bucket_id for the given bucket_name.
+        Returns the Bucket for the given bucket_name.
 
         If we don't already know it from the cache, try fetching it from
         the B2 service.
