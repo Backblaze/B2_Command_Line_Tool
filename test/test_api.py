@@ -57,7 +57,10 @@ class TestApi(TestBase):
         bucket1 = self.api.create_bucket('bucket1', 'allPrivate')
         key = self.api.create_key(['listBuckets'], 'key1', bucket_id=bucket1.id_)
         self.api.authorize_account('production', key['applicationKeyId'], key['applicationKey'])
-        self.assertEqual(bucket1.id_, self.api.get_bucket_by_name('bucket1').id_,)
+        self.assertEqual(
+            bucket1.id_,
+            self.api.get_bucket_by_name('bucket1').id_,
+        )
 
     def test_list_buckets_with_restriction_and_wrong_name(self):
         self._authorize_account()

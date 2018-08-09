@@ -753,17 +753,39 @@ class RawSimulator(AbstractRawApi):
         self.file_id_to_bucket_id[response['fileId']] = bucket_id
         return response
 
-    def list_buckets(self, api_url, account_auth_token, account_id, bucket_id=None):
-        self._assert_account_auth(api_url, account_auth_token, account_id, 'listBuckets', bucket_id)
+    def list_buckets(
+        self, api_url, account_auth_token, account_id, bucket_id=None, bucket_name=None
+    ):
+        # First, map the bucket name to a bucket_id, so that we can check auth.
+        if bucket_name is None:
+            bucket_id_for_auth = bucket_id
+        else:
+            bucket_id_for_auth = self._get_bucket_id_or_none_for_bucket_name(bucket_name)
+        self._assert_account_auth(
+            api_url, account_auth_token, account_id, 'listBuckets', bucket_id_for_auth
+        )
+
+        # Do the query
         sorted_buckets = [
-            self.bucket_name_to_bucket[bucket_name]
-            for bucket_name in sorted(six.iterkeys(self.bucket_name_to_bucket))
+            self.bucket_name_to_bucket[name]
+            for name in sorted(six.iterkeys(self.bucket_name_to_bucket))
         ]
         bucket_list = [
             bucket.bucket_dict()
-            for bucket in sorted_buckets if bucket_id is None or bucket.bucket_id == bucket_id
+            for bucket in sorted_buckets if self._bucket_matches(bucket, bucket_id, bucket_name)
         ]
         return dict(buckets=bucket_list)
+
+    def _get_bucket_id_or_none_for_bucket_name(self, bucket_name):
+        for bucket in six.itervalues(self.bucket_name_to_bucket):
+            if bucket.bucket_name == bucket_name:
+                return bucket.bucket_id
+
+    def _bucket_matches(self, bucket, bucket_id, bucket_name):
+        return (
+            (bucket_id is None or bucket.bucket_id == bucket_id) and
+            (bucket_name is None or bucket.bucket_name == bucket_name)
+        )
 
     def list_file_names(
         self, api_url, account_auth, bucket_id, start_file_name=None, max_file_count=None
