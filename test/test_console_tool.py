@@ -34,8 +34,7 @@ class TestConsoleTool(TestBase):
         self.cache = InMemoryCache()
         self.raw_api = RawSimulator()
         self.b2_api = B2Api(self.account_info, self.cache, self.raw_api)
-        self.account_id = 'my-account'
-        self.master_key = 'good-app-key'
+        (self.account_id, self.master_key) = self.raw_api.create_account()
 
     def test_authorize_with_bad_key(self):
         expected_stdout = '''
@@ -47,7 +46,8 @@ class TestConsoleTool(TestBase):
         '''
 
         self._run_command(
-            ['authorize_account', 'my-account', 'bad-app-key'], expected_stdout, expected_stderr, 1
+            ['authorize_account', self.account_id, 'bad-app-key'], expected_stdout, expected_stderr,
+            1
         )
 
     def test_authorize_with_good_key_using_hyphen(self):
@@ -60,7 +60,7 @@ class TestConsoleTool(TestBase):
         """
 
         self._run_command(
-            ['authorize-account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+            ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
         )
 
         # Auth token should be in account info now
@@ -76,7 +76,7 @@ class TestConsoleTool(TestBase):
         """
 
         self._run_command(
-            ['authorize-account', 'my-account', 'good-app-key'], expected_stdout, '', 0
+            ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
         )
 
         # Auth token should be in account info now
@@ -176,7 +176,7 @@ class TestConsoleTool(TestBase):
         # Update one of them
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -200,7 +200,7 @@ class TestConsoleTool(TestBase):
         # Delete one
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_1",
             "bucketInfo": {{}},
             "bucketName": "your-bucket",
@@ -311,7 +311,7 @@ class TestConsoleTool(TestBase):
 
         get_bucket_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket-a",
@@ -339,7 +339,7 @@ class TestConsoleTool(TestBase):
 
         expected_get_bucket_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket-a",
@@ -365,7 +365,7 @@ class TestConsoleTool(TestBase):
 
         expected_stdout = '''
             {{
-                "accountId": "my-account",
+                "accountId": "{account_id}",
                 "bucketId": "bucket_0",
                 "bucketInfo": {{
                     "color": "blue"
@@ -439,7 +439,7 @@ class TestConsoleTool(TestBase):
             mod_time_str = str(int(os.path.getmtime(local_file1) * 1000))
             expected_stdout = '''
             {{
-              "accountId": "my-account",
+              "accountId": "{account_id}",
               "action": "upload",
               "bucketId": "bucket_0",
               "contentLength": 11,
@@ -685,7 +685,7 @@ class TestConsoleTool(TestBase):
         expected_stdout = '''
         {{
             "accountAuthToken": "auth_token_0",
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "allowed": {{
                 "bucketId": null,
                 "bucketName": null,
@@ -705,7 +705,7 @@ class TestConsoleTool(TestBase):
                 "namePrefix": null
             }},
             "apiUrl": "http://api.example.com",
-            "applicationKey": "good-app-key",
+            "applicationKey": "{master_key}",
             "downloadUrl": "http://download.example.com"
         }}
         '''
@@ -716,7 +716,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -733,7 +733,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -772,7 +772,7 @@ class TestConsoleTool(TestBase):
             # Now check the output of get-bucket against the canon.
             expected_stdout = '''
             {{
-                "accountId": "my-account",
+                "accountId": "{account_id}",
                 "bucketId": "bucket_0",
                 "bucketInfo": {{}},
                 "bucketName": "my-bucket",
@@ -806,7 +806,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -851,7 +851,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -890,7 +890,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -949,7 +949,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {{
-            "accountId": "my-account",
+            "accountId": "{account_id}",
             "bucketId": "bucket_0",
             "bucketInfo": {{}},
             "bucketName": "my-bucket",
@@ -1113,8 +1113,8 @@ class TestConsoleTool(TestBase):
         self.assertEqual(None, self.account_info.get_account_auth_token())
 
         # Authorize an account with the master key.
-        account_id = 'my-account'
-        self._run_command_ignore_output(['authorize-account', account_id, 'good-app-key'])
+        account_id = self.account_id
+        self._run_command_ignore_output(['authorize-account', account_id, self.master_key])
 
         # Create a bucket to use
         bucket_name = 'restrictedBucket'
@@ -1256,7 +1256,7 @@ class TestConsoleTool(TestBase):
         Prepare for a test by authorizing an account and getting an
         account auth token
         """
-        self._run_command_ignore_output(['authorize_account', 'my-account', 'good-app-key'])
+        self._run_command_ignore_output(['authorize_account', self.account_id, self.master_key])
 
     def _create_my_bucket(self):
         self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
@@ -1314,7 +1314,7 @@ class TestConsoleTool(TestBase):
         )
         stderr = mock.MagicMock()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        console_tool.run_command(['b2', 'authorize_account', 'my-account', 'good-app-key'])
+        console_tool.run_command(['b2', 'authorize_account', self.account_id, self.master_key])
 
     def _get_stdouterr(self):
         class MyStringIO(six.StringIO):

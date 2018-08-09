@@ -22,6 +22,7 @@ class TestApi(TestBase):
         self.cache = DummyCache()
         self.raw_api = RawSimulator()
         self.api = B2Api(self.account_info, self.cache, self.raw_api)
+        (self.account_id, self.master_key) = self.raw_api.create_account()
 
     def test_list_buckets(self):
         self._authorize_account()
@@ -71,4 +72,4 @@ class TestApi(TestBase):
             self.api.list_buckets()
 
     def _authorize_account(self):
-        self.api.authorize_account('production', 'my-account', 'good-app-key')
+        self.api.authorize_account('production', self.account_id, self.master_key)
