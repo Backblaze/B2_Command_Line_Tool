@@ -34,6 +34,8 @@ class TestConsoleTool(TestBase):
         self.cache = InMemoryCache()
         self.raw_api = RawSimulator()
         self.b2_api = B2Api(self.account_info, self.cache, self.raw_api)
+        self.account_id = 'my-account'
+        self.master_key = 'good-app-key'
 
     def test_authorize_with_bad_key(self):
         expected_stdout = '''
@@ -173,16 +175,16 @@ class TestConsoleTool(TestBase):
 
         # Update one of them
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
             "revision": 2
-        }
+        }}
         '''
 
         self._run_command(['update_bucket', 'my-bucket', 'allPublic'], expected_stdout, '', 0)
@@ -197,16 +199,16 @@ class TestConsoleTool(TestBase):
 
         # Delete one
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_1",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "your-bucket",
             "bucketType": "allPrivate",
             "corsRules": [],
             "lifecycleRules": [],
             "revision": 1
-        }
+        }}
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
@@ -308,16 +310,16 @@ class TestConsoleTool(TestBase):
         )
 
         get_bucket_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
             "revision": 1
-        }
+        }}
         '''
         self._run_command(['get-bucket', 'my-bucket-a'], get_bucket_stdout, '', 0)
 
@@ -336,16 +338,16 @@ class TestConsoleTool(TestBase):
         )
 
         expected_get_bucket_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
             "revision": 1
-        }
+        }}
         '''
 
         self._run_command(['get-bucket', 'my-bucket-a'], expected_get_bucket_stdout, '', 0)
@@ -362,18 +364,18 @@ class TestConsoleTool(TestBase):
         bucket_info = {'color': 'blue'}
 
         expected_stdout = '''
-            {
+            {{
                 "accountId": "my-account",
                 "bucketId": "bucket_0",
-                "bucketInfo": {
+                "bucketInfo": {{
                     "color": "blue"
-                },
+                }},
                 "bucketName": "my-bucket",
                 "bucketType": "allPrivate",
                 "corsRules": [],
                 "lifecycleRules": [],
                 "revision": 2
-            }
+            }}
             '''
         self._run_command(
             ['update_bucket', '--bucketInfo',
@@ -419,13 +421,13 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
-            {
+            {{
               "action": "upload",
               "fileId": "9999",
               "fileName": "file1.txt",
               "size": 11,
               "uploadTimestamp": 5000
-            }
+            }}
             '''
 
             self._run_command(
@@ -436,7 +438,7 @@ class TestConsoleTool(TestBase):
             # Get file info
             mod_time_str = str(int(os.path.getmtime(local_file1) * 1000))
             expected_stdout = '''
-            {
+            {{
               "accountId": "my-account",
               "action": "upload",
               "bucketId": "bucket_0",
@@ -444,12 +446,12 @@ class TestConsoleTool(TestBase):
               "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
               "contentType": "b2/x-auto",
               "fileId": "9999",
-              "fileInfo": {
+              "fileInfo": {{
                 "src_last_modified_millis": "1500111222000"
-              },
+              }},
               "fileName": "file1.txt",
               "uploadTimestamp": 5000
-            }
+            }}
             '''
 
             self._run_command(['get_file_info', '9999'], expected_stdout, '', 0)
@@ -485,79 +487,79 @@ class TestConsoleTool(TestBase):
 
             # Hide the file
             expected_stdout = '''
-            {
+            {{
               "action": "hide",
               "fileId": "9998",
               "fileName": "file1.txt",
               "size": 0,
               "uploadTimestamp": 5001
-            }
+            }}
             '''
 
             self._run_command(['hide_file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
 
             # List the file versions
             expected_stdout = '''
-            {
+            {{
               "files": [
-                {
+                {{
                   "action": "hide",
                   "contentSha1": "none",
                   "contentType": null,
                   "fileId": "9998",
-                  "fileInfo": {},
+                  "fileInfo": {{}},
                   "fileName": "file1.txt",
                   "size": 0,
                   "uploadTimestamp": 5001
-                },
-                {
+                }},
+                {{
                   "action": "upload",
                   "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                   "contentType": "b2/x-auto",
                   "fileId": "9999",
-                  "fileInfo": {
+                  "fileInfo": {{
                     "src_last_modified_millis": "%s"
-                  },
+                  }},
                   "fileName": "file1.txt",
                   "size": 11,
                   "uploadTimestamp": 5000
-                }
+                }}
               ],
               "nextFileId": null,
               "nextFileName": null
-            }
+            }}
             ''' % (mod_time_str,)
 
             self._run_command(['list_file_versions', 'my-bucket'], expected_stdout, '', 0)
 
             # List the file names
             expected_stdout = '''
-            {
+            {{
               "files": [],
               "nextFileName": null
-            }
+            }}
             '''
 
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
             # Delete one file version, passing the name in
             expected_stdout = '''
-            {
+            {{
               "action": "delete",
               "fileId": "9998",
               "fileName": "file1.txt"
-            }
+            }}
             '''
 
             self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
             # Delete one file version, not passing the name in
             expected_stdout = '''
-            {
+            {{
               "action": "delete",
               "fileId": "9999",
               "fileName": "file1.txt"
-            }
+            }}
             '''
 
             self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
@@ -662,13 +664,13 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/test.txt
             URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
-            {
+            {{
               "action": "upload",
               "fileId": "9999",
               "fileName": "test.txt",
               "size": 600,
               "uploadTimestamp": 5000
-            }
+            }}
             '''
 
             self._run_command(
@@ -681,10 +683,10 @@ class TestConsoleTool(TestBase):
     def test_get_account_info(self):
         self._authorize_account()
         expected_stdout = '''
-        {
+        {{
             "accountAuthToken": "auth_token_0",
             "accountId": "my-account",
-            "allowed": {
+            "allowed": {{
                 "bucketId": null,
                 "bucketName": null,
                 "capabilities": [
@@ -701,11 +703,11 @@ class TestConsoleTool(TestBase):
                     "deleteFiles"
                 ],
                 "namePrefix": null
-            },
+            }},
             "apiUrl": "http://api.example.com",
             "applicationKey": "good-app-key",
             "downloadUrl": "http://download.example.com"
-        }
+        }}
         '''
         self._run_command(['get-account-info'], expected_stdout, '', 0)
 
@@ -713,16 +715,16 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         self._create_my_bucket()
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
             "revision": 1
-        }
+        }}
         '''
         self._run_command(['get-bucket', 'my-bucket'], expected_stdout, '', 0)
 
@@ -730,10 +732,10 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         self._create_my_bucket()
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
@@ -741,7 +743,7 @@ class TestConsoleTool(TestBase):
             "lifecycleRules": [],
             "revision": 1,
             "totalSize": 0
-        }
+        }}
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -754,13 +756,13 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
-            {
+            {{
               "action": "upload",
               "fileId": "9999",
               "fileName": "file1.txt",
               "size": 11,
               "uploadTimestamp": 5000
-            }
+            }}
             '''
             self._run_command(
                 ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
@@ -769,10 +771,10 @@ class TestConsoleTool(TestBase):
 
             # Now check the output of get-bucket against the canon.
             expected_stdout = '''
-            {
+            {{
                 "accountId": "my-account",
                 "bucketId": "bucket_0",
-                "bucketInfo": {},
+                "bucketInfo": {{}},
                 "bucketName": "my-bucket",
                 "bucketType": "allPublic",
                 "corsRules": [],
@@ -780,7 +782,7 @@ class TestConsoleTool(TestBase):
                 "lifecycleRules": [],
                 "revision": 1,
                 "totalSize": 11
-            }
+            }}
             '''
             self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -803,10 +805,10 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
@@ -814,7 +816,7 @@ class TestConsoleTool(TestBase):
             "lifecycleRules": [],
             "revision": 1,
             "totalSize": 40
-        }
+        }}
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -848,10 +850,10 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
@@ -859,7 +861,7 @@ class TestConsoleTool(TestBase):
             "lifecycleRules": [],
             "revision": 1,
             "totalSize": 90
-        }
+        }}
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -887,10 +889,10 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
@@ -898,7 +900,7 @@ class TestConsoleTool(TestBase):
             "lifecycleRules": [],
             "revision": 1,
             "totalSize": 24
-        }
+        }}
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -946,10 +948,10 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {
+        {{
             "accountId": "my-account",
             "bucketId": "bucket_0",
-            "bucketInfo": {},
+            "bucketInfo": {{}},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
@@ -957,7 +959,7 @@ class TestConsoleTool(TestBase):
             "lifecycleRules": [],
             "revision": 1,
             "totalSize": 99
-        }
+        }}
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1020,10 +1022,10 @@ class TestConsoleTool(TestBase):
 
             # file should not have been uploaded
             expected_stdout = '''
-            {
+            {{
               "files": [],
               "nextFileName": null
-            }
+            }}
             '''
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1037,23 +1039,23 @@ class TestConsoleTool(TestBase):
             # file should have been uploaded
             mtime = file_mod_time_millis(temp_file)
             expected_stdout = '''
-            {
+            {{
               "files": [
-                {
+                {{
                   "action": "upload",
                   "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                   "contentType": "b2/x-auto",
                   "fileId": "9999",
-                  "fileInfo": {
+                  "fileInfo": {{
                     "src_last_modified_millis": "%d"
-                  },
+                  }},
                   "fileName": "test-dry-run.txt",
                   "size": 11,
                   "uploadTimestamp": 5000
-                }
+                }}
               ],
               "nextFileName": null
-            }
+            }}
             ''' % (mtime)
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1259,16 +1261,23 @@ class TestConsoleTool(TestBase):
     def _create_my_bucket(self):
         self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
-    def _run_command(self, argv, expected_stdout='', expected_stderr='', expected_status=0):
+    def _run_command(
+        self, argv, expected_stdout='', expected_stderr='', expected_status=0, format_vars=None
+    ):
         """
         Runs one command using the ConsoleTool, checking stdout, stderr, and
         the returned status code.
 
+        The expected output strings are format strings (as used by str.format),
+        so braces need to be escaped by doubling them.  The variables 'account_id'
+        and 'master_key' are set by default, plus any variables passed in the dict
+        format_vars.
+
         The ConsoleTool is stateless, so we can make a new one for each
         call, with a fresh stdout and stderr
         """
-        expected_stdout = self._trim_leading_spaces(expected_stdout)
-        expected_stderr = self._trim_leading_spaces(expected_stderr)
+        expected_stdout = self._normalize_expected_output(expected_stdout, format_vars)
+        expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
         stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         actual_status = console_tool.run_command(['b2'] + argv)
@@ -1289,6 +1298,12 @@ class TestConsoleTool(TestBase):
         self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
+
+    def _normalize_expected_output(self, text, format_vars=None):
+        format_vars = format_vars or {}
+        return self._trim_leading_spaces(text).format(
+            account_id=self.account_id, master_key=self.master_key, **format_vars
+        )
 
     def test_bad_terminal(self):
         stdout = mock.MagicMock()
