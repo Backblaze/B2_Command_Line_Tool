@@ -545,6 +545,9 @@ class RawSimulator(AbstractRawApi):
         # Counter for generating auth tokens.
         self.auth_token_counter = 0
 
+        # Counter for generating account IDs an their matching master application keys.
+        self.account_counter = 0
+
         self.bucket_name_to_bucket = dict()
         self.bucket_id_to_bucket = dict()
         self.bucket_id_counter = iter(range(100))
@@ -553,19 +556,30 @@ class RawSimulator(AbstractRawApi):
         self.app_key_counter = 0
         self.upload_errors = []
 
-        # There are tests hard-coded to use 'my-account' and 'good-app-key'.
-        # TODO: stop hard-coding
-        self.key_id_to_key['my-account'] = KeySimulator(
-            account_id='my-account',
+    def create_account(self):
+        """
+        Returns (accountId, masterApplicationKey) for a newly created account.
+        """
+        # Pick the IDs for the account and the key
+        account_id = 'account-%d' % (self.account_counter,)
+        master_key = 'masterKey-%d' % (self.account_counter,)
+        self.account_counter += 1
+
+        # Create the key
+        self.key_id_to_key[account_id] = KeySimulator(
+            account_id=account_id,
             name='master',
-            key_id='my-account',
-            key='good-app-key',
+            key_id=account_id,
+            key=master_key,
             capabilities=ALL_CAPABILITES,
             expiration_timestamp_or_none=None,
             bucket_id_or_none=None,
             bucket_name_or_none=None,
             name_prefix_or_none=None,
         )
+
+        # Return the info
+        return (account_id, master_key)
 
     def set_upload_errors(self, errors):
         """
