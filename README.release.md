@@ -11,5 +11,6 @@
   - `cd ~/sandbox/B2_Command_Line_Tool`    # or wherever your git repository is
   - `rm -rf dist ; python setup.py sdist`
   - `twine upload dist/*`
+- Install using pip and verify that it gets the correct version.
 - Bump the version number to an odd number and commit.
 - Update https://www.backblaze.com/b2/docs/quick_command_line.html
