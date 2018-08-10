@@ -208,16 +208,21 @@ class Command(object):
 
 class AuthorizeAccount(Command):
     """
-    b2 authorize-account [<accountId>] [<applicationKey>]
+    b2 authorize-account [<accountIdOrKeyId>] [<applicationKey>]
 
-        Prompts for Backblaze accountID and applicationKey (unless they are given
-        on the command line).
+        Prompts for Backblaze accountID and applicationKey (unless they
+        are given on the command line).
 
-        The account ID is a 12-digit hex number that you can get from
-        your account page on backblaze.com.
+        You can authorize with either the master application key or
+        a normal application key.
 
-        The application key is a 40-digit hex number that you can get from
-        your account page on backblaze.com.
+        To use the master application key, provide the account ID and
+        application key from the "B2 Cloud Storage Buckets" page on
+        the web site: https://secure.backblaze.com/b2_buckets.htm
+
+        To use a normal application key, created with the create-key
+        command or on the web site, provide the application key ID
+        and the application key itself.
 
         Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
         or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
