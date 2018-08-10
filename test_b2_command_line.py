@@ -515,9 +515,7 @@ def account_test(b2_tool, bucket_name):
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear_account'])
     bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
-    b2_tool.should_fail(
-        ['authorize_account', sys.argv[1], bad_application_key], r'unauthorized'
-    )
+    b2_tool.should_fail(['authorize_account', sys.argv[1], bad_application_key], r'unauthorized')
     b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
