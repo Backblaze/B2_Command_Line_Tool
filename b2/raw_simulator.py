@@ -526,7 +526,7 @@ class RawSimulator(AbstractRawApi):
     DOWNLOAD_URL_MATCHER = re.compile(
         DOWNLOAD_URL + '(?:' + '|'.join(
             (
-                '/b2api/v1/b2_download_file_by_id\?fileId=(?P<file_id>[^/]+)',
+                '/b2api/v[0-9]+/b2_download_file_by_id\?fileId=(?P<file_id>[^/]+)',
                 '/file/(?P<bucket_name>[^/]+)/(?P<file_name>.+)',
             )
         ) + ')$'

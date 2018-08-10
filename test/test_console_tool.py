@@ -17,6 +17,7 @@ from .test_base import TestBase
 from b2.api import B2Api
 from b2.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
+from b2.raw_api import API_VERSION
 from b2.raw_simulator import RawSimulator
 from b2.upload_source import UploadSourceBytes
 from b2.utils import TempDir
@@ -420,7 +421,7 @@ class TestConsoleTool(TestBase):
             # Upload a file
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -663,7 +664,7 @@ class TestConsoleTool(TestBase):
                 f.write(text.encode('utf-8'))
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/test.txt
-            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -755,7 +756,7 @@ class TestConsoleTool(TestBase):
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/v1/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -1302,7 +1303,10 @@ class TestConsoleTool(TestBase):
     def _normalize_expected_output(self, text, format_vars=None):
         format_vars = format_vars or {}
         return self._trim_leading_spaces(text).format(
-            account_id=self.account_id, master_key=self.master_key, **format_vars
+            account_id=self.account_id,
+            master_key=self.master_key,
+            api_version=API_VERSION,
+            **format_vars
         )
 
     def test_bad_terminal(self):

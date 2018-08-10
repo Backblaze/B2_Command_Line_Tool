@@ -19,7 +19,7 @@ from .transferer import Transferer
 from .exception import NonExistentBucket, RestrictedBucket
 from .file_version import FileVersionInfoFactory, FileIdAndName
 from .part import PartFactory
-from .raw_api import B2RawApi
+from .raw_api import API_VERSION, B2RawApi
 from .session import B2Session
 from .utils import B2TraceMeta, b2_url_encode, limit_trace_arguments
 
@@ -34,7 +34,7 @@ def url_for_api(info, api_name):
         base = info.get_download_url()
     else:
         base = info.get_api_url()
-    return base + '/b2api/v1/' + api_name
+    return '%s/b2api/%s/%s' % (base, API_VERSION, api_name)
 
 
 @six.add_metaclass(B2TraceMeta)
