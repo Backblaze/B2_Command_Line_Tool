@@ -86,7 +86,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
     @contextmanager
     def write_to_local_file_context(self, mod_time_millis):
         # Open the file and let the caller write it.
-        with open(self.local_file_path, 'wb') as f:
+        with open(self.local_file_path, 'wb+') as f:
             yield f
 
         # After it's closed, set the mod time.
