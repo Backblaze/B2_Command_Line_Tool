@@ -50,12 +50,16 @@ class StubProgressListener(AbstractProgressListener):
     """
 
     def __init__(self):
+        self.total = None
         self.history = []
 
     def get_history(self):
         return ' '.join(self.history)
 
     def set_total_bytes(self, total_byte_count):
+        assert total_byte_count is not None
+        assert self.total is None, 'set_total_bytes called twice'
+        self.total = total_byte_count
         assert len(self.history) == 0, self.history
         self.history.append('%d:' % (total_byte_count,))
 
@@ -469,6 +473,7 @@ class TestDownload(TestCaseWithBucket):
         download = DownloadDestBytes()
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_name('file1', download, progress_listener)
+        assert download.get_bytes_written() == six.b('hello world')
         self.assertEqual("11: 11 closed", progress_listener.get_history())
 
     def test_download_by_name_no_progress(self):
