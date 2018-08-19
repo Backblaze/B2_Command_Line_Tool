@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/transferer.py
+# File: b2/transferer/transferer.py
 #
 # Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
@@ -8,29 +8,56 @@
 #
 ######################################################################
 
-import hashlib
-
 import six
 
-from .download_dest import DownloadDestProgressWrapper
-from .exception import ChecksumMismatch, UnexpectedCloudBehaviour, TruncatedOutput
-from .progress import DoNothingProgressListener
-from .raw_api import SRC_LAST_MODIFIED_MILLIS
-from .utils import B2TraceMetaAbstract
-
-# block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
-BLOCK_SIZE = 4096
+from ..download_dest import DownloadDestProgressWrapper
+from ..exception import ChecksumMismatch, UnexpectedCloudBehaviour, TruncatedOutput
+from ..progress import DoNothingProgressListener
+from ..raw_api import SRC_LAST_MODIFIED_MILLIS
+from ..utils import B2TraceMetaAbstract
+from .file_metadata import FileMetadata
+from .simple import SimpleDownloader
 
 
 @six.add_metaclass(B2TraceMetaAbstract)
 class Transferer(object):
     """ Handles complex actions around downloads and uploads to free raw_api from that responsibility """
 
+    # how many chunks to break a downloaded file into
+    DEFAULT_MAX_STREAMS = 8
+
+    # minimum size of a download chunk
+    DEFAULT_MIN_PART_SIZE = 100 * 1024 * 1024
+
+    # block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
+    DEFAULT_CHUNK_SIZE = 8192  # ~1MB file will show ~1% progress increment
+
     def __init__(self, session, account_info):
+        """
+        :param max_streams: limit on a number of streams to use when downloading in multiple parts
+        :param min_part_size: the smallest part size for which a stream will be run
+                              when downloading in multiple parts
+        """
         self.session = session
         self.account_info = account_info
 
-    def download_file_from_url(self, url, download_dest, progress_listener=None, range_=None):
+        self.strategies = [
+            #ParallelDownloader(
+            #    chunk_size=self.DEFAULT_CHUNK_SIZE,
+            #    max_streams=self.DEFAULT_MAX_STREAMS,
+            #    min_part_size=self.DEFAULT_MIN_PART_SIZE,
+            #),  # TODO
+            #IOTDownloader(),  # TODO: curl -s httpbin.org/get | tee /dev/stderr 2>ble | sha1sum | cut -c -40
+            SimpleDownloader(chunk_size=self.DEFAULT_CHUNK_SIZE,),
+        ]
+
+    def download_file_from_url(
+        self,
+        url,
+        download_dest,
+        progress_listener=None,
+        range_=None,
+    ):
         """
         :param url: url from which the file should be downloaded
         :param download_dest: where to put the file when it is downloaded
@@ -68,7 +95,12 @@ class Transferer(object):
                 range_=range_,
             ) as file:
 
-                bytes_read, actual_sha1 = self._download_file_simple(file, response)
+                for strategy in self.strategies:
+                    if strategy.is_suitable(metadata, progress_listener):
+                        bytes_read, actual_sha1 = strategy.download(file, response, metadata)
+                        break
+                else:
+                    assert False, 'no strategy suitable for download was found!'
 
                 if range_ is None:
                     if bytes_read != metadata.content_length:
@@ -87,61 +119,3 @@ class Transferer(object):
                         raise TruncatedOutput(bytes_read, desired_length)
 
                 return metadata.as_info_dict()
-
-    def _download_file_simple(self, file, response):
-        digest = hashlib.sha1()
-        bytes_read = 0
-        for data in response.iter_content(chunk_size=BLOCK_SIZE):
-            file.write(data)
-            digest.update(data)
-            bytes_read += len(data)
-        return bytes_read, digest.hexdigest()
-
-
-class FileMetadata(object):
-    __slots__ = (
-        'file_id',
-        'file_name',
-        'content_type',
-        'content_length',
-        'content_sha1',
-        'file_info',
-    )
-
-    def __init__(
-        self,
-        file_id,
-        file_name,
-        content_type,
-        content_length,
-        content_sha1,
-        file_info,
-    ):
-        self.file_id = file_id
-        self.file_name = file_name
-        self.content_type = content_type
-        self.content_length = content_length
-        self.content_sha1 = content_sha1
-        self.file_info = file_info
-
-    @classmethod
-    def from_response(cls, response):
-        info = response.headers
-        return cls(
-            file_id=info['x-bz-file-id'],
-            file_name=info['x-bz-file-name'],
-            content_type=info['content-type'],
-            content_length=int(info['content-length']),
-            content_sha1=info['x-bz-content-sha1'],
-            file_info=dict((k[10:], info[k]) for k in info if k.startswith('x-bz-info-')),
-        )
-
-    def as_info_dict(self):
-        return {
-            'fileId': self.file_id,
-            'fileName': self.file_name,
-            'contentType': self.content_type,
-            'contentLength': self.content_length,
-            'contentSha1': self.content_sha1,
-            'fileInfo': self.file_info,
-        }
