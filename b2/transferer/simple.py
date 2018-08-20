@@ -16,6 +16,7 @@ from .abstract import AbstractDownloader
 class SimpleDownloader(AbstractDownloader):
     def __init__(self, chunk_size):
         self.chunk_size = chunk_size
+        super(SimpleDownloader, self).__init__()
 
     def is_suitable(self, metadata, progress_listener):
         return True

@@ -97,7 +97,9 @@ class Transferer(object):
 
                 for strategy in self.strategies:
                     if strategy.is_suitable(metadata, progress_listener):
-                        bytes_read, actual_sha1 = strategy.download(file, response, metadata, self.session)
+                        bytes_read, actual_sha1 = strategy.download(
+                            file, response, metadata, self.session
+                        )
                         break
                 else:
                     assert False, 'no strategy suitable for download was found!'

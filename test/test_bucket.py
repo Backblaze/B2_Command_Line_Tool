@@ -454,7 +454,7 @@ class TestUpload(TestCaseWithBucket):
         return six.b('').join(fragments)
 
 
-class TestDownload(TestCaseWithBucket):
+class DownloadTests:
     def test_download_by_id_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
@@ -481,12 +481,23 @@ class TestDownload(TestCaseWithBucket):
         download = DownloadDestBytes()
         self.bucket.download_file_by_name('file1', download)
 
-
-class TestPartialDownload(TestCaseWithBucket):
-    def test_download_by_id_progress(self):
+    def test_download_by_id_progress_partial(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
         self.assertEqual("7: 7 closed", progress_listener.get_history())
         assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()
+
+
+class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
+    pass
+
+
+from b2.transferer.simple import SimpleDownloader
+
+
+class TestDownloadSimple(DownloadTests, TestCaseWithBucket):
+    def setUp(self):
+        super(TestDownloadSimple, self).setUp()
+        self.bucket.api.transferer.strategies = [SimpleDownloader(chunk_size=20,)]
