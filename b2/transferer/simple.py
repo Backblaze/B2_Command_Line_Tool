@@ -20,7 +20,7 @@ class SimpleDownloader(AbstractDownloader):
     def is_suitable(self, metadata, progress_listener):
         return True
 
-    def download(self, file, response, metadata):
+    def download(self, file, response, metadata, session):
         digest = hashlib.sha1()
         bytes_read = 0
         for data in response.iter_content(chunk_size=self.chunk_size):
