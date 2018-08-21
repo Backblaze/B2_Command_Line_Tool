@@ -38,6 +38,7 @@ class InMemoryAccountInfo(UrlPoolAccountInfo):
 
     def _clear_in_memory_account_fields(self):
         self._account_id = None
+        self._account_id_or_app_key_id = None
         self._allowed = None
         self._api_url = None
         self._application_key = None

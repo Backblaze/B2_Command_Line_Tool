@@ -34,6 +34,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.download_url = None
         self.minimum_part_size = None
         self.realm = None
+        self.account_id_or_app_key_id = None
         self._large_file_uploads = collections.defaultdict(list)
         self._large_file_uploads_lock = threading.Lock()
 

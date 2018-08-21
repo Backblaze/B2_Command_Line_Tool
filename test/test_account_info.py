@@ -265,7 +265,7 @@ class TestSqliteAccountInfo(AccountInfoBase, TestBase):
         """
         The 'allowed' field should be the default for upgraded databases.
         """
-        old_account_info = self._make_info(last_upgrade_to_run=0)
+        old_account_info = self._make_sqlite_account_info(last_upgrade_to_run=0)
         old_account_info.set_auth_data_with_schema_0_for_test(
             'account_id',
             'auth_token',
@@ -282,7 +282,7 @@ class TestSqliteAccountInfo(AccountInfoBase, TestBase):
         """
         The 'account_id_or_app_key_id' field should default to the account id.
         """
-        old_account_info = self._make_info(last_upgrade_to_run=0)
+        old_account_info = self._make_sqlite_account_info(last_upgrade_to_run=0)
         old_account_info.set_auth_data_with_schema_0_for_test(
             'account_id',
             'auth_token',
@@ -295,7 +295,10 @@ class TestSqliteAccountInfo(AccountInfoBase, TestBase):
         new_account_info = self._make_info()
         self.assertEqual('account_id', new_account_info.get_account_id_or_app_key_id())
 
-    def _make_info(self, last_upgrade_to_run=None):
+    def _make_info(self):
+        return self._make_sqlite_account_info()
+
+    def _make_sqlite_account_info(self, last_upgrade_to_run=None):
         """
         Returns a new StoredAccountInfo that has just read the data from the file.
         """
