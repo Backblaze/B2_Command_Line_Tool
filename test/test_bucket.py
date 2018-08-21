@@ -454,7 +454,7 @@ class TestUpload(TestCaseWithBucket):
         return six.b('').join(fragments)
 
 
-class DownloadTests:
+class DownloadTests(object):
     def test_download_by_id_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
         download = DownloadDestBytes()
