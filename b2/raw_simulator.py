@@ -542,6 +542,9 @@ class RawSimulator(AbstractRawApi):
         # Map from auth token to the KeySimulator for it.
         self.auth_token_to_key = dict()
 
+        # Set of auth tokens that have expired
+        self.expired_auth_tokens = set()
+
         # Counter for generating auth tokens.
         self.auth_token_counter = 0
 
@@ -555,6 +558,16 @@ class RawSimulator(AbstractRawApi):
         self.all_application_keys = []
         self.app_key_counter = 0
         self.upload_errors = []
+
+    def expire_auth_token(self, auth_token):
+        """
+        Simulate the auth token expiring.
+
+        The next call that tries to use this auth token will get an
+        auth_token_expired error.
+        """
+        assert auth_token in self.auth_token_to_key
+        self.expired_auth_tokens.add(auth_token)
 
     def create_account(self):
         """
@@ -930,6 +943,8 @@ class RawSimulator(AbstractRawApi):
         assert key_sim is not None
         assert api_url == self.API_URL
         assert account_id == key_sim.account_id
+        if account_auth_token in self.expired_auth_tokens:
+            raise InvalidAuthToken('auth token expired', 'auth_token_expired')
         if capability not in key_sim.capabilities:
             raise Unauthorized('', 'unauthorized')
         if key_sim.bucket_id_or_none is not None and key_sim.bucket_id_or_none != bucket_id:
