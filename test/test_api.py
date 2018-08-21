@@ -45,8 +45,6 @@ class TestApi(TestBase):
     def test_reauthorize_with_app_key(self):
         # authorize and create a key
         self._authorize_account()
-        bucket1 = self.api.create_bucket('bucket1', 'allPrivate')
-        self.api.create_bucket('bucket2', 'allPrivate')
         key = self.api.create_key(['listBuckets'], 'key1')
 
         # authorize with the key
