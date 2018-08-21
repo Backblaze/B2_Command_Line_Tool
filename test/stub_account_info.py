@@ -51,6 +51,7 @@ class StubAccountInfo(AbstractAccountInfo):
         application_key,
         realm,
         allowed,
+        account_id_or_app_key_id,
     ):
         self.account_id = account_id
         self.auth_token = auth_token
@@ -60,6 +61,7 @@ class StubAccountInfo(AbstractAccountInfo):
         self.application_key = application_key
         self.realm = realm
         self.allowed = allowed
+        self.account_id_or_app_key_id = account_id_or_app_key_id
 
     def refresh_entire_bucket_name_cache(self, name_id_iterable):
         self.buckets = {}
@@ -81,6 +83,9 @@ class StubAccountInfo(AbstractAccountInfo):
 
     def get_account_id(self):
         return self.account_id
+
+    def get_account_id_or_app_key_id(self):
+        return self.account_id_or_app_key_id
 
     def get_account_auth_token(self):
         return self.auth_token

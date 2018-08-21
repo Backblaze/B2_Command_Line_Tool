@@ -261,11 +261,45 @@ class TestSqliteAccountInfo(AccountInfoBase, TestBase):
         account_info = self._make_info()
         self.assertEqual('auth_token', account_info.get_account_auth_token())
 
-    def _make_info(self):
+    def test_upgrade_1_default_allowed(self):
+        """
+        The 'allowed' field should be the default for upgraded databases.
+        """
+        old_account_info = self._make_info(last_upgrade_to_run=0)
+        old_account_info.set_auth_data_with_schema_0_for_test(
+            'account_id',
+            'auth_token',
+            'api_url',
+            'dowload_url',
+            100,  # minimum part size
+            'application_key',
+            'realm',
+        )
+        new_account_info = self._make_info()
+        self.assertEqual(AbstractAccountInfo.DEFAULT_ALLOWED, new_account_info.get_allowed())
+
+    def test_upgrade_2_default_app_key(self):
+        """
+        The 'account_id_or_app_key_id' field should default to the account id.
+        """
+        old_account_info = self._make_info(last_upgrade_to_run=0)
+        old_account_info.set_auth_data_with_schema_0_for_test(
+            'account_id',
+            'auth_token',
+            'api_url',
+            'dowload_url',
+            100,  # minimum part size
+            'application_key',
+            'realm',
+        )
+        new_account_info = self._make_info()
+        self.assertEqual('account_id', new_account_info.get_account_id_or_app_key_id())
+
+    def _make_info(self, last_upgrade_to_run=None):
         """
         Returns a new StoredAccountInfo that has just read the data from the file.
         """
-        return SqliteAccountInfo(file_name=self.db_path)
+        return SqliteAccountInfo(file_name=self.db_path, last_upgrade_to_run=None)
 
     def test_account_info_persistence(self):
         self._test_account_info(check_persistence=True)
