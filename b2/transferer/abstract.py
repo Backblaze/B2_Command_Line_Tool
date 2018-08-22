@@ -26,7 +26,13 @@ class AbstractDownloader(object):
         pass
 
     @abstractmethod
-    def download(self, file, response, metadata):
+    def download(
+        self,
+        file,
+        response,
+        metadata,
+        session,
+    ):
         """
         @returns (bytes_read, actual_sha1)
         """
