@@ -52,6 +52,7 @@ class StubProgressListener(AbstractProgressListener):
     def __init__(self):
         self.total = None
         self.history = []
+        self.last_byte_count = 0
 
     def get_history(self):
         return ' '.join(self.history)
@@ -64,7 +65,12 @@ class StubProgressListener(AbstractProgressListener):
         self.history.append('%d:' % (total_byte_count,))
 
     def bytes_completed(self, byte_count):
+        assert byte_count >= self.last_byte_count
+        self.last_byte_count = byte_count
         self.history.append(str(byte_count))
+
+    def is_valid(self):
+        return self.total == self.last_byte_count
 
     def close(self):
         self.history.append('closed')
@@ -460,8 +466,8 @@ class DownloadTests(object):
         download = DownloadDestBytes()
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
-        self.assertEqual("11: 11 closed", progress_listener.get_history())
         assert download.get_bytes_written() == six.b('hello world')
+        assert progress_listener.is_valid()
 
     def test_download_by_id_no_progress(self):
         file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
@@ -474,7 +480,7 @@ class DownloadTests(object):
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_name('file1', download, progress_listener)
         assert download.get_bytes_written() == six.b('hello world')
-        self.assertEqual("11: 11 closed", progress_listener.get_history())
+        assert progress_listener.is_valid()
 
     def test_download_by_name_no_progress(self):
         self.bucket.upload_bytes(six.b('hello world'), 'file1')
@@ -486,8 +492,8 @@ class DownloadTests(object):
         download = DownloadDestBytes()
         progress_listener = StubProgressListener()
         self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
-        self.assertEqual("7: 7 closed", progress_listener.get_history())
         assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()
+        assert progress_listener.is_valid()
 
 
 class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
