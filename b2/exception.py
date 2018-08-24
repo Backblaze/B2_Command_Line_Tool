@@ -251,6 +251,19 @@ class UnusableFileName(B2SimpleError):
     pass
 
 
+class InvalidRange(B2Error):
+    def __init__(self, content_length, range_):
+        super(InvalidRange, self).__init__()
+        self.content_length = content_length
+        self.range_ = range_
+
+    def __str__(self):
+        return 'Cloud can only serve a range of 0-%d, while a range of %s was requested' % (
+            self.content_length - 1,
+            self.range_,
+        )
+
+
 class InvalidUploadSource(B2SimpleError):
     pass
 

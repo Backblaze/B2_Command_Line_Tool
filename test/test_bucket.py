@@ -21,11 +21,12 @@ from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
-from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidUploadSource, MaxRetriesExceeded
+from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidRange, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
+from b2.transferer.simple import SimpleDownloader
 from b2.upload_source import UploadSourceBytes
 from b2.utils import hex_sha1_of_bytes, TempDir
 
@@ -495,12 +496,26 @@ class DownloadTests(object):
         assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()
         assert progress_listener.is_valid()
 
+    def test_download_by_id_progress_exact_range(self):
+        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        download = DownloadDestBytes()
+        progress_listener = StubProgressListener()
+        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(0, 10))
+        assert download.get_bytes_written() == six.b('hello world'), download.get_bytes_written()
+        assert progress_listener.is_valid()
+
+    def test_download_by_id_progress_invalid_range(self):
+        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        download = DownloadDestBytes()
+        progress_listener = StubProgressListener()
+        with self.assertRaises(InvalidRange):
+            self.bucket.download_file_by_id(
+                file_info.id_, download, progress_listener, range_=(0, 11)
+            )
+
 
 class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
     pass
-
-
-from b2.transferer.simple import SimpleDownloader
 
 
 class TestDownloadSimple(DownloadTests, TestCaseWithBucket):

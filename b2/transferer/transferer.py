@@ -11,7 +11,7 @@
 import six
 
 from ..download_dest import DownloadDestProgressWrapper
-from ..exception import ChecksumMismatch, UnexpectedCloudBehaviour, TruncatedOutput
+from ..exception import ChecksumMismatch, UnexpectedCloudBehaviour, TruncatedOutput, InvalidRange
 from ..progress import DoNothingProgressListener
 from ..raw_api import SRC_LAST_MODIFIED_MILLIS
 from ..utils import B2TraceMetaAbstract
@@ -71,11 +71,12 @@ class Transferer(object):
             url_factory=self.account_info.get_download_url,
             range_=range_,
         ) as response:
+            metadata = FileMetadata.from_response(response)
             if range_ is not None:
                 if 'Content-Range' not in response.headers:
                     raise UnexpectedCloudBehaviour('Content-Range header was expected')
-
-            metadata = FileMetadata.from_response(response)
+                if range_[1] >= metadata.content_length:
+                    raise InvalidRange(metadata.content_length, range_)
 
             mod_time_millis = int(
                 metadata.file_info.get(
