@@ -16,6 +16,7 @@ from ..progress import DoNothingProgressListener
 from ..raw_api import SRC_LAST_MODIFIED_MILLIS
 from ..utils import B2TraceMetaAbstract
 from .file_metadata import FileMetadata
+from .parallel import ParallelDownloader
 from .simple import SimpleDownloader
 
 
@@ -42,11 +43,11 @@ class Transferer(object):
         self.account_info = account_info
 
         self.strategies = [
-            #ParallelDownloader(
-            #    chunk_size=self.DEFAULT_CHUNK_SIZE,
-            #    max_streams=self.DEFAULT_MAX_STREAMS,
-            #    min_part_size=self.DEFAULT_MIN_PART_SIZE,
-            #),  # TODO
+            ParallelDownloader(
+                chunk_size=self.DEFAULT_CHUNK_SIZE,
+                max_streams=self.DEFAULT_MAX_STREAMS,
+                min_part_size=self.DEFAULT_MIN_PART_SIZE,
+            ),
             #IOTDownloader(),  # TODO: curl -s httpbin.org/get | tee /dev/stderr 2>ble | sha1sum | cut -c -40
             SimpleDownloader(chunk_size=self.DEFAULT_CHUNK_SIZE,),
         ]
