@@ -462,55 +462,51 @@ class TestUpload(TestCaseWithBucket):
 
 
 class DownloadTests(object):
-    def test_download_by_id_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
-        assert download.get_bytes_written() == six.b('hello world')
-        assert progress_listener.is_valid()
+    def setUp(self):
+        super(DownloadTests, self).setUp()
+        self.file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        self.download_dest = DownloadDestBytes()
+        self.progress_listener = StubProgressListener()
+
+    def _verify(self, expected_result):
+        assert self.download_dest.get_bytes_written() == six.b(expected_result)
+        assert self.progress_listener.is_valid()
 
     def test_download_by_id_no_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        self.bucket.download_file_by_id(file_info.id_, download)
-
-    def test_download_by_name_progress(self):
-        self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_name('file1', download, progress_listener)
-        assert download.get_bytes_written() == six.b('hello world')
-        assert progress_listener.is_valid()
+        self.bucket.download_file_by_id(self.file_info.id_, self.download_dest)
 
     def test_download_by_name_no_progress(self):
-        self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        self.bucket.download_file_by_name('file1', download)
+        self.bucket.download_file_by_name('file1', self.download_dest)
+
+    def test_download_by_name_progress(self):
+        self.bucket.download_file_by_name('file1', self.download_dest, self.progress_listener)
+        self._verify('hello world')
+
+    def test_download_by_id_progress(self):
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener
+        )
+        self._verify('hello world')
 
     def test_download_by_id_progress_partial(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
-        assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()
-        assert progress_listener.is_valid()
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener, range_=(3, 9)
+        )
+        self._verify('lo worl')
 
     def test_download_by_id_progress_exact_range(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(0, 10))
-        assert download.get_bytes_written() == six.b('hello world'), download.get_bytes_written()
-        assert progress_listener.is_valid()
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener, range_=(0, 10)
+        )
+        self._verify('hello world')
 
     def test_download_by_id_progress_invalid_range(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
         with self.assertRaises(InvalidRange):
             self.bucket.download_file_by_id(
-                file_info.id_, download, progress_listener, range_=(0, 11)
+                self.file_info.id_,
+                self.download_dest,
+                self.progress_listener,
+                range_=(0, 11),
             )
 
 
