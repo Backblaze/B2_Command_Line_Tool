@@ -500,13 +500,28 @@ class DownloadTests(object):
         )
         self._verify('hello world')
 
-    def test_download_by_id_progress_invalid_range(self):
-        with self.assertRaises(InvalidRange):
+    def test_download_by_id_progress_range_one_off(self):
+        with self.assertRaises(
+            InvalidRange,
+            msg='Cloud can only serve a range of 0-10, while a range of (0, 11) was requested',
+        ):
             self.bucket.download_file_by_id(
                 self.file_info.id_,
                 self.download_dest,
                 self.progress_listener,
                 range_=(0, 11),
+            )
+
+    def test_download_by_id_progress_invalid_range(self):
+        with self.assertRaises(
+            InvalidRange,
+            msg='Cloud can only serve a range of 0-10, while a range of (5, 16) was requested',
+        ):
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                self.download_dest,
+                self.progress_listener,
+                range_=(5, 16),
             )
 
 
