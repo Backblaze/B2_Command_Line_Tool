@@ -21,11 +21,12 @@ from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
 from b2.download_dest import DownloadDestBytes
-from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidUploadSource, MaxRetriesExceeded
+from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidRange, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
+from b2.transferer.simple import SimpleDownloader
 from b2.upload_source import UploadSourceBytes
 from b2.utils import hex_sha1_of_bytes, TempDir
 
@@ -461,46 +462,71 @@ class TestUpload(TestCaseWithBucket):
 
 
 class DownloadTests(object):
-    def test_download_by_id_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
-        assert download.get_bytes_written() == six.b('hello world')
-        assert progress_listener.is_valid()
+    def setUp(self):
+        super(DownloadTests, self).setUp()
+        self.file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        self.download_dest = DownloadDestBytes()
+        self.progress_listener = StubProgressListener()
+
+    def _verify(self, expected_result):
+        assert self.download_dest.get_bytes_written() == six.b(expected_result)
+        assert self.progress_listener.is_valid()
 
     def test_download_by_id_no_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        self.bucket.download_file_by_id(file_info.id_, download)
-
-    def test_download_by_name_progress(self):
-        self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_name('file1', download, progress_listener)
-        assert download.get_bytes_written() == six.b('hello world')
-        assert progress_listener.is_valid()
+        self.bucket.download_file_by_id(self.file_info.id_, self.download_dest)
 
     def test_download_by_name_no_progress(self):
-        self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        self.bucket.download_file_by_name('file1', download)
+        self.bucket.download_file_by_name('file1', self.download_dest)
+
+    def test_download_by_name_progress(self):
+        self.bucket.download_file_by_name('file1', self.download_dest, self.progress_listener)
+        self._verify('hello world')
+
+    def test_download_by_id_progress(self):
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener
+        )
+        self._verify('hello world')
 
     def test_download_by_id_progress_partial(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
-        assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()
-        assert progress_listener.is_valid()
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener, range_=(3, 9)
+        )
+        self._verify('lo worl')
+
+    def test_download_by_id_progress_exact_range(self):
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener, range_=(0, 10)
+        )
+        self._verify('hello world')
+
+    def test_download_by_id_progress_range_one_off(self):
+        with self.assertRaises(
+            InvalidRange,
+            msg='Cloud can only serve a range of 0-10, while a range of 0-11 was requested',
+        ):
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                self.download_dest,
+                self.progress_listener,
+                range_=(0, 11),
+            )
+
+    def test_download_by_id_progress_invalid_range(self):
+        with self.assertRaises(
+            InvalidRange,
+            msg='Cloud can only serve a range of 0-10, while a range of 5-16 was requested',
+        ):
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                self.download_dest,
+                self.progress_listener,
+                range_=(5, 16),
+            )
 
 
 class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
     pass
-
-
-from b2.transferer.simple import SimpleDownloader
 
 
 class TestDownloadSimple(DownloadTests, TestCaseWithBucket):
