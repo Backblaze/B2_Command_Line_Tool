@@ -59,6 +59,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
     """
     Stores a downloaded file into a local file and sets its modification time.
     """
+    MODE = 'wb+'
 
     def __init__(self, local_file_path):
         self.local_file_path = local_file_path
@@ -86,7 +87,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
     @contextmanager
     def write_to_local_file_context(self, mod_time_millis):
         # Open the file and let the caller write it.
-        with open(self.local_file_path, 'wb') as f:
+        with open(self.local_file_path, self.MODE) as f:
             yield f
 
         # After it's closed, set the mod time.
