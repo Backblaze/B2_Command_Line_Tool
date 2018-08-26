@@ -20,7 +20,7 @@ from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
-from b2.download_dest import DownloadDestBytes
+from b2.download_dest import DownloadDestBytes, PreSeekedDownloadDest
 from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidRange, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part

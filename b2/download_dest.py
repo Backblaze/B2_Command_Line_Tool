@@ -98,6 +98,25 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
             os.utime(self.local_file_path, (mod_time, mod_time))
 
 
+class PreSeekedDownloadDest(DownloadDestLocalFile):
+    """
+    Stores a downloaded file into a local file and sets its modification time.
+    Does not truncate the target file, seeks to a given offset just after opening
+    a descriptor.
+    """
+    MODE = 'rb+'
+
+    def __init__(self, local_file_path, seek_target):
+        self._seek_target = seek_target
+        super(PreSeekedDownloadDest, self).__init__(local_file_path)
+
+    @contextmanager
+    def write_to_local_file_context(self, *args, **kwargs):
+        with super(PreSeekedDownloadDest, self).write_to_local_file_context(*args, **kwargs) as f:
+            f.seek(self._seek_target)
+            yield f
+
+
 class DownloadDestBytes(AbstractDownloadDestination):
     """
     Stores a downloaded file into bytes in memory.
