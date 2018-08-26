@@ -45,6 +45,7 @@ class TestDownloadDestLocalFile(TestBase):
 
 class TestPreSeekedDownloadDest(TestDownloadDestLocalFile):
     expected_result = '123hello world567890'
+
     def _make_dest(self, temp_dir):
         file_path = os.path.join(temp_dir, "test.txt")
         with open(file_path, 'wb') as f:
