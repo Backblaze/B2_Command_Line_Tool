@@ -10,6 +10,8 @@
 
 import os
 
+import six
+
 from b2.download_dest import DownloadDestLocalFile, DownloadDestProgressWrapper
 from b2.progress import ProgressListenerForTest
 from b2.utils import TempDir
@@ -27,10 +29,26 @@ class TestDownloadDestLocalFile(TestBase):
             with download_dest.make_file_context(
                 "file_id", "file_name", 100, "content_type", "sha1", {}, 1500222333000
             ) as f:
-                f.write(b'hello world\n')
+                f.write(six.b('hello world\n'))
             with open(file_path, 'rb') as f:
                 self.assertEqual(b'hello world\n', f.read())
             self.assertEqual(1500222333, os.path.getmtime(file_path))
+
+    def test_download_truncate(self):
+        with TempDir() as d:
+            file_path = os.path.join(d, 'file2')
+            with open(file_path, 'wb') as f:
+                f.write(six.b('12345678901234567890'))
+            download_dest = DownloadDestLocalFile(file_path)
+            with download_dest.make_file_context(
+                "file_id", "file_name", 100, "content_type", "sha1", {}, 1500222333000
+            ) as f:
+                f.write(six.b('hello world\n'))
+            with open(file_path, 'rb') as f:
+                self.assertEqual(
+                    six.b('hello world\n'),
+                    f.read(),
+                )  # 'hello world234567890' here means file was not truncated
 
 
 class TestDownloadDestProgressWrapper(TestBase):
