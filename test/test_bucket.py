@@ -531,9 +531,43 @@ class DownloadTests(object):
             data = six.b('12345678901234567890')
             write_file(path, data)
             self.bucket.download_file_by_id(
-                self.file_info.id_, download_dest, self.progress_listener, range_=(3, 9)
+                self.file_info.id_,
+                download_dest,
+                self.progress_listener,
+                range_=(3, 9),
             )
             self._check_local_file_contents(path, six.b('123lo worl1234567890'))
+
+    def test_download_by_id_progress_partial_shifted_overwrite(self):
+        # LOCAL is
+        # 12345678901234567890
+        #
+        # and then:
+        #
+        # hello world
+        #    |||||||
+        #    \\\\\\\
+        #     \\\\\\\
+        #      \\\\\\\
+        #       \\\\\\\
+        #        \\\\\\\
+        #        |||||||
+        #        vvvvvvv
+        #
+        # 1234567lo worl567890
+
+        with TempDir() as d:
+            path = os.path.join(d, 'file2')
+            download_dest = PreSeekedDownloadDest(seek_target=7, local_file_path=path)
+            data = six.b('12345678901234567890')
+            write_file(path, data)
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                download_dest,
+                self.progress_listener,
+                range_=(3, 9),
+            )
+            self._check_local_file_contents(path, six.b('1234567lo worl567890'))
 
     def _check_local_file_contents(self, path, expected_contents):
         with open(path, 'rb') as f:
