@@ -20,7 +20,7 @@ from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
-from b2.download_dest import DownloadDestBytes
+from b2.download_dest import DownloadDestBytes, PreSeekedDownloadDest
 from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidRange, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
@@ -512,17 +512,67 @@ class DownloadTests(object):
                 range_=(0, 11),
             )
 
-    def test_download_by_id_progress_invalid_range(self):
-        with self.assertRaises(
-            InvalidRange,
-            msg='Cloud can only serve a range of 0-10, while a range of 5-16 was requested',
-        ):
+    def test_download_by_id_progress_partial_inplace_overwrite(self):
+        # LOCAL is
+        # 12345678901234567890
+        #
+        # and then:
+        #
+        # hello world
+        #    |||||||
+        #    |||||||
+        #    vvvvvvv
+        #
+        # 123lo worl1234567890
+
+        with TempDir() as d:
+            path = os.path.join(d, 'file2')
+            download_dest = PreSeekedDownloadDest(seek_target=3, local_file_path=path)
+            data = six.b('12345678901234567890')
+            write_file(path, data)
             self.bucket.download_file_by_id(
                 self.file_info.id_,
-                self.download_dest,
+                download_dest,
                 self.progress_listener,
-                range_=(5, 16),
+                range_=(3, 9),
             )
+            self._check_local_file_contents(path, six.b('123lo worl1234567890'))
+
+    def test_download_by_id_progress_partial_shifted_overwrite(self):
+        # LOCAL is
+        # 12345678901234567890
+        #
+        # and then:
+        #
+        # hello world
+        #    |||||||
+        #    \\\\\\\
+        #     \\\\\\\
+        #      \\\\\\\
+        #       \\\\\\\
+        #        \\\\\\\
+        #        |||||||
+        #        vvvvvvv
+        #
+        # 1234567lo worl567890
+
+        with TempDir() as d:
+            path = os.path.join(d, 'file2')
+            download_dest = PreSeekedDownloadDest(seek_target=7, local_file_path=path)
+            data = six.b('12345678901234567890')
+            write_file(path, data)
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                download_dest,
+                self.progress_listener,
+                range_=(3, 9),
+            )
+            self._check_local_file_contents(path, six.b('1234567lo worl567890'))
+
+    def _check_local_file_contents(self, path, expected_contents):
+        with open(path, 'rb') as f:
+            contents = f.read()
+            self.assertEqual(contents, expected_contents)
 
 
 class TestDownloadDefault(DownloadTests, TestCaseWithBucket):

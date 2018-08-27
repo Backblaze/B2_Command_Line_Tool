@@ -59,6 +59,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
     """
     Stores a downloaded file into a local file and sets its modification time.
     """
+    MODE = 'wb+'
 
     def __init__(self, local_file_path):
         self.local_file_path = local_file_path
@@ -86,7 +87,7 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
     @contextmanager
     def write_to_local_file_context(self, mod_time_millis):
         # Open the file and let the caller write it.
-        with open(self.local_file_path, 'wb') as f:
+        with open(self.local_file_path, self.MODE) as f:
             yield f
 
         # After it's closed, set the mod time.
@@ -95,6 +96,25 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
         if self.local_file_path != os.devnull:
             mod_time = mod_time_millis / 1000.0
             os.utime(self.local_file_path, (mod_time, mod_time))
+
+
+class PreSeekedDownloadDest(DownloadDestLocalFile):
+    """
+    Stores a downloaded file into a local file and sets its modification time.
+    Does not truncate the target file, seeks to a given offset just after opening
+    a descriptor.
+    """
+    MODE = 'rb+'
+
+    def __init__(self, local_file_path, seek_target):
+        self._seek_target = seek_target
+        super(PreSeekedDownloadDest, self).__init__(local_file_path)
+
+    @contextmanager
+    def write_to_local_file_context(self, *args, **kwargs):
+        with super(PreSeekedDownloadDest, self).write_to_local_file_context(*args, **kwargs) as f:
+            f.seek(self._seek_target)
+            yield f
 
 
 class DownloadDestBytes(AbstractDownloadDestination):
