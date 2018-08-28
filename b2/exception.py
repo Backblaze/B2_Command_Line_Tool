@@ -258,10 +258,11 @@ class InvalidRange(B2Error):
         self.range_ = range_
 
     def __str__(self):
-        return 'Cloud can only serve a range of 0-%d, while a range of %d-%d was requested' % (
-            self.content_length - 1,
+        return 'A range of %d-%d was requested (size of %d), but cloud could only serve %d of that' % (
             self.range_[0],
             self.range_[1],
+            self.range_[1] - self.range_[0] + 1,
+            self.content_length,
         )
 
 

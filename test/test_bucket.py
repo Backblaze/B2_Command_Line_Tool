@@ -503,7 +503,7 @@ class DownloadTests(object):
     def test_download_by_id_progress_range_one_off(self):
         with self.assertRaises(
             InvalidRange,
-            msg='Cloud can only serve a range of 0-10, while a range of 0-11 was requested',
+            msg='A range of 0-11 was requested (size of 12), but cloud could only serve 11 of that',
         ):
             self.bucket.download_file_by_id(
                 self.file_info.id_,

@@ -160,16 +160,28 @@ class FileSimulator(object):
         """
         return (self.name, self.file_id)
 
-    def as_download_headers(self):
-        # range has to be added by the caller!
+    def as_download_headers(self, range_=None):
+        if self.data_bytes is None:
+            content_length = 0
+        elif range_ is not None:
+            if range_[1] >= len(self.data_bytes):  # requested too much
+                content_length = len(self.data_bytes)
+            else:
+                content_length = range_[1] - range_[0] + 1
+        else:
+            content_length = len(self.data_bytes)
         headers = {
-            'content-length': len(self.data_bytes) if self.data_bytes is not None else 0,
+            'content-length': content_length,
             'content-type': self.content_type,
             'x-bz-content-sha1': self.content_sha1,
             'x-bz-upload-timestamp': self.upload_timestamp,
             'x-bz-file-id': self.file_id,
             'x-bz-file-name': self.name,
-        }  # yapf: disable
+        }
+        if range_ is not None:
+            headers['Content-Range'] = 'bytes %d-%d/%d' % (
+                range_[0], range_[0] + content_length, len(self.data_bytes)
+            )  # yapf: disable
         for key, value in six.iteritems(self.file_info):
             headers['x-bz-info-' + key] = value
         return headers
@@ -971,11 +983,10 @@ FakeRequest = collections.namedtuple('FakeRequest', 'url')
 class FakeResponse(object):
     def __init__(self, file_sim, url, range_=None):
         self.data_bytes = file_sim.data_bytes
-        self.headers = file_sim.as_download_headers()
+        self.headers = file_sim.as_download_headers(range_)
         self.url = url
         if range_ is not None:
             self.data_bytes = self.data_bytes[range_[0]:range_[1] + 1]
-            self.headers['Content-Range'] = '%s-%s' % range_
 
     def iter_content(self, chunk_size=1):
         start = 0

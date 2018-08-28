@@ -75,7 +75,7 @@ class Transferer(object):
             if range_ is not None:
                 if 'Content-Range' not in response.headers:
                     raise UnexpectedCloudBehaviour('Content-Range header was expected')
-                if range_[1] >= metadata.content_length:
+                if (range_[1] - range_[0] + 1) != metadata.content_length:
                     raise InvalidRange(metadata.content_length, range_)
 
             mod_time_millis = int(
