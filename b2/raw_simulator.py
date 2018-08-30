@@ -977,7 +977,7 @@ class RawSimulator(AbstractRawApi):
         return self.bucket_name_to_bucket[bucket_name]
 
 
-FakeRequest = collections.namedtuple('FakeRequest', 'url')
+FakeRequest = collections.namedtuple('FakeRequest', 'url headers')
 
 
 class FakeResponse(object):
@@ -985,6 +985,7 @@ class FakeResponse(object):
         self.data_bytes = file_sim.data_bytes
         self.headers = file_sim.as_download_headers(range_)
         self.url = url
+        self.range_ = range_
         if range_ is not None:
             self.data_bytes = self.data_bytes[range_[0]:range_[1] + 1]
 
@@ -996,7 +997,10 @@ class FakeResponse(object):
 
     @property
     def request(self):
-        return FakeRequest(self.url)
+        headers = {}
+        if self.range_ is not None:
+            headers['Range'] = '%s-%s' % self.range_
+        return FakeRequest(self.url, headers)
 
     def close(self):
         pass

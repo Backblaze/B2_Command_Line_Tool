@@ -26,6 +26,7 @@ from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
+from b2.transferer.parallel import ParallelDownloader
 from b2.transferer.simple import SimpleDownloader
 from b2.upload_source import UploadSourceBytes
 from b2.utils import hex_sha1_of_bytes, TempDir
@@ -583,3 +584,15 @@ class TestDownloadSimple(DownloadTests, TestCaseWithBucket):
     def setUp(self):
         super(TestDownloadSimple, self).setUp()
         self.bucket.api.transferer.strategies = [SimpleDownloader(chunk_size=20,)]
+
+
+class TestDownloadParallel(DownloadTests, TestCaseWithBucket):
+    def setUp(self):
+        super(TestDownloadParallel, self).setUp()
+        self.bucket.api.transferer.strategies = [
+            ParallelDownloader(
+                chunk_size=2,
+                max_streams=999,
+                min_part_size=2,
+            )
+        ]
