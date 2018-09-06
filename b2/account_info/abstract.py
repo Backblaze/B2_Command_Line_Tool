@@ -89,6 +89,10 @@ class AbstractAccountInfo(object):
         """ returns account_id or raises MissingAccountData exception """
 
     @abstractmethod
+    def get_account_id_or_app_key_id(self):
+        """ returns the account id or key id used to authenticate """
+
+    @abstractmethod
     def get_account_auth_token(self):
         """ returns account_auth_token or raises MissingAccountData exception """
 
@@ -133,6 +137,7 @@ class AbstractAccountInfo(object):
         application_key,
         realm,
         allowed=None,
+        account_id_or_app_key_id=None,
     ):
         """
         Stores the results of b2_authorize_account.
@@ -157,6 +162,7 @@ class AbstractAccountInfo(object):
             application_key,
             realm,
             allowed,
+            account_id_or_app_key_id,
         )
 
     @classmethod
@@ -176,8 +182,16 @@ class AbstractAccountInfo(object):
 
     @abstractmethod
     def _set_auth_data(
-        self, account_id, auth_token, api_url, download_url, minimum_part_size, application_key,
-        realm, allowed
+        self,
+        account_id,
+        auth_token,
+        api_url,
+        download_url,
+        minimum_part_size,
+        application_key,
+        realm,
+        allowed,
+        account_id_or_app_key_id,
     ):
         """
         Stores the auth data.  Can assume that 'allowed' is present and valid.

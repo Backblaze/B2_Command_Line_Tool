@@ -20,12 +20,14 @@ from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
 from b2.api import B2Api
 from b2.bucket import LargeFileUploadState
-from b2.download_dest import DownloadDestBytes
-from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidUploadSource, MaxRetriesExceeded
+from b2.download_dest import DownloadDestBytes, PreSeekedDownloadDest
+from b2.exception import AlreadyFailed, B2Error, InvalidAuthToken, InvalidRange, InvalidUploadSource, MaxRetriesExceeded
 from b2.file_version import FileVersionInfo
 from b2.part import Part
 from b2.progress import AbstractProgressListener
 from b2.raw_simulator import RawSimulator
+from b2.transferer.parallel import ParallelDownloader
+from b2.transferer.simple import SimpleDownloader
 from b2.upload_source import UploadSourceBytes
 from b2.utils import hex_sha1_of_bytes, TempDir
 
@@ -50,17 +52,27 @@ class StubProgressListener(AbstractProgressListener):
     """
 
     def __init__(self):
+        self.total = None
         self.history = []
+        self.last_byte_count = 0
 
     def get_history(self):
         return ' '.join(self.history)
 
     def set_total_bytes(self, total_byte_count):
+        assert total_byte_count is not None
+        assert self.total is None, 'set_total_bytes called twice'
+        self.total = total_byte_count
         assert len(self.history) == 0, self.history
         self.history.append('%d:' % (total_byte_count,))
 
     def bytes_completed(self, byte_count):
+        assert byte_count >= self.last_byte_count
+        self.last_byte_count = byte_count
         self.history.append(str(byte_count))
+
+    def is_valid(self):
+        return self.total == self.last_byte_count
 
     def close(self):
         self.history.append('closed')
@@ -450,38 +462,137 @@ class TestUpload(TestCaseWithBucket):
         return six.b('').join(fragments)
 
 
-class TestDownload(TestCaseWithBucket):
-    def test_download_by_id_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener)
-        self.assertEqual("11: 11 closed", progress_listener.get_history())
-        assert download.get_bytes_written() == six.b('hello world')
+class DownloadTests(object):
+    def setUp(self):
+        super(DownloadTests, self).setUp()
+        self.file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
+        self.download_dest = DownloadDestBytes()
+        self.progress_listener = StubProgressListener()
+
+    def _verify(self, expected_result):
+        assert self.download_dest.get_bytes_written() == six.b(expected_result)
+        assert self.progress_listener.is_valid()
 
     def test_download_by_id_no_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        self.bucket.download_file_by_id(file_info.id_, download)
-
-    def test_download_by_name_progress(self):
-        self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_name('file1', download, progress_listener)
-        self.assertEqual("11: 11 closed", progress_listener.get_history())
+        self.bucket.download_file_by_id(self.file_info.id_, self.download_dest)
 
     def test_download_by_name_no_progress(self):
-        self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        self.bucket.download_file_by_name('file1', download)
+        self.bucket.download_file_by_name('file1', self.download_dest)
 
+    def test_download_by_name_progress(self):
+        self.bucket.download_file_by_name('file1', self.download_dest, self.progress_listener)
+        self._verify('hello world')
 
-class TestPartialDownload(TestCaseWithBucket):
     def test_download_by_id_progress(self):
-        file_info = self.bucket.upload_bytes(six.b('hello world'), 'file1')
-        download = DownloadDestBytes()
-        progress_listener = StubProgressListener()
-        self.bucket.download_file_by_id(file_info.id_, download, progress_listener, range_=(3, 9))
-        self.assertEqual("7: 7 closed", progress_listener.get_history())
-        assert download.get_bytes_written() == six.b('lo worl'), download.get_bytes_written()
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener
+        )
+        self._verify('hello world')
+
+    def test_download_by_id_progress_partial(self):
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener, range_=(3, 9)
+        )
+        self._verify('lo worl')
+
+    def test_download_by_id_progress_exact_range(self):
+        self.bucket.download_file_by_id(
+            self.file_info.id_, self.download_dest, self.progress_listener, range_=(0, 10)
+        )
+        self._verify('hello world')
+
+    def test_download_by_id_progress_range_one_off(self):
+        with self.assertRaises(
+            InvalidRange,
+            msg='A range of 0-11 was requested (size of 12), but cloud could only serve 11 of that',
+        ):
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                self.download_dest,
+                self.progress_listener,
+                range_=(0, 11),
+            )
+
+    def test_download_by_id_progress_partial_inplace_overwrite(self):
+        # LOCAL is
+        # 12345678901234567890
+        #
+        # and then:
+        #
+        # hello world
+        #    |||||||
+        #    |||||||
+        #    vvvvvvv
+        #
+        # 123lo worl1234567890
+
+        with TempDir() as d:
+            path = os.path.join(d, 'file2')
+            download_dest = PreSeekedDownloadDest(seek_target=3, local_file_path=path)
+            data = six.b('12345678901234567890')
+            write_file(path, data)
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                download_dest,
+                self.progress_listener,
+                range_=(3, 9),
+            )
+            self._check_local_file_contents(path, six.b('123lo worl1234567890'))
+
+    def test_download_by_id_progress_partial_shifted_overwrite(self):
+        # LOCAL is
+        # 12345678901234567890
+        #
+        # and then:
+        #
+        # hello world
+        #    |||||||
+        #    \\\\\\\
+        #     \\\\\\\
+        #      \\\\\\\
+        #       \\\\\\\
+        #        \\\\\\\
+        #        |||||||
+        #        vvvvvvv
+        #
+        # 1234567lo worl567890
+
+        with TempDir() as d:
+            path = os.path.join(d, 'file2')
+            download_dest = PreSeekedDownloadDest(seek_target=7, local_file_path=path)
+            data = six.b('12345678901234567890')
+            write_file(path, data)
+            self.bucket.download_file_by_id(
+                self.file_info.id_,
+                download_dest,
+                self.progress_listener,
+                range_=(3, 9),
+            )
+            self._check_local_file_contents(path, six.b('1234567lo worl567890'))
+
+    def _check_local_file_contents(self, path, expected_contents):
+        with open(path, 'rb') as f:
+            contents = f.read()
+            self.assertEqual(contents, expected_contents)
+
+
+class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
+    pass
+
+
+class TestDownloadSimple(DownloadTests, TestCaseWithBucket):
+    def setUp(self):
+        super(TestDownloadSimple, self).setUp()
+        self.bucket.api.transferer.strategies = [SimpleDownloader(chunk_size=20,)]
+
+
+class TestDownloadParallel(DownloadTests, TestCaseWithBucket):
+    def setUp(self):
+        super(TestDownloadParallel, self).setUp()
+        self.bucket.api.transferer.strategies = [
+            ParallelDownloader(
+                chunk_size=2,
+                max_streams=999,
+                min_part_size=2,
+            )
+        ]

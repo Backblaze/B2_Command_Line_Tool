@@ -42,6 +42,20 @@ class TestApi(TestBase):
             [b.name for b in self.api.list_buckets(bucket_name='bucket1')],
         )
 
+    def test_reauthorize_with_app_key(self):
+        # authorize and create a key
+        self._authorize_account()
+        key = self.api.create_key(['listBuckets'], 'key1')
+
+        # authorize with the key
+        self.api.authorize_account('production', key['applicationKeyId'], key['applicationKey'])
+
+        # expire the auth token we just got
+        self.raw_api.expire_auth_token(self.account_info.get_account_auth_token())
+
+        # listing buckets should work, after it re-authorizes
+        self.api.list_buckets()
+
     def test_list_buckets_with_restriction(self):
         self._authorize_account()
         bucket1 = self.api.create_bucket('bucket1', 'allPrivate')

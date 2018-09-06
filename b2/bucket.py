@@ -16,7 +16,7 @@ from .exception import (
     AlreadyFailed, B2Error, MaxFileSizeExceeded, MaxRetriesExceeded, UnrecognizedBucketType
 )
 from .file_version import FileVersionInfoFactory
-from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, StreamWithProgress, StreamWithHash
+from .progress import DoNothingProgressListener, AbstractProgressListener, RangeOfInputStream, ReadingStreamWithProgress, StreamWithHash
 from .unfinished_large_file import UnfinishedLargeFile
 from .upload_source import UploadSourceBytes, UploadSourceLocalFile
 from .utils import b2_url_encode, choose_part_ranges, hex_sha1_of_stream, interruptible_get_result, validate_b2_file_name
@@ -407,7 +407,7 @@ class Bucket(object):
 
                 try:
                     with upload_source.open() as file:
-                        input_stream = StreamWithProgress(file, progress_listener)
+                        input_stream = ReadingStreamWithProgress(file, progress_listener)
                         hashing_stream = StreamWithHash(input_stream)
                         length_with_hash = content_length + hashing_stream.hash_size()
                         response = self.api.raw_api.upload_file(
@@ -551,7 +551,7 @@ class Bucket(object):
                     offset, content_length = part_range
                     file.seek(offset)
                     range_stream = RangeOfInputStream(file, offset, content_length)
-                    input_stream = StreamWithProgress(range_stream, part_progress_listener)
+                    input_stream = ReadingStreamWithProgress(range_stream, part_progress_listener)
                     hashing_stream = StreamWithHash(input_stream)
                     length_with_hash = content_length + hashing_stream.hash_size()
                     response = self.api.raw_api.upload_part(

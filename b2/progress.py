@@ -218,10 +218,12 @@ class RangeOfInputStream(object):
         return data
 
 
-class StreamWithProgress(object):
+class AbstractStreamWithProgress(object):
     """
     Wraps a file-like object and updates a ProgressListener
-    as data is read and written.
+    as data is read / written.
+    In the abstract class, read and write methods do not update
+    the progress - child classes shall do it
     """
 
     def __init__(self, stream, progress_listener, offset=0):
@@ -245,24 +247,40 @@ class StreamWithProgress(object):
         return self.stream.__exit__(exc_type, exc_val, exc_tb)
 
     def seek(self, pos):
-        self.bytes_completed = 0
-        self.stream.seek(0)
+        return self.stream.seek(pos)
+
+    def tell(self):
+        return self.stream.tell()
+
+    def flush(self):
+        self.stream.flush()
 
     def read(self, size=None):
         if size is None:
             data = self.stream.read()
         else:
             data = self.stream.read(size)
-        self._update(len(data))
         return data
 
     def write(self, data):
         self.stream.write(data)
-        self._update(len(data))
 
     def _update(self, delta):
         self.bytes_completed += delta
         self.progress_listener.bytes_completed(self.bytes_completed + self.offset)
+
+
+class ReadingStreamWithProgress(AbstractStreamWithProgress):
+    def read(self, size=None):
+        data = super(ReadingStreamWithProgress, self).read(size)
+        self._update(len(data))
+        return data
+
+
+class WritingStreamWithProgress(AbstractStreamWithProgress):
+    def write(self, data):
+        self._update(len(data))
+        super(WritingStreamWithProgress, self).write(data)
 
 
 class StreamWithHash(object):

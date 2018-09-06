@@ -103,7 +103,7 @@ class B2Api(object):
         try:
             self.authorize_account(
                 self.account_info.get_realm(),
-                self.account_info.get_account_id(),
+                self.account_info.get_account_id_or_app_key_id(),
                 self.account_info.get_application_key(),
             )
         except MissingAccountData:
@@ -163,6 +163,7 @@ class B2Api(object):
             application_key,
             realm,
             allowed,
+            account_id_or_key_id,
         )
 
     def get_account_id(self):

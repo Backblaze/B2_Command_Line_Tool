@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import collections
 import re
 import time
 
@@ -159,16 +160,28 @@ class FileSimulator(object):
         """
         return (self.name, self.file_id)
 
-    def as_download_headers(self):
-        # range has to be added by the caller!
+    def as_download_headers(self, range_=None):
+        if self.data_bytes is None:
+            content_length = 0
+        elif range_ is not None:
+            if range_[1] >= len(self.data_bytes):  # requested too much
+                content_length = len(self.data_bytes)
+            else:
+                content_length = range_[1] - range_[0] + 1
+        else:
+            content_length = len(self.data_bytes)
         headers = {
-            'content-length': len(self.data_bytes) if self.data_bytes is not None else 0,
+            'content-length': content_length,
             'content-type': self.content_type,
             'x-bz-content-sha1': self.content_sha1,
             'x-bz-upload-timestamp': self.upload_timestamp,
             'x-bz-file-id': self.file_id,
             'x-bz-file-name': self.name,
-        }  # yapf: disable
+        }
+        if range_ is not None:
+            headers['Content-Range'] = 'bytes %d-%d/%d' % (
+                range_[0], range_[0] + content_length, len(self.data_bytes)
+            )  # yapf: disable
         for key, value in six.iteritems(self.file_info):
             headers['x-bz-info-' + key] = value
         return headers
@@ -322,11 +335,11 @@ class BucketSimulator(object):
         del self.file_id_to_file[file_id]
         return dict(fileId=file_id, fileName=file_name, uploadTimestamp=file_sim.upload_timestamp)
 
-    def download_file_by_id(self, file_id, range_=None):
+    def download_file_by_id(self, file_id, url, range_=None):
         file_sim = self.file_id_to_file[file_id]
-        return self._download_file_sim(file_sim, range_=range_)
+        return self._download_file_sim(file_sim, url, range_=range_)
 
-    def download_file_by_name(self, file_name, range_=None):
+    def download_file_by_name(self, file_name, url, range_=None):
         files = self.list_file_names(file_name, 1)['files']
         if len(files) == 0:
             raise FileNotPresent(file_name)
@@ -334,10 +347,10 @@ class BucketSimulator(object):
         if file_dict['fileName'] != file_name or file_dict['action'] != 'upload':
             raise FileNotPresent(file_name)
         file_sim = self.file_name_and_id_to_file[(file_name, file_dict['fileId'])]
-        return self._download_file_sim(file_sim, range_=range_)
+        return self._download_file_sim(file_sim, url, range_=range_)
 
-    def _download_file_sim(self, file_sim, range_=None):
-        return ResponseContextManager(FakeResponse(file_sim, range_))
+    def _download_file_sim(self, file_sim, url, range_=None):
+        return ResponseContextManager(FakeResponse(file_sim, url, range_))
 
     def finish_large_file(self, file_id, part_sha1_array):
         file_sim = self.file_id_to_file[file_id]
@@ -542,6 +555,9 @@ class RawSimulator(AbstractRawApi):
         # Map from auth token to the KeySimulator for it.
         self.auth_token_to_key = dict()
 
+        # Set of auth tokens that have expired
+        self.expired_auth_tokens = set()
+
         # Counter for generating auth tokens.
         self.auth_token_counter = 0
 
@@ -555,6 +571,16 @@ class RawSimulator(AbstractRawApi):
         self.all_application_keys = []
         self.app_key_counter = 0
         self.upload_errors = []
+
+    def expire_auth_token(self, auth_token):
+        """
+        Simulate the auth token expiring.
+
+        The next call that tries to use this auth token will get an
+        auth_token_expired error.
+        """
+        assert auth_token in self.auth_token_to_key
+        self.expired_auth_tokens.add(auth_token)
 
     def create_account(self):
         """
@@ -704,10 +730,10 @@ class RawSimulator(AbstractRawApi):
         if file_id is not None:
             bucket_id = self.file_id_to_bucket_id[file_id]
             bucket = self._get_bucket_by_id(bucket_id)
-            return bucket.download_file_by_id(file_id, range_=range_)
+            return bucket.download_file_by_id(file_id, range_=range_, url=url)
         elif bucket_name is not None and file_name is not None:
             bucket = self._get_bucket_by_name(bucket_name)
-            return bucket.download_file_by_name(b2_url_decode(file_name), range_=range_)
+            return bucket.download_file_by_name(b2_url_decode(file_name), range_=range_, url=url)
         else:
             assert False
 
@@ -930,6 +956,8 @@ class RawSimulator(AbstractRawApi):
         assert key_sim is not None
         assert api_url == self.API_URL
         assert account_id == key_sim.account_id
+        if account_auth_token in self.expired_auth_tokens:
+            raise InvalidAuthToken('auth token expired', 'auth_token_expired')
         if capability not in key_sim.capabilities:
             raise Unauthorized('', 'unauthorized')
         if key_sim.bucket_id_or_none is not None and key_sim.bucket_id_or_none != bucket_id:
@@ -949,19 +977,30 @@ class RawSimulator(AbstractRawApi):
         return self.bucket_name_to_bucket[bucket_name]
 
 
+FakeRequest = collections.namedtuple('FakeRequest', 'url headers')
+
+
 class FakeResponse(object):
-    def __init__(self, file_sim, range_=None):
+    def __init__(self, file_sim, url, range_=None):
         self.data_bytes = file_sim.data_bytes
-        self.headers = file_sim.as_download_headers()
+        self.headers = file_sim.as_download_headers(range_)
+        self.url = url
+        self.range_ = range_
         if range_ is not None:
             self.data_bytes = self.data_bytes[range_[0]:range_[1] + 1]
-            self.headers['Content-Range'] = '%s-%s' % range_
 
     def iter_content(self, chunk_size=1):
         start = 0
         while start <= len(self.data_bytes):
             yield self.data_bytes[start:start + chunk_size]
             start += chunk_size
+
+    @property
+    def request(self):
+        headers = {}
+        if self.range_ is not None:
+            headers['Range'] = '%s-%s' % self.range_
+        return FakeRequest(self.url, headers)
 
     def close(self):
         pass

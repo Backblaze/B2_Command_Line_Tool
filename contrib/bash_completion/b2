@@ -1,4 +1,4 @@
-have b2 &&
+_have b2 &&
 _b2 () {
     local _b2_subcommands=(
         'authorize_account'

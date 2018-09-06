@@ -15,11 +15,13 @@ import unittest
 
 class TestBase(unittest.TestCase):
     @contextmanager
-    def assertRaises(self, exc):
+    def assertRaises(self, exc, msg=None):
         try:
             yield
-        except exc:
-            pass
+        except exc as e:
+            if msg is not None:
+                if msg != str(e):
+                    assert False, "expected message '%s', but got '%s'" % (msg, str(e))
         else:
             assert False, 'should have thrown %s' % (exc,)
 

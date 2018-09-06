@@ -1,5 +1,7 @@
 # Release Process
 
+- Get the latest versions of dependencies
+  - `pip install --upgrade --upgrade-strategy eager -r requirements.txt -r requirements-test.txt -r requirements-setup.txt`
 - Bump the version number to an even number.
   - version number is in: `b2/version.py`, `README.md`, and `setup.py`.
 - Update the release history in README.md.

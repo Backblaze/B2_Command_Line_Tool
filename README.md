@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.3.5
+Version 1.3.7
 
 # Installation
 
@@ -96,6 +96,14 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
+## 1.3.6 (August 21, 2018)
+
+Bug fixes:
+
+* Fix auto-reauthorize for application keys.
+* Fix problem with bash auto-completion module.
+* Fix (hopefully) markdown display in PyPI.
+
 ## 1.3.4 (August 10, 2018)
 
 Bug fixes:
@@ -183,12 +191,9 @@ We encourage outside contributors to perform changes on our codebase. Many such 
 * use static code analysis to find subtle/potential issues with maintainability
 * maintain other Continous Integration tools (coverage tracker)
 
-You'll need to have these packages installed:
+You'll need to some Python packages installed.  To get all the latest things:
 
-* nose
-* pyflakes
-* six
-* yapf
+* `pip install --upgrade --upgrade-strategy eager -r requirements.txt -r requirements-test.txt -r requirements-setup.txt`
 
 There is a `Makefile` with a rule to run the unit tests using the currently active Python:
 
