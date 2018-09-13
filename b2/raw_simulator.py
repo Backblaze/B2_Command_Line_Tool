@@ -63,7 +63,6 @@ class KeySimulator(object):
         self.capabilities = capabilities
         self.expiration_timestamp_or_none = expiration_timestamp_or_none
         self.bucket_id_or_none = bucket_id_or_none
-        self.bucket_name_or_none = bucket_name_or_none
         self.name_prefix_or_none = name_prefix_or_none
 
     def as_key(self):
@@ -94,7 +93,6 @@ class KeySimulator(object):
         """
         return dict(
             bucketId=self.bucket_id_or_none,
-            bucketName=self.bucket_name_or_none,
             capabilities=self.capabilities,
             namePrefix=self.name_prefix_or_none,
         )
@@ -625,13 +623,20 @@ class RawSimulator(AbstractRawApi):
         auth_token = 'auth_token_%d' % (self.auth_token_counter,)
         self.auth_token_counter += 1
         self.auth_token_to_key[auth_token] = key_sim
+        allowed = key_sim.get_allowed()
+        bucketId = allowed.get('bucketId')
+        if (bucketId is not None) and (bucketId in self.bucket_id_to_bucket):
+            allowed['bucketName'] = self.bucket_id_to_bucket[bucketId].bucket_name
+        else:
+            allowed['bucketName'] = None
         return dict(
             accountId=key_sim.account_id,
             authorizationToken=auth_token,
             apiUrl=self.API_URL,
             downloadUrl=self.DOWNLOAD_URL,
-            minimumPartSize=self.MIN_PART_SIZE,
-            allowed=key_sim.get_allowed(),
+            recommendedPartSize=self.MIN_PART_SIZE,
+            absoluteMinimumPartSize=self.MIN_PART_SIZE,
+            allowed=allowed,
         )
 
     def cancel_large_file(self, api_url, account_auth_token, file_id):
