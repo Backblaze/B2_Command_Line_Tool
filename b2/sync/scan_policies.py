@@ -81,7 +81,7 @@ class ScanPoliciesManager(object):
         )
         self._exclude_file_set = RegexSet(exclude_file_regexes)
         self._include_file_set = RegexSet(include_file_regexes)
-        self.exclude_symlinks  = exclude_symlinks
+        self.exclude_symlinks = exclude_symlinks
 
     def should_exclude_file(self, file_path):
         """

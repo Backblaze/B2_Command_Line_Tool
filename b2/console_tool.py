@@ -1136,7 +1136,8 @@ class Sync(Command):
     """
 
     OPTION_FLAGS = [
-        'delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource', 'excludeSymlinks'
+        'delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource',
+        'excludeSymlinks'
     ]
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions', 'compareThreshold']
     REQUIRED = ['source', 'destination']

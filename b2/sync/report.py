@@ -201,6 +201,7 @@ class SyncReport(object):
     def local_symlink_notice(self, path):
         self.print_completion('skipped symlink %s' % (path,))
 
+
 class SyncFileReporter(AbstractProgressListener):
     """
     Listens to the progress for a single file and passes info on to a SyncReporter.
