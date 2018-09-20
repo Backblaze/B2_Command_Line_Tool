@@ -51,6 +51,7 @@ this:
         [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \
         [--excludeRegex <regex> [--includeRegex <regex>]] \
         [--excludeDirRegex <regex>] \
+        [--excludeSymlinks ] \
         <source> <destination>
     b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
