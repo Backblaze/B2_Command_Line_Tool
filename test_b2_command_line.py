@@ -680,6 +680,37 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
             ], file_version_summary(file_versions)
         )
 
+        # confirm symlink is skipped and reported as such
+        write_file(p('linktarget'), b'hello')
+        os.symlink('linktarget', p('alink'))
+
+        b2_tool.should_succeed(
+            ['sync', '--noProgress', '--excludeAllSymlinks', dir_path, b2_sync_point],
+            expected_pattern="skipped symlink .*/alink"
+        )
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(
+            [
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'linktarget',
+            ], file_version_summary(file_versions)
+        )
+
+        # confirm symlink target is uploaded (with symlink's name)
+        b2_tool.should_succeed(['sync', '--noProgress', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(
+            [
+                '+ ' + prefix + 'alink',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'linktarget',
+            ], file_version_summary(file_versions)
+        )
+
 
 def sync_down_test(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, 'sync')
