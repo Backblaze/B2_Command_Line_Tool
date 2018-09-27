@@ -1059,6 +1059,41 @@ class TestConsoleTool(TestBase):
             ''' % (mtime)
             self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
 
+    def test_sync_exclude_all_symlinks(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            file_path = os.path.join(temp_dir, 'test.txt')
+            with open(file_path, 'wb') as f:
+                f.write(six.u('hello world').encode('utf-8'))
+            expected_stdout = '''
+            upload test.txt
+            '''
+
+            command = [
+                'sync', '--threads', '1', '--noProgress', '--excludeAllSymlinks', temp_dir,
+                'b2://my-bucket'
+            ]
+            self._run_command(command, expected_stdout, '', 0)
+
+    def test_sync_dont_exclude_all_symlinks(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            file_path = os.path.join(temp_dir, 'test.txt')
+            with open(file_path, 'wb') as f:
+                f.write(six.u('hello world').encode('utf-8'))
+            os.symlink('test.txt', os.path.join(temp_dir, 'alink'))
+            expected_stdout = '''
+            upload alink
+            upload test.txt
+            '''
+
+            command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_stdout, '', 0)
+
     def test_ls(self):
         self._authorize_account()
         self._create_my_bucket()

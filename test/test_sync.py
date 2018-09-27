@@ -412,6 +412,7 @@ class FakeArgs(object):
         debugLogs=True,
         dryRun=False,
         allowEmptySource=False,
+        excludeAllSymlinks=False,
     ):
         self.delete = delete
         self.keepDays = keepDays
@@ -431,6 +432,7 @@ class FakeArgs(object):
         self.debugLogs = debugLogs
         self.dryRun = dryRun
         self.allowEmptySource = allowEmptySource
+        self.excludeAllSymlinks = excludeAllSymlinks
 
 
 def b2_file(name, mod_times, size=10):
@@ -496,6 +498,7 @@ class TestExclusions(TestSync):
             exclude_dir_regexes=fakeargs.excludeDirRegex,
             exclude_file_regexes=fakeargs.excludeRegex,
             include_file_regexes=fakeargs.includeRegex,
+            exclude_all_symlinks=fakeargs.excludeAllSymlinks
         )
         actions = list(
             make_folder_sync_actions(
