@@ -695,7 +695,8 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
                 '+ ' + prefix + 'c',
                 '+ ' + prefix + 'c',
                 '+ ' + prefix + 'linktarget',
-            ], file_version_summary(file_versions)
+            ],
+            file_version_summary(file_versions),
         )
 
         # confirm symlink target is uploaded (with symlink's name)
@@ -708,7 +709,8 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
                 '+ ' + prefix + 'c',
                 '+ ' + prefix + 'c',
                 '+ ' + prefix + 'linktarget',
-            ], file_version_summary(file_versions)
+            ],
+            file_version_summary(file_versions),
         )
 
 
