@@ -242,8 +242,8 @@ class TestLs(TestCaseWithBucket):
         self.bucket.upload_bytes(data, 'ccc')
         expected = [
             ('9998', 'bb/1', 11, 'upload', None), ('9995', 'bb/2', 11, 'upload', None),
-            ('9996', 'bb/2', 11, 'upload', None), ('9997', 'bb/2', 11, 'upload',
-                                                   None), ('9994', 'bb/3', 11, 'upload', None)
+            ('9996', 'bb/2', 11, 'upload', None), ('9997', 'bb/2', 11, 'upload', None),
+            ('9994', 'bb/3', 11, 'upload', None)
         ]
         actual = [
             (info.id_, info.file_name, info.size, info.action, folder)
