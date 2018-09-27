@@ -170,7 +170,7 @@ class LocalFolder(AbstractFolder):
                 continue
 
             if policies_manager.exclude_all_symlinks and os.path.islink(local_path):
-                reporter.local_symlink_skip_notice(local_path)
+                reporter.symlink_skipped(local_path)
                 continue
 
             if os.path.isdir(local_path):

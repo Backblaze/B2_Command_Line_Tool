@@ -198,7 +198,7 @@ class SyncReport(object):
             'WARNING: %s could not be accessed (no permissions to read?)' % (path,)
         )
 
-    def local_symlink_skip_notice(self, path):
+    def symlink_skipped(self, path):
         self.print_completion('skipped symlink %s' % (path,))
 
 
