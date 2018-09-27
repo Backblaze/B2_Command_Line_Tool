@@ -445,9 +445,9 @@ class DeleteFileVersion(Command):
         Specifying the fileName is more efficient than leaving it out.
         If you omit the fileName, it requires an initial query to B2
         to get the file name, before making the call to delete the
-        file.
+        file.  This extra query requires the readFiles capability.
 
-        Requires capability: deleteFiles
+        Requires capability: deleteFiles, readFiles (if file name not provided)
     """
 
     OPTIONAL_BEFORE = ['fileName']
