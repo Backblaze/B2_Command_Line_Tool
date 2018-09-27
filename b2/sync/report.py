@@ -199,7 +199,7 @@ class SyncReport(object):
         )
 
     def symlink_skipped(self, path):
-        self.print_completion('skipped symlink %s' % (path,))
+        pass
 
 
 class SyncFileReporter(AbstractProgressListener):
