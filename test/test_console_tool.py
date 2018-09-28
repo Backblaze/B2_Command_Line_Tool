@@ -1064,9 +1064,8 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
 
         with TempDir() as temp_dir:
-            file_path = os.path.join(temp_dir, 'test.txt')
-            with open(file_path, 'wb') as f:
-                f.write(six.u('hello world').encode('utf-8'))
+            self._make_local_file(temp_dir, 'test.txt')
+            os.symlink('test.txt', os.path.join(temp_dir, 'alink'))
             expected_stdout = '''
             upload test.txt
             '''
@@ -1082,9 +1081,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
 
         with TempDir() as temp_dir:
-            file_path = os.path.join(temp_dir, 'test.txt')
-            with open(file_path, 'wb') as f:
-                f.write(six.u('hello world').encode('utf-8'))
+            self._make_local_file(temp_dir, 'test.txt')
             os.symlink('test.txt', os.path.join(temp_dir, 'alink'))
             expected_stdout = '''
             upload alink
