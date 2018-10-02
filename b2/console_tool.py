@@ -1016,6 +1016,7 @@ class Sync(Command):
             [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \\
             [--excludeRegex <regex> [--includeRegex <regex>]] \\
             [--excludeDirRegex <regex>] \\
+            [--excludeAllSymlinks ] \\
             <source> <destination>
 
         Copies multiple files from source to destination.  Optionally
@@ -1055,6 +1056,9 @@ class Sync(Command):
         of each file.
 
         Note that --includeRegex cannot be used without --excludeRegex.
+
+        You can specify --excludeAllSymlinks to skip symlinks when
+        syncing from a local source.
 
         When a directory is excluded by using --excludeDirRegex, all of
         the files within it are excluded, even if they match an --includeRegex
@@ -1132,7 +1136,13 @@ class Sync(Command):
     """
 
     OPTION_FLAGS = [
-        'delete', 'noProgress', 'skipNewer', 'replaceNewer', 'dryRun', 'allowEmptySource'
+        'delete',
+        'noProgress',
+        'skipNewer',
+        'replaceNewer',
+        'dryRun',
+        'allowEmptySource',
+        'excludeAllSymlinks',
     ]
     OPTION_ARGS = ['keepDays', 'threads', 'compareVersions', 'compareThreshold']
     REQUIRED = ['source', 'destination']
@@ -1156,6 +1166,7 @@ class Sync(Command):
             exclude_dir_regexes=args.excludeDirRegex,
             exclude_file_regexes=args.excludeRegex,
             include_file_regexes=args.includeRegex,
+            exclude_all_symlinks=args.excludeAllSymlinks,
         )
         sync_folders(
             source_folder=source,

@@ -169,6 +169,10 @@ class LocalFolder(AbstractFolder):
             if not is_file_readable(local_path, reporter):
                 continue
 
+            if policies_manager.exclude_all_symlinks and os.path.islink(local_path):
+                reporter.symlink_skipped(local_path)
+                continue
+
             if os.path.isdir(local_path):
                 name += six.u('/')
                 if policies_manager.should_exclude_directory(b2_path):

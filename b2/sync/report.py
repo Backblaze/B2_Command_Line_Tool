@@ -198,6 +198,9 @@ class SyncReport(object):
             'WARNING: %s could not be accessed (no permissions to read?)' % (path,)
         )
 
+    def symlink_skipped(self, path):
+        pass
+
 
 class SyncFileReporter(AbstractProgressListener):
     """

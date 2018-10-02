@@ -412,6 +412,7 @@ class FakeArgs(object):
         debugLogs=True,
         dryRun=False,
         allowEmptySource=False,
+        excludeAllSymlinks=False,
     ):
         self.delete = delete
         self.keepDays = keepDays
@@ -431,6 +432,7 @@ class FakeArgs(object):
         self.debugLogs = debugLogs
         self.dryRun = dryRun
         self.allowEmptySource = allowEmptySource
+        self.excludeAllSymlinks = excludeAllSymlinks
 
 
 def b2_file(name, mod_times, size=10):
@@ -456,8 +458,8 @@ def b2_file(name, mod_times, size=10):
     """
     versions = [
         FileVersion(
-            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time), 'upload'
-            if 0 < mod_time else 'hide', size
+            'id_%s_%d' % (name[0], abs(mod_time)), 'folder/' + name, abs(mod_time),
+            'upload' if 0 < mod_time else 'hide', size
         ) for mod_time in mod_times
     ]  # yapf disable
     return File(name, versions)
@@ -496,6 +498,7 @@ class TestExclusions(TestSync):
             exclude_dir_regexes=fakeargs.excludeDirRegex,
             exclude_file_regexes=fakeargs.excludeRegex,
             include_file_regexes=fakeargs.includeRegex,
+            exclude_all_symlinks=fakeargs.excludeAllSymlinks
         )
         actions = list(
             make_folder_sync_actions(
