@@ -9,8 +9,11 @@
 ######################################################################
 
 from abc import abstractmethod
+from collections import defaultdict, Counter
+import csv
 import logging
 import hashlib
+import time
 import threading
 
 from six.moves import queue, range
@@ -53,6 +56,7 @@ class ParallelDownloader(AbstractDownloader):
         super(ParallelDownloader, self).__init__(*args, **kwargs)
 
     def is_suitable(self, metadata, progress_listener):
+        return True
         return self._get_number_of_streams(
             metadata.content_length
         ) >= 2 and metadata.content_length >= 2 * self.min_part_size
@@ -160,21 +164,31 @@ class WriterThread(threading.Thread):
     def run(self):
         file = self.file
         queue_get = self.queue.get
-        while 1:
-            shutdown, offset, data = queue_get()
-            if shutdown:
-                break
-            file.seek(offset)
-            file.write(data)
-            self.total += len(data)
-            #print('writer total %i', self.total)
+        stats = defaultdict(Counter)
+        senders = set()
+        try:
+            while 1:
+                shutdown, offset, data, sender = queue_get()
+                if shutdown:
+                    break
+                file.seek(offset)
+                file.write(data)
+                self.total += len(data)
+                senders.add(sender)
+                stats[int(time.time())][sender] += len(data)
+        finally:
+            with open('%i.csv' % time.time(), 'w') as f:
+                writer = csv.DictWriter(f, list(senders))
+                writer.writeheader()
+                for time_ in range(min(stats), max(stats)+1):
+                    writer.writerow(stats[time_])
 
     def __enter__(self):
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.queue.put((True, None, None))
+        self.queue.put((True, None, None, self))
         self.join()
 
 
@@ -220,7 +234,7 @@ class FirstPartDownloaderThread(AbstractDownloaderThread):
                 stop = True
             else:
                 to_write = data
-            writer_queue.put((False, first_offset + bytes_read, to_write))
+            writer_queue.put((False, first_offset + bytes_read, to_write, self))
             hasher_update(to_write)
             bytes_read += len(to_write)
             if stop:
@@ -247,7 +261,7 @@ class NonHashingDownloaderThread(AbstractDownloaderThread):
             self.url, self.part_to_download.cloud_range.as_tuple()
         ) as response:
             for to_write in response.iter_content(chunk_size=self.chunk_size):
-                writer_queue_put((False, start_range + bytes_read, to_write))
+                writer_queue_put((False, start_range + bytes_read, to_write, self))
                 bytes_read += len(to_write)
         logging.debug('%s retrieved a total of %s bytes', self, bytes_read)
 
