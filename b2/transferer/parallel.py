@@ -121,7 +121,7 @@ class ParallelDownloader(AbstractDownloader):
                 stop = True
             else:
                 to_hash = data
-            hasher.update(data)
+            #hasher.update(data)
             current_offset += len(to_hash)
             if stop:
                 break
@@ -235,7 +235,7 @@ class FirstPartDownloaderThread(AbstractDownloaderThread):
             else:
                 to_write = data
             writer_queue.put((False, first_offset + bytes_read, to_write, self))
-            hasher_update(to_write)
+            #hasher_update(to_write)
             bytes_read += len(to_write)
             if stop:
                 break

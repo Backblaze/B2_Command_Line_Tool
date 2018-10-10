@@ -121,13 +121,13 @@ class Transferer(object):
             if bytes_read != metadata.content_length:
                 raise TruncatedOutput(bytes_read, metadata.content_length)
 
-            if metadata.content_sha1 != 'none' and \
-                actual_sha1 != metadata.content_sha1:  # no yapf
-                raise ChecksumMismatch(
-                    checksum_type='sha1',
-                    expected=metadata.content_length,
-                    actual=actual_sha1,
-                )
+            #if metadata.content_sha1 != 'none' and \
+            #    actual_sha1 != metadata.content_sha1:  # no yapf
+            #    raise ChecksumMismatch(
+            #        checksum_type='sha1',
+            #        expected=metadata.content_length,
+            #        actual=actual_sha1,
+            #    )
         else:
             desired_length = range_[1] - range_[0] + 1
             if bytes_read != desired_length:
