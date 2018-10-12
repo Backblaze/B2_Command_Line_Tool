@@ -444,8 +444,11 @@ class Bucket(object):
         part_ranges = choose_part_ranges(content_length, minimum_part_size)
 
         # Check for unfinished files with same name
-        unfinished_file, finished_parts = self._find_unfinished_file(
-            upload_source, file_name, file_info, part_ranges
+        unfinished_file, finished_parts = self._find_unfinished_file_if_possible(
+            upload_source,
+            file_name,
+            file_info,
+            part_ranges,
         )
 
         # Tell B2 we're going to upload a file if necessary
@@ -477,40 +480,43 @@ class Bucket(object):
         response = self.api.session.finish_large_file(file_id, part_sha1_array)
         return FileVersionInfoFactory.from_api_response(response)
 
-    def _find_unfinished_file(self, upload_source, file_name, file_info, part_ranges):
+    def _find_unfinished_file_if_possible(self, upload_source, file_name, file_info, part_ranges):
         """
-        Find an unfinished file which may be used to resume a large file upload. The
+        Find an unfinished file that may be used to resume a large file upload. The
         file is found using the filename and comparing the uploaded parts against
         the local file.
+
+        This is only possible if the application key being used allows listFiles access.
         """
-        for file_ in self.list_unfinished_large_files():
-            if file_.file_name == file_name and file_.file_info == file_info:
-                files_match = True
-                finished_parts = {}
-                for part in self.list_parts(file_.file_id):
-                    # Compare part sizes
-                    offset, part_length = part_ranges[part.part_number - 1]
-                    if part_length != part.content_length:
-                        files_match = False
-                        break
+        if 'listFiles' in self.api.account_info.get_allowed()['capabilities']:
+            for file_ in self.list_unfinished_large_files():
+                if file_.file_name == file_name and file_.file_info == file_info:
+                    files_match = True
+                    finished_parts = {}
+                    for part in self.list_parts(file_.file_id):
+                        # Compare part sizes
+                        offset, part_length = part_ranges[part.part_number - 1]
+                        if part_length != part.content_length:
+                            files_match = False
+                            break
 
-                    # Compare hash
-                    with upload_source.open() as f:
-                        f.seek(offset)
-                        sha1_sum = hex_sha1_of_stream(f, part_length)
-                    if sha1_sum != part.content_sha1:
-                        files_match = False
-                        break
+                        # Compare hash
+                        with upload_source.open() as f:
+                            f.seek(offset)
+                            sha1_sum = hex_sha1_of_stream(f, part_length)
+                        if sha1_sum != part.content_sha1:
+                            files_match = False
+                            break
 
-                    # Save part
-                    finished_parts[part.part_number] = part
+                        # Save part
+                        finished_parts[part.part_number] = part
 
-                # Skip not matching files or unfinished files with no uploaded parts
-                if not files_match or not finished_parts:
-                    continue
+                    # Skip not matching files or unfinished files with no uploaded parts
+                    if not files_match or not finished_parts:
+                        continue
 
-                # Return first matched file
-                return file_, finished_parts
+                    # Return first matched file
+                    return file_, finished_parts
         return None, {}
 
     def _upload_part(
