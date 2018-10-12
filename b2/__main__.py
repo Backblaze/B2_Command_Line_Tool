@@ -12,4 +12,17 @@ from __future__ import absolute_import
 
 from .console_tool import main
 
+import cProfile as profile
+import pstats, io
+pr = profile.Profile()
+pr.enable()
+
 main()
+
+pr.disable()
+pr.dump_stats('10.pstats')
+s = io.StringIO()
+sortby = 'tottime'
+ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+ps.print_stats()
+print(s.getvalue())

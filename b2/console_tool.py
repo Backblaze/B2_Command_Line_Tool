@@ -1531,5 +1531,5 @@ def main():
 
     logging.shutdown()
 
-    os._exit(exit_status)
+    #os._exit(exit_status)
     # sys.exit(exit_status)
