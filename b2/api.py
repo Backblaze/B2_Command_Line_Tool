@@ -223,7 +223,7 @@ class B2Api(object):
 
         # Second, ask the service
         for bucket in self.list_buckets(bucket_name=bucket_name):
-            assert bucket.name == bucket_name
+            assert bucket.name.lower() == bucket_name.lower()
             return bucket
 
         # There is no such bucket.
