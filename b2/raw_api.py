@@ -46,6 +46,9 @@ SRC_LAST_MODIFIED_MILLIS = 'src_last_modified_millis'
 # Special X-Bz-Content-Sha1 value to verify checksum at the end
 HEX_DIGITS_AT_END = 'hex_digits_at_end'
 
+# API version number to use when calling the service
+API_VERSION = 'v2'
+
 
 @six.add_metaclass(ABCMeta)
 class AbstractRawApi(object):
@@ -115,7 +118,7 @@ class AbstractRawApi(object):
         pass
 
     def get_download_url_by_id(self, download_url, account_auth_token, file_id):
-        return download_url + '/b2api/v1/b2_download_file_by_id?fileId=' + file_id
+        return '%s/b2api/%s/b2_download_file_by_id?fileId=%s' % (download_url, API_VERSION, file_id)
 
     def get_download_url_by_name(self, download_url, account_auth_token, bucket_name, file_name):
         return download_url + '/file/' + bucket_name + '/' + b2_url_encode(file_name)
@@ -154,7 +157,7 @@ class B2RawApi(AbstractRawApi):
         :param args: The rest of the parameters are passed to B2.
         :return:
         """
-        url = base_url + '/b2api/v1/' + api_name
+        url = '%s/b2api/%s/%s' % (base_url, API_VERSION, api_name)
         headers = {'Authorization': auth}
         return self.b2_http.post_json_return_json(url, headers, params)
 
