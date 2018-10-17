@@ -137,7 +137,7 @@ class Command(object):
     FORBID_LOGGING_ARGUMENTS = False
 
     # Parsers for each argument.  Each should be a function that
-    # takes a string and returns the vaule.
+    # takes a string and returns the value.
     ARG_PARSER = {}
 
     def __init__(self, console_tool):
@@ -287,7 +287,7 @@ class CancelAllUnfinishedLargeFiles(Command):
     b2 cancel-all-unfinished-large-files <bucketName>
 
         Lists all large files that have been started but not
-        finsished and cancels them.  Any parts that have been
+        finished and cancels them.  Any parts that have been
         uploaded will be deleted.
 
         Requires capability: writeFiles
@@ -445,9 +445,9 @@ class DeleteFileVersion(Command):
         Specifying the fileName is more efficient than leaving it out.
         If you omit the fileName, it requires an initial query to B2
         to get the file name, before making the call to delete the
-        file.
+        file.  This extra query requires the readFiles capability.
 
-        Requires capability: deleteFiles
+        Requires capability: deleteFiles, readFiles (if file name not provided)
     """
 
     OPTIONAL_BEFORE = ['fileName']
@@ -1067,7 +1067,7 @@ class Sync(Command):
         a trailing '/', so don't include on in your regular expression.
 
         Multiple regex rules can be applied by supplying them as pipe
-        delimitered instructions. Note that the regex for this command
+        delimited instructions. Note that the regex for this command
         is Python regex. Reference: https://docs.python.org/2/library/re.html.
 
         Regular expressions are considered a match if they match a substring
