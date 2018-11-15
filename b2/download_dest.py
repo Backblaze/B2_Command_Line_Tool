@@ -86,16 +86,28 @@ class DownloadDestLocalFile(AbstractDownloadDestination):
 
     @contextmanager
     def write_to_local_file_context(self, mod_time_millis):
-        # Open the file and let the caller write it.
-        with open(self.local_file_path, self.MODE) as f:
-            yield f
+        completed = False
+        try:
+            # Open the file and let the caller write it.
+            with open(self.local_file_path, self.MODE) as f:
+                yield f
 
-        # After it's closed, set the mod time.
-        # This is an ugly hack to make the tests work.  I can't think
-        # of any other cases where os.utime might fail.
-        if self.local_file_path != os.devnull:
-            mod_time = mod_time_millis / 1000.0
-            os.utime(self.local_file_path, (mod_time, mod_time))
+            # After it's closed, set the mod time.
+            # This is an ugly hack to make the tests work.  I can't think
+            # of any other cases where os.utime might fail.
+            if self.local_file_path != os.devnull:
+                mod_time = mod_time_millis / 1000.0
+                os.utime(self.local_file_path, (mod_time, mod_time))
+
+            # Set the flag that means to leave the downloaded file on disk.
+            completed = True
+
+        finally:
+            # This is a best-effort attempt to clean up files that
+            # failed to download, so we don't leave partial files
+            # sitting on disk.
+            if not completed:
+                os.unlink(self.local_file_path)
 
 
 class PreSeekedDownloadDest(DownloadDestLocalFile):

@@ -42,6 +42,19 @@ class TestDownloadDestLocalFile(TestBase):
                 )
             self.assertEqual(1500222333, os.path.getmtime(file_path))
 
+    def test_failed_write_deletes_partial_file(self):
+        with TempDir() as temp_dir:
+            download_dest, file_path = self._make_dest(temp_dir)
+            try:
+                with download_dest.make_file_context(
+                    "file_id", "file_name", 100, "content_type", "sha1", {}, 1500222333000
+                ) as f:
+                    f.write(six.b('hello world'))
+                    raise Exception('test error')
+            except Exception as e:
+                self.assertEqual('test error', str(e))
+            self.assertFalse(os.path.exists(file_path), msg='failed download should be deleted')
+
 
 class TestPreSeekedDownloadDest(TestDownloadDestLocalFile):
     expected_result = '123hello world567890'
