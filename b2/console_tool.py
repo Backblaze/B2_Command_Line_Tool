@@ -290,7 +290,7 @@ class CancelAllUnfinishedLargeFiles(Command):
         finished and cancels them.  Any parts that have been
         uploaded will be deleted.
 
-        Requires capability: writeFiles
+        Requires capability: listFiles, writeFiles
     """
 
     REQUIRED = ['bucketName']
