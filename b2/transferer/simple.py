@@ -14,17 +14,17 @@ from .abstract import AbstractDownloader
 
 
 class SimpleDownloader(AbstractDownloader):
-    def __init__(self, chunk_size):
-        self.chunk_size = chunk_size
-        super(SimpleDownloader, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(SimpleDownloader, self).__init__(*args, **kwargs)
 
     def is_suitable(self, metadata, progress_listener):
         return True
 
     def download(self, file, response, metadata, session):
+        actual_size = self._get_remote_range(response, metadata).size()
         digest = hashlib.sha1()
         bytes_read = 0
-        for data in response.iter_content(chunk_size=self.chunk_size):
+        for data in response.iter_content(chunk_size=self._get_chunk_size(actual_size)):
             file.write(data)
             digest.update(data)
             bytes_read += len(data)

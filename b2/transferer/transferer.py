@@ -31,7 +31,8 @@ class Transferer(object):
     DEFAULT_MIN_PART_SIZE = 100 * 1024 * 1024
 
     # block size used when downloading file. If it is set to a high value, progress reporting will be jumpy, if it's too low, it impacts CPU
-    DEFAULT_CHUNK_SIZE = 8192  # ~1MB file will show ~1% progress increment
+    MIN_CHUNK_SIZE = 8192  # ~1MB file will show ~1% progress increment
+    MAX_CHUNK_SIZE = 1024**2
 
     def __init__(self, session, account_info):
         """
@@ -44,12 +45,16 @@ class Transferer(object):
 
         self.strategies = [
             ParallelDownloader(
-                chunk_size=self.DEFAULT_CHUNK_SIZE,
                 max_streams=self.DEFAULT_MAX_STREAMS,
                 min_part_size=self.DEFAULT_MIN_PART_SIZE,
+                min_chunk_size=self.MIN_CHUNK_SIZE,
+                max_chunk_size=self.MAX_CHUNK_SIZE,
             ),
             #IOTDownloader(),  # TODO: curl -s httpbin.org/get | tee /dev/stderr 2>ble | sha1sum | cut -c -40
-            SimpleDownloader(chunk_size=self.DEFAULT_CHUNK_SIZE,),
+            SimpleDownloader(
+                min_chunk_size=self.MIN_CHUNK_SIZE,
+                max_chunk_size=self.MAX_CHUNK_SIZE,
+            ),
         ]
 
     def download_file_from_url(

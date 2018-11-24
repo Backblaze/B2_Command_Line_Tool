@@ -583,7 +583,7 @@ class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
 class TestDownloadSimple(DownloadTests, TestCaseWithBucket):
     def setUp(self):
         super(TestDownloadSimple, self).setUp()
-        self.bucket.api.transferer.strategies = [SimpleDownloader(chunk_size=20,)]
+        self.bucket.api.transferer.strategies = [SimpleDownloader(force_chunk_size=20,)]
 
 
 class TestDownloadParallel(DownloadTests, TestCaseWithBucket):
@@ -591,7 +591,7 @@ class TestDownloadParallel(DownloadTests, TestCaseWithBucket):
         super(TestDownloadParallel, self).setUp()
         self.bucket.api.transferer.strategies = [
             ParallelDownloader(
-                chunk_size=2,
+                force_chunk_size=2,
                 max_streams=999,
                 min_part_size=2,
             )
