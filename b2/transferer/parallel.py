@@ -41,6 +41,7 @@ class ParallelDownloader(AbstractDownloader):
     #      |                                                                     |
     #      cloud file start                                         cloud file end
     #
+    FINISH_HASHING_BUFFER_SIZE = 1024 ** 2
     def __init__(self, chunk_size, max_streams, min_part_size):
         """
         :param chunk_size: internal buffer size
@@ -112,7 +113,7 @@ class ParallelDownloader(AbstractDownloader):
         current_offset = end_of_first_part
         stop = False
         while 1:
-            data = file_read(self.chunk_size)
+            data = file_read(self.FINISH_HASHING_BUFFER_SIZE)
             if not data:
                 break
             if current_offset + len(data) >= last_offset:
