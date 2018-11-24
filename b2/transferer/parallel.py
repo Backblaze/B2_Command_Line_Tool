@@ -272,7 +272,7 @@ def gen_parts(cloud_range, local_range, part_count):
     Generates a sequence of PartToDownload to download a large file as
     a collection of parts.
     """
-    assert cloud_range.size() == local_range.size()
+    assert cloud_range.size() == local_range.size(), (cloud_range.size(), local_range.size())
     assert 0 < part_count <= cloud_range.size()
     offset = 0
     remaining_size = cloud_range.size()
