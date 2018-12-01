@@ -19,6 +19,16 @@ class Range(object):
         self.start = start
         self.end = end
 
+    @classmethod
+    def from_header(cls, raw_range_header):
+        """
+        factory method which returns an object constructed from Range http header
+
+        raw_range_header example: 'bytes 0-11'
+        """
+        offsets = tuple(int(i) for i in raw_range_header.replace('bytes ', '').split('-'))
+        return cls(*offsets)
+
     def size(self):
         return self.end - self.start + 1
 
@@ -30,10 +40,10 @@ class Range(object):
         :return: A new Range
         """
         assert 0 <= sub_start <= sub_end < self.size()
-        return Range(self.start + sub_start, self.start + sub_end)
+        return self.__class__(self.start + sub_start, self.start + sub_end)
 
     def as_tuple(self):
         return self.start, self.end
 
     def __repr__(self):
-        return 'Range(%d, %d)' % (self.start, self.end)
+        return '%s(%d, %d)' % (self.__class__.__name__, self.start, self.end)

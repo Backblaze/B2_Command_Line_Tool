@@ -46,14 +46,10 @@ class AbstractDownloader(object):
         :param metadata: metadata dict of the target file
         :return: Range object
         """
-        raw_request_range = response.request.headers.get('Range')  # 'bytes 0-11'
-        if raw_request_range is None:
-            range_ = (0, metadata.content_length)
-            actual_size = metadata.content_length
-        else:
-            range_ = tuple(int(i) for i in raw_request_range.replace('bytes ', '').split('-'))
-            actual_size = range_[1] - range_[0]
-        return Range(range_[0], range_[0] + actual_size)
+        raw_range_header = response.request.headers.get('Range')  # 'bytes 0-11'
+        if raw_range_header is None:
+            return Range(0, metadata.content_length - 1)
+        return Range.from_header(raw_range_header)
 
     @abstractmethod
     def is_suitable(self, metadata, progress_listener):
