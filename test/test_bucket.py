@@ -241,9 +241,11 @@ class TestLs(TestCaseWithBucket):
         self.bucket.upload_bytes(data, 'bb/3')
         self.bucket.upload_bytes(data, 'ccc')
         expected = [
-            ('9998', 'bb/1', 11, 'upload', None), ('9995', 'bb/2', 11, 'upload', None),
-            ('9996', 'bb/2', 11, 'upload', None), ('9997', 'bb/2', 11, 'upload', None),
-            ('9994', 'bb/3', 11, 'upload', None)
+            ('9998', 'bb/1', 11, 'upload', None),
+            ('9995', 'bb/2', 11, 'upload', None),
+            ('9996', 'bb/2', 11, 'upload', None),
+            ('9997', 'bb/2', 11, 'upload', None),
+            ('9994', 'bb/3', 11, 'upload', None),
         ]
         actual = [
             (info.id_, info.file_name, info.size, info.action, folder)
@@ -583,7 +585,7 @@ class TestDownloadDefault(DownloadTests, TestCaseWithBucket):
 class TestDownloadSimple(DownloadTests, TestCaseWithBucket):
     def setUp(self):
         super(TestDownloadSimple, self).setUp()
-        self.bucket.api.transferer.strategies = [SimpleDownloader(chunk_size=20,)]
+        self.bucket.api.transferer.strategies = [SimpleDownloader(force_chunk_size=20,)]
 
 
 class TestDownloadParallel(DownloadTests, TestCaseWithBucket):
@@ -591,7 +593,7 @@ class TestDownloadParallel(DownloadTests, TestCaseWithBucket):
         super(TestDownloadParallel, self).setUp()
         self.bucket.api.transferer.strategies = [
             ParallelDownloader(
-                chunk_size=2,
+                force_chunk_size=2,
                 max_streams=999,
                 min_part_size=2,
             )

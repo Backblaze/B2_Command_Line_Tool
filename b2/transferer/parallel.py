@@ -16,6 +16,7 @@ import threading
 from six.moves import queue, range
 
 from .abstract import AbstractDownloader
+from .range import Range
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +41,16 @@ class ParallelDownloader(AbstractDownloader):
     #      |                                                                     |
     #      cloud file start                                         cloud file end
     #
-    def __init__(self, chunk_size, max_streams, min_part_size):
+    FINISH_HASHING_BUFFER_SIZE = 1024**2
+
+    def __init__(self, max_streams, min_part_size, *args, **kwargs):
         """
-        :param chunk_size: internal buffer size
         :param max_streams: maximum number of simultaneous streams
         :param min_part_size: minimum amount of data a single stream will retrieve, in bytes
         """
-        self.chunk_size = chunk_size
         self.max_streams = max_streams
         self.min_part_size = min_part_size
-        super(ParallelDownloader, self).__init__()
+        super(ParallelDownloader, self).__init__(*args, **kwargs)
 
     def is_suitable(self, metadata, progress_listener):
         return self._get_number_of_streams(
@@ -73,18 +74,12 @@ class ParallelDownloader(AbstractDownloader):
         :param response: The response of the first request made to the cloud service with download intent
         :return:
         """
-        raw_request_range = response.request.headers.get('Range')  # 'bytes 0-11'
-        if raw_request_range is None:
-            range_ = (0, metadata.content_length)
-            actual_size = metadata.content_length
-        else:
-            range_ = tuple(int(i) for i in raw_request_range.replace('bytes ', '').split('-'))
-            actual_size = range_[1] - range_[0]
-
+        remote_range = self._get_remote_range(response, metadata)
+        actual_size = remote_range.size()
         start_file_position = file.tell()
         parts_to_download = gen_parts(
-            Range(range_[0], range_[0] + actual_size),
-            Range(start_file_position, start_file_position + actual_size),
+            remote_range,
+            Range(start_file_position, start_file_position + actual_size - 1),
             part_count=self._get_number_of_streams(metadata.content_length),
         )
 
@@ -93,7 +88,10 @@ class ParallelDownloader(AbstractDownloader):
         hasher = hashlib.sha1()
 
         with WriterThread(file) as writer:
-            self._get_parts(response, session, writer, hasher, first_part, parts_to_download)
+            self._get_parts(
+                response, session, writer, hasher, first_part, parts_to_download,
+                self._get_chunk_size(actual_size)
+            )
         bytes_written = writer.total
 
         # At this point the hasher already consumed the data until the end of first stream.
@@ -111,7 +109,7 @@ class ParallelDownloader(AbstractDownloader):
         current_offset = end_of_first_part
         stop = False
         while 1:
-            data = file_read(self.chunk_size)
+            data = file_read(self.FINISH_HASHING_BUFFER_SIZE)
             if not data:
                 break
             if current_offset + len(data) >= last_offset:
@@ -124,14 +122,16 @@ class ParallelDownloader(AbstractDownloader):
             if stop:
                 break
 
-    def _get_parts(self, response, session, writer, hasher, first_part, parts_to_download):
+    def _get_parts(
+        self, response, session, writer, hasher, first_part, parts_to_download, chunk_size
+    ):
         stream = FirstPartDownloaderThread(
             response,
             hasher,
             session,
             writer,
             first_part,
-            self.chunk_size,
+            chunk_size,
         )
         stream.start()
         streams = [stream]
@@ -142,7 +142,7 @@ class ParallelDownloader(AbstractDownloader):
                 session,
                 writer,
                 part,
-                self.chunk_size,
+                chunk_size,
             )
             stream.start()
             streams.append(stream)
@@ -252,36 +252,6 @@ class NonHashingDownloaderThread(AbstractDownloaderThread):
         logging.debug('%s retrieved a total of %s bytes', self, bytes_read)
 
 
-class Range(object):
-    """
-    HTTP ranges use an *inclusive* index at the end.
-    """
-
-    def __init__(self, start, end):
-        assert 0 <= start <= end
-        self.start = start
-        self.end = end
-
-    def size(self):
-        return self.end - self.start + 1
-
-    def subrange(self, sub_start, sub_end):
-        """
-        Returns a range that is part of this range.
-        :param sub_start: Index relative to the start of this range.
-        :param sub_end: (Inclusive!) index relative to the start of this range.
-        :return: A new Range
-        """
-        assert 0 <= sub_start <= sub_end < self.size()
-        return Range(self.start + sub_start, self.start + sub_end)
-
-    def as_tuple(self):
-        return self.start, self.end
-
-    def __repr__(self):
-        return 'Range(%d, %d)' % (self.start, self.end)
-
-
 class PartToDownload(object):
     """
     Holds the range of a file to download, and the range of the
@@ -301,7 +271,7 @@ def gen_parts(cloud_range, local_range, part_count):
     Generates a sequence of PartToDownload to download a large file as
     a collection of parts.
     """
-    assert cloud_range.size() == local_range.size()
+    assert cloud_range.size() == local_range.size(), (cloud_range.size(), local_range.size())
     assert 0 < part_count <= cloud_range.size()
     offset = 0
     remaining_size = cloud_range.size()
