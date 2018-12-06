@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.3.7
+Version 1.3.8
 
 # Installation
 
@@ -96,6 +96,17 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.3.8 (December 6, 2018)
+
+New features:
+
+* New `--excludeAllSymlinks` option for `sync`.
+* Faster downloading of large files using multiple threads and bigger buffers. 
+
+Bug fixes:
+
+* Fixed doc for cancel-all-unfinished-large-files
 
 ## 1.3.6 (August 21, 2018)
 
