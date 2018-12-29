@@ -957,7 +957,7 @@ class Ls(Command):
         name.  Folders don't really exist in B2, so folders are
         shown with "-" in each of the fields other than the name.
 
-        The --version option shows all of versions of each file, not
+        The --versions option shows all versions of each file, not
         just the most recent.
 
         The --recursive option will descend into folders, and will show
