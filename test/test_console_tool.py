@@ -14,13 +14,13 @@ import six
 
 from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
-from b2.api import B2Api
-from b2.cache import InMemoryCache
+from b2_sdk.api import B2Api
+from b2_sdk.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
-from b2.raw_api import API_VERSION
-from b2.raw_simulator import RawSimulator
-from b2.upload_source import UploadSourceBytes
-from b2.utils import TempDir
+from b2_sdk.raw_api import API_VERSION
+from b2_sdk.raw_simulator import RawSimulator
+from b2_sdk.upload_source import UploadSourceBytes
+from b2_sdk.utils import TempDir
 from test_b2_command_line import file_mod_time_millis
 
 try:
