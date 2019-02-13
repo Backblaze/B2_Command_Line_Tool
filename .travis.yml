@@ -295,8 +295,6 @@ script:
                 python setup.py install
             fi
         fi
-  # custom things specific to b2 CLI
-  - if [ -n "$TEST_ACCOUNT_ID" -a "$MODE" == "TEST_RAW_API" ]; then python -m b2.__main__ test_raw_api; else echo skip; fi
 
 after_success:
   - if [ "$MODE" == 'coverage' -a -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry python-codacy-coverage -r coverage.xml; else echo skip; fi
