@@ -8,9 +8,7 @@
 #
 ######################################################################
 
-
 import time
-
 
 # Global variable that says whether the app is shutting down
 _shutting_down = False
