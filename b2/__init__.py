@@ -22,6 +22,19 @@
 # we have to adjust the path.
 
 import sys
+import six
+import warnings
+warnings.simplefilter('default', DeprecationWarning)
+
+from .proxy_importer import ProxyImporter
+importer = ProxyImporter(__name__, 'b2_sdk')
+
+@importer.callback
+def show_warning(orig_name, target_name):
+    message = '{} is deprecated, use {} instead'.format(orig_name, target_name)
+    warnings.warn(message, DeprecationWarning)
+
+
 if '/Library/Python/2.7/site-packages' in sys.path:
     sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
 
@@ -37,3 +50,4 @@ except ImportError:  # Python 2.6
 
 
 logging.getLogger(__name__).addHandler(NullHandler())
+sys.meta_path.insert(0, importer)
