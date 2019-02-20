@@ -1,8 +1,11 @@
 import sys
+import os.path
+fixtures_dir = os.path.join(os.path.dirname(__file__), 'fixtures')
+sys.path.append(fixtures_dir)
+
 import six
 import unittest
 from b2.proxy_importer import ProxyImporter
-
 
 if six.PY2:
     ModuleNotFoundError = ImportError
@@ -33,8 +36,9 @@ class TestProxyImporter(unittest.TestCase):
         self._del_mod('test_target_mod')
 
     def tearDown(self):
-        if isinstance(sys.meta_path[0], ProxyImporter):
-            sys.meta_path.pop(0)
+        for i, p in enumerate(sys.meta_path):
+            if isinstance(sys.meta_path[0], ProxyImporter):
+                del sys.meta_path[i]
 
     def test_find_module_skip_modules_other_than_source(self):
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
@@ -66,7 +70,7 @@ class TestProxyImporter(unittest.TestCase):
         self.assertNotIn('test_source_mod.a', sys.modules)
         self.assertNotIn('test_source_mod.a', sys.modules)
         self.assertNotIn('test_source_mod.a.b', sys.modules)
-    
+
     def test_module_exists_imported_before(self):
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
         import test_source_mod.c
@@ -91,7 +95,7 @@ class TestProxyImporter(unittest.TestCase):
         self.assertNotIn('test_target_mod.c.d', sys.modules)
         self.assertNotIn('test_target_mod.c', sys.modules)
         self.assertNotIn('test_target_mod', sys.modules)
-    
+
     def test_module_exists_submodule_does_not_exist_previously_imported_parents(self):
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
         import test_target_mod.c
@@ -105,7 +109,7 @@ class TestProxyImporter(unittest.TestCase):
         self.assertNotIn('some_mod', sys.modules)
         self.assertNotIn('test_target_mod', sys.modules)
         with self.assertRaises(ModuleNotFoundError):
-            import some_mod 
+            import some_mod
         self.assertNotIn('some_mod', sys.modules)
         self.assertNotIn('test_target_mod', sys.modules)
 
@@ -173,7 +177,10 @@ class TestProxyImporter(unittest.TestCase):
         self.assertEqual(test_source_mod.c.__name__, 'test_source_mod.c')
         self.assertEqual(test_source_mod.c.d.__name__, 'test_source_mod.c.d')
         self.assertEqual(test_source_mod.c.d.h(3), 5)
-    
+
+        import test_source_mod.z
+        self.assertIn('test_source_mod.z', sys.modules)
+
     def test_load_module_raise_import_error_if_target_submodule_does_not_exist(self):
         sys.meta_path.insert(0, ProxyImporter('test_source_mod', 'test_target_mod'))
         with self.assertRaises(ModuleNotFoundError):
@@ -192,11 +199,11 @@ class TestProxyImporter(unittest.TestCase):
         self.assertNotIn('test_source_mod1.a', sys.modules)
         self.assertNotIn('test_target_mod', sys.modules)
         self.assertNotIn('test_target_mod.a', sys.modules)
-    
+
     def test_load_module_importer_callback(self):
         res = {}
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        
+
         @importer.callback
         def cb(orig_name, target_name):
             res['orig_name'] = orig_name
@@ -206,12 +213,17 @@ class TestProxyImporter(unittest.TestCase):
 
         import test_source_mod.a.b
 
-        self.assertEqual(res, {'orig_name': 'test_source_mod.a.b', 'target_name': 'test_target_mod.a.b'})
-    
+        self.assertEqual(
+            res, {
+                'orig_name': 'test_source_mod.a.b',
+                'target_name': 'test_target_mod.a.b'
+            }
+        )
+
     def test_load_module_importer_callback_not_called(self):
         res = {}
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        
+
         @importer.callback
         def cb(orig_name, target_name):
             res['orig_name'] = orig_name
