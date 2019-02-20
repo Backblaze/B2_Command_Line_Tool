@@ -5,7 +5,6 @@ import six
 import importlib
 import warnings
 
-
 if six.PY2:
     import operator
     from contextlib import contextmanager
@@ -19,7 +18,7 @@ if six.PY2:
         for element in it:
             res = func(res, element)
             yield res
-    
+
     @contextmanager
     def suppress(*exceptions):
         try:
@@ -40,18 +39,12 @@ class ProxyImporter(object):
         self._skip = set()
 
     def _module_exists(self, fullname):
-        all_modules = list(accumulate(
-            fullname.split('.'), 
-            func=lambda a, v: '{}.{}'.format(a, v)
-        ))
+        all_modules = list(accumulate(fullname.split('.'), func=lambda a, v: '{}.{}'.format(a, v)))
         imported_modules = {mod for mod in all_modules if mod in sys.modules}
         try:
             mod = importlib.import_module(fullname)
             # slow?
-            re_str = '(^|{sep}){module}{sep}'.format(
-                module=all_modules[0], 
-                sep=re.escape(os.sep)
-            )
+            re_str = '(^|{sep}){module}{sep}'.format(module=all_modules[0], sep=re.escape(os.sep))
             result = bool(re.search(re_str, mod.__file__))
         except ModuleNotFoundError:
             result = False
@@ -68,11 +61,8 @@ class ProxyImporter(object):
         self._callback = func
 
     def find_module(self, name, path=None):
-        is_not_source = (
-            not name.startswith(self._dotted_source) and
-            name != self._source_name
-        )
-        if name in self._skip or is_not_source:
+        is_not_source = (not name.startswith(self._dotted_source) and name != self._source_name)
+        if is_not_source or name in self._skip:
             return None
         self._skip.add(name)
         return self

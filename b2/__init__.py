@@ -29,6 +29,7 @@ warnings.simplefilter('default', DeprecationWarning)
 from .proxy_importer import ProxyImporter
 importer = ProxyImporter(__name__, 'b2_sdk')
 
+
 @importer.callback
 def show_warning(orig_name, target_name):
     message = '{} is deprecated, use {} instead'.format(orig_name, target_name)
