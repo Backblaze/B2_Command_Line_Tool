@@ -25,7 +25,7 @@ import sys
 import warnings
 warnings.simplefilter('default', DeprecationWarning)
 
-from .proxy_importer import ProxyImporter
+from .import_hooks import ProxyImporter
 importer = ProxyImporter(__name__, 'b2_sdk')
 
 
