@@ -1,3 +1,13 @@
+######################################################################
+#
+# File: test/test_proxy_importer.py
+#
+# Copyright 2018 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+
 import sys
 import os.path
 fixtures_dir = os.path.join(os.path.dirname(__file__), 'fixtures')
@@ -9,7 +19,6 @@ from b2.proxy_importer import ProxyImporter
 
 if six.PY2:
     ModuleNotFoundError = ImportError
-
 
 class TestProxyImporter(unittest.TestCase):
     def _del_mod(self, mod_name):
@@ -40,7 +49,7 @@ class TestProxyImporter(unittest.TestCase):
             if isinstance(sys.meta_path[0], ProxyImporter):
                 del sys.meta_path[i]
 
-    def test_find_module_skip_modules_other_than_source(self):
+    def test_find_module_skip_modules_other_than_source_submodules(self):
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
         self.assertIsNone(importer.find_module(''))
         importer._skip = set()
@@ -48,7 +57,9 @@ class TestProxyImporter(unittest.TestCase):
         importer._skip = set()
         self.assertIsNone(importer.find_module('logging'))
         importer._skip = set()
-        self.assertIsNotNone(importer.find_module('test_source_mod'))
+        self.assertIsNone(importer.find_module('test_source_mod'))
+        importer._skip = set()
+        self.assertIsNotNone(importer.find_module('test_source_mod.c'))
         importer._skip = set()
         self.assertIsNone(importer.find_module('test_source_mod1'))
         importer._skip = set()
@@ -57,52 +68,15 @@ class TestProxyImporter(unittest.TestCase):
         self.assertIsNone(importer.find_module('atest_source_mod'))
         importer._skip = set()
 
-    def test_module_exists(self):
+    def test_find_module_exclude_predicate(self):
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        self.assertTrue(importer._module_exists('test_source_mod'))
-        self.assertTrue(importer._module_exists('test_source_mod.c'))
-        self.assertTrue(importer._module_exists('test_source_mod.c.d'))
-        self.assertNotIn('test_source_mod', sys.modules)
-        self.assertNotIn('test_source_mod.c', sys.modules)
-        self.assertNotIn('test_source_mod.c.d', sys.modules)
-        self.assertFalse(importer._module_exists('test_source_mod.a'))
-        self.assertFalse(importer._module_exists('test_source_mod.a.b'))
-        self.assertNotIn('test_source_mod.a', sys.modules)
-        self.assertNotIn('test_source_mod.a', sys.modules)
-        self.assertNotIn('test_source_mod.a.b', sys.modules)
+        self.assertIsNotNone(importer.find_module('test_source_mod.c'))
 
-    def test_module_exists_imported_before(self):
-        importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        import test_source_mod.c
-        self.assertTrue(importer._module_exists('test_source_mod'))
-        self.assertTrue(importer._module_exists('test_source_mod.c'))
-        self.assertTrue(importer._module_exists('test_source_mod.c.d'))
-        self.assertIn('test_source_mod', sys.modules)
-        self.assertIn('test_source_mod.c', sys.modules)
-        self.assertNotIn('test_source_mod.c.d', sys.modules)
+        @importer.exclude_predicate
+        def excl_pred(source_name, fullname):
+            return fullname == 'test_source_mod.c'
 
-    def test_module_exists_cache_entry_exists(self):
-        importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        import test_target_mod.a.b
-        import test_source_mod
-        sys.modules['test_source_mod.a'] = sys.modules['test_target_mod.a']
-        self.assertFalse(importer._module_exists('test_source_mod.a'))
-        self.assertFalse(importer._module_exists('test_source_mod.a.b'))
-
-    def test_module_exists_submodule_does_not_exist_cache_cleaned_up(self):
-        importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        self.assertFalse(importer._module_exists('test_target_mod.c.d'))
-        self.assertNotIn('test_target_mod.c.d', sys.modules)
-        self.assertNotIn('test_target_mod.c', sys.modules)
-        self.assertNotIn('test_target_mod', sys.modules)
-
-    def test_module_exists_submodule_does_not_exist_previously_imported_parents(self):
-        importer = ProxyImporter('test_source_mod', 'test_target_mod')
-        import test_target_mod.c
-        self.assertFalse(importer._module_exists('test_target_mod.c.d'))
-        self.assertNotIn('test_target_mod.c.d', sys.modules)
-        self.assertIn('test_target_mod.c', sys.modules)
-        self.assertIn('test_target_mod', sys.modules)
+        self.assertIsNone(importer.find_module('test_source_mod.c'))
 
     def test_load_module_raise_import_error_is_source_does_not_exist(self):
         sys.meta_path.insert(0, ProxyImporter('some_mod', 'test_target_mod'))
@@ -110,6 +84,8 @@ class TestProxyImporter(unittest.TestCase):
         self.assertNotIn('test_target_mod', sys.modules)
         with self.assertRaises(ModuleNotFoundError):
             import some_mod
+            # to prevent pyflakes from complaining
+            some_mod
         self.assertNotIn('some_mod', sys.modules)
         self.assertNotIn('test_target_mod', sys.modules)
 
@@ -137,6 +113,8 @@ class TestProxyImporter(unittest.TestCase):
         sys.meta_path.insert(0, ProxyImporter('non_existent_module', 'test_target_mod'))
         with self.assertRaisesRegex(ModuleNotFoundError, 'non_existent_module'):
             import non_existent_module.a
+            # to prevent pyflakes from complaining
+            non_existent_module.a
 
         self.assertNotIn('test_target_mod', sys.modules)
         self.assertNotIn('test_target_mod.a', sys.modules)
@@ -148,13 +126,15 @@ class TestProxyImporter(unittest.TestCase):
 
         with self.assertRaisesRegex(ModuleNotFoundError, 'non_existent_module'):
             import test_source_mod.a
+            # to prevent pyflakes from complaining
+            test_source_mod.a
 
         self.assertIn('test_source_mod', sys.modules)
         self.assertNotIn('test_source_mod.a', sys.modules)
         self.assertNotIn('non_existent_module', sys.modules)
         self.assertNotIn('non_existent_module.a', sys.modules)
 
-    def test_load_module_target_module_loaded_imported_only_absnet_submodules(self):
+    def test_load_module_replace_all_submodules(self):
         sys.meta_path.insert(0, ProxyImporter('test_source_mod', 'test_target_mod'))
         import test_source_mod.a.b
 
@@ -169,22 +149,25 @@ class TestProxyImporter(unittest.TestCase):
         self.assertEqual(test_source_mod.a.b.__name__, 'test_target_mod.a.b')
         self.assertEqual(test_source_mod.a.b.g(13), 14)
 
-        import test_source_mod.c.d
+        with self.assertRaises(ModuleNotFoundError):
+            import test_source_mod.c.d
 
         self.assertIn('test_source_mod', sys.modules)
         self.assertIn('test_source_mod.c', sys.modules)
-        self.assertIn('test_source_mod.c.d', sys.modules)
-        self.assertEqual(test_source_mod.c.__name__, 'test_source_mod.c')
-        self.assertEqual(test_source_mod.c.d.__name__, 'test_source_mod.c.d')
-        self.assertEqual(test_source_mod.c.d.h(3), 5)
+        self.assertNotIn('test_source_mod.c.d', sys.modules)
+        self.assertEqual(test_source_mod.c.__name__, 'test_target_mod.c')
 
         import test_source_mod.z
         self.assertIn('test_source_mod.z', sys.modules)
+        self.assertIn('test_target_mod.z', sys.modules)
+        self.assertEqual(test_source_mod.z.f(), 'from target')
 
     def test_load_module_raise_import_error_if_target_submodule_does_not_exist(self):
         sys.meta_path.insert(0, ProxyImporter('test_source_mod', 'test_target_mod'))
         with self.assertRaises(ModuleNotFoundError):
             import test_source_mod.e
+            # to prevent pyflakes from complaining
+            test_source_mod.e
         self.assertIn('test_source_mod', sys.modules)
         self.assertIn('test_target_mod', sys.modules)
         self.assertNotIn('test_source_mod.e', sys.modules)
@@ -194,6 +177,8 @@ class TestProxyImporter(unittest.TestCase):
         sys.meta_path.insert(0, ProxyImporter('test_source_mod1', 'test_target_mod'))
         with self.assertRaisesRegex(ModuleNotFoundError, 'test_source_mod1'):
             import test_source_mod1.a
+            # to prevent pyflakes from complaining
+            test_source_mod1.a
 
         self.assertNotIn('test_source_mod1', sys.modules)
         self.assertNotIn('test_source_mod1.a', sys.modules)
@@ -212,6 +197,8 @@ class TestProxyImporter(unittest.TestCase):
         sys.meta_path.insert(0, importer)
 
         import test_source_mod.a.b
+        # to prevent pyflake from complaining
+        test_source_mod.a.b
 
         self.assertEqual(
             res, {
@@ -232,6 +219,8 @@ class TestProxyImporter(unittest.TestCase):
         sys.meta_path.insert(0, importer)
 
         import test_target_mod.a.b
+        # to prevent pyflake from complaining
+        test_target_mod.a.b
 
         self.assertEqual(res, {})
 
