@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/proxy_importer.py
+# File: b2/import_hooks.py
 #
 # Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
@@ -47,3 +47,23 @@ class ProxyImporter(object):
         self._callback(fullname, target_name)
         self._skip.remove(fullname)
         return target_mod
+
+
+class ModuleWrapper(object):
+    def __init__(self, wrapped, target, callback=None):
+        self._wrapped = wrapped
+        self._target = target
+        if callback is None:
+            callback = lambda s, t, n: None
+        self._callback = callback
+
+    def __call__(self):
+        sys.modules[self._wrapped.__name__] = self
+
+    def __getattr__(self, name):
+        try:
+            return getattr(self._wrapped, name)
+        except AttributeError:
+            attr = getattr(self._target, name)
+            self._callback(self._wrapped.__name__, self._target.__name__, name)
+            return attr
