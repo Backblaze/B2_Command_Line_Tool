@@ -20,6 +20,7 @@ from b2.proxy_importer import ProxyImporter
 if six.PY2:
     ModuleNotFoundError = ImportError
 
+
 class TestProxyImporter(unittest.TestCase):
     def _del_mod(self, mod_name):
         for key in list(globals().keys()):
