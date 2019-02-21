@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/test_proxy_importer.py
+# File: test/test_import_hooks.py
 #
 # Copyright 2018 Backblaze Inc. All Rights Reserved.
 #
@@ -15,13 +15,13 @@ sys.path.append(fixtures_dir)
 
 import six
 import unittest
-from b2.proxy_importer import ProxyImporter
+from b2.import_hooks import ProxyImporter, ModuleWrapper
 
 if six.PY2:
     ModuleNotFoundError = ImportError
 
 
-class TestProxyImporter(unittest.TestCase):
+class SetupMixin(object):
     def _del_mod(self, mod_name):
         for key in list(globals().keys()):
             if key == mod_name or key.startswith(mod_name + '.'):
@@ -50,6 +50,8 @@ class TestProxyImporter(unittest.TestCase):
             if isinstance(sys.meta_path[0], ProxyImporter):
                 del sys.meta_path[i]
 
+
+class TestProxyImporter(SetupMixin, unittest.TestCase):
     def test_find_module_skip_modules_other_than_source_submodules(self):
         importer = ProxyImporter('test_source_mod', 'test_target_mod')
         self.assertIsNone(importer.find_module(''))
@@ -225,6 +227,30 @@ class TestProxyImporter(unittest.TestCase):
 
         self.assertEqual(res, {})
 
+
+class TestModuleWrapper(SetupMixin, unittest.TestCase):
+    def test_check_attributes(self):
+        import test_source_mod.c
+        import test_target_mod.c
+        wrapper = ModuleWrapper(test_source_mod.c, test_target_mod.c)
+        self.assertEqual(wrapper.func1(5), 6)
+        self.assertEqual(wrapper.func2(5), 7)
+    
+    def test_callback(self):
+        import test_source_mod.c
+        import test_target_mod.c
+
+        res = {}
+        def cb(src, dst, name):
+            res['src'] = src
+            res['dst'] = dst
+            res['name'] = name
+
+        wrapper = ModuleWrapper(test_source_mod.c, test_target_mod.c, callback=cb)
+        self.assertEqual(wrapper.func1(5), 6)
+        self.assertEqual(res, {})
+        self.assertEqual(wrapper.func2(5), 7)
+        self.assertEqual(res, {'src': 'test_source_mod.c', 'dst': 'test_target_mod.c', 'name': 'func2'})
 
 if __name__ == '__main__':
     unittest.main()
