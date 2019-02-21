@@ -31,7 +31,7 @@ importer = ProxyImporter(__name__, 'b2_sdk')
 
 @importer.exclude_predicate
 def exclude_modules(source_name, fullname):
-    names = ['console_tool', 'utils', 'version', 'time', '__main__']
+    names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2_sdk']
     excl_names = {'{}.{}'.format(source_name, n) for n in names}
     return fullname in excl_names
 
