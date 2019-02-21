@@ -22,12 +22,18 @@
 # we have to adjust the path.
 
 import sys
-import six
 import warnings
 warnings.simplefilter('default', DeprecationWarning)
 
 from .proxy_importer import ProxyImporter
 importer = ProxyImporter(__name__, 'b2_sdk')
+
+
+@importer.exclude_predicate
+def exclude_modules(source_name, fullname):
+    names = ['console_tool', 'utils', 'version', 'time', '__main__']
+    excl_names = {'{}.{}'.format(source_name, n) for n in names}
+    return fullname in excl_names
 
 
 @importer.callback
