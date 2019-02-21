@@ -235,12 +235,13 @@ class TestModuleWrapper(SetupMixin, unittest.TestCase):
         wrapper = ModuleWrapper(test_source_mod.c, test_target_mod.c)
         self.assertEqual(wrapper.func1(5), 6)
         self.assertEqual(wrapper.func2(5), 7)
-    
+
     def test_callback(self):
         import test_source_mod.c
         import test_target_mod.c
 
         res = {}
+
         def cb(src, dst, name):
             res['src'] = src
             res['dst'] = dst
@@ -250,7 +251,14 @@ class TestModuleWrapper(SetupMixin, unittest.TestCase):
         self.assertEqual(wrapper.func1(5), 6)
         self.assertEqual(res, {})
         self.assertEqual(wrapper.func2(5), 7)
-        self.assertEqual(res, {'src': 'test_source_mod.c', 'dst': 'test_target_mod.c', 'name': 'func2'})
+        self.assertEqual(
+            res, {
+                'src': 'test_source_mod.c',
+                'dst': 'test_target_mod.c',
+                'name': 'func2'
+            }
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
