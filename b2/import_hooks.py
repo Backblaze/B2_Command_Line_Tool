@@ -18,7 +18,7 @@ class ProxyImporter(object):
         self._target_name = target_name
         self._callback = lambda s, t: None
         self._excl_pred = lambda s, n: False
-        self._dotted_source = '{}.'.format(source_name)
+        self._dotted_source = '{0}.'.format(source_name)
         self._skip = set()
 
     def exclude_predicate(self, func):
@@ -41,7 +41,7 @@ class ProxyImporter(object):
         if fullname in sys.modules:
             return sys.modules[fullname]
         _, submodule = fullname.split('.', 1)
-        target_name = '{}.{}'.format(self._target_name, submodule)
+        target_name = '{0}.{1}'.format(self._target_name, submodule)
         target_mod = importlib.import_module(target_name)
         sys.modules[fullname] = target_mod
         self._callback(fullname, target_name)

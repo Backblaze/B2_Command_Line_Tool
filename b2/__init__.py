@@ -32,13 +32,13 @@ importer = ProxyImporter(__name__, 'b2_sdk')
 @importer.exclude_predicate
 def exclude_modules(source_name, fullname):
     names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2_sdk']
-    excl_names = {'{}.{}'.format(source_name, n) for n in names}
+    excl_names = {'{0}.{1}'.format(source_name, n) for n in names}
     return fullname in excl_names
 
 
 @importer.callback
 def show_warning(orig_name, target_name):
-    message = '{} is deprecated, use {} instead'.format(orig_name, target_name)
+    message = '{0} is deprecated, use {1} instead'.format(orig_name, target_name)
     warnings.warn(message, DeprecationWarning)
 
 
