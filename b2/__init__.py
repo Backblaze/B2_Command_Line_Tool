@@ -26,12 +26,12 @@ import warnings
 warnings.simplefilter('always', DeprecationWarning)
 
 from .import_hooks import ProxyImporter
-importer = ProxyImporter(__name__, 'b2_sdk')
+importer = ProxyImporter(__name__, 'b2sdk')
 
 
 @importer.exclude_predicate
 def exclude_modules(source_name, fullname):
-    names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2_sdk']
+    names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2sdk']
     excl_names = {'{0}.{1}'.format(source_name, n) for n in names}
     return fullname in excl_names
 
