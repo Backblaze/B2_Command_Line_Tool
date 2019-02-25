@@ -27,22 +27,22 @@ import time
 
 import six
 
-from b2_sdk.account_info.sqlite_account_info import (
+from b2sdk.account_info.sqlite_account_info import (
     B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE, SqliteAccountInfo
 )
-from b2_sdk.account_info.test_upload_url_concurrency import test_upload_url_concurrency
-from b2_sdk.account_info.exception import (MissingAccountData)
-from b2_sdk.api import (B2Api)
-from b2_sdk.b2http import (test_http)
-from b2_sdk.cache import (AuthInfoCache)
-from b2_sdk.download_dest import (DownloadDestLocalFile)
-from b2_sdk.exception import (B2Error, BadFileInfo)
-from b2_sdk.sync.scan_policies import ScanPoliciesManager
-from b2_sdk.file_version import (FileVersionInfo)
-from b2_sdk.parse_args import parse_arg_list
-from b2_sdk.progress import (make_progress_listener)
-from b2_sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
-from b2_sdk.sync import parse_sync_folder, sync_folders
+from b2sdk.account_info.test_upload_url_concurrency import test_upload_url_concurrency
+from b2sdk.account_info.exception import (MissingAccountData)
+from b2sdk.api import (B2Api)
+from b2sdk.b2http import (test_http)
+from b2sdk.cache import (AuthInfoCache)
+from b2sdk.download_dest import (DownloadDestLocalFile)
+from b2sdk.exception import (B2Error, BadFileInfo)
+from b2sdk.sync.scan_policies import ScanPoliciesManager
+from b2sdk.file_version import (FileVersionInfo)
+from b2sdk.parse_args import parse_arg_list
+from b2sdk.progress import (make_progress_listener)
+from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
+from b2sdk.sync import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
 from .utils import (current_time_millis, set_shutting_down)
 

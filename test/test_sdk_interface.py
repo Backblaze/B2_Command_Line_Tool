@@ -18,7 +18,7 @@ import warnings
 warnings.simplefilter('always', DeprecationWarning)
 
 import importlib
-import b2_sdk
+import b2sdk
 
 
 def list_modules(package, exclude=None):
@@ -70,8 +70,8 @@ class TestSdkImports(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.sdk_modules = list_modules(b2_sdk, exclude={'b2_sdk.version', 'b2_sdk.utils'})
-        cls.cli_modules = [m.replace('b2_sdk.', 'b2.') for m in cls.sdk_modules]
+        cls.sdk_modules = list_modules(b2sdk, exclude={'b2sdk.version', 'b2sdk.utils'})
+        cls.cli_modules = [m.replace('b2sdk.', 'b2.') for m in cls.sdk_modules]
         # create a list of all attributes of all sdk modules
         cls.attributes = {}
         for mod_name in cls.sdk_modules:
@@ -130,7 +130,7 @@ class TestSdkImports(unittest.TestCase):
 
     def test_import_attributes_one_by_one(self):
         for sdk_mod_name, attrs in self.attributes.items():
-            cli_mod_name = sdk_mod_name.replace('b2_sdk.', 'b2.')
+            cli_mod_name = sdk_mod_name.replace('b2sdk.', 'b2.')
             for attr in attrs:
                 with warnings.catch_warnings(record=True) as w:
                     code = 'from {0} import {1}'.format(cli_mod_name, attr)
@@ -156,7 +156,7 @@ class TestSdkImports(unittest.TestCase):
         self.assertEqual(type(set_shutting_down).__name__, 'function')
 
     def test_import_utils_functions_from_sdk(self):
-        sdk_utils = importlib.import_module('b2_sdk.utils')
+        sdk_utils = importlib.import_module('b2sdk.utils')
         cli_utils = importlib.import_module('b2.utils')
         attrs = [a for a in dir(sdk_utils) if not a.startswith('_')]
 

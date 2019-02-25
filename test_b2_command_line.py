@@ -24,7 +24,7 @@ import tempfile
 import threading
 import unittest
 
-from b2_sdk.utils import fix_windows_path_limit
+from b2sdk.utils import fix_windows_path_limit
 
 USAGE = """
 This program tests the B2 command-line client.
