@@ -13,7 +13,7 @@ import time
 import warnings
 warnings.simplefilter('default', DeprecationWarning)
 
-import b2_sdk.utils
+import b2sdk.utils
 from .import_hooks import ModuleWrapper
 
 # Global variable that says whether the app is shutting down
@@ -40,5 +40,5 @@ def _show_warning(source_name, target_name, attr_name):
     warnings.warn(message, DeprecationWarning)
 
 
-wrapper = ModuleWrapper(sys.modules[__name__], b2_sdk.utils, callback=_show_warning)
+wrapper = ModuleWrapper(sys.modules[__name__], b2sdk.utils, callback=_show_warning)
 wrapper()
