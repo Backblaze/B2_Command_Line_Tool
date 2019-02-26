@@ -114,6 +114,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
+    dependency_links=['git+https://github.com/dparamonov-reef/b2-sdk-python.git@sdk#egg=b2sdk'],
     install_requires=requirements,
 
     # requirements for tests
