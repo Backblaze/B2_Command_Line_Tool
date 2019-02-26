@@ -22,7 +22,15 @@ if six.PY2:
 
 
 class SetupMixin(object):
+    """
+    This mixin contains the common logic for all test suites.
+    It's here to avoid code repetition.
+    """
+
     def _del_mod(self, mod_name):
+        """
+        Remove imported module from globals and from module cache
+        """
         for key in list(globals().keys()):
             if key == mod_name or key.startswith(mod_name + '.'):
                 try:

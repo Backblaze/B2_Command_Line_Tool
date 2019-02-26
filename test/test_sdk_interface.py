@@ -22,6 +22,14 @@ import b2sdk
 
 
 def list_modules(package, exclude=None):
+    """
+    Get a list of modules in a package
+
+    :param package: object, a module object
+    :param exclude: set, a set of modules to
+    exclude from the resulting list
+    :return: list, a list of modules of a package
+    """
     if exclude is None:
         exclude = set()
     res = []
@@ -40,10 +48,20 @@ def list_modules(package, exclude=None):
 
 
 def _dir(m):
+    """
+    Get a list of attributes of an object, excluding
+    the ones starting with underscore
+
+    :param m: object, an object to get attributes from
+    :return: list, a list of attributes as strings
+    """
     return [a for a in dir(m) if not a.startswith('_')]
 
 
 if six.PY2:
+    """
+    Shim for Python 2.x
+    """
     import operator
 
     def accumulate(iterable, func=operator.__add__):
@@ -60,6 +78,9 @@ else:
 
 class TestSdkImports(unittest.TestCase):
     def _del_mod(self, name):
+        """
+        Remove a module with the given name from module cache
+        """
         mods = accumulate(name.split('.'), func=lambda a, v: '{}.{}'.format(a, v))
         next(mods)
         for mod_name in mods:
@@ -121,7 +142,7 @@ class TestSdkImports(unittest.TestCase):
             with warnings.catch_warnings(record=True) as w:
                 code = 'from {0} import *'.format(cli_mod_name)
                 cli_mod = imp.new_module('tets1')
-                exec(code, cli_mod.__dict__)
+                exec (code, cli_mod.__dict__)
                 sdk_mod = importlib.import_module(sdk_mod_name)
                 self.assertEqual(len(w), 1)
                 self.assertIn('deprecated', str(w[0].message))
@@ -135,9 +156,8 @@ class TestSdkImports(unittest.TestCase):
                 with warnings.catch_warnings(record=True) as w:
                     code = 'from {0} import {1}'.format(cli_mod_name, attr)
                     cli_mod = imp.new_module('tets1')
-                    exec(code, cli_mod.__dict__)
+                    exec (code, cli_mod.__dict__)
                     sdk_mod = importlib.import_module(sdk_mod_name)
-                    print('==', cli_mod_name, attr, len(w))
                     self.assertGreaterEqual(len(w), 1)
                     self.assertIn('deprecated', str(w[0].message))
                     self.assertTrue(issubclass(w[0].category, DeprecationWarning))
