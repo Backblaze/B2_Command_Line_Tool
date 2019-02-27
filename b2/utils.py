@@ -11,8 +11,6 @@
 import sys
 import time
 import warnings
-warnings.simplefilter('default', DeprecationWarning)
-
 import b2sdk.utils
 from .import_hooks import ModuleWrapper
 
