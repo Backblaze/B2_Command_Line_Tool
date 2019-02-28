@@ -142,7 +142,7 @@ class TestSdkImports(unittest.TestCase):
             with warnings.catch_warnings(record=True) as w:
                 code = 'from {0} import *'.format(cli_mod_name)
                 cli_mod = imp.new_module('tets1')
-                exec (code, cli_mod.__dict__)
+                exec(code, cli_mod.__dict__)
                 sdk_mod = importlib.import_module(sdk_mod_name)
                 self.assertEqual(len(w), 1)
                 self.assertIn('deprecated', str(w[0].message))
@@ -156,7 +156,7 @@ class TestSdkImports(unittest.TestCase):
                 with warnings.catch_warnings(record=True) as w:
                     code = 'from {0} import {1}'.format(cli_mod_name, attr)
                     cli_mod = imp.new_module('tets1')
-                    exec (code, cli_mod.__dict__)
+                    exec(code, cli_mod.__dict__)
                     sdk_mod = importlib.import_module(sdk_mod_name)
                     self.assertGreaterEqual(len(w), 1)
                     self.assertIn('deprecated', str(w[0].message))
@@ -169,11 +169,7 @@ class TestSdkImports(unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             from b2.utils import current_time_millis
             self.assertEqual(len(w), 0)
-        with warnings.catch_warnings(record=True) as w:
-            from b2.utils import set_shutting_down
-            self.assertEqual(len(w), 0)
         self.assertEqual(type(current_time_millis).__name__, 'function')
-        self.assertEqual(type(set_shutting_down).__name__, 'function')
 
     def test_import_utils_functions_from_sdk(self):
         sdk_utils = importlib.import_module('b2sdk.utils')

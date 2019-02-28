@@ -43,8 +43,9 @@ from b2sdk.parse_args import parse_arg_list
 from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
 from b2sdk.sync import parse_sync_folder, sync_folders
+from b2sdk.utils import set_shutting_down
 from b2.version import (VERSION)
-from .utils import (current_time_millis, set_shutting_down)
+from .utils import current_time_millis
 
 logger = logging.getLogger(__name__)
 

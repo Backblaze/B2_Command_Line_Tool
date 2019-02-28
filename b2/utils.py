@@ -14,14 +14,6 @@ import warnings
 import b2sdk.utils
 from .import_hooks import ModuleWrapper
 
-# Global variable that says whether the app is shutting down
-_shutting_down = False
-
-
-def set_shutting_down():
-    global _shutting_down
-    _shutting_down = True
-
 
 def current_time_millis():
     """
