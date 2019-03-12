@@ -104,7 +104,7 @@ setup(
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
-    packages=find_packages(exclude=['contrib', 'docs', 'test']),
+    packages=find_packages(exclude=['*contrib*', '*docs*', '*test*']),
 
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
@@ -114,6 +114,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
+    dependency_links=['git+https://github.com/Backblaze/b2-sdk-python#egg=b2sdk'],
     install_requires=requirements,
 
     # requirements for tests
