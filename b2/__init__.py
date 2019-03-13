@@ -32,7 +32,7 @@ def exclude_modules(source_name, fullname):
     """
     Determine which modules to exclude from being handled by an import hook
     """
-    names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2sdk']
+    names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2sdk', 'parse_args']
     excl_names = {'{0}.{1}'.format(source_name, n) for n in names}
     return fullname in excl_names
 
