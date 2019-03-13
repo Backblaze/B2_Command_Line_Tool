@@ -30,21 +30,19 @@ import six
 from b2sdk.account_info.sqlite_account_info import (
     B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE, SqliteAccountInfo
 )
-from b2sdk.account_info.test_upload_url_concurrency import test_upload_url_concurrency
 from b2sdk.account_info.exception import (MissingAccountData)
 from b2sdk.api import (B2Api)
-from b2sdk.b2http import (test_http)
 from b2sdk.cache import (AuthInfoCache)
 from b2sdk.download_dest import (DownloadDestLocalFile)
 from b2sdk.exception import (B2Error, BadFileInfo)
 from b2sdk.sync.scan_policies import ScanPoliciesManager
 from b2sdk.file_version import (FileVersionInfo)
-from b2sdk.parse_args import parse_arg_list
 from b2sdk.progress import (make_progress_listener)
-from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
+from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS)
 from b2sdk.sync import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
 from .utils import (current_time_millis, set_shutting_down)
+from .parse_args import parse_arg_list
 
 logger = logging.getLogger(__name__)
 
@@ -1180,47 +1178,6 @@ class Sync(Command):
             dry_run=args.dryRun,
             allow_empty_source=allow_empty_source
         )
-        return 0
-
-
-class TestHttp(Command):
-    """
-    b2 test-http
-
-        PRIVATE.  Exercises the HTTP layer.
-    """
-
-    PRIVATE = True
-
-    def run(self, args):
-        test_http()
-        return 0
-
-
-class TestRawApi(Command):
-    """
-    b2 test-raw-api
-
-        PRIVATE.  Exercises the B2RawApi class.
-    """
-
-    PRIVATE = True
-
-    def run(self, args):
-        return test_raw_api()
-
-
-class TestUploadUrlConcurrency(Command):
-    """
-    b2 test-upload-url-concurrency
-
-        PRIVATE.  Exercises the HTTP layer.
-    """
-
-    PRIVATE = True
-
-    def run(self, args):
-        test_upload_url_concurrency()
         return 0
 
 
