@@ -41,7 +41,7 @@ from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS)
 from b2sdk.sync import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
-from .utils import (current_time_millis, set_shutting_down)
+from .utils import current_time_millis
 from .parse_args import parse_arg_list
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,6 @@ def local_path_to_b2_path(path):
 
 
 def keyboard_interrupt_handler(signum, frame):
-    set_shutting_down()
     raise KeyboardInterrupt()
 
 
