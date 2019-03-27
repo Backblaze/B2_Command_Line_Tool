@@ -66,17 +66,18 @@ class ProxyImporter(object):
 
     def find_module(self, name, path=None):
         """
-        Find a loader for a module
+        Determine whether the loader should be changed to self, or not
 
         :param name: str, module name
         :param path: contains parent package's __path__ attribute's value
         :return: loader instance or None
         """
-        if (
-            not name.startswith(self._dotted_source) or self._excl_pred(self._source_name, name) or
-            name in self._skip
-        ):
-            return None
+        if not name.startswith(self._dotted_source):
+            return None  # not configured to handle the module
+        elif self._excl_pred(self._source_name, name):
+            return None  # excluded by a custom filter function
+        elif name in self._skip:
+            return None  # it is being imported right now
         self._skip.add(name)
         return self
 
