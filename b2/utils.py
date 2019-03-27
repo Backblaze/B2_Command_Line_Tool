@@ -43,7 +43,7 @@ def _show_warning(source_name, target_name, attr_name):
     name_fmt = '{0}.{1}'
     src_attr = name_fmt.format(source_name, attr_name)
     dst_attr = name_fmt.format(target_name, attr_name)
-    message = '{0} is deprecated, use {1} instead'.format(src_attr, dst_attr)
+    message = 'usage of {0} is deprecated, use {1} instead'.format(src_attr, dst_attr)
     warnings.warn(message, DeprecationWarning)
 
 

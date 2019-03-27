@@ -23,7 +23,7 @@ class ProxyImporter(object):
     """
     This import hook works as an import proxy between two packages.
     When it's added to sys.meta_path and one wants to import from the
-    package set as a source, then the hook actually imports from 
+    package set as a source, then the hook actually imports from
     the target package.
     """
 
@@ -46,8 +46,8 @@ class ProxyImporter(object):
         :param func: callable, must be a callable with the following signature:
         (source_name: str, name: str) -> bool, where 'source_name' is the name of
         a source package, and 'name' is a name of an arbitrary module being checked for exclusion.
-        The callable must determine whether the module must be excluded and not handled 
-        by this import hook and return the appropriate boolean value. 
+        The callable must determine whether the module must be excluded and not handled
+        by this import hook and return the appropriate boolean value.
         True if it must be excluded, False otherwise.
         """
         self._excl_pred = func
@@ -70,7 +70,7 @@ class ProxyImporter(object):
 
         :param name: str, module name
         :param path: contains parent package's __path__ attribute's value
-        :return: loader instance
+        :return: loader instance or None
         """
         if (
             not name.startswith(self._dotted_source) or self._excl_pred(self._source_name, name) or
@@ -101,7 +101,8 @@ class ProxyImporter(object):
 
 class ModuleWrapper(object):
     """
-    Wrapper for module objects
+    Wrapper for module objects, which passes access to existing attributes
+    of one module and proxies access to missing attributes to another module
     """
 
     def __init__(self, wrapped, target, callback=None):

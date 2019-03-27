@@ -89,14 +89,14 @@ def parse_arg_list(
     or Optional.
 
     :param arg_list sys.argv[1:], or equivalent
-    :param option_flags: Names of options that are boolean flags.
-    :param option_args: Names of options that have values.
-    :param list_args: Names of options whose values are collected into a list.
-    :param optional_before: Names of option positional params that come before the required ones.
-    :param required: Names of positional params that must be there.
-    :param optional: Names of optional params.
-    :param arg_parser: Map from param name to parser for values.
-    :return: An Argument object, or None if there was any error parsing.
+    :param option_flags: Names of options that are boolean flags
+    :param option_args: Names of options that have values
+    :param list_args: Names of options whose values are collected into a list
+    :param optional_before: Names of option positional params that come before the required ones
+    :param required: Names of positional params that must be there
+    :param optional: Names of optional params
+    :param arg_parser: Map from param name to parser for values
+    :return: An Argument object, or None if there was any error parsing
     """
 
     # Sanity check the inputs.
@@ -106,7 +106,7 @@ def parse_arg_list(
             'option_args': option_args,
             'optional_before': optional_before,
             'required': required,
-            'optional': optional
+            'optional': optional,
         }
     )
 
