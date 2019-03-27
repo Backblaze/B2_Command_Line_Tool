@@ -1401,12 +1401,12 @@ class ConsoleTool(object):
         The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
 
         For more details on one command: b2 help <command>
-        
+
         When authorizing with application keys, this tool requires that the key
-        have the 'listBuckets' capability so that it can take the bucket names 
-        you provide on the command line and translate them into bucket IDs for the 
-        B2 Storage service.  Each different command may required additional 
-        capabilities.  You can find the details for each command in the help for 
+        have the 'listBuckets' capability so that it can take the bucket names
+        you provide on the command line and translate them into bucket IDs for the
+        B2 Storage service.  Each different command may required additional
+        capabilities.  You can find the details for each command in the help for
         that command.
         '''
         self._print_stderr(textwrap.dedent(epilog).format(**DOC_STRING_DATA))
@@ -1488,4 +1488,3 @@ def main():
     logging.shutdown()
 
     os._exit(exit_status)
-    # sys.exit(exit_status)
