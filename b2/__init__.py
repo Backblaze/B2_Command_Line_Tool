@@ -22,6 +22,10 @@
 # we have to adjust the path.
 
 import sys
+if '/Library/Python/2.7/site-packages' in sys.path:
+    sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
+
+
 import warnings
 from .import_hooks import ProxyImporter
 importer = ProxyImporter(__name__, 'b2sdk')
@@ -46,9 +50,6 @@ def show_warning(orig_name, target_name):
     message = '{0} is deprecated, use {1} instead'.format(orig_name, target_name)
     warnings.warn(message, DeprecationWarning)
 
-
-if '/Library/Python/2.7/site-packages' in sys.path:
-    sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
 
 # Set default logging handler to avoid "No handler found" warnings.
 import logging
