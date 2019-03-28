@@ -74,14 +74,6 @@ def _dir(m, skip=()):
     return [a for a in dir(m) if not a.startswith('_') and a not in skip]
 
 
-def drop_items(source_list, drop_list):
-    return [item for item in source_list if item not in drop_list]
-
-
-def drop_prefix(source_list, prefix):
-    return [item for item in source_list if not item.startswith(prefix)]
-
-
 if six.PY2:
     """
     Shim for Python 2.x
