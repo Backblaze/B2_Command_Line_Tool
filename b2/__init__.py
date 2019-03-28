@@ -26,33 +26,8 @@ if '/Library/Python/2.7/site-packages' in sys.path:
     sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
 
 
-import warnings
-from .import_hooks import ProxyImporter
-importer = ProxyImporter(__name__, 'b2sdk')
-
-
-@importer.exclude_predicate
-def exclude_modules(source_name, fullname):
-    """
-    Determine which modules to exclude from being handled by an import hook
-    """
-    names = ['console_tool', 'utils', 'version', 'time', '__main__', 'b2sdk', 'parse_args']
-    excluded_names = {'{0}.{1}'.format(source_name, n) for n in names}
-    return fullname in excluded_names
-
-
-@importer.callback
-def show_warning(orig_name, target_name):
-    """
-    Show deprecation warrnig if some modules were imported from b2 package,
-    but should have been imported from b2sdk.
-    """
-    message = 'Importing {0} is deprecated, use {1} instead'.format(orig_name, target_name)
-    warnings.warn(message, DeprecationWarning)
-
-
 # Set default logging handler to avoid "No handler found" warnings.
-import logging
+import logging  # noqa
 try:
     from logging import NullHandler
 except ImportError:  # Python 2.6
@@ -63,4 +38,3 @@ except ImportError:  # Python 2.6
 
 
 logging.getLogger(__name__).addHandler(NullHandler())
-sys.meta_path.insert(0, importer)

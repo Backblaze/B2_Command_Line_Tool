@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/utils.py
+# File: b2/sync/file.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
@@ -8,9 +8,7 @@
 #
 ######################################################################
 
-from b2sdk.utils import *  # noqa
-from b2.console_tool import current_time_millis  # noqa
-from b2.parse_args import repr_dict_deterministically  # noqa
+from b2sdk.sync.file import *  # noqa
 
 import b2._sdk_deprecation
-b2._sdk_deprecation.deprecate_module('b2.utils')
+b2._sdk_deprecation.deprecate_module('b2.sync.file')

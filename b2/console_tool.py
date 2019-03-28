@@ -41,8 +41,7 @@ from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS)
 from b2sdk.sync import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
-from .utils import current_time_millis
-from .parse_args import parse_arg_list
+from b2.parse_args import parse_arg_list
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +56,13 @@ DOC_STRING_DATA = dict(
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
+
+
+def current_time_millis():
+    """
+    File times are in integer milliseconds, to avoid roundoff errors.
+    """
+    return int(round(time.time() * 1000))
 
 
 def local_path_to_b2_path(path):

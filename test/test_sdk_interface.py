@@ -9,16 +9,32 @@
 ######################################################################
 
 import imp
-import sys
-import six
-import types
+import importlib
 import pkgutil
+import six
+import sys
+import types
 import unittest
 import warnings
+
+import b2sdk
+
+from b2._sdk_deprecation import deprecation_message
+
+
 warnings.simplefilter('always', DeprecationWarning)
 
-import importlib
-import b2sdk
+
+def match_warning(cli_module_name, catched_warnings):
+    module_deprecation_message = deprecation_message(cli_module_name)
+    for warning in catched_warnings:
+        try:
+            warn_msg = warning.message.args[0]
+        except IndexError:
+            warn_msg = ''
+        if issubclass(warning.category, DeprecationWarning):
+            if warn_msg == module_deprecation_message:
+                yield warning
 
 
 def list_modules(package, exclude=None):
@@ -47,7 +63,7 @@ def list_modules(package, exclude=None):
     return [m for m in res if m not in exclude]
 
 
-def _dir(m):
+def _dir(m, skip=()):
     """
     Get a list of attributes of an object, excluding
     the ones starting with underscore
@@ -55,7 +71,15 @@ def _dir(m):
     :param m: object, an object to get attributes from
     :return: list, a list of attributes as strings
     """
-    return [a for a in dir(m) if not a.startswith('_')]
+    return [a for a in dir(m) if not a.startswith('_') and a not in skip]
+
+
+def drop_items(source_list, drop_list):
+    return [item for item in source_list if item not in drop_list]
+
+
+def drop_prefix(source_list, prefix):
+    return [item for item in source_list if not item.startswith(prefix)]
 
 
 if six.PY2:
@@ -91,7 +115,7 @@ class TestSdkImports(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.sdk_modules = list_modules(b2sdk, exclude={'b2sdk.version', 'b2sdk.utils'})
+        cls.sdk_modules = list_modules(b2sdk, exclude={'b2sdk.version'})
         cls.cli_modules = [m.replace('b2sdk.', 'b2.') for m in cls.sdk_modules]
         # create a list of all attributes of all sdk modules
         cls.attributes = {}
@@ -101,16 +125,6 @@ class TestSdkImports(unittest.TestCase):
             for attr_name in _dir(mod):
                 if not isinstance(getattr(mod, attr_name), types.ModuleType):
                     cls.attributes[mod_name].append(attr_name)
-        # add the importer manually, as nosetest does not respect sys.meta_path content for some reason
-        from b2.import_hooks import ProxyImporter
-        importer_found = False
-        for importer in sys.meta_path:
-            if isinstance(importer, ProxyImporter):
-                importer_found = True
-                break
-        if not importer_found:
-            from b2 import importer
-            sys.meta_path.insert(0, importer)
 
     def tearDown(self):
         for mod in self.sdk_modules + self.cli_modules:
@@ -120,7 +134,7 @@ class TestSdkImports(unittest.TestCase):
                 pass
 
     def test_import_existing_modules(self):
-        for mod_name in ['b2.console_tool', 'b2.utils', 'b2.version']:
+        for mod_name in ['b2.console_tool', 'b2.parse_args', 'b2.version']:
             with warnings.catch_warnings(record=True) as w:
                 importlib.import_module(mod_name)
                 self.assertEqual(len(w), 0)
@@ -132,22 +146,28 @@ class TestSdkImports(unittest.TestCase):
                 # import second time to make sure there were no more warnings displayed
                 importlib.import_module(cli_mod_name)
                 sdk_mod = importlib.import_module(sdk_mod_name)
-                self.assertEqual(len(w), 1)
-                self.assertIn('deprecated', str(w[0].message))
-                self.assertTrue(issubclass(w[0].category, DeprecationWarning))
-                self.assertEqual(dir(cli_mod), dir(sdk_mod))
+                matched_warnings = list(match_warning(cli_mod_name, w))
+                self.assertEqual(len(matched_warnings), 1)
+                if cli_mod_name == 'b2.utils':
+                    skip = ('b2', 'current_time_millis', 'repr_dict_deterministically')
+                else:
+                    skip = ('b2',)
+                self.assertEqual(_dir(cli_mod, skip=skip), _dir(sdk_mod))
 
     def test_import_all_from_modules(self):
         for cli_mod_name, sdk_mod_name in zip(self.cli_modules, self.sdk_modules):
             with warnings.catch_warnings(record=True) as w:
                 code = 'from {0} import *'.format(cli_mod_name)
                 cli_mod = imp.new_module('tets1')
-                exec (code, cli_mod.__dict__)
+                exec(code, cli_mod.__dict__)
                 sdk_mod = importlib.import_module(sdk_mod_name)
-                self.assertEqual(len(w), 1)
-                self.assertIn('deprecated', str(w[0].message))
-                self.assertTrue(issubclass(w[0].category, DeprecationWarning))
-                self.assertEqual(_dir(cli_mod), _dir(sdk_mod))
+                matched_warnings = list(match_warning(cli_mod_name, w))
+                self.assertEqual(len(matched_warnings), 1)
+                if cli_mod_name == 'b2.utils':
+                    skip = ('b2', 'current_time_millis', 'repr_dict_deterministically')
+                else:
+                    skip = ('b2',)
+                self.assertEqual(_dir(cli_mod, skip=skip), _dir(sdk_mod))
 
     def test_import_attributes_one_by_one(self):
         for sdk_mod_name, attrs in self.attributes.items():
@@ -156,38 +176,13 @@ class TestSdkImports(unittest.TestCase):
                 with warnings.catch_warnings(record=True) as w:
                     code = 'from {0} import {1}'.format(cli_mod_name, attr)
                     cli_mod = imp.new_module('tets1')
-                    exec (code, cli_mod.__dict__)
+                    exec(code, cli_mod.__dict__)
                     sdk_mod = importlib.import_module(sdk_mod_name)
-                    self.assertGreaterEqual(len(w), 1)
-                    self.assertIn('deprecated', str(w[0].message))
-                    self.assertTrue(issubclass(w[0].category, DeprecationWarning))
+                    matched_warnings = list(match_warning(cli_mod_name, w))
+                    self.assertEqual(len(matched_warnings), 1)
                     self.assertEqual(getattr(cli_mod, attr), getattr(sdk_mod, attr))
                 self._del_mod(cli_mod_name)
                 self._del_mod(sdk_mod_name)
-
-    def test_import_existing_utils_functions(self):
-        with warnings.catch_warnings(record=True) as w:
-            from b2.utils import current_time_millis
-            self.assertEqual(len(w), 0)
-        with warnings.catch_warnings(record=True) as w:
-            from b2.utils import set_shutting_down
-            self.assertEqual(len(w), 0)
-        self.assertEqual(type(current_time_millis).__name__, 'function')
-        self.assertEqual(type(set_shutting_down).__name__, 'function')
-
-    def test_import_utils_functions_from_sdk(self):
-        sdk_utils = importlib.import_module('b2sdk.utils')
-        cli_utils = importlib.import_module('b2.utils')
-        attrs = [a for a in dir(sdk_utils) if not a.startswith('_')]
-
-        for attr in attrs:
-            # skip attributes which are defined in b2.utils
-            if attr in cli_utils._wrapped.__dict__:
-                continue
-            with warnings.catch_warnings(record=True) as w:
-                self.assertTrue(getattr(cli_utils, attr), getattr(sdk_utils, attr))
-                self.assertEqual(len(w), 1)
-                self.assertIn(attr, str(w[0].message))
 
 
 if __name__ == '__main__':
