@@ -25,7 +25,6 @@ import sys
 if '/Library/Python/2.7/site-packages' in sys.path:
     sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
 
-
 # Set default logging handler to avoid "No handler found" warnings.
 import logging  # noqa
 try:

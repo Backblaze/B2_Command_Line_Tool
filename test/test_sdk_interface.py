@@ -21,7 +21,6 @@ import b2sdk
 
 from b2._sdk_deprecation import deprecation_message
 
-
 warnings.simplefilter('always', DeprecationWarning)
 
 
