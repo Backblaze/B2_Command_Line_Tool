@@ -1,3 +1,3 @@
 six>=1.10
 tqdm>=4.5.0
-b2sdk @ git+https://github.com/Backblaze/b2-sdk-python#egg=b2sdk>=1.0.0,<1.1.0
+b2sdk @ git+https://github.com/reef-technologies/b2-sdk-python@shipping_split_fixes#egg=b2sdk>=0.1.0,<1.0.0
