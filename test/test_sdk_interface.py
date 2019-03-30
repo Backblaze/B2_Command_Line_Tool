@@ -106,7 +106,7 @@ class TestSdkImports(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.sdk_modules = list_modules(b2sdk, exclude={'b2sdk.version'})
+        cls.sdk_modules = list_modules(b2sdk, exclude=set(['b2sdk.version']))
         cls.cli_modules = [m.replace('b2sdk.', 'b2.') for m in cls.sdk_modules]
         # create a list of all attributes of all sdk modules
         cls.attributes = {}
