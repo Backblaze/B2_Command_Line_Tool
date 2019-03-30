@@ -37,6 +37,11 @@ matrix:
     - python: 3.5
       env: MODE=SCA
 
+    # Enable 3.7 without globally enabling sudo and xenial for other build jobs
+    - python: 3.7
+      dist: xenial
+      sudo: true
+
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us...
     # ... or maybe it will. It's now getting this error:
