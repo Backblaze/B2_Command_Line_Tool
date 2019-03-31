@@ -42,6 +42,11 @@ matrix:
       dist: xenial
       sudo: true
 
+    # Enable nightly without globally enabling sudo and xenial for other build jobs.
+    - python: nightly
+      dist: xenial
+      sudo: true
+
     # Travis CI doesn't support OSX python builds officially,
     # but that won't stop us...
     # ... or maybe it will. It's now getting this error:
