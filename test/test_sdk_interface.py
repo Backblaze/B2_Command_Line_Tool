@@ -54,7 +54,7 @@ def list_modules(package, exclude=None):
     for _, m, _ in pkgutil.iter_modules(package.__path__):
         if m.startswith('__'):
             continue
-        fullname = '{}.{}'.format(base_name, m)
+        fullname = '%s.%s' % (base_name, m)
         mod = importlib.import_module(fullname)
         del sys.modules[fullname]
         res.append(fullname)
