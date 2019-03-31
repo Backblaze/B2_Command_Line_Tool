@@ -150,7 +150,7 @@ class TestSdkImports(unittest.TestCase):
             with warnings.catch_warnings(record=True) as w:
                 code = 'from %s import *' % (cli_mod_name,)
                 cli_mod = imp.new_module('tets1')
-                exec(code, cli_mod.__dict__)
+                exec(code, cli_mod.__dict__)  # yapf: disable
                 sdk_mod = importlib.import_module(sdk_mod_name)
                 matched_warnings = list(match_warning(cli_mod_name, w))
                 self.assertEqual(len(matched_warnings), 1)
@@ -167,7 +167,7 @@ class TestSdkImports(unittest.TestCase):
                 with warnings.catch_warnings(record=True) as w:
                     code = 'from %s import %s' % (cli_mod_name, attr)
                     cli_mod = imp.new_module('tets1')
-                    exec(code, cli_mod.__dict__)
+                    exec(code, cli_mod.__dict__)  # yapf: disable
                     sdk_mod = importlib.import_module(sdk_mod_name)
                     matched_warnings = list(match_warning(cli_mod_name, w))
                     self.assertEqual(len(matched_warnings), 1)
