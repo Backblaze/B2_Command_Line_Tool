@@ -96,7 +96,7 @@ class TestSdkImports(unittest.TestCase):
         """
         Remove a module with the given name from module cache
         """
-        mods = accumulate(name.split('.'), func=lambda a, v: '{}.{}'.format(a, v))
+        mods = accumulate(name.split('.'), func=lambda a, v: '%s.%s' % (a, v))
         next(mods)
         for mod_name in mods:
             try:
@@ -148,7 +148,7 @@ class TestSdkImports(unittest.TestCase):
     def test_import_all_from_modules(self):
         for cli_mod_name, sdk_mod_name in zip(self.cli_modules, self.sdk_modules):
             with warnings.catch_warnings(record=True) as w:
-                code = 'from {0} import *'.format(cli_mod_name)
+                code = 'from %s import *' % (cli_mod_name,)
                 cli_mod = imp.new_module('tets1')
                 exec(code, cli_mod.__dict__)
                 sdk_mod = importlib.import_module(sdk_mod_name)
@@ -165,7 +165,7 @@ class TestSdkImports(unittest.TestCase):
             cli_mod_name = sdk_mod_name.replace('b2sdk.', 'b2.')
             for attr in attrs:
                 with warnings.catch_warnings(record=True) as w:
-                    code = 'from {0} import {1}'.format(cli_mod_name, attr)
+                    code = 'from %s import %s' % (cli_mod_name, attr)
                     cli_mod = imp.new_module('tets1')
                     exec(code, cli_mod.__dict__)
                     sdk_mod = importlib.import_module(sdk_mod_name)
