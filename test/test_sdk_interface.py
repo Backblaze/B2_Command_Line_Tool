@@ -74,9 +74,7 @@ def _dir(m, skip=()):
 
 
 if six.PY2:
-    """
-    Shim for Python 2.x
-    """
+    # Shim for Python 2.x
     import operator
 
     def accumulate(iterable, func=operator.__add__):

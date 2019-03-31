@@ -1,5 +1,5 @@
 import logging
-logging
+assert logging
 
 
 def f(x):
