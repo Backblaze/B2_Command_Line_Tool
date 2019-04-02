@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/account_info/test_upload_conncurrency.py
+# File: b2/account_info/test_upload_url_concurrency.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #

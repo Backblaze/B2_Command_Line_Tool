@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: __init__.py
+# File: test/fixtures/test_target_mod/c/__init__.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #

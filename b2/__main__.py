@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: __main__.py
+# File: b2/__main__.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #

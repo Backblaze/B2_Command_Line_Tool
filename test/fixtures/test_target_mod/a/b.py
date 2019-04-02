@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b.py
+# File: test/fixtures/test_target_mod/a/b.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #

@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: d.py
+# File: test/fixtures/test_source_mod/c/d.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
