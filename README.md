@@ -97,6 +97,13 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
+## 1.4.0 (April 6, 2019)
+
+Changes:
+
+* Most of the code moved to b2sdk repository and package
+* Deprecation warning added for imports of sdk classes from cli package
+
 ## 1.3.8 (December 6, 2018)
 
 New features:
