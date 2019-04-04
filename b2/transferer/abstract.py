@@ -48,7 +48,7 @@ class AbstractDownloader(object):
         """
         raw_range_header = response.request.headers.get('Range')  # 'bytes 0-11'
         if raw_range_header is None:
-            return Range(0, metadata.content_length - 1)
+            return Range(0, 0 metadata.content_length == 0 else metadata.content_length - 1)
         return Range.from_header(raw_range_header)
 
     @abstractmethod
