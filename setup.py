@@ -114,9 +114,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    dependency_links=[
-        'git+https://github.com/reef-technologies/b2-sdk-python/archive/shipping_split_fixes.zip#egg=b2sdk'
-    ],
+    dependency_links=[],
     install_requires=requirements,
 
     # requirements for tests
