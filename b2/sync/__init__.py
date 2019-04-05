@@ -1,5 +1,14 @@
-from .folder_parser import parse_sync_folder
-from .sync import sync_folders
+######################################################################
+#
+# File: b2/sync/__init__.py
+#
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
 
-assert parse_sync_folder
-assert sync_folders
+from b2sdk.sync import *  # noqa
+
+import b2._sdk_deprecation
+b2._sdk_deprecation.deprecate_module('b2.sync')

@@ -2,7 +2,7 @@
 #
 # File: test/test_console_tool.py
 #
-# Copyright 2018 Backblaze Inc. All Rights Reserved.
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -14,13 +14,13 @@ import six
 
 from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
-from b2.api import B2Api
-from b2.cache import InMemoryCache
+from b2sdk.api import B2Api
+from b2sdk.cache import InMemoryCache
 from b2.console_tool import ConsoleTool
-from b2.raw_api import API_VERSION
-from b2.raw_simulator import RawSimulator
-from b2.upload_source import UploadSourceBytes
-from b2.utils import TempDir
+from b2sdk.raw_api import API_VERSION
+from b2sdk.raw_simulator import RawSimulator
+from b2sdk.upload_source import UploadSourceBytes
+from b2sdk.utils import TempDir
 from test_b2_command_line import file_mod_time_millis
 
 try:
@@ -1396,8 +1396,9 @@ class TestConsoleTool(TestBase):
         # Remove the leading spaces from each line, based on the line
         # with the fewest leading spaces
         leading_spaces = ' ' * space_count
-        assert all(line.startswith(leading_spaces) or line == ''
-                   for line in lines), 'all lines have leading spaces'
+        assert all(
+            line.startswith(leading_spaces) or line == '' for line in lines
+        ), 'all lines have leading spaces'
         return '\n'.join('' if line == '' else line[space_count:] for line in lines)
 
     def _leading_spaces(self, s):

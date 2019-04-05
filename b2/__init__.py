@@ -1,8 +1,8 @@
 ######################################################################
 #
-# File: __init__.py
+# File: b2/__init__.py
 #
-# Copyright 2018 Backblaze Inc. All Rights Reserved.
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -26,7 +26,7 @@ if '/Library/Python/2.7/site-packages' in sys.path:
     sys.path = ['/Library/Python/2.7/site-packages'] + sys.path
 
 # Set default logging handler to avoid "No handler found" warnings.
-import logging
+import logging  # noqa
 try:
     from logging import NullHandler
 except ImportError:  # Python 2.6

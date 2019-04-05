@@ -2,7 +2,7 @@
 #
 # File: test/stub_account_info.py
 #
-# Copyright 2018 Backblaze Inc. All Rights Reserved.
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -11,7 +11,7 @@
 import collections
 import threading
 
-from b2.account_info.abstract import AbstractAccountInfo
+from b2sdk.account_info.abstract import AbstractAccountInfo
 
 
 class StubAccountInfo(AbstractAccountInfo):

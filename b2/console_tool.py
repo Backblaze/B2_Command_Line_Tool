@@ -2,7 +2,7 @@
 #
 # File: b2/console_tool.py
 #
-# Copyright 2018 Backblaze Inc. All Rights Reserved.
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -27,24 +27,21 @@ import time
 
 import six
 
-from .account_info.sqlite_account_info import (
+from b2sdk.account_info.sqlite_account_info import (
     B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE, SqliteAccountInfo
 )
-from .account_info.test_upload_url_concurrency import test_upload_url_concurrency
-from .account_info.exception import (MissingAccountData)
-from .api import (B2Api)
-from .b2http import (test_http)
-from .cache import (AuthInfoCache)
-from .download_dest import (DownloadDestLocalFile)
-from .exception import (B2Error, BadFileInfo)
-from .sync.scan_policies import ScanPoliciesManager
-from .file_version import (FileVersionInfo)
-from .parse_args import parse_arg_list
-from .progress import (make_progress_listener)
-from .raw_api import (SRC_LAST_MODIFIED_MILLIS, test_raw_api)
-from .sync import parse_sync_folder, sync_folders
-from .utils import (current_time_millis, set_shutting_down)
-from .version import (VERSION)
+from b2sdk.account_info.exception import (MissingAccountData)
+from b2sdk.api import (B2Api)
+from b2sdk.cache import (AuthInfoCache)
+from b2sdk.download_dest import (DownloadDestLocalFile)
+from b2sdk.exception import (B2Error, BadFileInfo)
+from b2sdk.sync.scan_policies import ScanPoliciesManager
+from b2sdk.file_version import (FileVersionInfo)
+from b2sdk.progress import (make_progress_listener)
+from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS)
+from b2sdk.sync import parse_sync_folder, sync_folders
+from b2.version import (VERSION)
+from b2.parse_args import parse_arg_list
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +58,13 @@ DOC_STRING_DATA = dict(
 VERSION_0_COMPATIBILITY = False
 
 
+def current_time_millis():
+    """
+    File times are in integer milliseconds, to avoid roundoff errors.
+    """
+    return int(round(time.time() * 1000))
+
+
 def local_path_to_b2_path(path):
     """
     Ensures that the separator in the path is '/', not '\'.
@@ -72,7 +76,6 @@ def local_path_to_b2_path(path):
 
 
 def keyboard_interrupt_handler(signum, frame):
-    set_shutting_down()
     raise KeyboardInterrupt()
 
 
@@ -1183,47 +1186,6 @@ class Sync(Command):
         return 0
 
 
-class TestHttp(Command):
-    """
-    b2 test-http
-
-        PRIVATE.  Exercises the HTTP layer.
-    """
-
-    PRIVATE = True
-
-    def run(self, args):
-        test_http()
-        return 0
-
-
-class TestRawApi(Command):
-    """
-    b2 test-raw-api
-
-        PRIVATE.  Exercises the B2RawApi class.
-    """
-
-    PRIVATE = True
-
-    def run(self, args):
-        return test_raw_api()
-
-
-class TestUploadUrlConcurrency(Command):
-    """
-    b2 test-upload-url-concurrency
-
-        PRIVATE.  Exercises the HTTP layer.
-    """
-
-    PRIVATE = True
-
-    def run(self, args):
-        test_upload_url_concurrency()
-        return 0
-
-
 class UpdateBucket(Command):
     """
     b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
@@ -1445,12 +1407,12 @@ class ConsoleTool(object):
         The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
 
         For more details on one command: b2 help <command>
-        
+
         When authorizing with application keys, this tool requires that the key
-        have the 'listBuckets' capability so that it can take the bucket names 
-        you provide on the command line and translate them into bucket IDs for the 
-        B2 Storage service.  Each different command may required additional 
-        capabilities.  You can find the details for each command in the help for 
+        have the 'listBuckets' capability so that it can take the bucket names
+        you provide on the command line and translate them into bucket IDs for the
+        B2 Storage service.  Each different command may required additional
+        capabilities.  You can find the details for each command in the help for
         that command.
         '''
         self._print_stderr(textwrap.dedent(epilog).format(**DOC_STRING_DATA))
@@ -1532,4 +1494,3 @@ def main():
     logging.shutdown()
 
     os._exit(exit_status)
-    # sys.exit(exit_status)

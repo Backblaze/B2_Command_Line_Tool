@@ -3,7 +3,7 @@
 #
 # File: test_b2_command_line.py
 #
-# Copyright 2018 Backblaze Inc. All Rights Reserved.
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -24,7 +24,7 @@ import tempfile
 import threading
 import unittest
 
-from b2.utils import fix_windows_path_limit
+from b2sdk.utils import fix_windows_path_limit
 
 USAGE = """
 This program tests the B2 command-line client.

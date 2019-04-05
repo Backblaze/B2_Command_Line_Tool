@@ -2,7 +2,7 @@
 #
 # File: b2/parse_args.py
 #
-# Copyright 2018 Backblaze Inc. All Rights Reserved.
+# Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -12,9 +12,23 @@ import logging
 
 import six
 
-from .utils import repr_dict_deterministically
-
 logger = logging.getLogger(__name__)
+
+
+def repr_dict_deterministically(dict_):
+    """
+    Represent a dictionary in a deterministic way, i.e. with
+    the same order of keys
+
+    :param dict_: a dictionary
+    :type dict_: dict
+    :return: a string representation of a dictionary
+    :rtype: str
+    """
+    # a simple version had a disadvantage of outputting dictionary keys in random order.
+    # It was hard to read. Therefore we sort items by key.
+    fields = ', '.join('%s: %s' % (repr(k), repr(v)) for k, v in sorted(six.iteritems(dict_)))
+    return '{%s}' % (fields,)
 
 
 class Arguments(object):
@@ -38,11 +52,14 @@ def check_for_duplicate_args(args_dict):
     This args_dict has a problem because 'required' and 'optional'
     both contain 'a':
 
+    .. code-block:: python
+
        {
-          'option_args': ['b', 'c'],
-          'required': ['a', 'd']
-          'optional': ['a', 'e']
+           'option_args': ['b', 'c'],
+           'required': ['a', 'd'],
+           'optional': ['a', 'e']
        }
+
     """
     categories = sorted(six.iterkeys(args_dict))
     for index_a, category_a in enumerate(categories):
@@ -86,14 +103,14 @@ def parse_arg_list(
     or Optional.
 
     :param arg_list sys.argv[1:], or equivalent
-    :param option_flags: Names of options that are boolean flags.
-    :param option_args: Names of options that have values.
-    :param list_args: Names of options whose values are collected into a list.
-    :param optional_before: Names of option positional params that come before the required ones.
-    :param required: Names of positional params that must be there.
-    :param optional: Names of optional params.
-    :param arg_parser: Map from param name to parser for values.
-    :return: An Argument object, or None if there was any error parsing.
+    :param option_flags: Names of options that are boolean flags
+    :param option_args: Names of options that have values
+    :param list_args: Names of options whose values are collected into a list
+    :param optional_before: Names of option positional params that come before the required ones
+    :param required: Names of positional params that must be there
+    :param optional: Names of optional params
+    :param arg_parser: Map from param name to parser for values
+    :return: An Argument object, or None if there was any error parsing
     """
 
     # Sanity check the inputs.
@@ -103,7 +120,7 @@ def parse_arg_list(
             'option_args': option_args,
             'optional_before': optional_before,
             'required': required,
-            'optional': optional
+            'optional': optional,
         }
     )
 
