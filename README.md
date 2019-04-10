@@ -20,7 +20,7 @@ this:
 
 # Usage
 
-    b2 authorize-account [<accountIdOrKeyId>] [<applicationKey>]
+    b2 authorize-account [<applicationKeyId>] [<applicationKey>]
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
     b2 clear-account
@@ -103,6 +103,9 @@ Changes:
 
 * Most of the code moved to b2sdk repository and package
 * Deprecation warning added for imports of sdk classes from cli package
+* Renaming accountId for authentication to application key Id
+    Note: this means account Id is still backwards compatible,
+    only the terminology has changed.
 
 ## 1.3.8 (December 6, 2018)
 
@@ -229,9 +232,9 @@ Before checking in, use the `pre-commit.sh` script to check code formatting, run
 unit tests, run integration tests etc.
 
 The integration tests need a file in your home directory called `.b2_auth`
-that contains two lines with nothing on them but your account ID and application key:
+that contains two lines with nothing on them but your application key ID and application key:
 
-     accountId
+     applicationKeyId
      applicationKey
 
 We marked the places in the code which are significantly less intuitive than others in a special way. To find them occurrences, use `git grep '*magic*'`.
