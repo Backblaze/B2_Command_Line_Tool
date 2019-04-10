@@ -66,10 +66,10 @@ The default file to use is: ~/.b2_account_info
 For more details on one command: b2 help <command>
 
 When authorizing with application keys, this tool requires that the key
-have the 'listBuckets' capability so that it can take the bucket names 
-you provide on the command line and translate them into bucket IDs for the 
-B2 Storage service.  Each different command may required additional 
-capabilities.  You can find the details for each command in the help for 
+have the 'listBuckets' capability so that it can take the bucket names
+you provide on the command line and translate them into bucket IDs for the
+B2 Storage service.  Each different command may required additional
+capabilities.  You can find the details for each command in the help for
 that command.
 
 ## Parallelism and the --threads parameter
@@ -112,7 +112,7 @@ Changes:
 New features:
 
 * New `--excludeAllSymlinks` option for `sync`.
-* Faster downloading of large files using multiple threads and bigger buffers. 
+* Faster downloading of large files using multiple threads and bigger buffers.
 
 Bug fixes:
 
@@ -132,7 +132,7 @@ Bug fixes:
 
 * Better documentation for authorize-account command.
 * Fix error reporting when using application keys
-* Fix auth issues with bucket-restricted application keys. 
+* Fix auth issues with bucket-restricted application keys.
 
 ## 1.3.2 (July 28, 2018)
 

@@ -685,7 +685,7 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         expected_stdout = '''
         {{
-            "accountAuthToken": "auth_token_0",
+            "accountAuthToken": "auth_token_1",
             "accountId": "{account_id}",
             "allowed": {{
                 "bucketId": null,
@@ -1176,7 +1176,7 @@ class TestConsoleTool(TestBase):
         self._run_command_ignore_output(['authorize-account', app_key_id, app_key])
 
         # Auth token should be in account info now
-        self.assertEqual('auth_token_1', self.account_info.get_account_auth_token())
+        self.assertEqual('auth_token_3', self.account_info.get_account_auth_token())
 
         # Assertions that the restrictions not only are saved but what they are supposed to be
         self.assertEqual(
