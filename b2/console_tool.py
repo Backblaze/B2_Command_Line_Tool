@@ -278,7 +278,6 @@ class AuthorizeAccount(Command):
                 )
                 self.api.account_info.clear()
                 return 1
-            self.api.authorize_account(realm, args.applicationKeyId, args.applicationKey)
             return 0
         except B2Error as e:
             logger.exception('ConsoleTool account authorization error')
