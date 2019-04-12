@@ -211,15 +211,15 @@ class Command(object):
 
 class AuthorizeAccount(Command):
     """
-    b2 authorize-account [<accountIdOrKeyId>] [<applicationKey>]
+    b2 authorize-account [<applicationKeyId>] [<applicationKey>]
 
-        Prompts for Backblaze accountID and applicationKey (unless they
-        are given on the command line).
+        Prompts for Backblaze applicationKeyId and applicationKey (unless they are given
+        on the command line).
 
         You can authorize with either the master application key or
         a normal application key.
 
-        To use the master application key, provide the account ID and
+        To use the master application key, provide the application key ID and
         application key from the "B2 Cloud Storage Buckets" page on
         the web site: https://secure.backblaze.com/b2_buckets.htm
 
@@ -235,7 +235,7 @@ class AuthorizeAccount(Command):
 
     OPTION_FLAGS = ['dev', 'staging']  # undocumented
 
-    OPTIONAL = ['accountId', 'applicationKey']
+    OPTIONAL = ['applicationKeyId', 'applicationKey']
 
     FORBID_LOGGING_ARGUMENTS = True
 
@@ -251,14 +251,14 @@ class AuthorizeAccount(Command):
         url = self.api.account_info.REALM_URLS[realm]
         self._print('Using %s' % url)
 
-        if args.accountId is None:
-            args.accountId = six.moves.input('Backblaze account ID: ')
+        if args.applicationKeyId is None:
+            args.applicationKeyId = six.moves.input('Backblaze application key ID: ')
 
         if args.applicationKey is None:
             args.applicationKey = getpass.getpass('Backblaze application key: ')
 
         try:
-            self.api.authorize_account(realm, args.accountId, args.applicationKey)
+            self.api.authorize_account(realm, args.applicationKeyId, args.applicationKey)
 
             allowed = self.api.account_info.get_allowed()
             if 'listBuckets' not in allowed['capabilities']:

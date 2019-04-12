@@ -20,7 +20,7 @@ this:
 
 # Usage
 
-    b2 authorize-account [<accountIdOrKeyId>] [<applicationKey>]
+    b2 authorize-account [<applicationKeyId>] [<applicationKey>]
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
     b2 clear-account
@@ -66,10 +66,10 @@ The default file to use is: ~/.b2_account_info
 For more details on one command: b2 help <command>
 
 When authorizing with application keys, this tool requires that the key
-have the 'listBuckets' capability so that it can take the bucket names 
-you provide on the command line and translate them into bucket IDs for the 
-B2 Storage service.  Each different command may required additional 
-capabilities.  You can find the details for each command in the help for 
+have the 'listBuckets' capability so that it can take the bucket names
+you provide on the command line and translate them into bucket IDs for the
+B2 Storage service.  Each different command may required additional
+capabilities.  You can find the details for each command in the help for
 that command.
 
 ## Parallelism and the --threads parameter
@@ -97,6 +97,14 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
+## 1.4.0 (April 12, 2019)
+
+Changes:
+
+* Renaming accountId for authentication to application key Id
+    Note: this means account Id is still backwards compatible,
+    only the terminology has changed.
+
 ## 1.4.0 (April 6, 2019)
 
 Changes:
@@ -109,7 +117,7 @@ Changes:
 New features:
 
 * New `--excludeAllSymlinks` option for `sync`.
-* Faster downloading of large files using multiple threads and bigger buffers. 
+* Faster downloading of large files using multiple threads and bigger buffers.
 
 Bug fixes:
 
@@ -129,7 +137,7 @@ Bug fixes:
 
 * Better documentation for authorize-account command.
 * Fix error reporting when using application keys
-* Fix auth issues with bucket-restricted application keys. 
+* Fix auth issues with bucket-restricted application keys.
 
 ## 1.3.2 (July 28, 2018)
 
@@ -229,9 +237,9 @@ Before checking in, use the `pre-commit.sh` script to check code formatting, run
 unit tests, run integration tests etc.
 
 The integration tests need a file in your home directory called `.b2_auth`
-that contains two lines with nothing on them but your account ID and application key:
+that contains two lines with nothing on them but your application key ID and application key:
 
-     accountId
+     applicationKeyId
      applicationKey
 
 We marked the places in the code which are significantly less intuitive than others in a special way. To find them occurrences, use `git grep '*magic*'`.
