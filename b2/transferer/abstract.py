@@ -11,12 +11,16 @@
 from __future__ import division
 
 from abc import abstractmethod
+import logging
 
 import six
 
 from ..utils import B2TraceMetaAbstract
 
 from .range import Range
+
+
+logger = logging.getLogger(__name__)
 
 
 @six.add_metaclass(B2TraceMetaAbstract)
@@ -32,10 +36,12 @@ class AbstractDownloader(object):
 
     def _get_chunk_size(self, content_length):
         if self._forced_chunk_size is not None:
+            logger.debug('chunk size forced to %s', self._forced_chunk_size)
             return self._forced_chunk_size
         ideal = content_length // 1000
         non_aligned = min(max(ideal, self._min_chunk_size), self._max_chunk_size)
         aligned = non_aligned // 4096 * 4096
+        logger.debug('chunk size calculated to %s', aligned)
         return aligned
 
     @classmethod
