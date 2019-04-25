@@ -130,6 +130,7 @@ class TestSdkImports(unittest.TestCase):
 
     def test_import_modules_from_sdk(self):
         for cli_mod_name, sdk_mod_name in zip(self.cli_modules, self.sdk_modules):
+            print(cli_mod_name, sdk_mod_name)
             with warnings.catch_warnings(record=True) as w:
                 cli_mod = importlib.import_module(cli_mod_name)
                 # import second time to make sure there were no more warnings displayed
@@ -145,6 +146,7 @@ class TestSdkImports(unittest.TestCase):
 
     def test_import_all_from_modules(self):
         for cli_mod_name, sdk_mod_name in zip(self.cli_modules, self.sdk_modules):
+            print(cli_mod_name, sdk_mod_name)
             with warnings.catch_warnings(record=True) as w:
                 code = 'from %s import *' % (cli_mod_name,)
                 cli_mod = imp.new_module('tets1')
@@ -161,6 +163,7 @@ class TestSdkImports(unittest.TestCase):
     def test_import_attributes_one_by_one(self):
         for sdk_mod_name, attrs in self.attributes.items():
             cli_mod_name = sdk_mod_name.replace('b2sdk.', 'b2.')
+            print(cli_mod_name, sdk_mod_name)
             for attr in attrs:
                 with warnings.catch_warnings(record=True) as w:
                     code = 'from %s import %s' % (cli_mod_name, attr)
