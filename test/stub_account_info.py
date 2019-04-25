@@ -85,11 +85,8 @@ class StubAccountInfo(AbstractAccountInfo):
     def get_account_id(self):
         return self.account_id
 
-    def get_account_id_or_app_key_id(self):
-        return self.account_id_or_app_key_id
-
     def get_application_key_id(self):
-        return self.get_account_id_or_app_key_id()
+        return self.account_id_or_app_key_id
 
     def get_account_auth_token(self):
         return self.auth_token
