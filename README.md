@@ -109,6 +109,7 @@ Changes:
 * (b2sdk) Fix transferer crashing on empty file download attempt
 * (b2sdk) Enable retries of non-transfer operations
 * (b2sdk) Enable continuation of download operations
+* (b2sdk) Support for python 3.7
 
 ## 1.3.8 (December 6, 2018)
 
