@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.3.9
+Version 1.4.0
 
 # Installation
 
@@ -97,7 +97,7 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
-## 1.4.0 (UNRELEASED)
+## 1.4.0 (April 25, 2019)
 
 Changes:
 
