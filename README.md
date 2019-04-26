@@ -106,6 +106,9 @@ Changes:
     only the terminology has changed.
 * Most of the code moved to b2sdk [repository](https://github.com/Backblaze/b2-sdk-python) and [package](https://pypi.org/project/b2sdk/)
 * Deprecation warning added for imports of sdk classes from cli package
+* (b2sdk) Fix transferer crashing on empty file download attempt
+* (b2sdk) Enable retries of non-transfer operations
+* (b2sdk) Enable continuation of download operations
 
 ## 1.3.8 (December 6, 2018)
 
