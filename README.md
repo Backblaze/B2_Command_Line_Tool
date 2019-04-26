@@ -97,20 +97,19 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
-## 1.4.0 (April 12, 2019)
+## 1.4.0 (UNRELEASED)
 
 Changes:
 
 * Renaming accountId for authentication to application key Id
     Note: this means account Id is still backwards compatible,
     only the terminology has changed.
-
-## 1.4.0 (April 6, 2019)
-
-Changes:
-
-* Most of the code moved to b2sdk repository and package
+* Most of the code moved to b2sdk [repository](https://github.com/Backblaze/b2-sdk-python) and [package](https://pypi.org/project/b2sdk/)
 * Deprecation warning added for imports of sdk classes from cli package
+* (b2sdk) Fix transferer crashing on empty file download attempt
+* (b2sdk) Enable retries of non-transfer operations
+* (b2sdk) Enable continuation of download operations
+* (b2sdk) Support for python 3.7
 
 ## 1.3.8 (December 6, 2018)
 
