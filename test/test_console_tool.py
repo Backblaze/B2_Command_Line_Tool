@@ -16,7 +16,7 @@ from .stub_account_info import StubAccountInfo
 from .test_base import TestBase
 from b2sdk.api import B2Api
 from b2sdk.cache import InMemoryCache
-from b2.console_tool import ConsoleTool
+from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
 from b2sdk.raw_api import API_VERSION
 from b2sdk.raw_simulator import RawSimulator
 from b2sdk.upload_source import UploadSourceBytes
@@ -79,6 +79,30 @@ class TestConsoleTool(TestBase):
         self._run_command(
             ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
         )
+
+        # Auth token should be in account info now
+        assert self.account_info.get_account_auth_token() is not None
+
+    def test_authorize_using_env_variables(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+        expected_stdout = """
+        Using http://production.example.com
+        """
+
+        # Setting up environment variables
+        with mock.patch.dict(
+            'os.environ', {
+                B2_APPLICATION_KEY_ID_ENV_VAR: self.account_id,
+                B2_APPLICATION_KEY_ENV_VAR: self.master_key,
+            }
+        ):
+            assert B2_APPLICATION_KEY_ID_ENV_VAR in os.environ
+            assert B2_APPLICATION_KEY_ENV_VAR in os.environ
+
+            self._run_command(['authorize-account'], expected_stdout, '', 0)
 
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
