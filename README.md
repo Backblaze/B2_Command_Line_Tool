@@ -98,6 +98,12 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 # Release History
 ## 1.4.1 (not released yet)
 
+Changes:
+
+* When authorizing with application keys, optional application key ID and 
+  application key can be added using environment variables 
+  B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY respectively.
+
 ## 1.4.0 (April 25, 2019)
 
 Changes:
