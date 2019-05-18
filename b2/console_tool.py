@@ -47,10 +47,16 @@ logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
 
+# Optional Env variable to use for getting account info while authorizing
+B2_APPLICATION_KEY_ID_ENV_VAR = 'B2_APPLICATION_KEY_ID'
+B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
+
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
-    B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE
+    B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
+    B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
+    B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
 )
 
 # Enable to get 0.* behavior in the command-line tool.
@@ -227,6 +233,10 @@ class AuthorizeAccount(Command):
         command or on the web site, provide the application key ID
         and the application key itself.
 
+        You can also optionally provide application key ID and application key
+        using environment variables {B2_APPLICATION_KEY_ID_ENV_VAR} and
+        {B2_APPLICATION_KEY_ENV_VAR} respectively.
+
         Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
         or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
 
@@ -252,10 +262,16 @@ class AuthorizeAccount(Command):
         self._print('Using %s' % url)
 
         if args.applicationKeyId is None:
-            args.applicationKeyId = six.moves.input('Backblaze application key ID: ')
+            args.applicationKeyId = (
+                os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR) or
+                six.moves.input('Backblaze application key ID: ')
+            )
 
         if args.applicationKey is None:
-            args.applicationKey = getpass.getpass('Backblaze application key: ')
+            args.applicationKey = (
+                os.environ.get(B2_APPLICATION_KEY_ENV_VAR) or
+                getpass.getpass('Backblaze application key: ')
+            )
 
         try:
             self.api.authorize_account(realm, args.applicationKeyId, args.applicationKey)
