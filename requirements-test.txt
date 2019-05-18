@@ -3,3 +3,4 @@ pyflakes; python_version >= '2.7'
 importlib; python_version == '2.6'
 yapf
 nose
+liccheck==0.3.9

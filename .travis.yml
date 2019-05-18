@@ -272,6 +272,13 @@ script:
         else
             echo skip
         fi
+  - |
+        # run command to check liccheck
+        if [ "$MODE" == 'SCA' ]; then
+            liccheck -s ci/license_strategy.ini -r requirements.txt
+        else
+            echo skip
+        fi
 
   # isort doesn't get along with yapf. Hopefully we'll figure it out and re-enable in the future.
   # - if [ "$MODE" == 'SCA' ]; then isort --order-by-type --recursive --line-width 100 --diff --verbose --check-only || exit; else echo skip; fi
