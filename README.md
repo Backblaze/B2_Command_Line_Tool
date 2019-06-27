@@ -105,6 +105,7 @@ Changes:
 * When authorizing with application keys, optional application key ID and 
   application key can be added using environment variables 
   B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY respectively.
+* Add support for (server-side) copy-file command
 
 ## 1.4.0 (April 25, 2019)
 
