@@ -23,6 +23,8 @@ this:
     b2 authorize-account [<applicationKeyId>] [<applicationKey>]
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
+    b2 copy-file [--metadataDirective [copy|replace]] [--contentType <contentType>] \
+        [--info <key>=<value>]* [--range start,end] [--noProgress] <sourceFileId> <destinationBucketName> <b2FileName>
     b2 clear-account
     b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--namePrefix <namePrefix>] <keyName> <capabilities>
