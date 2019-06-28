@@ -100,6 +100,9 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 Changes:
 
+* Add `prefix` parameter to `list-file-names` and `list-file-versions`
+* Make parameters of `list-file-names` and `list-file-versions` optional (use an empty string like this: `""`)
+* (b2sdk) Fix sync when used with a key restricted to filename prefix
 * When authorizing with application keys, optional application key ID and 
   application key can be added using environment variables 
   B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY respectively.
