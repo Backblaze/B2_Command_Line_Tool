@@ -190,6 +190,22 @@ class Command(object):
             arg_parser=self.ARG_PARSER
         )
 
+    @classmethod
+    def _parse_enum_arg(cls, arg_name, arg_value, enum_type):
+        """
+        Parses a command-line option which is really an enum (probably defined in b2sdk).
+        Returns an enum value or raises an exception which shows available values.
+        """
+        result = None
+        if arg_value is not None:
+            result = enum_type.__members__.get(arg_value.upper())
+            if result is None:
+                raise InvalidArgument(
+                    '--' + arg_name, 'value is not supported. Supported values are: %s' %
+                    (', '.join(enum_type.__members__.keys()),)
+                )
+        return result
+
     def _print(self, *args):
         self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
 
@@ -398,20 +414,7 @@ class CopyFile(Command):
                 file_infos[parts[0]] = parts[1]
 
         bytes_range = self._parse_range(args.range)
-        metadata_directive = None
-        if args.metadataDirective:
-            if args.metadataDirective.upper() == 'COPY':
-                metadata_directive = MetadataDirectiveMode.COPY
-            elif args.metadataDirective.upper() == 'REPLACE':
-                metadata_directive = MetadataDirectiveMode.REPLACE
-            else:
-                logger.error(
-                    'ConsoleTool \'metadataDirective\' must be either \'copy\' or \'replace\'',
-                )
-                self._print_stderr(
-                    'ERROR: --metadataDirective must be either \'copy\' or \'replace\''
-                )
-                return 1
+        metadata_directive = self._parse_metadata_directive(args.metadataDirective)
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
 
@@ -441,6 +444,12 @@ class CopyFile(Command):
             except ValueError:
                 raise InvalidArgument('--range', 'start and end must be integers')
         return bytes_range
+
+    @classmethod
+    def _parse_metadata_directive(cls, args_metadataDirective):
+        return cls._parse_enum_arg(
+            'metadataDirective', args_metadataDirective, MetadataDirectiveMode
+        )
 
 
 class CreateBucket(Command):

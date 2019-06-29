@@ -683,7 +683,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Invalid metadata value
-            expected_stderr = "ERROR: --metadataDirective must be either 'copy' or 'replace'\n"
+            expected_stderr = "ERROR: --metadataDirective value is not supported. Supported values are: COPY, REPLACE\n"
             self._run_command(
                 [
                     'copy_file', '--metadataDirective', 'random', '9999', 'my-bucket',
