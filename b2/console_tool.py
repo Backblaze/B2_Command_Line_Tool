@@ -38,7 +38,7 @@ from b2sdk.exception import (B2Error, BadFileInfo)
 from b2sdk.sync.scan_policies import ScanPoliciesManager
 from b2sdk.file_version import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
-from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS)
+from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
 from b2sdk.sync import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
@@ -352,6 +352,100 @@ class ClearAccount(Command):
 
     def run(self, args):
         self.api.account_info.clear()
+        return 0
+
+
+class CopyFile(Command):
+    """
+    b2 copy-file [--metadataDirective [copy|replace]] [--contentType <contentType>] \\
+                 [--info <key>=<value>]* [--range start,end] \\
+                 <sourceFileId> <destinationBucketName> <b2FileName>
+
+        Copy a file to the given bucket. Uploads the contents
+        of the source B2 file to destination bucket,
+        and assigns the given name to the new B2 file.
+
+        By default, it copies the file info and content type but you can replace
+        by setting the metadataDirective to 'replace'.
+
+        Content type is optional.  If not set, it will be set based on the
+        source file. It should only be provided when metadataDirective is replace and
+        should not be provided when metadataDirective is copy.
+
+        By default, the whole file gets copied but you can copy a range of bytes
+        from the source file to the new file.
+
+        info is optional. Each fileInfo is of the form "a=b".
+        If not set, it will be set based on the source file.
+        It should only be provided when metadataDirective is replace and
+        should not be provided when metadataDirective is copy.
+
+        Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
+    """
+
+    REQUIRED = ['sourceFileId', 'destinationBucketName', 'b2FileName']
+    OPTION_ARGS = ['metadataDirective', 'contentType', 'range']
+    LIST_ARGS = ['info']
+
+    def run(self, args):
+        file_infos = None
+        if args.info:
+            file_infos = {}
+            for info in args.info:
+                parts = info.split('=', 1)
+                if len(parts) == 1:
+                    raise BadFileInfo(info)
+                file_infos[parts[0]] = parts[1]
+
+        bytes_range = None
+        if args.range:
+            bytes_range = args.range.split(',')
+            if len(bytes_range) != 2:
+                logger.error(
+                    'ConsoleTool \'range\' must be exact 2 values, start and end. provided: %s',
+                    len(bytes_range),
+                )
+                self._print_stderr('ERROR: --range can must have exact 2 values, start and end')
+                return 1
+            try:
+                bytes_range = tuple([int(i) for i in bytes_range])
+            except ValueError:
+                logger.error('ConsoleTool \'range\' start and end must be integers',)
+                self._print_stderr('ERROR: --range start,end must be integers')
+                return 1
+
+        metadata_directive = None
+        if args.metadataDirective:
+            if args.metadataDirective.upper() == 'COPY':
+                metadata_directive = MetadataDirectiveMode.COPY
+            elif args.metadataDirective.upper() == 'REPLACE':
+                metadata_directive = MetadataDirectiveMode.REPLACE
+            else:
+                logger.error(
+                    'ConsoleTool \'metadataDirective\' must be either '
+                    '\'copy\' or \'replace\', provided: %s',
+                    args.metadataDirective,
+                )
+                self._print_stderr(
+                    'ERROR: --metadataDirective must be either \'copy\' or \'replace\''
+                )
+                return 1
+
+        bucket = self.api.get_bucket_by_name(args.destinationBucketName)
+
+        try:
+            response = bucket.copy_file(
+                args.sourceFileId,
+                args.b2FileName,
+                bytes_range=bytes_range,
+                metadata_directive=metadata_directive,
+                content_type=args.contentType,
+                file_info=file_infos,
+            )
+        except Exception as e:
+            logger.error(sys.exc_info())
+            raise
+        self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
 
