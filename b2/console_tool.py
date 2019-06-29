@@ -191,6 +191,16 @@ class Command(object):
         )
 
     @classmethod
+    def _parse_file_infos(cls, args_info):
+        file_infos = {}
+        for info in args_info:
+            parts = info.split('=', 1)
+            if len(parts) == 1:
+                raise BadFileInfo(info)
+            file_infos[parts[0]] = parts[1]
+        return file_infos
+
+    @classmethod
     def _parse_enum_arg(cls, arg_name, arg_value, enum_type):
         """
         Parses a command-line option which is really an enum (probably defined in b2sdk).
@@ -405,13 +415,8 @@ class CopyFile(Command):
 
     def run(self, args):
         file_infos = None
-        if args.info:
-            file_infos = {}
-            for info in args.info:
-                parts = info.split('=', 1)
-                if len(parts) == 1:
-                    raise BadFileInfo(info)
-                file_infos[parts[0]] = parts[1]
+        if args.info is not None:
+            file_infos = self._parse_file_infos(args.info)
 
         bytes_range = self._parse_range(args.range)
         metadata_directive = self._parse_metadata_directive(args.metadataDirective)
@@ -1371,12 +1376,7 @@ class UploadFile(Command):
     ARG_PARSER = {'minPartSize': int, 'threads': int}
 
     def run(self, args):
-        file_infos = {}
-        for info in args.info:
-            parts = info.split('=', 1)
-            if len(parts) == 1:
-                raise BadFileInfo(info)
-            file_infos[parts[0]] = parts[1]
+        file_infos = self._parse_file_infos(args.info)
 
         if SRC_LAST_MODIFIED_MILLIS not in file_infos:
             file_infos[SRC_LAST_MODIFIED_MILLIS] = str(
