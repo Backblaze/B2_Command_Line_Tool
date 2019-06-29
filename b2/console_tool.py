@@ -377,24 +377,24 @@ class CopyFile(Command):
                  [--info <key>=<value>]* [--range start,end] \\
                  <sourceFileId> <destinationBucketName> <b2FileName>
 
-        Copy a file to the given bucket. Uploads the contents
-        of the source B2 file to destination bucket,
+        Copy a file to the given bucket (server-side, *not* via download+upload).
+        Copies the contents of the source B2 file to destination bucket,
         and assigns the given name to the new B2 file.
 
-        By default, it copies the file info and content type but you can replace
+        By default, it copies the file info and content type. You can replace those
         by setting the metadataDirective to 'replace'.
 
-        Content type is optional.  If not set, it will be set based on the
-        source file. It should only be provided when metadataDirective is replace and
-        should not be provided when metadataDirective is copy.
+        --contentType and --info should only be provided when metadataDirective
+        is set to "replace" and should not be provided when metadataDirective
+        is set to "copy".
 
-        By default, the whole file gets copied but you can copy a range of bytes
+        --contentType and --info are optional.  If not set, they will be set based on the
+        source file.
+
+        By default, the whole file gets copied but you can copy an (inclusive!) range of bytes
         from the source file to the new file.
 
-        info is optional. Each fileInfo is of the form "a=b".
-        If not set, it will be set based on the source file.
-        It should only be provided when metadataDirective is replace and
-        should not be provided when metadataDirective is copy.
+        Each --info entry is in the form "a=b", you can specify many.
 
         Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
     """
