@@ -401,14 +401,14 @@ class CopyFile(Command):
         if args.range:
             bytes_range = args.range.split(',')
             if len(bytes_range) != 2:
-                logger.error(
-                    'ConsoleTool \'range\' must be exact 2 values, start and end. provided: %s',
-                    len(bytes_range),
-                )
+                logger.error('\'range\' must be exactly 2 values, start and end')
                 self._print_stderr('ERROR: --range can must have exact 2 values, start and end')
                 return 1
             try:
-                bytes_range = tuple([int(i) for i in bytes_range])
+                bytes_range = (
+                    int(bytes_range[0]),
+                    int(bytes_range[1]),
+                )
             except ValueError:
                 logger.error('ConsoleTool \'range\' start and end must be integers',)
                 self._print_stderr('ERROR: --range start,end must be integers')
@@ -422,9 +422,7 @@ class CopyFile(Command):
                 metadata_directive = MetadataDirectiveMode.REPLACE
             else:
                 logger.error(
-                    'ConsoleTool \'metadataDirective\' must be either '
-                    '\'copy\' or \'replace\', provided: %s',
-                    args.metadataDirective,
+                    'ConsoleTool \'metadataDirective\' must be either \'copy\' or \'replace\'',
                 )
                 self._print_stderr(
                     'ERROR: --metadataDirective must be either \'copy\' or \'replace\''
