@@ -433,18 +433,14 @@ class CopyFile(Command):
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
 
-        try:
-            response = bucket.copy_file(
-                args.sourceFileId,
-                args.b2FileName,
-                bytes_range=bytes_range,
-                metadata_directive=metadata_directive,
-                content_type=args.contentType,
-                file_info=file_infos,
-            )
-        except Exception as e:
-            logger.error(sys.exc_info())
-            raise
+        response = bucket.copy_file(
+            args.sourceFileId,
+            args.b2FileName,
+            bytes_range=bytes_range,
+            metadata_directive=metadata_directive,
+            content_type=args.contentType,
+            file_info=file_infos,
+        )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
