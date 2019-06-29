@@ -397,23 +397,7 @@ class CopyFile(Command):
                     raise BadFileInfo(info)
                 file_infos[parts[0]] = parts[1]
 
-        bytes_range = None
-        if args.range:
-            bytes_range = args.range.split(',')
-            if len(bytes_range) != 2:
-                logger.error('\'range\' must be exactly 2 values, start and end')
-                self._print_stderr('ERROR: --range can must have exact 2 values, start and end')
-                return 1
-            try:
-                bytes_range = (
-                    int(bytes_range[0]),
-                    int(bytes_range[1]),
-                )
-            except ValueError:
-                logger.error('ConsoleTool \'range\' start and end must be integers',)
-                self._print_stderr('ERROR: --range start,end must be integers')
-                return 1
-
+        bytes_range = self._parse_range(args.range)
         metadata_directive = None
         if args.metadataDirective:
             if args.metadataDirective.upper() == 'COPY':
@@ -441,6 +425,22 @@ class CopyFile(Command):
         )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
+
+    @classmethod
+    def _parse_range(cls, args_range):
+        bytes_range = None
+        if args_range is not None:
+            bytes_range = args_range.split(',')
+            if len(bytes_range) != 2:
+                raise InvalidArgument('--range', 'must be exactly 2 values, start and end')
+            try:
+                bytes_range = (
+                    int(bytes_range[0]),
+                    int(bytes_range[1]),
+                )
+            except ValueError:
+                raise InvalidArgument('--range', 'start and end must be integers')
+        return bytes_range
 
 
 class CreateBucket(Command):
@@ -1579,6 +1579,25 @@ def decode_sys_argv():
         encoding = sys.getfilesystemencoding()
         return [arg.decode(encoding) for arg in sys.argv]
     return sys.argv
+
+
+# TODO: import from b2sdk as soon as we rely on 1.0.0
+class InvalidArgument(B2Error):
+    """
+    Raised when one or more arguments are invalid
+    """
+
+    def __init__(self, parameter_name, message):
+        """
+        :param parameter_name: name of the function argument
+        :param message: brief explanation of misconfiguration
+        """
+        super(InvalidArgument, self).__init__()
+        self.parameter_name = parameter_name
+        self.message = message
+
+    def __str__(self):
+        return "%s %s" % (self.parameter_name, self.message)
 
 
 def main():

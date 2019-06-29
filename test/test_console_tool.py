@@ -665,7 +665,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Invalid range size
-            expected_stderr = "ERROR: --range can must have exact 2 values, start and end\n"
+            expected_stderr = "ERROR: --range must be exactly 2 values, start and end\n"
             self._run_command(
                 ['copy_file', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
@@ -674,7 +674,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Invalid range values
-            expected_stderr = "ERROR: --range start,end must be integers\n"
+            expected_stderr = "ERROR: --range start and end must be integers\n"
             self._run_command(
                 ['copy_file', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
