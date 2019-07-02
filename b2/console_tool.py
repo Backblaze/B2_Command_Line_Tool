@@ -392,7 +392,7 @@ class CopyFile(Command):
         and assigns the given name to the new B2 file.
 
         By default, it copies the file info and content type. You can replace those
-        by setting the metadataDirective to 'replace'.
+        by setting the metadataDirective to "replace".
 
         --contentType and --info should only be provided when metadataDirective
         is set to "replace" and should not be provided when metadataDirective
@@ -405,6 +405,8 @@ class CopyFile(Command):
         from the source file to the new file.
 
         Each --info entry is in the form "a=b", you can specify many.
+
+        The maximum file size is 5GB or 10TB, depending on capability of installed b2sdk version.
 
         Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
     """
