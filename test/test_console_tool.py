@@ -589,7 +589,7 @@ class TestConsoleTool(TestBase):
 
             self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
 
-    def test_copy_file(self):
+    def test_copy_file_by_id(self):
         self._authorize_account()
         self._create_my_bucket()
 
@@ -637,7 +637,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['copy_file', '9999', 'my-bucket', 'file1_copy.txt'], expected_stdout, '', 0
+                ['copy_file_by_id', '9999', 'my-bucket', 'file1_copy.txt'], expected_stdout, '', 0
             )
 
             # Copy File with range parameter
@@ -658,7 +658,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['copy_file', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy_file_by_id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_stdout,
                 '',
                 0,
@@ -667,7 +667,7 @@ class TestConsoleTool(TestBase):
             # Invalid range size
             expected_stderr = "ERROR: --range must be exactly 2 values, start and end\n"
             self._run_command(
-                ['copy_file', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy_file_by_id', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -676,7 +676,7 @@ class TestConsoleTool(TestBase):
             # Invalid range values
             expected_stderr = "ERROR: --range start and end must be integers\n"
             self._run_command(
-                ['copy_file', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy_file_by_id', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -686,7 +686,7 @@ class TestConsoleTool(TestBase):
             expected_stderr = "ERROR: --metadataDirective value is not supported. Supported values are: COPY, REPLACE\n"
             self._run_command(
                 [
-                    'copy_file', '--metadataDirective', 'random', '9999', 'my-bucket',
+                    'copy_file_by_id', '--metadataDirective', 'random', '9999', 'my-bucket',
                     'file1_copy.txt'
                 ],
                 '',
@@ -698,7 +698,7 @@ class TestConsoleTool(TestBase):
             expected_stderr = "ERROR: content_type and file_info should be None when metadata_directive is COPY\n"
             self._run_command(
                 [
-                    'copy_file',
+                    'copy_file_by_id',
                     '--metadataDirective',
                     'copy',
                     '--info',
@@ -716,7 +716,7 @@ class TestConsoleTool(TestBase):
             expected_stderr = "ERROR: content_type cannot be None when metadata_directive is REPLACE\n"
             self._run_command(
                 [
-                    'copy_file', '--metadataDirective', 'replace', '9999', 'my-bucket',
+                    'copy_file_by_id', '--metadataDirective', 'replace', '9999', 'my-bucket',
                     'file1_copy.txt'
                 ],
                 '',
@@ -743,7 +743,7 @@ class TestConsoleTool(TestBase):
             '''
             self._run_command(
                 [
-                    'copy_file',
+                    'copy_file_by_id',
                     '--metadataDirective',
                     'replace',
                     '--contentType',
@@ -762,7 +762,7 @@ class TestConsoleTool(TestBase):
             # UnsatisfiableRange
             expected_stderr = "ERROR: The range in the request is outside the size of the file\n"
             self._run_command(
-                ['copy_file', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy_file_by_id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -787,7 +787,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['copy_file', '9999', 'my-bucket1', 'file1_copy.txt'], expected_stdout, '', 0
+                ['copy_file_by_id', '9999', 'my-bucket1', 'file1_copy.txt'], expected_stdout, '', 0
             )
 
     def test_get_download_auth_defaults(self):

@@ -381,9 +381,9 @@ class ClearAccount(Command):
         return 0
 
 
-class CopyFile(Command):
+class CopyFileById(Command):
     """
-    b2 copy-file [--metadataDirective [copy|replace]] [--contentType <contentType>] \\
+    b2 copy-file-by-id [--metadataDirective [copy|replace]] [--contentType <contentType>] \\
                  [--info <key>=<value>]* [--range start,end] \\
                  <sourceFileId> <destinationBucketName> <b2FileName>
 

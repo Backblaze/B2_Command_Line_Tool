@@ -431,7 +431,7 @@ def basic_test(b2_tool, bucket_name):
     )
     should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
 
-    b2_tool.should_succeed(['copy_file', first_a_version['fileId'], bucket_name, 'x'])
+    b2_tool.should_succeed(['copy_file_by_id', first_a_version['fileId'], bucket_name, 'x'])
 
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
     b2_tool.should_succeed(
