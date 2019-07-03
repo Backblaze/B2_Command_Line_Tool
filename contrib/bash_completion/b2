@@ -3,6 +3,7 @@ _b2 () {
     local _b2_subcommands=(
         'authorize_account'
         'clear_account'
+        'copy_file'
         'create_bucket'
         'delete_bucket'
         'delete_file_version'

@@ -415,6 +415,9 @@ def basic_test(b2_tool, bucket_name):
         ['upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'],
         [f['action'] for f in list_of_files['files']]
     )
+
+    first_a_version = list_of_files['files'][0]
+
     first_c_version = list_of_files['files'][4]
     second_c_version = list_of_files['files'][5]
     list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c'])
@@ -427,6 +430,8 @@ def basic_test(b2_tool, bucket_name):
         ['list_file_versions', bucket_name, 'c', second_c_version['fileId'], '1']
     )
     should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
+
+    b2_tool.should_succeed(['copy_file_by_id', first_a_version['fileId'], bucket_name, 'x'])
 
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
     b2_tool.should_succeed(

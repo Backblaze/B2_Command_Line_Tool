@@ -38,7 +38,7 @@ from b2sdk.exception import (B2Error, BadFileInfo)
 from b2sdk.sync.scan_policies import ScanPoliciesManager
 from b2sdk.file_version import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
-from b2sdk.raw_api import (SRC_LAST_MODIFIED_MILLIS)
+from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
 from b2sdk.sync import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
@@ -189,6 +189,32 @@ class Command(object):
             optional=self.OPTIONAL,
             arg_parser=self.ARG_PARSER
         )
+
+    @classmethod
+    def _parse_file_infos(cls, args_info):
+        file_infos = {}
+        for info in args_info:
+            parts = info.split('=', 1)
+            if len(parts) == 1:
+                raise BadFileInfo(info)
+            file_infos[parts[0]] = parts[1]
+        return file_infos
+
+    @classmethod
+    def _parse_enum_arg(cls, arg_name, arg_value, enum_type):
+        """
+        Parses a command-line option which is really an enum (probably defined in b2sdk).
+        Returns an enum value or raises an exception which shows available values.
+        """
+        result = None
+        if arg_value is not None:
+            result = enum_type.__members__.get(arg_value.upper())
+            if result is None:
+                raise InvalidArgument(
+                    '--' + arg_name, 'value is not supported. Supported values are: %s' %
+                    (', '.join(enum_type.__members__.keys()),)
+                )
+        return result
 
     def _print(self, *args):
         self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
@@ -353,6 +379,84 @@ class ClearAccount(Command):
     def run(self, args):
         self.api.account_info.clear()
         return 0
+
+
+class CopyFileById(Command):
+    """
+    b2 copy-file-by-id [--metadataDirective [copy|replace]] [--contentType <contentType>] \\
+                 [--info <key>=<value>]* [--range start,end] \\
+                 <sourceFileId> <destinationBucketName> <b2FileName>
+
+        Copy a file version to the given bucket (server-side, *not* via download+upload).
+        Copies the contents of the source B2 file to destination bucket
+        and assigns the given name to the new B2 file.
+
+        By default, it copies the file info and content type. You can replace those
+        by setting the metadataDirective to "replace".
+
+        --contentType and --info should only be provided when --metadataDirective
+        is set to "replace" and should not be provided when --metadataDirective
+        is set to "copy".
+
+        --contentType and --info are optional.  If not set, they will be set based on the
+        source file.
+
+        By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
+        from the source file to the new file using --range option.
+
+        Each --info entry is in the form "a=b", you can specify many.
+
+        The maximum file size is 5GB or 10TB, depending on capability of installed b2sdk version.
+
+        Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
+    """
+
+    REQUIRED = ['sourceFileId', 'destinationBucketName', 'b2FileName']
+    OPTION_ARGS = ['metadataDirective', 'contentType', 'range']
+    LIST_ARGS = ['info']
+
+    def run(self, args):
+        file_infos = None
+        if args.info is not None:
+            file_infos = self._parse_file_infos(args.info)
+
+        bytes_range = self._parse_range(args.range)
+        metadata_directive = self._parse_metadata_directive(args.metadataDirective)
+
+        bucket = self.api.get_bucket_by_name(args.destinationBucketName)
+
+        response = bucket.copy_file(
+            args.sourceFileId,
+            args.b2FileName,
+            bytes_range=bytes_range,
+            metadata_directive=metadata_directive,
+            content_type=args.contentType,
+            file_info=file_infos,
+        )
+        self._print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+
+    @classmethod
+    def _parse_range(cls, args_range):
+        bytes_range = None
+        if args_range is not None:
+            bytes_range = args_range.split(',')
+            if len(bytes_range) != 2:
+                raise InvalidArgument('--range', 'must be exactly 2 values, start and end')
+            try:
+                bytes_range = (
+                    int(bytes_range[0]),
+                    int(bytes_range[1]),
+                )
+            except ValueError:
+                raise InvalidArgument('--range', 'start and end must be integers')
+        return bytes_range
+
+    @classmethod
+    def _parse_metadata_directive(cls, args_metadataDirective):
+        return cls._parse_enum_arg(
+            'metadataDirective', args_metadataDirective, MetadataDirectiveMode
+        )
 
 
 class CreateBucket(Command):
@@ -1274,12 +1378,7 @@ class UploadFile(Command):
     ARG_PARSER = {'minPartSize': int, 'threads': int}
 
     def run(self, args):
-        file_infos = {}
-        for info in args.info:
-            parts = info.split('=', 1)
-            if len(parts) == 1:
-                raise BadFileInfo(info)
-            file_infos[parts[0]] = parts[1]
+        file_infos = self._parse_file_infos(args.info)
 
         if SRC_LAST_MODIFIED_MILLIS not in file_infos:
             file_infos[SRC_LAST_MODIFIED_MILLIS] = str(
@@ -1491,6 +1590,25 @@ def decode_sys_argv():
         encoding = sys.getfilesystemencoding()
         return [arg.decode(encoding) for arg in sys.argv]
     return sys.argv
+
+
+# TODO: import from b2sdk as soon as we rely on 1.0.0
+class InvalidArgument(B2Error):
+    """
+    Raised when one or more arguments are invalid
+    """
+
+    def __init__(self, parameter_name, message):
+        """
+        :param parameter_name: name of the function argument
+        :param message: brief explanation of misconfiguration
+        """
+        super(InvalidArgument, self).__init__()
+        self.parameter_name = parameter_name
+        self.message = message
+
+    def __str__(self):
+        return "%s %s" % (self.parameter_name, self.message)
 
 
 def main():

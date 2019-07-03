@@ -589,6 +589,207 @@ class TestConsoleTool(TestBase):
 
             self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
 
+    def test_copy_file_by_id(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            # For this test, use a mod time without millis.  My mac truncates
+            # millis and just leaves seconds.
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # Upload a file
+            expected_stdout = '''
+            URL by file name: http://download.example.com/file/my-bucket/file1.txt
+            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
+            {{
+              "action": "upload",
+              "fileId": "9999",
+              "fileName": "file1.txt",
+              "size": 11,
+              "uploadTimestamp": 5000
+            }}
+            '''
+
+            self._run_command(
+                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                expected_stdout, '', 0
+            )
+
+            # Copy File
+            expected_stdout = '''
+            {{
+              "accountId": "{account_id}",
+              "action": "copy",
+              "bucketId": "bucket_0",
+              "contentLength": 11,
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
+              "fileId": "9998",
+              "fileInfo": {{
+                "src_last_modified_millis": "1500111222000"
+              }},
+              "fileName": "file1_copy.txt",
+              "uploadTimestamp": 5001
+            }}
+            '''
+            self._run_command(
+                ['copy_file_by_id', '9999', 'my-bucket', 'file1_copy.txt'], expected_stdout, '', 0
+            )
+
+            # Copy File with range parameter
+            expected_stdout = '''
+            {{
+              "accountId": "{account_id}",
+              "action": "copy",
+              "bucketId": "bucket_0",
+              "contentLength": 6,
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
+              "fileId": "9997",
+              "fileInfo": {{
+                "src_last_modified_millis": "1500111222000"
+              }},
+              "fileName": "file1_copy.txt",
+              "uploadTimestamp": 5002
+            }}
+            '''
+            self._run_command(
+                ['copy_file_by_id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
+                expected_stdout,
+                '',
+                0,
+            )
+
+            # Invalid range size
+            expected_stderr = "ERROR: --range must be exactly 2 values, start and end\n"
+            self._run_command(
+                ['copy_file_by_id', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
+                '',
+                expected_stderr,
+                1,
+            )
+
+            # Invalid range values
+            expected_stderr = "ERROR: --range start and end must be integers\n"
+            self._run_command(
+                ['copy_file_by_id', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
+                '',
+                expected_stderr,
+                1,
+            )
+
+            # Invalid metadata value
+            expected_stderr = "ERROR: --metadataDirective value is not supported. Supported values are: COPY, REPLACE\n"
+            self._run_command(
+                [
+                    'copy_file_by_id', '--metadataDirective', 'random', '9999', 'my-bucket',
+                    'file1_copy.txt'
+                ],
+                '',
+                expected_stderr,
+                1,
+            )
+
+            # Invalid metadata copy with file info
+            expected_stderr = "ERROR: content_type and file_info should be None when metadata_directive is COPY\n"
+            self._run_command(
+                [
+                    'copy_file_by_id',
+                    '--metadataDirective',
+                    'copy',
+                    '--info',
+                    'a=b',
+                    '9999',
+                    'my-bucket',
+                    'file1_copy.txt',
+                ],
+                '',
+                expected_stderr,
+                1,
+            )
+
+            # Invalid metadata replace without file info
+            expected_stderr = "ERROR: content_type cannot be None when metadata_directive is REPLACE\n"
+            self._run_command(
+                [
+                    'copy_file_by_id', '--metadataDirective', 'replace', '9999', 'my-bucket',
+                    'file1_copy.txt'
+                ],
+                '',
+                expected_stderr,
+                1,
+            )
+
+            # replace with content type and file info
+            expected_stdout = '''
+            {{
+              "accountId": "{account_id}",
+              "action": "copy",
+              "bucketId": "bucket_0",
+              "contentLength": 11,
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "text/plain",
+              "fileId": "9996",
+              "fileInfo": {{
+                "a": "b"
+              }},
+              "fileName": "file1_copy.txt",
+              "uploadTimestamp": 5003
+            }}
+            '''
+            self._run_command(
+                [
+                    'copy_file_by_id',
+                    '--metadataDirective',
+                    'replace',
+                    '--contentType',
+                    'text/plain',
+                    '--info',
+                    'a=b',
+                    '9999',
+                    'my-bucket',
+                    'file1_copy.txt',
+                ],
+                expected_stdout,
+                '',
+                0,
+            )
+
+            # UnsatisfiableRange
+            expected_stderr = "ERROR: The range in the request is outside the size of the file\n"
+            self._run_command(
+                ['copy_file_by_id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
+                '',
+                expected_stderr,
+                1,
+            )
+
+            # Copy in different bucket
+            self._run_command(['create_bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
+            expected_stdout = '''
+            {{
+              "accountId": "{account_id}",
+              "action": "copy",
+              "bucketId": "bucket_1",
+              "contentLength": 11,
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
+              "fileId": "9994",
+              "fileInfo": {{
+                "src_last_modified_millis": "1500111222000"
+              }},
+              "fileName": "file1_copy.txt",
+              "uploadTimestamp": 5004
+            }}
+            '''
+            self._run_command(
+                ['copy_file_by_id', '9999', 'my-bucket1', 'file1_copy.txt'], expected_stdout, '', 0
+            )
+
     def test_get_download_auth_defaults(self):
         self._authorize_account()
         self._create_my_bucket()

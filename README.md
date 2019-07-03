@@ -23,6 +23,8 @@ this:
     b2 authorize-account [<applicationKeyId>] [<applicationKey>]
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
+    b2 copy-file [--metadataDirective [copy|replace]] [--contentType <contentType>] \
+        [--info <key>=<value>]* [--range start,end] <sourceFileId> <destinationBucketName> <b2FileName>
     b2 clear-account
     b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--namePrefix <namePrefix>] <keyName> <capabilities>
@@ -103,6 +105,7 @@ Changes:
 * When authorizing with application keys, optional application key ID and 
   application key can be added using environment variables 
   B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY respectively.
+* Add support for (server-side) copy-file command
 
 ## 1.4.0 (April 25, 2019)
 
