@@ -1473,7 +1473,18 @@ class ConsoleTool(object):
         self._setup_logging(args, command, argv)
 
         try:
-            return command.run(args)
+            try:
+                return command.run(args)
+            except B2Error as e:
+                if e.message == '400 bad_request The bucket ID for this application key is invalid' \
+                        or e.message.startswith('400 bad_bucket_id'):
+                    logger.debug(
+                        "'%s' bucket isn't recognized by API. Removing it from the cache", args.bucket)
+                    self.api.cache.info.remove_bucket_name(args.bucket)
+                    logger.debug("Repeating the '%s' command", action)
+                    return command.run(args)
+                else:
+                    raise e
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr('ERROR: %s  Use: b2 authorize-account' % (str(e),))
