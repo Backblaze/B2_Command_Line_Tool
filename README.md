@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.4.1
+Version 1.4.2
 
 # Installation
 
@@ -23,9 +23,10 @@ this:
     b2 authorize-account [<applicationKeyId>] [<applicationKey>]
     b2 cancel-all-unfinished-large-files <bucketName>
     b2 cancel-large-file <fileId>
-    b2 copy-file [--metadataDirective [copy|replace]] [--contentType <contentType>] \
-        [--info <key>=<value>]* [--range start,end] <sourceFileId> <destinationBucketName> <b2FileName>
     b2 clear-account
+    b2 copy-file-by-id [--metadataDirective [copy|replace]] [--contentType <contentType>] \
+             [--info <key>=<value>]* [--range start,end] \
+             <sourceFileId> <destinationBucketName> <b2FileName>
     b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
     b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--namePrefix <namePrefix>] <keyName> <capabilities>
     b2 delete-bucket <bucketName>
@@ -60,6 +61,7 @@ this:
         [--info <key>=<value>]* [--minPartSize N] \
         [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
     b2 version
+
 
 The environment variable B2_ACCOUNT_INFO specifies the sqlite
 file to use for caching authentication information.
@@ -98,7 +100,8 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
-## 1.4.1 (not released yet)
+
+## 1.4.2 (2019-10-03)
 
 Changes:
 
