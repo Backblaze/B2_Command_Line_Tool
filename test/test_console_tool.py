@@ -12,15 +12,15 @@ import json
 import os
 import six
 
-from .stub_account_info import StubAccountInfo
+from b2sdk.v0 import StubAccountInfo
 from .test_base import TestBase
-from b2sdk.api import B2Api
+from b2sdk.v0 import B2Api
 from b2sdk.cache import InMemoryCache
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
 from b2sdk.raw_api import API_VERSION
-from b2sdk.raw_simulator import RawSimulator
-from b2sdk.upload_source import UploadSourceBytes
-from b2sdk.utils import TempDir
+from b2sdk.v0 import RawSimulator
+from b2sdk.v0 import UploadSourceBytes
+from b2sdk.v0 import TempDir
 from test_b2_command_line import file_mod_time_millis
 
 try:
@@ -529,16 +529,17 @@ class TestConsoleTool(TestBase):
               "files": [
                 {{
                   "action": "hide",
+                  "contentLength": 0,
                   "contentSha1": "none",
                   "contentType": null,
                   "fileId": "9998",
                   "fileInfo": {{}},
                   "fileName": "file1.txt",
-                  "size": 0,
                   "uploadTimestamp": 5001
                 }},
                 {{
                   "action": "upload",
+                  "contentLength": 11,
                   "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                   "contentType": "b2/x-auto",
                   "fileId": "9999",
@@ -546,7 +547,6 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "%s"
                   }},
                   "fileName": "file1.txt",
-                  "size": 11,
                   "uploadTimestamp": 5000
                 }}
               ],
@@ -1269,6 +1269,7 @@ class TestConsoleTool(TestBase):
               "files": [
                 {{
                   "action": "upload",
+                  "contentLength": 11,
                   "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                   "contentType": "b2/x-auto",
                   "fileId": "9999",
@@ -1276,7 +1277,6 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "%d"
                   }},
                   "fileName": "test-dry-run.txt",
-                  "size": 11,
                   "uploadTimestamp": 5000
                 }}
               ],

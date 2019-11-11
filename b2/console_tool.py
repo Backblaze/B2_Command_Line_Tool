@@ -28,18 +28,20 @@ import time
 import six
 
 from b2sdk.account_info.sqlite_account_info import (
-    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE, SqliteAccountInfo
+    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
 )
+from b2sdk.v0 import SqliteAccountInfo
+
 from b2sdk.account_info.exception import (MissingAccountData)
-from b2sdk.api import (B2Api)
+from b2sdk.v0 import (B2Api)
 from b2sdk.cache import (AuthInfoCache)
-from b2sdk.download_dest import (DownloadDestLocalFile)
+from b2sdk.v0 import (DownloadDestLocalFile)
 from b2sdk.exception import (B2Error, BadFileInfo)
-from b2sdk.sync.scan_policies import ScanPoliciesManager
-from b2sdk.file_version import (FileVersionInfo)
+from b2sdk.v0 import ScanPoliciesManager
+from b2sdk.v0 import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
-from b2sdk.sync import parse_sync_folder, sync_folders
+from b2sdk.v0 import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
 
