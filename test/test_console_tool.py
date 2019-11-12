@@ -13,7 +13,6 @@ import os
 import six
 
 from b2sdk.v0 import StubAccountInfo
-from .test_base import TestBase
 from b2sdk.v0 import B2Api
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
 from b2sdk.raw_api import API_VERSION
@@ -21,6 +20,8 @@ from b2sdk.v0 import RawSimulator
 from b2sdk.v0 import UploadSourceBytes
 from b2sdk.v0 import TempDir
 from test_b2_command_line import file_mod_time_millis
+
+from .test_base import TestBase
 
 try:
     import unittest.mock as mock
