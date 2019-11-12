@@ -32,11 +32,10 @@ from b2sdk.account_info.sqlite_account_info import (
 )
 from b2sdk.v0 import SqliteAccountInfo
 
-from b2sdk.account_info.exception import (MissingAccountData)
+from b2sdk.v0.exception import (MissingAccountData)
 from b2sdk.v0 import (B2Api)
-from b2sdk.cache import (AuthInfoCache)
 from b2sdk.v0 import (DownloadDestLocalFile)
-from b2sdk.exception import (B2Error, BadFileInfo)
+from b2sdk.v0.exception import (B2Error, BadFileInfo)
 from b2sdk.v0 import ScanPoliciesManager
 from b2sdk.v0 import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
@@ -1615,7 +1614,7 @@ class InvalidArgument(B2Error):
 
 def main():
     info = SqliteAccountInfo()
-    b2_api = B2Api(info, AuthInfoCache(info))
+    b2_api = B2Api(info)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)

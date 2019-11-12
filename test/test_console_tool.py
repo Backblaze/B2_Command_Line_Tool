@@ -15,7 +15,6 @@ import six
 from b2sdk.v0 import StubAccountInfo
 from .test_base import TestBase
 from b2sdk.v0 import B2Api
-from b2sdk.cache import InMemoryCache
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
 from b2sdk.raw_api import API_VERSION
 from b2sdk.v0 import RawSimulator
@@ -32,7 +31,7 @@ except ImportError:
 class TestConsoleTool(TestBase):
     def setUp(self):
         self.account_info = StubAccountInfo()
-        self.cache = InMemoryCache()
+        self.cache = None
         self.raw_api = RawSimulator()
         self.b2_api = B2Api(self.account_info, self.cache, self.raw_api)
         (self.account_id, self.master_key) = self.raw_api.create_account()
@@ -317,12 +316,6 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['list_keys'], expected_list_keys_out, '', 0)
         self._run_command(['list_keys', '--long'], expected_list_keys_out_long, '', 0)
-
-        # make sure calling list_buckets with one bucket doesn't clear the cache
-        cache_map_before = self.cache.name_id_map
-        self.b2_api.list_buckets('my-bucket-a')
-        cache_map_after = self.cache.name_id_map
-        assert cache_map_before == cache_map_after
 
         # authorize and make calls using application key with no restrictions
         self._run_command(
