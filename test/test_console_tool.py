@@ -10,12 +10,12 @@
 
 import json
 import os
+import re
 import six
 
 from b2sdk.v0 import StubAccountInfo
 from b2sdk.v0 import B2Api
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
-from b2sdk.raw_api import API_VERSION
 from b2sdk.v0 import RawSimulator
 from b2sdk.v0 import UploadSourceBytes
 from b2sdk.v0 import TempDir
@@ -30,6 +30,9 @@ except ImportError:
 
 
 class TestConsoleTool(TestBase):
+
+    RE_API_VERSION = re.compile(r"\/v\d\/")
+
     def setUp(self):
         self.account_info = StubAccountInfo()
         self.cache = None
@@ -439,7 +442,7 @@ class TestConsoleTool(TestBase):
             # Upload a file
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -451,7 +454,7 @@ class TestConsoleTool(TestBase):
 
             self._run_command(
                 ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
-                expected_stdout, '', 0
+                expected_stdout, '', 0, None, True
             )
 
             # Get file info
@@ -598,7 +601,7 @@ class TestConsoleTool(TestBase):
             # Upload a file
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -610,7 +613,7 @@ class TestConsoleTool(TestBase):
 
             self._run_command(
                 ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
-                expected_stdout, '', 0
+                expected_stdout, '', 0, None, True
             )
 
             # Copy File
@@ -883,7 +886,7 @@ class TestConsoleTool(TestBase):
                 f.write(text.encode('utf-8'))
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/test.txt
-            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -897,7 +900,7 @@ class TestConsoleTool(TestBase):
                 [
                     'upload_file', '--noProgress', '--threads', '5', 'my-bucket', file_path,
                     'test.txt'
-                ], expected_stdout, '', 0
+                ], expected_stdout, '', 0, None, True
             )
 
     def test_get_account_info(self):
@@ -975,7 +978,7 @@ class TestConsoleTool(TestBase):
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/{api_version}/b2_download_file_by_id?fileId=9999
+            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
               "fileId": "9999",
@@ -986,7 +989,7 @@ class TestConsoleTool(TestBase):
             '''
             self._run_command(
                 ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
-                expected_stdout, '', 0
+                expected_stdout, '', 0, None, True
             )
 
             # Now check the output of get-bucket against the canon.
@@ -1514,7 +1517,13 @@ class TestConsoleTool(TestBase):
         self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
     def _run_command(
-        self, argv, expected_stdout='', expected_stderr='', expected_status=0, format_vars=None
+        self,
+        argv,
+        expected_stdout='',
+        expected_stderr='',
+        expected_status=0,
+        format_vars=None,
+        remove_version=False,
     ):
         """
         Runs one command using the ConsoleTool, checking stdout, stderr, and
@@ -1538,6 +1547,11 @@ class TestConsoleTool(TestBase):
         actual_stdout = self._trim_trailing_spaces(stdout.getvalue())
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
+        # ignore any references to specific api version
+        if remove_version:
+            actual_stdout = self._remove_api_version_number(actual_stdout)
+            actual_stderr = self._remove_api_version_number(actual_stderr)
+
         if expected_stdout != actual_stdout:
             print('EXPECTED STDOUT:', repr(expected_stdout))
             print('ACTUAL STDOUT:  ', repr(actual_stdout))
@@ -1554,10 +1568,7 @@ class TestConsoleTool(TestBase):
     def _normalize_expected_output(self, text, format_vars=None):
         format_vars = format_vars or {}
         return self._trim_leading_spaces(text).format(
-            account_id=self.account_id,
-            master_key=self.master_key,
-            api_version=API_VERSION,
-            **format_vars
+            account_id=self.account_id, master_key=self.master_key, **format_vars
         )
 
     def test_bad_terminal(self):
@@ -1638,3 +1649,6 @@ class TestConsoleTool(TestBase):
     def _read_file(self, local_path):
         with open(local_path, 'rb') as f:
             return f.read()
+
+    def _remove_api_version_number(self, s):
+        return re.sub(self.RE_API_VERSION, '/vx/', s)
