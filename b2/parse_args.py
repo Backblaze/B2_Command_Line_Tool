@@ -35,7 +35,6 @@ class Arguments(object):
     """
     An object to stick attributes on.
     """
-
     def __repr__(self):
         return '%s(%s)' % (
             self.__class__.__name__,

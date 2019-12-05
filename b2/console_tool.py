@@ -28,18 +28,19 @@ import time
 import six
 
 from b2sdk.account_info.sqlite_account_info import (
-    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE, SqliteAccountInfo
+    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
 )
-from b2sdk.account_info.exception import (MissingAccountData)
-from b2sdk.api import (B2Api)
-from b2sdk.cache import (AuthInfoCache)
-from b2sdk.download_dest import (DownloadDestLocalFile)
-from b2sdk.exception import (B2Error, BadFileInfo)
-from b2sdk.sync.scan_policies import ScanPoliciesManager
-from b2sdk.file_version import (FileVersionInfo)
+from b2sdk.v0 import SqliteAccountInfo
+
+from b2sdk.v0.exception import (MissingAccountData)
+from b2sdk.v0 import (B2Api)
+from b2sdk.v0 import (DownloadDestLocalFile)
+from b2sdk.v0.exception import (B2Error, BadFileInfo)
+from b2sdk.v0 import ScanPoliciesManager
+from b2sdk.v0 import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
-from b2sdk.sync import parse_sync_folder, sync_folders
+from b2sdk.v0 import parse_sync_folder, sync_folders
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
 
@@ -375,7 +376,6 @@ class ClearAccount(Command):
         Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
         of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
     """
-
     def run(self, args):
         self.api.account_info.clear()
         return 0
@@ -664,7 +664,6 @@ class GetAccountInfo(Command):
         Shows the account ID, key, auth token, URLs, and what capabilities
         the current application keys has.
     """
-
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
@@ -873,7 +872,6 @@ class ListBuckets(Command):
 
         Requires capability: listBuckets
     """
-
     def run(self, args):
         for b in self.api.list_buckets():
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
@@ -1425,7 +1423,6 @@ class Version(Command):
 
         Prints the version number of this tool.
     """
-
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
@@ -1439,7 +1436,6 @@ class ConsoleTool(object):
     Uses the StoredAccountInfo object to keep account data in
     {B2_ACCOUNT_INFO_DEFAULT_FILE} between runs.
     """
-
     def __init__(self, b2_api, stdout, stderr):
         self.api = b2_api
         self.stdout = stdout
@@ -1608,7 +1604,6 @@ class InvalidArgument(B2Error):
     """
     Raised when one or more arguments are invalid
     """
-
     def __init__(self, parameter_name, message):
         """
         :param parameter_name: name of the function argument
@@ -1624,7 +1619,7 @@ class InvalidArgument(B2Error):
 
 def main():
     info = SqliteAccountInfo()
-    b2_api = B2Api(info, AuthInfoCache(info))
+    b2_api = B2Api(info)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
