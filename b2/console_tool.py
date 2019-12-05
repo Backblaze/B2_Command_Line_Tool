@@ -882,48 +882,57 @@ class ListBuckets(Command):
 
 class ListFileVersions(Command):
     """
-    b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
+    b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>] [prefix]
 
         Lists the names of the files in a bucket, starting at the
         given point.  This is a low-level operation that reports the
         raw JSON returned from the service.  'b2 ls' provides a higher-
-        level view.
+        level view.  Optionally restricts the output (server-side) to the given prefix.
 
         Requires capability: listFiles
     """
 
     REQUIRED = ['bucketName']
 
-    OPTIONAL = ['startFileName', 'startFileId', 'maxToShow']
+    OPTIONAL = ['startFileName', 'startFileId', 'maxToShow', 'prefix']
 
     ARG_PARSER = {'maxToShow': int}
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_versions(args.startFileName, args.startFileId, args.maxToShow)
+        response = bucket.list_file_versions(
+            args.startFileName or None,
+            args.startFileId or None,
+            args.maxToShow or None,
+            args.prefix or None,
+        )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
 
 class ListFileNames(Command):
     """
-    b2 list-file-names <bucketName> [<startFileName>] [<maxToShow>]
+    b2 list-file-names <bucketName> [<startFileName>] [<maxToShow>] [prefix]
 
         Lists the names of the files in a bucket, starting at the
-        given point.
+        given point.  Optionally restricts the output (server-side) to the given prefix.
 
         Requires capability: listFiles
     """
 
     REQUIRED = ['bucketName']
 
-    OPTIONAL = ['startFileName', 'maxToShow']
+    OPTIONAL = ['startFileName', 'maxToShow', 'prefix']
 
     ARG_PARSER = {'maxToShow': int}
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_names(args.startFileName, args.maxToShow)
+        response = bucket.list_file_names(
+            args.startFileName or None,
+            args.maxToShow or None,
+            args.prefix or None,
+        )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
@@ -1089,7 +1098,7 @@ class Ls(Command):
         Requires capability: listFiles
     """
 
-    OPTION_FLAGS = ['long', 'versions', 'recursive']
+    OPTION_FLAGS = ['long', 'versions', 'recursive', 'prefix']
 
     REQUIRED = ['bucketName']
 
@@ -1097,15 +1106,17 @@ class Ls(Command):
 
     def run(self, args):
         if args.folderName is None:
-            prefix = ""
+            start_file_name = ""
         else:
-            prefix = args.folderName
-            if not prefix.endswith('/'):
-                prefix += '/'
+            start_file_name = args.folderName
+            if not start_file_name.endswith('/'):
+                start_file_name += '/'
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for file_version_info, folder_name in bucket.ls(
-            prefix, show_versions=args.versions, recursive=args.recursive
+            start_file_name,
+            show_versions=args.versions,
+            recursive=args.recursive,
         ):
             if not args.long:
                 self._print(folder_name or file_version_info.file_name)
