@@ -13,12 +13,12 @@ import os
 import re
 import six
 
-from b2sdk.v0 import StubAccountInfo
-from b2sdk.v0 import B2Api
+from b2sdk.v1 import StubAccountInfo
+from b2sdk.v1 import B2Api
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
-from b2sdk.v0 import RawSimulator
-from b2sdk.v0 import UploadSourceBytes
-from b2sdk.v0 import TempDir
+from b2sdk.v1 import RawSimulator
+from b2sdk.v1 import UploadSourceBytes
+from b2sdk.v1 import TempDir
 from test_b2_command_line import file_mod_time_millis
 
 from .test_base import TestBase
@@ -227,16 +227,7 @@ class TestConsoleTool(TestBase):
 
         # Delete one
         expected_stdout = '''
-        {{
-            "accountId": "{account_id}",
-            "bucketId": "bucket_1",
-            "bucketInfo": {{}},
-            "bucketName": "your-bucket",
-            "bucketType": "allPrivate",
-            "corsRules": [],
-            "lifecycleRules": [],
-            "revision": 1
-        }}
+        null
         '''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)

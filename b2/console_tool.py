@@ -30,17 +30,18 @@ import six
 from b2sdk.account_info.sqlite_account_info import (
     B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
 )
-from b2sdk.v0 import SqliteAccountInfo
+from b2sdk.v1 import SqliteAccountInfo
 
-from b2sdk.v0.exception import (MissingAccountData)
-from b2sdk.v0 import (B2Api)
-from b2sdk.v0 import (DownloadDestLocalFile)
-from b2sdk.v0.exception import (B2Error, BadFileInfo)
-from b2sdk.v0 import ScanPoliciesManager
-from b2sdk.v0 import (FileVersionInfo)
+from b2sdk.v1.exception import (MissingAccountData)
+from b2sdk.v1 import (B2Api)
+from b2sdk.v1 import (DownloadDestLocalFile)
+from b2sdk.v1.exception import (B2Error, BadFileInfo)
+from b2sdk.v1 import ScanPoliciesManager
+from b2sdk.v1 import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
-from b2sdk.v0 import parse_sync_folder, sync_folders
+from b2sdk.v1 import parse_sync_folder
+from b2sdk.v0 import sync_folders
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
 
@@ -898,7 +899,8 @@ class ListFileVersions(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_versions(
+        response = self.api.session.list_file_versions(
+            bucket.id_,
             args.startFileName or None,
             args.startFileId or None,
             args.maxToShow or None,
@@ -926,7 +928,8 @@ class ListFileNames(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.list_file_names(
+        response = self.api.session.list_file_names(
+            bucket.id_,
             args.startFileName or None,
             args.maxToShow or None,
             args.prefix or None,
