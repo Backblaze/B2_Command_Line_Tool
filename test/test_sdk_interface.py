@@ -142,6 +142,7 @@ class TestSdkImports(unittest.TestCase):
             'b2._sdk_deprecation',
             'b2.console_tool',
             'b2.parse_args',
+            'b2.cli_bucket',
         )
     )
 

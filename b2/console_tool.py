@@ -44,6 +44,7 @@ from b2sdk.v1 import parse_sync_folder
 from b2sdk.v0 import sync_folders
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
+from b2.cli_bucket import CliBucket
 
 logger = logging.getLogger(__name__)
 
@@ -899,8 +900,8 @@ class ListFileVersions(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = self.api.session.list_file_versions(
-            bucket.id_,
+        cli_bucket = CliBucket(self.api, bucket.id_)
+        response = cli_bucket.list_file_versions(
             args.startFileName or None,
             args.startFileId or None,
             args.maxToShow or None,
@@ -928,8 +929,8 @@ class ListFileNames(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = self.api.session.list_file_names(
-            bucket.id_,
+        cli_bucket = CliBucket(self.api, bucket.id_)
+        response = cli_bucket.list_file_names(
             args.startFileName or None,
             args.maxToShow or None,
             args.prefix or None,
