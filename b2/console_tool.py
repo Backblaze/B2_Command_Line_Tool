@@ -40,11 +40,19 @@ from b2sdk.v1 import ScanPoliciesManager
 from b2sdk.v1 import (FileVersionInfo)
 from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
-from b2sdk.v1 import parse_sync_folder
-from b2sdk.v0 import sync_folders
+from b2sdk.v1 import (
+    parse_sync_folder,
+    Synchronizer,
+    SyncReport,
+    NewerFileSyncMode,
+    CompareVersionMode,
+    KeepOrDeleteMode,
+    DEFAULT_SCAN_MANAGER,
+)
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
 from b2.cli_bucket import CliBucket
+from b2sdk.v1.exception import CommandError
 
 logger = logging.getLogger(__name__)
 
@@ -1304,19 +1312,73 @@ class Sync(Command):
             include_file_regexes=args.includeRegex,
             exclude_all_symlinks=args.excludeAllSymlinks,
         )
-        sync_folders(
-            source_folder=source,
-            dest_folder=destination,
-            args=args,
-            now_millis=current_time_millis(),
-            stdout=self.stdout,
-            no_progress=args.noProgress,
-            max_workers=max_workers,
+        synchronizer = self.get_synchronizer_from_args(
+            args,
+            max_workers,
+            policies_manager,
+            allow_empty_source,
+        )
+        with SyncReport(self.stdout, args.noProgress) as reporter:
+            synchronizer.sync_folders(
+                source_folder=source,
+                dest_folder=destination,
+                now_millis=current_time_millis(),
+                reporter=reporter,
+            )
+        return 0
+
+    def get_synchronizer_from_args(
+        self,
+        args,
+        max_workers,
+        policies_manager=DEFAULT_SCAN_MANAGER,
+        allow_empty_source=False,
+    ):
+        if args.replaceNewer and args.skipNewer:
+            raise CommandError('--skipNewer and --replaceNewer are incompatible')
+        elif args.replaceNewer:
+            newer_file_mode = NewerFileSyncMode.REPLACE
+        elif args.skipNewer:
+            newer_file_mode = NewerFileSyncMode.SKIP
+        else:
+            newer_file_mode = NewerFileSyncMode.RAISE_ERROR
+
+        if args.delete and (args.keepDays is not None):
+            raise CommandError('--delete and --keepDays are incompatible')
+
+        if args.compareVersions == 'none':
+            compare_version_mode = CompareVersionMode.NONE
+        elif args.compareVersions == 'modTime':
+            compare_version_mode = CompareVersionMode.MODTIME
+        elif args.compareVersions == 'size':
+            compare_version_mode = CompareVersionMode.SIZE
+        elif args.compareVersions is None:
+            compare_version_mode = CompareVersionMode.MODTIME
+        else:
+            raise CommandError('Invalid option for --compareVersions')
+        compare_threshold = args.compareThreshold
+
+        keep_days = None
+
+        if args.delete:
+            keep_days_or_delete = KeepOrDeleteMode.DELETE
+        elif args.keepDays:
+            keep_days_or_delete = KeepOrDeleteMode.KEEP_BEFORE_DELETE
+            keep_days = args.keepDays
+        else:
+            keep_days_or_delete = KeepOrDeleteMode.NO_DELETE
+
+        return Synchronizer(
+            max_workers,
             policies_manager=policies_manager,
             dry_run=args.dryRun,
-            allow_empty_source=allow_empty_source
+            allow_empty_source=allow_empty_source,
+            newer_file_mode=newer_file_mode,
+            keep_days_or_delete=keep_days_or_delete,
+            compare_version_mode=compare_version_mode,
+            compare_threshold=compare_threshold,
+            keep_days=keep_days,
         )
-        return 0
 
 
 class UpdateBucket(Command):
