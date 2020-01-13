@@ -15,6 +15,7 @@ class CliBucket(v1.Bucket):
     def list_file_names(self, start_filename=None, max_entries=None, prefix=None):
         """
         Legacy interface which just returns whatever remote API returns.
+        According to b2sdk version policy, usage of B2Session requires more strict pinning
         """
         return self.api.session.list_file_names(self.id_, start_filename, max_entries, prefix)
 
@@ -23,6 +24,7 @@ class CliBucket(v1.Bucket):
     ):
         """
         Legacy interface which just returns whatever remote API returns.
+        According to b2sdk version policy, usage of B2Session requires more strict pinning
         """
         return self.api.session.list_file_versions(
             self.id_, start_filename, start_file_id, max_entries, prefix
