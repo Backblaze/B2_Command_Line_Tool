@@ -230,7 +230,7 @@ install:
   - |
         # coverage has additional requirements
         if [ "$MODE" == 'coverage' ]; then
-            travis_retry pip install coverage
+            travis_retry pip install "coverage==4.5.4"
             if [ -n "$CODACY_PROJECT_TOKEN" ]; then travis_retry pip install codacy-coverage; fi
             if [ -n "$COVERALLS_REPO_TOKEN" ]; then travis_retry pip install coveralls; fi
             if [ -n "$CODECOV_TOKEN" ]; then travis_retry wget https://codecov.io/bash -O codecov.sh && chmod +x codecov.sh; fi
