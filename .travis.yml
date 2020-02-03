@@ -10,6 +10,8 @@ python:
   - 3.4
   - 3.5
   - 3.6
+  - 3.7
+  - 3.8
   # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
   #- pypy
   #- pypy3
@@ -34,38 +36,23 @@ matrix:
     - python: 3.5
       env: MODE=SCA
 
-    # Enable 3.7 without globally enabling sudo and xenial for other build jobs
-    - python: 3.7
-      dist: xenial
-      sudo: true
+    # Enable nightly without globally enabling sudo and xenial for other build jobs
+    # disabled because nosetests is not supported on 3.9. We'll move to pytest.
+    # disabled by commenting out because Travis does not listen to matrix.allow_failures.python = [pypy3, nightly] for some reason
+    #- python: nightly
+    #  dist: xenial
+    #  sudo: true
 
-    # Enable nightly without globally enabling sudo and xenial for other build jobs.
-    - python: nightly
-      dist: xenial
-      sudo: true
-
-    # Travis CI doesn't support OSX python builds officially,
-    # but that won't stop us...
-    # ... or maybe it will. It's now getting this error:
-    #    Could not fetch URL https://pypi.python.org/simple/arrow/: There was a problem confirming the ssl certificate: [SSL: TLSV1_ALERT_PROTOCOL_VERSION] tlsv1 alert protocol version (_ssl.c:590)
-    # which stackoverflow says means the python interpreter needs to be upgraded:
-    #    https://stackoverflow.com/questions/16370583/pip-issue-installing-almost-any-library
-#    - python: 2.7
-#      os: osx
-#      language: generic
-#      env: OS_X_PYTHON_VERSION=python
-
-# See github issue #311:
-#    - python: 3.5
-#      os: osx
-#      language: generic
-#      env: OS_X_PYTHON_VERSION=python3
-
-    # jython
-    # It looks like Jython has a similar TLS problem to the Mac:
-    #   An HTTPS request has been made, but the SNI (Subject Name Indication) extension to TLS is not available on this platform.
-#    - python: 2.7
-#      env: JYTHON=true
+    - python: 3
+      os: osx
+      language: generic
+      env:
+        - OS_X_PYTHON_VERSION=python3
+      before_cache:
+        - rm -f "$HOME/Library/Caches/pip/log/debug.log"
+      addons:
+        homebrew:
+          packages: python3
 
     # pypy
     - python: pypy
@@ -91,39 +78,15 @@ cache:
     - $HOME/.eggs
     # custom pypy versions
     - $HOME/.pyenv
-    # jython
-    - $HOME/.virtualenvs/jython
-    - $HOME/jython
-    - $HOME/jython-pip
     # OS X
-    - $HOME/.virtualenvs/osx-python
     - $HOME/.virtualenvs/osx-python3
-    #- /usr/local/Cellar/python  # see comment in the install script
-    #- /usr/local/Cellar/python3
 before_install:
   - uname -a
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
   - |
         # install python on OS X
         if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-            if [ -n 'ALWAYS TRUE!' -o ! -d "/usr/local/Cellar/$OS_X_PYTHON_VERSION" ]; then
-                # unfortunately caching /usr/local/Cellar/$OS_X_PYTHON_VERSION is not enough.
-                # brew does some kind of side effect which registers the binary in the system
-                # or something. The resulting error error is:
-                #
-                # dyld: Library not loaded: @executable_path/../.Python
-                #
-                # Due to lack of information on the web as well as the lack of appropriate
-                # environment it is very hard to debug out how to properly cache the python
-                # installation on OS X.
-                #
-                # Therefore caching is temporarily disabled until someone figures it out.
-                # Typically brew update and installation of python takes 3 to 4 minutes.
-                travis_retry brew update
-                travis_retry brew install "$OS_X_PYTHON_VERSION"
-            else
-                echo 'skip install'
-            fi
+            travis_retry pip3 install virtualenv
             if [ ! -e "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
                 virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION"
             else
@@ -132,67 +95,6 @@ before_install:
             source "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate"
         else
             echo skip
-        fi
-  - |
-        # get jython
-        if [ -n "$JYTHON" ]; then
-            # When the system python changes version, the symlink to it inside jython
-            # breaks, and jython stops working.  If that happens, remove the installed
-            # version and start over.
-            if [ -d "$HOME/jython" ]; then
-                if "$HOME/jython/bin/jython" --version; then
-                    echo jython version works
-                else
-                    echo jython is broken.  removing it.
-                    rm -rf "$HOME/jython"
-                fi
-            fi
-
-            # Install jython if it's not there.
-            if [ ! -d "$HOME/jython" ]; then
-                travis_retry wget http://search.maven.org/remotecontent?filepath=org/python/jython-installer/2.7.1b3/jython-installer-2.7.1b3.jar -O jython-installer-2.7.1b3.jar
-                java -jar jython-installer-2.7.1b3.jar --silent --directory "$HOME/jython"
-            else
-                echo skip install jython
-            fi
-
-            # install a custom version of pip, as standard pip doesn't work on jython (https://github.com/jythontools/pip/commits/develop)
-            if [ ! -d "$HOME/jython-pip" ]; then
-                mkdir ~/jython-pip
-            else
-                echo skip mkdir jython-pip
-            fi
-            if [ ! -f ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl ]; then
-                travis_retry wget https://pypi.python.org/packages/py2.py3/p/pip/pip-7.1.2-py2.py3-none-any.whl -O ~/jython-pip/pip-7.1.2-py2.py3-none-any.whl
-            else
-                echo skip download pip
-            fi
-
-            # The virtualenv is another place where the cache can hold broken symlinks.
-            # If the virtualenv doesn't work, remove it.
-            export JAVA_OPTS="-Xms128m -Xmx1024m"
-            if [ -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
-                source "$HOME/.virtualenvs/jython/bin/activate"
-                if python --version; then
-                    echo jython virtualenv works
-                else
-                    echo jython virtualenv broken.  removing it.
-                    rm -rf "$HOME/.virtualenvs/jython"
-                fi
-                deactivate
-            fi
-
-            # create jython virtualenv
-            if [ ! -f "$HOME/.virtualenvs/jython/bin/activate" ]; then
-                virtualenv --system-site-packages --extra-search-dir="$HOME/jython-pip" -p "$HOME/jython/bin/jython" "$HOME/.virtualenvs/jython"
-            else
-                echo skip virtualenv
-            fi
-
-            # Activate the virtualenv
-            source "$HOME/.virtualenvs/jython/bin/activate"
-        else
-            echo skip setting up jython
         fi
   - |
         # upgrade pypy (to a version that works with Cryptography 1.0)
@@ -238,8 +140,6 @@ install:
 
 before_script:
   - pip freeze
-  # Before runing the test case, we need to make jython run some code as in first run it can put something on stdout
-  - if [ -n "$JYTHON" ]; then python -c "print ''"; else echo skip; fi
 
 script:
   - |
