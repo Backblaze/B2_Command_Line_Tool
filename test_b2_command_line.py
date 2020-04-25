@@ -457,6 +457,14 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['make_url', second_c_version['fileId']])
 
+    b2_tool.should_succeed(
+        ['make-friendly-url', bucket_name, file_to_upload],
+        '^https://.*/file/%s/%s$' % (
+            bucket_name,
+            file_to_upload,
+        ),
+    )
+
 
 def key_restrictions_test(b2_tool, bucket_name):
 

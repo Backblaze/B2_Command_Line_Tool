@@ -48,6 +48,7 @@ this:
     b2 list-parts <largeFileId>
     b2 list-unfinished-large-files <bucketName>
     b2 ls [--long] [--versions] [--recursive] <bucketName> [<folderName>]
+    b2 make-friendly-url <bucketName> <fileName>
     b2 make-url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--compareThreshold N] \
@@ -100,6 +101,12 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 1.?.? (not released yet)
+
+Changes:
+
+* Add `make-friendly-url` command
 
 ## 1.4.2 (2019-10-03)
 
