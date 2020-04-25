@@ -102,6 +102,12 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
+## 1.?.? (not released yet)
+
+Changes:
+
+* Add `make-friendly-url` command
+
 ## 1.4.2 (2019-10-03)
 
 Changes:
