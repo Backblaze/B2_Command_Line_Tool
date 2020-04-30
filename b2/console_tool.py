@@ -33,7 +33,6 @@ from b2sdk.account_info.sqlite_account_info import (
 from b2sdk.v1 import SqliteAccountInfo
 
 from b2sdk.v1.exception import (MissingAccountData)
-from b2sdk.v1 import (B2Api)
 from b2sdk.v1 import (DownloadDestLocalFile)
 from b2sdk.v1.exception import (B2Error, BadFileInfo)
 from b2sdk.v1 import ScanPoliciesManager
@@ -51,6 +50,7 @@ from b2sdk.v1 import (
 )
 from b2.version import (VERSION)
 from b2.parse_args import parse_arg_list
+from b2.cli_api import CliB2Api
 from b2.cli_bucket import CliBucket
 from b2sdk.v1.exception import CommandError
 
@@ -1685,7 +1685,7 @@ class InvalidArgument(B2Error):
 
 def main():
     info = SqliteAccountInfo()
-    b2_api = B2Api(info)
+    b2_api = CliB2Api(info)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)

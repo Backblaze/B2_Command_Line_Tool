@@ -29,3 +29,10 @@ class CliBucket(v1.Bucket):
         return self.api.session.list_file_versions(
             self.id_, start_filename, start_file_id, max_entries, prefix
         )
+
+
+class CliBucketFactory(object):
+    """
+    This is a factory for creating bucket objects from different kind of objects.
+    """
+    BUCKET_CLASS = staticmethod(CliBucket)
