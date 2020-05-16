@@ -48,7 +48,8 @@ from b2sdk.v1 import (
     KeepOrDeleteMode,
     DEFAULT_SCAN_MANAGER,
 )
-from b2.version import (VERSION)
+from b2.version import VERSION
+from b2sdk.version import VERSION as b2sdk_version
 from b2.parse_args import parse_arg_list
 from b2.cli_api import CliB2Api
 from b2.cli_bucket import CliBucket
@@ -717,8 +718,10 @@ class GetBucket(Command):
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
         for b in self.api.list_buckets(args.bucketName):
+            result = copy.copy(b.bucket_dict)
+            result['options'] = list(result['options'])  # json dumper doesn't like sets
             if not args.showSize:
-                self._print(json.dumps(b.bucket_dict, indent=4, sort_keys=True))
+                self._print(json.dumps(result, indent=4, sort_keys=True))
                 return 0
             else:
                 # `files` is a generator. We don't want to collect all of the values from the
@@ -733,7 +736,6 @@ class GetBucket(Command):
                 count_size_tuple = functools.reduce(
                     (lambda partial, f: (partial[0] + 1, partial[1] + f[0].size)), files, (0, 0)
                 )
-                result = copy.copy(b.bucket_dict)
                 result['fileCount'] = count_size_tuple[0]
                 result['totalSize'] = count_size_tuple[1]
                 self._print(json.dumps(result, indent=4, sort_keys=True))
@@ -1301,8 +1303,9 @@ class Sync(Command):
             )
             return 1
 
-        max_workers = args.threads or 10
-        self.console_tool.api.set_thread_pool_size(max_workers)
+        max_upload_workers = args.threads or 10
+        self.api.services.upload_manager.set_thread_pool_size(max_upload_workers)
+
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
@@ -1314,7 +1317,7 @@ class Sync(Command):
         )
         synchronizer = self.get_synchronizer_from_args(
             args,
-            max_workers,
+            max_upload_workers,
             policies_manager,
             allow_empty_source,
         )
@@ -1433,7 +1436,7 @@ class UploadFile(Command):
         B2 allows is 100MB.  Setting --minPartSize to a larger value will
         reduce the number of parts uploaded when uploading a large file.
 
-        The maximum number of threads to use to upload parts of a large file
+        The maximum number of upload threads to use to upload parts of a large file
         is specified by '--threads'.  It has no effect on small files (under 200MB).
         Default is 10.
 
@@ -1461,7 +1464,7 @@ class UploadFile(Command):
             )
 
         max_workers = args.threads or 10
-        self.api.set_thread_pool_size(max_workers)
+        self.api.services.upload_manager.set_thread_pool_size(max_workers)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.upload_local_file(
@@ -1643,6 +1646,7 @@ class ConsoleTool(object):
             'Python version is %s %s', platform.python_implementation(),
             sys.version.replace('\n', ' ')
         )
+        logger.debug('b2sdk version is %s', b2sdk_version)
         logger.debug('locale is %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
 
