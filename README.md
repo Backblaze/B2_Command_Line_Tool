@@ -4,7 +4,7 @@ The command-line tool that gives easy access to all of the capabilities of B2 Cl
 
 This program provides command-line access to the B2 service.
 
-Version 1.4.3
+Version 2.0.0
 
 # Installation
 
@@ -100,6 +100,15 @@ A hidden flag `--debugLogs` can be used to enable logging to a `b2_cli.log` file
 For advanced users, a hidden option `--logConfig <filename.ini>` can be used to enable logging in a user-defined format and verbosity. An example log configuration can be found [here](contrib/debug_logs.ini).
 
 # Release History
+
+## 2.0.0 (2020-??-??)
+
+Changes:
+
+* Switch to b2sdk api version v1
+* Remove the ability to import b2sdk classes through b2cli (it was temporary, please use b2sdk directly)
+* Remove official support for python 3.4
+* Add official support for python 3.8
 
 ## 1.4.2 (2019-10-03)
 
