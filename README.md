@@ -109,6 +109,7 @@ Changes:
 * Remove the ability to import b2sdk classes through b2cli (it was temporary, please use b2sdk directly)
 * Remove official support for python 3.4
 * Add official support for python 3.8
+* Remove output of delete-bucket
 
 ## 1.4.2 (2019-10-03)
 

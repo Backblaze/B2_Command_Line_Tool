@@ -570,8 +570,7 @@ class DeleteBucket(Command):
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = self.api.delete_bucket(bucket)
-        self._print(json.dumps(response, indent=4, sort_keys=True))
+        self.api.delete_bucket(bucket)
         return 0
 
 

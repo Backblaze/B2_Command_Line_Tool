@@ -227,19 +227,7 @@ class TestConsoleTool(TestBase):
         self._run_command(['list_buckets'], expected_stdout, '', 0)
 
         # Delete one
-        expected_stdout = '''
-        {{
-            "accountId": "{account_id}",
-            "bucketId": "bucket_1",
-            "bucketInfo": {{}},
-            "bucketName": "your-bucket",
-            "bucketType": "allPrivate",
-            "corsRules": [],
-            "lifecycleRules": [],
-            "options": [],
-            "revision": 1
-        }}
-        '''
+        expected_stdout = ''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
 
