@@ -1163,6 +1163,21 @@ class MakeUrl(Command):
         return 0
 
 
+class MakeFriendlyUrl(Command):
+    """
+    b2 make-friendly-url <bucketName> <fileName>
+
+        Prints a short URL that can be used to download the given file, if
+        it is public.
+    """
+
+    REQUIRED = ['bucketName', 'fileName']
+
+    def run(self, args):
+        self._print(self.api.get_download_url_for_file_name(args.bucketName, args.fileName))
+        return 0
+
+
 class Sync(Command):
     """
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\

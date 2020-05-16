@@ -48,6 +48,7 @@ this:
     b2 list-parts <largeFileId>
     b2 list-unfinished-large-files <bucketName>
     b2 ls [--long] [--versions] [--recursive] <bucketName> [<folderName>]
+    b2 make-friendly-url <bucketName> <fileName>
     b2 make-url <fileId>
     b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
         [--compareVersions <option>] [--compareThreshold N] \
@@ -110,6 +111,7 @@ Changes:
 * Remove official support for python 3.4
 * Add official support for python 3.8
 * Remove output of delete-bucket
+* Add `make-friendly-url` command
 
 ## 1.4.2 (2019-10-03)
 
