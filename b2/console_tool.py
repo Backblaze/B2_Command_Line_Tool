@@ -1694,7 +1694,8 @@ class InvalidArgument(B2Error):
 def main():
     info = SqliteAccountInfo()
     b2_api = CliB2Api(info)
-    ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
+    cache = AuthInfoCache(info)
+    ct = ConsoleTool(b2_api=b2_api, cache=cache, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
