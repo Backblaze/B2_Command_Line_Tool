@@ -55,6 +55,8 @@ from b2.cli_api import CliB2Api
 from b2.cli_bucket import CliBucket
 from b2sdk.v1.exception import CommandError
 
+from b2.json_encoder import SetToListEncoder
+
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
@@ -230,6 +232,9 @@ class Command(object):
 
     def _print(self, *args):
         self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
+
+    def _print_json(self, data):
+        self._print(json.dumps(data, indent=4, sort_keys=True, cls=SetToListEncoder))
 
     def _print_stderr(self, *args, **kwargs):
         self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
@@ -738,7 +743,7 @@ class GetBucket(Command):
                 )
                 result['fileCount'] = count_size_tuple[0]
                 result['totalSize'] = count_size_tuple[1]
-                self._print(json.dumps(result, indent=4, sort_keys=True))
+                self._print_json(result)
                 return 0
         self._print_stderr('bucket not found: ' + args.bucketName)
         return 1
@@ -1411,7 +1416,7 @@ class UpdateBucket(Command):
             cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules
         )
-        self._print(json.dumps(response, indent=4, sort_keys=True))
+        self._print_json(response)
         return 0
 
 
