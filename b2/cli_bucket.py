@@ -31,7 +31,7 @@ class CliBucket(v1.Bucket):
         )
 
 
-class CliBucketFactory(object):
+class CliBucketFactory(v1.BucketFactory):
     """
     This is a factory for creating bucket objects from different kind of objects.
     """

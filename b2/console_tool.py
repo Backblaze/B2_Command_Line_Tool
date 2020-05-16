@@ -41,6 +41,7 @@ from b2sdk.progress import (make_progress_listener)
 from b2sdk.raw_api import (MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS)
 from b2sdk.v1 import (
     parse_sync_folder,
+    AuthInfoCache,
     Synchronizer,
     SyncReport,
     NewerFileSyncMode,
@@ -392,6 +393,7 @@ class ClearAccount(Command):
         Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
         of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
     """
+
     def run(self, args):
         self.api.account_info.clear()
         return 0
@@ -679,6 +681,7 @@ class GetAccountInfo(Command):
         Shows the account ID, key, auth token, URLs, and what capabilities
         the current application keys has.
     """
+
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
@@ -888,6 +891,7 @@ class ListBuckets(Command):
 
         Requires capability: listBuckets
     """
+
     def run(self, args):
         for b in self.api.list_buckets():
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
@@ -1496,6 +1500,7 @@ class Version(Command):
 
         Prints the version number of this tool.
     """
+
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
@@ -1509,6 +1514,7 @@ class ConsoleTool(object):
     Uses the StoredAccountInfo object to keep account data in
     {B2_ACCOUNT_INFO_DEFAULT_FILE} between runs.
     """
+
     def __init__(self, b2_api, stdout, stderr):
         self.api = b2_api
         self.stdout = stdout
@@ -1678,6 +1684,7 @@ class InvalidArgument(B2Error):
     """
     Raised when one or more arguments are invalid
     """
+
     def __init__(self, parameter_name, message):
         """
         :param parameter_name: name of the function argument
@@ -1693,9 +1700,9 @@ class InvalidArgument(B2Error):
 
 def main():
     info = SqliteAccountInfo()
-    b2_api = CliB2Api(info)
     cache = AuthInfoCache(info)
-    ct = ConsoleTool(b2_api=b2_api, cache=cache, stdout=sys.stdout, stderr=sys.stderr)
+    b2_api = CliB2Api(info, cache=cache)
+    ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     decoded_argv = decode_sys_argv()
     exit_status = ct.run_command(decoded_argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
