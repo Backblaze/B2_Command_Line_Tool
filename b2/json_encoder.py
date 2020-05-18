@@ -1,0 +1,16 @@
+import json
+
+
+class SetToListEncoder(json.JSONEncoder):
+    """
+    Makes it possible to serialize b2sdk bucket objects
+    (specifically bucket['options'] set) to json.
+
+    >>> json.dumps(set([1,2,3,'a','b','c']), cls=json_encoder.SetToListEncoder)
+    '[1, 2, 3, "c", "b", "a"]'
+    >>>
+    """
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return json.JSONEncoder.default(self, obj)
