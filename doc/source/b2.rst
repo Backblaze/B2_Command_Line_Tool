@@ -8,6 +8,7 @@ Subpackages
 
     b2.account_info
     b2.sync
+    cli_arguments
 
 Submodules
 ----------

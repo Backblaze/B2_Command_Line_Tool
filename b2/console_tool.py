@@ -10,6 +10,7 @@
 
 from __future__ import absolute_import, print_function
 
+import argparse
 import copy
 import datetime
 import functools
@@ -257,6 +258,59 @@ class Command(object):
 
     def __str__(self):
         return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
+
+
+class ArgParseCommand(Command):
+    @classmethod
+    def _get_arg_type(cls, argument):
+        return cls.ARG_PARSER.get(argument)
+
+    @classmethod
+    def add_subparser(cls, subparsers):
+        description = super(ArgParseCommand, cls).command_usage()
+        parser = subparsers.add_parser(
+            mixed_case_to_hyphens(cls.__name__), prog='b2', description=description,
+            formatter_class=argparse.RawTextHelpFormatter
+        )
+
+        for option_flag in cls.OPTION_FLAGS + cls.GLOBAL_OPTION_FLAGS:
+            parser.add_argument('--%s' % option_flag, action='store_true')
+
+        for option_arg in cls.OPTION_ARGS + cls.GLOBAL_OPTION_ARGS:
+            parser.add_argument('--%s' % option_arg, type=cls._get_arg_type(option_arg))
+
+        for list_arg in cls.LIST_ARGS:
+            parser.add_argument(
+                '--%s' % list_arg, type=cls._get_arg_type(option_flag), default=[], nargs='?'
+            )
+
+        for optional_before in cls.OPTIONAL_BEFORE:
+            parser.add_argument(optional_before, type=cls._get_arg_type(option_flag), nargs='?')
+
+        for required in cls.REQUIRED:
+            parser.add_argument(required, type=cls._get_arg_type(required))
+
+        for optional in cls.OPTIONAL:
+            parser.add_argument(optional, type=cls._get_arg_type(option_flag), nargs='?')
+
+        cls.subparser = parser
+
+    @classmethod
+    def summary_line(cls):
+        """
+        Returns the one-line summary of how to call the command.
+        """
+        usage = ' \\\n        '.join(
+            line.strip() for line in cls.subparser.format_usage().splitlines()
+        )
+        return 'b2 %s %s' % (mixed_case_to_hyphens(cls.__name__), usage[len('usage: b2 '):])
+
+    @classmethod
+    def command_usage(cls):
+        """
+        Returns the command line argument for this command
+        """
+        return cls.subparser.format_help()
 
 
 class AuthorizeAccount(Command):
@@ -1163,12 +1217,10 @@ class MakeUrl(Command):
         return 0
 
 
-class MakeFriendlyUrl(Command):
+class MakeFriendlyUrl(ArgParseCommand):
     """
-    b2 make-friendly-url <bucketName> <fileName>
-
-        Prints a short URL that can be used to download the given file, if
-        it is public.
+    Prints a short URL that can be used to download the given file, if
+    it is public.
     """
 
     REQUIRED = ['bucketName', 'fileName']
@@ -1178,16 +1230,8 @@ class MakeFriendlyUrl(Command):
         return 0
 
 
-class Sync(Command):
+class Sync(ArgParseCommand):
     """
-    b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \\
-            [--compareVersions <option>] [--compareThreshold N] \\
-            [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \\
-            [--excludeRegex <regex> [--includeRegex <regex>]] \\
-            [--excludeDirRegex <regex>] \\
-            [--excludeAllSymlinks ] \\
-            <source> <destination>
-
         Copies multiple files from source to destination.  Optionally
         deletes or hides destination files that the source does not have.
 
@@ -1536,9 +1580,19 @@ class ConsoleTool(object):
         self.stderr = stderr
 
         # a *magic* registry of commands
+        subclasses = Command.__subclasses__() + ArgParseCommand.__subclasses__()
+        subclasses.remove(ArgParseCommand)
+
         self.command_name_to_class = dict(
-            (mixed_case_to_hyphens(cls.__name__), cls) for cls in Command.__subclasses__()
+            (mixed_case_to_hyphens(cls.__name__), cls) for cls in subclasses
         )
+
+    def get_parser(self):
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers()
+        for subclass in ArgParseCommand.__subclasses__():
+            subclass.add_subparser(subparsers)
+        return parser
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
@@ -1557,19 +1611,24 @@ class ConsoleTool(object):
             logger.info('Action: %s, arguments: %s', action, arg_list)
 
         command = self.command_name_to_class[action](self)
-        args = command.parse_arg_list(arg_list)
-        if args is None:
-            logger.info('ConsoleTool \'args is None\' - printing usage')
-            self._print_stderr(command.command_usage())
-            return 1
-        elif [args.logConfig, args.verbose, args.debugLogs].count(True) > 1:
-            logger.info(
-                'ConsoleTool More than one of \'args.logConfig\', \'args.verbose\', or \'args.debugLogs\' was specified'
-            )
-            self._print_stderr(
-                'ERROR: Only one of --logConfig, --verbose, or --debugLogs can be used'
-            )
-            return 1
+        if isinstance(command, ArgParseCommand):
+            arg_list = [action] + argv[2:]
+            parser = self.get_parser()
+            args = parser.parse_args(arg_list)
+        else:
+            args = command.parse_arg_list(arg_list)
+            if args is None:
+                logger.info('ConsoleTool \'args is None\' - printing usage')
+                self._print_stderr(command.command_usage())
+                return 1
+            elif [args.logConfig, args.verbose, args.debugLogs].count(True) > 1:
+                logger.info(
+                    'ConsoleTool More than one of \'args.logConfig\', \'args.verbose\', or \'args.debugLogs\' was specified'
+                )
+                self._print_stderr(
+                    'ERROR: Only one of --logConfig, --verbose, or --debugLogs can be used'
+                )
+                return 1
 
         self._setup_logging(args, command, argv)
 
@@ -1711,6 +1770,9 @@ class InvalidArgument(B2Error):
 
     def __str__(self):
         return "%s %s" % (self.parameter_name, self.message)
+
+
+parser = ConsoleTool(None, None, None).get_parser()
 
 
 def main():
