@@ -13,12 +13,12 @@ import os
 import re
 import six
 
-from b2sdk.v0 import StubAccountInfo
-from b2sdk.v0 import B2Api
+from b2sdk.v1 import StubAccountInfo
+from b2sdk.v1 import B2Api
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
-from b2sdk.v0 import RawSimulator
-from b2sdk.v0 import UploadSourceBytes
-from b2sdk.v0 import TempDir
+from b2sdk.v1 import RawSimulator
+from b2sdk.v1 import UploadSourceBytes
+from b2sdk.v1 import TempDir
 from test_b2_command_line import file_mod_time_millis
 
 from .test_base import TestBase
@@ -211,6 +211,7 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
+            "options": [],
             "revision": 2
         }}
         '''
@@ -226,18 +227,7 @@ class TestConsoleTool(TestBase):
         self._run_command(['list_buckets'], expected_stdout, '', 0)
 
         # Delete one
-        expected_stdout = '''
-        {{
-            "accountId": "{account_id}",
-            "bucketId": "bucket_1",
-            "bucketInfo": {{}},
-            "bucketName": "your-bucket",
-            "bucketType": "allPrivate",
-            "corsRules": [],
-            "lifecycleRules": [],
-            "revision": 1
-        }}
-        '''
+        expected_stdout = ''
 
         self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
 
@@ -340,6 +330,7 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
+            "options": [],
             "revision": 1
         }}
         '''
@@ -368,6 +359,7 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
+            "options": [],
             "revision": 1
         }}
         '''
@@ -396,6 +388,7 @@ class TestConsoleTool(TestBase):
                 "bucketType": "allPrivate",
                 "corsRules": [],
                 "lifecycleRules": [],
+                "options": [],
                 "revision": 2
             }}
             '''
@@ -835,11 +828,11 @@ class TestConsoleTool(TestBase):
         content = six.b('hello world')
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False
-        bucket._upload_part(
-            file.file_id, 1, (0, 11), UploadSourceBytes(content), large_file_upload_state
+        bucket.api.services.upload_manager._upload_part(
+            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state
         )
-        bucket._upload_part(
-            file.file_id, 3, (0, 11), UploadSourceBytes(content), large_file_upload_state
+        bucket.api.services.upload_manager._upload_part(
+            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state
         )
         expected_stdout = '''
             1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
@@ -946,6 +939,7 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPublic",
             "corsRules": [],
             "lifecycleRules": [],
+            "options": [],
             "revision": 1
         }}
         '''
@@ -964,6 +958,7 @@ class TestConsoleTool(TestBase):
             "corsRules": [],
             "fileCount": 0,
             "lifecycleRules": [],
+            "options": [],
             "revision": 1,
             "totalSize": 0
         }}
@@ -1003,6 +998,7 @@ class TestConsoleTool(TestBase):
                 "corsRules": [],
                 "fileCount": 1,
                 "lifecycleRules": [],
+                "options": [],
                 "revision": 1,
                 "totalSize": 11
             }}
@@ -1037,6 +1033,7 @@ class TestConsoleTool(TestBase):
             "corsRules": [],
             "fileCount": 10,
             "lifecycleRules": [],
+            "options": [],
             "revision": 1,
             "totalSize": 40
         }}
@@ -1082,6 +1079,7 @@ class TestConsoleTool(TestBase):
             "corsRules": [],
             "fileCount": 20,
             "lifecycleRules": [],
+            "options": [],
             "revision": 1,
             "totalSize": 90
         }}
@@ -1121,6 +1119,7 @@ class TestConsoleTool(TestBase):
             "corsRules": [],
             "fileCount": 10,
             "lifecycleRules": [],
+            "options": [],
             "revision": 1,
             "totalSize": 24
         }}
@@ -1180,6 +1179,7 @@ class TestConsoleTool(TestBase):
             "corsRules": [],
             "fileCount": 29,
             "lifecycleRules": [],
+            "options": [],
             "revision": 1,
             "totalSize": 99
         }}
