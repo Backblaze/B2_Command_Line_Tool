@@ -56,6 +56,16 @@ from b2.cli_bucket import CliBucket
 
 from b2.json_encoder import SetToListEncoder
 
+try:
+    from textwrap import indent
+except ImportError:
+    def indent(text, prefix):
+        def prefixed_lines():
+            for line in text.splitlines(True):
+                yield (prefix + line if line.strip() else line)
+        return ''.join(prefixed_lines())
+
+
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
@@ -127,12 +137,16 @@ class Command(object):
         self.stderr = console_tool.stderr
 
     @classmethod
+    def _format_description(cls, description):
+        return indent(
+            textwrap.dedent(description.format(**DOC_STRING_DATA)), ' ' * 4
+        )
+
+    @classmethod
     def _add_parser(cls, subparsers, description, *args, **kwargs):
         return subparsers.add_parser(
             mixed_case_to_hyphens(cls.__name__),
-            description=textwrap.indent(
-                textwrap.dedent(description.format(**DOC_STRING_DATA)), ' ' * 4
-            ),
+            description=cls._format_description(description),
             formatter_class=argparse.RawTextHelpFormatter,
             *args,
             **kwargs
@@ -1584,7 +1598,8 @@ class ConsoleTool(object):
 
         parser = argparse.ArgumentParser(prog='b2')
 
-        subparsers = parser.add_subparsers(dest='command', required=True)
+        subparsers = parser.add_subparsers(dest='command')
+        subparsers.required = True
         for subclass in Command.__subclasses__():
             subclass.add_subparser(subparsers, parent=common_parser)
         return parser
