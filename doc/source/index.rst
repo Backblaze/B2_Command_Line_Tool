@@ -7,10 +7,11 @@ Welcome to B2_Command_Line_Tool's documentation!
 ================================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
+   :glob:
 
-   b2
+   subcommands/*
 
 Indices and tables
 ==================

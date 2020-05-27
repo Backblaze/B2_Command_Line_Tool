@@ -50,7 +50,7 @@ class TestConsoleTool(TestBase):
         '''
 
         self._run_command(
-            ['authorize_account', self.account_id, 'bad-app-key'], expected_stdout, expected_stderr,
+            ['authorize-account', self.account_id, 'bad-app-key'], expected_stdout, expected_stderr,
             1
         )
 
@@ -165,21 +165,6 @@ class TestConsoleTool(TestBase):
             0,
         )
 
-    def test_help_with_bad_args(self):
-        expected_stderr = '''
-
-        b2 list-parts <largeFileId>
-
-            Lists all of the parts that have been uploaded for the given
-            large file, which must be a file that was started but not
-            finished or canceled.
-
-            Requires capability: writeFiles
-
-        '''
-
-        self._run_command(['list_parts'], '', expected_stderr, 1)
-
     def test_clear_account(self):
         # Initial condition
         self._authorize_account()
@@ -195,11 +180,11 @@ class TestConsoleTool(TestBase):
 
         # Make a bucket with an illegal name
         expected_stdout = 'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
-        self._run_command(['create_bucket', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1)
+        self._run_command(['create-bucket', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1)
 
         # Make two buckets
-        self._run_command(['create_bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(['create_bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['create-bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
 
         # Update one of them
         expected_stdout = '''
@@ -216,7 +201,7 @@ class TestConsoleTool(TestBase):
         }}
         '''
 
-        self._run_command(['update_bucket', 'my-bucket', 'allPublic'], expected_stdout, '', 0)
+        self._run_command(['update-bucket', 'my-bucket', 'allPublic'], expected_stdout, '', 0)
 
         # Make sure they are there
         expected_stdout = '''
@@ -224,19 +209,19 @@ class TestConsoleTool(TestBase):
         bucket_1  allPrivate  your-bucket
         '''
 
-        self._run_command(['list_buckets'], expected_stdout, '', 0)
+        self._run_command(['list-buckets'], expected_stdout, '', 0)
 
         # Delete one
         expected_stdout = ''
 
-        self._run_command(['delete_bucket', 'your-bucket'], expected_stdout, '', 0)
+        self._run_command(['delete-bucket', 'your-bucket'], expected_stdout, '', 0)
 
     def test_keys(self):
         self._authorize_account()
 
-        self._run_command(['create_bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
-        self._run_command(['create_bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
-        self._run_command(['create_bucket', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
 
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
@@ -244,13 +229,13 @@ class TestConsoleTool(TestBase):
         # Make a key with an illegal name
         expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
         self._run_command(
-            ['create_key', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
+            ['create-key', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
         )
 
         # Make a key with negative validDurationInSeconds
         expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, and less than 1000 days in seconds\n'
         self._run_command(
-            ['create_key', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
+            ['create-key', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
@@ -258,11 +243,11 @@ class TestConsoleTool(TestBase):
         expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, ' \
                           'and less than 1000 days in seconds\n'
         self._run_command(
-            ['create_key', '--duration', '0', 'goodKeyName', capabilities_with_commas], '',
+            ['create-key', '--duration', '0', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
         self._run_command(
-            ['create_key', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
+            ['create-key', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
@@ -290,7 +275,7 @@ class TestConsoleTool(TestBase):
         )
 
         # Delete one key
-        self._run_command(['delete_key', 'abc123'], 'abc123\n', '', 0)
+        self._run_command(['delete-key', 'abc123'], 'abc123\n', '', 0)
 
         # Delete one bucket, to test listing when a bucket is gone.
         self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
@@ -308,12 +293,12 @@ class TestConsoleTool(TestBase):
             appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
             """
 
-        self._run_command(['list_keys'], expected_list_keys_out, '', 0)
-        self._run_command(['list_keys', '--long'], expected_list_keys_out_long, '', 0)
+        self._run_command(['list-keys'], expected_list_keys_out, '', 0)
+        self._run_command(['list-keys', '--long'], expected_list_keys_out_long, '', 0)
 
         # authorize and make calls using application key with no restrictions
         self._run_command(
-            ['authorize_account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
+            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
             '', 0
         )
         self._run_command(
@@ -338,7 +323,7 @@ class TestConsoleTool(TestBase):
 
         # authorize and make calls using an application key with bucket restrictions
         self._run_command(
-            ['authorize_account', 'appKeyId1', 'appKey1'], 'Using http://production.example.com\n',
+            ['authorize-account', 'appKeyId1', 'appKey1'], 'Using http://production.example.com\n',
             '', 0
         )
 
@@ -373,7 +358,7 @@ class TestConsoleTool(TestBase):
     def test_bucket_info_from_json(self):
 
         self._authorize_account()
-        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
         bucket_info = {'color': 'blue'}
 
@@ -393,7 +378,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
         self._run_command(
-            ['update_bucket', '--bucketInfo',
+            ['update-bucket', '--bucketInfo',
              json.dumps(bucket_info), 'my-bucket', 'allPrivate'], expected_stdout, '', 0
         )
 
@@ -402,7 +387,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = bucket.start_large_file('file1', 'text/plain', {})
-        self._run_command(['cancel_large_file', file.file_id], '9999 canceled\n', '', 0)
+        self._run_command(['cancel-large-file', file.file_id], '9999 canceled\n', '', 0)
 
     def test_cancel_all_large_file(self):
         self._authorize_account()
@@ -416,13 +401,13 @@ class TestConsoleTool(TestBase):
         '''
 
         self._run_command(
-            ['cancel_all_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0
+            ['cancel-all-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0
         )
 
     def test_files(self):
 
         self._authorize_account()
-        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -446,7 +431,7 @@ class TestConsoleTool(TestBase):
             '''
 
             self._run_command(
-                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_stdout, '', 0, None, True
             )
 
@@ -469,7 +454,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
 
-            self._run_command(['get_file_info', '9999'], expected_stdout, '', 0)
+            self._run_command(['get-file-info', '9999'], expected_stdout, '', 0)
 
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
@@ -485,7 +470,7 @@ class TestConsoleTool(TestBase):
 
             self._run_command(
                 [
-                    'download_file_by_name', '--noProgress', 'my-bucket', 'file1.txt',
+                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
                     local_download1
                 ], expected_stdout, '', 0
             )
@@ -495,7 +480,7 @@ class TestConsoleTool(TestBase):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download_file_by_id', '--noProgress', '9999', local_download2], expected_stdout,
+                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
                 '', 0
             )
             self.assertEqual(six.b('hello world'), self._read_file(local_download2))
@@ -511,7 +496,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
 
-            self._run_command(['hide_file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
+            self._run_command(['hide-file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
 
             # List the file versions
             expected_stdout = '''
@@ -545,7 +530,7 @@ class TestConsoleTool(TestBase):
             }}
             ''' % (mod_time_str,)
 
-            self._run_command(['list_file_versions', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['list-file-versions', 'my-bucket'], expected_stdout, '', 0)
 
             # List the file names
             expected_stdout = '''
@@ -555,7 +540,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
 
-            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['list-file-names', 'my-bucket'], expected_stdout, '', 0)
 
             # Delete one file version, passing the name in
             expected_stdout = '''
@@ -566,7 +551,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
 
-            self._run_command(['delete_file_version', 'file1.txt', '9998'], expected_stdout, '', 0)
+            self._run_command(['delete-file-version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
             # Delete one file version, not passing the name in
             expected_stdout = '''
@@ -577,7 +562,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
 
-            self._run_command(['delete_file_version', '9999'], expected_stdout, '', 0)
+            self._run_command(['delete-file-version', '9999'], expected_stdout, '', 0)
 
     def test_copy_file_by_id(self):
         self._authorize_account()
@@ -605,7 +590,7 @@ class TestConsoleTool(TestBase):
             '''
 
             self._run_command(
-                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_stdout, '', 0, None, True
             )
 
@@ -627,7 +612,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['copy_file_by_id', '9999', 'my-bucket', 'file1_copy.txt'], expected_stdout, '', 0
+                ['copy-file-by-id', '9999', 'my-bucket', 'file1_copy.txt'], expected_stdout, '', 0
             )
 
             # Copy File with range parameter
@@ -648,7 +633,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['copy_file_by_id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy-file-by-id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_stdout,
                 '',
                 0,
@@ -657,7 +642,7 @@ class TestConsoleTool(TestBase):
             # Invalid range size
             expected_stderr = "ERROR: --range must be exactly 2 values, start and end\n"
             self._run_command(
-                ['copy_file_by_id', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy-file-by-id', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -666,7 +651,7 @@ class TestConsoleTool(TestBase):
             # Invalid range values
             expected_stderr = "ERROR: --range start and end must be integers\n"
             self._run_command(
-                ['copy_file_by_id', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy-file-by-id', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -676,7 +661,7 @@ class TestConsoleTool(TestBase):
             expected_stderr = "ERROR: --metadataDirective value is not supported. Supported values are: COPY, REPLACE\n"
             self._run_command(
                 [
-                    'copy_file_by_id', '--metadataDirective', 'random', '9999', 'my-bucket',
+                    'copy-file-by-id', '--metadataDirective', 'random', '9999', 'my-bucket',
                     'file1_copy.txt'
                 ],
                 '',
@@ -688,7 +673,7 @@ class TestConsoleTool(TestBase):
             expected_stderr = "ERROR: content_type and file_info should be None when metadata_directive is COPY\n"
             self._run_command(
                 [
-                    'copy_file_by_id',
+                    'copy-file-by-id',
                     '--metadataDirective',
                     'copy',
                     '--info',
@@ -706,7 +691,7 @@ class TestConsoleTool(TestBase):
             expected_stderr = "ERROR: content_type cannot be None when metadata_directive is REPLACE\n"
             self._run_command(
                 [
-                    'copy_file_by_id', '--metadataDirective', 'replace', '9999', 'my-bucket',
+                    'copy-file-by-id', '--metadataDirective', 'replace', '9999', 'my-bucket',
                     'file1_copy.txt'
                 ],
                 '',
@@ -733,7 +718,7 @@ class TestConsoleTool(TestBase):
             '''
             self._run_command(
                 [
-                    'copy_file_by_id',
+                    'copy-file-by-id',
                     '--metadataDirective',
                     'replace',
                     '--contentType',
@@ -752,14 +737,14 @@ class TestConsoleTool(TestBase):
             # UnsatisfiableRange
             expected_stderr = "ERROR: The range in the request is outside the size of the file\n"
             self._run_command(
-                ['copy_file_by_id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy-file-by-id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
             )
 
             # Copy in different bucket
-            self._run_command(['create_bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
+            self._run_command(['create-bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
             expected_stdout = '''
             {{
               "accountId": "{account_id}",
@@ -777,21 +762,21 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['copy_file_by_id', '9999', 'my-bucket1', 'file1_copy.txt'], expected_stdout, '', 0
+                ['copy-file-by-id', '9999', 'my-bucket1', 'file1_copy.txt'], expected_stdout, '', 0
             )
 
     def test_get_download_auth_defaults(self):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(
-            ['get_download_auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0
+            ['get-download-auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0
         )
 
     def test_get_download_auth_explicit(self):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(
-            ['get_download_auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'],
+            ['get-download-auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'],
             'fake_download_auth_token_bucket_0_prefix_12345\n', '', 0
         )
 
@@ -818,7 +803,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = bucket.start_large_file('file', 'text/plain', {})
-        self._run_command(['list_parts', file.file_id], '', '', 0)
+        self._run_command(['list-parts', file.file_id], '', '', 0)
 
     def test_list_parts_with_parts(self):
         self._authorize_account()
@@ -839,12 +824,12 @@ class TestConsoleTool(TestBase):
             3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
         '''
 
-        self._run_command(['list_parts', file.file_id], expected_stdout, '', 0)
+        self._run_command(['list-parts', file.file_id], expected_stdout, '', 0)
 
     def test_list_unfinished_large_files_with_none(self):
         self._authorize_account()
         self._create_my_bucket()
-        self._run_command(['list_unfinished_large_files', 'my-bucket'], '', '', 0)
+        self._run_command(['list-unfinished-large-files', 'my-bucket'], '', '', 0)
 
     def test_list_unfinished_large_files_with_some(self):
         self._authorize_account()
@@ -864,7 +849,7 @@ class TestConsoleTool(TestBase):
         9997 file3 application/json
         '''
 
-        self._run_command(['list_unfinished_large_files', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(['list-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0)
 
     def test_upload_large_file(self):
         self._authorize_account()
@@ -891,7 +876,7 @@ class TestConsoleTool(TestBase):
 
             self._run_command(
                 [
-                    'upload_file', '--noProgress', '--threads', '5', 'my-bucket', file_path,
+                    'upload-file', '--noProgress', '--threads', '5', 'my-bucket', file_path,
                     'test.txt'
                 ], expected_stdout, '', 0, None, True
             )
@@ -983,7 +968,7 @@ class TestConsoleTool(TestBase):
             }}
             '''
             self._run_command(
-                ['upload_file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_stdout, '', 0, None, True
             )
 
@@ -1103,10 +1088,10 @@ class TestConsoleTool(TestBase):
         # something has failed if the output of 'get-bucket' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden1'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden2'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden3'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', 'hidden4'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden1'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden2'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden3'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
@@ -1160,13 +1145,13 @@ class TestConsoleTool(TestBase):
         # something has failed if the output of 'get-bucket' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/hidden2'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide_file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden2'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
@@ -1250,7 +1235,7 @@ class TestConsoleTool(TestBase):
               "nextFileName": null
             }}
             '''
-            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['list-file-names', 'my-bucket'], expected_stdout, '', 0)
 
             # upload file
             expected_stdout = '''
@@ -1279,8 +1264,8 @@ class TestConsoleTool(TestBase):
               ],
               "nextFileName": null
             }}
-            ''' % (mtime)
-            self._run_command(['list_file_names', 'my-bucket'], expected_stdout, '', 0)
+            ''' % mtime
+            self._run_command(['list-file-names', 'my-bucket'], expected_stdout, '', 0)
 
     def test_sync_exclude_all_symlinks(self):
         self._authorize_account()
@@ -1420,7 +1405,7 @@ class TestConsoleTool(TestBase):
                                      "restricted to bucket 'restrictedBucket', " \
                                      "restricted to files that start with 'some/file/prefix/' (unauthorized)\n"
         self._run_command(
-            ['create_key', 'goodKeyName-One', 'readFiles,listBuckets'],
+            ['create-key', 'goodKeyName-One', 'readFiles,listBuckets'],
             '',
             expected_create_key_stderr,
             1,
@@ -1511,10 +1496,10 @@ class TestConsoleTool(TestBase):
         Prepare for a test by authorizing an account and getting an
         account auth token
         """
-        self._run_command_ignore_output(['authorize_account', self.account_id, self.master_key])
+        self._run_command_ignore_output(['authorize-account', self.account_id, self.master_key])
 
     def _create_my_bucket(self):
-        self._run_command(['create_bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
     def _run_command(
         self,
@@ -1580,7 +1565,7 @@ class TestConsoleTool(TestBase):
         )
         stderr = mock.MagicMock()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        console_tool.run_command(['b2', 'authorize_account', self.account_id, self.master_key])
+        console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
     def _get_stdouterr(self):
         class MyStringIO(six.StringIO):
