@@ -59,10 +59,12 @@ from b2.json_encoder import SetToListEncoder
 try:
     from textwrap import indent
 except ImportError:
+
     def indent(text, prefix):
         def prefixed_lines():
             for line in text.splitlines(True):
                 yield (prefix + line if line.strip() else line)
+
         return ''.join(prefixed_lines())
 
 
@@ -153,9 +155,7 @@ class Command(object):
 
     @classmethod
     def _format_description(cls, description):
-        return indent(
-            textwrap.dedent(description.format(**DOC_STRING_DATA)), ' ' * 4
-        )
+        return indent(textwrap.dedent(description.format(**DOC_STRING_DATA)), ' ' * 4)
 
     @classmethod
     def _parse_file_infos(cls, args_info):
@@ -306,7 +306,6 @@ class CancelAllUnfinishedLargeFiles(Command):
 
     Requires capability: listFiles, writeFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
@@ -328,7 +327,6 @@ class CancelLargeFile(Command):
 
     Requires capability: writeFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('fileId')
@@ -344,7 +342,6 @@ class ClearAccount(Command):
     Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
     of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
     """
-
     def run(self, args):
         self.api.account_info.clear()
         return 0
@@ -375,7 +372,6 @@ class CopyFileById(Command):
 
     Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--metadataDirective')
@@ -439,7 +435,6 @@ class CreateBucket(Command):
 
     Requires capability: writeBuckets
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
@@ -482,7 +477,6 @@ class CreateKey(Command):
 
     Requires capability: writeKeys
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--bucket')
@@ -518,7 +512,6 @@ class DeleteBucket(Command):
 
     Requires capability: deleteBuckets
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
@@ -540,7 +533,6 @@ class DeleteFileVersion(Command):
 
     Requires capability: deleteFiles, readFiles (if file name not provided)
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('fileName', nargs='?')
@@ -567,7 +559,6 @@ class DeleteKey(Command):
 
     Requires capability: deleteKeys
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('applicationKeyId')
@@ -588,7 +579,6 @@ class DownloadFileById(Command):
 
     Requires capability: readFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
@@ -613,7 +603,6 @@ class DownloadFileByName(Command):
 
     Requires capability: readFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
@@ -635,7 +624,6 @@ class GetAccountInfo(Command):
     Shows the account ID, key, auth token, URLs, and what capabilities
     the current application keys has.
     """
-
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
@@ -668,7 +656,6 @@ class GetBucket(Command):
 
     Requires capability: listBuckets
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
@@ -710,7 +697,6 @@ class GetFileInfo(Command):
 
     Requires capability: readFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('fileId')
@@ -735,7 +721,6 @@ class GetDownloadAuth(Command):
 
     Requires capability: shareFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--prefix', default='')
@@ -766,7 +751,6 @@ class GetDownloadUrlWithAuth(Command):
 
     Requires capability: shareFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
@@ -790,7 +774,6 @@ class HideFile(Command):
 
     Requires capability: writeFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
@@ -815,7 +798,6 @@ class ListBuckets(Command):
 
     Requires capability: listBuckets
     """
-
     def run(self, args):
         for b in self.api.list_buckets():
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
@@ -831,7 +813,6 @@ class ListFileVersions(Command):
 
     Requires capability: listFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--startFileName')
@@ -860,7 +841,6 @@ class ListFileNames(Command):
 
     Requires capability: listFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--startFileName')
@@ -901,7 +881,6 @@ class ListKeys(Command):
 
     Requires capability: listKeys
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--long', action='store_true')
@@ -979,7 +958,6 @@ class ListParts(Command):
 
     Requires capability: writeFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('largeFileId')
@@ -997,7 +975,6 @@ class ListUnfinishedLargeFiles(Command):
 
     Requires capability: listFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
@@ -1037,7 +1014,6 @@ class Ls(Command):
 
     Requires capability: listFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--long', action='store_true')
@@ -1076,7 +1052,6 @@ class MakeUrl(Command):
     Prints an URL that can be used to download the given file, if
     it is public.
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('fileId')
@@ -1091,7 +1066,6 @@ class MakeFriendlyUrl(Command):
     Prints a short URL that can be used to download the given file, if
     it is public.
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
@@ -1218,7 +1192,6 @@ class Sync(Command):
 
     Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--delete', action='store_true')
@@ -1336,7 +1309,6 @@ class UpdateBucket(Command):
 
     Requires capability: writeBuckets
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
@@ -1386,7 +1358,6 @@ class UploadFile(Command):
 
     Requires capability: writeFiles
     """
-
     @classmethod
     def _setup_subparser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
@@ -1434,7 +1405,6 @@ class Version(Command):
     """
     Prints the version number of this tool.
     """
-
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
