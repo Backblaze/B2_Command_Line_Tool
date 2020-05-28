@@ -468,7 +468,7 @@ def basic_test(b2_tool, bucket_name):
 
 def key_restrictions_test(b2_tool, bucket_name):
 
-    second_bucket_name = 'test-b2-command-line-' + random_hex(8)
+    second_bucket_name = 'test-b2-cli-' + random_hex(8)
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -830,7 +830,7 @@ def main():
 
         b2_tool.should_succeed(['authorize_account', account_id, application_key])
 
-        bucket_name_prefix = 'test-b2-command-line-' + account_id
+        bucket_name_prefix = 'test-b2-cli-' + account_id
         if not defer_cleanup:
             clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)

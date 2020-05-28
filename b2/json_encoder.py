@@ -1,3 +1,13 @@
+######################################################################
+#
+# File: b2/json_encoder.py
+#
+# Copyright 2020 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+
 import json
 
 
@@ -10,6 +20,7 @@ class SetToListEncoder(json.JSONEncoder):
     '[1, 2, 3, "c", "b", "a"]'
     >>>
     """
+
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
