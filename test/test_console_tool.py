@@ -1314,6 +1314,46 @@ class TestConsoleTool(TestBase):
             command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
+    def test_sync_exclude_if_modified_after_in_range(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            for file, mtime in (('test.txt', 1367900664.152), ('test2.txt', 1367600664.152)):
+                self._make_local_file(temp_dir, file)
+                path = os.path.join(temp_dir, file)
+                os.utime(path, (mtime, mtime))
+
+            expected_stdout = '''
+            upload test2.txt
+            '''
+
+            command = [
+                'sync', '--threads', '1', '--noProgress', '--excludeIfModifiedAfter',
+                '1367700664.152', temp_dir, 'b2://my-bucket'
+            ]
+            self._run_command(command, expected_stdout, '', 0)
+
+    def test_sync_exclude_if_modified_after_exact(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            for file, mtime in (('test.txt', 1367900664.152), ('test2.txt', 1367600664.152)):
+                self._make_local_file(temp_dir, file)
+                path = os.path.join(temp_dir, file)
+                os.utime(path, (mtime, mtime))
+
+            expected_stdout = '''
+            upload test2.txt
+            '''
+
+            command = [
+                'sync', '--threads', '1', '--noProgress', '--excludeIfModifiedAfter',
+                '1367600664.152', temp_dir, 'b2://my-bucket'
+            ]
+            self._run_command(command, expected_stdout, '', 0)
+
     def test_ls(self):
         self._authorize_account()
         self._create_my_bucket()
