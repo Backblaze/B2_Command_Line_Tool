@@ -137,19 +137,24 @@ class Command(object):
         self.stderr = console_tool.stderr
 
     @classmethod
+    def add_subparser(cls, subparsers, parent):
+        parser = subparsers.add_parser(
+            mixed_case_to_hyphens(cls.__name__),
+            description=cls._format_description(cls.__doc__),
+            formatter_class=argparse.RawTextHelpFormatter,
+            parents=[parent]
+        )
+        cls._setup_subparser(parser)
+        return parser
+
+    @classmethod
+    def _setup_subparser(cls, parser):
+        pass
+
+    @classmethod
     def _format_description(cls, description):
         return indent(
             textwrap.dedent(description.format(**DOC_STRING_DATA)), ' ' * 4
-        )
-
-    @classmethod
-    def _add_parser(cls, subparsers, description, *args, **kwargs):
-        return subparsers.add_parser(
-            mixed_case_to_hyphens(cls.__name__),
-            description=cls._format_description(description),
-            formatter_class=argparse.RawTextHelpFormatter,
-            *args,
-            **kwargs
         )
 
     @classmethod
@@ -207,43 +212,37 @@ class Command(object):
 
 
 class AuthorizeAccount(Command):
+    """
+    Prompts for Backblaze applicationKeyId and applicationKey (unless they are given
+    on the command line).
+
+    You can authorize with either the master application key or
+    a normal application key.
+
+    To use the master application key, provide the application key ID and
+    application key from the "B2 Cloud Storage Buckets" page on
+    the web site: https://secure.backblaze.com/b2_buckets.htm
+
+    To use a normal application key, created with the create-key
+    command or on the web site, provide the application key ID
+    and the application key itself.
+
+    You can also optionally provide application key ID and application key
+    using environment variables {B2_APPLICATION_KEY_ID_ENV_VAR} and
+    {B2_APPLICATION_KEY_ENV_VAR} respectively.
+
+    Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
+    or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
+
+    Requires capability: listBuckets
+    """
 
     FORBID_LOGGING_ARGUMENTS = True
 
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prompts for Backblaze applicationKeyId and applicationKey (unless they are given
-            on the command line).
-
-            You can authorize with either the master application key or
-            a normal application key.
-
-            To use the master application key, provide the application key ID and
-            application key from the "B2 Cloud Storage Buckets" page on
-            the web site: https://secure.backblaze.com/b2_buckets.htm
-
-            To use a normal application key, created with the create-key
-            command or on the web site, provide the application key ID
-            and the application key itself.
-
-            You can also optionally provide application key ID and application key
-            using environment variables {B2_APPLICATION_KEY_ID_ENV_VAR} and
-            {B2_APPLICATION_KEY_ENV_VAR} respectively.
-
-            Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
-            or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
-
-            Requires capability: listBuckets
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--dev', action='store_true', help=argparse.SUPPRESS)
         parser.add_argument('--staging', action='store_true', help=argparse.SUPPRESS)
-
         parser.add_argument('applicationKeyId', nargs='?')
         parser.add_argument('applicationKey', nargs='?')
 
@@ -300,19 +299,16 @@ class AuthorizeAccount(Command):
 
 
 class CancelAllUnfinishedLargeFiles(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Lists all large files that have been started but not
-            finished and cancels them.  Any parts that have been
-            uploaded will be deleted.
+    """
+    Lists all large files that have been started but not
+    finished and cancels them.  Any parts that have been
+    uploaded will be deleted.
 
-            Requires capability: listFiles, writeFiles
-            """,
-            parents=[parent]
-        )
+    Requires capability: listFiles, writeFiles
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -324,20 +320,17 @@ class CancelAllUnfinishedLargeFiles(Command):
 
 
 class CancelLargeFile(Command):
+    """
+    Cancels a large file upload.  Used to undo a start-large-file.
+
+    Cannot be used once the file is finished.  After finishing,
+    using delete-file-version to delete the large file.
+
+    Requires capability: writeFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Cancels a large file upload.  Used to undo a start-large-file.
-
-            Cannot be used once the file is finished.  After finishing,
-            using delete-file-version to delete the large file.
-
-            Requires capability: writeFiles
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('fileId')
 
     def run(self, args):
@@ -347,16 +340,10 @@ class CancelLargeFile(Command):
 
 
 class ClearAccount(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        cls._add_parser(
-            subparsers,
-            """
-            Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
-            of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
-            """,
-            parents=[parent]
-        )
+    """
+    Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
+    of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
+    """
 
     def run(self, args):
         self.api.account_info.clear()
@@ -364,43 +351,37 @@ class ClearAccount(Command):
 
 
 class CopyFileById(Command):
+    """
+    Copy a file version to the given bucket (server-side, *not* via download+upload).
+    Copies the contents of the source B2 file to destination bucket
+    and assigns the given name to the new B2 file.
+
+    By default, it copies the file info and content type. You can replace those
+    by setting the metadataDirective to "replace".
+
+    --contentType and --info should only be provided when --metadataDirective
+    is set to "replace" and should not be provided when --metadataDirective
+    is set to "copy".
+
+    --contentType and --info are optional.  If not set, they will be set based on the
+    source file.
+
+    By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
+    from the source file to the new file using --range option.
+
+    Each --info entry is in the form "a=b", you can specify many.
+
+    The maximum file size is 5GB or 10TB, depending on capability of installed b2sdk version.
+
+    Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Copy a file version to the given bucket (server-side, *not* via download+upload).
-            Copies the contents of the source B2 file to destination bucket
-            and assigns the given name to the new B2 file.
-
-            By default, it copies the file info and content type. You can replace those
-            by setting the metadataDirective to "replace".
-
-            --contentType and --info should only be provided when --metadataDirective
-            is set to "replace" and should not be provided when --metadataDirective
-            is set to "copy".
-
-            --contentType and --info are optional.  If not set, they will be set based on the
-            source file.
-
-            By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
-            from the source file to the new file using --range option.
-
-            Each --info entry is in the form "a=b", you can specify many.
-
-            The maximum file size is 5GB or 10TB, depending on capability of installed b2sdk version.
-
-            Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--metadataDirective')
         parser.add_argument('--contentType')
         parser.add_argument('--range')
-
         parser.add_argument('--info', action='append', default=[])
-
         parser.add_argument('sourceFileId')
         parser.add_argument('destinationBucketName')
         parser.add_argument('b2FileName')
@@ -450,25 +431,20 @@ class CopyFileById(Command):
 
 
 class CreateBucket(Command):
+    """
+    Creates a new bucket.  Prints the ID of the bucket created.
+
+    Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
+    These can be given as JSON on the command line.
+
+    Requires capability: writeBuckets
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Creates a new bucket.  Prints the ID of the bucket created.
-
-            Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
-            These can be given as JSON on the command line.
-
-            Requires capability: writeBuckets
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
-
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -485,38 +461,33 @@ class CreateBucket(Command):
 
 
 class CreateKey(Command):
+    """
+    Creates a new application key.  Prints the application key information.  This is the only
+    time the application key itself will be returned.  Listing application keys will show
+    their IDs, but not the secret keys.
+
+    The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
+
+    The 'validDurationSeconds' is the length of time the new application key will exist.
+    When the time expires the key will disappear and will no longer be usable.  If not
+    specified, the key will not expire.
+
+    The 'bucketName' is the name of a bucket in the account.  When specified, the key
+    will only allow access to that bucket.
+
+    The 'namePrefix' restricts file access to files whose names start with the prefix.
+
+    The output is the new application key ID, followed by the application key itself.
+    The two values returned are the two that you pass to authorize-account to use the key.
+
+    Requires capability: writeKeys
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Creates a new application key.  Prints the application key information.  This is the only
-            time the application key itself will be returned.  Listing application keys will show
-            their IDs, but not the secret keys.
-
-            The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
-
-            The 'validDurationSeconds' is the length of time the new application key will exist.
-            When the time expires the key will disappear and will no longer be usable.  If not
-            specified, the key will not expire.
-
-            The 'bucketName' is the name of a bucket in the account.  When specified, the key
-            will only allow access to that bucket.
-
-            The 'namePrefix' restricts file access to files whose names start with the prefix.
-
-            The output is the new application key ID, followed by the application key itself.
-            The two values returned are the two that you pass to authorize-account to use the key.
-
-            Requires capability: writeKeys
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--bucket')
         parser.add_argument('--namePrefix')
         parser.add_argument('--duration', type=int)
-
         parser.add_argument('keyName')
         parser.add_argument('capabilities', type=parse_comma_separated_list)
 
@@ -542,17 +513,14 @@ class CreateKey(Command):
 
 
 class DeleteBucket(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Deletes the bucket with the given name.
+    """
+    Deletes the bucket with the given name.
 
-            Requires capability: deleteBuckets
-            """,
-            parents=[parent]
-        )
+    Requires capability: deleteBuckets
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -562,22 +530,19 @@ class DeleteBucket(Command):
 
 
 class DeleteFileVersion(Command):
+    """
+    Permanently and irrevocably deletes one version of a file.
+
+    Specifying the fileName is more efficient than leaving it out.
+    If you omit the fileName, it requires an initial query to B2
+    to get the file name, before making the call to delete the
+    file.  This extra query requires the readFiles capability.
+
+    Requires capability: deleteFiles, readFiles (if file name not provided)
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Permanently and irrevocably deletes one version of a file.
-
-            Specifying the fileName is more efficient than leaving it out.
-            If you omit the fileName, it requires an initial query to B2
-            to get the file name, before making the call to delete the
-            file.  This extra query requires the readFiles capability.
-
-            Requires capability: deleteFiles, readFiles (if file name not provided)
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('fileName', nargs='?')
         parser.add_argument('fileId')
 
@@ -597,17 +562,14 @@ class DeleteFileVersion(Command):
 
 
 class DeleteKey(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Deletes the specified application key by its 'ID'.
+    """
+    Deletes the specified application key by its 'ID'.
 
-            Requires capability: deleteKeys
-            """,
-            parents=[parent]
-        )
+    Requires capability: deleteKeys
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('applicationKeyId')
 
     def run(self, args):
@@ -617,24 +579,19 @@ class DeleteKey(Command):
 
 
 class DownloadFileById(Command):
+    """
+    Downloads the given file, and stores it in the given local file.
+
+    If the 'tqdm' library is installed, progress bar is displayed
+    on stderr.  Without it, simple text progress is printed.
+    Use '--noProgress' to disable progress reporting.
+
+    Requires capability: readFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Downloads the given file, and stores it in the given local file.
-
-            If the 'tqdm' library is installed, progress bar is displayed
-            on stderr.  Without it, simple text progress is printed.
-            Use '--noProgress' to disable progress reporting.
-
-            Requires capability: readFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
-
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
 
@@ -647,24 +604,19 @@ class DownloadFileById(Command):
 
 
 class DownloadFileByName(Command):
+    """
+    Downloads the given file, and stores it in the given local file.
+
+    If the 'tqdm' library is installed, progress bar is displayed
+    on stderr.  Without it, simple text progress is printed.
+    Use '--noProgress' to disable progress reporting.
+
+    Requires capability: readFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Downloads the given file, and stores it in the given local file.
-
-            If the 'tqdm' library is installed, progress bar is displayed
-            on stderr.  Without it, simple text progress is printed.
-            Use '--noProgress' to disable progress reporting.
-
-            Requires capability: readFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
-
         parser.add_argument('bucketName')
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
@@ -679,16 +631,10 @@ class DownloadFileByName(Command):
 
 
 class GetAccountInfo(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        cls._add_parser(
-            subparsers,
-            """
-            Shows the account ID, key, auth token, URLs, and what capabilities
-            the current application keys has.
-            """,
-            parents=[parent]
-        )
+    """
+    Shows the account ID, key, auth token, URLs, and what capabilities
+    the current application keys has.
+    """
 
     def run(self, args):
         account_info = self.api.account_info
@@ -705,29 +651,26 @@ class GetAccountInfo(Command):
 
 
 class GetBucket(Command):
+    """
+    Prints all of the information about the bucket, including
+    bucket info, CORS rules and lifecycle rules.
+
+    If --showSize is specified, then display the number of files
+    (fileCount) in the bucket and the aggregate size of all files
+    (totalSize). Hidden files and hide markers are accounted for
+    in the reported number of files, and hidden files also
+    contribute toward the reported aggregate size, whereas hide
+    markers do not. Each version of a file counts as an individual
+    file, and its size contributes toward the aggregate size.
+    Analysis is recursive. Note that --showSize requires multiple
+    API calls, and will therefore incur additional latency,
+    computation, and Class C transactions.
+
+    Requires capability: listBuckets
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prints all of the information about the bucket, including
-            bucket info, CORS rules and lifecycle rules.
-
-            If --showSize is specified, then display the number of files
-            (fileCount) in the bucket and the aggregate size of all files
-            (totalSize). Hidden files and hide markers are accounted for
-            in the reported number of files, and hidden files also
-            contribute toward the reported aggregate size, whereas hide
-            markers do not. Each version of a file counts as an individual
-            file, and its size contributes toward the aggregate size.
-            Analysis is recursive. Note that --showSize requires multiple
-            API calls, and will therefore incur additional latency,
-            computation, and Class C transactions.
-
-            Requires capability: listBuckets
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
         parser.add_argument('bucketName')
 
@@ -762,17 +705,14 @@ class GetBucket(Command):
 
 
 class GetFileInfo(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prints all of the information about the file, but not its contents.
+    """
+    Prints all of the information about the file, but not its contents.
 
-            Requires capability: readFiles
-            """,
-            parents=[parent]
-        )
+    Requires capability: readFiles
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('fileId')
 
     def run(self, args):
@@ -782,25 +722,22 @@ class GetFileInfo(Command):
 
 
 class GetDownloadAuth(Command):
+    """
+    Prints an authorization token that is valid only for downloading
+    files from the given bucket.
+
+    The token is valid for the duration specified, which defaults
+    to 86400 seconds (one day).
+
+    Only files that match that given prefix can be downloaded with
+    the token.  The prefix defaults to "", which matches all files
+    in the bucket.
+
+    Requires capability: shareFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prints an authorization token that is valid only for downloading
-            files from the given bucket.
-
-            The token is valid for the duration specified, which defaults
-            to 86400 seconds (one day).
-
-            Only files that match that given prefix can be downloaded with
-            the token.  The prefix defaults to "", which matches all files
-            in the bucket.
-
-            Requires capability: shareFiles
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName')
@@ -815,26 +752,23 @@ class GetDownloadAuth(Command):
 
 
 class GetDownloadUrlWithAuth(Command):
+    """
+    Prints a URL to download the given file.  The URL includes an authorization
+    token that allows downloads from the given bucket for files whose names
+    start with the given file name.
+
+    The URL will work for the given file, but is not specific to that file.  Files
+    with longer names that start with the give file name can also be downloaded
+    with the same auth token.
+
+    The token is valid for the duration specified, which defaults
+    to 86400 seconds (one day).
+
+    Requires capability: shareFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prints a URL to download the given file.  The URL includes an authorization
-            token that allows downloads from the given bucket for files whose names
-            start with the given file name.
-
-            The URL will work for the given file, but is not specific to that file.  Files
-            with longer names that start with the give file name can also be downloaded
-            with the same auth token.
-
-            The token is valid for the duration specified, which defaults
-            to 86400 seconds (one day).
-
-            Requires capability: shareFiles
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
@@ -851,17 +785,14 @@ class GetDownloadUrlWithAuth(Command):
 
 
 class HideFile(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Uploads a new, hidden, version of the given file.
+    """
+    Uploads a new, hidden, version of the given file.
 
-            Requires capability: writeFiles
-            """,
-            parents=[parent]
-        )
+    Requires capability: writeFiles
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
 
@@ -874,22 +805,16 @@ class HideFile(Command):
 
 
 class ListBuckets(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        cls._add_parser(
-            subparsers,
-            """
-            Lists all of the buckets in the current account.
+    """
+    Lists all of the buckets in the current account.
 
-            Output lines list the bucket ID, bucket type, and bucket name,
-            and look like this:
+    Output lines list the bucket ID, bucket type, and bucket name,
+    and look like this:
 
-                98c960fd1cb4390c5e0f0519  allPublic   my-bucket
+        98c960fd1cb4390c5e0f0519  allPublic   my-bucket
 
-            Requires capability: listBuckets
-            """,
-            parents=[parent]
-        )
+    Requires capability: listBuckets
+    """
 
     def run(self, args):
         for b in self.api.list_buckets():
@@ -898,26 +823,21 @@ class ListBuckets(Command):
 
 
 class ListFileVersions(Command):
+    """
+    Lists the names of the files in a bucket, starting at the
+    given point.  This is a low-level operation that reports the
+    raw JSON returned from the service.  'b2 ls' provides a higher-
+    level view.  Optionally restricts the output (server-side) to the given prefix.
+
+    Requires capability: listFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Lists the names of the files in a bucket, starting at the
-            given point.  This is a low-level operation that reports the
-            raw JSON returned from the service.  'b2 ls' provides a higher-
-            level view.  Optionally restricts the output (server-side) to the given prefix.
-
-            Requires capability: listFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--startFileName')
         parser.add_argument('--startFileId')
         parser.add_argument('--maxToShow', type=int)
         parser.add_argument('--prefix')
-
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -934,23 +854,18 @@ class ListFileVersions(Command):
 
 
 class ListFileNames(Command):
+    """
+    Lists the names of the files in a bucket, starting at the
+    given point.  Optionally restricts the output (server-side) to the given prefix.
+
+    Requires capability: listFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Lists the names of the files in a bucket, starting at the
-            given point.  Optionally restricts the output (server-side) to the given prefix.
-
-            Requires capability: listFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--startFileName')
         parser.add_argument('--maxToShow', type=int)
         parser.add_argument('--prefix')
-
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -966,32 +881,29 @@ class ListFileNames(Command):
 
 
 class ListKeys(Command):
+    """
+    Lists the application keys for the current account.
+
+    The columns in the output are:
+        - ID of the application key
+        - Name of the application key
+        - Name of the bucket the key is restricted to, or '-' for no restriction
+        - Date of expiration, or '-'
+        - Time of expiration, or '-'
+        - File name prefix, in single quotes
+        - Command-separated list of capabilities
+
+    None of the values contain whitespace.
+
+    For keys restricted to buckets that do not exist any more, the bucket name is
+    replaced with 'id=<bucketId>', because deleted buckets do not have names any
+    more.
+
+    Requires capability: listKeys
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Lists the application keys for the current account.
-
-            The columns in the output are:
-                - ID of the application key
-                - Name of the application key
-                - Name of the bucket the key is restricted to, or '-' for no restriction
-                - Date of expiration, or '-'
-                - Time of expiration, or '-'
-                - File name prefix, in single quotes
-                - Command-separated list of capabilities
-
-            None of the values contain whitespace.
-
-            For keys restricted to buckets that do not exist any more, the bucket name is
-            replaced with 'id=<bucketId>', because deleted buckets do not have names any
-            more.
-
-            Requires capability: listKeys
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('--long', action='store_true')
 
     def __init__(self, console_tool):
@@ -1060,19 +972,16 @@ class ListKeys(Command):
 
 
 class ListParts(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Lists all of the parts that have been uploaded for the given
-            large file, which must be a file that was started but not
-            finished or canceled.
+    """
+    Lists all of the parts that have been uploaded for the given
+    large file, which must be a file that was started but not
+    finished or canceled.
 
-            Requires capability: writeFiles
-            """,
-            parents=[parent]
-        )
+    Requires capability: writeFiles
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('largeFileId')
 
     def run(self, args):
@@ -1082,18 +991,15 @@ class ListParts(Command):
 
 
 class ListUnfinishedLargeFiles(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Lists all of the large files in the bucket that were started,
-            but not finished or canceled.
+    """
+    Lists all of the large files in the bucket that were started,
+    but not finished or canceled.
 
-            Requires capability: listFiles
-            """,
-            parents=[parent]
-        )
+    Requires capability: listFiles
+    """
+
+    @classmethod
+    def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -1111,40 +1017,34 @@ class ListUnfinishedLargeFiles(Command):
 
 
 class Ls(Command):
+    """
+    Using the file naming convention that "/" separates folder
+    names from their contents, returns a list of the files
+    and folders in a given folder.  If no folder name is given,
+    lists all files at the top level.
+
+    The --long option produces very wide multi-column output
+    showing the upload date/time, file size, file id, whether it
+    is an uploaded file or the hiding of a file, and the file
+    name.  Folders don't really exist in B2, so folders are
+    shown with "-" in each of the fields other than the name.
+
+    The --versions option shows all versions of each file, not
+    just the most recent.
+
+    The --recursive option will descend into folders, and will show
+    only files, not folders.
+
+    Requires capability: listFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Using the file naming convention that "/" separates folder
-            names from their contents, returns a list of the files
-            and folders in a given folder.  If no folder name is given,
-            lists all files at the top level.
-
-            The --long option produces very wide multi-column output
-            showing the upload date/time, file size, file id, whether it
-            is an uploaded file or the hiding of a file, and the file
-            name.  Folders don't really exist in B2, so folders are
-            shown with "-" in each of the fields other than the name.
-
-            The --versions option shows all versions of each file, not
-            just the most recent.
-
-            The --recursive option will descend into folders, and will show
-            only files, not folders.
-
-            Requires capability: listFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--long', action='store_true')
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--prefix', action='store_true')
-
         parser.add_argument('--folderName')
-
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -1172,16 +1072,13 @@ class Ls(Command):
 
 
 class MakeUrl(Command):
+    """
+    Prints an URL that can be used to download the given file, if
+    it is public.
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prints an URL that can be used to download the given file, if
-            it is public.
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('fileId')
 
     def run(self, args):
@@ -1190,16 +1087,13 @@ class MakeUrl(Command):
 
 
 class MakeFriendlyUrl(Command):
+    """
+    Prints a short URL that can be used to download the given file, if
+    it is public.
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Prints a short URL that can be used to download the given file, if
-            it is public.
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
 
@@ -1209,127 +1103,124 @@ class MakeFriendlyUrl(Command):
 
 
 class Sync(Command):
+    """
+    Copies multiple files from source to destination.  Optionally
+    deletes or hides destination files that the source does not have.
+
+    Progress is displayed on the console unless '--noProgress' is
+    specified.  A list of actions taken is always printed.
+
+    Specify '--dryRun' to simulate the actions that would be taken.
+
+    To allow sync to run when the source directory is empty, potentially
+    deleting all files in a bucket, specify '--allowEmptySource'.
+    The default is to fail when the specified source directory doesn't exist
+    or is empty.  (This check only applies to version 1.0 and later.)
+
+    Users with high-performance networks, or file sets with very small
+    files, will benefit from multi-threaded uploads.  The default number
+    of threads is 10.  Experiment with the --threads parameter if the
+    default is not working well.
+
+    Users with low-performance networks may benefit from reducing the
+    number of threads.  Using just one thread will minimize the impact
+    on other users of the network.
+
+    Note that using multiple threads will usually be detrimental to
+    the other users on your network.
+
+    You can specify --excludeRegex to selectively ignore files that
+    match the given pattern. Ignored files will not copy during
+    the sync operation. The pattern is a regular expression
+    that is tested against the full path of each file.
+
+    You can specify --includeRegex to selectively override ignoring
+    files that match the given --excludeRegex pattern by an
+    --includeRegex pattern. Similarly to --excludeRegex, the pattern
+    is a regular expression that is tested against the full path
+    of each file.
+
+    Note that --includeRegex cannot be used without --excludeRegex.
+
+    You can specify --excludeAllSymlinks to skip symlinks when
+    syncing from a local source.
+
+    When a directory is excluded by using --excludeDirRegex, all of
+    the files within it are excluded, even if they match an --includeRegex
+    pattern.   This means that there is no need to look inside excluded
+    directories, and you can exclude directories containing files for which
+    you don't have read permission and avoid getting errors.
+
+    The --excludeDirRegex is a regular expression that is tested against
+    the full path of each directory.  The path being matched does not have
+    a trailing '/', so don't include on in your regular expression.
+
+    Multiple regex rules can be applied by supplying them as pipe
+    delimited instructions. Note that the regex for this command
+    is Python regex. Reference: https://docs.python.org/2/library/re.html.
+
+    Regular expressions are considered a match if they match a substring
+    starting at the first character.  ".*e" will match "hello".  This is
+    not ideal, but we will maintain this behavior for compatibility.
+    If you want to match the entire path, put a "$" at the end of the
+    regex, such as ".*llo$".
+
+    Files are considered to be the same if they have the same name
+    and modification time.  This behaviour can be changed using the
+    --compareVersions option.  Possible values are:
+    'none':    Comparison using the file name only
+    'modTime': Comparison using the modification time (default)
+    'size':    Comparison using the file size
+    A future enhancement may add the ability to compare the SHA1 checksum
+    of the files.
+
+    Fuzzy comparison of files based on modTime or size can be enabled by
+    specifying the --compareThreshold option.  This will treat modTimes
+    (in milliseconds) or sizes (in bytes) as the same if they are within
+    the comparison threshold.  Files that match, within the threshold, will
+    not be synced. Specifying --verbose and --dryRun can be useful to
+    determine comparison value differences.
+
+    One of the paths must be a local file path, and the other must be
+    a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
+    "b2://my-bucket-name/a/path/prefix/".
+
+    When a destination file is present that is not in the source, the
+    default is to leave it there.  Specifying --delete means to delete
+    destination files that are not in the source.
+
+    When the destination is B2, you have the option of leaving older
+    versions in place.  Specifying --keepDays will delete any older
+    versions more than the given number of days old, based on the
+    modification time of the file.  This option is not available when
+    the destination is a local folder.
+
+    Files at the source that have a newer modification time are always
+    copied to the destination.  If the destination file is newer, the
+    default is to report an error and stop.  But with --skipNewer set,
+    those files will just be skipped.  With --replaceNewer set, the
+    old file from the source will replace the newer one in the destination.
+
+    To make the destination exactly match the source, use:
+        b2 sync --delete --replaceNewer ... ...
+
+    WARNING: Using '--delete' deletes files!  We recommend not using it.
+    If you use --keepDays instead, you will have some time to recover your
+    files if you discover they are missing on the source end.
+
+    To make the destination match the source, but retain previous versions
+    for 30 days:
+        b2 sync --keepDays 30 --replaceNewer ... b2://...
+
+    Example of sync being used with excludeRegex. This will ignore .DS_Store files
+    and .Spotlight-V100 folders
+        b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+
+    Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Copies multiple files from source to destination.  Optionally
-            deletes or hides destination files that the source does not have.
-
-            Progress is displayed on the console unless '--noProgress' is
-            specified.  A list of actions taken is always printed.
-
-            Specify '--dryRun' to simulate the actions that would be taken.
-
-            To allow sync to run when the source directory is empty, potentially
-            deleting all files in a bucket, specify '--allowEmptySource'.
-            The default is to fail when the specified source directory doesn't exist
-            or is empty.  (This check only applies to version 1.0 and later.)
-
-            Users with high-performance networks, or file sets with very small
-            files, will benefit from multi-threaded uploads.  The default number
-            of threads is 10.  Experiment with the --threads parameter if the
-            default is not working well.
-
-            Users with low-performance networks may benefit from reducing the
-            number of threads.  Using just one thread will minimize the impact
-            on other users of the network.
-
-            Note that using multiple threads will usually be detrimental to
-            the other users on your network.
-
-            You can specify --excludeRegex to selectively ignore files that
-            match the given pattern. Ignored files will not copy during
-            the sync operation. The pattern is a regular expression
-            that is tested against the full path of each file.
-
-            You can specify --includeRegex to selectively override ignoring
-            files that match the given --excludeRegex pattern by an
-            --includeRegex pattern. Similarly to --excludeRegex, the pattern
-            is a regular expression that is tested against the full path
-            of each file.
-
-            Note that --includeRegex cannot be used without --excludeRegex.
-
-            You can specify --excludeAllSymlinks to skip symlinks when
-            syncing from a local source.
-
-            When a directory is excluded by using --excludeDirRegex, all of
-            the files within it are excluded, even if they match an --includeRegex
-            pattern.   This means that there is no need to look inside excluded
-            directories, and you can exclude directories containing files for which
-            you don't have read permission and avoid getting errors.
-
-            The --excludeDirRegex is a regular expression that is tested against
-            the full path of each directory.  The path being matched does not have
-            a trailing '/', so don't include on in your regular expression.
-
-            Multiple regex rules can be applied by supplying them as pipe
-            delimited instructions. Note that the regex for this command
-            is Python regex. Reference: https://docs.python.org/2/library/re.html.
-
-            Regular expressions are considered a match if they match a substring
-            starting at the first character.  ".*e" will match "hello".  This is
-            not ideal, but we will maintain this behavior for compatibility.
-            If you want to match the entire path, put a "$" at the end of the
-            regex, such as ".*llo$".
-
-            Files are considered to be the same if they have the same name
-            and modification time.  This behaviour can be changed using the
-            --compareVersions option.  Possible values are:
-            'none':    Comparison using the file name only
-            'modTime': Comparison using the modification time (default)
-            'size':    Comparison using the file size
-            A future enhancement may add the ability to compare the SHA1 checksum
-            of the files.
-
-            Fuzzy comparison of files based on modTime or size can be enabled by
-            specifying the --compareThreshold option.  This will treat modTimes
-            (in milliseconds) or sizes (in bytes) as the same if they are within
-            the comparison threshold.  Files that match, within the threshold, will
-            not be synced. Specifying --verbose and --dryRun can be useful to
-            determine comparison value differences.
-
-            One of the paths must be a local file path, and the other must be
-            a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
-            "b2://my-bucket-name/a/path/prefix/".
-
-            When a destination file is present that is not in the source, the
-            default is to leave it there.  Specifying --delete means to delete
-            destination files that are not in the source.
-
-            When the destination is B2, you have the option of leaving older
-            versions in place.  Specifying --keepDays will delete any older
-            versions more than the given number of days old, based on the
-            modification time of the file.  This option is not available when
-            the destination is a local folder.
-
-            Files at the source that have a newer modification time are always
-            copied to the destination.  If the destination file is newer, the
-            default is to report an error and stop.  But with --skipNewer set,
-            those files will just be skipped.  With --replaceNewer set, the
-            old file from the source will replace the newer one in the destination.
-
-            To make the destination exactly match the source, use:
-                b2 sync --delete --replaceNewer ... ...
-
-            WARNING: Using '--delete' deletes files!  We recommend not using it.
-            If you use --keepDays instead, you will have some time to recover your
-            files if you discover they are missing on the source end.
-
-            To make the destination match the source, but retain previous versions
-            for 30 days:
-                b2 sync --keepDays 30 --replaceNewer ... b2://...
-
-            Example of sync being used with excludeRegex. This will ignore .DS_Store files
-            and .Spotlight-V100 folders
-                b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
-
-            Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
-            """,
-            parents=[parent]
-        )
+    def _setup_subparser(cls, parser):
         parser.add_argument('--delete', action='store_true')
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--skipNewer', action='store_true')
@@ -1337,16 +1228,13 @@ class Sync(Command):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
-
         parser.add_argument('--keepDays', type=float)
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('--compareVersions')
         parser.add_argument('--compareThreshold', type=int)
-
         parser.add_argument('--excludeRegex', action='append', default=[])
         parser.add_argument('--includeRegex', action='append', default=[])
         parser.add_argument('--excludeDirRegex', action='append', default=[])
-
         parser.add_argument('source')
         parser.add_argument('destination')
 
@@ -1439,26 +1327,21 @@ class Sync(Command):
 
 
 class UpdateBucket(Command):
+    """
+    Updates the bucketType of an existing bucket.  Prints the ID
+    of the bucket updated.
+
+    Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
+    These can be given as JSON on the command line.
+
+    Requires capability: writeBuckets
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Updates the bucketType of an existing bucket.  Prints the ID
-            of the bucket updated.
-
-            Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
-            These can be given as JSON on the command line.
-
-            Requires capability: writeBuckets
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
-
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -1475,51 +1358,44 @@ class UpdateBucket(Command):
 
 
 class UploadFile(Command):
+    """
+    Uploads one file to the given bucket.  Uploads the contents
+    of the local file, and assigns the given name to the B2 file.
+
+    By default, upload_file will compute the sha1 checksum of the file
+    to be uploaded.  But, if you already have it, you can provide it
+    on the command line to save a little time.
+
+    Content type is optional.  If not set, it will be set based on the
+    file extension.
+
+    By default, the file is broken into as many parts as possible to
+    maximize upload parallelism and increase speed.  The minimum that
+    B2 allows is 100MB.  Setting --minPartSize to a larger value will
+    reduce the number of parts uploaded when uploading a large file.
+
+    The maximum number of upload threads to use to upload parts of a large file
+    is specified by '--threads'.  It has no effect on small files (under 200MB).
+    Default is 10.
+
+    If the 'tqdm' library is installed, progress bar is displayed
+    on stderr.  Without it, simple text progress is printed.
+    Use '--noProgress' to disable progress reporting.
+
+    Each fileInfo is of the form "a=b".
+
+    Requires capability: writeFiles
+    """
+
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = cls._add_parser(
-            subparsers,
-            """
-            Uploads one file to the given bucket.  Uploads the contents
-            of the local file, and assigns the given name to the B2 file.
-
-            By default, upload_file will compute the sha1 checksum of the file
-            to be uploaded.  But, if you already have it, you can provide it
-            on the command line to save a little time.
-
-            Content type is optional.  If not set, it will be set based on the
-            file extension.
-
-            By default, the file is broken into as many parts as possible to
-            maximize upload parallelism and increase speed.  The minimum that
-            B2 allows is 100MB.  Setting --minPartSize to a larger value will
-            reduce the number of parts uploaded when uploading a large file.
-
-            The maximum number of upload threads to use to upload parts of a large file
-            is specified by '--threads'.  It has no effect on small files (under 200MB).
-            Default is 10.
-
-            If the 'tqdm' library is installed, progress bar is displayed
-            on stderr.  Without it, simple text progress is printed.
-            Use '--noProgress' to disable progress reporting.
-
-            Each fileInfo is of the form "a=b".
-
-            Requires capability: writeFiles
-            """,
-            parents=[parent]
-        )
-
+    def _setup_subparser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--quiet', action='store_true')
-
         parser.add_argument('--contentType')
         parser.add_argument('--minPartSize', type=int)
         parser.add_argument('--sha1')
         parser.add_argument('--threads', type=int, default=10)
-
         parser.add_argument('--info', action='append', default=[])
-
         parser.add_argument('bucketName')
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
@@ -1555,15 +1431,9 @@ class UploadFile(Command):
 
 
 class Version(Command):
-    @classmethod
-    def add_subparser(cls, subparsers, parent):
-        cls._add_parser(
-            subparsers,
-            """
-            Prints the version number of this tool.
-            """,
-            parents=[parent]
-        )
+    """
+    Prints the version number of this tool.
+    """
 
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
