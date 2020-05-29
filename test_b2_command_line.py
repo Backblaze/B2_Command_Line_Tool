@@ -250,7 +250,7 @@ class CommandLine(object):
             error_and_exit('did not match pattern: ' + expected_pattern)
 
     def list_file_versions(self, bucket_name):
-        return self.should_succeed_json(['list_file_versions', bucket_name])['files']
+        return self.should_succeed_json(['list-file-versions', bucket_name])['files']
 
 
 class TestCommandLine(unittest.TestCase):
@@ -274,13 +274,13 @@ def should_equal(expected, actual):
 
 def delete_files_in_bucket(b2_tool, bucket_name):
     while True:
-        data = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
+        data = b2_tool.should_succeed_json(['list-file-versions', bucket_name])
         files = data['files']
         if len(files) == 0:
             return
         for file_info in files:
             b2_tool.should_succeed(
-                ['delete_file_version', file_info['fileName'], file_info['fileId']]
+                ['delete-file-version', file_info['fileName'], file_info['fileId']]
             )
 
 
@@ -290,7 +290,7 @@ def clean_buckets(b2_tool, bucket_name_prefix):
 
     In doing so, exercises list_buckets.
     """
-    text = b2_tool.should_succeed(['list_buckets'])
+    text = b2_tool.should_succeed(['list-buckets'])
 
     buckets = {}
     for line in text.split(os.linesep)[:-1]:
@@ -303,7 +303,7 @@ def clean_buckets(b2_tool, bucket_name_prefix):
     for bucket_name in buckets:
         if bucket_name.startswith(bucket_name_prefix):
             delete_files_in_bucket(b2_tool, bucket_name)
-            b2_tool.should_succeed(['delete_bucket', bucket_name])
+            b2_tool.should_succeed(['delete-bucket', bucket_name])
 
 
 def setup_envvar_test(envvar_name, envvar_value):
@@ -344,21 +344,21 @@ def download_test(b2_tool, bucket_name):
     file_to_upload = 'README.md'
 
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
+        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     with TempDir() as dir_path:
         p = lambda fname: os.path.join(dir_path, fname)
-        b2_tool.should_succeed(['download_file_by_name', '--noProgress', bucket_name, 'a', p('a')])
+        b2_tool.should_succeed(['download-file-by-name', '--noProgress', bucket_name, 'a', p('a')])
         assert read_file(p('a')) == read_file(file_to_upload)
         b2_tool.should_succeed(
-            ['download_file_by_id', '--noProgress', uploaded_a['fileId'],
+            ['download-file-by-id', '--noProgress', uploaded_a['fileId'],
              p('b')]
         )
         assert read_file(p('b')) == read_file(file_to_upload)
 
     # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(['delete_file_version', uploaded_a['fileName'], uploaded_a['fileId']])
-    b2_tool.should_succeed(['delete_bucket', bucket_name])
+    b2_tool.should_succeed(['delete-file-versions', uploaded_a['fileName'], uploaded_a['fileId']])
+    b2_tool.should_succeed(['delete-bucket', bucket_name])
     return True
 
 
@@ -370,44 +370,44 @@ def basic_test(b2_tool, bucket_name):
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
 
     b2_tool.should_succeed(
-        ['upload_file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
+        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
-    b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'a'])
-    b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
-    b2_tool.should_succeed(['upload_file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
     b2_tool.should_succeed(
         [
-            'upload_file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info',
+            'upload-file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info',
             'color=blue', bucket_name, file_to_upload, 'c'
         ]
     )
     b2_tool.should_fail(
         [
-            'upload_file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo-bar', '--info',
+            'upload-file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo-bar', '--info',
             'color=blue', bucket_name, file_to_upload, 'c'
         ], r'ERROR: Bad file info: foo-bar'
     )
     b2_tool.should_succeed(
         [
-            'upload_file', '--noProgress', '--contentType', 'text/plain', bucket_name,
+            'upload-file', '--noProgress', '--contentType', 'text/plain', bucket_name,
             file_to_upload, 'd'
         ]
     )
 
     b2_tool.should_succeed(
-        ['download_file_by_name', '--noProgress', bucket_name, 'b/1', os.devnull]
+        ['download-file-by-name', '--noProgress', bucket_name, 'b/1', os.devnull]
     )
 
-    b2_tool.should_succeed(['hide_file', bucket_name, 'c'])
+    b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
-    list_of_files = b2_tool.should_succeed_json(['list_file_names', bucket_name])
+    list_of_files = b2_tool.should_succeed_json(['list-file-names', bucket_name])
     should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files['files']])
-    list_of_files = b2_tool.should_succeed_json(['list_file_names', bucket_name, 'b/2'])
+    list_of_files = b2_tool.should_succeed_json(['list-file-names', bucket_name, 'b/2'])
     should_equal(['b/2', 'd'], [f['fileName'] for f in list_of_files['files']])
-    list_of_files = b2_tool.should_succeed_json(['list_file_names', bucket_name, 'b', '2'])
+    list_of_files = b2_tool.should_succeed_json(['list-file-names', bucket_name, 'b', '2'])
     should_equal(['b/1', 'b/2'], [f['fileName'] for f in list_of_files['files']])
 
-    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name])
+    list_of_files = b2_tool.should_succeed_json(['list-file-versions', bucket_name])
     should_equal(
         ['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']]
     )
@@ -420,18 +420,18 @@ def basic_test(b2_tool, bucket_name):
 
     first_c_version = list_of_files['files'][4]
     second_c_version = list_of_files['files'][5]
-    list_of_files = b2_tool.should_succeed_json(['list_file_versions', bucket_name, 'c'])
+    list_of_files = b2_tool.should_succeed_json(['list-file-versions', bucket_name, 'c'])
     should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']])
     list_of_files = b2_tool.should_succeed_json(
-        ['list_file_versions', bucket_name, 'c', second_c_version['fileId']]
+        ['list-file-versions', bucket_name, 'c', second_c_version['fileId']]
     )
     should_equal(['c', 'd'], [f['fileName'] for f in list_of_files['files']])
     list_of_files = b2_tool.should_succeed_json(
-        ['list_file_versions', bucket_name, 'c', second_c_version['fileId'], '1']
+        ['list-file-versions', bucket_name, 'c', second_c_version['fileId'], '1']
     )
     should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
 
-    b2_tool.should_succeed(['copy_file_by_id', first_a_version['fileId'], bucket_name, 'x'])
+    b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
     b2_tool.should_succeed(
@@ -444,7 +444,7 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['ls', bucket_name, 'b'], '^b/1{0}b/2{0}'.format(os.linesep))
     b2_tool.should_succeed(['ls', bucket_name, 'b/'], '^b/1{0}b/2{0}'.format(os.linesep))
 
-    file_info = b2_tool.should_succeed_json(['get_file_info', second_c_version['fileId']])
+    file_info = b2_tool.should_succeed_json(['get-file-info', second_c_version['fileId']])
     expected_info = {
         'color': 'blue',
         'foo': 'bar=baz',
@@ -452,10 +452,10 @@ def basic_test(b2_tool, bucket_name):
     }
     should_equal(expected_info, file_info['fileInfo'])
 
-    b2_tool.should_succeed(['delete_file_version', 'c', first_c_version['fileId']])
+    b2_tool.should_succeed(['delete-file-versions', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
-    b2_tool.should_succeed(['make_url', second_c_version['fileId']])
+    b2_tool.should_succeed(['make-url', second_c_version['fileId']])
 
     b2_tool.should_succeed(
         ['make-friendly-url', bucket_name, file_to_upload],
@@ -481,7 +481,7 @@ def key_restrictions_test(b2_tool, bucket_name):
     )
     key_one_id, key_one = created_key_stdout.split()
 
-    b2_tool.should_succeed(['authorize_account', key_one_id, key_one],)
+    b2_tool.should_succeed(['authorize-account', key_one_id, key_one],)
 
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['get-bucket', second_bucket_name],)
@@ -498,7 +498,7 @@ def key_restrictions_test(b2_tool, bucket_name):
     )
     key_two_id, key_two = created_key_two_stdout.split()
 
-    b2_tool.should_succeed(['authorize_account', key_two_id, key_two],)
+    b2_tool.should_succeed(['authorize-account', key_two_id, key_two],)
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['list-file-names', bucket_name],)
 
@@ -509,7 +509,7 @@ def key_restrictions_test(b2_tool, bucket_name):
     b2_tool.should_fail(['list-file-names', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
-    b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
+    b2_tool.should_succeed(['authorize-account', sys.argv[1], sys.argv[2]])
     b2_tool.should_succeed(['delete-bucket', second_bucket_name])
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
@@ -517,25 +517,25 @@ def key_restrictions_test(b2_tool, bucket_name):
 
 def account_test(b2_tool, bucket_name):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
-    b2_tool.should_succeed(['delete_bucket', bucket_name])
+    b2_tool.should_succeed(['delete-bucket', bucket_name])
     new_bucket_name = bucket_name[:-8] + random_hex(
         8
     )  # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create_bucket', new_bucket_name, 'allPrivate'])
-    b2_tool.should_succeed(['update_bucket', new_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
+    b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
     new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
-    b2_tool.should_succeed(['clear_account'])
+    b2_tool.should_succeed(['clear-account'])
     bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
-    b2_tool.should_fail(['authorize_account', sys.argv[1], bad_application_key], r'unauthorized')
-    b2_tool.should_succeed(['authorize_account', sys.argv[1], sys.argv[2]])
+    b2_tool.should_fail(['authorize-account', sys.argv[1], bad_application_key], r'unauthorized')
+    b2_tool.should_succeed(['authorize-account', sys.argv[1], sys.argv[2]])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
 
 def file_version_summary(list_of_files):
     """
-    Given the result of list_file_versions, returns a list
+    Given the result of list-file-versions, returns a list
     of all file versions, with "+" for upload and "-" for
     hide, looking like this:
 
@@ -601,7 +601,7 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
         )
 
         c_id = find_file_id(file_versions, prefix + 'c')
-        file_info = b2_tool.should_succeed_json(['get_file_info', c_id])['fileInfo']
+        file_info = b2_tool.should_succeed_json(['get-file-info', c_id])['fileInfo']
         should_equal(file_mod_time_millis(p('c')), int(file_info['src_last_modified_millis']))
 
         os.unlink(p('b'))
@@ -749,10 +749,10 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
 
         # Put a couple files in B2, and sync them down
         b2_tool.should_succeed(
-            ['upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
         )
         b2_tool.should_succeed(
-            ['upload_file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
         )
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
@@ -826,19 +826,19 @@ def main():
         print('#')
         print()
 
-        b2_tool.should_succeed(['clear_account'])
+        b2_tool.should_succeed(['clear-account'])
 
-        b2_tool.should_succeed(['authorize_account', account_id, application_key])
+        b2_tool.should_succeed(['authorize-account', account_id, application_key])
 
         bucket_name_prefix = 'test-b2-command-line-' + account_id
         if not defer_cleanup:
             clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)
 
-        success, _ = b2_tool.run_command(['create_bucket', bucket_name, 'allPublic'])
+        success, _ = b2_tool.run_command(['create-bucket', bucket_name, 'allPublic'])
         if not success:
             clean_buckets(b2_tool, bucket_name_prefix)
-            b2_tool.should_succeed(['create_bucket', bucket_name, 'allPublic'])
+            b2_tool.should_succeed(['create-bucket', bucket_name, 'allPublic'])
 
         print('#')
         print('# Running test:', test_name)
