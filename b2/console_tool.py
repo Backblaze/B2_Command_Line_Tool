@@ -1255,8 +1255,8 @@ class Sync(Command):
         If you want to match the entire path, put a "$" at the end of the
         regex, such as ".*llo$".
 
-        You can specify --excludeIfModifiedAfter to selectively ignore files
-        which were modified after given time (for local source)
+        You can specify --excludeIfModifiedAfter to selectively ignore file versions
+        (including hide markers) which were synced after given time (for local source)
         or ignore only specific file versions (for b2 source).
         Ignored files or file versions will not be taken for consideration during sync.
         The time should be given as a seconds timestamp (e.g. "1367900664")
