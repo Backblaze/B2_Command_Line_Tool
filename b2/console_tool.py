@@ -815,11 +815,11 @@ class ListFileVersions(Command):
     """
     @classmethod
     def _setup_subparser(cls, parser):
-        parser.add_argument('--startFileName')
-        parser.add_argument('--startFileId')
-        parser.add_argument('--maxToShow', type=int)
-        parser.add_argument('--prefix')
         parser.add_argument('bucketName')
+        parser.add_argument('startFileName', nargs='?')
+        parser.add_argument('startFileId', nargs='?')
+        parser.add_argument('maxToShow', nargs='?', type=int)
+        parser.add_argument('prefix', nargs='?')
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -843,10 +843,10 @@ class ListFileNames(Command):
     """
     @classmethod
     def _setup_subparser(cls, parser):
-        parser.add_argument('--startFileName')
-        parser.add_argument('--maxToShow', type=int)
-        parser.add_argument('--prefix')
         parser.add_argument('bucketName')
+        parser.add_argument('startFileName', nargs='?')
+        parser.add_argument('maxToShow', nargs='?', type=int)
+        parser.add_argument('prefix', nargs='?')
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1020,8 +1020,8 @@ class Ls(Command):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--prefix', action='store_true')
-        parser.add_argument('--folderName')
         parser.add_argument('bucketName')
+        parser.add_argument('folderName', nargs='?')
 
     def run(self, args):
         if args.folderName is None:
