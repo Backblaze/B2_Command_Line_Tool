@@ -124,7 +124,7 @@ before_install:
         pip install "setuptools>=20.2"
 
 install:
-  - pip install -r requirements.txt
+  - pip install -r requirements.txt || (pip install git+git://github.com/Backblaze/b2-sdk-python#egg=b2sdk && pip install -r requirements.txt)
   - pip install -r requirements-setup.txt
   - pip install -r requirements-test.txt
   - pip install 'https://github.com/reef-technologies/b2-sdk-python/archive/shipping_split_fixes.zip#egg=b2sdk'
