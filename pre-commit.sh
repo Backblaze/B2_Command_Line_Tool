@@ -86,8 +86,8 @@ header Check Licenses
 
 missing="$(
     (
-        grep -l 'All Rights Reserved' $(git ls-files | grep .py)
-        git ls-files | grep .py
+        grep -l 'All Rights Reserved' $(git ls-files | grep .py$)
+        git ls-files | grep .py$
     ) | sort | uniq -c | sort -n | awk '$1 == 1 && $2 !~ ".*/__init__.py"'
 )"
 if [ -n "$missing" ]; then
@@ -97,7 +97,7 @@ if [ -n "$missing" ]; then
 fi
 
 failing=0
-for file in $(git ls-files | grep .py)
+for file in $(git ls-files | grep .py$)
 do
     if [ ! -f "$file" ]; then
         echo "file with a newline in the name or space or something? \"$file\""
