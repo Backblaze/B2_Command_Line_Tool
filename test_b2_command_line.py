@@ -357,7 +357,7 @@ def download_test(b2_tool, bucket_name):
         assert read_file(p('b')) == read_file(file_to_upload)
 
     # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(['delete-file-versions', uploaded_a['fileName'], uploaded_a['fileId']])
+    b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     return True
 
@@ -452,7 +452,7 @@ def basic_test(b2_tool, bucket_name):
     }
     should_equal(expected_info, file_info['fileInfo'])
 
-    b2_tool.should_succeed(['delete-file-versions', 'c', first_c_version['fileId']])
+    b2_tool.should_succeed(['delete-file-version', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
     b2_tool.should_succeed(['make-url', second_c_version['fileId']])
