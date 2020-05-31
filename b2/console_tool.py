@@ -1447,6 +1447,8 @@ class ConsoleTool(object):
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
         parser = self.get_parser()
+        if len(argv) >= 2:
+            argv[1] = argv[1].replace('_', '-')
         args = parser.parse_args(argv[1:])
 
         command = self.command_name_to_class.get(args.command)(self)
