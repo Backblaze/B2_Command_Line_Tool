@@ -1,5 +1,5 @@
 mock
-pyflakes; python_version >= '2.7'
+pyflakes
 yapf
 nose
 liccheck==0.3.9
