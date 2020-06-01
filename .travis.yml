@@ -27,6 +27,7 @@ branches:
 matrix:
   allow_failures:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
+    - python: nightly  # problem with compiling cffi with python 3.10
   include:
     # Source Code Analysis is slow.  We just run it once on
     # Python 2 and once on Python 3.
@@ -38,7 +39,7 @@ matrix:
     # Enable nightly without globally enabling sudo and xenial for other build jobs
     # disabled because nosetests is not supported on 3.9. We'll move to pytest.
     # disabled by commenting out because Travis does not listen to matrix.allow_failures.python = [pypy3, nightly] for some reason
-    #- python: nightly
+    - python: nightly
     #  dist: xenial
     #  sudo: true
 
@@ -123,7 +124,7 @@ before_install:
         pip install "setuptools>=20.2"
 
 install:
-  - pip install -r requirements.txt
+  - pip install -r requirements.txt || (pip install git+git://github.com/Backblaze/b2-sdk-python#egg=b2sdk && pip install -r requirements.txt)
   - pip install -r requirements-setup.txt
   - pip install -r requirements-test.txt
   - pip install 'https://github.com/reef-technologies/b2-sdk-python/archive/shipping_split_fixes.zip#egg=b2sdk'

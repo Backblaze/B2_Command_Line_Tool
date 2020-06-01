@@ -26,6 +26,7 @@ import sys
 import textwrap
 import time
 
+import arrow
 import six
 
 from b2sdk.account_info.sqlite_account_info import (
@@ -63,7 +64,7 @@ except ImportError:
     def indent(text, prefix):
         def prefixed_lines():
             for line in text.splitlines(True):
-                yield (prefix + line if line.strip() else line)
+                yield prefix + line if line.strip() else line
 
         return ''.join(prefixed_lines())
 
@@ -116,6 +117,10 @@ def mixed_case_to_hyphens(s):
 
 def parse_comma_separated_list(s):
     return [word.strip() for word in s.split(',')]
+
+
+def parse_millis_from_float_timestamp(s):
+    return int(arrow.get(float(s)).format('XSSS'))
 
 
 def apply_or_none(fcn, value):
@@ -1139,6 +1144,13 @@ class Sync(Command):
     If you want to match the entire path, put a "$" at the end of the
     regex, such as ".*llo$".
 
+    You can specify --excludeIfModifiedAfter to selectively ignore file versions
+    (including hide markers) which were synced after given time (for local source)
+    or ignore only specific file versions (for b2 source).
+    Ignored files or file versions will not be taken for consideration during sync.
+    The time should be given as a seconds timestamp (e.g. "1367900664")
+    If you need milliseconds precision, put it after the comma (e.g. "1367900664.152")
+
     Files are considered to be the same if they have the same name
     and modification time.  This behaviour can be changed using the
     --compareVersions option.  Possible values are:
@@ -1208,28 +1220,21 @@ class Sync(Command):
         parser.add_argument('--excludeRegex', action='append', default=[])
         parser.add_argument('--includeRegex', action='append', default=[])
         parser.add_argument('--excludeDirRegex', action='append', default=[])
+        parser.add_argument(
+            '--excludeIfModifiedAfter', type=parse_millis_from_float_timestamp, default=None
+        )
         parser.add_argument('source')
         parser.add_argument('destination')
 
     def run(self, args):
-        if args.includeRegex and not args.excludeRegex:
-            logger.error('ConsoleTool \'includeRegex\' specified without \'excludeRegex\'')
-            self._print_stderr(
-                'ERROR: --includeRegex cannot be used without --excludeRegex at the same time'
-            )
-            return 1
+        policies_manager = self.get_policies_manager_from_args(args)
 
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
-        policies_manager = ScanPoliciesManager(
-            exclude_dir_regexes=args.excludeDirRegex,
-            exclude_file_regexes=args.excludeRegex,
-            include_file_regexes=args.includeRegex,
-            exclude_all_symlinks=args.excludeAllSymlinks,
-        )
+
         synchronizer = self.get_synchronizer_from_args(
             args,
             args.threads,
@@ -1244,6 +1249,20 @@ class Sync(Command):
                 reporter=reporter,
             )
         return 0
+
+    def get_policies_manager_from_args(self, args):
+        if args.includeRegex and not args.excludeRegex:
+            raise CommandError(
+                '--includeRegex cannot be used without --excludeRegex at the same time'
+            )
+
+        return ScanPoliciesManager(
+            exclude_dir_regexes=args.excludeDirRegex,
+            exclude_file_regexes=args.excludeRegex,
+            include_file_regexes=args.includeRegex,
+            exclude_all_symlinks=args.excludeAllSymlinks,
+            exclude_modified_after=args.excludeIfModifiedAfter,
+        )
 
     def get_synchronizer_from_args(
         self,

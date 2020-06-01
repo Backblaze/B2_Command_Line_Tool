@@ -112,6 +112,7 @@ Changes:
 * Add official support for python 3.8
 * Remove output of delete-bucket
 * Add `make-friendly-url` command
+* Add `--excludeIfModifiedAfter` parameter for `sync`
 
 ## 1.4.2 (2019-10-03)
 

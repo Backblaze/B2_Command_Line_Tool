@@ -357,7 +357,7 @@ def download_test(b2_tool, bucket_name):
         assert read_file(p('b')) == read_file(file_to_upload)
 
     # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(['delete-file-versions', uploaded_a['fileName'], uploaded_a['fileId']])
+    b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     return True
 
@@ -452,7 +452,7 @@ def basic_test(b2_tool, bucket_name):
     }
     should_equal(expected_info, file_info['fileInfo'])
 
-    b2_tool.should_succeed(['delete-file-versions', 'c', first_c_version['fileId']])
+    b2_tool.should_succeed(['delete-file-version', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
     b2_tool.should_succeed(['make-url', second_c_version['fileId']])
@@ -468,7 +468,7 @@ def basic_test(b2_tool, bucket_name):
 
 def key_restrictions_test(b2_tool, bucket_name):
 
-    second_bucket_name = 'test-b2-command-line-' + random_hex(8)
+    second_bucket_name = 'test-b2-cli-' + random_hex(8)
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -693,8 +693,25 @@ def _sync_test_using_dir(b2_tool, bucket_name, dir_):
             ], file_version_summary(file_versions)
         )
 
-        # confirm symlink is skipped
+        # create one more file
         write_file(p('linktarget'), b'hello')
+        mod_time = str((file_mod_time_millis(p('linktarget')) - 10) / 1000)
+
+        # exclude last created file because of mtime
+        b2_tool.should_succeed(
+            ['sync', '--noProgress', '--excludeIfModifiedAfter', mod_time, dir_path, b2_sync_point]
+        )
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(
+            [
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+                '+ ' + prefix + 'c',
+            ],
+            file_version_summary(file_versions),
+        )
+
+        # confirm symlink is skipped
         os.symlink('linktarget', p('alink'))
 
         b2_tool.should_succeed(
@@ -742,12 +759,11 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         b2_file_prefix = ''
 
     with TempDir() as local_path:
-
         # Sync from an empty "folder" as a source.
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal([], sorted(os.listdir(local_path)))
 
-        # Put a couple files in B2, and sync them down
+        # Put a couple files in B2
         b2_tool.should_succeed(
             ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
         )
@@ -756,6 +772,23 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         )
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
+
+        b2_tool.should_succeed(
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'c']
+        )
+
+        # Sync the files with one file being excluded because of mtime
+        mod_time = str((file_mod_time_millis(file_to_upload) - 10) / 1000)
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--excludeIfModifiedAfter', mod_time, b2_sync_point,
+                local_path
+            ]
+        )
+        should_equal(['a', 'b'], sorted(os.listdir(local_path)))
+        # Sync all the files
+        b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, local_path])
+        should_equal(['a', 'b', 'c'], sorted(os.listdir(local_path)))
 
 
 def sync_long_path_test(b2_tool, bucket_name):
@@ -830,7 +863,7 @@ def main():
 
         b2_tool.should_succeed(['authorize-account', account_id, application_key])
 
-        bucket_name_prefix = 'test-b2-command-line-' + account_id
+        bucket_name_prefix = 'test-b2-cli-' + account_id
         if not defer_cleanup:
             clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)
