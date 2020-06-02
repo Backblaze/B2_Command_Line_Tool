@@ -23,19 +23,18 @@ import os
 import platform
 import signal
 import sys
-import textwrap
 import time
 
 import arrow
 import six
+from class_registry import ClassRegistry
 
 from b2sdk.account_info.sqlite_account_info import (
     B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
 )
-
-from b2sdk.v1.exception import B2Error, BadFileInfo, CommandError, MissingAccountData
 from b2sdk.progress import make_progress_listener
 from b2sdk.raw_api import MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS
+from b2sdk.version import VERSION as b2sdk_version
 from b2sdk.v1 import (
     parse_sync_folder,
     AuthInfoCache,
@@ -50,24 +49,12 @@ from b2sdk.v1 import (
     ScanPoliciesManager,
     DEFAULT_SCAN_MANAGER,
 )
-from b2.version import VERSION
-from b2sdk.version import VERSION as b2sdk_version
+from b2sdk.v1.exception import B2Error, BadFileInfo, CommandError, MissingAccountData
+from b2.arg_parser import ArgumentParser
 from b2.cli_api import CliB2Api
 from b2.cli_bucket import CliBucket
-
 from b2.json_encoder import SetToListEncoder
-
-try:
-    from textwrap import indent
-except ImportError:
-
-    def indent(text, prefix):
-        def prefixed_lines():
-            for line in text.splitlines(True):
-                yield prefix + line if line.strip() else line
-
-        return ''.join(prefixed_lines())
-
+from b2.version import VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +99,9 @@ def keyboard_interrupt_handler(signum, frame):
 
 
 def mixed_case_to_hyphens(s):
-    return s[0].lower() + ''.join(c if c.islower() else '-' + c.lower() for c in s[1:])
+    return s[0].lower() + ''.join(
+        c if c.islower() or c.isdigit() else '-' + c.lower() for c in s[1:]
+    )
 
 
 def parse_comma_separated_list(s):
@@ -137,6 +126,9 @@ class Command(object):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
+    # The registry for the subcommands, should be reinitialized  in subclass
+    subcommands_registry = None
+
     def __init__(self, console_tool):
         self.console_tool = console_tool
         self.api = console_tool.api
@@ -144,23 +136,54 @@ class Command(object):
         self.stderr = console_tool.stderr
 
     @classmethod
-    def add_subparser(cls, subparsers, parent):
-        parser = subparsers.add_parser(
-            mixed_case_to_hyphens(cls.__name__),
-            description=cls._format_description(cls.__doc__),
-            formatter_class=argparse.RawTextHelpFormatter,
-            parents=[parent]
-        )
-        cls._setup_subparser(parser)
-        return parser
+    def register_subcommand(cls, command_class):
+        assert cls.subcommands_registry is not None, 'Initialize the registry class'
+        return cls.subcommands_registry.register(key=mixed_case_to_hyphens(command_class.__name__)
+                                                )(command_class)
 
     @classmethod
-    def _setup_subparser(cls, parser):
+    def get_parser(cls, subparsers=None, parents=None):
+        if parents is None:
+            parents = []
+
+        if subparsers is None:
+            parser = ArgumentParser(
+                prog=mixed_case_to_hyphens(cls.__name__),
+                description=cls.__doc__.format(**DOC_STRING_DATA),
+                parents=parents,
+            )
+        else:
+            parser = subparsers.add_parser(
+                mixed_case_to_hyphens(cls.__name__),
+                description=cls.__doc__.format(**DOC_STRING_DATA),
+                parents=parents,
+            )
+
+        cls._setup_parser(parser)
+
+        if cls.subcommands_registry:
+            if not parents:
+                common_parser = ArgumentParser(add_help=False)
+                common_parser.add_argument(
+                    '--debugLogs', action='store_true', help=argparse.SUPPRESS
+                )
+                common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
+                common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
+                parents = [common_parser]
+
+            subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
+            subparsers.required = True
+            for subcommand in cls.subcommands_registry.values():
+                subcommand.get_parser(subparsers, parents=parents)
+
+        return parser
+
+    def run(self, args):
         pass
 
     @classmethod
-    def _format_description(cls, description):
-        return indent(textwrap.dedent(description.format(**DOC_STRING_DATA)), ' ' * 4)
+    def _setup_parser(cls, parser):
+        pass
 
     @classmethod
     def _parse_file_infos(cls, args_info):
@@ -216,6 +239,31 @@ class Command(object):
         return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
 
 
+class B2(Command):
+    """
+    This program provides command-line access to the B2 service.
+
+    The environment variable {B2_ACCOUNT_INFO_ENV_VAR} specifies the sqlite
+    file to use for caching authentication information.
+    The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
+
+    For more details on one command: b2 <command> --help
+
+    When authorizing with application keys, this tool requires that the key
+    have the 'listBuckets' capability so that it can take the bucket names
+    you provide on the command line and translate them into bucket IDs for the
+    B2 Storage service.  Each different command may required additional
+    capabilities.  You can find the details for each command in the help for
+    that command.
+    """
+
+    subcommands_registry = ClassRegistry()
+
+    def run(self, args):
+        return self.subcommands_registry.get_class(args.command)
+
+
+@B2.register_subcommand
 class AuthorizeAccount(Command):
     """
     Prompts for Backblaze applicationKeyId and applicationKey (unless they are given
@@ -245,7 +293,7 @@ class AuthorizeAccount(Command):
     FORBID_LOGGING_ARGUMENTS = True
 
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--dev', action='store_true', help=argparse.SUPPRESS)
         parser.add_argument('--staging', action='store_true', help=argparse.SUPPRESS)
         parser.add_argument('applicationKeyId', nargs='?')
@@ -303,6 +351,7 @@ class AuthorizeAccount(Command):
             return 1
 
 
+@B2.register_subcommand
 class CancelAllUnfinishedLargeFiles(Command):
     """
     Lists all large files that have been started but not
@@ -312,7 +361,7 @@ class CancelAllUnfinishedLargeFiles(Command):
     Requires capability: listFiles, writeFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -323,6 +372,7 @@ class CancelAllUnfinishedLargeFiles(Command):
         return 0
 
 
+@B2.register_subcommand
 class CancelLargeFile(Command):
     """
     Cancels a large file upload.  Used to undo a start-large-file.
@@ -333,7 +383,7 @@ class CancelLargeFile(Command):
     Requires capability: writeFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('fileId')
 
     def run(self, args):
@@ -342,6 +392,7 @@ class CancelLargeFile(Command):
         return 0
 
 
+@B2.register_subcommand
 class ClearAccount(Command):
     """
     Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
@@ -352,6 +403,7 @@ class ClearAccount(Command):
         return 0
 
 
+@B2.register_subcommand
 class CopyFileById(Command):
     """
     Copy a file version to the given bucket (server-side, *not* via download+upload).
@@ -378,7 +430,7 @@ class CopyFileById(Command):
     Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--metadataDirective')
         parser.add_argument('--contentType')
         parser.add_argument('--range')
@@ -431,6 +483,7 @@ class CopyFileById(Command):
         )
 
 
+@B2.register_subcommand
 class CreateBucket(Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
@@ -441,7 +494,7 @@ class CreateBucket(Command):
     Requires capability: writeBuckets
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
@@ -460,6 +513,7 @@ class CreateBucket(Command):
         return 0
 
 
+@B2.register_subcommand
 class CreateKey(Command):
     """
     Creates a new application key.  Prints the application key information.  This is the only
@@ -483,7 +537,7 @@ class CreateKey(Command):
     Requires capability: writeKeys
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--bucket')
         parser.add_argument('--namePrefix')
         parser.add_argument('--duration', type=int)
@@ -511,6 +565,7 @@ class CreateKey(Command):
         return 0
 
 
+@B2.register_subcommand
 class DeleteBucket(Command):
     """
     Deletes the bucket with the given name.
@@ -518,7 +573,7 @@ class DeleteBucket(Command):
     Requires capability: deleteBuckets
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -527,6 +582,7 @@ class DeleteBucket(Command):
         return 0
 
 
+@B2.register_subcommand
 class DeleteFileVersion(Command):
     """
     Permanently and irrevocably deletes one version of a file.
@@ -539,7 +595,7 @@ class DeleteFileVersion(Command):
     Requires capability: deleteFiles, readFiles (if file name not provided)
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('fileName', nargs='?')
         parser.add_argument('fileId')
 
@@ -558,6 +614,7 @@ class DeleteFileVersion(Command):
         return file_info['fileName']
 
 
+@B2.register_subcommand
 class DeleteKey(Command):
     """
     Deletes the specified application key by its 'ID'.
@@ -565,7 +622,7 @@ class DeleteKey(Command):
     Requires capability: deleteKeys
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('applicationKeyId')
 
     def run(self, args):
@@ -574,6 +631,7 @@ class DeleteKey(Command):
         return 0
 
 
+@B2.register_subcommand
 class DownloadFileById(Command):
     """
     Downloads the given file, and stores it in the given local file.
@@ -585,7 +643,7 @@ class DownloadFileById(Command):
     Requires capability: readFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
@@ -598,6 +656,7 @@ class DownloadFileById(Command):
         return 0
 
 
+@B2.register_subcommand
 class DownloadFileByName(Command):
     """
     Downloads the given file, and stores it in the given local file.
@@ -609,7 +668,7 @@ class DownloadFileByName(Command):
     Requires capability: readFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('b2FileName')
@@ -624,6 +683,7 @@ class DownloadFileByName(Command):
         return 0
 
 
+@B2.register_subcommand
 class GetAccountInfo(Command):
     """
     Shows the account ID, key, auth token, URLs, and what capabilities
@@ -643,6 +703,7 @@ class GetAccountInfo(Command):
         return 0
 
 
+@B2.register_subcommand
 class GetBucket(Command):
     """
     Prints all of the information about the bucket, including
@@ -662,7 +723,7 @@ class GetBucket(Command):
     Requires capability: listBuckets
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
         parser.add_argument('bucketName')
 
@@ -696,6 +757,7 @@ class GetBucket(Command):
         return 1
 
 
+@B2.register_subcommand
 class GetFileInfo(Command):
     """
     Prints all of the information about the file, but not its contents.
@@ -703,7 +765,7 @@ class GetFileInfo(Command):
     Requires capability: readFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('fileId')
 
     def run(self, args):
@@ -712,6 +774,7 @@ class GetFileInfo(Command):
         return 0
 
 
+@B2.register_subcommand
 class GetDownloadAuth(Command):
     """
     Prints an authorization token that is valid only for downloading
@@ -727,7 +790,7 @@ class GetDownloadAuth(Command):
     Requires capability: shareFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName')
@@ -741,6 +804,7 @@ class GetDownloadAuth(Command):
         return 0
 
 
+@B2.register_subcommand
 class GetDownloadUrlWithAuth(Command):
     """
     Prints a URL to download the given file.  The URL includes an authorization
@@ -757,7 +821,7 @@ class GetDownloadUrlWithAuth(Command):
     Requires capability: shareFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
@@ -773,6 +837,7 @@ class GetDownloadUrlWithAuth(Command):
         return 0
 
 
+@B2.register_subcommand
 class HideFile(Command):
     """
     Uploads a new, hidden, version of the given file.
@@ -780,7 +845,7 @@ class HideFile(Command):
     Requires capability: writeFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
 
@@ -792,6 +857,7 @@ class HideFile(Command):
         return 0
 
 
+@B2.register_subcommand
 class ListBuckets(Command):
     """
     Lists all of the buckets in the current account.
@@ -809,6 +875,7 @@ class ListBuckets(Command):
         return 0
 
 
+@B2.register_subcommand
 class ListFileVersions(Command):
     """
     Lists the names of the files in a bucket, starting at the
@@ -819,7 +886,7 @@ class ListFileVersions(Command):
     Requires capability: listFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('startFileName', nargs='?')
         parser.add_argument('startFileId', nargs='?')
@@ -839,6 +906,7 @@ class ListFileVersions(Command):
         return 0
 
 
+@B2.register_subcommand
 class ListFileNames(Command):
     """
     Lists the names of the files in a bucket, starting at the
@@ -847,7 +915,7 @@ class ListFileNames(Command):
     Requires capability: listFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('startFileName', nargs='?')
         parser.add_argument('maxToShow', nargs='?', type=int)
@@ -865,6 +933,7 @@ class ListFileNames(Command):
         return 0
 
 
+@B2.register_subcommand
 class ListKeys(Command):
     """
     Lists the application keys for the current account.
@@ -887,7 +956,7 @@ class ListKeys(Command):
     Requires capability: listKeys
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
 
     def __init__(self, console_tool):
@@ -955,6 +1024,7 @@ class ListKeys(Command):
             return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
+@B2.register_subcommand
 class ListParts(Command):
     """
     Lists all of the parts that have been uploaded for the given
@@ -964,7 +1034,7 @@ class ListParts(Command):
     Requires capability: writeFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('largeFileId')
 
     def run(self, args):
@@ -973,6 +1043,7 @@ class ListParts(Command):
         return 0
 
 
+@B2.register_subcommand
 class ListUnfinishedLargeFiles(Command):
     """
     Lists all of the large files in the bucket that were started,
@@ -981,7 +1052,7 @@ class ListUnfinishedLargeFiles(Command):
     Requires capability: listFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
 
     def run(self, args):
@@ -998,6 +1069,7 @@ class ListUnfinishedLargeFiles(Command):
         return 0
 
 
+@B2.register_subcommand
 class Ls(Command):
     """
     Using the file naming convention that "/" separates folder
@@ -1020,7 +1092,7 @@ class Ls(Command):
     Requires capability: listFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
@@ -1052,13 +1124,14 @@ class Ls(Command):
         return 0
 
 
+@B2.register_subcommand
 class MakeUrl(Command):
     """
     Prints an URL that can be used to download the given file, if
     it is public.
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('fileId')
 
     def run(self, args):
@@ -1066,13 +1139,14 @@ class MakeUrl(Command):
         return 0
 
 
+@B2.register_subcommand
 class MakeFriendlyUrl(Command):
     """
     Prints a short URL that can be used to download the given file, if
     it is public.
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
 
@@ -1081,6 +1155,7 @@ class MakeFriendlyUrl(Command):
         return 0
 
 
+@B2.register_subcommand
 class Sync(Command):
     """
     Copies multiple files from source to destination.  Optionally
@@ -1205,7 +1280,7 @@ class Sync(Command):
     Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--delete', action='store_true')
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--skipNewer', action='store_true')
@@ -1318,6 +1393,7 @@ class Sync(Command):
         )
 
 
+@B2.register_subcommand
 class UpdateBucket(Command):
     """
     Updates the bucketType of an existing bucket.  Prints the ID
@@ -1329,7 +1405,7 @@ class UpdateBucket(Command):
     Requires capability: writeBuckets
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
@@ -1348,6 +1424,7 @@ class UpdateBucket(Command):
         return 0
 
 
+@B2.register_subcommand
 class UploadFile(Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
@@ -1378,7 +1455,7 @@ class UploadFile(Command):
     Requires capability: writeFiles
     """
     @classmethod
-    def _setup_subparser(cls, parser):
+    def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--quiet', action='store_true')
         parser.add_argument('--contentType')
@@ -1420,6 +1497,7 @@ class UploadFile(Command):
         return 0
 
 
+@B2.register_subcommand
 class Version(Command):
     """
     Prints the version number of this tool.
@@ -1442,33 +1520,13 @@ class ConsoleTool(object):
         self.stdout = stdout
         self.stderr = stderr
 
-        # a *magic* registry of commands
-        self.command_name_to_class = {
-            mixed_case_to_hyphens(cls.__name__): cls
-            for cls in Command.__subclasses__()
-        }
-
-    @classmethod
-    def get_parser(cls):
-        common_parser = argparse.ArgumentParser(add_help=False)
-        common_parser.add_argument('--debugLogs', action='store_true', help=argparse.SUPPRESS)
-        common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
-        common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
-
-        parser = argparse.ArgumentParser(prog='b2')
-
-        subparsers = parser.add_subparsers(dest='command')
-        subparsers.required = True
-        for subclass in Command.__subclasses__():
-            subclass.add_subparser(subparsers, parent=common_parser)
-        return parser
-
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = self.get_parser()
-        args = parser.parse_args(argv[1:])
+        b2_command = B2(self)
+        args = b2_command.get_parser().parse_args(argv[1:])
 
-        command = self.command_name_to_class.get(args.command)(self)
+        command_class = b2_command.run(args)
+        command = command_class(self)
 
         self._setup_logging(args, command, argv)
 
@@ -1508,7 +1566,8 @@ class ConsoleTool(object):
             self._print('checksum matches')
         return 0
 
-    def _setup_logging(self, args, command, argv):
+    @classmethod
+    def _setup_logging(cls, args, command, argv):
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
         elif args.verbose:
@@ -1543,7 +1602,8 @@ class ConsoleTool(object):
             logger.info('starting command [%s] with arguments: %s', command, argv)
 
 
-get_parser = ConsoleTool.get_parser
+# used by Sphinx
+get_parser = B2.get_parser
 
 
 def decode_sys_argv():
