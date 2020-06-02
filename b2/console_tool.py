@@ -25,7 +25,6 @@ import signal
 import sys
 import time
 
-import arrow
 import six
 from class_registry import ClassRegistry
 
@@ -49,8 +48,9 @@ from b2sdk.v1 import (
     ScanPoliciesManager,
     DEFAULT_SCAN_MANAGER,
 )
-from b2sdk.v1.exception import B2Error, BadFileInfo, CommandError, MissingAccountData
-from b2.arg_parser import ArgumentParser
+from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
+from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
+    parse_millis_from_float_timestamp, parse_range
 from b2.cli_api import CliB2Api
 from b2.cli_bucket import CliBucket
 from b2.json_encoder import SetToListEncoder
@@ -102,14 +102,6 @@ def mixed_case_to_hyphens(s):
     return s[0].lower() + ''.join(
         c if c.islower() or c.isdigit() else '-' + c.lower() for c in s[1:]
     )
-
-
-def parse_comma_separated_list(s):
-    return [word.strip() for word in s.split(',')]
-
-
-def parse_millis_from_float_timestamp(s):
-    return int(arrow.get(float(s)).format('XSSS'))
 
 
 def apply_or_none(fcn, value):
@@ -194,22 +186,6 @@ class Command(object):
                 raise BadFileInfo(info)
             file_infos[parts[0]] = parts[1]
         return file_infos
-
-    @classmethod
-    def _parse_enum_arg(cls, arg_name, arg_value, enum_type):
-        """
-        Parses a command-line option which is really an enum (probably defined in b2sdk).
-        Returns an enum value or raises an exception which shows available values.
-        """
-        result = None
-        if arg_value is not None:
-            result = enum_type.__members__.get(arg_value.upper())
-            if result is None:
-                raise InvalidArgument(
-                    '--' + arg_name, 'value is not supported. Supported values are: %s' %
-                    (', '.join(enum_type.__members__.keys()),)
-                )
-        return result
 
     def _print(self, *args):
         self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
@@ -431,9 +407,9 @@ class CopyFileById(Command):
     """
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--metadataDirective')
+        parser.add_argument('--metadataDirective', choices=('copy', 'replace'))
         parser.add_argument('--contentType')
-        parser.add_argument('--range')
+        parser.add_argument('--range', type=parse_range)
         parser.add_argument('--info', action='append', default=[])
         parser.add_argument('sourceFileId')
         parser.add_argument('destinationBucketName')
@@ -444,43 +420,25 @@ class CopyFileById(Command):
         if args.info is not None:
             file_infos = self._parse_file_infos(args.info)
 
-        bytes_range = self._parse_range(args.range)
-        metadata_directive = self._parse_metadata_directive(args.metadataDirective)
+        if args.metadataDirective == 'copy':
+            metadata_directive = MetadataDirectiveMode.COPY
+        elif args.metadataDirective == 'replace':
+            metadata_directive = MetadataDirectiveMode.REPLACE
+        else:
+            metadata_directive = None
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
 
         response = bucket.copy_file(
             args.sourceFileId,
             args.b2FileName,
-            bytes_range=bytes_range,
+            bytes_range=args.range,
             metadata_directive=metadata_directive,
             content_type=args.contentType,
             file_info=file_infos,
         )
         self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
-
-    @classmethod
-    def _parse_range(cls, args_range):
-        bytes_range = None
-        if args_range is not None:
-            bytes_range = args_range.split(',')
-            if len(bytes_range) != 2:
-                raise InvalidArgument('--range', 'must be exactly 2 values, start and end')
-            try:
-                bytes_range = (
-                    int(bytes_range[0]),
-                    int(bytes_range[1]),
-                )
-            except ValueError:
-                raise InvalidArgument('--range', 'start and end must be integers')
-        return bytes_range
-
-    @classmethod
-    def _parse_metadata_directive(cls, args_metadataDirective):
-        return cls._parse_enum_arg(
-            'metadataDirective', args_metadataDirective, MetadataDirectiveMode
-        )
 
 
 @B2.register_subcommand
@@ -1194,7 +1152,7 @@ class Sync(Command):
     is a regular expression that is tested against the full path
     of each file.
 
-    Note that --includeRegex cannot be used without --excludeRegex.
+    Note that --includeRegex is skipped without --excludeRegex.
 
     You can specify --excludeAllSymlinks to skip symlinks when
     syncing from a local source.
@@ -1281,25 +1239,34 @@ class Sync(Command):
     """
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--delete', action='store_true')
         parser.add_argument('--noProgress', action='store_true')
-        parser.add_argument('--skipNewer', action='store_true')
-        parser.add_argument('--replaceNewer', action='store_true')
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
-        parser.add_argument('--keepDays', type=float)
         parser.add_argument('--threads', type=int, default=10)
-        parser.add_argument('--compareVersions')
-        parser.add_argument('--compareThreshold', type=int)
-        parser.add_argument('--excludeRegex', action='append', default=[])
-        parser.add_argument('--includeRegex', action='append', default=[])
-        parser.add_argument('--excludeDirRegex', action='append', default=[])
         parser.add_argument(
-            '--excludeIfModifiedAfter', type=parse_millis_from_float_timestamp, default=None
+            '--compareVersions', default='modTime', choices=('none', 'modTime', 'size')
+        )
+        parser.add_argument('--compareThreshold', type=int, metavar='MILLIS')
+        parser.add_argument('--excludeRegex', action='append', default=[], metavar='REGEX')
+        parser.add_argument('--includeRegex', action='append', default=[], metavar='REGEX')
+        parser.add_argument('--excludeDirRegex', action='append', default=[], metavar='REGEX')
+        parser.add_argument(
+            '--excludeIfModifiedAfter',
+            type=parse_millis_from_float_timestamp,
+            default=None,
+            metavar='TIMESTAMP'
         )
         parser.add_argument('source')
         parser.add_argument('destination')
+
+        skip_group = parser.add_mutually_exclusive_group()
+        skip_group.add_argument('--skipNewer', action='store_true')
+        skip_group.add_argument('--replaceNewer', action='store_true')
+
+        del_keep_group = parser.add_mutually_exclusive_group()
+        del_keep_group.add_argument('--delete', action='store_true')
+        del_keep_group.add_argument('--keepDays', type=float, metavar='DAYS')
 
     def run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
@@ -1327,9 +1294,8 @@ class Sync(Command):
 
     def get_policies_manager_from_args(self, args):
         if args.includeRegex and not args.excludeRegex:
-            raise CommandError(
-                '--includeRegex cannot be used without --excludeRegex at the same time'
-            )
+            logger.warning('--includeRegex is skipped without --excludeRegex')
+            args.includeRegex = tuple()
 
         return ScanPoliciesManager(
             exclude_dir_regexes=args.excludeDirRegex,
@@ -1346,17 +1312,12 @@ class Sync(Command):
         policies_manager=DEFAULT_SCAN_MANAGER,
         allow_empty_source=False,
     ):
-        if args.replaceNewer and args.skipNewer:
-            raise CommandError('--skipNewer and --replaceNewer are incompatible')
-        elif args.replaceNewer:
+        if args.replaceNewer:
             newer_file_mode = NewerFileSyncMode.REPLACE
         elif args.skipNewer:
             newer_file_mode = NewerFileSyncMode.SKIP
         else:
             newer_file_mode = NewerFileSyncMode.RAISE_ERROR
-
-        if args.delete and (args.keepDays is not None):
-            raise CommandError('--delete and --keepDays are incompatible')
 
         if args.compareVersions == 'none':
             compare_version_mode = CompareVersionMode.NONE
@@ -1364,10 +1325,8 @@ class Sync(Command):
             compare_version_mode = CompareVersionMode.MODTIME
         elif args.compareVersions == 'size':
             compare_version_mode = CompareVersionMode.SIZE
-        elif args.compareVersions is None:
-            compare_version_mode = CompareVersionMode.MODTIME
         else:
-            raise CommandError('Invalid option for --compareVersions')
+            compare_version_mode = CompareVersionMode.MODTIME
         compare_threshold = args.compareThreshold
 
         keep_days = None

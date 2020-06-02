@@ -11,6 +11,8 @@
 import argparse
 import textwrap
 
+import arrow
+
 try:
     from textwrap import indent
 except ImportError:
@@ -48,7 +50,8 @@ class ArgumentParser(argparse.ArgumentParser):
     """
     CLI custom parser.
 
-    It fixes indentation of the description and set the custom formatter as a default.
+    It fixes indentation of the description, set the custom formatter as a default
+    and use help message in case of error.
     """
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('formatter_class', RawTextHelpFormatter)
@@ -57,6 +60,42 @@ class ArgumentParser(argparse.ArgumentParser):
             kwargs['description'] = self._format_description(description)
         super(ArgumentParser, self).__init__(*args, **kwargs)
 
+    def error(self, message):
+        self.print_help()
+        args = {'prog': self.prog, 'message': message}
+        self.exit(2, '\n%(prog)s: error: %(message)s\n' % args)
+
     @classmethod
     def _format_description(cls, text):
         return indent(textwrap.dedent(text), '  ')
+
+
+def parse_comma_separated_list(s):
+    """
+    Parse comma-separated list.
+    """
+    return [word.strip() for word in s.split(',')]
+
+
+def parse_millis_from_float_timestamp(s):
+    """
+    Parse timestamp, e.g. 1367900664 or 1367900664.152
+    """
+    return int(arrow.get(float(s)).format('XSSS'))
+
+
+def parse_range(s):
+    """
+    Parse optional integer range
+    """
+    bytes_range = None
+    if s is not None:
+        bytes_range = s.split(',')
+        if len(bytes_range) != 2:
+            raise argparse.ArgumentTypeError('the range must have 2 values: start,end')
+        bytes_range = (
+            int(bytes_range[0]),
+            int(bytes_range[1]),
+        )
+
+    return bytes_range
