@@ -130,8 +130,8 @@ class Command(object):
     @classmethod
     def register_subcommand(cls, command_class):
         assert cls.subcommands_registry is not None, 'Initialize the registry class'
-        return cls.subcommands_registry.register(key=mixed_case_to_hyphens(command_class.__name__)
-                                                )(command_class)
+        key = mixed_case_to_hyphens(command_class.__name__)
+        return cls.subcommands_registry.register(key=key)(command_class)
 
     @classmethod
     def get_parser(cls, subparsers=None, parents=None):
@@ -1178,7 +1178,7 @@ class Sync(Command):
     is a regular expression that is tested against the full path
     of each file.
 
-    Note that --includeRegex is skipped without --excludeRegex.
+    Note that --includeRegex cannot be used without --excludeRegex.
 
     You can specify --excludeAllSymlinks to skip symlinks when
     syncing from a local source.
@@ -1320,10 +1320,6 @@ class Sync(Command):
         return 0
 
     def get_policies_manager_from_args(self, args):
-        if args.includeRegex and not args.excludeRegex:
-            logger.warning('--includeRegex is skipped without --excludeRegex')
-            args.includeRegex = tuple()
-
         return ScanPoliciesManager(
             exclude_dir_regexes=args.excludeDirRegex,
             exclude_file_regexes=args.excludeRegex,
