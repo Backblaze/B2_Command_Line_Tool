@@ -10,6 +10,8 @@
 ######################################################################
 
 from __future__ import print_function
+
+import argparse
 import hashlib
 import json
 import os.path
@@ -22,30 +24,35 @@ import subprocess
 import sys
 import tempfile
 import threading
-import unittest
 
 from b2sdk.utils import fix_windows_path_limit
 
-USAGE = """
-This program tests the B2 command-line client.
 
-Usages:
+def parse_args(tests):
+    parser = argparse.ArgumentParser(
+        prog='test_b2_comand_line.py',
+        description='This program tests the B2 command-line client.',
+    )
+    parser.add_argument('account_id', help='B2 Account ID')
+    parser.add_argument('application_key', help='B2 Application Key')
+    parser.add_argument(
+        'tests',
+        help='Specifie which of the tests to run. If not specified, all test will run',
+        default='all',
+        nargs='*',
+        choices=['all'] + tests
+    )
+    parser.add_argument(
+        '--command',
+        help='Specifie a command tu run. If not specified, the tests will run from the source',
+        default='%s -m b2' % sys.executable
+    )
 
-    {command} <accountId> <applicationKey> [basic | sync_down | sync_up | sync_up_no_prefix 
-                                               keys | sync_long_path | download | account]
+    args = parser.parse_args()
+    if 'all' in args.tests:
+        args.tests = tests
 
-        The optional last argument specifies which of the tests to run.  If not
-        specified, all test will run.  Runs the b2 package in the current directory.
-
-    {command} test
-
-        Runs internal unit tests.
-"""
-
-
-def usage_and_exit():
-    print(USAGE.format(command=sys.argv[0]), file=sys.stderr)
-    sys.exit(1)
+    return args
 
 
 def error_and_exit(message):
@@ -112,19 +119,17 @@ def remove_insecure_platform_warnings(text):
     )
 
 
-def run_command(path_to_script, args):
+def run_command(cmd, args):
     """
-    :param command: A list of strings like ['ls', '-l', '/dev']
+    :param cmd: a command to run
+    :param args: command's arguments
     :return: (status, stdout, stderr)
     """
-
     # We'll run the b2 command-line by running the b2 module from
-    # the current directory.  Python 2.6 doesn't support using
-    # '-m' with a package, so we explicitly say to run the module
-    # b2.__main__
+    # the current directory or provided as parameter
     os.environ['PYTHONPATH'] = '.'
     os.environ['PYTHONIOENCODING'] = 'utf-8'
-    command = ['python', '-m', 'b2.__main__']
+    command = cmd.split(' ')
     command.extend(args)
 
     print('Running:', ' '.join(command))
@@ -182,22 +187,22 @@ def print_output(status, stdout, stderr):
 
 class CommandLine(object):
 
-    PROGRESS_BAR_PATTERN = re.compile(r'.*B/s]$', re.DOTALL)
-
     EXPECTED_STDERR_PATTERNS = [
-        PROGRESS_BAR_PATTERN,
+        re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
         re.compile(r'^$')  # empty line
     ]
 
-    def __init__(self, path_to_script):
-        self.path_to_script = path_to_script
+    def __init__(self, command, account_id, application_key):
+        self.command = command
+        self.account_id = account_id
+        self.application_key = application_key
 
     def run_command(self, args):
         """
         Runs the command with the given arguments, returns a tuple in form of
         (succeeded, stdout)
         """
-        status, stdout, stderr = run_command(self.path_to_script, args)
+        status, stdout, stderr = run_command(self.command, args)
         return status == 0 and stderr == '', stdout
 
     def should_succeed(self, args, expected_pattern=None):
@@ -206,7 +211,7 @@ class CommandLine(object):
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.path_to_script, args)
+        status, stdout, stderr = run_command(self.command, args)
         if status != 0:
             print('FAILED with status', status)
             sys.exit(1)
@@ -240,7 +245,7 @@ class CommandLine(object):
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.path_to_script, args)
+        status, stdout, stderr = run_command(self.command, args)
         if status == 0:
             print('ERROR: should have failed')
             sys.exit(1)
@@ -251,14 +256,6 @@ class CommandLine(object):
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
-
-
-class TestCommandLine(unittest.TestCase):
-    def test_stderr_patterns(self):
-        progress_bar_line = './b2:   0%|          | 0.00/33.3K [00:00<?, ?B/s]\r./b2:  25%|\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8d       | 8.19K/33.3K [00:00<00:01, 21.7KB/s]\r./b2: 33.3KB [00:02, 12.1KB/s]'
-        self.assertIsNotNone(CommandLine.PROGRESS_BAR_PATTERN.match(progress_bar_line))
-        progress_bar_line = '\r./b2:   0%|          | 0.00/33.3K [00:00<?, ?B/s]\r./b2:  25%|\xe2\x96\x88\xe2\x96\x88\xe2\x96\x8d       | 8.19K/33.3K [00:00<00:01, 19.6KB/s]\r./b2: 33.3KB [00:02, 14.0KB/s]'
-        self.assertIsNotNone(CommandLine.PROGRESS_BAR_PATTERN.match(progress_bar_line))
 
 
 def should_equal(expected, actual):
@@ -498,7 +495,7 @@ def key_restrictions_test(b2_tool, bucket_name):
     b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
-    b2_tool.should_succeed(['authorize-account', sys.argv[1], sys.argv[2]])
+    b2_tool.should_succeed(['authorize-account', b2_tool.account_id, b2_tool.application_key])
     b2_tool.should_succeed(['delete-bucket', second_bucket_name])
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
@@ -516,9 +513,11 @@ def account_test(b2_tool, bucket_name):
     new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
     setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear-account'])
-    bad_application_key = sys.argv[2][:-8] + ''.join(reversed(sys.argv[2][-8:]))
-    b2_tool.should_fail(['authorize-account', sys.argv[1], bad_application_key], r'unauthorized')
-    b2_tool.should_succeed(['authorize-account', sys.argv[1], sys.argv[2]])
+    bad_application_key = random_hex(len(b2_tool.application_key))
+    b2_tool.should_fail(
+        ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+    )
+    b2_tool.should_succeed(['authorize-account', b2_tool.account_id, b2_tool.application_key])
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
 
@@ -807,14 +806,6 @@ def sync_long_path_test(b2_tool, bucket_name):
 
 
 def main():
-
-    if len(sys.argv) < 3:
-        usage_and_exit()
-    path_to_script = 'b2'
-    account_id = sys.argv[1]
-    application_key = sys.argv[2]
-    defer_cleanup = True
-
     test_map = {
         'account': account_test,
         'basic': basic_test,
@@ -826,22 +817,19 @@ def main():
         'download': download_test,
     }
 
-    if len(sys.argv) >= 4:
-        tests_to_run = sys.argv[3:]
-        for test_name in tests_to_run:
-            if test_name not in test_map:
-                error_and_exit('unknown test: "%s"' % (test_name,))
-    else:
-        tests_to_run = sorted(six.iterkeys(test_map))
+    args = parse_args(tests=sorted(six.iterkeys(test_map)))
+
+    defer_cleanup = True
+    bucket_name_prefix = 'test-b2-cli-' + args.account_id
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(path_to_script)
+    b2_tool = CommandLine(args.command, args.account_id, args.application_key)
 
     global_dirty = False
     # Run each of the tests in its own empty bucket
-    for test_name in tests_to_run:
+    for test_name in args.tests:
 
         print('#')
         print('# Cleaning and making bucket for:', test_name)
@@ -850,9 +838,8 @@ def main():
 
         b2_tool.should_succeed(['clear-account'])
 
-        b2_tool.should_succeed(['authorize-account', account_id, application_key])
+        b2_tool.should_succeed(['authorize-account', args.account_id, args.application_key])
 
-        bucket_name_prefix = 'test-b2-cli-' + account_id
         if not defer_cleanup:
             clean_buckets(b2_tool, bucket_name_prefix)
         bucket_name = bucket_name_prefix + '-' + random_hex(8)
@@ -884,8 +871,4 @@ def main():
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['test']:
-        del sys.argv[1]
-        unittest.main()
-    else:
-        main()
+    main()
