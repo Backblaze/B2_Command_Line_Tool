@@ -2,4 +2,4 @@ arrow>=0.8.0,<0.13.1; python_version <= '3.4'
 arrow>=0.8.0; python_version > '3.4'
 b2sdk>=1.1.0,<1.2.0
 class-registry==2.1.2
-six>=1.10
+six>=1.13
