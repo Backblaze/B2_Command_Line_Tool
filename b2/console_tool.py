@@ -53,7 +53,7 @@ from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
     parse_millis_from_float_timestamp, parse_range
 from b2.cli_api import CliB2Api
 from b2.cli_bucket import CliBucket
-from b2.json_encoder import SetToListEncoder
+from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -190,8 +190,8 @@ class Command(object):
     def _print(self, *args):
         self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
 
-    def _print_json(self, data):
-        self._print(json.dumps(data, indent=4, sort_keys=True, cls=SetToListEncoder))
+    def _print_json(self, data, indent=4):
+        self._print(json.dumps(data, indent=indent, sort_keys=True, cls=B2CliJsonEncoder))
 
     def _print_stderr(self, *args, **kwargs):
         self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
@@ -441,7 +441,7 @@ class CopyFileById(Command):
             content_type=args.contentType,
             file_info=file_infos,
         )
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        self._print_json(response, indent=2)
         return 0
 
 
@@ -572,7 +572,7 @@ class DeleteFileVersion(Command):
             file_name = self._get_file_name_from_file_id(args.fileId)
 
         file_info = self.api.delete_file_version(args.fileId, file_name)
-        self._print(json.dumps(file_info.as_dict(), indent=2, sort_keys=True))
+        self._print_json(file_info, indent=2)
         return 0
 
     def _get_file_name_from_file_id(self, file_id):
@@ -669,7 +669,7 @@ class GetAccountInfo(Command):
             apiUrl=account_info.get_api_url(),
             downloadUrl=account_info.get_download_url()
         )
-        self._print(json.dumps(data, indent=4, sort_keys=True))
+        self._print_json(data)
         return 0
 
 
@@ -702,12 +702,11 @@ class GetBucket(Command):
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
         for b in self.api.list_buckets(args.bucketName):
-            result = copy.copy(b.bucket_dict)
-            result['options'] = list(result['options'])  # json dumper doesn't like sets
             if not args.showSize:
-                self._print(json.dumps(result, indent=4, sort_keys=True))
+                self._print_json(b)
                 return 0
             else:
+                result = b.as_dict()
                 # `files` is a generator. We don't want to collect all of the values from the
                 # generator, as there many be billions of files in a large bucket.
                 files = b.ls("", show_versions=True, recursive=True)
@@ -742,7 +741,7 @@ class GetFileInfo(Command):
 
     def run(self, args):
         response = self.api.get_file_info(args.fileId)
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        self._print_json(response, indent=2)
         return 0
 
 
@@ -827,8 +826,7 @@ class HideFile(Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
-        response = file_info.as_dict()
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        self._print_json(file_info, indent=2)
         return 0
 
 
@@ -842,72 +840,24 @@ class ListBuckets(Command):
 
         98c960fd1cb4390c5e0f0519  allPublic   my-bucket
 
+    Alternatively, the --json option produces machine-readable output
+    similar to the server api response format.
+
     Requires capability: listBuckets
     """
 
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--json', action='store_true')
+
     def run(self, args):
-        for b in self.api.list_buckets():
+        buckets = self.api.list_buckets()
+        if args.json:
+            self._print_json(list(buckets))
+            return 0
+
+        for b in buckets:
             self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
-        return 0
-
-
-@B2.register_subcommand
-class ListFileVersions(Command):
-    """
-    Lists the names of the files in a bucket, starting at the
-    given point.  This is a low-level operation that reports the
-    raw JSON returned from the service.  'b2 ls' provides a higher-
-    level view.  Optionally restricts the output (server-side) to the given prefix.
-
-    Requires capability: listFiles
-    """
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
-        parser.add_argument('startFileName', nargs='?')
-        parser.add_argument('startFileId', nargs='?')
-        parser.add_argument('maxToShow', nargs='?', type=int)
-        parser.add_argument('prefix', nargs='?')
-
-    def run(self, args):
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        cli_bucket = CliBucket(self.api, bucket.id_)
-        response = cli_bucket.list_file_versions(
-            args.startFileName,
-            args.startFileId,
-            args.maxToShow,
-            args.prefix,
-        )
-        self._print(json.dumps(response, indent=2, sort_keys=True))
-        return 0
-
-
-@B2.register_subcommand
-class ListFileNames(Command):
-    """
-    Lists the names of the files in a bucket, starting at the
-    given point.  Optionally restricts the output (server-side) to the given prefix.
-
-    Requires capability: listFiles
-    """
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
-        parser.add_argument('startFileName', nargs='?')
-        parser.add_argument('maxToShow', nargs='?', type=int)
-        parser.add_argument('prefix', nargs='?')
-
-    def run(self, args):
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        cli_bucket = CliBucket(self.api, bucket.id_)
-        response = cli_bucket.list_file_names(
-            args.startFileName,
-            args.maxToShow,
-            args.prefix,
-        )
-        self._print(json.dumps(response, indent=2, sort_keys=True))
         return 0
 
 
@@ -1064,6 +1014,9 @@ class Ls(Command):
     name.  Folders don't really exist in B2, so folders are
     shown with "-" in each of the fields other than the name.
 
+    The --json option produces machine-readable output similar to
+    the server api response format.
+
     The --versions option shows all versions of each file, not
     just the most recent.
 
@@ -1076,6 +1029,7 @@ class Ls(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
+        parser.add_argument('--json', action='store_true')
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--prefix', action='store_true')
@@ -1091,11 +1045,17 @@ class Ls(Command):
                 start_file_name += '/'
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file_version_info, folder_name in bucket.ls(
+        generator = bucket.ls(
             start_file_name,
             show_versions=args.versions,
             recursive=args.recursive,
-        ):
+        )
+
+        if args.json:
+            self._print_json([file_version_info for file_version_info, _ in generator])
+            return 0
+
+        for file_version_info, folder_name in generator:
             if not args.long:
                 self._print(folder_name or file_version_info.file_name)
             elif folder_name is not None:
@@ -1471,13 +1431,12 @@ class UploadFile(Command):
             min_part_size=args.minPartSize,
             progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
         )
-        response = file_info.as_dict()
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(response['fileId'])
+                "URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_)
             )
-        self._print(json.dumps(response, indent=2, sort_keys=True))
+        self._print_json(file_info, indent=2)
         return 0
 
 
