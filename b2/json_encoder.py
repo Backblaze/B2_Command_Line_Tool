@@ -20,6 +20,7 @@ class SetToListEncoder(json.JSONEncoder):
     '[1, 2, 3, "c", "b", "a"]'
     >>>
     """
+
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)

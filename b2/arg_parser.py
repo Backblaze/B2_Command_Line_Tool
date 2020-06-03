@@ -31,6 +31,7 @@ class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
 
     It removes default "usage: " text and prints usage for all subcommands.
     """
+
     def add_usage(self, usage, actions, groups, prefix=None):
         if prefix is None:
             prefix = ''
@@ -53,6 +54,7 @@ class ArgumentParser(argparse.ArgumentParser):
     It fixes indentation of the description, set the custom formatter as a default
     and use help message in case of error.
     """
+
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('formatter_class', RawTextHelpFormatter)
         description = kwargs.get('description', None)
