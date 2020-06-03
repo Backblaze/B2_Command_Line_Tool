@@ -20,48 +20,58 @@ this:
 
 # Usage
 
-    b2 authorize-account [<applicationKeyId>] [<applicationKey>]
-    b2 cancel-all-unfinished-large-files <bucketName>
-    b2 cancel-large-file <fileId>
-    b2 clear-account
-    b2 copy-file-by-id [--metadataDirective [copy|replace]] [--contentType <contentType>] \
-             [--info <key>=<value>]* [--range start,end] \
-             <sourceFileId> <destinationBucketName> <b2FileName>
-    b2 create-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
-    b2 create-key [--duration <validDurationSeconds>] [--bucket <bucketName>] [--namePrefix <namePrefix>] <keyName> <capabilities>
-    b2 delete-bucket <bucketName>
-    b2 delete-file-version [<fileName>] <fileId>
-    b2 delete-key <applicationKeyId>
-    b2 download-file-by-id [--noProgress] <fileId> <localFileName>
-    b2 download-file-by-name [--noProgress] <bucketName> <fileName> <localFileName>
-    b2 get-account-info
-    b2 get-bucket [--showSize] <bucketName>
-    b2 get-download-auth [--prefix <fileNamePrefix>] [--duration <durationInSeconds>] <bucketName>
-    b2 get-download-url-with-auth [--duration <durationInSeconds>] <bucketName> <fileName>
-    b2 get-file-info <fileId>
-    b2 help [commandName]
-    b2 hide-file <bucketName> <fileName>
-    b2 list-buckets
-    b2 list-file-names <bucketName> [<startFileName>] [<maxToShow>]
-    b2 list-file-versions <bucketName> [<startFileName>] [<startFileId>] [<maxToShow>]
-    b2 list-keys
-    b2 list-parts <largeFileId>
-    b2 list-unfinished-large-files <bucketName>
-    b2 ls [--long] [--versions] [--recursive] <bucketName> [<folderName>]
-    b2 make-friendly-url <bucketName> <fileName>
-    b2 make-url <fileId>
-    b2 sync [--delete] [--keepDays N] [--skipNewer] [--replaceNewer] \
-        [--compareVersions <option>] [--compareThreshold N] \
-        [--threads N] [--noProgress] [--dryRun ] [--allowEmptySource ] \
-        [--excludeRegex <regex> [--includeRegex <regex>]] \
-        [--excludeDirRegex <regex>] \
-        [--excludeAllSymlinks ] \
-        <source> <destination>
-    b2 update-bucket [--bucketInfo <json>] [--corsRules <json>] [--lifecycleRules <json>] <bucketName> [allPublic | allPrivate]
-    b2 upload-file [--sha1 <sha1sum>] [--contentType <contentType>] \
-        [--info <key>=<value>]* [--minPartSize N] \
-        [--noProgress] [--threads N] <bucketName> <localFilePath> <b2FileName>
-    b2 version
+    b2 authorize-account [-h] [applicationKeyId] [applicationKey]
+    b2 cancel-all-unfinished-large-files [-h] bucketName
+    b2 cancel-large-file [-h] fileId
+    b2 clear-account [-h]
+    b2 copy-file-by-id [-h] [--metadataDirective {copy,replace}]
+                       [--contentType CONTENTTYPE] [--range RANGE] [--info INFO]
+                       sourceFileId destinationBucketName b2FileName
+    b2 create-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES]
+                     [--lifecycleRules LIFECYCLERULES]
+                     bucketName bucketType
+    b2 create-key [-h] [--bucket BUCKET] [--namePrefix NAMEPREFIX]
+                  [--duration DURATION]
+                  keyName capabilities
+    b2 delete-bucket [-h] bucketName
+    b2 delete-file-version [-h] [fileName] fileId
+    b2 delete-key [-h] applicationKeyId
+    b2 download-file-by-id [-h] [--noProgress] fileId localFileName
+    b2 download-file-by-name [-h] [--noProgress]
+                             bucketName b2FileName localFileName
+    b2 get-account-info [-h]
+    b2 get-bucket [-h] [--showSize] bucketName
+    b2 get-file-info [-h] fileId
+    b2 get-download-auth [-h] [--prefix PREFIX] [--duration DURATION] bucketName
+    b2 get-download-url-with-auth [-h] [--duration DURATION] bucketName fileName
+    b2 hide-file [-h] bucketName fileName
+    b2 list-buckets [-h]
+    b2 list-file-versions [-h]
+                          bucketName [startFileName] [startFileId] [maxToShow]
+                          [prefix]
+    b2 list-file-names [-h] bucketName [startFileName] [maxToShow] [prefix]
+    b2 list-keys [-h] [--long]
+    b2 list-parts [-h] largeFileId
+    b2 list-unfinished-large-files [-h] bucketName
+    b2 ls [-h] [--long] [--versions] [--recursive] [--prefix]
+          bucketName [folderName]
+    b2 make-url [-h] fileId
+    b2 make-friendly-url [-h] bucketName fileName
+    b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource]
+            [--excludeAllSymlinks] [--threads THREADS]
+            [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS]
+            [--excludeRegex REGEX] [--includeRegex REGEX]
+            [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP]
+            [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS]
+            source destination
+    b2 update-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES]
+                     [--lifecycleRules LIFECYCLERULES]
+                     bucketName bucketType
+    b2 upload-file [-h] [--noProgress] [--quiet] [--contentType CONTENTTYPE]
+                   [--minPartSize MINPARTSIZE] [--sha1 SHA1] [--threads THREADS]
+                   [--info INFO]
+                   bucketName localFilePath b2FileName
+    b2 version [-h]
 
 
 The environment variable B2_ACCOUNT_INFO specifies the sqlite

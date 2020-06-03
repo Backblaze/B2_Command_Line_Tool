@@ -639,36 +639,6 @@ class TestConsoleTool(TestBase):
                 0,
             )
 
-            # Invalid range size
-            expected_stderr = "ERROR: --range must be exactly 2 values, start and end\n"
-            self._run_command(
-                ['copy-file-by-id', '--range', '3,9,11', '9999', 'my-bucket', 'file1_copy.txt'],
-                '',
-                expected_stderr,
-                1,
-            )
-
-            # Invalid range values
-            expected_stderr = "ERROR: --range start and end must be integers\n"
-            self._run_command(
-                ['copy-file-by-id', '--range', '3,abc', '9999', 'my-bucket', 'file1_copy.txt'],
-                '',
-                expected_stderr,
-                1,
-            )
-
-            # Invalid metadata value
-            expected_stderr = "ERROR: --metadataDirective value is not supported. Supported values are: COPY, REPLACE\n"
-            self._run_command(
-                [
-                    'copy-file-by-id', '--metadataDirective', 'random', '9999', 'my-bucket',
-                    'file1_copy.txt'
-                ],
-                '',
-                expected_stderr,
-                1,
-            )
-
             # Invalid metadata copy with file info
             expected_stderr = "ERROR: content_type and file_info should be None when metadata_directive is COPY\n"
             self._run_command(
@@ -1203,16 +1173,6 @@ class TestConsoleTool(TestBase):
                 'b2://my-bucket'
             ]
             self._run_command(command, '', '', 0)
-
-    def test_sync_syntax_error(self):
-        self._authorize_account()
-        self._create_my_bucket()
-        expected_stderr = 'ERROR: --includeRegex cannot be used without --excludeRegex at the same time\n'
-        self._run_command(
-            ['sync', '--includeRegex', '.incl', 'non-existent-local-folder', 'b2://my-bucket'],
-            expected_stderr=expected_stderr,
-            expected_status=1
-        )
 
     def test_sync_dry_run(self):
         self._authorize_account()
