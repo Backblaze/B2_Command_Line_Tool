@@ -1612,3 +1612,7 @@ def main():
     logging.shutdown()
 
     os._exit(exit_status)
+
+
+if __name__ == '__main__':
+    main()
