@@ -13,7 +13,6 @@ import json
 from b2sdk.v1 import FileVersionInfo, FileIdAndName, Bucket
 
 
-
 class B2CliJsonEncoder(json.JSONEncoder):
     """
     Makes it possible to serialize b2sdk objects

@@ -1431,9 +1431,7 @@ class UploadFile(Command):
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
-            self._print(
-                "URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_)
-            )
+            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
         self._print_json(file_info, indent=2)
         return 0
 
