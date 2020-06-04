@@ -11,7 +11,6 @@
 from __future__ import absolute_import, print_function
 
 import argparse
-import copy
 import datetime
 import functools
 import getpass
@@ -52,7 +51,6 @@ from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
     parse_millis_from_float_timestamp, parse_range
 from b2.cli_api import CliB2Api
-from b2.cli_bucket import CliBucket
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
