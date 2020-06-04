@@ -5,6 +5,11 @@ notifications:
 #dist: trusty  # on 2016-12-13 pypy builds were broken on trusty, so we'll stick to stable for now
 language: python
 
+env:
+  global:
+    - secure: "aanGLsCRbEwEYa6xuA/oOy75L3CuJiXjkjh57VkuMs8FO3LNukmmjC2YPVNKXDdFYk872duMqbW8gzaZJodQiJrzg0bDtbLA50/SzOzhyIMiBEqR7LQlEzWWLKX9mhs6HcJbCXofjSZp0jwByXZzWZY6Z68l78Ow4mg8mS5nuBV4MqzlUEywqwaf4a1dXF48XwGkTyTilNZ6zRcaWR4BTG8lW86PgHc9wCODST4SqWOJn/etjAcDZXCgMuKW/IizK0Uv8ZebwkUTEHrLgam75SjQvGnQa6jr1kcYBObKLZFWvzRFyZbsBIur0g4Itv1SVIShF7vrYKUdzJczoZMXMuWmxikN9YoM+8hr6btpXswGRnd0WP7Ldk6vDRlgLrJzLECnvvICtvQFZPu9EEO09DFWDbwjP0Ucgxnk4MRnTMtz6rzGOdyXsi7dG2e/ayvTI7r/7hYy0h2HNOtlv1w0xrNwqhSNZd+NRr/APYqNhi1wcBWumzOW6ohvx8hmvDz3TEyAzQQuhe/j65yfhHNNg9YtfOhp8qF0OVt7Mt7pKTgFSqQ5sR6i7GlWPlxBA0PdrOhQ/RDo2BsF85130NEQGWJgnRPGOfjGuSBhMqTIyRW9MTIVyaLUruut4dzmKa1IKQa1zoQKif4q2Z2nypGArlm0dPp8mRecvUDZSJiXMX4="
+    - secure: "LHc2wLFb9EDIrky9Z1w7mTMlBtoTWc880eS5LL30b0uRzby3QDEITqoInhPQlwpwnupe4DqnLiiYOvxQo+aJD1QotBqupjY6Nx2FkYeN5vkD7ymvBj2jFbecSxRLaJrNys7N/HjfXba+jvLCUntUAqNkMcB3a4D0mWYcNr3K8q7qfZpJNUdSKMjGH11sq55flqahYW+yo11+ESL3N2Mdkd+6c141xpHlKTVocaHt83vfXDfow7jD1BQuqtr2wQo0syFP6lh4b7MVTsmWHtKlbhCIC3DB0JrAg1IevMNC3imDV3injAj4S/R8oXKiMxg31ckB/Wb4rFSvB+aSUb6740u3KrzyRZJpaIjF9ul9Rl7Oyh0rPbKIj0/sx1fZMMiMi5qxjJN4r6fyVhmFDAWIyTPj8Fk7YFf/uK4xuKf63J2jPX0O/mHeoDT0qsD0aGHfem5hhqbWqZkllCxQvHQQjMYq1wj7bP+l4WIHxWLUcQNLxpS8cyRbIofdcBTwv7yYpv1JYdMMstDBmppm01RXW/dkV7vSbAgy+FfQOFT8yPzLDIS8WiI9oAM9NKRCECHeTVYU2Ui6Ny1fsWVGnaJ9kRzRGmQu+5KxjDuvSfY7qRPHxdVqw+Qsckq8ZX1s88W3Dgbyo/JXYwRUon6ecWFv2zeTmZuXPxVJ47t+kr7z8bM="
+
 python:
   - 2.7
   - 3.5
@@ -23,6 +28,7 @@ branches:
   # - branches that we care about (not work-in-progress) are listed below
   only:
     - master
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/  # tags in v1.2.3 format
 
 matrix:
   allow_failures:
@@ -33,26 +39,25 @@ matrix:
     # Python 2 and once on Python 3.
     - python: 2.7
       env: MODE=SCA
-    - python: 3.5
+    - python: 3.8
       env: MODE=SCA
 
-    # Enable nightly without globally enabling sudo and xenial for other build jobs
-    # disabled because nosetests is not supported on 3.9. We'll move to pytest.
-    # disabled by commenting out because Travis does not listen to matrix.allow_failures.python = [pypy3, nightly] for some reason
+    # nightly
     - python: nightly
-    #  dist: xenial
-    #  sudo: true
 
-    - python: 3
+    # OS X
+    - python: 3.8
       os: osx
-      language: generic
+      language: bash
       env:
-        - OS_X_PYTHON_VERSION=python3
+        - TRAVIS_PYTHON_VERSION=3.8
       before_cache:
         - rm -f "$HOME/Library/Caches/pip/log/debug.log"
-      addons:
-        homebrew:
-          packages: python3
+      # Homebrew bundle is deprecated, we use pyenv to install specific python version.
+      # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/15
+      # addons:
+      #   homebrew:
+      #   packages: python3
 
     # pypy
     - python: pypy
@@ -62,37 +67,76 @@ matrix:
     - python: pypy3
       env: PYPY_VERSION=pypy3-2.4.0
 
-    # test_raw_api takes too long to be run in every cell of the build matrix
+    # integration tests take too long to be run in every cell of the build matrix
     - python: 2.7
       env: MODE=TEST_RAW_API
-    - python: 3.6
+    - python: 3.8
       env: MODE=TEST_RAW_API
 
     # coverage
-    - python: 3.5
+    - python: 3.8
       env: MODE=coverage
+
+    # deploy
+    - python: 3.8
+      os: linux
+      dist: xenial
+      git:
+        depth: false
+      env:
+        - MODE=deploy
+    - python: 3.8
+      os: osx
+      language: bash
+      git:
+        depth: false
+      env:
+        - TRAVIS_PYTHON_VERSION=3.8
+        - MODE=deploy
+      before_cache:
+        - rm -f "$HOME/Library/Caches/pip/log/debug.log"
+      # Homebrew bundle is deprecated, we use pyenv to install specific python version.
+      # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/15
+      # addons:
+      #   homebrew:
+      #   packages: python3
+    - python: 3.8
+      os: windows
+      language: bash
+      git:
+        depth: false
+      env:
+        - TRAVIS_PYTHON_VERSION=3.8
+        - MODE=deploy
 
 cache:
   - pip
   - directories:
     - $HOME/.eggs
-    # custom pypy versions
     - $HOME/.pyenv
-    # OS X
-    - $HOME/.virtualenvs/osx-python3
 before_install:
-  - uname -a
-  - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then lsb_release -a; fi
+  - if [[ "$TRAVIS_OS_NAME" != "windows" ]]; then uname -a; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then lsb_release -a; fi
   - |
-        # install python on OS X
+        # install Python 3 on non-linux OSes
         if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-            travis_retry pip3 install virtualenv
-            if [ ! -e "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate" ]; then
-                virtualenv -p "$OS_X_PYTHON_VERSION" "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION"
+            export PYENV_ROOT="$HOME/.pyenv"
+            if [ -f "$PYENV_ROOT/bin/pyenv" ]; then
+                pushd "$PYENV_ROOT" && git pull && popd
             else
-                echo 'skip virtualenv'
+                rm -rf "$PYENV_ROOT" && git clone --depth 1 https://github.com/pyenv/pyenv.git "$PYENV_ROOT"
             fi
-            source "$HOME/.virtualenvs/osx-$OS_X_PYTHON_VERSION/bin/activate"
+            travis_retry env PYTHON_CONFIGURE_OPTS="--enable-framework" pyenv install --skip-existing 3.8.2
+            pyenv global 3.8.2
+            travis_retry pip3 install virtualenv
+            virtualenv -p python3 .venv
+            source ".venv/bin/activate"
+        elif [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
+            travis_retry choco install python --version 3.8
+            export PATH="/C/Python38:/C/Python38/Scripts:$PATH"
+            travis_retry pip3 install virtualenv
+            virtualenv -p python3 .venv
+            source ".venv/Scripts/activate"
         else
             echo skip
         fi
@@ -128,7 +172,13 @@ install:
   - pip install -r requirements-setup.txt
   - pip install -r requirements-test.txt
   - pip install 'https://github.com/reef-technologies/b2-sdk-python/archive/shipping_split_fixes.zip#egg=b2sdk'
-
+  - |
+        # fix a problem with dateutil and pyinstaller on Windows
+        # https://github.com/crsmithdev/arrow/issues/353
+        if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
+            pip uninstall -y python-dateutil
+            easy_install python-dateutil
+        fi
   - |
         # coverage has additional requirements
         if [ "$MODE" == 'coverage' ]; then
@@ -232,12 +282,49 @@ script:
         if [ "$MODE" == 'SCA' ]; then
             echo skip
         else
-            if [ -n "$OS_X_PYTHON_VERSION" ]; then
+            if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
                 # install action fails on osx for unknown reason
                 python setup.py develop
             else
                 python setup.py install
             fi
+        fi
+
+  # integration tests
+  - |
+        if [ -n "$TEST_APPLICATION_KEY_ID" -a "$MODE" == "TEST_RAW_API" ]; then
+            python test_b2_command_line.py "$TEST_APPLICATION_KEY_ID" "$TEST_APPLICATION_KEY"
+        else
+            echo skip
+        fi
+
+  # deploy
+  - |
+        if [ -n "$TEST_APPLICATION_KEY_ID" -a "$MODE" == 'deploy' ]; then
+            if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+                B2_DIR=release/$TRAVIS_OS_NAME
+                B2_BINARY=b2
+            elif [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
+                B2_DIR=release/$TRAVIS_OS_NAME
+                B2_BINARY=b2.exe
+            else
+                B2_DIR=release/$TRAVIS_OS_NAME/$TRAVIS_DIST
+                B2_BINARY=b2
+            fi
+            # create a bundle
+            pyinstaller --onefile b2.spec
+            # run integration tests
+            python test_b2_command_line.py --command=./dist/$B2_BINARY "$TEST_APPLICATION_KEY_ID" "$TEST_APPLICATION_KEY"
+            if [ -n "$TRAVIS_TAG" ]; then
+                # upload the bundle to the B2 cloud
+                B2_VERSION=$(dist/$B2_BINARY version)
+                B2_TAG=$(git describe --tags --first-parent --always)
+                echo "Uploading \"$B2_VERSION\" created from $B2_TAG to the: $B2_DIR/$B2_BINARY"
+                dist/$B2_BINARY authorize-account "$TEST_APPLICATION_KEY_ID" "$TEST_APPLICATION_KEY"
+                dist/$B2_BINARY upload-file --noProgress --info="b2_version=$B2_VERSION" --info="b2_tag=$B2_TAG" "$DEPLOY_BUCKET_NAME" dist/$B2_BINARY $B2_DIR/$B2_BINARY
+            fi
+        else
+            echo skip
         fi
 
 after_success:
