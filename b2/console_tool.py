@@ -841,7 +841,7 @@ class ListBuckets(Command):
         98c960fd1cb4390c5e0f0519  allPublic   my-bucket
 
     Alternatively, the --json option produces machine-readable output
-    similar to the server api response format.
+    similar (but not identical) to the server api response format.
 
     Requires capability: listBuckets
     """
