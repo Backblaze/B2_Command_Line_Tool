@@ -351,7 +351,7 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['get-bucket', 'my-bucket-a'], expected_get_bucket_stdout, '', 0)
         self._run_command(
-            ['list-file-names', 'my-bucket-c'], '',
+            ['ls', '--json', 'my-bucket-c'], '',
             'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
         )
 
@@ -423,7 +423,12 @@ class TestConsoleTool(TestBase):
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
               "fileId": "9999",
+              "fileInfo": {{
+                "src_last_modified_millis": "1500111222000"
+              }},
               "fileName": "file1.txt",
               "size": 11,
               "uploadTimestamp": 5000
@@ -436,7 +441,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Get file info
-            mod_time_str = str(int(os.path.getmtime(local_file1) * 1000))
+            mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
             {{
               "accountId": "{account_id}",
@@ -489,7 +494,9 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             {{
               "action": "hide",
+              "contentSha1": "none",
               "fileId": "9998",
+              "fileInfo": {{}},
               "fileName": "file1.txt",
               "size": 0,
               "uploadTimestamp": 5001
@@ -500,47 +507,39 @@ class TestConsoleTool(TestBase):
 
             # List the file versions
             expected_stdout = '''
-            {{
-              "files": [
+            [
                 {{
-                  "action": "hide",
-                  "contentLength": 0,
-                  "contentSha1": "none",
-                  "contentType": null,
-                  "fileId": "9998",
-                  "fileInfo": {{}},
-                  "fileName": "file1.txt",
-                  "uploadTimestamp": 5001
+                    "action": "hide",
+                    "contentSha1": "none",
+                    "fileId": "9998",
+                    "fileInfo": {{}},
+                    "fileName": "file1.txt",
+                    "size": 0,
+                    "uploadTimestamp": 5001
                 }},
                 {{
-                  "action": "upload",
-                  "contentLength": 11,
-                  "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-                  "contentType": "b2/x-auto",
-                  "fileId": "9999",
-                  "fileInfo": {{
-                    "src_last_modified_millis": "%s"
-                  }},
-                  "fileName": "file1.txt",
-                  "uploadTimestamp": 5000
+                    "action": "upload",
+                    "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                    "contentType": "b2/x-auto",
+                    "fileId": "9999",
+                    "fileInfo": {{
+                        "src_last_modified_millis": "%s"
+                    }},
+                    "fileName": "file1.txt",
+                    "size": 11,
+                    "uploadTimestamp": 5000
                 }}
-              ],
-              "nextFileId": null,
-              "nextFileName": null
-            }}
+            ]
             ''' % (mod_time_str,)
 
-            self._run_command(['list-file-versions', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['ls', '--json', '--versions', 'my-bucket'], expected_stdout, '', 0)
 
             # List the file names
             expected_stdout = '''
-            {{
-              "files": [],
-              "nextFileName": null
-            }}
+            []
             '''
 
-            self._run_command(['list-file-names', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
 
             # Delete one file version, passing the name in
             expected_stdout = '''
@@ -582,7 +581,12 @@ class TestConsoleTool(TestBase):
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
               "fileId": "9999",
+              "fileInfo": {{
+                "src_last_modified_millis": "1500111222000"
+              }},
               "fileName": "file1.txt",
               "size": 11,
               "uploadTimestamp": 5000
@@ -832,17 +836,23 @@ class TestConsoleTool(TestBase):
             text = six.u('*') * file_size
             with open(file_path, 'wb') as f:
                 f.write(text.encode('utf-8'))
+            mod_time_str = str(file_mod_time_millis(file_path))
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/test.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
+              "contentSha1": "none",
+              "contentType": "b2/x-auto",
               "fileId": "9999",
+              "fileInfo": {{
+                "src_last_modified_millis": "%s"
+              }},
               "fileName": "test.txt",
               "size": 600,
               "uploadTimestamp": 5000
             }}
-            '''
+            ''' % (mod_time_str,)
 
             self._run_command(
                 [
@@ -926,17 +936,23 @@ class TestConsoleTool(TestBase):
         with TempDir() as temp_dir:
             # Upload a standard test file.
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
               "action": "upload",
+              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+              "contentType": "b2/x-auto",
               "fileId": "9999",
+              "fileInfo": {{
+                "src_last_modified_millis": "%s"
+              }},
               "fileName": "file1.txt",
               "size": 11,
               "uploadTimestamp": 5000
             }}
-            '''
+            ''' % (mod_time_str,)
             self._run_command(
                 ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_stdout, '', 0, None, True
@@ -1190,12 +1206,9 @@ class TestConsoleTool(TestBase):
 
             # file should not have been uploaded
             expected_stdout = '''
-            {{
-              "files": [],
-              "nextFileName": null
-            }}
+            []
             '''
-            self._run_command(['list-file-names', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
 
             # upload file
             expected_stdout = '''
@@ -1207,25 +1220,22 @@ class TestConsoleTool(TestBase):
             # file should have been uploaded
             mtime = file_mod_time_millis(temp_file)
             expected_stdout = '''
-            {{
-              "files": [
+            [
                 {{
-                  "action": "upload",
-                  "contentLength": 11,
-                  "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-                  "contentType": "b2/x-auto",
-                  "fileId": "9999",
-                  "fileInfo": {{
-                    "src_last_modified_millis": "%d"
-                  }},
-                  "fileName": "test-dry-run.txt",
-                  "uploadTimestamp": 5000
+                    "action": "upload",
+                    "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                    "contentType": "b2/x-auto",
+                    "fileId": "9999",
+                    "fileInfo": {{
+                        "src_last_modified_millis": "%d"
+                    }},
+                    "fileName": "test-dry-run.txt",
+                    "size": 11,
+                    "uploadTimestamp": 5000
                 }}
-              ],
-              "nextFileName": null
-            }}
+            ]
             ''' % mtime
-            self._run_command(['list-file-names', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
 
     def test_sync_exclude_all_symlinks(self):
         self._authorize_account()
