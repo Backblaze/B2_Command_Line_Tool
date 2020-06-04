@@ -250,7 +250,7 @@ class CommandLine(object):
             error_and_exit('did not match pattern: ' + expected_pattern)
 
     def list_file_versions(self, bucket_name):
-        return self.should_succeed_json(['list-file-versions', bucket_name])['files']
+        return self.should_succeed_json(['ls', '--json', '--versions', bucket_name])
 
 
 class TestCommandLine(unittest.TestCase):
@@ -274,8 +274,7 @@ def should_equal(expected, actual):
 
 def delete_files_in_bucket(b2_tool, bucket_name):
     while True:
-        data = b2_tool.should_succeed_json(['list-file-versions', bucket_name])
-        files = data['files']
+        files = b2_tool.should_succeed_json(['ls', '--json', '--versions', bucket_name])
         if len(files) == 0:
             return
         for file_info in files:
@@ -400,36 +399,34 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
-    list_of_files = b2_tool.should_succeed_json(['list-file-names', bucket_name])
-    should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files['files']])
-    list_of_files = b2_tool.should_succeed_json(['list-file-names', bucket_name, 'b/2'])
-    should_equal(['b/2', 'd'], [f['fileName'] for f in list_of_files['files']])
-    list_of_files = b2_tool.should_succeed_json(['list-file-names', bucket_name, 'b', '2'])
-    should_equal(['b/1', 'b/2'], [f['fileName'] for f in list_of_files['files']])
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', bucket_name])
+    should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files])
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', bucket_name, 'b/2'])
+    should_equal(['b/2', 'd'], [f['fileName'] for f in list_of_files])
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', bucket_name, 'b', '2'])
+    should_equal(['b/1', 'b/2'], [f['fileName'] for f in list_of_files])
 
-    list_of_files = b2_tool.should_succeed_json(['list-file-versions', bucket_name])
-    should_equal(
-        ['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']]
-    )
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--versions', bucket_name])
+    should_equal(['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName'] for f in list_of_files])
     should_equal(
         ['upload', 'upload', 'upload', 'upload', 'hide', 'upload', 'upload'],
-        [f['action'] for f in list_of_files['files']]
+        [f['action'] for f in list_of_files]
     )
 
-    first_a_version = list_of_files['files'][0]
+    first_a_version = list_of_files[0]
 
-    first_c_version = list_of_files['files'][4]
-    second_c_version = list_of_files['files'][5]
-    list_of_files = b2_tool.should_succeed_json(['list-file-versions', bucket_name, 'c'])
-    should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files['files']])
+    first_c_version = list_of_files[4]
+    second_c_version = list_of_files[5]
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--versions', bucket_name, 'c'])
+    should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files])
     list_of_files = b2_tool.should_succeed_json(
-        ['list-file-versions', bucket_name, 'c', second_c_version['fileId']]
+        ['ls', '--json', '--versions', bucket_name, 'c', second_c_version['fileId']]
     )
-    should_equal(['c', 'd'], [f['fileName'] for f in list_of_files['files']])
+    should_equal(['c', 'd'], [f['fileName'] for f in list_of_files])
     list_of_files = b2_tool.should_succeed_json(
-        ['list-file-versions', bucket_name, 'c', second_c_version['fileId'], '1']
+        ['ls', '--json', '--versions', bucket_name, 'c', second_c_version['fileId'], '1']
     )
-    should_equal(['c'], [f['fileName'] for f in list_of_files['files']])
+    should_equal(['c'], [f['fileName'] for f in list_of_files])
 
     b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
