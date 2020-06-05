@@ -127,6 +127,7 @@ Changes:
 * Add `--json` parameter to `ls` and `list-buckets`
 * Remove `list-file-names` command. Use `ls --recursive --json` instead
 * Remove `list-file-versions` command. Use `ls --recursive --json --versions` instead
+* Normalize output indentation level to 4 spaces
 
 ## 1.4.2 (2019-10-03)
 

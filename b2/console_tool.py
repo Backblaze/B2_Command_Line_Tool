@@ -188,8 +188,8 @@ class Command(object):
     def _print(self, *args):
         self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
 
-    def _print_json(self, data, indent=4):
-        self._print(json.dumps(data, indent=indent, sort_keys=True, cls=B2CliJsonEncoder))
+    def _print_json(self, data):
+        self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder))
 
     def _print_stderr(self, *args, **kwargs):
         self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
@@ -439,7 +439,7 @@ class CopyFileById(Command):
             content_type=args.contentType,
             file_info=file_infos,
         )
-        self._print_json(response, indent=2)
+        self._print_json(response)
         return 0
 
 
@@ -570,7 +570,7 @@ class DeleteFileVersion(Command):
             file_name = self._get_file_name_from_file_id(args.fileId)
 
         file_info = self.api.delete_file_version(args.fileId, file_name)
-        self._print_json(file_info, indent=2)
+        self._print_json(file_info)
         return 0
 
     def _get_file_name_from_file_id(self, file_id):
@@ -739,7 +739,7 @@ class GetFileInfo(Command):
 
     def run(self, args):
         response = self.api.get_file_info(args.fileId)
-        self._print_json(response, indent=2)
+        self._print_json(response)
         return 0
 
 
@@ -824,7 +824,7 @@ class HideFile(Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
-        self._print_json(file_info, indent=2)
+        self._print_json(file_info)
         return 0
 
 
@@ -1432,7 +1432,7 @@ class UploadFile(Command):
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
-        self._print_json(file_info, indent=2)
+        self._print_json(file_info)
         return 0
 
 

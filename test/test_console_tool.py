@@ -422,16 +422,16 @@ class TestConsoleTool(TestBase):
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
-              "action": "upload",
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9999",
-              "fileInfo": {{
-                "src_last_modified_millis": "1500111222000"
-              }},
-              "fileName": "file1.txt",
-              "size": 11,
-              "uploadTimestamp": 5000
+                "action": "upload",
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1.txt",
+                "size": 11,
+                "uploadTimestamp": 5000
             }}
             '''
 
@@ -444,18 +444,18 @@ class TestConsoleTool(TestBase):
             mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
             {{
-              "accountId": "{account_id}",
-              "action": "upload",
-              "bucketId": "bucket_0",
-              "contentLength": 11,
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9999",
-              "fileInfo": {{
-                "src_last_modified_millis": "1500111222000"
-              }},
-              "fileName": "file1.txt",
-              "uploadTimestamp": 5000
+                "accountId": "{account_id}",
+                "action": "upload",
+                "bucketId": "bucket_0",
+                "contentLength": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1.txt",
+                "uploadTimestamp": 5000
             }}
             '''
 
@@ -493,13 +493,13 @@ class TestConsoleTool(TestBase):
             # Hide the file
             expected_stdout = '''
             {{
-              "action": "hide",
-              "contentSha1": "none",
-              "fileId": "9998",
-              "fileInfo": {{}},
-              "fileName": "file1.txt",
-              "size": 0,
-              "uploadTimestamp": 5001
+                "action": "hide",
+                "contentSha1": "none",
+                "fileId": "9998",
+                "fileInfo": {{}},
+                "fileName": "file1.txt",
+                "size": 0,
+                "uploadTimestamp": 5001
             }}
             '''
 
@@ -544,9 +544,9 @@ class TestConsoleTool(TestBase):
             # Delete one file version, passing the name in
             expected_stdout = '''
             {{
-              "action": "delete",
-              "fileId": "9998",
-              "fileName": "file1.txt"
+                "action": "delete",
+                "fileId": "9998",
+                "fileName": "file1.txt"
             }}
             '''
 
@@ -555,9 +555,9 @@ class TestConsoleTool(TestBase):
             # Delete one file version, not passing the name in
             expected_stdout = '''
             {{
-              "action": "delete",
-              "fileId": "9999",
-              "fileName": "file1.txt"
+                "action": "delete",
+                "fileId": "9999",
+                "fileName": "file1.txt"
             }}
             '''
 
@@ -580,16 +580,16 @@ class TestConsoleTool(TestBase):
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
-              "action": "upload",
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9999",
-              "fileInfo": {{
-                "src_last_modified_millis": "1500111222000"
-              }},
-              "fileName": "file1.txt",
-              "size": 11,
-              "uploadTimestamp": 5000
+                "action": "upload",
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1.txt",
+                "size": 11,
+                "uploadTimestamp": 5000
             }}
             '''
 
@@ -601,18 +601,18 @@ class TestConsoleTool(TestBase):
             # Copy File
             expected_stdout = '''
             {{
-              "accountId": "{account_id}",
-              "action": "copy",
-              "bucketId": "bucket_0",
-              "contentLength": 11,
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9998",
-              "fileInfo": {{
-                "src_last_modified_millis": "1500111222000"
-              }},
-              "fileName": "file1_copy.txt",
-              "uploadTimestamp": 5001
+                "accountId": "{account_id}",
+                "action": "copy",
+                "bucketId": "bucket_0",
+                "contentLength": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9998",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1_copy.txt",
+                "uploadTimestamp": 5001
             }}
             '''
             self._run_command(
@@ -622,18 +622,18 @@ class TestConsoleTool(TestBase):
             # Copy File with range parameter
             expected_stdout = '''
             {{
-              "accountId": "{account_id}",
-              "action": "copy",
-              "bucketId": "bucket_0",
-              "contentLength": 6,
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9997",
-              "fileInfo": {{
-                "src_last_modified_millis": "1500111222000"
-              }},
-              "fileName": "file1_copy.txt",
-              "uploadTimestamp": 5002
+                "accountId": "{account_id}",
+                "action": "copy",
+                "bucketId": "bucket_0",
+                "contentLength": 6,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9997",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1_copy.txt",
+                "uploadTimestamp": 5002
             }}
             '''
             self._run_command(
@@ -676,18 +676,18 @@ class TestConsoleTool(TestBase):
             # replace with content type and file info
             expected_stdout = '''
             {{
-              "accountId": "{account_id}",
-              "action": "copy",
-              "bucketId": "bucket_0",
-              "contentLength": 11,
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "text/plain",
-              "fileId": "9996",
-              "fileInfo": {{
-                "a": "b"
-              }},
-              "fileName": "file1_copy.txt",
-              "uploadTimestamp": 5003
+                "accountId": "{account_id}",
+                "action": "copy",
+                "bucketId": "bucket_0",
+                "contentLength": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "text/plain",
+                "fileId": "9996",
+                "fileInfo": {{
+                    "a": "b"
+                }},
+                "fileName": "file1_copy.txt",
+                "uploadTimestamp": 5003
             }}
             '''
             self._run_command(
@@ -721,18 +721,18 @@ class TestConsoleTool(TestBase):
             self._run_command(['create-bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
             expected_stdout = '''
             {{
-              "accountId": "{account_id}",
-              "action": "copy",
-              "bucketId": "bucket_1",
-              "contentLength": 11,
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9994",
-              "fileInfo": {{
-                "src_last_modified_millis": "1500111222000"
-              }},
-              "fileName": "file1_copy.txt",
-              "uploadTimestamp": 5004
+                "accountId": "{account_id}",
+                "action": "copy",
+                "bucketId": "bucket_1",
+                "contentLength": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9994",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1_copy.txt",
+                "uploadTimestamp": 5004
             }}
             '''
             self._run_command(
@@ -841,16 +841,16 @@ class TestConsoleTool(TestBase):
             URL by file name: http://download.example.com/file/my-bucket/test.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
-              "action": "upload",
-              "contentSha1": "none",
-              "contentType": "b2/x-auto",
-              "fileId": "9999",
-              "fileInfo": {{
-                "src_last_modified_millis": "%s"
-              }},
-              "fileName": "test.txt",
-              "size": 600,
-              "uploadTimestamp": 5000
+                "action": "upload",
+                "contentSha1": "none",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "%s"
+                }},
+                "fileName": "test.txt",
+                "size": 600,
+                "uploadTimestamp": 5000
             }}
             ''' % (mod_time_str,)
 
@@ -941,16 +941,16 @@ class TestConsoleTool(TestBase):
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
             {{
-              "action": "upload",
-              "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-              "contentType": "b2/x-auto",
-              "fileId": "9999",
-              "fileInfo": {{
-                "src_last_modified_millis": "%s"
-              }},
-              "fileName": "file1.txt",
-              "size": 11,
-              "uploadTimestamp": 5000
+                "action": "upload",
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "%s"
+                }},
+                "fileName": "file1.txt",
+                "size": 11,
+                "uploadTimestamp": 5000
             }}
             ''' % (mod_time_str,)
             self._run_command(
