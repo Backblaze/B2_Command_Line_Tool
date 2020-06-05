@@ -125,8 +125,8 @@ Changes:
 * Add `--excludeIfModifiedAfter` parameter for `sync`
 * Switch option parser to argparse: readthedocs documentation is now generated automatically
 * Add `--json` parameter to `ls` and `list-buckets`
-* Remove `list-file-names` command. Use `ls --json` instead
-* Remove `list-file-versions` command. Use `ls --json --versions` instead
+* Remove `list-file-names` command. Use `ls --recursive --json` instead
+* Remove `list-file-versions` command. Use `ls --recursive --json --versions` instead
 
 ## 1.4.2 (2019-10-03)
 
