@@ -250,7 +250,7 @@ class CommandLine(object):
             error_and_exit('did not match pattern: ' + expected_pattern)
 
     def list_file_versions(self, bucket_name):
-        return self.should_succeed_json(['ls', '--json', '--versions', bucket_name])
+        return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
 
 
 class TestCommandLine(unittest.TestCase):
@@ -418,15 +418,7 @@ def basic_test(b2_tool, bucket_name):
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', '--versions', bucket_name, 'c']
     )
-    should_equal(['c', 'c', 'd'], [f['fileName'] for f in list_of_files])
-    list_of_files = b2_tool.should_succeed_json(
-        ['ls', '--json', '--versions', bucket_name, 'c', second_c_version['fileId']]
-    )
-    should_equal(['c', 'd'], [f['fileName'] for f in list_of_files])
-    list_of_files = b2_tool.should_succeed_json(
-        ['ls', '--json', '--versions', bucket_name, 'c', second_c_version['fileId'], '1']
-    )
-    should_equal(['c'], [f['fileName'] for f in list_of_files])
+    should_equal([], [f['fileName'] for f in list_of_files])
 
     b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
@@ -497,13 +489,13 @@ def key_restrictions_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['authorize-account', key_two_id, key_two],)
     b2_tool.should_succeed(['get-bucket', bucket_name],)
-    b2_tool.should_succeed(['list-file-names', bucket_name],)
+    b2_tool.should_succeed(['ls', bucket_name],)
 
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['list-file-names', second_bucket_name], failed_list_files_err)
+    b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(['authorize-account', sys.argv[1], sys.argv[2]])
