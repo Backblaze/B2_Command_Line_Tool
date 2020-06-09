@@ -80,7 +80,7 @@ class TestConsoleTool(TestBase):
         """
 
         self._run_command(
-            ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
+            ['authorize_account', self.account_id, self.master_key], expected_stdout, '', 0
         )
 
         # Auth token should be in account info now

@@ -126,10 +126,22 @@ class Command(object):
         self.stderr = console_tool.stderr
 
     @classmethod
+    def name_and_alias(cls):
+        name = mixed_case_to_hyphens(cls.__name__)
+        alias = None
+        if '-' in name:
+            alias = name.replace('-', '_')
+        return name, alias
+
+    @classmethod
     def register_subcommand(cls, command_class):
         assert cls.subcommands_registry is not None, 'Initialize the registry class'
-        key = mixed_case_to_hyphens(command_class.__name__)
-        return cls.subcommands_registry.register(key=key)(command_class)
+        name, alias = command_class.name_and_alias()
+        decorator = cls.subcommands_registry.register(key=name)(command_class)
+        # Register alias if present
+        if alias is not None:
+            cls.subcommands_registry[alias] = command_class
+        return decorator
 
     @classmethod
     def get_parser(cls, subparsers=None, parents=None):
@@ -137,16 +149,19 @@ class Command(object):
             parents = []
 
         if subparsers is None:
+            name, _ = cls.name_and_alias()
             parser = ArgumentParser(
-                prog=mixed_case_to_hyphens(cls.__name__),
+                prog=name,
                 description=cls.__doc__.format(**DOC_STRING_DATA),
                 parents=parents,
             )
         else:
+            name, alias = cls.name_and_alias()
             parser = subparsers.add_parser(
-                mixed_case_to_hyphens(cls.__name__),
+                name,
                 description=cls.__doc__.format(**DOC_STRING_DATA),
                 parents=parents,
+                aliases=[alias] if alias is not None else ()
             )
 
         cls._setup_parser(parser)
