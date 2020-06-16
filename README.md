@@ -116,13 +116,18 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 Changes:
 
-* Switch to b2sdk api version v1
-* Remove the ability to import b2sdk classes through b2cli (it was temporary, please use b2sdk directly)
+* Switch to b2sdk api version v1: remove output of delete-bucket
+* Use b2sdk >1.1.0 (add large file server-side copy)
+* Remove the ability to import b2sdk classes through b2cli (please use b2sdk directly)
 * Remove official support for python 3.4
 * Add official support for python 3.8
-* Remove output of delete-bucket
 * Add `make-friendly-url` command
 * Add `--excludeIfModifiedAfter` parameter for `sync`
+* Switch option parser to argparse: readthedocs documentation is now generated automatically
+* Add `--json` parameter to `ls` and `list-buckets`
+* Remove `list-file-names` command. Use `ls --recursive --json` instead
+* Remove `list-file-versions` command. Use `ls --recursive --json --versions` instead
+* Normalize output indentation level to 4 spaces
 
 ## 1.4.2 (2019-10-03)
 

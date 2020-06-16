@@ -10,13 +10,15 @@
 
 import json
 
+from b2sdk.v1 import FileVersionInfo, FileIdAndName, Bucket
 
-class SetToListEncoder(json.JSONEncoder):
+
+class B2CliJsonEncoder(json.JSONEncoder):
     """
-    Makes it possible to serialize b2sdk bucket objects
-    (specifically bucket['options'] set) to json.
+    Makes it possible to serialize b2sdk objects
+    (specifically bucket['options'] set and FileVersionInfo/FileIdAndName) to json.
 
-    >>> json.dumps(set([1,2,3,'a','b','c']), cls=json_encoder.SetToListEncoder)
+    >>> json.dumps(set([1,2,3,'a','b','c']), cls=json_encoder.B2CliJsonEncoder)
     '[1, 2, 3, "c", "b", "a"]'
     >>>
     """
@@ -24,4 +26,10 @@ class SetToListEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
-        return super(SetToListEncoder, self).default(self, obj)
+        elif isinstance(obj, FileVersionInfo):
+            return obj.as_dict()
+        elif isinstance(obj, FileIdAndName):
+            return obj.as_dict()
+        elif isinstance(obj, Bucket):
+            return obj.as_dict()
+        return super(B2CliJsonEncoder, self).default(obj)
