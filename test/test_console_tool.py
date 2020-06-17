@@ -480,7 +480,7 @@ class TestConsoleTool(TestBase):
                 ], expected_stdout, '', 0
             )
             self.assertEqual(six.b('hello world'), self._read_file(local_download1))
-            self.assertEqual(mod_time, os.path.getmtime(local_download1))
+            self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
 
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
