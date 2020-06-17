@@ -46,10 +46,6 @@ this:
     b2 get-download-url-with-auth [-h] [--duration DURATION] bucketName fileName
     b2 hide-file [-h] bucketName fileName
     b2 list-buckets [-h]
-    b2 list-file-versions [-h]
-                          bucketName [startFileName] [startFileId] [maxToShow]
-                          [prefix]
-    b2 list-file-names [-h] bucketName [startFileName] [maxToShow] [prefix]
     b2 list-keys [-h] [--long]
     b2 list-parts [-h] largeFileId
     b2 list-unfinished-large-files [-h] bucketName
@@ -116,8 +112,8 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 Changes:
 
-* Switch to b2sdk api version v1: remove output of delete-bucket
-* Use b2sdk >1.1.0 (add large file server-side copy)
+* Switch to b2sdk api version v1: remove output of `delete-bucket`
+* Use b2sdk >1.1.0: add large file server-side copy
 * Remove the ability to import b2sdk classes through b2cli (please use b2sdk directly)
 * Remove official support for python 3.4
 * Add official support for python 3.8
