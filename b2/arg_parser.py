@@ -12,6 +12,7 @@ import argparse
 import textwrap
 
 import arrow
+import six
 
 try:
     from textwrap import indent
@@ -23,6 +24,21 @@ except ImportError:
                 yield prefix + line if line.strip() else line
 
         return ''.join(prefixed_lines())
+
+
+class _SubParsersAction(argparse._SubParsersAction):
+    def add_parser(self, name, **kwargs):
+        # In Python 2.7, there is no aliases. Add it.
+        if six.PY2:
+            aliases = kwargs.pop('aliases', ())
+            parser = super(_SubParsersAction, self).add_parser(name, **kwargs)
+            for alias in aliases:
+                self._name_parser_map[alias] = parser
+
+            return parser
+
+        # Do nothing more in case of Python 3
+        return super(_SubParsersAction, self).add_parser(name, **kwargs)
 
 
 class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
@@ -40,11 +56,19 @@ class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     def add_argument(self, action):
         if isinstance(action, argparse._SubParsersAction) and action.help is not argparse.SUPPRESS:
             usages = []
-            for choice in action.choices.values():
+            for choice in self._unique_choice_values(action):
                 usages.append(choice.format_usage())
             self.add_text(''.join(usages))
         else:
             super(RawTextHelpFormatter, self).add_argument(action)
+
+    @classmethod
+    def _unique_choice_values(cls, action):
+        seen = set()
+        seen_add = seen.add
+        for value in action.choices.values():
+            if not (value in seen or seen_add(value)):
+                yield value
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -61,6 +85,10 @@ class ArgumentParser(argparse.ArgumentParser):
         if description is not None:
             kwargs['description'] = self._format_description(description)
         super(ArgumentParser, self).__init__(*args, **kwargs)
+
+    def add_subparsers(self, **kwargs):
+        kwargs.setdefault('action', _SubParsersAction)
+        return super(ArgumentParser, self).add_subparsers(**kwargs)
 
     def error(self, message):
         self.print_help()
