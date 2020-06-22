@@ -45,11 +45,11 @@ this:
     b2 get-download-auth [-h] [--prefix PREFIX] [--duration DURATION] bucketName
     b2 get-download-url-with-auth [-h] [--duration DURATION] bucketName fileName
     b2 hide-file [-h] bucketName fileName
-    b2 list-buckets [-h]
+    b2 list-buckets [-h] [--json]
     b2 list-keys [-h] [--long]
     b2 list-parts [-h] largeFileId
     b2 list-unfinished-large-files [-h] bucketName
-    b2 ls [-h] [--long] [--versions] [--recursive] [--prefix]
+    b2 ls [-h] [--long] [--json] [--versions] [--recursive] [--prefix]
           bucketName [folderName]
     b2 make-url [-h] fileId
     b2 make-friendly-url [-h] bucketName fileName
@@ -124,6 +124,7 @@ Changes:
 * Remove `list-file-names` command. Use `ls --recursive --json` instead
 * Remove `list-file-versions` command. Use `ls --recursive --json --versions` instead
 * Normalize output indentation level to 4 spaces
+* Introduce bundled versions of B2 CLI for Linux, Mac OS and Windows
 
 ## 1.4.2 (2019-10-03)
 

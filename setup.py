@@ -51,13 +51,15 @@ with open('requirements-test.txt', encoding='utf-8') as f:
 with open('requirements-setup.txt', encoding='utf-8') as f:
     requirements_setup = f.read().splitlines()
 
+version = __import__('b2').__version__
+
 setup(
     name='b2',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='1.4.3',
+    version=version,
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
     long_description_content_type='text/markdown',
