@@ -820,7 +820,7 @@ def main():
     args = parse_args(tests=sorted(six.iterkeys(test_map)))
 
     defer_cleanup = True
-    bucket_name_prefix = 'test-b2-cli-' + args.account_id
+    bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
