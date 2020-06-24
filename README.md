@@ -108,7 +108,7 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 # Release History
 
-## 2.0.0 (2020-??-??)
+## 2.0.0 (2020-06-25)
 
 Changes:
 
