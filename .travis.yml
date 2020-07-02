@@ -295,6 +295,7 @@ script:
 
   # deploy
   - |
+        set -e
         if [ -n "$TEST_APPLICATION_KEY_ID" -a "$MODE" == 'deploy' ]; then
             if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
                 B2_DIR=release/$TRAVIS_OS_NAME
