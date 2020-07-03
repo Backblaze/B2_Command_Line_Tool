@@ -445,11 +445,11 @@ def basic_test(b2_tool, bucket_name):
 
     b2_tool.should_succeed(
         ['make-friendly-url', bucket_name, file_to_upload],
-        '^https://.*/file/%s/%s$' % (
+        '^https://.*/file/%s/%s\r?$' % (
             bucket_name,
             file_to_upload,
         ),
-    )
+    )  # \r? is for Windows, as $ doesn't match \r\n
 
 
 def key_restrictions_test(b2_tool, bucket_name):
