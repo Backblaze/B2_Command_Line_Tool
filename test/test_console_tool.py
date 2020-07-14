@@ -110,6 +110,25 @@ class TestConsoleTool(TestBase):
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
 
+    def test_authorize_towards_custom_realm(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+        expected_stdout = """
+        Using http://custom.example.com
+        """
+
+        self._run_command(
+            [
+                'authorize-account', '--environment', 'http://custom.example.com', self.account_id,
+                self.master_key
+            ], expected_stdout, '', 0
+        )
+
+        # Auth token should be in account info now
+        assert self.account_info.get_account_auth_token() is not None
+
     def test_create_key_and_authorize_with_it(self):
         # Start with authorizing with the master key
         self._authorize_account()

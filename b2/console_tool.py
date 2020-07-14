@@ -283,21 +283,20 @@ class AuthorizeAccount(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--dev', action='store_true', help=argparse.SUPPRESS)
-        parser.add_argument('--staging', action='store_true', help=argparse.SUPPRESS)
+        realm_group = parser.add_mutually_exclusive_group()
+        realm_group.add_argument('--dev', action='store_true', help=argparse.SUPPRESS)
+        realm_group.add_argument('--staging', action='store_true', help=argparse.SUPPRESS)
+        realm_group.add_argument('--environment', help=argparse.SUPPRESS)
+
         parser.add_argument('applicationKeyId', nargs='?')
         parser.add_argument('applicationKey', nargs='?')
 
     def run(self, args):
-        # Handle internal options for testing inside Backblaze.  These
-        # are not documented in the usage string.
-        realm = 'production'
-        if args.staging:
-            realm = 'staging'
-        if args.dev:
-            realm = 'dev'
+        # Handle internal options for testing inside Backblaze.
+        # These are not documented in the usage string.
+        realm = self._get_realm(args)
 
-        url = self.api.account_info.REALM_URLS[realm]
+        url = self.api.account_info.REALM_URLS.get(realm, realm)
         self._print('Using %s' % url)
 
         if args.applicationKeyId is None:
@@ -338,6 +337,17 @@ class AuthorizeAccount(Command):
             logger.exception('ConsoleTool account authorization error')
             self._print_stderr('ERROR: unable to authorize account: ' + str(e))
             return 1
+
+    @classmethod
+    def _get_realm(cls, args):
+        if args.dev:
+            return 'dev'
+        if args.staging:
+            return 'staging'
+        if args.environment:
+            return args.environment
+
+        return 'production'
 
 
 @B2.register_subcommand
