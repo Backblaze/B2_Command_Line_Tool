@@ -1572,19 +1572,6 @@ class ConsoleTool(object):
 get_parser = B2.get_parser
 
 
-def decode_sys_argv():
-    """
-    Returns the command-line arguments as unicode strings, decoding
-    whatever format they are in.
-
-    https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
-    """
-    if six.PY2:
-        encoding = sys.getfilesystemencoding()
-        return [arg.decode(encoding) for arg in sys.argv]
-    return sys.argv
-
-
 # TODO: import from b2sdk as soon as we rely on 1.0.0
 class InvalidArgument(B2Error):
     """
@@ -1609,8 +1596,7 @@ def main():
     cache = AuthInfoCache(info)
     b2_api = CliB2Api(info, cache=cache)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
-    decoded_argv = decode_sys_argv()
-    exit_status = ct.run_command(decoded_argv)
+    exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures

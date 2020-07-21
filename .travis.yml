@@ -6,13 +6,11 @@ notifications:
 language: python
 
 python:
-  - 2.7
   - 3.5
   - 3.6
   - 3.7
   - 3.8
   # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
-  #- pypy
   #- pypy3
 
 branches:
@@ -30,10 +28,7 @@ matrix:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
     - python: nightly  # problem with compiling cffi with python 3.10
   include:
-    # Source Code Analysis is slow.  We just run it once on
-    # Python 2 and once on Python 3.
-    - python: 2.7
-      env: MODE=SCA
+    # Source Code Analysis is slow, so we run it just once
     - python: 3.8
       env: MODE=SCA
 
@@ -55,16 +50,10 @@ matrix:
       #   packages: python3
 
     # pypy
-    - python: pypy
-      env: PYPY_VERSION=pypy-4.0.1
-    - python: pypy
-      env: PYPY_VERSION=pypy-5.1
     - python: pypy3
       env: PYPY_VERSION=pypy3-2.4.0
 
     # integration tests take too long to be run in every cell of the build matrix
-    - python: 2.7
-      env: MODE=TEST_RAW_API
     - python: 3.8
       env: MODE=TEST_RAW_API
 

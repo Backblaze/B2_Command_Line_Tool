@@ -1597,12 +1597,8 @@ class TestConsoleTool(TestBase):
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
     def _get_stdouterr(self):
-        class MyStringIO(six.StringIO):
-            if six.PY2:  # python3 already has this attribute
-                encoding = 'fake_encoding'
-
-        stdout = MyStringIO()
-        stderr = MyStringIO()
+        stdout = six.StringIO()
+        stderr = six.StringIO()
         return stdout, stderr
 
     def _run_command_ignore_output(self, argv):

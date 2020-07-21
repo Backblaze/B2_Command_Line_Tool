@@ -110,6 +110,8 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 ## Not released yet
 
+* Drop Python 2 support :tada:
+
 ## 2.0.2 (2020-07-15)
 
 Changes:
