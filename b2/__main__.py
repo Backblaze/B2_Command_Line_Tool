@@ -8,8 +8,6 @@
 #
 ######################################################################
 
-from __future__ import absolute_import
-
 from .console_tool import main
 
 main()

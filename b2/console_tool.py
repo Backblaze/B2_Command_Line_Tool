@@ -8,8 +8,6 @@
 #
 ######################################################################
 
-from __future__ import absolute_import, print_function
-
 import argparse
 import datetime
 import functools
@@ -24,7 +22,6 @@ import signal
 import sys
 import time
 
-import six
 from class_registry import ClassRegistry
 
 from b2sdk.account_info.sqlite_account_info import (
@@ -302,7 +299,7 @@ class AuthorizeAccount(Command):
         if args.applicationKeyId is None:
             args.applicationKeyId = (
                 os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR) or
-                six.moves.input('Backblaze application key ID: ')
+                input('Backblaze application key ID: ')
             )
 
         if args.applicationKey is None:
@@ -1012,9 +1009,8 @@ class ListUnfinishedLargeFiles(Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
-            file_info_text = six.u(' ').join(
-                '%s=%s' % (k, unfinished.file_info[k])
-                for k in sorted(six.iterkeys(unfinished.file_info))
+            file_info_text = ' '.join(
+                '%s=%s' % (k, unfinished.file_info[k]) for k in sorted(unfinished.file_info)
             )
             self._print(
                 '%s %s %s %s' %
@@ -1526,7 +1522,7 @@ class ConsoleTool(object):
         self._print('File size:   ', download_dest.content_length)
         self._print('Content type:', download_dest.content_type)
         self._print('Content sha1:', download_dest.content_sha1)
-        for name in sorted(six.iterkeys(download_dest.file_info)):
+        for name in sorted(download_dest.file_info):
             self._print('INFO', name + ':', download_dest.file_info[name])
         if download_dest.content_sha1 != 'none':
             self._print('checksum matches')

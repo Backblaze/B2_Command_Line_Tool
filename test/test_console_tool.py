@@ -11,7 +11,8 @@
 import json
 import os
 import re
-import six
+import unittest.mock as mock
+from io import StringIO
 
 from b2sdk.v1 import StubAccountInfo
 from b2sdk.v1 import B2Api
@@ -22,11 +23,6 @@ from b2sdk.v1 import TempDir
 from test_b2_command_line import file_mod_time_millis
 
 from .test_base import TestBase
-
-try:
-    import unittest.mock as mock
-except ImportError:
-    import mock
 
 
 class TestConsoleTool(TestBase):
@@ -498,7 +494,7 @@ class TestConsoleTool(TestBase):
                     local_download1
                 ], expected_stdout, '', 0
             )
-            self.assertEqual(six.b('hello world'), self._read_file(local_download1))
+            self.assertEqual(b'hello world', self._read_file(local_download1))
             self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
 
             # Download file by ID.  (Same expected output as downloading by name)
@@ -507,7 +503,7 @@ class TestConsoleTool(TestBase):
                 ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
                 '', 0
             )
-            self.assertEqual(six.b('hello world'), self._read_file(local_download2))
+            self.assertEqual(b'hello world', self._read_file(local_download2))
 
             # Hide the file
             expected_stdout = '''
@@ -803,7 +799,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = bucket.start_large_file('file', 'text/plain', {})
-        content = six.b('hello world')
+        content = b'hello world'
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False
         bucket.api.services.upload_manager._upload_part(
@@ -852,7 +848,7 @@ class TestConsoleTool(TestBase):
 
         with TempDir() as temp_dir:
             file_path = os.path.join(temp_dir, 'test.txt')
-            text = six.u('*') * file_size
+            text = '*' * file_size
             with open(file_path, 'wb') as f:
                 f.write(text.encode('utf-8'))
             mod_time_str = str(file_mod_time_millis(file_path))
@@ -1183,7 +1179,7 @@ class TestConsoleTool(TestBase):
         with TempDir() as temp_dir:
             file_path = os.path.join(temp_dir, 'test.txt')
             with open(file_path, 'wb') as f:
-                f.write(six.u('hello world').encode('utf-8'))
+                f.write('hello world'.encode('utf-8'))
             expected_stdout = '''
             upload test.txt
             '''
@@ -1597,8 +1593,8 @@ class TestConsoleTool(TestBase):
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
     def _get_stdouterr(self):
-        stdout = six.StringIO()
-        stderr = six.StringIO()
+        stdout = StringIO()
+        stderr = StringIO()
         return stdout, stderr
 
     def _run_command_ignore_output(self, argv):
@@ -1653,7 +1649,7 @@ class TestConsoleTool(TestBase):
     def _make_local_file(self, temp_dir, file_name):
         local_path = os.path.join(temp_dir, file_name)
         with open(local_path, 'wb') as f:
-            f.write(six.b('hello world'))
+            f.write(b'hello world')
         return local_path
 
     def _read_file(self, local_path):

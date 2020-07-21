@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 ######################################################################
 #
 # File: test_b2_command_line.py
@@ -9,8 +9,6 @@
 #
 ######################################################################
 
-from __future__ import print_function
-
 import argparse
 import hashlib
 import json
@@ -19,7 +17,6 @@ import platform
 import random
 import re
 import shutil
-import six
 import subprocess
 import sys
 import tempfile
@@ -79,7 +76,7 @@ def set_file_mod_time_millis(path, time):
 
 
 def random_hex(length):
-    return ''.join(random.choice('0123456789abcdef') for i in six.moves.xrange(length))
+    return ''.join(random.choice('0123456789abcdef') for _ in range(length))
 
 
 class TempDir(object):
@@ -817,7 +814,7 @@ def main():
         'download': download_test,
     }
 
-    args = parse_args(tests=sorted(six.iterkeys(test_map)))
+    args = parse_args(tests=sorted(test_map))
 
     defer_cleanup = True
     bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
