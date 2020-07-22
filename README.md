@@ -12,12 +12,6 @@ This tool can be installed with:
 
     pip install b2
 
-If you see a message saying that the `six` library cannot be installed, which
-happens if you're installing with the system python on OS X El Capitan, try
-this:
-
-    pip install --ignore-installed b2
-
 # Usage
 
     b2 authorize-account [-h] [applicationKeyId] [applicationKey]
@@ -109,6 +103,8 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 # Release History
 
 ## Not released yet
+
+* Drop Python 2 support :tada: (for old systems you can now use the [binary distribution](https://www.backblaze.com/b2/docs/quick_command_line.html))
 
 ## 2.0.2 (2020-07-15)
 

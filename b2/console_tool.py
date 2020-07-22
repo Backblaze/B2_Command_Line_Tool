@@ -8,8 +8,6 @@
 #
 ######################################################################
 
-from __future__ import absolute_import, print_function
-
 import argparse
 import datetime
 import functools
@@ -24,7 +22,6 @@ import signal
 import sys
 import time
 
-import six
 from class_registry import ClassRegistry
 
 from b2sdk.account_info.sqlite_account_info import (
@@ -302,7 +299,7 @@ class AuthorizeAccount(Command):
         if args.applicationKeyId is None:
             args.applicationKeyId = (
                 os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR) or
-                six.moves.input('Backblaze application key ID: ')
+                input('Backblaze application key ID: ')
             )
 
         if args.applicationKey is None:
@@ -1012,9 +1009,8 @@ class ListUnfinishedLargeFiles(Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
-            file_info_text = six.u(' ').join(
-                '%s=%s' % (k, unfinished.file_info[k])
-                for k in sorted(six.iterkeys(unfinished.file_info))
+            file_info_text = ' '.join(
+                '%s=%s' % (k, unfinished.file_info[k]) for k in sorted(unfinished.file_info)
             )
             self._print(
                 '%s %s %s %s' %
@@ -1526,7 +1522,7 @@ class ConsoleTool(object):
         self._print('File size:   ', download_dest.content_length)
         self._print('Content type:', download_dest.content_type)
         self._print('Content sha1:', download_dest.content_sha1)
-        for name in sorted(six.iterkeys(download_dest.file_info)):
+        for name in sorted(download_dest.file_info):
             self._print('INFO', name + ':', download_dest.file_info[name])
         if download_dest.content_sha1 != 'none':
             self._print('checksum matches')
@@ -1572,19 +1568,6 @@ class ConsoleTool(object):
 get_parser = B2.get_parser
 
 
-def decode_sys_argv():
-    """
-    Returns the command-line arguments as unicode strings, decoding
-    whatever format they are in.
-
-    https://stackoverflow.com/questions/846850/read-unicode-characters-from-command-line-arguments-in-python-2-x-on-windows
-    """
-    if six.PY2:
-        encoding = sys.getfilesystemencoding()
-        return [arg.decode(encoding) for arg in sys.argv]
-    return sys.argv
-
-
 # TODO: import from b2sdk as soon as we rely on 1.0.0
 class InvalidArgument(B2Error):
     """
@@ -1609,8 +1592,7 @@ def main():
     cache = AuthInfoCache(info)
     b2_api = CliB2Api(info, cache=cache)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
-    decoded_argv = decode_sys_argv()
-    exit_status = ct.run_command(decoded_argv)
+    exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 
     # I haven't tracked down the root cause yet, but in Python 2.7, the futures

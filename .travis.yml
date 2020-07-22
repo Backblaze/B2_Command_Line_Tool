@@ -6,13 +6,11 @@ notifications:
 language: python
 
 python:
-  - 2.7
   - 3.5
   - 3.6
   - 3.7
   - 3.8
   # stock versions of pypy provided by Travis CI don't work with cryptography 1.0
-  #- pypy
   #- pypy3
 
 branches:
@@ -30,10 +28,7 @@ matrix:
     - python: pypy3  # https://github.com/pyca/cryptography/issues/2880
     - python: nightly  # problem with compiling cffi with python 3.10
   include:
-    # Source Code Analysis is slow.  We just run it once on
-    # Python 2 and once on Python 3.
-    - python: 2.7
-      env: MODE=SCA
+    # Source Code Analysis is slow, so we run it just once
     - python: 3.8
       env: MODE=SCA
 
@@ -55,16 +50,10 @@ matrix:
       #   packages: python3
 
     # pypy
-    - python: pypy
-      env: PYPY_VERSION=pypy-4.0.1
-    - python: pypy
-      env: PYPY_VERSION=pypy-5.1
     - python: pypy3
       env: PYPY_VERSION=pypy3-2.4.0
 
     # integration tests take too long to be run in every cell of the build matrix
-    - python: 2.7
-      env: MODE=TEST_RAW_API
     - python: 3.8
       env: MODE=TEST_RAW_API
 
@@ -232,7 +221,6 @@ script:
   - if [ "$MODE" == 'SCA' ]; then egrep -r '^ *class [^\(]+(\(\))?:' . && exit 1 || true; else echo skip; fi  # old-style class detector
   - if [ "$MODE" == 'SCA' ]; then grep -r 'isinstance\(' . && exit 1 || true; else echo skip; fi  # very non-pythonic
   - if [ "$MODE" == 'SCA' ]; then egrep -r '\b(all|any)\(\[' . && exit 1 || true; else echo skip; fi  # a list is unnecesarily allocated where a generator expression could have been used
-  - if [ "$MODE" == 'SCA' ]; then grep -r '\_\_metaclass\_\_' . && exit 1 || true; else echo skip; fi  # bad metaclass declaration: use six
   - if [ "$MODE" == 'SCA' ]; then grep -P -r '^ *logger = (?!logging\.getLogger\(__name__\)$)' . | grep -v '.eggs/nose-' && exit 1 || true; else echo skip; fi  # bad logger definition: use `logger = logging.getLogger(__name__)`. See the magic logging metaclass.
   # FIXME: temporary switch off checking of year in licence headers
   # - |
