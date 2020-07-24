@@ -1,24 +1,28 @@
 # Release Process
 
-- Get the latest versions of dependencies
-  - `pip install --upgrade --upgrade-strategy eager -r requirements.txt -r requirements-test.txt -r requirements-setup.txt`
-- Bump the version number to an even number.
-  - version number is in: `b2/version.py`, `README.md`, and `setup.py`.
-- Update the release history in README.md.
-  - Put a date on the current release
-  - Create a new section at the top of release history: ## ?.?.? (????-??-??)
-- Copy the main usage string (from `python -m b2`) to README.md.
-- Run full tests (currently: `pre-commit.sh`)
+- Get the Nox:
+  - `pip install -U nox`
+- Bump the version number to an even number in `b2/version.py`.
+- Update the release history in `README.md` by changing "not released yet" to the current date for this release.
+- Copy the main usage string (from `python -m b2`) to `README.md`.
+- Run linters and tests:
+  - `export TEST_APPLICATION_KEY=your_app_key`
+  - `export TEST_APPLICATION_KEY_ID=your_app_key_id`
+  - `nox -x`
+- Build docs locally:
+  - `nox --non-interactive -xs doc`
 - Commit and push to GitHub, then wait for build to complete successfully.
+  - No need to make a branch. Push straight to `master`.
 - Tag in git and push tag to `origin`.  (Version tags look like `v0.4.6`.)
-- Upload to PyPI.
-  - `cd ~/sandbox/B2_Command_Line_Tool`    # or wherever your git repository is
-  - `rm -rf dist ; python setup.py sdist`
-  - `twine upload dist/*`
+    - `git tag vx.x.x`
+    - `git push origin vx.x.x`
+- Build the distribution and upload to PyPI.
+  - `nox -xs build deploy`
 - Install using `pip` and verify that it gets the correct version.
-- Upload binaries to github releases
- - Find the Travis build for the commit that is being released
- - Find `MODE=deploy` builds, open their logs and find the download links
- - Download the binary releases and upload them to github
-- Bump the version number to an odd number and commit.
+- Upload binaries to GitHub releases
+- Update for dev
+  - Bump the version number to an odd number (for example: 1.0.2 -> 1.0.3)
+  - Add a "not released yet" section in the release history, like: 0.8.4 (not released yet)
+  - check in
+- Push to GitHub again.
 - Update https://www.backblaze.com/b2/docs/quick_command_line.html

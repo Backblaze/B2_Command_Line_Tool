@@ -7,7 +7,6 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-
 """A setuptools based setup module.
 
 See:
@@ -25,7 +24,6 @@ from importlib import import_module
 # Always prefer setuptools over distutils
 from setuptools import __version__ as setuptoolsversion
 from setuptools import setup, find_packages
-
 
 #require at least setuptools 20.2 for PEP 508 conditional dependency support
 MIN_SETUPTOOLS_VERSION = (20, 2)

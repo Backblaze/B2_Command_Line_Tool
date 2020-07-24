@@ -24,7 +24,8 @@ REQUIREMENTS_LINT = [*REQUIREMENTS_FORMAT, 'pyflakes', 'flake8==3.8.3', 'pytest=
 REQUIREMENTS_TEST = ['nose==1.3.7', 'pytest==5.4.3', 'pytest-cov==2.10.0']
 REQUIREMENTS_BUILD = ['liccheck==0.4.7', 'setuptools>=20.2']
 REQUIREMENTS_DOC = [
-    'sphinx', 'sphinx-autobuild', 'sphinx_rtd_theme', 'sphinx-argparse', 'sphinxcontrib-plantuml', 'sadisplay'
+    'sphinx', 'sphinx-autobuild', 'sphinx_rtd_theme', 'sphinx-argparse', 'sphinxcontrib-plantuml',
+    'sadisplay'
 ]
 
 nox.options.reuse_existing_virtualenvs = True

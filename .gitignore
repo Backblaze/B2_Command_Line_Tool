@@ -6,6 +6,6 @@
 .nox/
 b2.egg-info
 build
-coverage.cml
+coverage.xml
 dist
 venv
