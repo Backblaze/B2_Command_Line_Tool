@@ -4,6 +4,7 @@
 .eggs/
 .idea
 .nox/
+.python-version
 b2.egg-info
 build
 coverage.xml
