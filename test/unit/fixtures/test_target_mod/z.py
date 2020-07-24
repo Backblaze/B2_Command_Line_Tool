@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/fixtures/test_target_mod/a/__init__.py
+# File: test/unit/fixtures/test_target_mod/z.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
@@ -8,9 +8,6 @@
 #
 ######################################################################
 
-import logging
-assert logging
 
-
-def f(x):
-    return x
+def f():
+    return 'from target'

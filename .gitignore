@@ -1,7 +1,11 @@
 *.pyc
+.codacy-coverage/
+.coverage
+.eggs/
 .idea
+.nox/
 b2.egg-info
 build
+coverage.cml
 dist
-.eggs/
 venv

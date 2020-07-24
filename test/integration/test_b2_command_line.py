@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ######################################################################
 #
-# File: test_b2_command_line.py
+# File: test/integration/test_b2_command_line.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
@@ -30,8 +30,6 @@ def parse_args(tests):
         prog='test_b2_comand_line.py',
         description='This program tests the B2 command-line client.',
     )
-    parser.add_argument('account_id', help='B2 Account ID')
-    parser.add_argument('application_key', help='B2 Application Key')
     parser.add_argument(
         'tests',
         help='Specifie which of the tests to run. If not specified, all test will run',
@@ -815,6 +813,9 @@ def main():
     }
 
     args = parse_args(tests=sorted(test_map))
+    print(args)
+    account_id = os.environ.get('TEST_APPLICATION_KEY_ID', '')
+    application_key = os.environ.get('TEST_APPLICATION_KEY', '')
 
     defer_cleanup = True
     bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
@@ -822,7 +823,7 @@ def main():
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(args.command, args.account_id, args.application_key)
+    b2_tool = CommandLine(args.command, account_id, application_key)
 
     global_dirty = False
     # Run each of the tests in its own empty bucket
@@ -835,7 +836,7 @@ def main():
 
         b2_tool.should_succeed(['clear-account'])
 
-        b2_tool.should_succeed(['authorize-account', args.account_id, args.application_key])
+        b2_tool.should_succeed(['authorize-account', account_id, application_key])
 
         if not defer_cleanup:
             clean_buckets(b2_tool, bucket_name_prefix)
@@ -865,6 +866,11 @@ def main():
         clean_buckets(b2_tool, bucket_name_prefix)
     print()
     print("ALL OK")
+
+
+def test_integration():
+    sys.argv = ['test_b2_command_line.py']
+    main()
 
 
 if __name__ == '__main__':

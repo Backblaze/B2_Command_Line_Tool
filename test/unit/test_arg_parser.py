@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/test_arg_parser.py
+# File: test/unit/test_arg_parser.py
 #
 # Copyright 2020 Backblaze Inc. All Rights Reserved.
 #

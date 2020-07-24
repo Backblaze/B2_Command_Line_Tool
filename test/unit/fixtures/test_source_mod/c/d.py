@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/fixtures/test_target_mod/z.py
+# File: test/unit/fixtures/test_source_mod/c/d.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
@@ -9,5 +9,5 @@
 ######################################################################
 
 
-def f():
-    return 'from target'
+def h(x):
+    return x + 2
