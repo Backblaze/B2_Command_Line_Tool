@@ -14,8 +14,11 @@ import subprocess
 import nox
 
 CI = os.environ.get('CI') is not None
-PYTHON_VERSIONS = ['3.5', '3.6', '3.7', '3.8']
-PYTHON_DEFAULT_VERSION = os.environ.get('PYTHON_DEFAULT_VERSION', PYTHON_VERSIONS[-1])
+NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
+
+PYTHON_VERSIONS = ['3.5', '3.6', '3.7', '3.8'] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
+PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
+
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 
 # TODO: remove nose and pyflakes

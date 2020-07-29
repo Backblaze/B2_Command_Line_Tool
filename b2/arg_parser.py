@@ -13,17 +13,6 @@ import textwrap
 
 import arrow
 
-try:
-    from textwrap import indent
-except ImportError:
-
-    def indent(text, prefix):
-        def prefixed_lines():
-            for line in text.splitlines(True):
-                yield prefix + line if line.strip() else line
-
-        return ''.join(prefixed_lines())
-
 
 class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     """
@@ -77,7 +66,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
     @classmethod
     def _format_description(cls, text):
-        return indent(textwrap.dedent(text), '  ')
+        return textwrap.indent(textwrap.dedent(text), '  ')
 
 
 def parse_comma_separated_list(s):

@@ -50,13 +50,16 @@ For example:
     nox > Running session format
     ...
 
+Session `test` can run on many Python versions, 3.5-3.8 by default.
+Sessions other than `test` use the last given Python version, 3.8 by default.
 
-Session `test` can run on many python versions.
-In order to do it, given Python interpreter must be installed in the operating system or via [pyenv](https://github.com/pyenv/pyenv).
+You can change it:
 
-Sessions other than `test` use the latest stable Python. You can change it:
+    export NOX_PYTHONS=3.6,3.7
 
-    export PYTHON_DEFAULT_VERSION=3.7
+With the above setting, session `test` will run on Python 3.6 and 3.7, and all other sessions on Python 3.7.
+
+Given Python interpreters should be installed in the operating system or via [pyenv](https://github.com/pyenv/pyenv).
 
 ## Linting
 
