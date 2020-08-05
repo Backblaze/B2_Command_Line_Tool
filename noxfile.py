@@ -106,7 +106,7 @@ def test(session):
 
     if session.posargs:
         # Run given test suite
-        session.run('pytest', '--cov=b2', '--cov-branch', '--cov-report=xml', *session.posargs)
+        session.run('pytest', *session.posargs)
     else:
         # By default, run all suites and show the coverage
         session.run(
