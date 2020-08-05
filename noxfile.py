@@ -21,9 +21,8 @@ PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 
-# TODO: remove nose and pyflakes
-REQUIREMENTS_FORMAT = ['docformatter==1.3.1', 'isort==5.1.1', 'yapf==0.27']
-REQUIREMENTS_LINT = [*REQUIREMENTS_FORMAT, 'pyflakes', 'flake8==3.8.3', 'pytest==5.4.3']
+REQUIREMENTS_FORMAT = ['yapf==0.27']
+REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes', 'flake8==3.8.3', 'pytest==5.4.3']
 REQUIREMENTS_TEST = ['nose==1.3.7', 'pytest==5.4.3', 'pytest-cov==2.10.0']
 REQUIREMENTS_BUILD = ['liccheck==0.4.7', 'setuptools>=20.2']
 REQUIREMENTS_DOC = [
@@ -105,6 +104,7 @@ def test(session):
             'test/unit'
         )
         session.run('pytest', '-s', 'test/integration', env=os.environ)
+        session.notify('cover')
 
 
 @nox.session

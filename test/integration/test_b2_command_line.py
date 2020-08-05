@@ -814,8 +814,8 @@ def main():
 
     args = parse_args(tests=sorted(test_map))
     print(args)
-    account_id = os.environ.get('TEST_APPLICATION_KEY_ID', '')
-    application_key = os.environ.get('TEST_APPLICATION_KEY', '')
+    account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
+    application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
 
     defer_cleanup = True
     bucket_name_prefix = 'test-b2-cli-' + random_hex(8)

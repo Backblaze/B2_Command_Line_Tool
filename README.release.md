@@ -6,8 +6,8 @@
 - Update the release history in `README.md` by changing "not released yet" to the current date for this release.
 - Copy the main usage string (from `python -m b2`) to `README.md`.
 - Run linters and tests:
-  - `export TEST_APPLICATION_KEY=your_app_key`
-  - `export TEST_APPLICATION_KEY_ID=your_app_key_id`
+  - `export B2_TEST_APPLICATION_KEY=your_app_key`
+  - `export B2_TEST_APPLICATION_KEY_ID=your_app_key_id`
   - `nox -x`
 - Build docs locally:
   - `nox --non-interactive -xs doc`

@@ -42,8 +42,8 @@ jobs:
   test:
     needs: lint
     env:
-      TEST_APPLICATION_KEY: ${{ secrets.TEST_APPLICATION_KEY }}
-      TEST_APPLICATION_KEY_ID: ${{ secrets.TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
       CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     runs-on: ${{ matrix.os }}

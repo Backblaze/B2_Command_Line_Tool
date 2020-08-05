@@ -85,8 +85,8 @@ To run just unit tests:
 
 The integration tests need two environment variables:
 
-    export TEST_APPLICATION_KEY=your_app_key
-    export TEST_APPLICATION_KEY_ID=your_app_key_id
+    export B2_TEST_APPLICATION_KEY=your_app_key
+    export B2_TEST_APPLICATION_KEY_ID=your_app_key_id
     nox -s test-3.8 -- test/integration
 
 ## Documentation
