@@ -141,7 +141,7 @@ class Command(object):
         return decorator
 
     @classmethod
-    def get_parser(cls, subparsers=None, parents=None):
+    def get_parser(cls, subparsers=None, parents=None, disable_aliases=False):
         if parents is None:
             parents = []
 
@@ -158,7 +158,7 @@ class Command(object):
                 name,
                 description=cls.__doc__.format(**DOC_STRING_DATA),
                 parents=parents,
-                aliases=[alias] if alias is not None else ()
+                aliases=[alias] if alias is not None and not disable_aliases else ()
             )
 
         cls._setup_parser(parser)
@@ -176,7 +176,7 @@ class Command(object):
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.get_parser(subparsers, parents=parents)
+                subcommand.get_parser(subparsers=subparsers, parents=parents, disable_aliases=disable_aliases)
 
         return parser
 
@@ -1226,7 +1226,7 @@ class Sync(Command):
     old file from the source will replace the newer one in the destination.
 
     To make the destination exactly match the source, use:
-        b2 sync --delete --replaceNewer ... ...
+    b2 sync --delete --replaceNewer ... ...
 
     WARNING: Using '--delete' deletes files!  We recommend not using it.
     If you use --keepDays instead, you will have some time to recover your
@@ -1234,11 +1234,11 @@ class Sync(Command):
 
     To make the destination match the source, but retain previous versions
     for 30 days:
-        b2 sync --keepDays 30 --replaceNewer ... b2://...
+    b2 sync --keepDays 30 --replaceNewer ... b2://...
 
     Example of sync being used with excludeRegex. This will ignore .DS_Store files
     and .Spotlight-V100 folders
-        b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+    b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
     Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
     """
@@ -1565,7 +1565,7 @@ class ConsoleTool(object):
 
 
 # used by Sphinx
-get_parser = B2.get_parser
+get_parser = functools.partial(B2.get_parser, disable_aliases=True)
 
 
 # TODO: import from b2sdk as soon as we rely on 1.0.0
