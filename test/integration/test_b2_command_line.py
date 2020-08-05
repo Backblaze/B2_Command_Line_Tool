@@ -109,10 +109,10 @@ class StringReader(object):
             self.string = str(e)
 
 
-def remove_insecure_platform_warnings(text):
+def remove_warnings(text):
     return os.linesep.join(
-        line for line in text.split(os.linesep)
-        if ('SNIMissingWarning' not in line) and ('InsecurePlatformWarning' not in line)
+        line for line in text.split(os.linesep) if ('SNIMissingWarning' not in line) and
+        ('InsecurePlatformWarning' not in line and 'DeprecationWarning' not in line)
     )
 
 
@@ -149,8 +149,8 @@ def run_command(cmd, args):
     reader1.join()
     reader2.join()
 
-    stdout_decoded = remove_insecure_platform_warnings(stdout.get_string().decode('utf-8'))
-    stderr_decoded = remove_insecure_platform_warnings(stderr.get_string().decode('utf-8'))
+    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8'))
+    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8'))
 
     print_output(p.returncode, stdout_decoded, stderr_decoded)
     return p.returncode, stdout_decoded, stderr_decoded
