@@ -99,22 +99,34 @@ def lint(session):
 
 
 @nox.session(python=PYTHON_VERSIONS)
-def test(session):
-    """Run test suite."""
+def unit(session):
+    """Run unit tests."""
     install_myself(session)
     session.install(*REQUIREMENTS_TEST)
+    session.run(
+        'pytest', '--cov=b2', '--cov-branch', '--cov-report=xml', '--doctest-modules',
+        *session.posargs, 'test/unit'
+    )
+    session.notify('cover')
 
-    if session.posargs:
-        # Run given test suite
-        session.run('pytest', *session.posargs)
+
+@nox.session(python=PYTHON_VERSIONS)
+def integration(session):
+    """Run integration tests."""
+    install_myself(session)
+    session.install(*REQUIREMENTS_TEST)
+    session.run('pytest', '-s', *session.posargs, 'test/integration')
+
+
+@nox.session(python=PYTHON_VERSIONS)
+def test(session):
+    """Run all tests."""
+    if session.python:
+        session.notify('unit-{}'.format(session.python))
+        session.notify('integration-{}'.format(session.python))
     else:
-        # By default, run all suites and show the coverage
-        session.run(
-            'pytest', '--cov=b2', '--cov-branch', '--cov-report=xml', '--doctest-modules',
-            'test/unit'
-        )
-        session.run('pytest', '-s', 'test/integration', env=os.environ)
-        session.notify('cover')
+        session.notify('unit')
+        session.notify('integration')
 
 
 @nox.session

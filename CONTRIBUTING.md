@@ -50,8 +50,9 @@ For example:
     nox > Running session format
     ...
 
-Session `test` can run on many Python versions, 3.5-3.8 by default.
-Sessions other than `test` use the last given Python version, 3.8 by default.
+Sessions `test` ,`unit`, and `integration` can run on many Python versions, 3.5-3.8 by default.
+
+Sessions other than than use the last given Python version, 3.8 by default.
 
 You can change it:
 
@@ -81,13 +82,13 @@ To run all tests on a specific version:
 
 To run just unit tests:
 
-    nox -s test-3.8 -- test/unit
+    nox -s unit-3.8
 
-The integration tests need two environment variables:
+To run just integration tests:
 
     export B2_TEST_APPLICATION_KEY=your_app_key
     export B2_TEST_APPLICATION_KEY_ID=your_app_key_id
-    nox -s test-3.8 -- test/integration
+    nox -s integration-3.8
 
 ## Documentation
 

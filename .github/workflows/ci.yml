@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip
       - name: Run linters
-        run: nox -vs ${{ github.job }}
+        run: nox -vs lint
   build:
     needs: lint
     runs-on: ubuntu-latest
@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip
       - name: Build the distribution
-        run: nox -vs ${{ github.job }}
+        run: nox -vs build
   test:
     needs: lint
     env:
@@ -65,8 +65,11 @@ jobs:
         run: python -c "import sys; print(sys.version)"
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip
-      - name: Run tests
-        run: nox -vs ${{ github.job }}
+      - name: Run unit tests
+        run: nox -vs unit
+      - name: Run integration tests
+        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        run: nox -vs integration
       - name: Report to Codacy
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == env.PYTHON_DEFAULT_VERSION && env.CODACY_PROJECT_TOKEN != '' }}
         uses: codacy/codacy-coverage-reporter-action@v0
@@ -96,4 +99,4 @@ jobs:
           sudo apt-get install -y graphviz plantuml
           python -m pip install --upgrade nox pip
       - name: Build the docs
-        run: nox --non-interactive -vs ${{ github.job }}
+        run: nox --non-interactive -vs doc
