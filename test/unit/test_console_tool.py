@@ -19,7 +19,7 @@ from b2sdk.v1 import B2Api
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
 from b2sdk.v1 import RawSimulator
 from b2sdk.v1 import UploadSourceBytes
-from b2sdk.v1 import TempDir
+from b2sdk.v1 import TempDir, fix_windows_path_limit
 
 from .test_base import TestBase
 
@@ -1195,7 +1195,9 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         with TempDir() as temp_dir:
             command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
-            expected_stderr = 'ERROR: Directory %s is empty.  Use --allowEmptySource to sync anyway.\n' % temp_dir
+            expected_stderr = 'ERROR: Directory %s is empty.  Use --allowEmptySource to sync anyway.\n' % fix_windows_path_limit(
+                temp_dir.replace('\\\\', '\\')
+            )
             self._run_command(command, '', expected_stderr, 1)
 
     def test_sync_empty_folder_when_enabled(self):
