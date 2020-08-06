@@ -176,7 +176,9 @@ class Command(object):
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.get_parser(subparsers=subparsers, parents=parents, disable_aliases=disable_aliases)
+                subcommand.get_parser(
+                    subparsers=subparsers, parents=parents, disable_aliases=disable_aliases
+                )
 
         return parser
 
