@@ -1051,7 +1051,6 @@ class Ls(Command):
         parser.add_argument('--json', action='store_true')
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
-        parser.add_argument('--prefix', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
 
