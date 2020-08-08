@@ -82,7 +82,6 @@ jobs:
         with:
           token: ${{ env.CODECOV_TOKEN }}
           file: ./coverage.xml
-          fail_ci_if_error: true
   doc:
     needs: build
     runs-on: ubuntu-latest
