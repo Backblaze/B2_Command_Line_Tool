@@ -22,7 +22,7 @@
 - Upload binaries to GitHub releases
 - Update for dev
   - Bump the version number to an odd number (for example: 1.0.2 -> 1.0.3)
-  - Add a "not released yet" section in the release history, like: 0.8.4 (not released yet)
-  - check in
+  - Add a "not released yet" section in the release history, like: 0.8.5 (not released yet)
+  - Commit the changes
 - Push to GitHub again.
 - Update https://www.backblaze.com/b2/docs/quick_command_line.html
