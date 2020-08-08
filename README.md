@@ -103,8 +103,11 @@ For advanced users, a hidden option `--logConfig <filename.ini>` can be used to 
 
 ## Not released yet
 
+Changes:
+
 * Drop Python 2 support :tada: (for old systems you can now use the [binary distribution](https://www.backblaze.com/b2/docs/quick_command_line.html))
 * Remove `--prefix` from `ls` (it didn't really work, use `folderName` argument)
+* Clean up legacy code (CliBucket etc)
 
 ## 2.0.2 (2020-07-15)
 
