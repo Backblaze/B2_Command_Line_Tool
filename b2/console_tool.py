@@ -33,6 +33,7 @@ from b2sdk.version import VERSION as b2sdk_version
 from b2sdk.v1 import (
     parse_sync_folder,
     AuthInfoCache,
+    B2Api,
     Synchronizer,
     SyncReport,
     NewerFileSyncMode,
@@ -47,7 +48,6 @@ from b2sdk.v1 import (
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
     parse_millis_from_float_timestamp, parse_range
-from b2.cli_api import CliB2Api
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
@@ -1590,7 +1590,7 @@ class InvalidArgument(B2Error):
 def main():
     info = SqliteAccountInfo()
     cache = AuthInfoCache(info)
-    b2_api = CliB2Api(info, cache=cache)
+    b2_api = B2Api(info, cache=cache)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
