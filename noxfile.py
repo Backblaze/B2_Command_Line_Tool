@@ -150,13 +150,6 @@ def build(session):
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def deploy(session):
-    """Deploy the distribution to the PyPi."""
-    session.install('twine')
-    session.run('twine', 'upload', 'dist/*')
-
-
-@nox.session(python=PYTHON_DEFAULT_VERSION)
 def doc(session):
     """Build the documentation."""
     install_myself(session)
