@@ -9,7 +9,9 @@
 ######################################################################
 
 import os
+import platform
 import subprocess
+from glob import glob
 
 import nox
 
@@ -147,6 +149,36 @@ def build(session):
     session.run('python', 'setup.py', 'check', '--metadata', '--strict')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     session.run('python', 'setup.py', 'sdist', *session.posargs)
+
+    # Set outputs for GitHub Actions
+    if CI:
+        asset_path = glob('dist/*')[0]
+        print('::set-output name=asset_path::', asset_path, sep='')
+
+        asset_name = os.path.basename(asset_path)
+        print('::set-output name=asset_name::', asset_name, sep='')
+
+        version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
+        print('::set-output name=version::', version, sep='')
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def bundle(session):
+    """Bundle the distribution."""
+    install_myself(session)
+    session.install('pyinstaller')
+    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
+    session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
+
+    # Set outputs for GitHub Actions
+    if CI:
+        asset_path = glob('dist/*')[0]
+        print('::set-output name=asset_path::', asset_path, sep='')
+
+        name, ext = os.path.splitext(os.path.basename(asset_path))
+        system = platform.system().lower()
+        asset_name = '{}-{}{}'.format(name, system, ext)
+        print('::set-output name=asset_name::', asset_name, sep='')
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
