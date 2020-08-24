@@ -62,8 +62,6 @@ With the above setting, session `test` will run on Python 3.6 and 3.7, and all o
 
 Given Python interpreters should be installed in the operating system or via [pyenv](https://github.com/pyenv/pyenv).
 
-We marked the places in the code which are significantly less intuitive than others in a special way. To find them occurrences, use `git grep '*magic*'`.
-
 ## Linting
 
 To run all available linters:

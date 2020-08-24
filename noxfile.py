@@ -22,9 +22,9 @@ PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 
 REQUIREMENTS_FORMAT = ['yapf==0.27']
-REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==5.4.3']
+REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==5.4.3', 'liccheck==0.4.7']
 REQUIREMENTS_TEST = ['nose==1.3.7', 'pytest==5.4.3', 'pytest-cov==2.10.0']
-REQUIREMENTS_BUILD = ['liccheck==0.4.7', 'setuptools>=20.2']
+REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_DOC = [
     'sphinx', 'sphinx-autobuild', 'sphinx_rtd_theme', 'sphinx-argparse', 'sphinxcontrib-plantuml',
     'sadisplay'
@@ -50,9 +50,8 @@ def install_myself(session):
     session.install('-e', '.')
 
 
-# noinspection PyShadowingBuiltins
-@nox.session(python=PYTHON_DEFAULT_VERSION)
-def format(session):
+@nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
+def format_(session):
     """Format the code."""
     session.install(*REQUIREMENTS_FORMAT)
     # TODO: incremental mode for yapf
@@ -72,6 +71,7 @@ def format(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def lint(session):
     """Run linters."""
+    install_myself(session)
     session.install(*REQUIREMENTS_LINT)
     session.run('yapf', '--diff', '--parallel', '--recursive', *PY_PATHS)
     # TODO: uncomment if we want to use isort and docformatter
@@ -96,6 +96,7 @@ def lint(session):
         session.error('pyflakes has failed')
     # session.run('flake8', *PY_PATHS)
     session.run('pytest', 'test/static')
+    session.run('liccheck', '-s', 'setup.cfg')
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -141,9 +142,7 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
-    install_myself(session)
     session.install(*REQUIREMENTS_BUILD)
-    session.run('liccheck', '-s', 'setup.cfg')
     session.run('python', 'setup.py', 'check', '--metadata', '--strict')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     session.run('python', 'setup.py', 'sdist', *session.posargs)
