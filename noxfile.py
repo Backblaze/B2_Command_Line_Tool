@@ -41,13 +41,17 @@ if CI:
     nox.options.force_venv_backend = 'none'
 
 
-def install_myself(session):
+def install_myself(session, extras=None):
     """Install from the source."""
     # In CI, install B2 SDK from the master branch
     if CI:
         session.install('git+git://github.com/Backblaze/b2-sdk-python#egg=b2sdk')
 
-    session.install('-e', '.')
+    arg = '.'
+    if extras:
+        arg += '[%s]' % ','.join(extras)
+
+    session.install('-e', arg)
 
 
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
@@ -158,8 +162,7 @@ def deploy(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def doc(session):
     """Build the documentation."""
-    install_myself(session)
-    session.install(*REQUIREMENTS_DOC)
+    install_myself(session, extras=['doc'])
     session.cd('doc')
     sphinx_args = ['-b', 'html', '-T', '-W', 'source', 'build/html']
     session.run('rm', '-rf', 'build', external=True)

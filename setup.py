@@ -115,7 +115,13 @@ setup(
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    extras_require={},
+    extras_require={
+        'doc':
+            [
+                'sphinx', 'sphinx-autobuild', 'sphinx_rtd_theme', 'sphinx-argparse',
+                'sphinxcontrib-plantuml', 'sadisplay'
+            ],
+    },
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.
