@@ -1,4 +1,5 @@
-# B2 Command Line Tool&nbsp;[![Travis CI](https://img.shields.io/travis/Backblaze/B2_Command_Line_Tool/master.svg?label=Travis%20CI)](https://travis-ci.org/Backblaze/B2_Command_Line_Tool)&nbsp;[![License](https://img.shields.io/pypi/l/b2.svg?label=License)](https://pypi.python.org/pypi/b2)&nbsp;[![python versions](https://img.shields.io/pypi/pyversions/b2.svg?label=python%20versions)](https://pypi.python.org/pypi/b2)&nbsp;[![PyPI version](https://img.shields.io/pypi/v/b2.svg?label=PyPI%20version)](https://pypi.python.org/pypi/b2)
+# B2 Command Line Tool
+&nbsp;[![Continuous Integration](https://github.com/Backblaze/B2_Command_Line_Tool/workflows/Continuous%20Integration/badge.svg)](https://github.com/Backblaze/B2_Command_Line_Tool/actions?query=workflow%3A%22Continuous+Integration%22)&nbsp;[![License](https://img.shields.io/pypi/l/b2.svg?label=License)](https://pypi.python.org/pypi/b2)&nbsp;[![python versions](https://img.shields.io/pypi/pyversions/b2.svg?label=python%20versions)](https://pypi.python.org/pypi/b2)&nbsp;[![PyPI version](https://img.shields.io/pypi/v/b2.svg?label=PyPI%20version)](https://pypi.python.org/pypi/b2)
 
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
@@ -254,39 +255,4 @@ Includes a number of bug fixes:
 
 # Developer Info
 
-We encourage outside contributors to perform changes on our codebase. Many such changes have been merged already. In order to make it easier to contribute, core developers of this project:
-
-* provide guidance (through the issue reporting system)
-* provide tool assisted code review (through the Pull Request system)
-* maintain a set of integration tests (run with a production cloud)
-* maintain a set of (well over a hundred) unit tests
-* automatically run unit tests on 14 versions of python (including osx, Jython and pypy)
-* format the code automatically using [yapf](https://github.com/google/yapf)
-* use static code analysis to find subtle/potential issues with maintainability
-* maintain other Continous Integration tools (coverage tracker)
-
-You'll need to some Python packages installed.  To get all the latest things:
-
-* `pip install --upgrade --upgrade-strategy eager -r requirements.txt -r requirements-test.txt -r requirements-setup.txt`
-
-There is a `Makefile` with a rule to run the unit tests using the currently active Python:
-
-    make setup
-    make test
-
-will install the required packages, then run the unit tests.
-
-To test in multiple python virtual environments, set the enviroment variable `PYTHON_VIRTUAL_ENVS`
-to be a space-separated list of their root directories.  When set, the makefile will run the
-unit tests in each of the environments.
-
-Before checking in, use the `pre-commit.sh` script to check code formatting, run
-unit tests, run integration tests etc.
-
-The integration tests need a file in your home directory called `.b2_auth`
-that contains two lines with nothing on them but your application key ID and application key:
-
-     applicationKeyId
-     applicationKey
-
-We marked the places in the code which are significantly less intuitive than others in a special way. To find them occurrences, use `git grep '*magic*'`.
+Please see our [contributing guidelines](CONTRIBUTING.md).

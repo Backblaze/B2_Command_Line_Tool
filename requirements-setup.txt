@@ -1,4 +1,0 @@
-nose
-pyinstaller
-setuptools
-twine

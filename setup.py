@@ -8,6 +8,7 @@
 #
 ######################################################################
 """A setuptools based setup module.
+
 See:
 https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
@@ -16,11 +17,13 @@ https://github.com/pypa/sampleproject
 import platform
 import sys
 
-# Always prefer setuptools over distutils
-from setuptools import setup, find_packages, __version__ as setuptoolsversion
 # To use a consistent encoding
 from codecs import open
-from os import path
+from importlib import import_module
+
+# Always prefer setuptools over distutils
+from setuptools import __version__ as setuptoolsversion
+from setuptools import setup, find_packages
 
 #require at least setuptools 20.2 for PEP 508 conditional dependency support
 MIN_SETUPTOOLS_VERSION = (20, 2)
@@ -30,10 +33,8 @@ if tuple(int(x) for x in setuptoolsversion.split('.')[:2]) < MIN_SETUPTOOLS_VERS
         % (MIN_SETUPTOOLS_VERSION * 2)
     )
 
-here = path.abspath(path.dirname(__file__))
-
 # Get the long description from the README file
-with open(path.join(here, 'README.md'), encoding='utf-8') as f:
+with open('README.md', encoding='utf-8') as f:
     long_description = f.read()
 
 with open('requirements.txt', encoding='utf-8') as f:
@@ -45,13 +46,7 @@ with open('requirements.txt', encoding='utf-8') as f:
 if platform.system().lower().startswith('java'):
     requirements.append('idna>=2.2.0')
 
-with open('requirements-test.txt', encoding='utf-8') as f:
-    requirements_test = f.read().splitlines()
-
-with open('requirements-setup.txt', encoding='utf-8') as f:
-    requirements_setup = f.read().splitlines()
-
-version = __import__('b2').__version__
+version = import_module('b2').__version__
 
 setup(
     name='b2',
@@ -103,11 +98,11 @@ setup(
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
-    packages=find_packages(exclude=['*contrib*', '*docs*', '*test*']),
+    packages=find_packages(exclude=['contrib', 'doc', 'test']),
 
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
-    #   py_modules=["my_module"],
+    #  py_modules=["my_module"],
 
     # List run-time dependencies here.  These will be installed by pip when
     # your project is installed. For an analysis of "install_requires" vs pip's
@@ -116,25 +111,15 @@ setup(
     dependency_links=[],
     install_requires=requirements,
 
-    # requirements for tests
-    tests_require=requirements_test,
-
-    # putting nose in test_requires caused a chicken/egg problem
-    # but apparently setup_requires is broken on most python versions
-    # setup_requires=requirements_setup,
-
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    extras_require={
-        'dev': [],
-        'test': [],
-    },
+    extras_require={},
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.
-    package_data={'b2': ['requirements.txt', 'requirements-test.txt', 'requirements-setup.txt']},
+    package_data={'b2': ['requirements.txt']},
 
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
