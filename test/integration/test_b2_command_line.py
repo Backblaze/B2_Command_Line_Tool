@@ -111,8 +111,7 @@ class StringReader(object):
 
 def remove_warnings(text):
     return os.linesep.join(
-        line for line in text.split(os.linesep) if ('SNIMissingWarning' not in line) and
-        ('InsecurePlatformWarning' not in line and 'DeprecationWarning' not in line)
+        line for line in text.split(os.linesep) if 'DeprecationWarning' not in line
     )
 
 
