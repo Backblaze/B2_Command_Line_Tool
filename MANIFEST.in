@@ -1,5 +1,2 @@
-include CHANGELOG.md
-include CONTRIBUTING.md
-include README.md
 include requirements.txt
 include LICENSE

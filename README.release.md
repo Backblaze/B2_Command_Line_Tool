@@ -6,9 +6,9 @@
 - Update the release history in `CHANGELOG.md`:
   - Change "Unreleased" to the current release version and date.
   - Create empty "Unreleased" section.
-  - Add proper link to the new release (at the bottom of the file).
+  - Add proper link to the new release (at the bottom of the file). Use GitHub [compare feature](https://docs.github.com/en/free-pro-team@latest/github/committing-changes-to-your-project/comparing-commits#comparing-tags) between two tags.
   - Update "Unreleased" link (at the bottom of the file).
-- Copy the main usage string (from `python -m b2`) to `README.md`.
+- Copy the main usage string (from `b2 --help`) to `README.md`.
 - Run linters and tests:
   - `export B2_TEST_APPLICATION_KEY=your_app_key`
   - `export B2_TEST_APPLICATION_KEY_ID=your_app_key_id`
@@ -18,12 +18,13 @@
 - Commit and push to GitHub, then wait for CI workflow to complete successfully.
   - No need to make a branch. Push straight to `master`.
 - Tag in git and push tag to `origin`.  (Version tags look like `v0.4.6`.)
-    - `git tag vx.x.x`
-    - `git push origin vx.x.x`
+  - `git tag vx.x.x`
+  - `git push origin vx.x.x`
 - Wait for CD workflow to complete successfully.
   - Verify that the GitHub release is created
   - Verify that the release has been uploaded to the PyPI
-- Install using `pip` and verify that it gets the correct version.
+- Install using `pip` and verify that it gets the correct version:
+  - `pip install -U b2`
 - Upload binaries to GitHub releases
 - Update for dev:
   - Bump the version number to an odd number (for example: 1.0.2 -> 1.0.3)
