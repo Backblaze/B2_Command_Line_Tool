@@ -59,17 +59,23 @@ SEPARATOR = '=' * 40
 B2_APPLICATION_KEY_ID_ENV_VAR = 'B2_APPLICATION_KEY_ID'
 B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
 
+# Enable to get 0.* behavior in the command-line tool.
+# Disable for 1.* behavior.
+VERSION_0_COMPATIBILITY = False
+
+# The name of an executable entry point
+NAME = os.path.basename(sys.argv[0])
+if NAME.endswith('.py'):
+    NAME = 'b2'
+
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
+    NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
 )
-
-# Enable to get 0.* behavior in the command-line tool.
-# Disable for 1.* behavior.
-VERSION_0_COMPATIBILITY = False
 
 
 def current_time_millis():
@@ -235,7 +241,7 @@ class B2(Command):
     file to use for caching authentication information.
     The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
 
-    For more details on one command: b2 <command> --help
+    For more details on one command: {NAME} <command> --help
 
     When authorizing with application keys, this tool requires that the key
     have the 'listBuckets' capability so that it can take the bucket names
@@ -246,6 +252,10 @@ class B2(Command):
     """
 
     subcommands_registry = ClassRegistry()
+
+    @classmethod
+    def name_and_alias(cls):
+        return NAME, None
 
     def run(self, args):
         return self.subcommands_registry.get_class(args.command)
@@ -1227,7 +1237,7 @@ class Sync(Command):
     old file from the source will replace the newer one in the destination.
 
     To make the destination exactly match the source, use:
-    b2 sync --delete --replaceNewer ... ...
+    {NAME} sync --delete --replaceNewer ... ...
 
     WARNING: Using '--delete' deletes files!  We recommend not using it.
     If you use --keepDays instead, you will have some time to recover your
@@ -1235,11 +1245,11 @@ class Sync(Command):
 
     To make the destination match the source, but retain previous versions
     for 30 days:
-    b2 sync --keepDays 30 --replaceNewer ... b2://...
+    {NAME} sync --keepDays 30 --replaceNewer ... b2://...
 
     Example of sync being used with excludeRegex. This will ignore .DS_Store files
     and .Spotlight-V100 folders
-    b2 sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+    {NAME} sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
     Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
     """
@@ -1497,7 +1507,7 @@ class ConsoleTool(object):
             return command.run(args)
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
-            self._print_stderr('ERROR: %s  Use: b2 authorize-account' % (str(e),))
+            self._print_stderr('ERROR: %s  Use: %s authorize-account' % (str(e), NAME))
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
