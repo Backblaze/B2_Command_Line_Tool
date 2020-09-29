@@ -3,26 +3,30 @@
 - Get the Nox:
   - `pip install -U nox`
 - Bump the version number to an even number in `b2/version.py`.
-- Update the release history in `README.md` by changing "not released yet" to the current date for this release.
-- Copy the main usage string (from `python -m b2`) to `README.md`.
+- Update the release history in `CHANGELOG.md`:
+  - Change "Unreleased" to the current release version and date.
+  - Create empty "Unreleased" section.
+  - Add proper link to the new release (at the bottom of the file). Use GitHub [compare feature](https://docs.github.com/en/free-pro-team@latest/github/committing-changes-to-your-project/comparing-commits#comparing-tags) between two tags.
+  - Update "Unreleased" link (at the bottom of the file).
+- Copy the main usage string (from `b2 --help`) to `README.md`.
 - Run linters and tests:
   - `export B2_TEST_APPLICATION_KEY=your_app_key`
   - `export B2_TEST_APPLICATION_KEY_ID=your_app_key_id`
   - `nox -x`
 - Build docs locally:
   - `nox --non-interactive -xs doc`
-- Commit and push to GitHub, then wait for build to complete successfully.
+- Commit and push to GitHub, then wait for CI workflow to complete successfully.
   - No need to make a branch. Push straight to `master`.
 - Tag in git and push tag to `origin`.  (Version tags look like `v0.4.6`.)
-    - `git tag vx.x.x`
-    - `git push origin vx.x.x`
-- Build the distribution and upload to PyPI.
-  - `nox -xs build deploy`
-- Install using `pip` and verify that it gets the correct version.
+  - `git tag vx.x.x`
+  - `git push origin vx.x.x`
+- Wait for CD workflow to complete successfully.
+  - Verify that the GitHub release is created
+  - Verify that the release has been uploaded to the PyPI
+- Install using `pip` and verify that it gets the correct version:
+  - `pip install -U b2`
 - Upload binaries to GitHub releases
-- Update for dev
+- Update for dev:
   - Bump the version number to an odd number (for example: 1.0.2 -> 1.0.3)
-  - Add a "not released yet" section in the release history, like: 0.8.5 (not released yet)
-  - Commit the changes
-- Push to GitHub again.
+  - Commit the changes and push to GitHub again.
 - Update https://www.backblaze.com/b2/docs/quick_command_line.html
