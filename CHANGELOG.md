@@ -5,16 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
 ### Removed
 * Drop Python 2 support :tada: (for old systems you can now use the [binary distribution](https://www.backblaze.com/b2/docs/quick_command_line.html))
 * Remove `--prefix` from `ls` (it didn't really work, use `folderName` argument)
 * Clean up legacy code (`CliBucket`, etc.)
 
 ## [2.0.2] - 2020-07-15
+
 ### Added
 * Add `--environment` internal parameter for `authorize-account`
 
 ## [2.0.0] - 2020-06-25
+
 ### Added
 * Add official support for python 3.8
 * Add `make-friendly-url` command
@@ -35,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Remove `list-file-versions` command. Use `ls --recursive --json --versions` instead
 
 ## [1.4.2] - 2019-10-03
+
 ### Added
 * Add `prefix` parameter to `list-file-names` and `list-file-versions`
 * Add support for (server-side) copy-file command
@@ -47,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY respectively.
 
 ## [1.4.0] - 2019-04-25
+
 ### Added
 * (b2sdk) Support for python 3.7
 
@@ -63,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Deprecation warning added for imports of sdk classes from cli package
 
 ## [1.3.8] - 2018-12-06
+
 ### Added
 * New `--excludeAllSymlinks` option for `sync`.
 * Faster downloading of large files using multiple threads and bigger buffers.
@@ -71,24 +77,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fixed doc for cancel-all-unfinished-large-files
 
 ## [1.3.6] - 2018-08-21
+
 ### Fixed
 * Fix auto-reauthorize for application keys.
 * Fix problem with bash auto-completion module.
 * Fix (hopefully) markdown display in PyPI.
 
 ## [1.3.4] - 2018-08-10
+
 ### Fixed
 * Better documentation for authorize-account command.
 * Fix error reporting when using application keys
 * Fix auth issues with bucket-restricted application keys.
 
 ## [1.3.2] - 2018-07-28
+
 ### Fixed
 * Tests fixed for Python 3.7
 * Add documentation about what capabilites are required for different commands.
 * Better error messages for authorization problems with application keys.
 
 ## [1.3.0] - 2018-07-20
+
 ### Added
 * Support for [application keys](https://www.backblaze.com/b2/docs/application_keys.html).
 * Support for Python 3.6
@@ -102,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The testing package is called `test`, not `tests`
 
 ## [1.2.0] - 2018-07-06
+
 ### Added
 * New `--recursive` option for ls
 * New `--showSize` option for get-bucket
@@ -116,14 +127,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Check if file to be synced is still accessible before syncing (fixes #397)
 
 ## [1.1.0] - 2017-11-30
+
 ### Added
 * Add support for CORS rules in `create-bucket` and `update-bucket`.  `get-bucket` will display CORS rules.
 
 ## [1.0.0] - 2017-11-09
+
 ### Added
 * Require `--allowEmptySource` to sync from empty directory, to help avoid accidental deletion of all files.
 
 ## [0.7.4] - 2017-11-09
+
 ### Added
 * More efficient uploads by sending SHA1 checksum at the end.
 
