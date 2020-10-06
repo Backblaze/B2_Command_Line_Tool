@@ -24,8 +24,8 @@ PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 
 REQUIREMENTS_FORMAT = ['yapf==0.27']
-REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==5.4.3', 'liccheck==0.4.7']
-REQUIREMENTS_TEST = ['nose==1.3.7', 'pytest==5.4.3', 'pytest-cov==2.10.0']
+REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==6.1.1', 'liccheck==0.4.7']
+REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_DOC = [
     'sphinx', 'sphinx-autobuild', 'sphinx_rtd_theme', 'sphinx-argparse', 'sphinxcontrib-plantuml',
