@@ -1142,7 +1142,6 @@ class Sync(Command):
     - From a local source to a B2 bucket.
     - From one B2 bucket to another.
     - Between different folders in the same B2 bucket.
-      It will sync only the latest versions of files.
 
     Use "b2://<bucketName>/<prefix>" for B2 paths, e.g. "b2://my-bucket-name/a/path/prefix/".
 
@@ -1245,8 +1244,6 @@ class Sync(Command):
 
     To make the destination exactly match the source, use:
     {NAME} sync --delete --replaceNewer ... ...
-    NOTE: It might not be exact match if the source contains hidden files.
-    If the source file is hidden, the file on the destination won't be deleted even with --delete.
 
     WARNING: Using '--delete' deletes files!  We recommend not using it.
     If you use --keepDays instead, you will have some time to recover your
