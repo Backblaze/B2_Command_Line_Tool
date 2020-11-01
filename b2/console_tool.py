@@ -34,6 +34,8 @@ from b2sdk.v1 import (
     parse_sync_folder,
     AuthInfoCache,
     B2Api,
+    B2Http,
+    B2RawApi,
     Synchronizer,
     SyncReport,
     NewerFileSyncMode,
@@ -58,6 +60,8 @@ SEPARATOR = '=' * 40
 # Optional Env variable to use for getting account info while authorizing
 B2_APPLICATION_KEY_ID_ENV_VAR = 'B2_APPLICATION_KEY_ID'
 B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
+# Optional Env variable to use for adding custom string to the User Agent
+B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -75,6 +79,7 @@ DOC_STRING_DATA = dict(
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
+    B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
 )
 
 
@@ -249,6 +254,9 @@ class B2(Command):
     B2 Storage service.  Each different command may required additional
     capabilities.  You can find the details for each command in the help for
     that command.
+
+    A string provided via an optional environment variable {B2_USER_AGENT_APPEND_ENV_VAR}
+    will be appended to the User-Agent.
     """
 
     subcommands_registry = ClassRegistry()
@@ -1601,7 +1609,8 @@ class InvalidArgument(B2Error):
 def main():
     info = SqliteAccountInfo()
     cache = AuthInfoCache(info)
-    b2_api = B2Api(info, cache=cache)
+    raw_api = B2RawApi(B2Http(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)))
+    b2_api = B2Api(info, cache=cache, raw_api=raw_api)
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
