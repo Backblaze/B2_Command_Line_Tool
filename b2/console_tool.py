@@ -517,11 +517,11 @@ class CreateKey(Command):
 
     The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
 
-    The 'validDurationSeconds' is the length of time the new application key will exist.
+    The 'duration' is the length of time the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
-    The 'bucketName' is the name of a bucket in the account.  When specified, the key
+    The 'bucket' is the name of a bucket in the account.  When specified, the key
     will only allow access to that bucket.
 
     The 'namePrefix' restricts file access to files whose names start with the prefix.
@@ -899,13 +899,14 @@ class ListKeys(Command):
     Lists the application keys for the current account.
 
     The columns in the output are:
-        - ID of the application key
-        - Name of the application key
-        - Name of the bucket the key is restricted to, or '-' for no restriction
-        - Date of expiration, or '-'
-        - Time of expiration, or '-'
-        - File name prefix, in single quotes
-        - Command-separated list of capabilities
+
+    - ID of the application key
+    - Name of the application key
+    - Name of the bucket the key is restricted to, or '-' for no restriction
+    - Date of expiration, or '-'
+    - Time of expiration, or '-'
+    - File name prefix, in single quotes
+    - Command-separated list of capabilities
 
     None of the values contain whitespace.
 
@@ -1135,6 +1136,15 @@ class Sync(Command):
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
 
+    The synchronizer can copy files:
+
+    - From a B2 bucket to a local destination.
+    - From a local source to a B2 bucket.
+    - From one B2 bucket to another.
+    - Between different folders in the same B2 bucket.
+
+    Use "b2://<bucketName>/<prefix>" for B2 paths, e.g. "b2://my-bucket-name/a/path/prefix/".
+
     Progress is displayed on the console unless '--noProgress' is
     specified.  A list of actions taken is always printed.
 
@@ -1215,10 +1225,6 @@ class Sync(Command):
     the comparison threshold.  Files that match, within the threshold, will
     not be synced. Specifying --verbose and --dryRun can be useful to
     determine comparison value differences.
-
-    One of the paths must be a local file path, and the other must be
-    a B2 bucket path. Use "b2://<bucketName>/<prefix>" for B2 paths, e.g.
-    "b2://my-bucket-name/a/path/prefix/".
 
     When a destination file is present that is not in the source, the
     default is to leave it there.  Specifying --delete means to delete
