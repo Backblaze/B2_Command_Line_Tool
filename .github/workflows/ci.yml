@@ -98,7 +98,10 @@ jobs:
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
+          sudo apt-get update -y
           sudo apt-get install -y graphviz plantuml
           python -m pip install --upgrade nox pip
       - name: Build the docs
