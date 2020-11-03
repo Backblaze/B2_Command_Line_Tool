@@ -1,11 +1,11 @@
 # B2 Command Line Tool
 &nbsp;[![Continuous Integration](https://github.com/Backblaze/B2_Command_Line_Tool/workflows/Continuous%20Integration/badge.svg)](https://github.com/Backblaze/B2_Command_Line_Tool/actions?query=workflow%3A%22Continuous+Integration%22)&nbsp;[![License](https://img.shields.io/pypi/l/b2.svg?label=License)](https://pypi.python.org/pypi/b2)&nbsp;[![python versions](https://img.shields.io/pypi/pyversions/b2.svg?label=python%20versions)](https://pypi.python.org/pypi/b2)&nbsp;[![PyPI version](https://img.shields.io/pypi/v/b2.svg?label=PyPI%20version)](https://pypi.python.org/pypi/b2)
 
+
+
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
 
 This program provides command-line access to the B2 service.
-
-Version 2.0.2
 
 # Installation
 
@@ -68,7 +68,7 @@ The environment variable B2_ACCOUNT_INFO specifies the sqlite
 file to use for caching authentication information.
 The default file to use is: ~/.b2_account_info
 
-For more details on one command: b2 help <command>
+For more details on one command: b2 <command> --help
 
 When authorizing with application keys, this tool requires that the key
 have the 'listBuckets' capability so that it can take the bucket names

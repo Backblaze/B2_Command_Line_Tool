@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2020-11-03
+
 ### Added
 * Add support for Python 3.9
 * Add a possibility to append a string to the User-Agent via `B2_USER_AGENT_APPEND` env
@@ -157,7 +159,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.0.2...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.0.0...v2.0.2
 [2.0.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v1.4.2...v2.0.0
 [1.4.2]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v1.4.0...v1.4.2
