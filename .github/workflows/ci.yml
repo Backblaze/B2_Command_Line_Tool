@@ -81,7 +81,7 @@ jobs:
           token: ${{ env.CODECOV_TOKEN }}
           file: ./coverage.xml
   test-bundle:
-    needs: test
+    needs: lint
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
