@@ -537,14 +537,14 @@ def find_file_id(list_of_files, file_name):
 
 
 def sync_up_test(b2_tool, bucket_name):
-    sync_up_test_helper(b2_tool, bucket_name, 'sync')
+    sync_up_helper(b2_tool, bucket_name, 'sync')
 
 
-def sync_test_no_prefix(b2_tool, bucket_name):
-    sync_up_test_helper(b2_tool, bucket_name, '')
+def sync_up_test_no_prefix(b2_tool, bucket_name):
+    sync_up_helper(b2_tool, bucket_name, '')
 
 
-def sync_up_test_helper(b2_tool, bucket_name, dir_):
+def sync_up_helper(b2_tool, bucket_name, dir_):
     sync_point_parts = [bucket_name]
     if dir_:
         sync_point_parts.append(dir_)
@@ -732,6 +732,10 @@ def sync_down_test(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, 'sync')
 
 
+def sync_down_test_no_prefix(b2_tool, bucket_name):
+    sync_down_helper(b2_tool, bucket_name, '')
+
+
 def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
 
     file_to_upload = 'README.md'
@@ -776,34 +780,12 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
         should_equal(['a', 'b', 'c'], sorted(os.listdir(local_path)))
 
 
-def sync_long_path_test(b2_tool, bucket_name):
-    """
-    test sync with very long path (overcome windows 260 character limit)
-    """
-    b2_sync_point = 'b2://' + bucket_name
-
-    long_path = '/'.join(
-        (
-            'extremely_long_path_which_exceeds_windows_unfortunate_260_character_path_limit',
-            'and_needs_special_prefixes_containing_backslashes_added_to_overcome_this_limitation',
-            'when_doing_so_beware_leaning_toothpick_syndrome_as_it_can_cause_frustration',
-            'see_also_xkcd_1638'
-        )
-    )
-
-    with TempDir() as dir_path:
-        local_long_path = os.path.normpath(os.path.join(dir_path, long_path))
-        fixed_local_long_path = fix_windows_path_limit(local_long_path)
-        os.makedirs(os.path.dirname(fixed_local_long_path))
-        write_file(fixed_local_long_path, b'asdf')
-
-        b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
-        file_versions = b2_tool.list_file_versions(bucket_name)
-        should_equal(['+ ' + long_path], file_version_summary(file_versions))
-
-
 def sync_copy_test(b2_tool, bucket_name):
     sync_copy_helper(b2_tool, bucket_name, 'sync')
+
+
+def sync_copy_test_no_prefix(b2_tool, bucket_name):
+    sync_copy_helper(b2_tool, bucket_name, '')
 
 
 def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket):
@@ -844,16 +826,44 @@ def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket):
     )
 
 
+def sync_long_path_test(b2_tool, bucket_name):
+    """
+    test sync with very long path (overcome windows 260 character limit)
+    """
+    b2_sync_point = 'b2://' + bucket_name
+
+    long_path = '/'.join(
+        (
+            'extremely_long_path_which_exceeds_windows_unfortunate_260_character_path_limit',
+            'and_needs_special_prefixes_containing_backslashes_added_to_overcome_this_limitation',
+            'when_doing_so_beware_leaning_toothpick_syndrome_as_it_can_cause_frustration',
+            'see_also_xkcd_1638'
+        )
+    )
+
+    with TempDir() as dir_path:
+        local_long_path = os.path.normpath(os.path.join(dir_path, long_path))
+        fixed_local_long_path = fix_windows_path_limit(local_long_path)
+        os.makedirs(os.path.dirname(fixed_local_long_path))
+        write_file(fixed_local_long_path, b'asdf')
+
+        b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
+        file_versions = b2_tool.list_file_versions(bucket_name)
+        should_equal(['+ ' + long_path], file_version_summary(file_versions))
+
+
 def main():
     test_map = {
         'account': account_test,
         'basic': basic_test,
         'keys': key_restrictions_test,
         'sync_down': sync_down_test,
+        'sync_down_no_prefix': sync_down_test_no_prefix,
         'sync_up': sync_up_test,
-        'sync_up_no_prefix': sync_test_no_prefix,
+        'sync_up_no_prefix': sync_up_test_no_prefix,
         'sync_long_path': sync_long_path_test,
         'sync_copy': sync_copy_test,
+        'sync_copy_no_prefix': sync_copy_test_no_prefix,
         'download': download_test,
     }
 
@@ -861,8 +871,6 @@ def main():
     print(args)
     account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
     application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
-
-    defer_cleanup = True
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
@@ -882,14 +890,9 @@ def main():
 
         b2_tool.should_succeed(['authorize-account', account_id, application_key])
 
-        if not defer_cleanup:
-            clean_buckets(b2_tool)
+        clean_buckets(b2_tool)
         bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
-
-        success, _ = b2_tool.run_command(['create-bucket', bucket_name, 'allPublic'])
-        if not success:
-            clean_buckets(b2_tool)
-            b2_tool.should_succeed(['create-bucket', bucket_name, 'allPublic'])
+        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPublic'])
 
         print('#')
         print('# Running test:', test_name)
