@@ -870,7 +870,7 @@ def main():
 
 
 # TODO: rewrite to multiple tests
-def test_integration():
+def test_integration(sut):
     application_key_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID')
     if application_key_id is None:
         pytest.fail('B2_TEST_APPLICATION_KEY_ID is not set.')
@@ -881,7 +881,7 @@ def test_integration():
 
     print()
 
-    sys.argv = ['test_b2_command_line.py']
+    sys.argv = ['test_b2_command_line.py', '--command', sut]
     main()
 
 
