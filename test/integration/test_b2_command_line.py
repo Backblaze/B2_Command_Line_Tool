@@ -193,6 +193,7 @@ class CommandLine(object):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
+        self.bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
 
     def run_command(self, args):
         """
@@ -277,7 +278,7 @@ def delete_files_in_bucket(b2_tool, bucket_name):
             )
 
 
-def clean_buckets(b2_tool, bucket_name_prefix):
+def clean_buckets(b2_tool):
     """
     Removes the named bucket, if it's there.
 
@@ -294,7 +295,7 @@ def clean_buckets(b2_tool, bucket_name_prefix):
         buckets[b_name] = b_id
 
     for bucket_name in buckets:
-        if bucket_name.startswith(bucket_name_prefix):
+        if bucket_name.startswith(b2_tool.bucket_name_prefix):
             delete_files_in_bucket(b2_tool, bucket_name)
             b2_tool.should_succeed(['delete-bucket', bucket_name])
 
@@ -451,7 +452,7 @@ def basic_test(b2_tool, bucket_name):
 
 def key_restrictions_test(b2_tool, bucket_name):
 
-    second_bucket_name = 'test-b2-cli-' + random_hex(8)
+    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -501,9 +502,8 @@ def key_restrictions_test(b2_tool, bucket_name):
 def account_test(b2_tool, bucket_name):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
     b2_tool.should_succeed(['delete-bucket', bucket_name])
-    new_bucket_name = bucket_name[:-8] + random_hex(
-        8
-    )  # apparently server behaves erratically when we delete a bucket and recreate it right away
+    new_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    # apparently server behaves erratically when we delete a bucket and recreate it right away
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
@@ -537,14 +537,14 @@ def find_file_id(list_of_files, file_name):
 
 
 def sync_up_test(b2_tool, bucket_name):
-    _sync_test_using_dir(b2_tool, bucket_name, 'sync')
+    sync_up_test_helper(b2_tool, bucket_name, 'sync')
 
 
 def sync_test_no_prefix(b2_tool, bucket_name):
-    _sync_test_using_dir(b2_tool, bucket_name, '')
+    sync_up_test_helper(b2_tool, bucket_name, '')
 
 
-def _sync_test_using_dir(b2_tool, bucket_name, dir_):
+def sync_up_test_helper(b2_tool, bucket_name, dir_):
     sync_point_parts = [bucket_name]
     if dir_:
         sync_point_parts.append(dir_)
@@ -802,6 +802,48 @@ def sync_long_path_test(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
+def sync_copy_test(b2_tool, bucket_name):
+    sync_copy_helper(b2_tool, bucket_name, 'sync')
+
+
+def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket):
+    file_to_upload = 'README.md'
+
+    b2_sync_point = 'b2:%s' % bucket_name
+    if folder_in_bucket:
+        b2_sync_point += '/' + folder_in_bucket
+        b2_file_prefix = folder_in_bucket + '/'
+    else:
+        b2_file_prefix = ''
+
+    other_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    success, _ = b2_tool.run_command(['create-bucket', other_bucket_name, 'allPublic'])
+
+    other_b2_sync_point = 'b2:%s' % other_bucket_name
+    if folder_in_bucket:
+        other_b2_sync_point += '/' + folder_in_bucket
+
+    # Put a couple files in B2
+    b2_tool.should_succeed(
+        ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
+    )
+    b2_tool.should_succeed(
+        ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
+    )
+
+    # Sync all the files
+    b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
+
+    file_versions = b2_tool.list_file_versions(other_bucket_name)
+    should_equal(
+        [
+            '+ ' + b2_file_prefix + 'a',
+            '+ ' + b2_file_prefix + 'b',
+        ],
+        file_version_summary(file_versions),
+    )
+
+
 def main():
     test_map = {
         'account': account_test,
@@ -811,6 +853,7 @@ def main():
         'sync_up': sync_up_test,
         'sync_up_no_prefix': sync_test_no_prefix,
         'sync_long_path': sync_long_path_test,
+        'sync_copy': sync_copy_test,
         'download': download_test,
     }
 
@@ -820,7 +863,6 @@ def main():
     application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
 
     defer_cleanup = True
-    bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
@@ -841,12 +883,12 @@ def main():
         b2_tool.should_succeed(['authorize-account', account_id, application_key])
 
         if not defer_cleanup:
-            clean_buckets(b2_tool, bucket_name_prefix)
-        bucket_name = bucket_name_prefix + '-' + random_hex(8)
+            clean_buckets(b2_tool)
+        bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
 
         success, _ = b2_tool.run_command(['create-bucket', bucket_name, 'allPublic'])
         if not success:
-            clean_buckets(b2_tool, bucket_name_prefix)
+            clean_buckets(b2_tool)
             b2_tool.should_succeed(['create-bucket', bucket_name, 'allPublic'])
 
         print('#')
@@ -865,7 +907,7 @@ def main():
         print('#')
         print('#' * 70)
         print()
-        clean_buckets(b2_tool, bucket_name_prefix)
+        clean_buckets(b2_tool)
     print()
     print("ALL OK")
 
