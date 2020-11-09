@@ -10,6 +10,7 @@
 ######################################################################
 
 import argparse
+import atexit
 import hashlib
 import json
 import os.path
@@ -24,7 +25,7 @@ import threading
 
 import pytest
 
-from b2sdk.v1 import AuthInfoCache, B2Api, SqliteAccountInfo, fix_windows_path_limit
+from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
 
 
 def parse_args(tests):
@@ -189,8 +190,8 @@ class Api:
 
         self.bucket_name_prefix = bucket_name_prefix
 
-        info = SqliteAccountInfo()
-        cache = AuthInfoCache(info)
+        info = InMemoryAccountInfo()
+        cache = InMemoryCache()
         self.api = B2Api(info, cache=cache)
 
     def reauthorize(self):
@@ -228,11 +229,11 @@ class CommandLine:
         re.compile(r'^$')  # empty line
     ]
 
-    def __init__(self, command, account_id, application_key):
+    def __init__(self, command, account_id, application_key, bucket_name_prefix):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
-        self.bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
+        self.bucket_name_prefix = bucket_name_prefix
 
     def run_command(self, args):
         """
@@ -862,7 +863,7 @@ def sync_long_path_test(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
-def main():
+def main(bucket_name_prefix):
     test_map = {
         'account': account_test,
         'basic': basic_test,
@@ -885,8 +886,8 @@ def main():
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(args.command, account_id, application_key)
-    b2_api = Api(account_id, application_key, b2_tool.bucket_name_prefix)
+    b2_tool = CommandLine(args.command, account_id, application_key, bucket_name_prefix)
+    b2_api = Api(account_id, application_key, bucket_name_prefix)
 
     # Run each of the tests in its own empty bucket
     for test_name in args.tests:
@@ -919,8 +920,19 @@ def main():
     print("ALL OK")
 
 
+def cleanup_hook(application_key_id, application_key, bucket_name_prefix):
+    print()
+    print('#')
+    print('# Clean up:')
+    print('#')
+    print()
+    b2_api = Api(application_key_id, application_key, bucket_name_prefix)
+    b2_api.reauthorize()
+    b2_api.clean_buckets()
+
+
 # TODO: rewrite to multiple tests
-def test_integration(sut):
+def test_integration(sut, cleanup):
     application_key_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID')
     if application_key_id is None:
         pytest.fail('B2_TEST_APPLICATION_KEY_ID is not set.')
@@ -932,8 +944,14 @@ def test_integration(sut):
     print()
 
     sys.argv = ['test_b2_command_line.py', '--command', sut]
-    main()
+    bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
+
+    if cleanup:
+        atexit.register(cleanup_hook, application_key_id, application_key, bucket_name_prefix)
+
+    main(bucket_name_prefix)
 
 
 if __name__ == '__main__':
-    main()
+    bucket_name_prefix = 'test-b2-cli'
+    main(bucket_name_prefix)

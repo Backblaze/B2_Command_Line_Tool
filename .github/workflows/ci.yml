@@ -67,7 +67,7 @@ jobs:
         run: nox -vs unit
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration
+        run: nox -vs integration --  --cleanup
       - name: Report to Codacy
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == env.PYTHON_DEFAULT_VERSION && env.CODACY_PROJECT_TOKEN != '' }}
         uses: codacy/codacy-coverage-reporter-action@v0
@@ -103,7 +103,7 @@ jobs:
         run: nox -vs bundle
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }}
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
   doc:
     needs: build
     runs-on: ubuntu-latest
