@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+* Improve setup and teardown for the integration tests
+
 ### Fixed
 * Fix for the Windows bundled version
 
