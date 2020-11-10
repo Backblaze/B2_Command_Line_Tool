@@ -193,13 +193,7 @@ class Api:
         info = InMemoryAccountInfo()
         cache = InMemoryCache()
         self.api = B2Api(info, cache=cache)
-
-    def reauthorize(self):
-        print('Cleaning account...')
-        self.api.account_info.clear()
-        print('Authorizing...')
         self.api.authorize_account('production', self.account_id, self.application_key)
-        print()
 
     def create_bucket(self):
         bucket_name = self.bucket_name_prefix + '-' + random_hex(8)
@@ -291,6 +285,11 @@ class CommandLine:
             print(expected_pattern)
             print(stdout + stderr)
             error_and_exit('did not match pattern: ' + expected_pattern)
+
+    def reauthorize(self):
+        """Clear and authorize again to the account."""
+        self.should_succeed(['clear-account'])
+        self.should_succeed(['authorize-account', self.account_id, self.application_key])
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
@@ -897,7 +896,6 @@ def main(bucket_name_prefix):
         print('#')
         print()
 
-        b2_api.reauthorize()
         b2_api.clean_buckets()
         bucket_name = b2_api.create_bucket()
 
@@ -906,6 +904,7 @@ def main(bucket_name_prefix):
         print('#')
         print()
 
+        b2_tool.reauthorize()  # authorization is common for all tests
         test_fcn = test_map[test_name]
         test_fcn(b2_tool, bucket_name)
 
@@ -927,7 +926,6 @@ def cleanup_hook(application_key_id, application_key, bucket_name_prefix):
     print('#')
     print()
     b2_api = Api(application_key_id, application_key, bucket_name_prefix)
-    b2_api.reauthorize()
     b2_api.clean_buckets()
 
 
