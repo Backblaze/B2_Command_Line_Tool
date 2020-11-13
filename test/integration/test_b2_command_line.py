@@ -10,6 +10,7 @@
 ######################################################################
 
 import argparse
+import atexit
 import hashlib
 import json
 import os.path
@@ -24,7 +25,7 @@ import threading
 
 import pytest
 
-from b2sdk.utils import fix_windows_path_limit
+from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
 
 
 def parse_args(tests):
@@ -182,18 +183,51 @@ def print_output(status, stdout, stderr):
     print()
 
 
-class CommandLine(object):
+class Api:
+    def __init__(self, account_id, application_key, bucket_name_prefix):
+        self.account_id = account_id
+        self.application_key = application_key
+
+        self.bucket_name_prefix = bucket_name_prefix
+
+        info = InMemoryAccountInfo()
+        cache = InMemoryCache()
+        self.api = B2Api(info, cache=cache)
+        self.api.authorize_account('production', self.account_id, self.application_key)
+
+    def create_bucket(self):
+        bucket_name = self.bucket_name_prefix + '-' + random_hex(8)
+        print('Creating bucket:', bucket_name)
+        self.api.create_bucket(bucket_name, 'allPublic')
+        print()
+        return bucket_name
+
+    def clean_buckets(self):
+        buckets = self.api.list_buckets()
+        for bucket in buckets:
+            if bucket.name.startswith(self.bucket_name_prefix):
+                print('Removing bucket:', bucket.name)
+                file_versions = bucket.ls(show_versions=True, recursive=True)
+                for file_version_info, _ in file_versions:
+                    print('Removing file version:', file_version_info.id_)
+                    self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
+
+                self.api.delete_bucket(bucket)
+                print()
+
+
+class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
         re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
         re.compile(r'^$')  # empty line
     ]
 
-    def __init__(self, command, account_id, application_key):
+    def __init__(self, command, account_id, application_key, bucket_name_prefix):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
-        self.bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
+        self.bucket_name_prefix = bucket_name_prefix
 
     def run_command(self, args):
         """
@@ -252,6 +286,11 @@ class CommandLine(object):
             print(stdout + stderr)
             error_and_exit('did not match pattern: ' + expected_pattern)
 
+    def reauthorize(self):
+        """Clear and authorize again to the account."""
+        self.should_succeed(['clear-account'])
+        self.should_succeed(['authorize-account', self.account_id, self.application_key])
+
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
 
@@ -265,39 +304,6 @@ def should_equal(expected, actual):
         print('  ERROR')
         sys.exit(1)
     print()
-
-
-def delete_files_in_bucket(b2_tool, bucket_name):
-    while True:
-        files = b2_tool.should_succeed_json(['ls', '--json', '--versions', bucket_name])
-        if len(files) == 0:
-            return
-        for file_info in files:
-            b2_tool.should_succeed(
-                ['delete-file-version', file_info['fileName'], file_info['fileId']]
-            )
-
-
-def clean_buckets(b2_tool):
-    """
-    Removes the named bucket, if it's there.
-
-    In doing so, exercises list_buckets.
-    """
-    text = b2_tool.should_succeed(['list-buckets'])
-
-    buckets = {}
-    for line in text.split(os.linesep)[:-1]:
-        words = line.split()
-        if len(words) != 3:
-            error_and_exit('bad list_buckets line: ' + line)
-        (b_id, b_type, b_name) = words
-        buckets[b_name] = b_id
-
-    for bucket_name in buckets:
-        if bucket_name.startswith(b2_tool.bucket_name_prefix):
-            delete_files_in_bucket(b2_tool, bucket_name)
-            b2_tool.should_succeed(['delete-bucket', bucket_name])
 
 
 def setup_envvar_test(envvar_name, envvar_value):
@@ -353,7 +359,6 @@ def download_test(b2_tool, bucket_name):
     # there is just one file, so clean after itself for faster execution
     b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
     b2_tool.should_succeed(['delete-bucket', bucket_name])
-    return True
 
 
 def basic_test(b2_tool, bucket_name):
@@ -362,6 +367,11 @@ def basic_test(b2_tool, bucket_name):
     file_mod_time_str = str(file_mod_time_millis(file_to_upload))
 
     hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
+
+    list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
+    should_equal(
+        [bucket_name], [b['bucketName'] for b in list_of_buckets if b['bucketName'] == bucket_name]
+    )
 
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
@@ -852,7 +862,7 @@ def sync_long_path_test(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
-def main():
+def main(bucket_name_prefix):
     test_map = {
         'account': account_test,
         'basic': basic_test,
@@ -875,48 +885,52 @@ def main():
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(args.command, account_id, application_key)
+    b2_tool = CommandLine(args.command, account_id, application_key, bucket_name_prefix)
+    b2_api = Api(account_id, application_key, bucket_name_prefix)
 
-    global_dirty = False
     # Run each of the tests in its own empty bucket
     for test_name in args.tests:
 
         print('#')
-        print('# Cleaning and making bucket for:', test_name)
+        print('# Setup for test:', test_name)
         print('#')
         print()
 
-        b2_tool.should_succeed(['clear-account'])
-
-        b2_tool.should_succeed(['authorize-account', account_id, application_key])
-
-        clean_buckets(b2_tool)
-        bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
-        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPublic'])
+        b2_api.clean_buckets()
+        bucket_name = b2_api.create_bucket()
 
         print('#')
         print('# Running test:', test_name)
         print('#')
         print()
 
+        b2_tool.reauthorize()  # authorization is common for all tests
         test_fcn = test_map[test_name]
-        dirty = not test_fcn(b2_tool, bucket_name)
-        global_dirty = global_dirty or dirty
+        test_fcn(b2_tool, bucket_name)
 
-    if global_dirty:
-        print('#' * 70)
         print('#')
-        print('# The last test was run, cleaning up')
+        print('# Teardown for test:', test_name)
         print('#')
-        print('#' * 70)
         print()
-        clean_buckets(b2_tool)
+
+        b2_api.clean_buckets()
+
     print()
     print("ALL OK")
 
 
+def cleanup_hook(application_key_id, application_key, bucket_name_prefix):
+    print()
+    print('#')
+    print('# Clean up:')
+    print('#')
+    print()
+    b2_api = Api(application_key_id, application_key, bucket_name_prefix)
+    b2_api.clean_buckets()
+
+
 # TODO: rewrite to multiple tests
-def test_integration(sut):
+def test_integration(sut, cleanup):
     application_key_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID')
     if application_key_id is None:
         pytest.fail('B2_TEST_APPLICATION_KEY_ID is not set.')
@@ -928,8 +942,14 @@ def test_integration(sut):
     print()
 
     sys.argv = ['test_b2_command_line.py', '--command', sut]
-    main()
+    bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
+
+    if cleanup:
+        atexit.register(cleanup_hook, application_key_id, application_key, bucket_name_prefix)
+
+    main(bucket_name_prefix)
 
 
 if __name__ == '__main__':
-    main()
+    bucket_name_prefix = 'test-b2-cli'
+    main(bucket_name_prefix)
