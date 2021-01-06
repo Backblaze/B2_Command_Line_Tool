@@ -46,7 +46,6 @@ with open('requirements.txt', encoding='utf-8') as f:
 if platform.system().lower().startswith('java'):
     requirements.append('idna>=2.2.0')
 
-
 setup(
     name='b2',
     description='Command Line Tool for Backblaze B2',
