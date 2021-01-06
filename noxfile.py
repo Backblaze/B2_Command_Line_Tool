@@ -166,9 +166,9 @@ def build(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session):
     """Bundle the distribution."""
-    install_myself(session)
     session.install('pyinstaller')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
+    install_myself(session)
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
 
     # Set outputs for GitHub Actions

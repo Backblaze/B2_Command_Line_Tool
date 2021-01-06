@@ -46,15 +46,9 @@ with open('requirements.txt', encoding='utf-8') as f:
 if platform.system().lower().startswith('java'):
     requirements.append('idna>=2.2.0')
 
-version = import_module('b2').__version__
 
 setup(
     name='b2',
-
-    # Versions should comply with PEP440.  For a discussion on single-sourcing
-    # the version across setup.py and the project code, see
-    # https://packaging.python.org/en/latest/single_source_version.html
-    version=version,
     description='Command Line Tool for Backblaze B2',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -123,6 +117,8 @@ setup(
                 'sphinxcontrib-plantuml', 'sadisplay'
             ],
     },
+    setup_requires=['setuptools_scm'],
+    use_scm_version=True,
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.
@@ -140,6 +136,6 @@ setup(
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
-        'console_scripts': ['b2=b2.console_tool:main',],
+        'console_scripts': ['b2=b2.console_tool:main'],
     },
 )

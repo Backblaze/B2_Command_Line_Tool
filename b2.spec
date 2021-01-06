@@ -1,11 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import copy_metadata
+
 block_cipher = None
 
 a = Analysis(['b2/console_tool.py'],
              pathex=['.'],
              binaries=[],
-             datas=[],
+             datas=copy_metadata('b2'),
              hiddenimports=['pkg_resources.py2_warn'],
              hookspath=[],
              runtime_hooks=[],
