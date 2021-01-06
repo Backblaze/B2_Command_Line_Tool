@@ -10,7 +10,7 @@
 
 try:
     from importlib.metadata import version, PackageNotFoundError
-except ModuleNotFoundError:
+except ImportError:  # ModuleNotFoundError is not available in Python 3.5
     from importlib_metadata import version, PackageNotFoundError
 
 try:
