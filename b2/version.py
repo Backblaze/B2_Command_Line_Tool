@@ -9,11 +9,8 @@
 ######################################################################
 
 try:
-    from importlib.metadata import version, PackageNotFoundError
+    from importlib.metadata import version
 except ImportError:  # ModuleNotFoundError is not available in Python 3.5
-    from importlib_metadata import version, PackageNotFoundError
+    from importlib_metadata import version
 
-try:
-    VERSION = version('b2')
-except PackageNotFoundError:
-    VERSION = '0.0.0'
+VERSION = version('b2')
