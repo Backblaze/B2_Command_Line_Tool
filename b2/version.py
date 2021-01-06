@@ -8,7 +8,10 @@
 #
 ######################################################################
 
-from importlib.metadata import version, PackageNotFoundError
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ModuleNotFoundError:
+    from importlib_metadata import version, PackageNotFoundError
 
 try:
     VERSION = version('b2')
