@@ -8,4 +8,9 @@
 #
 ######################################################################
 
-VERSION = '2.1.1'
+try:
+    from importlib.metadata import version
+except ImportError:  # ModuleNotFoundError is not available in Python 3.5
+    from importlib_metadata import version
+
+VERSION = version('b2')
