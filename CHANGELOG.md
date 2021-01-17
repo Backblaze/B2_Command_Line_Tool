@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Option to automatically authorize account when running commands other than `authorize-account` via 
+  `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` env vars
+
 ### Changed
 * Improve setup and teardown for the integration tests
 * Use setuptools-scm for versioning

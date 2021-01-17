@@ -148,6 +148,66 @@ class TestConsoleTool(TestBase):
             0,
         )
 
+    def test_create_key_with_authorization_from_env_vars(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+
+        # Setting up environment variables
+        with mock.patch.dict(
+            'os.environ', {
+                B2_APPLICATION_KEY_ID_ENV_VAR: self.account_id,
+                B2_APPLICATION_KEY_ENV_VAR: self.master_key,
+            }
+        ):
+            assert B2_APPLICATION_KEY_ID_ENV_VAR in os.environ
+            assert B2_APPLICATION_KEY_ENV_VAR in os.environ
+
+            # The first time we're running on this cache there will be output from the implicit "authorize-account" call
+            self._run_command(
+                ['create-key', 'key1', 'listBuckets,listKeys'],
+                'Using http://production.example.com\n'
+                'appKeyId0 appKey0\n',
+                '',
+                0,
+            )
+
+            # The second time "authorize-account" is not called
+            self._run_command(
+                ['create-key', 'key1', 'listBuckets,listKeys,writeKeys'],
+                'appKeyId1 appKey1\n',
+                '',
+                0,
+            )
+
+            with mock.patch.dict(
+                'os.environ', {
+                    B2_APPLICATION_KEY_ID_ENV_VAR: 'appKeyId1',
+                    B2_APPLICATION_KEY_ENV_VAR: 'appKey1',
+                }
+            ):
+                # "authorize-account" is called when the key changes
+                self._run_command(
+                    ['create-key', 'key1', 'listBuckets,listKeys'],
+                    'Using http://production.example.com\n'
+                    'appKeyId2 appKey2\n',
+                    '',
+                    0,
+                )
+
+                # "authorize-account" is also called when the realm changes
+                self._run_command(
+                    [
+                        'create-key', 'key1', 'listBuckets,listKeys', '--environment',
+                        'http://custom.example.com'
+                    ],
+                    'Using http://custom.example.com\n'
+                    'appKeyId3 appKey3\n',
+                    '',
+                    0,
+                )
+
     def test_authorize_key_without_list_buckets(self):
         self._authorize_account()
 

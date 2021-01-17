@@ -63,6 +63,8 @@ B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
 # Optional Env variable to use for adding custom string to the User Agent
 B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
 
+AUTHORIZE_ACCOUNT_CMD_NAME = 'authorize-account'
+
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
@@ -80,6 +82,7 @@ DOC_STRING_DATA = dict(
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
+    AUTHORIZE_ACCOUNT_CMD_NAME=AUTHORIZE_ACCOUNT_CMD_NAME,
 )
 
 
@@ -126,6 +129,9 @@ class Command(object):
 
     # The registry for the subcommands, should be reinitialized  in subclass
     subcommands_registry = None
+
+    # set to False for commands not requiring b2 authentication
+    REQUIRES_AUTH = True
 
     def __init__(self, console_tool):
         self.console_tool = console_tool
@@ -198,7 +204,17 @@ class Command(object):
 
     @classmethod
     def _setup_parser(cls, parser):
-        pass
+        if cls.REQUIRES_AUTH:
+            cls._environment_parser_args(parser)
+
+    @classmethod
+    def _environment_parser_args(cls, parser):
+        """Add arguments for establishing dev/staging/production realm for authentication.
+        This has to be called at the end of "_setup_parser", because of https://bugs.python.org/issue22363"""
+        realm_group = parser.add_mutually_exclusive_group()
+        realm_group.add_argument('--dev', action='store_true', help=argparse.SUPPRESS)
+        realm_group.add_argument('--staging', action='store_true', help=argparse.SUPPRESS)
+        realm_group.add_argument('--environment', help=argparse.SUPPRESS)
 
     @classmethod
     def _parse_file_infos(cls, args_info):
@@ -242,6 +258,11 @@ class B2(Command):
     """
     This program provides command-line access to the B2 service.
 
+    There are two flows of authorization:
+    * call {NAME} {AUTHORIZE_ACCOUNT_CMD_NAME} and have the credentials cached in sqlite
+    * set {B2_APPLICATION_KEY_ID_ENV_VAR} and {B2_APPLICATION_KEY_ENV_VAR} environment
+      variables when running this program
+
     The environment variable {B2_ACCOUNT_INFO_ENV_VAR} specifies the sqlite
     file to use for caching authentication information.
     The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
@@ -258,6 +279,8 @@ class B2(Command):
     A string provided via an optional environment variable {B2_USER_AGENT_APPEND_ENV_VAR}
     will be appended to the User-Agent.
     """
+
+    REQUIRES_AUTH = False
 
     subcommands_registry = ClassRegistry()
 
@@ -297,21 +320,26 @@ class AuthorizeAccount(Command):
     """
 
     FORBID_LOGGING_ARGUMENTS = True
+    REQUIRES_AUTH = False
+
+    @classmethod
+    def name_and_alias(cls):
+        alias = None if '-' not in AUTHORIZE_ACCOUNT_CMD_NAME else AUTHORIZE_ACCOUNT_CMD_NAME.replace(
+            '-', '_'
+        )
+        return AUTHORIZE_ACCOUNT_CMD_NAME, alias
 
     @classmethod
     def _setup_parser(cls, parser):
-        realm_group = parser.add_mutually_exclusive_group()
-        realm_group.add_argument('--dev', action='store_true', help=argparse.SUPPRESS)
-        realm_group.add_argument('--staging', action='store_true', help=argparse.SUPPRESS)
-        realm_group.add_argument('--environment', help=argparse.SUPPRESS)
-
         parser.add_argument('applicationKeyId', nargs='?')
         parser.add_argument('applicationKey', nargs='?')
+
+        cls._environment_parser_args(parser)
 
     def run(self, args):
         # Handle internal options for testing inside Backblaze.
         # These are not documented in the usage string.
-        realm = self._get_realm(args)
+        realm = self.get_realm(args)
 
         url = self.api.account_info.REALM_URLS.get(realm, realm)
         self._print('Using %s' % url)
@@ -356,7 +384,7 @@ class AuthorizeAccount(Command):
             return 1
 
     @classmethod
-    def _get_realm(cls, args):
+    def get_realm(cls, args):
         if args.dev:
             return 'dev'
         if args.staging:
@@ -380,6 +408,7 @@ class CancelAllUnfinishedLargeFiles(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -403,6 +432,7 @@ class CancelLargeFile(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
         self.api.cancel_large_file(args.fileId)
@@ -416,6 +446,8 @@ class ClearAccount(Command):
     Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
     of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
     """
+
+    REQUIRES_AUTH = False
 
     def run(self, args):
         self.api.account_info.clear()
@@ -458,6 +490,7 @@ class CopyFileById(Command):
         parser.add_argument('sourceFileId')
         parser.add_argument('destinationBucketName')
         parser.add_argument('b2FileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         file_infos = None
@@ -503,6 +536,7 @@ class CreateBucket(Command):
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.create_bucket(
@@ -547,6 +581,7 @@ class CreateKey(Command):
         parser.add_argument('--duration', type=int)
         parser.add_argument('keyName')
         parser.add_argument('capabilities', type=parse_comma_separated_list)
+        super()._setup_parser(parser)
 
     def run(self, args):
         # Translate the bucket name into a bucketId
@@ -580,6 +615,7 @@ class DeleteBucket(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -604,6 +640,7 @@ class DeleteFileVersion(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('fileName', nargs='?')
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
         if args.fileName is not None:
@@ -631,6 +668,7 @@ class DeleteKey(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('applicationKeyId')
+        super()._setup_parser(parser)
 
     def run(self, args):
         response = self.api.delete_key(application_key_id=args.applicationKeyId)
@@ -655,6 +693,7 @@ class DownloadFileById(Command):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
@@ -682,6 +721,7 @@ class DownloadFileByName(Command):
         parser.add_argument('bucketName')
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -698,6 +738,8 @@ class GetAccountInfo(Command):
     Shows the account ID, key, auth token, URLs, and what capabilities
     the current application keys has.
     """
+
+    REQUIRES_AUTH = False
 
     def run(self, args):
         account_info = self.api.account_info
@@ -737,6 +779,7 @@ class GetBucket(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
         parser.add_argument('bucketName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         # This always wants up-to-date info, so it does not use
@@ -778,6 +821,7 @@ class GetFileInfo(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
         response = self.api.get_file_info(args.fileId)
@@ -806,6 +850,7 @@ class GetDownloadAuth(Command):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -838,6 +883,7 @@ class GetDownloadUrlWithAuth(Command):
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -862,6 +908,7 @@ class HideFile(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -889,6 +936,7 @@ class ListBuckets(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--json', action='store_true')
+        super()._setup_parser(parser)
 
     def run(self, args):
         buckets = self.api.list_buckets()
@@ -928,6 +976,7 @@ class ListKeys(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
+        super()._setup_parser(parser)
 
     def __init__(self, console_tool):
         super(ListKeys, self).__init__(console_tool)
@@ -1007,6 +1056,7 @@ class ListParts(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('largeFileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
         for part in self.api.list_parts(args.largeFileId):
@@ -1026,6 +1076,7 @@ class ListUnfinishedLargeFiles(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1074,6 +1125,7 @@ class Ls(Command):
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
+        super()._setup_parser(parser)
 
     def run(self, args):
         if args.folderName is None:
@@ -1115,6 +1167,7 @@ class MakeUrl(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
         self._print(self.api.get_download_url_for_fileid(args.fileId))
@@ -1132,6 +1185,7 @@ class MakeFriendlyUrl(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName')
         parser.add_argument('fileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         self._print(self.api.get_download_url_for_file_name(args.bucketName, args.fileName))
@@ -1298,6 +1352,7 @@ class Sync(Command):
         del_keep_group = parser.add_mutually_exclusive_group()
         del_keep_group.add_argument('--delete', action='store_true')
         del_keep_group.add_argument('--keepDays', type=float, metavar='DAYS')
+        super()._setup_parser(parser)
 
     def run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
@@ -1398,6 +1453,7 @@ class UpdateBucket(Command):
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1454,6 +1510,7 @@ class UploadFile(Command):
         parser.add_argument('bucketName')
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         file_infos = self._parse_file_infos(args.info)
@@ -1488,6 +1545,8 @@ class Version(Command):
     Prints the version number of this tool.
     """
 
+    REQUIRES_AUTH = False
+
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
@@ -1518,10 +1577,19 @@ class ConsoleTool(object):
         self._setup_logging(args, command, argv)
 
         try:
+            auth_ret = self.authorize_from_env(command_class, args)
+            if auth_ret:
+                return auth_ret
             return command.run(args)
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
-            self._print_stderr('ERROR: %s  Use: %s authorize-account' % (str(e), NAME))
+            self._print_stderr(
+                'ERROR: %s  Use: %s %s or provide auth data with "%s" and "%s"'
+                ' environment variables' % (
+                    str(e), NAME, AUTHORIZE_ACCOUNT_CMD_NAME, B2_APPLICATION_KEY_ID_ENV_VAR,
+                    B2_APPLICATION_KEY_ENV_VAR
+                )
+            )
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
@@ -1534,6 +1602,25 @@ class ConsoleTool(object):
         except Exception:
             logger.exception('ConsoleTool unexpected exception')
             raise
+
+    def authorize_from_env(self, command_class, args):
+        if not command_class.REQUIRES_AUTH:
+            return 0
+        if B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ:
+            return 0
+
+        key_id = os.environ[B2_APPLICATION_KEY_ID_ENV_VAR]
+        key = os.environ.setdefault(B2_APPLICATION_KEY_ENV_VAR, '')
+
+        if self.api.account_info.check_current_credentials(
+            key_id, key, AuthorizeAccount.get_realm(args)
+        ):
+            return 0
+
+        args.applicationKeyId = key_id
+        args.applicationKey = key
+
+        return AuthorizeAccount(self).run(args)
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
