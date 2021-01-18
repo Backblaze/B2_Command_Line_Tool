@@ -656,7 +656,6 @@ class DeleteKey(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('applicationKeyId')
-        super()._setup_parser(parser)
 
     def run(self, args):
         response = self.api.delete_key(application_key_id=args.applicationKeyId)
@@ -681,7 +680,6 @@ class DownloadFileById(Command):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
-        super()._setup_parser(parser)
 
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
