@@ -152,24 +152,28 @@ class Command(object):
         return decorator
 
     @classmethod
-    def get_parser(cls, subparsers=None, parents=None, disable_aliases=False):
+    def get_parser(cls, subparsers=None, parents=None, for_docs=False):
         if parents is None:
             parents = []
+
+        description = cls.__doc__.format(**DOC_STRING_DATA)
 
         if subparsers is None:
             name, _ = cls.name_and_alias()
             parser = ArgumentParser(
                 prog=name,
-                description=cls.__doc__.format(**DOC_STRING_DATA),
+                description=description,
                 parents=parents,
+                for_docs=for_docs,
             )
         else:
             name, alias = cls.name_and_alias()
             parser = subparsers.add_parser(
                 name,
-                description=cls.__doc__.format(**DOC_STRING_DATA),
+                description=description,
                 parents=parents,
-                aliases=[alias] if alias is not None and not disable_aliases else ()
+                aliases=[alias] if alias is not None and not for_docs else (),
+                for_docs=for_docs,
             )
 
         cls._setup_parser(parser)
@@ -187,9 +191,7 @@ class Command(object):
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.get_parser(
-                    subparsers=subparsers, parents=parents, disable_aliases=disable_aliases
-                )
+                subcommand.get_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
 
         return parser
 
@@ -1590,7 +1592,7 @@ class ConsoleTool(object):
 
 
 # used by Sphinx
-get_parser = functools.partial(B2.get_parser, disable_aliases=True)
+get_parser = functools.partial(B2.get_parser, for_docs=True)
 
 
 # TODO: import from b2sdk as soon as we rely on 1.0.0
