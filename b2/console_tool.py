@@ -1153,67 +1153,72 @@ class Sync(Command):
     - From one B2 bucket to another.
     - Between different folders in the same B2 bucket.
 
-    Use "b2://<bucketName>/<prefix>" for B2 paths, e.g. "b2://my-bucket-name/a/path/prefix/".
+    Use ``b2://<bucketName>/<prefix>`` for B2 paths, e.g. ``b2://my-bucket-name/a/path/prefix/``.
 
-    Progress is displayed on the console unless '--noProgress' is
+    Progress is displayed on the console unless ``--noProgress`` is
     specified.  A list of actions taken is always printed.
 
-    Specify '--dryRun' to simulate the actions that would be taken.
+    Specify ``--dryRun`` to simulate the actions that would be taken.
 
     To allow sync to run when the source directory is empty, potentially
-    deleting all files in a bucket, specify '--allowEmptySource'.
+    deleting all files in a bucket, specify ``--allowEmptySource``.
     The default is to fail when the specified source directory doesn't exist
     or is empty.  (This check only applies to version 1.0 and later.)
 
     Users with high-performance networks, or file sets with very small
     files, will benefit from multi-threaded uploads.  The default number
-    of threads is 10.  Experiment with the --threads parameter if the
+    of threads is 10.  Experiment with the ``--threads`` parameter if the
     default is not working well.
 
     Users with low-performance networks may benefit from reducing the
     number of threads.  Using just one thread will minimize the impact
     on other users of the network.
 
-    Note that using multiple threads will usually be detrimental to
-    the other users on your network.
+    .. note::
 
-    You can specify --excludeRegex to selectively ignore files that
+        Note that using multiple threads will usually be detrimental to
+        the other users on your network.
+
+    You can specify ``--excludeRegex`` to selectively ignore files that
     match the given pattern. Ignored files will not copy during
     the sync operation. The pattern is a regular expression
     that is tested against the full path of each file.
 
-    You can specify --includeRegex to selectively override ignoring
-    files that match the given --excludeRegex pattern by an
-    --includeRegex pattern. Similarly to --excludeRegex, the pattern
+    You can specify ``--includeRegex`` to selectively override ignoring
+    files that match the given ``--excludeRegex`` pattern by an
+    ``--includeRegex`` pattern. Similarly to ``--excludeRegex``, the pattern
     is a regular expression that is tested against the full path
     of each file.
 
-    Note that --includeRegex cannot be used without --excludeRegex.
+    .. note::
 
-    You can specify --excludeAllSymlinks to skip symlinks when
+        Note that ``--includeRegex`` cannot be used without ``--excludeRegex``.
+
+    You can specify ``--excludeAllSymlinks`` to skip symlinks when
     syncing from a local source.
 
-    When a directory is excluded by using --excludeDirRegex, all of
-    the files within it are excluded, even if they match an --includeRegex
+    When a directory is excluded by using ``--excludeDirRegex``, all of
+    the files within it are excluded, even if they match an ``--includeRegex``
     pattern.   This means that there is no need to look inside excluded
     directories, and you can exclude directories containing files for which
     you don't have read permission and avoid getting errors.
 
-    The --excludeDirRegex is a regular expression that is tested against
+    The ``--excludeDirRegex`` is a regular expression that is tested against
     the full path of each directory.  The path being matched does not have
-    a trailing '/', so don't include on in your regular expression.
+    a trailing ``/``, so don't include on in your regular expression.
 
     Multiple regex rules can be applied by supplying them as pipe
     delimited instructions. Note that the regex for this command
-    is Python regex. Reference: https://docs.python.org/2/library/re.html.
+    is Python regex.
+    Reference: `<https://docs.python.org/2/library/re.html>`_
 
     Regular expressions are considered a match if they match a substring
-    starting at the first character.  ".*e" will match "hello".  This is
+    starting at the first character.  ``.*e`` will match ``hello``.  This is
     not ideal, but we will maintain this behavior for compatibility.
-    If you want to match the entire path, put a "$" at the end of the
-    regex, such as ".*llo$".
+    If you want to match the entire path, put a ``$`` at the end of the
+    regex, such as ``.*llo$``.
 
-    You can specify --excludeIfModifiedAfter to selectively ignore file versions
+    You can specify ``--excludeIfModifiedAfter`` to selectively ignore file versions
     (including hide markers) which were synced after given time (for local source)
     or ignore only specific file versions (for b2 source).
     Ignored files or file versions will not be taken for consideration during sync.
@@ -1222,52 +1227,69 @@ class Sync(Command):
 
     Files are considered to be the same if they have the same name
     and modification time.  This behaviour can be changed using the
-    --compareVersions option.  Possible values are:
-    'none':    Comparison using the file name only
-    'modTime': Comparison using the modification time (default)
-    'size':    Comparison using the file size
+    ``--compareVersions`` option. Possible values are:
+
+    - ``none``:    Comparison using the file name only
+    - ``modTime``: Comparison using the modification time (default)
+    - ``size``:    Comparison using the file size
+
     A future enhancement may add the ability to compare the SHA1 checksum
     of the files.
 
     Fuzzy comparison of files based on modTime or size can be enabled by
-    specifying the --compareThreshold option.  This will treat modTimes
+    specifying the ``--compareThreshold`` option.  This will treat modTimes
     (in milliseconds) or sizes (in bytes) as the same if they are within
     the comparison threshold.  Files that match, within the threshold, will
-    not be synced. Specifying --verbose and --dryRun can be useful to
+    not be synced. Specifying ``--verbose`` and ``--dryRun`` can be useful to
     determine comparison value differences.
 
     When a destination file is present that is not in the source, the
-    default is to leave it there.  Specifying --delete means to delete
+    default is to leave it there.  Specifying ``--delete`` means to delete
     destination files that are not in the source.
 
     When the destination is B2, you have the option of leaving older
-    versions in place.  Specifying --keepDays will delete any older
+    versions in place.  Specifying ``--keepDays`` will delete any older
     versions more than the given number of days old, based on the
     modification time of the file.  This option is not available when
     the destination is a local folder.
 
     Files at the source that have a newer modification time are always
     copied to the destination.  If the destination file is newer, the
-    default is to report an error and stop.  But with --skipNewer set,
-    those files will just be skipped.  With --replaceNewer set, the
+    default is to report an error and stop.  But with ``--skipNewer`` set,
+    those files will just be skipped.  With ``--replaceNewer`` set, the
     old file from the source will replace the newer one in the destination.
 
     To make the destination exactly match the source, use:
-    {NAME} sync --delete --replaceNewer ... ...
 
-    WARNING: Using '--delete' deletes files!  We recommend not using it.
-    If you use --keepDays instead, you will have some time to recover your
-    files if you discover they are missing on the source end.
+    .. code-block::
+
+        {NAME} sync --delete --replaceNewer ... ...
+
+    .. warning::
+
+        Using ``--delete`` deletes files!  We recommend not using it.
+        If you use ``--keepDays`` instead, you will have some time to recover your
+        files if you discover they are missing on the source end.
 
     To make the destination match the source, but retain previous versions
     for 30 days:
-    {NAME} sync --keepDays 30 --replaceNewer ... b2://...
 
-    Example of sync being used with excludeRegex. This will ignore .DS_Store files
-    and .Spotlight-V100 folders
-    {NAME} sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+    .. code-block::
 
-    Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
+        {NAME} sync --keepDays 30 --replaceNewer ... b2://...
+
+    Example of sync being used with ``--excludeRegex``. This will ignore ``.DS_Store`` files
+    and ``.Spotlight-V100`` folders:
+
+    .. code-block::
+
+        {NAME} sync --excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+
+    Requires capabilities:
+
+    - **listFiles**
+    - **readFiles** (for downloading)
+    - **writeFiles** (for uploading)
     """
 
     @classmethod
