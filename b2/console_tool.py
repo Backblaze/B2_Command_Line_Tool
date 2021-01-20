@@ -1581,7 +1581,7 @@ class ConsoleTool(object):
         key = os.environ.get(B2_APPLICATION_KEY_ENV_VAR, '')
         realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
 
-        if self.api.account_info.check_current_credentials(key_id, key, realm):
+        if self.api.account_info.is_same_key(key_id, realm):
             return 0
 
         return AuthorizeAccount(self).authorize(key_id, key, realm)
