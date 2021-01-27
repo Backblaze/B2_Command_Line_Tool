@@ -192,9 +192,25 @@ def doc(session):
 
     if not session.interactive:
         session.run('sphinx-build', *sphinx_args)
-        # TODO: implement doc_cover that works with sphinx-argparse
+        session.notify('doc_cover')
     else:
         sphinx_args[-2:-2] = [
-            '--open-browser', '--watch', '../b2', '--ignore', '*.pyc', '--ignore', '*~'
+            '-E', '--open-browser', '--watch', '../b2', '--ignore', '*.pyc', '--ignore', '*~'
         ]
         session.run('sphinx-autobuild', *sphinx_args)
+
+
+@nox.session
+def doc_cover(session):
+    """Perform coverage analysis for the documentation."""
+    install_myself(session, extras=['doc'])
+    session.cd('doc')
+    sphinx_args = ['-b', 'coverage', '-T', '-W', 'source', 'build/coverage']
+    report_file = 'build/coverage/python.txt'
+    session.run('sphinx-build', *sphinx_args)
+    session.run('cat', report_file, external=True)
+
+    with open('build/coverage/python.txt') as fd:
+        # If there is no undocumented files, the report should have only 2 lines (header)
+        if sum(1 for _ in fd) != 2:
+            session.error('sphinx coverage has failed')
