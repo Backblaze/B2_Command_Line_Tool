@@ -244,20 +244,24 @@ class B2(Command):
     """
     This program provides command-line access to the B2 service.
 
-    The environment variable {B2_ACCOUNT_INFO_ENV_VAR} specifies the sqlite
+    The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
     file to use for caching authentication information.
-    The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
+    The default file to use is: ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``
 
-    For more details on one command: {NAME} <command> --help
+    For more details on one command:
+
+    .. code-block::
+
+        {NAME} <command> --help
 
     When authorizing with application keys, this tool requires that the key
-    have the 'listBuckets' capability so that it can take the bucket names
+    have the ``listBuckets`` capability so that it can take the bucket names
     you provide on the command line and translate them into bucket IDs for the
     B2 Storage service.  Each different command may required additional
     capabilities.  You can find the details for each command in the help for
     that command.
 
-    A string provided via an optional environment variable {B2_USER_AGENT_APPEND_ENV_VAR}
+    A string provided via an optional environment variable ``{B2_USER_AGENT_APPEND_ENV_VAR}``
     will be appended to the User-Agent.
     """
 
@@ -274,28 +278,30 @@ class B2(Command):
 @B2.register_subcommand
 class AuthorizeAccount(Command):
     """
-    Prompts for Backblaze applicationKeyId and applicationKey (unless they are given
+    Prompts for Backblaze ``applicationKeyId`` and ``applicationKey`` (unless they are given
     on the command line).
 
     You can authorize with either the master application key or
     a normal application key.
 
     To use the master application key, provide the application key ID and
-    application key from the "B2 Cloud Storage Buckets" page on
+    application key from the ``B2 Cloud Storage Buckets`` page on
     the web site: https://secure.backblaze.com/b2_buckets.htm
 
-    To use a normal application key, created with the create-key
+    To use a normal application key, created with the ``create-key``
     command or on the web site, provide the application key ID
     and the application key itself.
 
     You can also optionally provide application key ID and application key
-    using environment variables {B2_APPLICATION_KEY_ID_ENV_VAR} and
-    {B2_APPLICATION_KEY_ENV_VAR} respectively.
+    using environment variables ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and
+    ``{B2_APPLICATION_KEY_ENV_VAR}`` respectively.
 
-    Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
-    or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
+    Stores an account auth token in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` by default,
+    or the file specified by the ``{B2_ACCOUNT_INFO_ENV_VAR}`` environment variable.
 
-    Requires capability: listBuckets
+    Requires capability:
+
+    - **listBuckets**
     """
 
     FORBID_LOGGING_ARGUMENTS = True
@@ -376,7 +382,10 @@ class CancelAllUnfinishedLargeFiles(Command):
     finished and cancels them.  Any parts that have been
     uploaded will be deleted.
 
-    Requires capability: listFiles, writeFiles
+    Requires capability:
+
+    - **listFiles**
+    - **writeFiles**
     """
 
     @classmethod
@@ -394,12 +403,14 @@ class CancelAllUnfinishedLargeFiles(Command):
 @B2.register_subcommand
 class CancelLargeFile(Command):
     """
-    Cancels a large file upload.  Used to undo a start-large-file.
+    Cancels a large file upload.  Used to undo a ``start-large-file``.
 
     Cannot be used once the file is finished.  After finishing,
-    using delete-file-version to delete the large file.
+    using ``delete-file-version`` to delete the large file.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -415,8 +426,8 @@ class CancelLargeFile(Command):
 @B2.register_subcommand
 class ClearAccount(Command):
     """
-    Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
-    of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
+    Erases everything in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``.  Location
+    of file can be overridden by setting ``{B2_ACCOUNT_INFO_ENV_VAR}``.
     """
 
     def run(self, args):
@@ -427,28 +438,31 @@ class ClearAccount(Command):
 @B2.register_subcommand
 class CopyFileById(Command):
     """
-    Copy a file version to the given bucket (server-side, *not* via download+upload).
+    Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
     and assigns the given name to the new B2 file.
 
     By default, it copies the file info and content type. You can replace those
-    by setting the metadataDirective to "replace".
+    by setting the ``metadataDirective`` to ``replace``.
 
-    --contentType and --info should only be provided when --metadataDirective
-    is set to "replace" and should not be provided when --metadataDirective
-    is set to "copy".
+    ``--contentType`` and ``--info`` should only be provided when ``--metadataDirective``
+    is set to ``replace`` and should not be provided when ``--metadataDirective``
+    is set to ``copy``.
 
-    --contentType and --info are optional.  If not set, they will be set based on the
+    ``--contentType`` and ``--info`` are optional.  If not set, they will be set based on the
     source file.
 
     By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
-    from the source file to the new file using --range option.
+    from the source file to the new file using ``--range`` option.
 
-    Each --info entry is in the form "a=b", you can specify many.
+    Each ``--info`` entry is in the form ``a=b``, you can specify many.
 
-    The maximum file size is 5GB or 10TB, depending on capability of installed b2sdk version.
+    The maximum file size is 5GB or 10TB, depending on capability of installed ``b2sdk`` version.
 
-    Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
+    Requires capability:
+
+    - **readFiles** (if ``sourceFileId`` bucket is private)
+    - **writeFiles**
     """
 
     @classmethod
@@ -495,7 +509,9 @@ class CreateBucket(Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
-    Requires capability: writeBuckets
+    Requires capability:
+
+    - **writeBuckets**
     """
 
     @classmethod
@@ -525,21 +541,23 @@ class CreateKey(Command):
     time the application key itself will be returned.  Listing application keys will show
     their IDs, but not the secret keys.
 
-    The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
+    The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
 
-    The 'duration' is the length of time the new application key will exist.
+    The ``duration`` is the length of time the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
-    The 'bucket' is the name of a bucket in the account.  When specified, the key
+    The ``bucket`` is the name of a bucket in the account.  When specified, the key
     will only allow access to that bucket.
 
-    The 'namePrefix' restricts file access to files whose names start with the prefix.
+    The ``namePrefix`` restricts file access to files whose names start with the prefix.
 
     The output is the new application key ID, followed by the application key itself.
-    The two values returned are the two that you pass to authorize-account to use the key.
+    The two values returned are the two that you pass to ``authorize-account`` to use the key.
 
-    Requires capability: writeKeys
+    Requires capability:
+
+    - **writeKeys**
     """
 
     @classmethod
@@ -576,7 +594,9 @@ class DeleteBucket(Command):
     """
     Deletes the bucket with the given name.
 
-    Requires capability: deleteBuckets
+    Requires capability:
+
+    - **deleteBuckets**
     """
 
     @classmethod
@@ -594,12 +614,15 @@ class DeleteFileVersion(Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
-    Specifying the fileName is more efficient than leaving it out.
-    If you omit the fileName, it requires an initial query to B2
+    Specifying the ``fileName`` is more efficient than leaving it out.
+    If you omit the ``fileName``, it requires an initial query to B2
     to get the file name, before making the call to delete the
-    file.  This extra query requires the readFiles capability.
+    file.  This extra query requires the ``readFiles`` capability.
 
-    Requires capability: deleteFiles, readFiles (if file name not provided)
+    Requires capability:
+
+    - **deleteFiles**
+    - **readFiles** (if file name not provided)
     """
 
     @classmethod
@@ -625,9 +648,11 @@ class DeleteFileVersion(Command):
 @B2.register_subcommand
 class DeleteKey(Command):
     """
-    Deletes the specified application key by its 'ID'.
+    Deletes the specified application key by its ID.
 
-    Requires capability: deleteKeys
+    Requires capability:
+
+    - **deleteKeys**
     """
 
     @classmethod
@@ -645,11 +670,13 @@ class DownloadFileById(Command):
     """
     Downloads the given file, and stores it in the given local file.
 
-    If the 'tqdm' library is installed, progress bar is displayed
+    If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use '--noProgress' to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting.
 
-    Requires capability: readFiles
+    Requires capability:
+
+    - **readFiles**
     """
 
     @classmethod
@@ -671,11 +698,13 @@ class DownloadFileByName(Command):
     """
     Downloads the given file, and stores it in the given local file.
 
-    If the 'tqdm' library is installed, progress bar is displayed
+    If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use '--noProgress' to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting.
 
-    Requires capability: readFiles
+    Requires capability:
+
+    - **readFiles**
     """
 
     @classmethod
@@ -721,18 +750,24 @@ class GetBucket(Command):
     Prints all of the information about the bucket, including
     bucket info, CORS rules and lifecycle rules.
 
-    If --showSize is specified, then display the number of files
-    (fileCount) in the bucket and the aggregate size of all files
-    (totalSize). Hidden files and hide markers are accounted for
+    If ``--showSize`` is specified, then display the number of files
+    (``fileCount``) in the bucket and the aggregate size of all files
+    (``totalSize``). Hidden files and hide markers are accounted for
     in the reported number of files, and hidden files also
     contribute toward the reported aggregate size, whereas hide
     markers do not. Each version of a file counts as an individual
     file, and its size contributes toward the aggregate size.
-    Analysis is recursive. Note that --showSize requires multiple
-    API calls, and will therefore incur additional latency,
-    computation, and Class C transactions.
+    Analysis is recursive.
 
-    Requires capability: listBuckets
+    .. note::
+
+        Note that ``--showSize`` requires multiple
+        API calls, and will therefore incur additional latency,
+        computation, and Class C transactions.
+
+    Requires capability:
+
+    - **listBuckets**
     """
 
     @classmethod
@@ -774,7 +809,9 @@ class GetFileInfo(Command):
     """
     Prints all of the information about the file, but not its contents.
 
-    Requires capability: readFiles
+    Requires capability:
+
+    - **readFiles**
     """
 
     @classmethod
@@ -800,7 +837,9 @@ class GetDownloadAuth(Command):
     the token.  The prefix defaults to "", which matches all files
     in the bucket.
 
-    Requires capability: shareFiles
+    Requires capability:
+
+    - **shareFiles**
     """
 
     @classmethod
@@ -832,7 +871,9 @@ class GetDownloadUrlWithAuth(Command):
     The token is valid for the duration specified, which defaults
     to 86400 seconds (one day).
 
-    Requires capability: shareFiles
+    Requires capability:
+
+    - **shareFiles**
     """
 
     @classmethod
@@ -857,7 +898,9 @@ class HideFile(Command):
     """
     Uploads a new, hidden, version of the given file.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -880,12 +923,16 @@ class ListBuckets(Command):
     Output lines list the bucket ID, bucket type, and bucket name,
     and look like this:
 
+    .. code-block::
+
         98c960fd1cb4390c5e0f0519  allPublic   my-bucket
 
-    Alternatively, the --json option produces machine-readable output
+    Alternatively, the ``--json`` option produces machine-readable output
     similar (but not identical) to the server api response format.
 
-    Requires capability: listBuckets
+    Requires capability:
+
+    - **listBuckets**
     """
 
     @classmethod
@@ -912,19 +959,21 @@ class ListKeys(Command):
 
     - ID of the application key
     - Name of the application key
-    - Name of the bucket the key is restricted to, or '-' for no restriction
-    - Date of expiration, or '-'
-    - Time of expiration, or '-'
+    - Name of the bucket the key is restricted to, or ``-`` for no restriction
+    - Date of expiration, or ``-``
+    - Time of expiration, or ``-``
     - File name prefix, in single quotes
     - Command-separated list of capabilities
 
     None of the values contain whitespace.
 
     For keys restricted to buckets that do not exist any more, the bucket name is
-    replaced with 'id=<bucketId>', because deleted buckets do not have names any
+    replaced with ``id=<bucketId>``, because deleted buckets do not have names any
     more.
 
-    Requires capability: listKeys
+    Requires capability:
+
+    - **listKeys**
     """
 
     @classmethod
@@ -1003,7 +1052,9 @@ class ListParts(Command):
     large file, which must be a file that was started but not
     finished or canceled.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -1022,7 +1073,9 @@ class ListUnfinishedLargeFiles(Command):
     Lists all of the large files in the bucket that were started,
     but not finished or canceled.
 
-    Requires capability: listFiles
+    Requires capability:
+
+    - **listFiles**
     """
 
     @classmethod
@@ -1045,27 +1098,29 @@ class ListUnfinishedLargeFiles(Command):
 @B2.register_subcommand
 class Ls(Command):
     """
-    Using the file naming convention that "/" separates folder
+    Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
     and folders in a given folder.  If no folder name is given,
     lists all files at the top level.
 
-    The --long option produces very wide multi-column output
+    The ``--long`` option produces very wide multi-column output
     showing the upload date/time, file size, file id, whether it
     is an uploaded file or the hiding of a file, and the file
     name.  Folders don't really exist in B2, so folders are
-    shown with "-" in each of the fields other than the name.
+    shown with ``-`` in each of the fields other than the name.
 
-    The --json option produces machine-readable output similar to
+    The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The --versions option shows all versions of each file, not
+    The ``--versions`` option shows all versions of each file, not
     just the most recent.
 
-    The --recursive option will descend into folders, and will show
+    The ``--recursive`` option will descend into folders, and will show
     only files, not folders.
 
-    Requires capability: listFiles
+    Requires capability:
+
+    - **listFiles**
     """
 
     @classmethod
@@ -1406,13 +1461,15 @@ class Sync(Command):
 @B2.register_subcommand
 class UpdateBucket(Command):
     """
-    Updates the bucketType of an existing bucket.  Prints the ID
+    Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
 
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
-    Requires capability: writeBuckets
+    Requires capability:
+
+    - **writeBuckets**
     """
 
     @classmethod
@@ -1450,20 +1507,22 @@ class UploadFile(Command):
 
     By default, the file is broken into as many parts as possible to
     maximize upload parallelism and increase speed.  The minimum that
-    B2 allows is 100MB.  Setting --minPartSize to a larger value will
+    B2 allows is 100MB.  Setting ``--minPartSize`` to a larger value will
     reduce the number of parts uploaded when uploading a large file.
 
     The maximum number of upload threads to use to upload parts of a large file
-    is specified by '--threads'.  It has no effect on small files (under 200MB).
+    is specified by ``--threads``.  It has no effect on small files (under 200MB).
     Default is 10.
 
-    If the 'tqdm' library is installed, progress bar is displayed
+    If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use '--noProgress' to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting.
 
-    Each fileInfo is of the form "a=b".
+    Each fileInfo is of the form ``a=b``.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -1523,7 +1582,7 @@ class ConsoleTool(object):
     using the B2Api library.
 
     Uses the StoredAccountInfo object to keep account data in
-    {B2_ACCOUNT_INFO_DEFAULT_FILE} between runs.
+    ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` between runs.
     """
 
     def __init__(self, b2_api, stdout, stderr):
