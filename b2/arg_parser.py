@@ -12,6 +12,7 @@ import argparse
 import textwrap
 
 import arrow
+from rst2ansi import rst2ansi
 
 
 class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
@@ -52,7 +53,9 @@ class ArgumentParser(argparse.ArgumentParser):
     and use help message in case of error.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, for_docs=False, **kwargs):
+        self._for_docs = for_docs
+
         kwargs.setdefault('formatter_class', RawTextHelpFormatter)
         description = kwargs.get('description', None)
         if description is not None:
@@ -64,9 +67,10 @@ class ArgumentParser(argparse.ArgumentParser):
         args = {'prog': self.prog, 'message': message}
         self.exit(2, '\n%(prog)s: error: %(message)s\n' % args)
 
-    @classmethod
-    def _format_description(cls, text):
-        return textwrap.indent(textwrap.dedent(text), '  ')
+    def _format_description(self, text):
+        if self._for_docs:
+            return textwrap.dedent(text)
+        return rst2ansi(text.encode('utf-8'))
 
 
 def parse_comma_separated_list(s):
