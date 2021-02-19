@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Improve setup and teardown for the integration tests
-* Use setuptools-scm for versioning
+* Use `setuptools-scm` for versioning
+* Improve CLI and RTD descriptions of the commands
 
 ### Fixed
 * Fix for the Windows bundled version
+* Fix docs autogen
 
 ## [2.1.0] - 2020-11-03
 

@@ -157,24 +157,28 @@ class Command(object):
         return decorator
 
     @classmethod
-    def get_parser(cls, subparsers=None, parents=None, disable_aliases=False):
+    def get_parser(cls, subparsers=None, parents=None, for_docs=False):
         if parents is None:
             parents = []
+
+        description = cls.__doc__.format(**DOC_STRING_DATA)
 
         if subparsers is None:
             name, _ = cls.name_and_alias()
             parser = ArgumentParser(
                 prog=name,
-                description=cls.__doc__.format(**DOC_STRING_DATA),
+                description=description,
                 parents=parents,
+                for_docs=for_docs,
             )
         else:
             name, alias = cls.name_and_alias()
             parser = subparsers.add_parser(
                 name,
-                description=cls.__doc__.format(**DOC_STRING_DATA),
+                description=description,
                 parents=parents,
-                aliases=[alias] if alias is not None and not disable_aliases else ()
+                aliases=[alias] if alias is not None and not for_docs else (),
+                for_docs=for_docs,
             )
 
         cls._setup_parser(parser)
@@ -192,9 +196,7 @@ class Command(object):
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.get_parser(
-                    subparsers=subparsers, parents=parents, disable_aliases=disable_aliases
-                )
+                subcommand.get_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
 
         return parser
 
@@ -252,20 +254,24 @@ class B2(Command):
     * set {B2_APPLICATION_KEY_ID_ENV_VAR} and {B2_APPLICATION_KEY_ENV_VAR} environment
       variables when running this program
 
-    The environment variable {B2_ACCOUNT_INFO_ENV_VAR} specifies the sqlite
+    The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
     file to use for caching authentication information.
-    The default file to use is: {B2_ACCOUNT_INFO_DEFAULT_FILE}
+    The default file to use is: ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``
 
-    For more details on one command: {NAME} <command> --help
+    For more details on one command:
+
+    .. code-block::
+
+        {NAME} <command> --help
 
     When authorizing with application keys, this tool requires that the key
-    have the 'listBuckets' capability so that it can take the bucket names
+    have the ``listBuckets`` capability so that it can take the bucket names
     you provide on the command line and translate them into bucket IDs for the
     B2 Storage service.  Each different command may required additional
     capabilities.  You can find the details for each command in the help for
     that command.
 
-    A string provided via an optional environment variable {B2_USER_AGENT_APPEND_ENV_VAR}
+    A string provided via an optional environment variable ``{B2_USER_AGENT_APPEND_ENV_VAR}``
     will be appended to the User-Agent.
     """
 
@@ -284,28 +290,30 @@ class B2(Command):
 @B2.register_subcommand
 class AuthorizeAccount(Command):
     """
-    Prompts for Backblaze applicationKeyId and applicationKey (unless they are given
+    Prompts for Backblaze ``applicationKeyId`` and ``applicationKey`` (unless they are given
     on the command line).
 
     You can authorize with either the master application key or
     a normal application key.
 
     To use the master application key, provide the application key ID and
-    application key from the "B2 Cloud Storage Buckets" page on
+    application key from the ``B2 Cloud Storage Buckets`` page on
     the web site: https://secure.backblaze.com/b2_buckets.htm
 
-    To use a normal application key, created with the create-key
+    To use a normal application key, created with the ``create-key``
     command or on the web site, provide the application key ID
     and the application key itself.
 
     You can also optionally provide application key ID and application key
-    using environment variables {B2_APPLICATION_KEY_ID_ENV_VAR} and
-    {B2_APPLICATION_KEY_ENV_VAR} respectively.
+    using environment variables ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and
+    ``{B2_APPLICATION_KEY_ENV_VAR}`` respectively.
 
-    Stores an account auth token in {B2_ACCOUNT_INFO_DEFAULT_FILE} by default,
-    or the file specified by the {B2_ACCOUNT_INFO_ENV_VAR} environment variable.
+    Stores an account auth token in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` by default,
+    or the file specified by the ``{B2_ACCOUNT_INFO_ENV_VAR}`` environment variable.
 
-    Requires capability: listBuckets
+    Requires capability:
+
+    - **listBuckets**
     """
 
     FORBID_LOGGING_ARGUMENTS = True
@@ -397,7 +405,10 @@ class CancelAllUnfinishedLargeFiles(Command):
     finished and cancels them.  Any parts that have been
     uploaded will be deleted.
 
-    Requires capability: listFiles, writeFiles
+    Requires capability:
+
+    - **listFiles**
+    - **writeFiles**
     """
 
     @classmethod
@@ -415,12 +426,14 @@ class CancelAllUnfinishedLargeFiles(Command):
 @B2.register_subcommand
 class CancelLargeFile(Command):
     """
-    Cancels a large file upload.  Used to undo a start-large-file.
+    Cancels a large file upload.  Used to undo a ``start-large-file``.
 
     Cannot be used once the file is finished.  After finishing,
-    using delete-file-version to delete the large file.
+    using ``delete-file-version`` to delete the large file.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -436,8 +449,8 @@ class CancelLargeFile(Command):
 @B2.register_subcommand
 class ClearAccount(Command):
     """
-    Erases everything in {B2_ACCOUNT_INFO_DEFAULT_FILE}.  Location
-    of file can be overridden by setting {B2_ACCOUNT_INFO_ENV_VAR}.
+    Erases everything in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``.  Location
+    of file can be overridden by setting ``{B2_ACCOUNT_INFO_ENV_VAR}``.
     """
 
     REQUIRES_AUTH = False
@@ -450,28 +463,31 @@ class ClearAccount(Command):
 @B2.register_subcommand
 class CopyFileById(Command):
     """
-    Copy a file version to the given bucket (server-side, *not* via download+upload).
+    Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
     and assigns the given name to the new B2 file.
 
     By default, it copies the file info and content type. You can replace those
-    by setting the metadataDirective to "replace".
+    by setting the ``metadataDirective`` to ``replace``.
 
-    --contentType and --info should only be provided when --metadataDirective
-    is set to "replace" and should not be provided when --metadataDirective
-    is set to "copy".
+    ``--contentType`` and ``--info`` should only be provided when ``--metadataDirective``
+    is set to ``replace`` and should not be provided when ``--metadataDirective``
+    is set to ``copy``.
 
-    --contentType and --info are optional.  If not set, they will be set based on the
+    ``--contentType`` and ``--info`` are optional.  If not set, they will be set based on the
     source file.
 
     By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
-    from the source file to the new file using --range option.
+    from the source file to the new file using ``--range`` option.
 
-    Each --info entry is in the form "a=b", you can specify many.
+    Each ``--info`` entry is in the form ``a=b``, you can specify many.
 
-    The maximum file size is 5GB or 10TB, depending on capability of installed b2sdk version.
+    The maximum file size is 5GB or 10TB, depending on capability of installed ``b2sdk`` version.
 
-    Requires capability: readFiles (if sourceFileId bucket is private) and writeFiles
+    Requires capability:
+
+    - **readFiles** (if ``sourceFileId`` bucket is private)
+    - **writeFiles**
     """
 
     @classmethod
@@ -518,7 +534,9 @@ class CreateBucket(Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
-    Requires capability: writeBuckets
+    Requires capability:
+
+    - **writeBuckets**
     """
 
     @classmethod
@@ -548,21 +566,23 @@ class CreateKey(Command):
     time the application key itself will be returned.  Listing application keys will show
     their IDs, but not the secret keys.
 
-    The capabilities are passed in as a comma-separated list, like "readFiles,writeFiles".
+    The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
 
-    The 'duration' is the length of time the new application key will exist.
+    The ``duration`` is the length of time the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
-    The 'bucket' is the name of a bucket in the account.  When specified, the key
+    The ``bucket`` is the name of a bucket in the account.  When specified, the key
     will only allow access to that bucket.
 
-    The 'namePrefix' restricts file access to files whose names start with the prefix.
+    The ``namePrefix`` restricts file access to files whose names start with the prefix.
 
     The output is the new application key ID, followed by the application key itself.
-    The two values returned are the two that you pass to authorize-account to use the key.
+    The two values returned are the two that you pass to ``authorize-account`` to use the key.
 
-    Requires capability: writeKeys
+    Requires capability:
+
+    - **writeKeys**
     """
 
     @classmethod
@@ -599,7 +619,9 @@ class DeleteBucket(Command):
     """
     Deletes the bucket with the given name.
 
-    Requires capability: deleteBuckets
+    Requires capability:
+
+    - **deleteBuckets**
     """
 
     @classmethod
@@ -617,12 +639,15 @@ class DeleteFileVersion(Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
-    Specifying the fileName is more efficient than leaving it out.
-    If you omit the fileName, it requires an initial query to B2
+    Specifying the ``fileName`` is more efficient than leaving it out.
+    If you omit the ``fileName``, it requires an initial query to B2
     to get the file name, before making the call to delete the
-    file.  This extra query requires the readFiles capability.
+    file.  This extra query requires the ``readFiles`` capability.
 
-    Requires capability: deleteFiles, readFiles (if file name not provided)
+    Requires capability:
+
+    - **deleteFiles**
+    - **readFiles** (if file name not provided)
     """
 
     @classmethod
@@ -648,9 +673,11 @@ class DeleteFileVersion(Command):
 @B2.register_subcommand
 class DeleteKey(Command):
     """
-    Deletes the specified application key by its 'ID'.
+    Deletes the specified application key by its ID.
 
-    Requires capability: deleteKeys
+    Requires capability:
+
+    - **deleteKeys**
     """
 
     @classmethod
@@ -668,11 +695,13 @@ class DownloadFileById(Command):
     """
     Downloads the given file, and stores it in the given local file.
 
-    If the 'tqdm' library is installed, progress bar is displayed
+    If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use '--noProgress' to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting.
 
-    Requires capability: readFiles
+    Requires capability:
+
+    - **readFiles**
     """
 
     @classmethod
@@ -694,11 +723,13 @@ class DownloadFileByName(Command):
     """
     Downloads the given file, and stores it in the given local file.
 
-    If the 'tqdm' library is installed, progress bar is displayed
+    If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use '--noProgress' to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting.
 
-    Requires capability: readFiles
+    Requires capability:
+
+    - **readFiles**
     """
 
     @classmethod
@@ -746,18 +777,24 @@ class GetBucket(Command):
     Prints all of the information about the bucket, including
     bucket info, CORS rules and lifecycle rules.
 
-    If --showSize is specified, then display the number of files
-    (fileCount) in the bucket and the aggregate size of all files
-    (totalSize). Hidden files and hide markers are accounted for
+    If ``--showSize`` is specified, then display the number of files
+    (``fileCount``) in the bucket and the aggregate size of all files
+    (``totalSize``). Hidden files and hide markers are accounted for
     in the reported number of files, and hidden files also
     contribute toward the reported aggregate size, whereas hide
     markers do not. Each version of a file counts as an individual
     file, and its size contributes toward the aggregate size.
-    Analysis is recursive. Note that --showSize requires multiple
-    API calls, and will therefore incur additional latency,
-    computation, and Class C transactions.
+    Analysis is recursive.
 
-    Requires capability: listBuckets
+    .. note::
+
+        Note that ``--showSize`` requires multiple
+        API calls, and will therefore incur additional latency,
+        computation, and Class C transactions.
+
+    Requires capability:
+
+    - **listBuckets**
     """
 
     @classmethod
@@ -799,7 +836,9 @@ class GetFileInfo(Command):
     """
     Prints all of the information about the file, but not its contents.
 
-    Requires capability: readFiles
+    Requires capability:
+
+    - **readFiles**
     """
 
     @classmethod
@@ -825,7 +864,9 @@ class GetDownloadAuth(Command):
     the token.  The prefix defaults to "", which matches all files
     in the bucket.
 
-    Requires capability: shareFiles
+    Requires capability:
+
+    - **shareFiles**
     """
 
     @classmethod
@@ -857,7 +898,9 @@ class GetDownloadUrlWithAuth(Command):
     The token is valid for the duration specified, which defaults
     to 86400 seconds (one day).
 
-    Requires capability: shareFiles
+    Requires capability:
+
+    - **shareFiles**
     """
 
     @classmethod
@@ -882,7 +925,9 @@ class HideFile(Command):
     """
     Uploads a new, hidden, version of the given file.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -905,12 +950,16 @@ class ListBuckets(Command):
     Output lines list the bucket ID, bucket type, and bucket name,
     and look like this:
 
+    .. code-block::
+
         98c960fd1cb4390c5e0f0519  allPublic   my-bucket
 
-    Alternatively, the --json option produces machine-readable output
+    Alternatively, the ``--json`` option produces machine-readable output
     similar (but not identical) to the server api response format.
 
-    Requires capability: listBuckets
+    Requires capability:
+
+    - **listBuckets**
     """
 
     @classmethod
@@ -937,19 +986,21 @@ class ListKeys(Command):
 
     - ID of the application key
     - Name of the application key
-    - Name of the bucket the key is restricted to, or '-' for no restriction
-    - Date of expiration, or '-'
-    - Time of expiration, or '-'
+    - Name of the bucket the key is restricted to, or ``-`` for no restriction
+    - Date of expiration, or ``-``
+    - Time of expiration, or ``-``
     - File name prefix, in single quotes
     - Command-separated list of capabilities
 
     None of the values contain whitespace.
 
     For keys restricted to buckets that do not exist any more, the bucket name is
-    replaced with 'id=<bucketId>', because deleted buckets do not have names any
+    replaced with ``id=<bucketId>``, because deleted buckets do not have names any
     more.
 
-    Requires capability: listKeys
+    Requires capability:
+
+    - **listKeys**
     """
 
     @classmethod
@@ -1028,7 +1079,9 @@ class ListParts(Command):
     large file, which must be a file that was started but not
     finished or canceled.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -1047,7 +1100,9 @@ class ListUnfinishedLargeFiles(Command):
     Lists all of the large files in the bucket that were started,
     but not finished or canceled.
 
-    Requires capability: listFiles
+    Requires capability:
+
+    - **listFiles**
     """
 
     @classmethod
@@ -1070,27 +1125,29 @@ class ListUnfinishedLargeFiles(Command):
 @B2.register_subcommand
 class Ls(Command):
     """
-    Using the file naming convention that "/" separates folder
+    Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
     and folders in a given folder.  If no folder name is given,
     lists all files at the top level.
 
-    The --long option produces very wide multi-column output
+    The ``--long`` option produces very wide multi-column output
     showing the upload date/time, file size, file id, whether it
     is an uploaded file or the hiding of a file, and the file
     name.  Folders don't really exist in B2, so folders are
-    shown with "-" in each of the fields other than the name.
+    shown with ``-`` in each of the fields other than the name.
 
-    The --json option produces machine-readable output similar to
+    The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The --versions option shows all versions of each file, not
+    The ``--versions`` option shows all versions of each file, not
     just the most recent.
 
-    The --recursive option will descend into folders, and will show
+    The ``--recursive`` option will descend into folders, and will show
     only files, not folders.
 
-    Requires capability: listFiles
+    Requires capability:
+
+    - **listFiles**
     """
 
     @classmethod
@@ -1178,67 +1235,72 @@ class Sync(Command):
     - From one B2 bucket to another.
     - Between different folders in the same B2 bucket.
 
-    Use "b2://<bucketName>/<prefix>" for B2 paths, e.g. "b2://my-bucket-name/a/path/prefix/".
+    Use ``b2://<bucketName>/<prefix>`` for B2 paths, e.g. ``b2://my-bucket-name/a/path/prefix/``.
 
-    Progress is displayed on the console unless '--noProgress' is
+    Progress is displayed on the console unless ``--noProgress`` is
     specified.  A list of actions taken is always printed.
 
-    Specify '--dryRun' to simulate the actions that would be taken.
+    Specify ``--dryRun`` to simulate the actions that would be taken.
 
     To allow sync to run when the source directory is empty, potentially
-    deleting all files in a bucket, specify '--allowEmptySource'.
+    deleting all files in a bucket, specify ``--allowEmptySource``.
     The default is to fail when the specified source directory doesn't exist
     or is empty.  (This check only applies to version 1.0 and later.)
 
     Users with high-performance networks, or file sets with very small
     files, will benefit from multi-threaded uploads.  The default number
-    of threads is 10.  Experiment with the --threads parameter if the
+    of threads is 10.  Experiment with the ``--threads`` parameter if the
     default is not working well.
 
     Users with low-performance networks may benefit from reducing the
     number of threads.  Using just one thread will minimize the impact
     on other users of the network.
 
-    Note that using multiple threads will usually be detrimental to
-    the other users on your network.
+    .. note::
 
-    You can specify --excludeRegex to selectively ignore files that
+        Note that using multiple threads will usually be detrimental to
+        the other users on your network.
+
+    You can specify ``--excludeRegex`` to selectively ignore files that
     match the given pattern. Ignored files will not copy during
     the sync operation. The pattern is a regular expression
     that is tested against the full path of each file.
 
-    You can specify --includeRegex to selectively override ignoring
-    files that match the given --excludeRegex pattern by an
-    --includeRegex pattern. Similarly to --excludeRegex, the pattern
+    You can specify ``--includeRegex`` to selectively override ignoring
+    files that match the given ``--excludeRegex`` pattern by an
+    ``--includeRegex`` pattern. Similarly to ``--excludeRegex``, the pattern
     is a regular expression that is tested against the full path
     of each file.
 
-    Note that --includeRegex cannot be used without --excludeRegex.
+    .. note::
 
-    You can specify --excludeAllSymlinks to skip symlinks when
+        Note that ``--includeRegex`` cannot be used without ``--excludeRegex``.
+
+    You can specify ``--excludeAllSymlinks`` to skip symlinks when
     syncing from a local source.
 
-    When a directory is excluded by using --excludeDirRegex, all of
-    the files within it are excluded, even if they match an --includeRegex
+    When a directory is excluded by using ``--excludeDirRegex``, all of
+    the files within it are excluded, even if they match an ``--includeRegex``
     pattern.   This means that there is no need to look inside excluded
     directories, and you can exclude directories containing files for which
     you don't have read permission and avoid getting errors.
 
-    The --excludeDirRegex is a regular expression that is tested against
+    The ``--excludeDirRegex`` is a regular expression that is tested against
     the full path of each directory.  The path being matched does not have
-    a trailing '/', so don't include on in your regular expression.
+    a trailing ``/``, so don't include on in your regular expression.
 
     Multiple regex rules can be applied by supplying them as pipe
     delimited instructions. Note that the regex for this command
-    is Python regex. Reference: https://docs.python.org/2/library/re.html.
+    is Python regex.
+    Reference: `<https://docs.python.org/2/library/re.html>`_
 
     Regular expressions are considered a match if they match a substring
-    starting at the first character.  ".*e" will match "hello".  This is
+    starting at the first character.  ``.*e`` will match ``hello``.  This is
     not ideal, but we will maintain this behavior for compatibility.
-    If you want to match the entire path, put a "$" at the end of the
-    regex, such as ".*llo$".
+    If you want to match the entire path, put a ``$`` at the end of the
+    regex, such as ``.*llo$``.
 
-    You can specify --excludeIfModifiedAfter to selectively ignore file versions
+    You can specify ``--excludeIfModifiedAfter`` to selectively ignore file versions
     (including hide markers) which were synced after given time (for local source)
     or ignore only specific file versions (for b2 source).
     Ignored files or file versions will not be taken for consideration during sync.
@@ -1247,52 +1309,69 @@ class Sync(Command):
 
     Files are considered to be the same if they have the same name
     and modification time.  This behaviour can be changed using the
-    --compareVersions option.  Possible values are:
-    'none':    Comparison using the file name only
-    'modTime': Comparison using the modification time (default)
-    'size':    Comparison using the file size
+    ``--compareVersions`` option. Possible values are:
+
+    - ``none``:    Comparison using the file name only
+    - ``modTime``: Comparison using the modification time (default)
+    - ``size``:    Comparison using the file size
+
     A future enhancement may add the ability to compare the SHA1 checksum
     of the files.
 
     Fuzzy comparison of files based on modTime or size can be enabled by
-    specifying the --compareThreshold option.  This will treat modTimes
+    specifying the ``--compareThreshold`` option.  This will treat modTimes
     (in milliseconds) or sizes (in bytes) as the same if they are within
     the comparison threshold.  Files that match, within the threshold, will
-    not be synced. Specifying --verbose and --dryRun can be useful to
+    not be synced. Specifying ``--verbose`` and ``--dryRun`` can be useful to
     determine comparison value differences.
 
     When a destination file is present that is not in the source, the
-    default is to leave it there.  Specifying --delete means to delete
+    default is to leave it there.  Specifying ``--delete`` means to delete
     destination files that are not in the source.
 
     When the destination is B2, you have the option of leaving older
-    versions in place.  Specifying --keepDays will delete any older
+    versions in place.  Specifying ``--keepDays`` will delete any older
     versions more than the given number of days old, based on the
     modification time of the file.  This option is not available when
     the destination is a local folder.
 
     Files at the source that have a newer modification time are always
     copied to the destination.  If the destination file is newer, the
-    default is to report an error and stop.  But with --skipNewer set,
-    those files will just be skipped.  With --replaceNewer set, the
+    default is to report an error and stop.  But with ``--skipNewer`` set,
+    those files will just be skipped.  With ``--replaceNewer`` set, the
     old file from the source will replace the newer one in the destination.
 
     To make the destination exactly match the source, use:
-    {NAME} sync --delete --replaceNewer ... ...
 
-    WARNING: Using '--delete' deletes files!  We recommend not using it.
-    If you use --keepDays instead, you will have some time to recover your
-    files if you discover they are missing on the source end.
+    .. code-block::
+
+        {NAME} sync --delete --replaceNewer ... ...
+
+    .. warning::
+
+        Using ``--delete`` deletes files!  We recommend not using it.
+        If you use ``--keepDays`` instead, you will have some time to recover your
+        files if you discover they are missing on the source end.
 
     To make the destination match the source, but retain previous versions
     for 30 days:
-    {NAME} sync --keepDays 30 --replaceNewer ... b2://...
 
-    Example of sync being used with excludeRegex. This will ignore .DS_Store files
-    and .Spotlight-V100 folders
-    {NAME} sync -excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+    .. code-block::
 
-    Requires capabilities: listFiles, readFiles (for downloading), writeFiles (for uploading)
+        {NAME} sync --keepDays 30 --replaceNewer ... b2://...
+
+    Example of sync being used with ``--excludeRegex``. This will ignore ``.DS_Store`` files
+    and ``.Spotlight-V100`` folders:
+
+    .. code-block::
+
+        {NAME} sync --excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+
+    Requires capabilities:
+
+    - **listFiles**
+    - **readFiles** (for downloading)
+    - **writeFiles** (for uploading)
     """
 
     @classmethod
@@ -1409,13 +1488,15 @@ class Sync(Command):
 @B2.register_subcommand
 class UpdateBucket(Command):
     """
-    Updates the bucketType of an existing bucket.  Prints the ID
+    Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
 
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
-    Requires capability: writeBuckets
+    Requires capability:
+
+    - **writeBuckets**
     """
 
     @classmethod
@@ -1453,20 +1534,22 @@ class UploadFile(Command):
 
     By default, the file is broken into as many parts as possible to
     maximize upload parallelism and increase speed.  The minimum that
-    B2 allows is 100MB.  Setting --minPartSize to a larger value will
+    B2 allows is 100MB.  Setting ``--minPartSize`` to a larger value will
     reduce the number of parts uploaded when uploading a large file.
 
     The maximum number of upload threads to use to upload parts of a large file
-    is specified by '--threads'.  It has no effect on small files (under 200MB).
+    is specified by ``--threads``.  It has no effect on small files (under 200MB).
     Default is 10.
 
-    If the 'tqdm' library is installed, progress bar is displayed
+    If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use '--noProgress' to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting.
 
-    Each fileInfo is of the form "a=b".
+    Each fileInfo is of the form ``a=b``.
 
-    Requires capability: writeFiles
+    Requires capability:
+
+    - **writeFiles**
     """
 
     @classmethod
@@ -1528,7 +1611,7 @@ class ConsoleTool(object):
     using the B2Api library.
 
     Uses the StoredAccountInfo object to keep account data in
-    {B2_ACCOUNT_INFO_DEFAULT_FILE} between runs.
+    ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` between runs.
     """
 
     def __init__(self, b2_api, stdout, stderr):
@@ -1641,7 +1724,7 @@ class ConsoleTool(object):
 
 
 # used by Sphinx
-get_parser = functools.partial(B2.get_parser, disable_aliases=True)
+get_parser = functools.partial(B2.get_parser, for_docs=True)
 
 
 # TODO: import from b2sdk as soon as we rely on 1.0.0
