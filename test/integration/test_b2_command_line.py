@@ -537,7 +537,7 @@ def account_test(b2_tool, bucket_name):
     bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
     b2_tool.should_fail(
         ['create-bucket', bucket_name, 'allPrivate'],
-        r'ERROR: Missing account data: \'NoneType\' object is not subscriptable  '
+        r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
         r'Use: b2 authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
         r'"B2_APPLICATION_KEY" environment variables'
     )
