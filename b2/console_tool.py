@@ -81,7 +81,7 @@ DOC_STRING_DATA = dict(
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
-    B2_ENVIRONMENT_ENV_VAR=B2_ENVIRONMENT_ENV_VAR
+    B2_ENVIRONMENT_ENV_VAR=B2_ENVIRONMENT_ENV_VAR,
 )
 
 
@@ -252,7 +252,7 @@ class B2(Command):
     There are two flows of authorization:
     * call {NAME} authorize-account and have the credentials cached in sqlite
     * set {B2_APPLICATION_KEY_ID_ENV_VAR} and {B2_APPLICATION_KEY_ENV_VAR} environment
-      variables when running this program
+    variables when running this program
 
     The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
     file to use for caching authentication information.
