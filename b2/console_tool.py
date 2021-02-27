@@ -250,9 +250,10 @@ class B2(Command):
     This program provides command-line access to the B2 service.
 
     There are two flows of authorization:
-    * call {NAME} authorize-account and have the credentials cached in sqlite
-    * set {B2_APPLICATION_KEY_ID_ENV_VAR} and {B2_APPLICATION_KEY_ENV_VAR} environment
-    variables when running this program
+
+    * call ``{NAME}`` authorize-account and have the credentials cached in sqlite
+    * set ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and ``{B2_APPLICATION_KEY_ENV_VAR}`` environment
+      variables when running this program
 
     The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
     file to use for caching authentication information.
@@ -1657,11 +1658,19 @@ class ConsoleTool(object):
     def authorize_from_env(self, command_class):
         if not command_class.REQUIRES_AUTH:
             return 0
-        if B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ:
+
+        key_id = os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR)
+        key = os.environ.get(B2_APPLICATION_KEY_ENV_VAR)
+
+        if key_id is None and key is None:
             return 0
 
-        key_id = os.environ[B2_APPLICATION_KEY_ID_ENV_VAR]
-        key = os.environ.get(B2_APPLICATION_KEY_ENV_VAR, '')
+        if (key_id is None) or (key is None):
+            self._print_stderr(
+                'Please provide both "%s" and "%s" environment variables or none of them' %
+                (B2_APPLICATION_KEY_ENV_VAR, B2_APPLICATION_KEY_ID_ENV_VAR)
+            )
+            return 1
         realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
 
         if self.api.account_info.is_same_key(key_id, realm):

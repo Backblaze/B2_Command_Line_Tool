@@ -555,6 +555,21 @@ def account_test(b2_tool, bucket_name):
     os.environ.pop('B2_APPLICATION_KEY')
     os.environ.pop('B2_APPLICATION_KEY_ID')
 
+    # last, let's see that providing only one of the env vars results in a failure
+    os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
+    b2_tool.should_fail(
+        ['create-bucket', bucket_name, 'allPrivate'],
+        r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+    )
+    os.environ.pop('B2_APPLICATION_KEY')
+
+    os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
+    b2_tool.should_fail(
+        ['create-bucket', bucket_name, 'allPrivate'],
+        r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+    )
+    os.environ.pop('B2_APPLICATION_KEY_ID')
+
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
 
