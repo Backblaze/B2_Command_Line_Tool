@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fix for the Windows bundled version
 * Fix docs autogen
+* Facilitate for a change in arrow's `.format`
 
 ## [2.1.0] - 2020-11-03
 

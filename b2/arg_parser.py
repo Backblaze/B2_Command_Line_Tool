@@ -84,7 +84,7 @@ def parse_millis_from_float_timestamp(s):
     """
     Parse timestamp, e.g. 1367900664 or 1367900664.152
     """
-    return int(arrow.get(float(s)).format('XSSS'))
+    return int(arrow.get(float(s)).float_timestamp * 1000)
 
 
 def parse_range(s):
