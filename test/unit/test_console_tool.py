@@ -16,7 +16,8 @@ from io import StringIO
 
 from b2sdk.v1 import StubAccountInfo
 from b2sdk.v1 import B2Api
-from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
+from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR, \
+    B2_ENVIRONMENT_ENV_VAR
 from b2sdk.v1 import RawSimulator
 from b2sdk.v1 import UploadSourceBytes
 from b2sdk.v1 import TempDir, fix_windows_path_limit
@@ -118,6 +119,7 @@ class TestConsoleTool(TestBase):
         Using http://custom.example.com
         """
 
+        # realm provided with args
         self._run_command(
             [
                 'authorize-account', '--environment', 'http://custom.example.com', self.account_id,
@@ -127,6 +129,19 @@ class TestConsoleTool(TestBase):
 
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
+
+        expected_stdout = """
+        Using http://custom2.example.com
+        """
+        # realm provided with env var
+        with mock.patch.dict(
+            'os.environ', {
+                B2_ENVIRONMENT_ENV_VAR: 'http://custom2.example.com',
+            }
+        ):
+            self._run_command(
+                ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
+            )
 
     def test_create_key_and_authorize_with_it(self):
         # Start with authorizing with the master key
@@ -147,6 +162,68 @@ class TestConsoleTool(TestBase):
             '',
             0,
         )
+
+    def test_create_key_with_authorization_from_env_vars(self):
+        # Initial condition
+        assert self.account_info.get_account_auth_token() is None
+
+        # Authorize an account with a good api key.
+
+        # Setting up environment variables
+        with mock.patch.dict(
+            'os.environ', {
+                B2_APPLICATION_KEY_ID_ENV_VAR: self.account_id,
+                B2_APPLICATION_KEY_ENV_VAR: self.master_key,
+            }
+        ):
+            assert B2_APPLICATION_KEY_ID_ENV_VAR in os.environ
+            assert B2_APPLICATION_KEY_ENV_VAR in os.environ
+
+            # The first time we're running on this cache there will be output from the implicit "authorize-account" call
+            self._run_command(
+                ['create-key', 'key1', 'listBuckets,listKeys'],
+                'Using http://production.example.com\n'
+                'appKeyId0 appKey0\n',
+                '',
+                0,
+            )
+
+            # The second time "authorize-account" is not called
+            self._run_command(
+                ['create-key', 'key1', 'listBuckets,listKeys,writeKeys'],
+                'appKeyId1 appKey1\n',
+                '',
+                0,
+            )
+
+            with mock.patch.dict(
+                'os.environ', {
+                    B2_APPLICATION_KEY_ID_ENV_VAR: 'appKeyId1',
+                    B2_APPLICATION_KEY_ENV_VAR: 'appKey1',
+                }
+            ):
+                # "authorize-account" is called when the key changes
+                self._run_command(
+                    ['create-key', 'key1', 'listBuckets,listKeys'],
+                    'Using http://production.example.com\n'
+                    'appKeyId2 appKey2\n',
+                    '',
+                    0,
+                )
+
+                # "authorize-account" is also called when the realm changes
+                with mock.patch.dict(
+                    'os.environ', {
+                        B2_ENVIRONMENT_ENV_VAR: 'http://custom.example.com',
+                    }
+                ):
+                    self._run_command(
+                        ['create-key', 'key1', 'listBuckets,listKeys'],
+                        'Using http://custom.example.com\n'
+                        'appKeyId3 appKey3\n',
+                        '',
+                        0,
+                    )
 
     def test_authorize_key_without_list_buckets(self):
         self._authorize_account()

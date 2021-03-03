@@ -62,6 +62,7 @@ B2_APPLICATION_KEY_ID_ENV_VAR = 'B2_APPLICATION_KEY_ID'
 B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
 # Optional Env variable to use for adding custom string to the User Agent
 B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
+B2_ENVIRONMENT_ENV_VAR = 'B2_ENVIRONMENT'
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -80,6 +81,7 @@ DOC_STRING_DATA = dict(
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
+    B2_ENVIRONMENT_ENV_VAR=B2_ENVIRONMENT_ENV_VAR,
 )
 
 
@@ -126,6 +128,9 @@ class Command(object):
 
     # The registry for the subcommands, should be reinitialized  in subclass
     subcommands_registry = None
+
+    # set to False for commands not requiring b2 authentication
+    REQUIRES_AUTH = True
 
     def __init__(self, console_tool):
         self.console_tool = console_tool
@@ -244,6 +249,12 @@ class B2(Command):
     """
     This program provides command-line access to the B2 service.
 
+    There are two flows of authorization:
+
+    * call ``{NAME}`` authorize-account and have the credentials cached in sqlite
+    * set ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and ``{B2_APPLICATION_KEY_ENV_VAR}`` environment
+      variables when running this program
+
     The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
     file to use for caching authentication information.
     The default file to use is: ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``
@@ -264,6 +275,8 @@ class B2(Command):
     A string provided via an optional environment variable ``{B2_USER_AGENT_APPEND_ENV_VAR}``
     will be appended to the User-Agent.
     """
+
+    REQUIRES_AUTH = False
 
     subcommands_registry = ClassRegistry()
 
@@ -305,6 +318,7 @@ class AuthorizeAccount(Command):
     """
 
     FORBID_LOGGING_ARGUMENTS = True
+    REQUIRES_AUTH = False
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -321,9 +335,6 @@ class AuthorizeAccount(Command):
         # These are not documented in the usage string.
         realm = self._get_realm(args)
 
-        url = self.api.account_info.REALM_URLS.get(realm, realm)
-        self._print('Using %s' % url)
-
         if args.applicationKeyId is None:
             args.applicationKeyId = (
                 os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR) or
@@ -336,8 +347,21 @@ class AuthorizeAccount(Command):
                 getpass.getpass('Backblaze application key: ')
             )
 
+        return self.authorize(args.applicationKeyId, args.applicationKey, realm)
+
+    def authorize(self, application_key_id, application_key, realm):
+        """
+        Perform the authorization and capability checks, report errors.
+
+        :param application_key_id: application key ID used to authenticate
+        :param application_key: application key
+        :param realm: authorization realm
+        :return: exit status
+        """
+        url = self.api.account_info.REALM_URLS.get(realm, realm)
+        self._print('Using %s' % url)
         try:
-            self.api.authorize_account(realm, args.applicationKeyId, args.applicationKey)
+            self.api.authorize_account(realm, application_key_id, application_key)
 
             allowed = self.api.account_info.get_allowed()
             if 'listBuckets' not in allowed['capabilities']:
@@ -372,7 +396,7 @@ class AuthorizeAccount(Command):
         if args.environment:
             return args.environment
 
-        return 'production'
+        return os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
 
 
 @B2.register_subcommand
@@ -429,6 +453,8 @@ class ClearAccount(Command):
     Erases everything in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``.  Location
     of file can be overridden by setting ``{B2_ACCOUNT_INFO_ENV_VAR}``.
     """
+
+    REQUIRES_AUTH = False
 
     def run(self, args):
         self.api.account_info.clear()
@@ -729,6 +755,8 @@ class GetAccountInfo(Command):
     Shows the account ID, key, auth token, URLs, and what capabilities
     the current application keys has.
     """
+
+    REQUIRES_AUTH = False
 
     def run(self, args):
         account_info = self.api.account_info
@@ -1571,6 +1599,8 @@ class Version(Command):
     Prints the version number of this tool.
     """
 
+    REQUIRES_AUTH = False
+
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
@@ -1601,10 +1631,17 @@ class ConsoleTool(object):
         self._setup_logging(args, command, argv)
 
         try:
+            auth_ret = self.authorize_from_env(command_class)
+            if auth_ret:
+                return auth_ret
             return command.run(args)
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
-            self._print_stderr('ERROR: %s  Use: %s authorize-account' % (str(e), NAME))
+            self._print_stderr(
+                'ERROR: %s  Use: %s authorize-account or provide auth data with "%s" and "%s"'
+                ' environment variables' %
+                (str(e), NAME, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR)
+            )
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
@@ -1617,6 +1654,29 @@ class ConsoleTool(object):
         except Exception:
             logger.exception('ConsoleTool unexpected exception')
             raise
+
+    def authorize_from_env(self, command_class):
+        if not command_class.REQUIRES_AUTH:
+            return 0
+
+        key_id = os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR)
+        key = os.environ.get(B2_APPLICATION_KEY_ENV_VAR)
+
+        if key_id is None and key is None:
+            return 0
+
+        if (key_id is None) or (key is None):
+            self._print_stderr(
+                'Please provide both "%s" and "%s" environment variables or none of them' %
+                (B2_APPLICATION_KEY_ENV_VAR, B2_APPLICATION_KEY_ID_ENV_VAR)
+            )
+            return 1
+        realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
+
+        if self.api.account_info.is_same_key(key_id, realm):
+            return 0
+
+        return AuthorizeAccount(self).authorize(key_id, key, realm)
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
