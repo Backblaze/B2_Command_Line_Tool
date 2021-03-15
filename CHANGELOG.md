@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2021-03-15
+
 ### Added
 * Option to automatically authorize account when running commands other than `authorize-account` via 
   `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` env vars
@@ -173,7 +175,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.0.2...v2.1.0
 [2.0.2]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.0.0...v2.0.2
 [2.0.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v1.4.2...v2.0.0
