@@ -54,23 +54,22 @@ class ArgumentParser(argparse.ArgumentParser):
     """
 
     def __init__(self, *args, for_docs=False, **kwargs):
-        self._for_docs = for_docs
-
         kwargs.setdefault('formatter_class', RawTextHelpFormatter)
         description = kwargs.get('description', None)
         if description is not None:
-            kwargs['description'] = self._format_description(description)
+            kwargs['description'] = textwrap.dedent(description) if for_docs else description
         super(ArgumentParser, self).__init__(*args, **kwargs)
+
+    def format_help(self):
+        if self.description is not None:
+            self.description = rst2ansi(self.description.encode('utf-8'))
+
+        return super().format_help()
 
     def error(self, message):
         self.print_help()
         args = {'prog': self.prog, 'message': message}
         self.exit(2, '\n%(prog)s: error: %(message)s\n' % args)
-
-    def _format_description(self, text):
-        if self._for_docs:
-            return textwrap.dedent(text)
-        return rst2ansi(text.encode('utf-8'))
 
 
 def parse_comma_separated_list(s):
