@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+* Pin `setuptools-scm<6.0` as `>=6.0` doesn't support Python 3.5
+
 ## [2.2.0] - 2021-03-15
 
 ### Added
