@@ -116,7 +116,7 @@ setup(
                 'sphinxcontrib-plantuml', 'sadisplay'
             ],
     },
-    setup_requires=['setuptools_scm'],
+    setup_requires=['setuptools_scm<6.0'],  # setuptools_scm>=6.0 doesn't support Python 3.5
     use_scm_version=True,
 
     # If there are data files included in your packages that need to be
