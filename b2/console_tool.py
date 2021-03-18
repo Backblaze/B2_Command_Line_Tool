@@ -46,6 +46,9 @@ from b2sdk.v1 import (
     SqliteAccountInfo,
     ScanPoliciesManager,
     DEFAULT_SCAN_MANAGER,
+    EncryptionAlgorithm,
+    EncryptionMode,
+    EncryptionSetting,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
@@ -120,6 +123,64 @@ def apply_or_none(fcn, value):
         return None
     else:
         return fcn(value)
+
+
+class DefaultServerSideEncryptionMixin:
+    """
+    Mixin for setting default server side encryption arguments.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--defaultServerSideEncryptionMode', default=None, choices=('SSE-B2', 'none')
+        )
+        parser.add_argument(
+            '--defaultServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        )
+
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_encryption_setting(cls, args):
+        if args.defaultServerSideEncryptionMode == 'SSE-B2':
+            mode = EncryptionMode.SSE_B2
+            # only one algorithm is available for now, so we don't need to check the args
+            algorithm = EncryptionAlgorithm.AES256
+        elif args.defaultServerSideEncryptionMode == 'none':
+            mode = EncryptionMode.NONE
+            algorithm = None
+        else:
+            return None
+
+        return EncryptionSetting(mode=mode, algorithm=algorithm)
+
+
+class OneWayEncryptionMixin:
+    """
+    Mixin for using one-way encryption arguments.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--encryptionMode', default=None, choices=('SSE-B2', 'none'))
+        parser.add_argument('--encryptionAlgorithm', default='AES256', choices=('AES256',))
+
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_encryption_setting(cls, args):
+        if args.encryptionMode == 'SSE-B2':
+            mode = EncryptionMode.SSE_B2
+            # only one algorithm is available for now, so we don't need to check the args
+            algorithm = EncryptionAlgorithm.AES256
+        elif args.defaultServerSideEncryptionMode == 'none':
+            mode = EncryptionMode.NONE
+            algorithm = None
+        else:
+            return None
+
+        return EncryptionSetting(mode=mode, algorithm=algorithm)
 
 
 class Command(object):
@@ -528,7 +589,7 @@ class CopyFileById(Command):
 
 
 @B2.register_subcommand
-class CreateBucket(Command):
+class CreateBucket(DefaultServerSideEncryptionMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
 
@@ -548,13 +609,17 @@ class CreateBucket(Command):
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
+        encryption_setting = self._get_encryption_setting(args)
         bucket = self.api.create_bucket(
             args.bucketName,
             args.bucketType,
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
-            lifecycle_rules=args.lifecycleRules
+            lifecycle_rules=args.lifecycleRules,
+            default_server_side_encryption=encryption_setting
         )
         self._print(bucket.id_)
         return 0
@@ -692,7 +757,7 @@ class DeleteKey(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(Command):
+class DownloadFileById(OneWayEncryptionMixin, Command):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -711,16 +776,21 @@ class DownloadFileById(Command):
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
+        encryption_setting = self._get_encryption_setting(args)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
-        self.api.download_file_by_id(args.fileId, download_dest, progress_listener)
+        self.api.download_file_by_id(
+            args.fileId, download_dest, progress_listener, encryption=encryption_setting
+        )
         self.console_tool._print_download_info(download_dest)
         return 0
 
 
 @B2.register_subcommand
-class DownloadFileByName(Command):
+class DownloadFileByName(OneWayEncryptionMixin, Command):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -740,11 +810,16 @@ class DownloadFileByName(Command):
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
+        encryption_setting = self._get_encryption_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
-        bucket.download_file_by_name(args.b2FileName, download_dest, progress_listener)
+        bucket.download_file_by_name(
+            args.b2FileName, download_dest, progress_listener, encryption=encryption_setting
+        )
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -1487,7 +1562,7 @@ class Sync(Command):
 
 
 @B2.register_subcommand
-class UpdateBucket(Command):
+class UpdateBucket(DefaultServerSideEncryptionMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
@@ -1508,20 +1583,24 @@ class UpdateBucket(Command):
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
+        encryption_setting = self._get_encryption_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
             bucket_type=args.bucketType,
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
-            lifecycle_rules=args.lifecycleRules
+            lifecycle_rules=args.lifecycleRules,
+            default_server_side_encryption=encryption_setting
         )
         self._print_json(response)
         return 0
 
 
 @B2.register_subcommand
-class UploadFile(Command):
+class UploadFile(OneWayEncryptionMixin, Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
     of the local file, and assigns the given name to the B2 file.
@@ -1566,6 +1645,8 @@ class UploadFile(Command):
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
         file_infos = self._parse_file_infos(args.info)
 
@@ -1577,6 +1658,7 @@ class UploadFile(Command):
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
+        encryption_setting = self._get_encryption_setting(args)
         file_info = bucket.upload_local_file(
             local_file=args.localFilePath,
             file_name=args.b2FileName,
@@ -1585,6 +1667,7 @@ class UploadFile(Command):
             sha1_sum=args.sha1,
             min_part_size=args.minPartSize,
             progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
+            encryption=encryption_setting
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
