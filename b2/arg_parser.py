@@ -54,17 +54,25 @@ class ArgumentParser(argparse.ArgumentParser):
     """
 
     def __init__(self, *args, for_docs=False, **kwargs):
+        self._raw_description = None
+        self._description = None
+        self._for_docs = for_docs
         kwargs.setdefault('formatter_class', RawTextHelpFormatter)
-        description = kwargs.get('description', None)
-        if description is not None:
-            kwargs['description'] = textwrap.dedent(description) if for_docs else description
         super(ArgumentParser, self).__init__(*args, **kwargs)
 
-    def format_help(self):
-        if self.description is not None:
-            self.description = rst2ansi(self.description.encode('utf-8'))
+    @property
+    def description(self):
+        if self._description is None and self._raw_description is not None:
+            if self._for_docs:
+                self._description = textwrap.dedent(self._raw_description)
+            else:
+                self._description = rst2ansi(self._raw_description.encode('utf-8'))
 
-        return super().format_help()
+        return self._description
+
+    @description.setter
+    def description(self, value):
+        self._raw_description = value
 
     def error(self, message):
         self.print_help()
