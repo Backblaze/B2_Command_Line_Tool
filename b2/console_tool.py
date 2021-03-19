@@ -127,7 +127,22 @@ def apply_or_none(fcn, value):
 
 class DefaultSseMixin:
     """
-    Mixin for setting default server side encryption arguments.
+    If you want server-side encryption for all of the files that are uploaded to a bucket,
+    you can enable SSE-B2 encryption as a default setting for the bucket.
+    In order to do that pass ``--defaultServerSideEncryption=SSE-B2``.
+    The default algorithm is set to AES256 which can by changed
+    with ``--defaultServerSideEncryptionAlgorithm`` parameter.
+    All uploads to that bucket, from the time default encryption is enabled onward,
+    will then be encrypted with SSE-B2 by default.
+
+    To disable default bucket encryption, use ``--defaultServerSideEncryption=none``.
+
+    If ``--defaultServerSideEncryption`` is not provided,
+    default server side encryption is determined by the server.
+
+    .. note::
+
+        Note that existing files in the bucket are not affected by default bucket encryption settings.
     """
 
     @classmethod
@@ -144,11 +159,13 @@ class DefaultSseMixin:
     @classmethod
     def _get_default_sse_setting(cls, args):
         mode = apply_or_none(EncryptionMode, args.defaultServerSideEncryption)
-        if mode == EncryptionMode.NONE:
-            args.defaultServerSideEncryptionAlgorithm = None
-
-        algorithm = apply_or_none(EncryptionAlgorithm, args.defaultServerSideEncryptionAlgorithm)
         if mode is not None:
+            if mode == EncryptionMode.NONE:
+                args.defaultServerSideEncryptionAlgorithm = None
+
+            algorithm = apply_or_none(
+                EncryptionAlgorithm, args.defaultServerSideEncryptionAlgorithm
+            )
             return EncryptionSetting(mode=mode, algorithm=algorithm)
 
         return None
@@ -156,7 +173,10 @@ class DefaultSseMixin:
 
 class SourceSseMixin:
     """
-    Mixin for using SSE arguments for a source.
+    To specify SSE-B2 encryption for source files,
+    please set ``--sourceServerSideEncryption=SSE-B2``.
+    The default algorithm is set to AES256 which can by changed
+    with ``--sourceServerSideEncryptionAlgorithm`` parameter.
     """
 
     @classmethod
@@ -171,8 +191,8 @@ class SourceSseMixin:
     @classmethod
     def _get_source_sse_setting(cls, args):
         mode = apply_or_none(EncryptionMode, args.sourceServerSideEncryption)
-        algorithm = apply_or_none(EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm)
         if mode is not None:
+            algorithm = apply_or_none(EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm)
             return EncryptionSetting(mode=mode, algorithm=algorithm)
 
         return None
@@ -180,7 +200,10 @@ class SourceSseMixin:
 
 class DestinationSseMixin:
     """
-    Mixin for using SSE arguments for a destination.
+    To request SSE-B2 encryption for destination files,
+    please set ``--destinationServerSideEncryption=SSE-B2``.
+    The default algorithm is set to AES256 which can by changed
+    with ``--destinationServerSideEncryptionAlgorithm`` parameter.
     """
 
     @classmethod
@@ -195,10 +218,10 @@ class DestinationSseMixin:
     @classmethod
     def _get_destination_sse_setting(cls, args):
         mode = apply_or_none(EncryptionMode, args.destinationServerSideEncryption)
-        algorithm = apply_or_none(
-            EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
-        )
         if mode is not None:
+            algorithm = apply_or_none(
+                EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
+            )
             return EncryptionSetting(mode=mode, algorithm=algorithm)
 
         return None
@@ -243,7 +266,7 @@ class Command(object):
         if parents is None:
             parents = []
 
-        description = cls.__doc__.format(**DOC_STRING_DATA)
+        description = cls._get_description()
 
         if subparsers is None:
             name, _ = cls.name_and_alias()
@@ -288,6 +311,14 @@ class Command(object):
     @classmethod
     def _setup_parser(cls, parser):
         pass
+
+    @classmethod
+    def _get_description(cls):
+        mro_docs = {
+            klass.__name__.upper(): klass.__doc__
+            for klass in cls.mro() if klass is not cls and klass.__doc__
+        }
+        return cls.__doc__.format(**DOC_STRING_DATA, **mro_docs)
 
     @classmethod
     def _parse_file_infos(cls, args_info):
@@ -567,6 +598,8 @@ class CopyFileById(DestinationSseMixin, Command):
 
     The maximum file size is 5GB or 10TB, depending on capability of installed ``b2sdk`` version.
 
+    {DESTINATIONSSEMIXIN}
+
     Requires capability:
 
     - **readFiles** (if ``sourceFileId`` bucket is private)
@@ -620,9 +653,13 @@ class CreateBucket(DefaultSseMixin, Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
+    {DEFAULTSSEMIXIN}
+
     Requires capability:
 
     - **writeBuckets**
+    - **readBucketEncryption**
+    - **writeBucketEncryption**
     """
 
     @classmethod
@@ -789,6 +826,8 @@ class DownloadFileById(SourceSseMixin, Command):
     on stderr.  Without it, simple text progress is printed.
     Use ``--noProgress`` to disable progress reporting.
 
+    {SOURCESSEMIXIN}
+
     Requires capability:
 
     - **readFiles**
@@ -821,6 +860,8 @@ class DownloadFileByName(SourceSseMixin, Command):
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
     Use ``--noProgress`` to disable progress reporting.
+
+    {SOURCESSEMIXIN}
 
     Requires capability:
 
@@ -1594,9 +1635,13 @@ class UpdateBucket(DefaultSseMixin, Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
+    {DEFAULTSSEMIXIN}
+
     Requires capability:
 
     - **writeBuckets**
+    - **readBucketEncryption**
+    - **writeBucketEncryption**
     """
 
     @classmethod
@@ -1650,6 +1695,8 @@ class UploadFile(DestinationSseMixin, Command):
     Use ``--noProgress`` to disable progress reporting.
 
     Each fileInfo is of the form ``a=b``.
+
+    {DESTINATIONSSEMIXIN}
 
     Requires capability:
 
