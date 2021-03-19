@@ -544,7 +544,7 @@ class ClearAccount(Command):
 
 
 @B2.register_subcommand
-class CopyFileById(Command):
+class CopyFileById(DestinationSseMixin, Command):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
@@ -583,6 +583,8 @@ class CopyFileById(Command):
         parser.add_argument('destinationBucketName')
         parser.add_argument('b2FileName')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
         file_infos = None
         if args.info is not None:
@@ -596,7 +598,7 @@ class CopyFileById(Command):
             metadata_directive = None
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
-
+        destination_encryption_setting = self._get_destination_sse_setting(args)
         response = bucket.copy_file(
             args.sourceFileId,
             args.b2FileName,
@@ -604,6 +606,7 @@ class CopyFileById(Command):
             metadata_directive=metadata_directive,
             content_type=args.contentType,
             file_info=file_infos,
+            destination_encryption=destination_encryption_setting
         )
         self._print_json(response)
         return 0
