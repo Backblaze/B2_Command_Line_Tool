@@ -317,6 +317,69 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['delete-bucket', 'your-bucket'], expected_stdout, '', 0)
 
+    def test_encrypted_buckets(self):
+        self._authorize_account()
+
+        # Make two encrypted buckets
+        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(
+            ['create-bucket', '--defaultServerSideEncryption=SSE-B2', 'your-bucket', 'allPrivate'],
+            'bucket_1\n', '', 0
+        )
+
+        # Update the one without encryption
+        expected_stdout = '''
+        {{
+            "accountId": "{account_id}",
+            "bucketId": "bucket_0",
+            "bucketInfo": {{}},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "algorithm": "AES256",
+                "mode": "SSE-B2"
+            }},
+            "lifecycleRules": [],
+            "options": [],
+            "revision": 2
+        }}
+        '''
+
+        self._run_command(
+            ['update-bucket', '--defaultServerSideEncryption=SSE-B2', 'my-bucket', 'allPublic'],
+            expected_stdout, '', 0
+        )
+
+        # Update the one with encryption
+        expected_stdout = '''
+        {{
+            "accountId": "{account_id}",
+            "bucketId": "bucket_1",
+            "bucketInfo": {{}},
+            "bucketName": "your-bucket",
+            "bucketType": "allPrivate",
+            "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "algorithm": "AES256",
+                "mode": "SSE-B2"
+            }},
+            "lifecycleRules": [],
+            "options": [],
+            "revision": 2
+        }}
+        '''
+
+        self._run_command(['update-bucket', 'your-bucket', 'allPrivate'], expected_stdout, '', 0)
+
+        # Make sure they are there
+        expected_stdout = '''
+        bucket_0  allPublic   my-bucket
+        bucket_1  allPrivate  your-bucket
+        '''
+
+        self._run_command(['list-buckets'], expected_stdout, '', 0)
+
     def test_keys(self):
         self._authorize_account()
 
@@ -415,6 +478,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "unknown"
+            }},
             "lifecycleRules": [],
             "options": [],
             "revision": 1
@@ -444,6 +510,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {
+                "mode": "none"
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 1
@@ -537,6 +606,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "1500111222000"
                 }},
                 "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "size": 11,
                 "uploadTimestamp": 5000
             }}
@@ -562,6 +634,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "1500111222000"
                 }},
                 "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "uploadTimestamp": 5000
             }}
             '''
@@ -605,6 +680,9 @@ class TestConsoleTool(TestBase):
                 "fileId": "9998",
                 "fileInfo": {{}},
                 "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "size": 0,
                 "uploadTimestamp": 5001
             }}
@@ -621,6 +699,9 @@ class TestConsoleTool(TestBase):
                     "fileId": "9998",
                     "fileInfo": {{}},
                     "fileName": "file1.txt",
+                    "serverSideEncryption": {{
+                        "mode": "none"
+                    }},
                     "size": 0,
                     "uploadTimestamp": 5001
                 }},
@@ -633,6 +714,186 @@ class TestConsoleTool(TestBase):
                         "src_last_modified_millis": "%s"
                     }},
                     "fileName": "file1.txt",
+                    "serverSideEncryption": {{
+                        "mode": "none"
+                    }},
+                    "size": 11,
+                    "uploadTimestamp": 5000
+                }}
+            ]
+            ''' % (mod_time_str,)
+
+            self._run_command(['ls', '--json', '--versions', 'my-bucket'], expected_stdout, '', 0)
+
+            # List the file names
+            expected_stdout = '''
+            []
+            '''
+
+            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
+
+            # Delete one file version, passing the name in
+            expected_stdout = '''
+            {{
+                "action": "delete",
+                "fileId": "9998",
+                "fileName": "file1.txt"
+            }}
+            '''
+
+            self._run_command(['delete-file-version', 'file1.txt', '9998'], expected_stdout, '', 0)
+
+            # Delete one file version, not passing the name in
+            expected_stdout = '''
+            {{
+                "action": "delete",
+                "fileId": "9999",
+                "fileName": "file1.txt"
+            }}
+            '''
+
+            self._run_command(['delete-file-version', '9999'], expected_stdout, '', 0)
+
+    def test_files_encrypted(self):
+
+        self._authorize_account()
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            # For this test, use a mod time without millis.  My mac truncates
+            # millis and just leaves seconds.
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # Upload a file
+            expected_stdout = '''
+            URL by file name: http://download.example.com/file/my-bucket/file1.txt
+            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
+            {{
+                "action": "upload",
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "algorithm": "AES256",
+                    "mode": "SSE-B2"
+                }},
+                "size": 11,
+                "uploadTimestamp": 5000
+            }}
+            '''
+
+            self._run_command(
+                ['upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2', 'my-bucket', local_file1, 'file1.txt'],
+                expected_stdout, '', 0, None, True
+            )
+
+            # Get file info
+            mod_time_str = str(file_mod_time_millis(local_file1))
+            expected_stdout = '''
+            {{
+                "accountId": "{account_id}",
+                "action": "upload",
+                "bucketId": "bucket_0",
+                "contentLength": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "1500111222000"
+                }},
+                "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "algorithm": "AES256",
+                    "mode": "SSE-B2"
+                }},
+                "uploadTimestamp": 5000
+            }}
+            '''
+
+            self._run_command(['get-file-info', '9999'], expected_stdout, '', 0)
+
+            # Download by name
+            local_download1 = os.path.join(temp_dir, 'download1.txt')
+            expected_stdout = '''
+            File name:    file1.txt
+            File id:      9999
+            File size:    11
+            Content type: b2/x-auto
+            Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            INFO src_last_modified_millis: 1500111222000
+            checksum matches
+            '''
+
+            self._run_command(
+                [
+                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
+                    local_download1
+                ], expected_stdout, '', 0
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download1))
+            self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
+
+            # Download file by ID.  (Same expected output as downloading by name)
+            local_download2 = os.path.join(temp_dir, 'download2.txt')
+            self._run_command(
+                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
+                '', 0
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download2))
+
+            # Hide the file
+            expected_stdout = '''
+            {{
+                "action": "hide",
+                "contentSha1": "none",
+                "fileId": "9998",
+                "fileInfo": {{}},
+                "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
+                "size": 0,
+                "uploadTimestamp": 5001
+            }}
+            '''
+
+            self._run_command(['hide-file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
+
+            # List the file versions
+            expected_stdout = '''
+            [
+                {{
+                    "action": "hide",
+                    "contentSha1": "none",
+                    "fileId": "9998",
+                    "fileInfo": {{}},
+                    "fileName": "file1.txt",
+                    "serverSideEncryption": {{
+                        "mode": "none"
+                    }},
+                    "size": 0,
+                    "uploadTimestamp": 5001
+                }},
+                {{
+                    "action": "upload",
+                    "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                    "contentType": "b2/x-auto",
+                    "fileId": "9999",
+                    "fileInfo": {{
+                        "src_last_modified_millis": "%s"
+                    }},
+                    "fileName": "file1.txt",
+                    "serverSideEncryption": {{
+                        "algorithm": "AES256",
+                        "mode": "SSE-B2"
+                    }},
                     "size": 11,
                     "uploadTimestamp": 5000
                 }}
@@ -695,6 +956,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "1500111222000"
                 }},
                 "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "size": 11,
                 "uploadTimestamp": 5000
             }}
@@ -719,6 +983,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "1500111222000"
                 }},
                 "fileName": "file1_copy.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "uploadTimestamp": 5001
             }}
             '''
@@ -740,6 +1007,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "1500111222000"
                 }},
                 "fileName": "file1_copy.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "uploadTimestamp": 5002
             }}
             '''
@@ -794,6 +1064,9 @@ class TestConsoleTool(TestBase):
                     "a": "b"
                 }},
                 "fileName": "file1_copy.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "uploadTimestamp": 5003
             }}
             '''
@@ -839,6 +1112,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "1500111222000"
                 }},
                 "fileName": "file1_copy.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "uploadTimestamp": 5004
             }}
             '''
@@ -895,10 +1171,12 @@ class TestConsoleTool(TestBase):
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False
         bucket.api.services.upload_manager._upload_part(
-            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state, None, None
+            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state, None,
+            None
         )
         bucket.api.services.upload_manager._upload_part(
-            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state, None, None
+            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state, None,
+            None
         )
         expected_stdout = '''
             1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
@@ -956,6 +1234,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "%s"
                 }},
                 "fileName": "test.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "size": 600,
                 "uploadTimestamp": 5000
             }}
@@ -964,6 +1245,50 @@ class TestConsoleTool(TestBase):
             self._run_command(
                 [
                     'upload-file', '--noProgress', '--threads', '5', 'my-bucket', file_path,
+                    'test.txt'
+                ], expected_stdout, '', 0, None, True
+            )
+
+    def test_upload_large_file_encrypted(self):
+        self._authorize_account()
+        self._run_command(
+            [
+                'create-bucket', 'my-bucket', 'allPublic'
+            ], 'bucket_0\n', '', 0
+        )
+        min_part_size = self.account_info.get_minimum_part_size()
+        file_size = min_part_size * 3
+
+        with TempDir() as temp_dir:
+            file_path = os.path.join(temp_dir, 'test.txt')
+            text = '*' * file_size
+            with open(file_path, 'wb') as f:
+                f.write(text.encode('utf-8'))
+            mod_time_str = str(file_mod_time_millis(file_path))
+            expected_stdout = '''
+            URL by file name: http://download.example.com/file/my-bucket/test.txt
+            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
+            {{
+                "action": "upload",
+                "contentSha1": "none",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo": {{
+                    "src_last_modified_millis": "%s"
+                }},
+                "fileName": "test.txt",
+                "serverSideEncryption": {{
+                    "algorithm": "AES256",
+                    "mode": "SSE-B2"
+                }},
+                "size": 600,
+                "uploadTimestamp": 5000
+            }}
+            ''' % (mod_time_str,)
+
+            self._run_command(
+                [
+                    'upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2', '--threads', '5', 'my-bucket', file_path,
                     'test.txt'
                 ], expected_stdout, '', 0, None, True
             )
@@ -1012,6 +1337,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "none"
+            }},
             "lifecycleRules": [],
             "options": [],
             "revision": 1
@@ -1030,6 +1358,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "none"
+            }},
             "fileCount": 0,
             "lifecycleRules": [],
             "options": [],
@@ -1058,6 +1389,9 @@ class TestConsoleTool(TestBase):
                     "src_last_modified_millis": "%s"
                 }},
                 "fileName": "file1.txt",
+                "serverSideEncryption": {{
+                    "mode": "none"
+                }},
                 "size": 11,
                 "uploadTimestamp": 5000
             }}
@@ -1076,6 +1410,9 @@ class TestConsoleTool(TestBase):
                 "bucketName": "my-bucket",
                 "bucketType": "allPublic",
                 "corsRules": [],
+                "defaultServerSideEncryption": {{
+                    "mode": "none"
+                }},
                 "fileCount": 1,
                 "lifecycleRules": [],
                 "options": [],
@@ -1111,6 +1448,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "none"
+            }},
             "fileCount": 10,
             "lifecycleRules": [],
             "options": [],
@@ -1157,6 +1497,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "none"
+            }},
             "fileCount": 20,
             "lifecycleRules": [],
             "options": [],
@@ -1197,6 +1540,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "none"
+            }},
             "fileCount": 10,
             "lifecycleRules": [],
             "options": [],
@@ -1257,11 +1603,43 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "mode": "none"
+            }},
             "fileCount": 29,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 99
+        }}
+        '''
+        self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
+
+    def test_get_bucket_encrypted(self):
+        self._authorize_account()
+        self._run_command(
+            [
+                'create-bucket', '--defaultServerSideEncryption=SSE-B2',
+                '--defaultServerSideEncryptionAlgorithm=AES256', 'my-bucket', 'allPublic'
+            ], 'bucket_0\n', '', 0
+        )
+        expected_stdout = '''
+        {{
+            "accountId": "{account_id}",
+            "bucketId": "bucket_0",
+            "bucketInfo": {{}},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "algorithm": "AES256",
+                "mode": "SSE-B2"
+            }},
+            "fileCount": 0,
+            "lifecycleRules": [],
+            "options": [],
+            "revision": 1,
+            "totalSize": 0
         }}
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
@@ -1341,6 +1719,9 @@ class TestConsoleTool(TestBase):
                         "src_last_modified_millis": "%d"
                     }},
                     "fileName": "test-dry-run.txt",
+                    "serverSideEncryption": {{
+                        "mode": "none"
+                    }},
                     "size": 11,
                     "uploadTimestamp": 5000
                 }}
