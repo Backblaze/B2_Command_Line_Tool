@@ -290,6 +290,12 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
+            "defaultServerSideEncryption": {{
+                "isClientAuthorizedToRead": true,
+                "value": {{
+                    "mode": "none"
+                }}
+            }},
             "lifecycleRules": [],
             "options": [],
             "revision": 2
@@ -467,6 +473,12 @@ class TestConsoleTool(TestBase):
                 "bucketName": "my-bucket",
                 "bucketType": "allPrivate",
                 "corsRules": [],
+                "defaultServerSideEncryption": {{
+                    "isClientAuthorizedToRead": true,
+                    "value": {{
+                        "mode": "none"
+                    }}
+                }},
                 "lifecycleRules": [],
                 "options": [],
                 "revision": 2
@@ -883,10 +895,10 @@ class TestConsoleTool(TestBase):
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False
         bucket.api.services.upload_manager._upload_part(
-            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state
+            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state, None, None
         )
         bucket.api.services.upload_manager._upload_part(
-            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state
+            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state, None, None
         )
         expected_stdout = '''
             1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
@@ -972,6 +984,8 @@ class TestConsoleTool(TestBase):
                     "listBuckets",
                     "writeBuckets",
                     "deleteBuckets",
+                    "readBucketEncryption",
+                    "writeBucketEncryption",
                     "listFiles",
                     "readFiles",
                     "shareFiles",
