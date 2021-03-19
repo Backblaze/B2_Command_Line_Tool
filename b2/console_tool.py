@@ -125,7 +125,7 @@ def apply_or_none(fcn, value):
         return fcn(value)
 
 
-class DefaultServerSideEncryptionMixin:
+class DefaultSseMixin:
     """
     Mixin for setting default server side encryption arguments.
     """
@@ -133,7 +133,7 @@ class DefaultServerSideEncryptionMixin:
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument(
-            '--defaultServerSideEncryptionMode', default=None, choices=('SSE-B2', 'none')
+            '--defaultServerSideEncryption', default=None, choices=('SSE-B2', 'none')
         )
         parser.add_argument(
             '--defaultServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
@@ -142,45 +142,66 @@ class DefaultServerSideEncryptionMixin:
         super()._setup_parser(parser)  # noqa
 
     @classmethod
-    def _get_encryption_setting(cls, args):
-        if args.defaultServerSideEncryptionMode == 'SSE-B2':
-            mode = EncryptionMode.SSE_B2
-            # only one algorithm is available for now, so we don't need to check the args
-            algorithm = EncryptionAlgorithm.AES256
-        elif args.defaultServerSideEncryptionMode == 'none':
-            mode = EncryptionMode.NONE
-            algorithm = None
-        else:
-            return None
+    def _get_default_sse_setting(cls, args):
+        mode = apply_or_none(EncryptionMode, args.defaultServerSideEncryption)
+        if mode == EncryptionMode.NONE:
+            args.defaultServerSideEncryptionAlgorithm = None
 
-        return EncryptionSetting(mode=mode, algorithm=algorithm)
+        algorithm = apply_or_none(EncryptionAlgorithm, args.defaultServerSideEncryptionAlgorithm)
+        if mode is not None:
+            return EncryptionSetting(mode=mode, algorithm=algorithm)
+
+        return None
 
 
-class OneWayEncryptionMixin:
+class SourceSseMixin:
     """
-    Mixin for using one-way encryption arguments.
+    Mixin for using SSE arguments for a source.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--encryptionMode', default=None, choices=('SSE-B2', 'none'))
-        parser.add_argument('--encryptionAlgorithm', default='AES256', choices=('AES256',))
+        parser.add_argument('--sourceServerSideEncryption', default=None, choices=('SSE-B2',))
+        parser.add_argument(
+            '--sourceServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        )
 
         super()._setup_parser(parser)  # noqa
 
     @classmethod
-    def _get_encryption_setting(cls, args):
-        if args.encryptionMode == 'SSE-B2':
-            mode = EncryptionMode.SSE_B2
-            # only one algorithm is available for now, so we don't need to check the args
-            algorithm = EncryptionAlgorithm.AES256
-        elif args.defaultServerSideEncryptionMode == 'none':
-            mode = EncryptionMode.NONE
-            algorithm = None
-        else:
-            return None
+    def _get_source_sse_setting(cls, args):
+        mode = apply_or_none(EncryptionMode, args.sourceServerSideEncryption)
+        algorithm = apply_or_none(EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm)
+        if mode is not None:
+            return EncryptionSetting(mode=mode, algorithm=algorithm)
 
-        return EncryptionSetting(mode=mode, algorithm=algorithm)
+        return None
+
+
+class DestinationSseMixin:
+    """
+    Mixin for using SSE arguments for a destination.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--destinationServerSideEncryption', default=None, choices=('SSE-B2',))
+        parser.add_argument(
+            '--destinationServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        )
+
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_destination_sse_setting(cls, args):
+        mode = apply_or_none(EncryptionMode, args.destinationServerSideEncryption)
+        algorithm = apply_or_none(
+            EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
+        )
+        if mode is not None:
+            return EncryptionSetting(mode=mode, algorithm=algorithm)
+
+        return None
 
 
 class Command(object):
@@ -589,7 +610,7 @@ class CopyFileById(Command):
 
 
 @B2.register_subcommand
-class CreateBucket(DefaultServerSideEncryptionMixin, Command):
+class CreateBucket(DefaultSseMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
 
@@ -612,7 +633,7 @@ class CreateBucket(DefaultServerSideEncryptionMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
-        encryption_setting = self._get_encryption_setting(args)
+        encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.create_bucket(
             args.bucketName,
             args.bucketType,
@@ -757,7 +778,7 @@ class DeleteKey(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(OneWayEncryptionMixin, Command):
+class DownloadFileById(SourceSseMixin, Command):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -779,7 +800,7 @@ class DownloadFileById(OneWayEncryptionMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
-        encryption_setting = self._get_encryption_setting(args)
+        encryption_setting = self._get_source_sse_setting(args)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
         self.api.download_file_by_id(
@@ -790,7 +811,7 @@ class DownloadFileById(OneWayEncryptionMixin, Command):
 
 
 @B2.register_subcommand
-class DownloadFileByName(OneWayEncryptionMixin, Command):
+class DownloadFileByName(SourceSseMixin, Command):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -813,7 +834,7 @@ class DownloadFileByName(OneWayEncryptionMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
-        encryption_setting = self._get_encryption_setting(args)
+        encryption_setting = self._get_source_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
@@ -1562,7 +1583,7 @@ class Sync(Command):
 
 
 @B2.register_subcommand
-class UpdateBucket(DefaultServerSideEncryptionMixin, Command):
+class UpdateBucket(DefaultSseMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
@@ -1586,7 +1607,7 @@ class UpdateBucket(DefaultServerSideEncryptionMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
-        encryption_setting = self._get_encryption_setting(args)
+        encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
             bucket_type=args.bucketType,
@@ -1600,7 +1621,7 @@ class UpdateBucket(DefaultServerSideEncryptionMixin, Command):
 
 
 @B2.register_subcommand
-class UploadFile(OneWayEncryptionMixin, Command):
+class UploadFile(DestinationSseMixin, Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
     of the local file, and assigns the given name to the B2 file.
@@ -1658,7 +1679,7 @@ class UploadFile(OneWayEncryptionMixin, Command):
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        encryption_setting = self._get_encryption_setting(args)
+        encryption_setting = self._get_destination_sse_setting(args)
         file_info = bucket.upload_local_file(
             local_file=args.localFilePath,
             file_name=args.b2FileName,
