@@ -26,6 +26,14 @@ import threading
 import pytest
 
 from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
+from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting
+
+
+SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
+SSE_B2_AES = EncryptionSetting(
+    mode=EncryptionMode.SSE_B2,
+    algorithm=EncryptionAlgorithm.AES256,
+)
 
 
 def parse_args(tests):
@@ -580,8 +588,33 @@ def file_version_summary(list_of_files):
     hide, looking like this:
 
        ['+ photos/a.jpg', '- photos/b.jpg', '+ photos/c.jpg']
+
     """
-    return [('+ ' if (f['action'] == 'upload') else '- ') + f['fileName'] for f in list_of_files]
+    return [filename_summary(f) for f in list_of_files]
+
+
+def filename_summary(file_):
+    return ('+ ' if (file_['action'] == 'upload') else '- ') + file_['fileName']
+
+
+def file_version_summary_with_encryption(list_of_files):
+    """
+    Given the result of list-file-versions, returns a list
+    of all file versions, with "+" for upload and "-" for
+    hide, with information about encryption, looking like this:
+
+       [
+           ('+ photos/a.jpg', 'SSE-B2:AES256'),
+           ('- photos/b.jpg', None),
+           ('+ photos/c.jpg', 'none'),
+       ]
+    """
+    result = []
+    for f in list_of_files:
+        entry = filename_summary(f)
+        encryption = encryption_summary(f['serverSideEncryption'])
+        result.append((entry, encryption))
+    return result
 
 
 def find_file_id(list_of_files, file_name):
@@ -589,6 +622,14 @@ def find_file_id(list_of_files, file_name):
         if file['fileName'] == file_name:
             return file['fileId']
     assert False, 'file not found: %s' % (file_name,)
+
+
+def encryption_summary(sse_dict):
+    encryption = sse_dict['mode']
+    algorithm = sse_dict.get('algorithm')
+    if algorithm is not None:
+        encryption += ':' + algorithm
+    return encryption
 
 
 def sync_up_test(b2_tool, bucket_name):
@@ -839,11 +880,19 @@ def sync_copy_test(b2_tool, bucket_name):
     sync_copy_helper(b2_tool, bucket_name, 'sync')
 
 
-def sync_copy_test_no_prefix(b2_tool, bucket_name):
-    sync_copy_helper(b2_tool, bucket_name, '')
+def sync_copy_test_no_prefix_default_encryption(b2_tool, bucket_name):
+    sync_copy_helper(b2_tool, bucket_name, '', encryption=None, expected_encryption=SSE_NONE)
 
 
-def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket):
+def sync_copy_test_no_prefix_no_encryption(b2_tool, bucket_name):
+    sync_copy_helper(b2_tool, bucket_name, '', encryption=SSE_NONE, expected_encryption=SSE_NONE)
+
+
+def sync_copy_test_no_prefix_sse_b2(b2_tool, bucket_name):
+    sync_copy_helper(b2_tool, bucket_name, '', encryption=SSE_B2_AES, expected_encryption=SSE_B2_AES)
+
+
+def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None, expected_encryption=SSE_NONE):
     file_to_upload = 'README.md'
 
     b2_sync_point = 'b2:%s' % bucket_name
@@ -862,22 +911,32 @@ def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket):
 
     # Put a couple files in B2
     b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
+        ['upload-file', '--noProgress', '--destinationServerSideEncryptionMode SSE-B2', bucket_name, file_to_upload, b2_file_prefix + 'a']
     )
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
     )
 
     # Sync all the files
-    b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
+    if encryption is None:
+        b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
+    elif encryption == SSE_NONE:
+        b2_tool.should_succeed(['sync', '--noProgress', '--destinationServerSideEncryptionMode none', b2_sync_point, other_b2_sync_point])
+    elif encryption == SSE_B2_AES:
+        b2_tool.should_succeed(['sync', '--noProgress', '--destinationServerSideEncryptionMode SSE-B2', b2_sync_point, other_b2_sync_point])
+    else:
+        raise ValueError(expected_encryption)
 
     file_versions = b2_tool.list_file_versions(other_bucket_name)
+
+    expected_encryption_str = encryption_summary(expected_encryption)
+
     should_equal(
         [
-            '+ ' + b2_file_prefix + 'a',
-            '+ ' + b2_file_prefix + 'b',
+            ('+ ' + b2_file_prefix + 'a', expected_encryption)
+            ('+ ' + b2_file_prefix + 'b', expected_encryption)
         ],
-        file_version_summary(file_versions),
+        file_version_summary_with_encryption(file_versions),
     )
 
 
@@ -994,7 +1053,9 @@ def main(bucket_name_prefix):
         'sync_up_no_prefix': sync_up_test_no_prefix,
         'sync_long_path': sync_long_path_test,
         'sync_copy': sync_copy_test,
-        'sync_copy_no_prefix': sync_copy_test_no_prefix,
+        'sync_copy_test_no_prefix_default_encryption': sync_copy_test_no_prefix_default_encryption,
+        'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption,
+        'sync_copy_test_no_prefix_sse_b2': sync_copy_test_no_prefix_sse_b2,
         'download': download_test,
         'default_sse_b2': default_sse_b2_test,
         'sse_b2': sse_b2_test,
