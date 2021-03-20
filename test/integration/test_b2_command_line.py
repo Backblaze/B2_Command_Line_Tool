@@ -907,6 +907,82 @@ def sync_long_path_test(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
+def default_sse_b2_test(b2_tool, bucket_name):
+    # Set default encryption via update-bucket
+    bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
+    bucket_default_sse = {
+        'mode': 'none'
+    }
+    should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
+
+    bucket_info = b2_tool.should_succeed_json(['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic'])
+    bucket_default_sse = {
+        'isClientAuthorizedToRead': True,
+        'value': {
+            'algorithm': 'AES256',
+            'mode': 'SSE-B2',
+        }
+    }
+    should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
+
+    bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
+    bucket_default_sse = {
+        'algorithm': 'AES256',
+        'mode': 'SSE-B2',
+    }
+    should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
+
+    # Set default encryption via create-bucket
+    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    b2_tool.should_succeed(['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic'])
+    second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
+    second_bucket_default_sse = {
+        'algorithm': 'AES256',
+        'mode': 'SSE-B2',
+    }
+    should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
+
+
+def sse_b2_test(b2_tool, bucket_name):
+    file_to_upload = 'README.md'
+
+    b2_tool.should_succeed(
+        ['upload-file', '--destinationServerSideEncryption=SSE-B2', '--noProgress', '--quiet', bucket_name, file_to_upload, 'encrypted']
+    )
+    b2_tool.should_succeed(['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted'])
+
+    b2_tool.should_succeed(
+        ['download-file-by-name', '--noProgress', bucket_name, 'encrypted', os.devnull]
+    )
+    b2_tool.should_succeed(
+        ['download-file-by-name', '--noProgress', bucket_name, 'not_encrypted', os.devnull]
+    )
+
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    should_equal([{'algorithm': 'AES256', 'mode': 'SSE-B2'}, {'mode': 'none'}], [f['serverSideEncryption'] for f in list_of_files])
+
+    encrypted_version = list_of_files[0]
+    file_info = b2_tool.should_succeed_json(['get-file-info', encrypted_version['fileId']])
+    should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
+    not_encrypted_version = list_of_files[1]
+    file_info = b2_tool.should_succeed_json(['get-file-info', not_encrypted_version['fileId']])
+    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
+
+    b2_tool.should_succeed(['copy-file-by-id', '--destinationServerSideEncryption=SSE-B2', encrypted_version['fileId'], bucket_name, 'copied_encrypted'])
+    b2_tool.should_succeed(['copy-file-by-id', not_encrypted_version['fileId'], bucket_name, 'copied_not_encrypted'])
+
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    should_equal([{'algorithm': 'AES256', 'mode': 'SSE-B2'}, {'mode': 'none'}] * 2, [f['serverSideEncryption'] for f in list_of_files])
+
+    copied_encrypted_version = list_of_files[2]
+    file_info = b2_tool.should_succeed_json(['get-file-info', copied_encrypted_version['fileId']])
+    should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
+
+    copied_not_encrypted_version = list_of_files[3]
+    file_info = b2_tool.should_succeed_json(['get-file-info', copied_not_encrypted_version['fileId']])
+    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
+
+
 def main(bucket_name_prefix):
     test_map = {
         'account': account_test,
@@ -920,6 +996,8 @@ def main(bucket_name_prefix):
         'sync_copy': sync_copy_test,
         'sync_copy_no_prefix': sync_copy_test_no_prefix,
         'download': download_test,
+        'default_sse_b2': default_sse_b2_test,
+        'sse_b2': sse_b2_test,
     }
 
     args = parse_args(tests=sorted(test_map))
