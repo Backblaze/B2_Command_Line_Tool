@@ -337,8 +337,11 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPublic",
             "corsRules": [],
             "defaultServerSideEncryption": {{
-                "algorithm": "AES256",
-                "mode": "SSE-B2"
+                "isClientAuthorizedToRead": true,
+                "value": {{
+                    "algorithm": "AES256",
+                    "mode": "SSE-B2"
+                }}
             }},
             "lifecycleRules": [],
             "options": [],
@@ -361,8 +364,11 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPrivate",
             "corsRules": [],
             "defaultServerSideEncryption": {{
-                "algorithm": "AES256",
-                "mode": "SSE-B2"
+                "isClientAuthorizedToRead": true,
+                "value": {{
+                    "algorithm": "AES256",
+                    "mode": "SSE-B2"
+                }}
             }},
             "lifecycleRules": [],
             "options": [],
@@ -423,7 +429,10 @@ class TestConsoleTool(TestBase):
             0,
         )
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket-a', 'goodKeyName-Two', capabilities_with_commas],
+            [
+                'create-key', '--bucket', 'my-bucket-a', 'goodKeyName-Two',
+                capabilities_with_commas + ',readBucketEncryption'
+            ],
             'appKeyId1 appKey1\n',
             '',
             0,
@@ -453,7 +462,7 @@ class TestConsoleTool(TestBase):
 
         expected_list_keys_out_long = """
             appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
-            appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets
+            appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
             appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
             """
 
@@ -479,7 +488,7 @@ class TestConsoleTool(TestBase):
             "bucketType": "allPublic",
             "corsRules": [],
             "defaultServerSideEncryption": {{
-                "mode": "unknown"
+                "mode": null
             }},
             "lifecycleRules": [],
             "options": [],
@@ -510,9 +519,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {
+            "defaultServerSideEncryption": {{
                 "mode": "none"
-            },
+            }},
             "lifecycleRules": [],
             "options": [],
             "revision": 1
@@ -790,8 +799,10 @@ class TestConsoleTool(TestBase):
             '''
 
             self._run_command(
-                ['upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2', 'my-bucket', local_file1, 'file1.txt'],
-                expected_stdout, '', 0, None, True
+                [
+                    'upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2',
+                    'my-bucket', local_file1, 'file1.txt'
+                ], expected_stdout, '', 0, None, True
             )
 
             # Get file info
@@ -1251,11 +1262,7 @@ class TestConsoleTool(TestBase):
 
     def test_upload_large_file_encrypted(self):
         self._authorize_account()
-        self._run_command(
-            [
-                'create-bucket', 'my-bucket', 'allPublic'
-            ], 'bucket_0\n', '', 0
-        )
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
         min_part_size = self.account_info.get_minimum_part_size()
         file_size = min_part_size * 3
 
@@ -1288,8 +1295,8 @@ class TestConsoleTool(TestBase):
 
             self._run_command(
                 [
-                    'upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2', '--threads', '5', 'my-bucket', file_path,
-                    'test.txt'
+                    'upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2',
+                    '--threads', '5', 'my-bucket', file_path, 'test.txt'
                 ], expected_stdout, '', 0, None, True
             )
 
