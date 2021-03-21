@@ -1364,7 +1364,7 @@ class MakeFriendlyUrl(Command):
 
 
 @B2.register_subcommand
-class Sync(Command):
+class Sync(DestinationSseMixin, Command):
     """
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
@@ -1508,6 +1508,8 @@ class Sync(Command):
 
         {NAME} sync --excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
+    {DESTINATIONSSEMIXIN}
+
     Requires capabilities:
 
     - **listFiles**
@@ -1535,6 +1537,7 @@ class Sync(Command):
             default=None,
             metavar='TIMESTAMP'
         )
+        super()._setup_parser(parser)  # add parameters from the mixins
         parser.add_argument('source')
         parser.add_argument('destination')
 
@@ -1561,12 +1564,24 @@ class Sync(Command):
             policies_manager,
             allow_empty_source,
         )
+
+        kwargs = {}
+        destination_sse = self._get_destination_sse_setting(args)
+        if destination.folder_type == 'b2':
+            bucket_to_esp = {destination.bucket_name: destination_sse,}
+            # TODO: for SSE-C
+            #if source.folder_type == 'b2':
+            #    bucket_to_esp[source.bucket_name] = self._get_source_sse_setting(args)
+            kwargs['encryption_settings_provider'] = BasicEncryptionSettingsProvider(bucket_to_esp)
+        elif destination_sse is not None:
+            raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
         with SyncReport(self.stdout, args.noProgress) as reporter:
             synchronizer.sync_folders(
                 source_folder=source,
                 dest_folder=destination,
                 now_millis=current_time_millis(),
                 reporter=reporter,
+                **kwargs
             )
         return 0
 
@@ -1738,7 +1753,7 @@ class UploadFile(DestinationSseMixin, Command):
             sha1_sum=args.sha1,
             min_part_size=args.minPartSize,
             progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
-            encryption=encryption_setting
+            encryption=encryption_setting,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
