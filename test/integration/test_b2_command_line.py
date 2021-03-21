@@ -13,6 +13,7 @@ import argparse
 import atexit
 import hashlib
 import json
+import logging
 import os.path
 import platform
 import random
@@ -63,7 +64,7 @@ def parse_args(tests):
 
 def error_and_exit(message):
     print('ERROR:', message)
-    sys.exit(1)
+    _exit(1)
 
 
 def read_file(path):
@@ -254,7 +255,7 @@ class CommandLine:
         status, stdout, stderr = run_command(self.command, args)
         if status != 0:
             print('FAILED with status', status)
-            sys.exit(1)
+            _exit(1)
         if stderr != '':
             failed = False
             for line in (s.strip() for s in stderr.split(os.linesep)):
@@ -264,7 +265,7 @@ class CommandLine:
             if failed:
                 print('FAILED because of stderr')
                 print(stderr)
-                sys.exit(1)
+                _exit(1)
         if expected_pattern is not None:
             if re.search(expected_pattern, stdout) is None:
                 print('STDOUT:')
@@ -288,7 +289,7 @@ class CommandLine:
         status, stdout, stderr = run_command(self.command, args)
         if status == 0:
             print('ERROR: should have failed')
-            sys.exit(1)
+            _exit(1)
         if re.search(expected_pattern, stdout + stderr) is None:
             print(expected_pattern)
             print(stdout + stderr)
@@ -310,8 +311,15 @@ def should_equal(expected, actual):
     print_json_indented(actual)
     if expected != actual:
         print('  ERROR')
-        sys.exit(1)
+        _exit(1)
     print()
+
+
+def _exit(error_code):
+    logging.shutdown()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.exit(error_code)
 
 
 def setup_envvar_test(envvar_name, envvar_value):
