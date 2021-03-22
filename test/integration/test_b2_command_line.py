@@ -177,7 +177,13 @@ def print_json_indented(value):
     """
     Converts the value to JSON, then prints it.
     """
-    print_text_indented(json.dumps(value, indent=4, sort_keys=True))
+    print_text_indented(json.dumps(value, indent=4, sort_keys=True, default=serialize_enc_settings))
+
+
+def serialize_enc_settings(value):
+    if not isinstance(value, EncryptionSetting):
+        raise TypeError
+    return value.as_value_dict()
 
 
 def print_output(status, stdout, stderr):
@@ -632,6 +638,8 @@ def find_file_id(list_of_files, file_name):
 
 
 def encryption_summary(sse_dict):
+    if isinstance(sse_dict, EncryptionSetting):
+        sse_dict = sse_dict.as_value_dict()
     encryption = sse_dict['mode']
     algorithm = sse_dict.get('algorithm')
     if algorithm is not None:
