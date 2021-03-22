@@ -29,7 +29,6 @@ import pytest
 from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
 from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting
 
-
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_B2,
@@ -644,11 +643,15 @@ def sync_up_test(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, 'sync')
 
 
+def sync_up_sse_b2_test(b2_tool, bucket_name):
+    sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_B2_AES)
+
+
 def sync_up_test_no_prefix(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, '')
 
 
-def sync_up_helper(b2_tool, bucket_name, dir_):
+def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
     sync_point_parts = [bucket_name]
     if dir_:
         sync_point_parts.append(dir_)
@@ -676,18 +679,32 @@ def sync_up_helper(b2_tool, bucket_name, dir_):
         os.symlink('broken', p('d'))
 
         # now upload
-        b2_tool.should_succeed(
-            ['sync', '--noProgress', dir_path, b2_sync_point],
-            expected_pattern="d could not be accessed"
-        )
+        if encryption is None:
+            command = ['sync', '--noProgress', dir_path, b2_sync_point]
+            expected_encryption = SSE_NONE
+        elif encryption == SSE_B2_AES:
+            command = [
+                'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2', dir_path,
+                b2_sync_point
+            ]
+            expected_encryption = encryption
+        else:
+            raise ValueError('unsupported encryption mode: %s' % encryption)
+
+        b2_tool.should_succeed(command, expected_pattern="d could not be accessed")
         file_versions = b2_tool.list_file_versions(bucket_name)
+
+        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict())
         should_equal(
             [
-                '+ ' + prefix + 'a',
-                '+ ' + prefix + 'b',
-                '+ ' + prefix + 'c',
-            ], file_version_summary(file_versions)
+                ('+ ' + prefix + 'a', expected_encryption_str),
+                ('+ ' + prefix + 'b', expected_encryption_str),
+                ('+ ' + prefix + 'c', expected_encryption_str),
+            ],
+            file_version_summary_with_encryption(file_versions),
         )
+        if encryption is not None:
+            return  # that's enough, we've checked that encryption works, no need to repeat the whole sync suite
 
         c_id = find_file_id(file_versions, prefix + 'c')
         file_info = b2_tool.should_succeed_json(['get-file-info', c_id])['fileInfo']
@@ -897,10 +914,14 @@ def sync_copy_test_no_prefix_no_encryption(b2_tool, bucket_name):
 
 
 def sync_copy_test_no_prefix_sse_b2(b2_tool, bucket_name):
-    sync_copy_helper(b2_tool, bucket_name, '', encryption=SSE_B2_AES, expected_encryption=SSE_B2_AES)
+    sync_copy_helper(
+        b2_tool, bucket_name, '', encryption=SSE_B2_AES, expected_encryption=SSE_B2_AES
+    )
 
 
-def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None, expected_encryption=SSE_NONE):
+def sync_copy_helper(
+    b2_tool, bucket_name, folder_in_bucket, encryption=None, expected_encryption=SSE_NONE
+):
     file_to_upload = 'README.md'
 
     b2_sync_point = 'b2:%s' % bucket_name
@@ -919,7 +940,10 @@ def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None, ex
 
     # Put a couple files in B2
     b2_tool.should_succeed(
-        ['upload-file', '--noProgress', '--destinationServerSideEncryption SSE-B2', bucket_name, file_to_upload, b2_file_prefix + 'a']
+        [
+            'upload-file', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2',
+            bucket_name, file_to_upload, b2_file_prefix + 'a'
+        ]
     )
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
@@ -929,20 +953,30 @@ def sync_copy_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None, ex
     if encryption is None:
         b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
     elif encryption == SSE_NONE:
-        b2_tool.should_succeed(['sync', '--noProgress', '--destinationServerSideEncryption none', b2_sync_point, other_b2_sync_point])
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--destinationServerSideEncryption', 'none', b2_sync_point,
+                other_b2_sync_point
+            ]
+        )
     elif encryption == SSE_B2_AES:
-        b2_tool.should_succeed(['sync', '--noProgress', '--destinationServerSideEncryption SSE-B2', b2_sync_point, other_b2_sync_point])
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2',
+                b2_sync_point, other_b2_sync_point
+            ]
+        )
     else:
         raise ValueError(expected_encryption)
 
     file_versions = b2_tool.list_file_versions(other_bucket_name)
 
-    expected_encryption_str = encryption_summary(expected_encryption)
+    expected_encryption_str = encryption_summary(expected_encryption.as_value_dict())
 
     should_equal(
         [
-            ('+ ' + b2_file_prefix + 'a', expected_encryption)
-            ('+ ' + b2_file_prefix + 'b', expected_encryption)
+            ('+ ' + b2_file_prefix + 'a', expected_encryption_str),
+            ('+ ' + b2_file_prefix + 'b', expected_encryption_str),
         ],
         file_version_summary_with_encryption(file_versions),
     )
@@ -977,12 +1011,12 @@ def sync_long_path_test(b2_tool, bucket_name):
 def default_sse_b2_test(b2_tool, bucket_name):
     # Set default encryption via update-bucket
     bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
-    bucket_default_sse = {
-        'mode': 'none'
-    }
+    bucket_default_sse = {'mode': 'none'}
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
-    bucket_info = b2_tool.should_succeed_json(['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic'])
+    bucket_info = b2_tool.should_succeed_json(
+        ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic']
+    )
     bucket_default_sse = {
         'isClientAuthorizedToRead': True,
         'value': {
@@ -1001,7 +1035,9 @@ def default_sse_b2_test(b2_tool, bucket_name):
 
     # Set default encryption via create-bucket
     second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
-    b2_tool.should_succeed(['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(
+        ['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic']
+    )
     second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
     second_bucket_default_sse = {
         'algorithm': 'AES256',
@@ -1014,9 +1050,14 @@ def sse_b2_test(b2_tool, bucket_name):
     file_to_upload = 'README.md'
 
     b2_tool.should_succeed(
-        ['upload-file', '--destinationServerSideEncryption=SSE-B2', '--noProgress', '--quiet', bucket_name, file_to_upload, 'encrypted']
+        [
+            'upload-file', '--destinationServerSideEncryption=SSE-B2', '--noProgress', '--quiet',
+            bucket_name, file_to_upload, 'encrypted'
+        ]
     )
-    b2_tool.should_succeed(['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted'])
+    b2_tool.should_succeed(
+        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted']
+    )
 
     b2_tool.should_succeed(
         ['download-file-by-name', '--noProgress', bucket_name, 'encrypted', os.devnull]
@@ -1026,7 +1067,14 @@ def sse_b2_test(b2_tool, bucket_name):
     )
 
     list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
-    should_equal([{'algorithm': 'AES256', 'mode': 'SSE-B2'}, {'mode': 'none'}], [f['serverSideEncryption'] for f in list_of_files])
+    should_equal(
+        [{
+            'algorithm': 'AES256',
+            'mode': 'SSE-B2'
+        }, {
+            'mode': 'none'
+        }], [f['serverSideEncryption'] for f in list_of_files]
+    )
 
     encrypted_version = list_of_files[0]
     file_info = b2_tool.should_succeed_json(['get-file-info', encrypted_version['fileId']])
@@ -1035,39 +1083,55 @@ def sse_b2_test(b2_tool, bucket_name):
     file_info = b2_tool.should_succeed_json(['get-file-info', not_encrypted_version['fileId']])
     #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
 
-    b2_tool.should_succeed(['copy-file-by-id', '--destinationServerSideEncryption=SSE-B2', encrypted_version['fileId'], bucket_name, 'copied_encrypted'])
-    b2_tool.should_succeed(['copy-file-by-id', not_encrypted_version['fileId'], bucket_name, 'copied_not_encrypted'])
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id', '--destinationServerSideEncryption=SSE-B2',
+            encrypted_version['fileId'], bucket_name, 'copied_encrypted'
+        ]
+    )
+    b2_tool.should_succeed(
+        ['copy-file-by-id', not_encrypted_version['fileId'], bucket_name, 'copied_not_encrypted']
+    )
 
     list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
-    should_equal([{'algorithm': 'AES256', 'mode': 'SSE-B2'}, {'mode': 'none'}] * 2, [f['serverSideEncryption'] for f in list_of_files])
+    should_equal(
+        [{
+            'algorithm': 'AES256',
+            'mode': 'SSE-B2'
+        }, {
+            'mode': 'none'
+        }] * 2, [f['serverSideEncryption'] for f in list_of_files]
+    )
 
     copied_encrypted_version = list_of_files[2]
     file_info = b2_tool.should_succeed_json(['get-file-info', copied_encrypted_version['fileId']])
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
 
     copied_not_encrypted_version = list_of_files[3]
-    file_info = b2_tool.should_succeed_json(['get-file-info', copied_not_encrypted_version['fileId']])
+    file_info = b2_tool.should_succeed_json(
+        ['get-file-info', copied_not_encrypted_version['fileId']]
+    )
     #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
 
 
 def main(bucket_name_prefix):
     test_map = {
-        #'account': account_test,
-        #'basic': basic_test,
-        #'keys': key_restrictions_test,
-        #'sync_down': sync_down_test,
-        #'sync_down_no_prefix': sync_down_test_no_prefix,
+        'account': account_test,
+        'basic': basic_test,
+        'keys': key_restrictions_test,
+        'sync_down': sync_down_test,
+        'sync_down_no_prefix': sync_down_test_no_prefix,
         'sync_up': sync_up_test,
-        ##'sync_up_sse_b2': sync_up_sse_b2,
-        #'sync_up_no_prefix': sync_up_test_no_prefix,
-        #'sync_long_path': sync_long_path_test,
+        'sync_up_sse_b2': sync_up_sse_b2_test,
+        'sync_up_no_prefix': sync_up_test_no_prefix,
+        'sync_long_path': sync_long_path_test,
         'sync_copy': sync_copy_test,
         'sync_copy_test_no_prefix_default_encryption': sync_copy_test_no_prefix_default_encryption,
-        'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption,
+        #'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption, # not supported by the server
         'sync_copy_test_no_prefix_sse_b2': sync_copy_test_no_prefix_sse_b2,
-        #'download': download_test,
-        #'default_sse_b2': default_sse_b2_test,
-        #'sse_b2': sse_b2_test,
+        'download': download_test,
+        'default_sse_b2': default_sse_b2_test,
+        'sse_b2': sse_b2_test,
     }
 
     args = parse_args(tests=sorted(test_map))

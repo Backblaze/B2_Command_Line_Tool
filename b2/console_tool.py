@@ -49,6 +49,7 @@ from b2sdk.v1 import (
     EncryptionAlgorithm,
     EncryptionMode,
     EncryptionSetting,
+    BasicEncryptionSettingsProvider,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
@@ -1567,10 +1568,12 @@ class Sync(DestinationSseMixin, Command):
 
         kwargs = {}
         destination_sse = self._get_destination_sse_setting(args)
-        if destination.folder_type == 'b2':
-            bucket_to_esp = {destination.bucket_name: destination_sse,}
+        if destination.folder_type() == 'b2':
+            bucket_to_esp = {
+                destination.bucket_name: destination_sse,
+            }
             # TODO: for SSE-C
-            #if source.folder_type == 'b2':
+            #if source.folder_type() == 'b2':
             #    bucket_to_esp[source.bucket_name] = self._get_source_sse_setting(args)
             kwargs['encryption_settings_provider'] = BasicEncryptionSettingsProvider(bucket_to_esp)
         elif destination_sse is not None:
