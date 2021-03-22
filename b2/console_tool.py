@@ -172,33 +172,6 @@ class DefaultSseMixin:
         return None
 
 
-class SourceSseMixin:
-    """
-    To specify SSE-B2 encryption for source files,
-    please set ``--sourceServerSideEncryption=SSE-B2``.
-    The default algorithm is set to AES256 which can by changed
-    with ``--sourceServerSideEncryptionAlgorithm`` parameter.
-    """
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('--sourceServerSideEncryption', default=None, choices=('SSE-B2',))
-        parser.add_argument(
-            '--sourceServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
-        )
-
-        super()._setup_parser(parser)  # noqa
-
-    @classmethod
-    def _get_source_sse_setting(cls, args):
-        mode = apply_or_none(EncryptionMode, args.sourceServerSideEncryption)
-        if mode is not None:
-            algorithm = apply_or_none(EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm)
-            return EncryptionSetting(mode=mode, algorithm=algorithm)
-
-        return None
-
-
 class DestinationSseMixin:
     """
     To request SSE-B2 encryption for destination files,
@@ -819,15 +792,13 @@ class DeleteKey(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(SourceSseMixin, Command):
+class DownloadFileById(Command):
     """
     Downloads the given file, and stores it in the given local file.
 
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
     Use ``--noProgress`` to disable progress reporting.
-
-    {SOURCESSEMIXIN}
 
     Requires capability:
 
@@ -840,29 +811,22 @@ class DownloadFileById(SourceSseMixin, Command):
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
 
-        super()._setup_parser(parser)  # add parameters from the mixins
-
     def run(self, args):
-        encryption_setting = self._get_source_sse_setting(args)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
-        self.api.download_file_by_id(
-            args.fileId, download_dest, progress_listener, encryption=encryption_setting
-        )
+        self.api.download_file_by_id(args.fileId, download_dest, progress_listener, encryption=None)
         self.console_tool._print_download_info(download_dest)
         return 0
 
 
 @B2.register_subcommand
-class DownloadFileByName(SourceSseMixin, Command):
+class DownloadFileByName(Command):
     """
     Downloads the given file, and stores it in the given local file.
 
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
     Use ``--noProgress`` to disable progress reporting.
-
-    {SOURCESSEMIXIN}
 
     Requires capability:
 
@@ -876,15 +840,12 @@ class DownloadFileByName(SourceSseMixin, Command):
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
 
-        super()._setup_parser(parser)  # add parameters from the mixins
-
     def run(self, args):
-        encryption_setting = self._get_source_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
         bucket.download_file_by_name(
-            args.b2FileName, download_dest, progress_listener, encryption=encryption_setting
+            args.b2FileName, download_dest, progress_listener, encryption=None
         )
         self.console_tool._print_download_info(download_dest)
         return 0
