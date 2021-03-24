@@ -25,6 +25,7 @@ jobs:
       - name: Run linters
         run: nox -vs lint
       - name: Validate changelog
+        if: ${{ ! startsWith(github.ref, 'refs/heads/dependabot/') }}
         uses: zattoo/changelog@v1
         with:
           token: ${{ github.token }}
@@ -48,8 +49,6 @@ jobs:
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
-      CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -74,18 +73,6 @@ jobs:
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs integration -- --cleanup
-      - name: Report to Codacy
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == env.PYTHON_DEFAULT_VERSION && env.CODACY_PROJECT_TOKEN != '' }}
-        uses: codacy/codacy-coverage-reporter-action@v0
-        with:
-          project-token: ${{ env.CODACY_PROJECT_TOKEN }}
-          coverage-reports: ./coverage.xml
-      - name: Report to Codecov
-        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == env.PYTHON_DEFAULT_VERSION && env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v1
-        with:
-          token: ${{ env.CODECOV_TOKEN }}
-          file: ./coverage.xml
   test-bundle:
     needs: lint
     env:
