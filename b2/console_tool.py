@@ -46,6 +46,10 @@ from b2sdk.v1 import (
     SqliteAccountInfo,
     ScanPoliciesManager,
     DEFAULT_SCAN_MANAGER,
+    EncryptionAlgorithm,
+    EncryptionMode,
+    EncryptionSetting,
+    BasicEncryptionSettingsProvider,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
@@ -122,6 +126,81 @@ def apply_or_none(fcn, value):
         return fcn(value)
 
 
+class DefaultSseMixin:
+    """
+    If you want server-side encryption for all of the files that are uploaded to a bucket,
+    you can enable SSE-B2 encryption as a default setting for the bucket.
+    In order to do that pass ``--defaultServerSideEncryption=SSE-B2``.
+    The default algorithm is set to AES256 which can by changed
+    with ``--defaultServerSideEncryptionAlgorithm`` parameter.
+    All uploads to that bucket, from the time default encryption is enabled onward,
+    will then be encrypted with SSE-B2 by default.
+
+    To disable default bucket encryption, use ``--defaultServerSideEncryption=none``.
+
+    If ``--defaultServerSideEncryption`` is not provided,
+    default server side encryption is determined by the server.
+
+    .. note::
+
+        Note that existing files in the bucket are not affected by default bucket encryption settings.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--defaultServerSideEncryption', default=None, choices=('SSE-B2', 'none')
+        )
+        parser.add_argument(
+            '--defaultServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        )
+
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_default_sse_setting(cls, args):
+        mode = apply_or_none(EncryptionMode, args.defaultServerSideEncryption)
+        if mode is not None:
+            if mode == EncryptionMode.NONE:
+                args.defaultServerSideEncryptionAlgorithm = None
+
+            algorithm = apply_or_none(
+                EncryptionAlgorithm, args.defaultServerSideEncryptionAlgorithm
+            )
+            return EncryptionSetting(mode=mode, algorithm=algorithm)
+
+        return None
+
+
+class DestinationSseMixin:
+    """
+    To request SSE-B2 encryption for destination files,
+    please set ``--destinationServerSideEncryption=SSE-B2``.
+    The default algorithm is set to AES256 which can by changed
+    with ``--destinationServerSideEncryptionAlgorithm`` parameter.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--destinationServerSideEncryption', default=None, choices=('SSE-B2',))
+        parser.add_argument(
+            '--destinationServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        )
+
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_destination_sse_setting(cls, args):
+        mode = apply_or_none(EncryptionMode, args.destinationServerSideEncryption)
+        if mode is not None:
+            algorithm = apply_or_none(
+                EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
+            )
+            return EncryptionSetting(mode=mode, algorithm=algorithm)
+
+        return None
+
+
 class Command(object):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
@@ -161,7 +240,7 @@ class Command(object):
         if parents is None:
             parents = []
 
-        description = cls.__doc__.format(**DOC_STRING_DATA)
+        description = cls._get_description()
 
         if subparsers is None:
             name, _ = cls.name_and_alias()
@@ -206,6 +285,14 @@ class Command(object):
     @classmethod
     def _setup_parser(cls, parser):
         pass
+
+    @classmethod
+    def _get_description(cls):
+        mro_docs = {
+            klass.__name__.upper(): klass.__doc__
+            for klass in cls.mro() if klass is not cls and klass.__doc__
+        }
+        return cls.__doc__.format(**DOC_STRING_DATA, **mro_docs)
 
     @classmethod
     def _parse_file_infos(cls, args_info):
@@ -462,7 +549,7 @@ class ClearAccount(Command):
 
 
 @B2.register_subcommand
-class CopyFileById(Command):
+class CopyFileById(DestinationSseMixin, Command):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
@@ -485,6 +572,8 @@ class CopyFileById(Command):
 
     The maximum file size is 5GB or 10TB, depending on capability of installed ``b2sdk`` version.
 
+    {DESTINATIONSSEMIXIN}
+
     Requires capability:
 
     - **readFiles** (if ``sourceFileId`` bucket is private)
@@ -501,6 +590,8 @@ class CopyFileById(Command):
         parser.add_argument('destinationBucketName')
         parser.add_argument('b2FileName')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
         file_infos = None
         if args.info is not None:
@@ -514,7 +605,7 @@ class CopyFileById(Command):
             metadata_directive = None
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
-
+        destination_encryption_setting = self._get_destination_sse_setting(args)
         response = bucket.copy_file(
             args.sourceFileId,
             args.b2FileName,
@@ -522,22 +613,27 @@ class CopyFileById(Command):
             metadata_directive=metadata_directive,
             content_type=args.contentType,
             file_info=file_infos,
+            destination_encryption=destination_encryption_setting
         )
         self._print_json(response)
         return 0
 
 
 @B2.register_subcommand
-class CreateBucket(Command):
+class CreateBucket(DefaultSseMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
 
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
+    {DEFAULTSSEMIXIN}
+
     Requires capability:
 
     - **writeBuckets**
+    - **readBucketEncryption**
+    - **writeBucketEncryption**
     """
 
     @classmethod
@@ -548,13 +644,17 @@ class CreateBucket(Command):
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
+        encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.create_bucket(
             args.bucketName,
             args.bucketType,
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
-            lifecycle_rules=args.lifecycleRules
+            lifecycle_rules=args.lifecycleRules,
+            default_server_side_encryption=encryption_setting
         )
         self._print(bucket.id_)
         return 0
@@ -714,7 +814,7 @@ class DownloadFileById(Command):
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
-        self.api.download_file_by_id(args.fileId, download_dest, progress_listener)
+        self.api.download_file_by_id(args.fileId, download_dest, progress_listener, encryption=None)
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -744,7 +844,9 @@ class DownloadFileByName(Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
-        bucket.download_file_by_name(args.b2FileName, download_dest, progress_listener)
+        bucket.download_file_by_name(
+            args.b2FileName, download_dest, progress_listener, encryption=None
+        )
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -1224,7 +1326,7 @@ class MakeFriendlyUrl(Command):
 
 
 @B2.register_subcommand
-class Sync(Command):
+class Sync(DestinationSseMixin, Command):
     """
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
@@ -1368,6 +1470,8 @@ class Sync(Command):
 
         {NAME} sync --excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
+    {DESTINATIONSSEMIXIN}
+
     Requires capabilities:
 
     - **listFiles**
@@ -1395,6 +1499,7 @@ class Sync(Command):
             default=None,
             metavar='TIMESTAMP'
         )
+        super()._setup_parser(parser)  # add parameters from the mixins
         parser.add_argument('source')
         parser.add_argument('destination')
 
@@ -1421,12 +1526,26 @@ class Sync(Command):
             policies_manager,
             allow_empty_source,
         )
+
+        kwargs = {}
+        destination_sse = self._get_destination_sse_setting(args)
+        if destination.folder_type() == 'b2':
+            bucket_to_esp = {
+                destination.bucket_name: destination_sse,
+            }
+            # TODO: for SSE-C
+            #if source.folder_type() == 'b2':
+            #    bucket_to_esp[source.bucket_name] = self._get_source_sse_setting(args)
+            kwargs['encryption_settings_provider'] = BasicEncryptionSettingsProvider(bucket_to_esp)
+        elif destination_sse is not None:
+            raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
         with SyncReport(self.stdout, args.noProgress) as reporter:
             synchronizer.sync_folders(
                 source_folder=source,
                 dest_folder=destination,
                 now_millis=current_time_millis(),
                 reporter=reporter,
+                **kwargs
             )
         return 0
 
@@ -1487,7 +1606,7 @@ class Sync(Command):
 
 
 @B2.register_subcommand
-class UpdateBucket(Command):
+class UpdateBucket(DefaultSseMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
@@ -1495,9 +1614,13 @@ class UpdateBucket(Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
+    {DEFAULTSSEMIXIN}
+
     Requires capability:
 
     - **writeBuckets**
+    - **readBucketEncryption**
+    - **writeBucketEncryption**
     """
 
     @classmethod
@@ -1508,20 +1631,24 @@ class UpdateBucket(Command):
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
+        encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
             bucket_type=args.bucketType,
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
-            lifecycle_rules=args.lifecycleRules
+            lifecycle_rules=args.lifecycleRules,
+            default_server_side_encryption=encryption_setting
         )
         self._print_json(response)
         return 0
 
 
 @B2.register_subcommand
-class UploadFile(Command):
+class UploadFile(DestinationSseMixin, Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
     of the local file, and assigns the given name to the B2 file.
@@ -1548,6 +1675,8 @@ class UploadFile(Command):
 
     Each fileInfo is of the form ``a=b``.
 
+    {DESTINATIONSSEMIXIN}
+
     Requires capability:
 
     - **writeFiles**
@@ -1566,6 +1695,8 @@ class UploadFile(Command):
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
 
+        super()._setup_parser(parser)  # add parameters from the mixins
+
     def run(self, args):
         file_infos = self._parse_file_infos(args.info)
 
@@ -1577,6 +1708,7 @@ class UploadFile(Command):
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
+        encryption_setting = self._get_destination_sse_setting(args)
         file_info = bucket.upload_local_file(
             local_file=args.localFilePath,
             file_name=args.b2FileName,
@@ -1585,6 +1717,7 @@ class UploadFile(Command):
             sha1_sum=args.sha1,
             min_part_size=args.minPartSize,
             progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
+            encryption=encryption_setting,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
