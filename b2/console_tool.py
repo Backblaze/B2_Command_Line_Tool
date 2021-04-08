@@ -67,6 +67,9 @@ B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
 # Optional Env variable to use for adding custom string to the User Agent
 B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
 B2_ENVIRONMENT_ENV_VAR = 'B2_ENVIRONMENT'
+B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_HEX'
+B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_ID'
+B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_HEX'
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -86,6 +89,10 @@ DOC_STRING_DATA = dict(
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR=B2_ENVIRONMENT_ENV_VAR,
+    B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR=B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR,
+    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR=B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
+    B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR=B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR,
+    FILE_INFO_KEY_ID='sse_c_key_id',
 )
 
 
@@ -174,15 +181,20 @@ class DefaultSseMixin:
 
 class DestinationSseMixin:
     """
-    To request SSE-B2 encryption for destination files,
-    please set ``--destinationServerSideEncryption=SSE-B2``.
+    To request SSE-B2 or SSE-C encryption for destination files,
+    please set ``--destinationServerSideEncryption=SSE-B2/SSE-C``.
     The default algorithm is set to AES256 which can by changed
     with ``--destinationServerSideEncryptionAlgorithm`` parameter.
+    Using SSE-C requires providing {B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR} environment variable,
+    containing the hex encoded encryption key.
+    If {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} environment variable is provided,
+    it will be saved as {FILE_INFO_KEY_ID} in the
+    uploaded file's fileInfo.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--destinationServerSideEncryption', default=None, choices=('SSE-B2',))
+        parser.add_argument('--destinationServerSideEncryption', default=None, choices=('SSE-B2', 'SSE-C'))
         parser.add_argument(
             '--destinationServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
         )
@@ -196,7 +208,50 @@ class DestinationSseMixin:
             algorithm = apply_or_none(
                 EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
             )
-            return EncryptionSetting(mode=mode, algorithm=algorithm)
+            key_hex = None
+            if mode == EncryptionMode.SSE_C:
+                key_hex = os.environ.get(B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR)
+                if not key_hex:
+                    raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
+                                     B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR)
+            return EncryptionSetting(mode=mode, algorithm=algorithm, key_hex=key_hex)
+
+        return None
+
+
+class SourceSseMixin:
+    """
+    To download SSE-C encrypted files,
+    please set ``--sourceServerSideEncryption=SSE-C``.
+    The default algorithm is set to AES256 which can by changed
+    with ``--sourceServerSideEncryptionAlgorithm`` parameter.
+    Using SSE-C requires providing {B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR} environment variable,
+    containing the hex encoded encryption key.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--sourceServerSideEncryption', default=None, choices=('SSE-C',))
+        parser.add_argument(
+            '--sourceServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        )
+
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_source_sse_setting(cls, args):
+        mode = apply_or_none(EncryptionMode, args.sourceServerSideEncryption)
+        if mode is not None:
+            algorithm = apply_or_none(
+                EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm
+            )
+            key_hex = None
+            if mode == EncryptionMode.SSE_C:
+                key_hex = os.environ.get(B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR)
+                if not key_hex:
+                    raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
+                                     B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR)
+            return EncryptionSetting(mode=mode, algorithm=algorithm, key_hex=key_hex)
 
         return None
 
@@ -792,7 +847,7 @@ class DeleteKey(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(Command):
+class DownloadFileById(SourceSseMixin, Command):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -820,7 +875,7 @@ class DownloadFileById(Command):
 
 
 @B2.register_subcommand
-class DownloadFileByName(Command):
+class DownloadFileByName(SourceSseMixin, Command):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -839,13 +894,15 @@ class DownloadFileByName(Command):
         parser.add_argument('bucketName')
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
+        encryption_setting = self._get_source_sse_setting(args)
         bucket.download_file_by_name(
-            args.b2FileName, download_dest, progress_listener, encryption=None
+            args.b2FileName, download_dest, progress_listener, encryption=encryption_setting
         )
         self.console_tool._print_download_info(download_dest)
         return 0
