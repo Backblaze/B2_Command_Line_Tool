@@ -9,6 +9,7 @@
 ######################################################################
 
 import argparse
+import base64
 import datetime
 import functools
 import getpass
@@ -49,6 +50,7 @@ from b2sdk.v1 import (
     EncryptionAlgorithm,
     EncryptionMode,
     EncryptionSetting,
+    EncryptionKey,
     BasicEncryptionSettingsProvider,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
@@ -67,9 +69,9 @@ B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
 # Optional Env variable to use for adding custom string to the User Agent
 B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
 B2_ENVIRONMENT_ENV_VAR = 'B2_ENVIRONMENT'
-B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_HEX'
+B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_B64'
 B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_ID'
-B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_HEX'
+B2_SOURCE_SSE_C_KEY_B64_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_B64'
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -89,9 +91,9 @@ DOC_STRING_DATA = dict(
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR=B2_ENVIRONMENT_ENV_VAR,
-    B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR=B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR,
+    B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR=B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR=B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
-    B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR=B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR,
+    B2_SOURCE_SSE_C_KEY_B64_ENV_VAR=B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     FILE_INFO_KEY_ID='sse_c_key_id',
 )
 
@@ -185,7 +187,7 @@ class DestinationSseMixin:
     please set ``--destinationServerSideEncryption=SSE-B2/SSE-C``.
     The default algorithm is set to AES256 which can by changed
     with ``--destinationServerSideEncryptionAlgorithm`` parameter.
-    Using SSE-C requires providing {B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR} environment variable,
+    Using SSE-C requires providing {B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR} environment variable,
     containing the hex encoded encryption key.
     If {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} environment variable is provided,
     it will be saved as {FILE_INFO_KEY_ID} in the
@@ -208,13 +210,15 @@ class DestinationSseMixin:
             algorithm = apply_or_none(
                 EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
             )
-            key_hex = None
+            key = None
             if mode == EncryptionMode.SSE_C:
-                key_hex = os.environ.get(B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR)
-                if not key_hex:
+                encryption_key_b64 = os.environ.get(B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
+                if not encryption_key_b64:
                     raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
-                                     B2_DESTINATION_SSE_C_KEY_HEX_ENV_VAR)
-            return EncryptionSetting(mode=mode, algorithm=algorithm, key_hex=key_hex)
+                                     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
+                key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
+                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), id=key_id)
+            return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
 
@@ -225,7 +229,7 @@ class SourceSseMixin:
     please set ``--sourceServerSideEncryption=SSE-C``.
     The default algorithm is set to AES256 which can by changed
     with ``--sourceServerSideEncryptionAlgorithm`` parameter.
-    Using SSE-C requires providing {B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR} environment variable,
+    Using SSE-C requires providing {B2_SOURCE_SSE_C_KEY_B64_ENV_VAR} environment variable,
     containing the hex encoded encryption key.
     """
 
@@ -245,13 +249,15 @@ class SourceSseMixin:
             algorithm = apply_or_none(
                 EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm
             )
-            key_hex = None
+            key = None
             if mode == EncryptionMode.SSE_C:
-                key_hex = os.environ.get(B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR)
-                if not key_hex:
+                encryption_key_b64 = os.environ.get(B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
+                if not encryption_key_b64:
                     raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
-                                     B2_SOURCE_SSE_C_KEY_HEX_ENV_VAR)
-            return EncryptionSetting(mode=mode, algorithm=algorithm, key_hex=key_hex)
+                                     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
+                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), id=None)
+
+            return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
 
