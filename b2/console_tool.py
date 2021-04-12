@@ -217,7 +217,7 @@ class DestinationSseMixin:
                     raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
                                      B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
-                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), id=key_id)
+                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
@@ -255,7 +255,7 @@ class SourceSseMixin:
                 if not encryption_key_b64:
                     raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
                                      B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
-                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), id=None)
+                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=None)
 
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
