@@ -12,6 +12,7 @@ jobs:
   deploy:
     env:
       B2_PYPI_PASSWORD: ${{ secrets.B2_PYPI_PASSWORD }}
+      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
     runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create-release.outputs.upload_url }}
@@ -40,7 +41,7 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: ${{ steps.build.outputs.version }}
           body: ${{ steps.read-changelog.outputs.log_entry }}
-          draft: false
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
           prerelease: false
       - name: Upload the distribution to GitHub
         uses: actions/upload-release-asset@v1
@@ -57,6 +58,10 @@ jobs:
           password: ${{ env.B2_PYPI_PASSWORD }}
   deploy-bundle:
     needs: deploy
+    env:
+      B2_OSX_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE }}
+      B2_OSX_CODE_SIGNING_CERTIFICATE_NAME: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}
+      B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -75,6 +80,15 @@ jobs:
       - name: Bundle the distribution
         id: bundle
         run: nox -vs bundle
+      - name: Import certificate
+        if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
+        uses: apple-actions/import-codesign-certs@v1
+        with:
+          p12-file-base64: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE }}
+          p12-password: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+      - name: Sign the bundle
+        if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
+        run: nox -vs sign -- --sign '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
       - name: Upload the distribution to GitHub
         uses: actions/upload-release-asset@v1
         with:
