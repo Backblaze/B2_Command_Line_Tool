@@ -51,7 +51,7 @@ from b2sdk.v1 import (
     EncryptionMode,
     EncryptionSetting,
     EncryptionKey,
-    BasicEncryptionSettingsProvider,
+    BasicSyncEncryptionSettingsProvider,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
@@ -135,7 +135,30 @@ def apply_or_none(fcn, value):
         return fcn(value)
 
 
-class DefaultSseMixin:
+class DescriptionGetter:
+    def __init__(self, described_cls):
+        self.described_cls = described_cls
+
+    def __str__(self):
+        return self.described_cls._get_description()
+
+
+class Described:
+    @classmethod
+    def _get_description(cls):
+        mro_docs = {
+            klass.__name__.upper(): klass.lazy_get_description()
+            for klass in cls.mro()
+            if klass is not cls and klass.__doc__ and issubclass(klass, Described)
+        }
+        return cls.__doc__.format(**DOC_STRING_DATA, **mro_docs)
+
+    @classmethod
+    def lazy_get_description(cls):
+        return DescriptionGetter(cls)
+
+
+class DefaultSseMixin(Described):
     """
     If you want server-side encryption for all of the files that are uploaded to a bucket,
     you can enable SSE-B2 encryption as a default setting for the bucket.
@@ -181,22 +204,24 @@ class DefaultSseMixin:
         return None
 
 
-class DestinationSseMixin:
+class DestinationSseMixin(Described):
     """
     To request SSE-B2 or SSE-C encryption for destination files,
     please set ``--destinationServerSideEncryption=SSE-B2/SSE-C``.
-    The default algorithm is set to AES256 which can by changed
+    The default algorithm is set to AES256 which can be changed
     with ``--destinationServerSideEncryptionAlgorithm`` parameter.
-    Using SSE-C requires providing {B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR} environment variable,
-    containing the hex encoded encryption key.
-    If {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} environment variable is provided,
-    it will be saved as {FILE_INFO_KEY_ID} in the
+    Using SSE-C requires providing ``{B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR}`` environment variable,
+    containing the base64 encoded encryption key.
+    If ``{B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR}`` environment variable is provided,
+    it's value will be saved as ``{FILE_INFO_KEY_ID}`` in the
     uploaded file's fileInfo.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--destinationServerSideEncryption', default=None, choices=('SSE-B2', 'SSE-C'))
+        parser.add_argument(
+            '--destinationServerSideEncryption', default=None, choices=('SSE-B2', 'SSE-C')
+        )
         parser.add_argument(
             '--destinationServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
         )
@@ -214,8 +239,10 @@ class DestinationSseMixin:
             if mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
-                    raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
-                                     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
+                    raise ValueError(
+                        'Using SSE-C requires providing an encryption key via %s env var' %
+                        B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
+                    )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
@@ -223,14 +250,14 @@ class DestinationSseMixin:
         return None
 
 
-class SourceSseMixin:
+class SourceSseMixin(Described):
     """
-    To download SSE-C encrypted files,
+    To access SSE-C encrypted files,
     please set ``--sourceServerSideEncryption=SSE-C``.
     The default algorithm is set to AES256 which can by changed
     with ``--sourceServerSideEncryptionAlgorithm`` parameter.
-    Using SSE-C requires providing {B2_SOURCE_SSE_C_KEY_B64_ENV_VAR} environment variable,
-    containing the hex encoded encryption key.
+    Using SSE-C requires providing ``{B2_SOURCE_SSE_C_KEY_B64_ENV_VAR}`` environment variable,
+    containing the base64 encoded encryption key.
     """
 
     @classmethod
@@ -246,15 +273,15 @@ class SourceSseMixin:
     def _get_source_sse_setting(cls, args):
         mode = apply_or_none(EncryptionMode, args.sourceServerSideEncryption)
         if mode is not None:
-            algorithm = apply_or_none(
-                EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm
-            )
+            algorithm = apply_or_none(EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm)
             key = None
             if mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
-                    raise ValueError('Using SSE-C requires providing an encryption key via %s env var' %
-                                     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
+                    raise ValueError(
+                        'Using SSE-C requires providing an encryption key via %s env var' %
+                        B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
+                    )
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=None)
 
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
@@ -262,7 +289,7 @@ class SourceSseMixin:
         return None
 
 
-class Command(object):
+class Command(Described):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
@@ -346,14 +373,6 @@ class Command(object):
     @classmethod
     def _setup_parser(cls, parser):
         pass
-
-    @classmethod
-    def _get_description(cls):
-        mro_docs = {
-            klass.__name__.upper(): klass.__doc__
-            for klass in cls.mro() if klass is not cls and klass.__doc__
-        }
-        return cls.__doc__.format(**DOC_STRING_DATA, **mro_docs)
 
     @classmethod
     def _parse_file_infos(cls, args_info):
@@ -610,7 +629,7 @@ class ClearAccount(Command):
 
 
 @B2.register_subcommand
-class CopyFileById(DestinationSseMixin, Command):
+class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
@@ -634,6 +653,7 @@ class CopyFileById(DestinationSseMixin, Command):
     The maximum file size is 5GB or 10TB, depending on capability of installed ``b2sdk`` version.
 
     {DESTINATIONSSEMIXIN}
+    {SOURCESSEMIXIN}
 
     Requires capability:
 
@@ -667,6 +687,7 @@ class CopyFileById(DestinationSseMixin, Command):
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
         destination_encryption_setting = self._get_destination_sse_setting(args)
+        source_encryption_setting = self._get_source_sse_setting(args)
         response = bucket.copy_file(
             args.sourceFileId,
             args.b2FileName,
@@ -674,7 +695,8 @@ class CopyFileById(DestinationSseMixin, Command):
             metadata_directive=metadata_directive,
             content_type=args.contentType,
             file_info=file_infos,
-            destination_encryption=destination_encryption_setting
+            destination_encryption=destination_encryption_setting,
+            source_encryption=source_encryption_setting,
         )
         self._print_json(response)
         return 0
@@ -871,11 +893,15 @@ class DownloadFileById(SourceSseMixin, Command):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
+        super()._setup_parser(parser)
 
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         download_dest = DownloadDestLocalFile(args.localFileName)
-        self.api.download_file_by_id(args.fileId, download_dest, progress_listener, encryption=None)
+        encryption_setting = self._get_source_sse_setting(args)
+        self.api.download_file_by_id(
+            args.fileId, download_dest, progress_listener, encryption=encryption_setting
+        )
         self.console_tool._print_download_info(download_dest)
         return 0
 
@@ -1389,7 +1415,7 @@ class MakeFriendlyUrl(Command):
 
 
 @B2.register_subcommand
-class Sync(DestinationSseMixin, Command):
+class Sync(DestinationSseMixin, SourceSseMixin, Command):
     """
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
@@ -1534,6 +1560,7 @@ class Sync(DestinationSseMixin, Command):
         {NAME} sync --excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
 
     {DESTINATIONSSEMIXIN}
+    {SOURCESSEMIXIN}
 
     Requires capabilities:
 
@@ -1591,17 +1618,33 @@ class Sync(DestinationSseMixin, Command):
         )
 
         kwargs = {}
+        encryption_settings = {}
+        source_bucket = destination_bucket = None
         destination_sse = self._get_destination_sse_setting(args)
         if destination.folder_type() == 'b2':
-            bucket_to_esp = {
-                destination.bucket_name: destination_sse,
-            }
-            # TODO: for SSE-C
-            #if source.folder_type() == 'b2':
-            #    bucket_to_esp[source.bucket_name] = self._get_source_sse_setting(args)
-            kwargs['encryption_settings_provider'] = BasicEncryptionSettingsProvider(bucket_to_esp)
+            destination_bucket = destination.bucket_name
+            encryption_settings[destination_bucket] = destination_sse
         elif destination_sse is not None:
             raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
+
+        source_sse = self._get_source_sse_setting(args)
+        if source.folder_type() == 'b2':
+            source_bucket = source.bucket_name
+            encryption_settings[source_bucket] = source_sse
+        elif source_sse is not None:
+            raise ValueError('server-side encryption cannot be set for a non-b2 sync source')
+
+        if source_bucket == destination_bucket and source_sse != destination_sse:
+            raise ValueError(
+                'SOURCE and DESTINATION server side encyrption settings have to be equal when syncing '
+                'within one bucket'
+            )
+
+        if encryption_settings:
+            kwargs['encryption_settings_provider'] = BasicSyncEncryptionSettingsProvider(
+                encryption_settings
+            )
+
         with SyncReport(self.stdout, args.noProgress) as reporter:
             synchronizer.sync_folders(
                 source_folder=source,

@@ -11,9 +11,11 @@
 
 import argparse
 import atexit
+import base64
 import hashlib
 import json
 import logging
+import os
 import os.path
 import platform
 import random
@@ -25,14 +27,25 @@ import tempfile
 import threading
 
 import pytest
+from typing import Optional
 
 from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
-from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting
+from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_B2,
     algorithm=EncryptionAlgorithm.AES256,
+)
+SSE_C_AES = EncryptionSetting(
+    mode=EncryptionMode.SSE_C,
+    algorithm=EncryptionAlgorithm.AES256,
+    key=EncryptionKey(secret=os.urandom(32), key_id='user-generated-key-id')
+)
+SSE_C_AES_2 = EncryptionSetting(
+    mode=EncryptionMode.SSE_C,
+    algorithm=EncryptionAlgorithm.AES256,
+    key=EncryptionKey(secret=os.urandom(32), key_id='user-generated-key-id')
 )
 
 
@@ -125,10 +138,11 @@ def remove_warnings(text):
     )
 
 
-def run_command(cmd, args):
+def run_command(cmd, args, additional_env: Optional[dict]):
     """
     :param cmd: a command to run
     :param args: command's arguments
+    :param additional_env: environment variables to pass to the command, overwriting parent process ones
     :return: (status, stdout, stderr)
     """
     # We'll run the b2 command-line by running the b2 module from
@@ -142,12 +156,17 @@ def run_command(cmd, args):
 
     stdout = StringReader()
     stderr = StringReader()
+
+    env = os.environ.copy()
+    env.update(additional_env or {})
+
     p = subprocess.Popen(
         command,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        close_fds=platform.system() != 'Windows'
+        close_fds=platform.system() != 'Windows',
+        env=env
     )
     p.stdin.close()
     reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
@@ -243,21 +262,21 @@ class CommandLine:
         self.application_key = application_key
         self.bucket_name_prefix = bucket_name_prefix
 
-    def run_command(self, args):
+    def run_command(self, args, additional_env: Optional[dict] = None):
         """
         Runs the command with the given arguments, returns a tuple in form of
         (succeeded, stdout)
         """
-        status, stdout, stderr = run_command(self.command, args)
+        status, stdout, stderr = run_command(self.command, args, additional_env)
         return status == 0 and stderr == '', stdout
 
-    def should_succeed(self, args, expected_pattern=None):
+    def should_succeed(self, args, expected_pattern=None, additional_env: Optional[dict] = None):
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args)
+        status, stdout, stderr = run_command(self.command, args, additional_env)
         if status != 0:
             print('FAILED with status', status)
             _exit(1)
@@ -278,20 +297,20 @@ class CommandLine:
                 error_and_exit('did not match pattern: ' + expected_pattern)
         return stdout
 
-    def should_succeed_json(self, args):
+    def should_succeed_json(self, args, additional_env: Optional[dict] = None):
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, treats the stdout as JSON and returns
         the data in it.
         """
-        return json.loads(self.should_succeed(args))
+        return json.loads(self.should_succeed(args, additional_env=additional_env))
 
-    def should_fail(self, args, expected_pattern):
+    def should_fail(self, args, expected_pattern, additional_env: Optional[dict] = None):
         """
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.command, args)
+        status, stdout, stderr = run_command(self.command, args, additional_env)
         if status == 0:
             print('ERROR: should have failed')
             _exit(1)
@@ -617,6 +636,7 @@ def file_version_summary_with_encryption(list_of_files):
     hide, with information about encryption, looking like this:
 
        [
+           ('+ photos/a.jpg', 'SSE-C:AES256?sse_c_key_id=user-generated-key-id'),
            ('+ photos/a.jpg', 'SSE-B2:AES256'),
            ('- photos/b.jpg', None),
            ('+ photos/c.jpg', 'none'),
@@ -625,7 +645,7 @@ def file_version_summary_with_encryption(list_of_files):
     result = []
     for f in list_of_files:
         entry = filename_summary(f)
-        encryption = encryption_summary(f['serverSideEncryption'])
+        encryption = encryption_summary(f['serverSideEncryption'], f['fileInfo'])
         result.append((entry, encryption))
     return result
 
@@ -637,13 +657,17 @@ def find_file_id(list_of_files, file_name):
     assert False, 'file not found: %s' % (file_name,)
 
 
-def encryption_summary(sse_dict):
+def encryption_summary(sse_dict, file_info):
     if isinstance(sse_dict, EncryptionSetting):
         sse_dict = sse_dict.as_value_dict()
     encryption = sse_dict['mode']
     algorithm = sse_dict.get('algorithm')
     if algorithm is not None:
         encryption += ':' + algorithm
+    if sse_dict['mode'] == 'SSE-C':
+        sse_c_key_id = file_info.get('sse_c_key_id')
+        encryption += '?' + 'sse_c_key_id=' + str(sse_c_key_id)
+
     return encryption
 
 
@@ -653,6 +677,10 @@ def sync_up_test(b2_tool, bucket_name):
 
 def sync_up_sse_b2_test(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_B2_AES)
+
+
+def sync_up_sse_c_test(b2_tool, bucket_name):
+    sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_C_AES)
 
 
 def sync_up_test_no_prefix(b2_tool, bucket_name):
@@ -686,23 +714,41 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
 
         os.symlink('broken', p('d'))
 
+        additional_env = None
+
         # now upload
         if encryption is None:
             command = ['sync', '--noProgress', dir_path, b2_sync_point]
             expected_encryption = SSE_NONE
+            expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
         elif encryption == SSE_B2_AES:
             command = [
                 'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2', dir_path,
                 b2_sync_point
             ]
             expected_encryption = encryption
+            expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+        elif encryption == SSE_C_AES:
+            command = [
+                'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-C', dir_path,
+                b2_sync_point
+            ]
+            expected_encryption = encryption
+            additional_env = {
+                'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(SSE_C_AES.key.secret).decode(),
+                'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
+            }
+            expected_encryption_str = encryption_summary(
+                expected_encryption.as_value_dict(), {'sse_c_key_id': SSE_C_AES.key.key_id}
+            )
         else:
             raise ValueError('unsupported encryption mode: %s' % encryption)
 
-        b2_tool.should_succeed(command, expected_pattern="d could not be accessed")
+        b2_tool.should_succeed(
+            command, expected_pattern="d could not be accessed", additional_env=additional_env
+        )
         file_versions = b2_tool.list_file_versions(bucket_name)
 
-        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict())
         should_equal(
             [
                 ('+ ' + prefix + 'a', expected_encryption_str),
@@ -711,6 +757,12 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             ],
             file_version_summary_with_encryption(file_versions),
         )
+        if encryption and encryption.mode == EncryptionMode.SSE_C:
+            b2_tool.should_fail(
+                command,
+                expected_pattern="ValueError: Using SSE-C requires providing an encryption key via "
+                "B2_DESTINATION_SSE_C_KEY_B64 env var"
+            )
         if encryption is not None:
             return  # that's enough, we've checked that encryption works, no need to repeat the whole sync suite
 
@@ -865,7 +917,11 @@ def sync_down_test_no_prefix(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, '')
 
 
-def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
+def sync_down_sse_c_test_no_prefix(b2_tool, bucket_name):
+    sync_down_helper(b2_tool, bucket_name, '', SSE_C_AES)
+
+
+def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
 
     file_to_upload = 'README.md'
 
@@ -876,6 +932,25 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
     else:
         b2_file_prefix = ''
 
+    if encryption is None or encryption.mode in (EncryptionMode.NONE, EncryptionMode.SSE_B2):
+        upload_encryption_args = []
+        upload_additional_env = {}
+        sync_encryption_args = []
+        sync_additional_env = {}
+    elif encryption.mode == EncryptionMode.SSE_C:
+        upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-C']
+        upload_additional_env = {
+            'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(encryption.key.secret).decode(),
+            'B2_DESTINATION_SSE_C_KEY_ID': encryption.key.key_id,
+        }
+        sync_encryption_args = ['--sourceServerSideEncryption', 'SSE-C']
+        sync_additional_env = {
+            'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(encryption.key.secret).decode(),
+            'B2_SOURCE_SSE_C_KEY_ID': encryption.key.key_id,
+        }
+    else:
+        raise ValueError(encryption)
+
     with TempDir() as local_path:
         # Sync from an empty "folder" as a source.
         b2_tool.should_succeed(['sync', b2_sync_point, local_path])
@@ -883,16 +958,25 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
 
         # Put a couple files in B2
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a']
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a'] +
+            upload_encryption_args,
+            additional_env=upload_additional_env,
         )
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b'] +
+            upload_encryption_args,
+            additional_env=upload_additional_env,
         )
-        b2_tool.should_succeed(['sync', b2_sync_point, local_path])
+        b2_tool.should_succeed(
+            ['sync', b2_sync_point, local_path] + sync_encryption_args,
+            additional_env=sync_additional_env
+        )
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'c']
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'c'] +
+            upload_encryption_args,
+            additional_env=upload_additional_env,
         )
 
         # Sync the files with one file being excluded because of mtime
@@ -901,12 +985,30 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket):
             [
                 'sync', '--noProgress', '--excludeIfModifiedAfter', mod_time, b2_sync_point,
                 local_path
-            ]
+            ] + sync_encryption_args,
+            additional_env=sync_additional_env,
         )
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
         # Sync all the files
-        b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, local_path])
+        b2_tool.should_succeed(
+            ['sync', '--noProgress', b2_sync_point, local_path] + sync_encryption_args,
+            additional_env=sync_additional_env,
+        )
         should_equal(['a', 'b', 'c'], sorted(os.listdir(local_path)))
+    with TempDir() as new_local_path:
+        if encryption and encryption.mode == EncryptionMode.SSE_C:
+            b2_tool.should_fail(
+                ['sync', '--noProgress', b2_sync_point, new_local_path] + sync_encryption_args,
+                expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+                'B2_SOURCE_SSE_C_KEY_B64 env var',
+            )
+            b2_tool.should_fail(
+                ['sync', '--noProgress', b2_sync_point, new_local_path],
+                expected_pattern=
+                'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+                'Encryption. The correct parameters must be provided to retrieve the object. '
+                '\(bad_request\)',
+            )
 
 
 def sync_copy_test(b2_tool, bucket_name):
@@ -914,21 +1016,45 @@ def sync_copy_test(b2_tool, bucket_name):
 
 
 def sync_copy_test_no_prefix_default_encryption(b2_tool, bucket_name):
-    sync_copy_helper(b2_tool, bucket_name, '', encryption=None, expected_encryption=SSE_NONE)
+    sync_copy_helper(
+        b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
+    )
 
 
 def sync_copy_test_no_prefix_no_encryption(b2_tool, bucket_name):
-    sync_copy_helper(b2_tool, bucket_name, '', encryption=SSE_NONE, expected_encryption=SSE_NONE)
+    sync_copy_helper(
+        b2_tool, bucket_name, '', destination_encryption=SSE_NONE, expected_encryption=SSE_NONE
+    )
 
 
 def sync_copy_test_no_prefix_sse_b2(b2_tool, bucket_name):
     sync_copy_helper(
-        b2_tool, bucket_name, '', encryption=SSE_B2_AES, expected_encryption=SSE_B2_AES
+        b2_tool,
+        bucket_name,
+        '',
+        destination_encryption=SSE_B2_AES,
+        expected_encryption=SSE_B2_AES,
+    )
+
+
+def sync_copy_test_no_prefix_sse_c(b2_tool, bucket_name):
+    sync_copy_helper(
+        b2_tool,
+        bucket_name,
+        '',
+        destination_encryption=SSE_C_AES,
+        expected_encryption=SSE_C_AES,
+        source_encryption=SSE_C_AES_2,
     )
 
 
 def sync_copy_helper(
-    b2_tool, bucket_name, folder_in_bucket, encryption=None, expected_encryption=SSE_NONE
+    b2_tool,
+    bucket_name,
+    folder_in_bucket,
+    destination_encryption=None,
+    expected_encryption=SSE_NONE,
+    source_encryption=None,
 ):
     file_to_upload = 'README.md'
 
@@ -947,39 +1073,98 @@ def sync_copy_helper(
         other_b2_sync_point += '/' + folder_in_bucket
 
     # Put a couple files in B2
-    b2_tool.should_succeed(
-        [
-            'upload-file', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2',
-            bucket_name, file_to_upload, b2_file_prefix + 'a'
-        ]
-    )
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
-    )
+    if source_encryption is None or source_encryption.mode in (
+        EncryptionMode.NONE, EncryptionMode.SSE_B2
+    ):
+        b2_tool.should_succeed(
+            [
+                'upload-file', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2',
+                bucket_name, file_to_upload, b2_file_prefix + 'a'
+            ]
+        )
+        b2_tool.should_succeed(
+            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
+        )
+    elif source_encryption.mode == EncryptionMode.SSE_C:
+        for suffix in ['a', 'b']:
+            b2_tool.should_succeed(
+                [
+                    'upload-file', '--noProgress', '--destinationServerSideEncryption', 'SSE-C',
+                    bucket_name, file_to_upload, b2_file_prefix + suffix
+                ],
+                additional_env={
+                    'B2_DESTINATION_SSE_C_KEY_B64':
+                        base64.b64encode(source_encryption.key.secret).decode(),
+                    'B2_DESTINATION_SSE_C_KEY_ID':
+                        source_encryption.key.key_id,
+                },
+            )
+    else:
+        raise ValueError(source_encryption)
 
     # Sync all the files
-    if encryption is None:
+    if destination_encryption is None:
         b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
-    elif encryption == SSE_NONE:
+        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+    elif destination_encryption == SSE_NONE:
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--destinationServerSideEncryption', 'none', b2_sync_point,
                 other_b2_sync_point
             ]
         )
-    elif encryption == SSE_B2_AES:
+        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+    elif destination_encryption == SSE_B2_AES:
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2',
                 b2_sync_point, other_b2_sync_point
             ]
         )
+        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+    elif destination_encryption.mode == EncryptionMode.SSE_C:
+        b2_tool.should_fail(
+            [
+                'sync', '--noProgress', '--destinationServerSideEncryption',
+                destination_encryption.mode.value, b2_sync_point, other_b2_sync_point
+            ],
+            additional_env={
+                'B2_DESTINATION_SSE_C_KEY_B64':
+                    base64.b64encode(destination_encryption.key.secret).decode(),
+                'B2_DESTINATION_SSE_C_KEY_ID':
+                    destination_encryption.key.key_id,
+            },
+            expected_pattern=
+            'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+            'Encryption. The correct parameters must be provided to retrieve the object. '
+            '\(bad_request\)'
+        )
+        b2_tool.should_succeed(
+            [
+                'sync', '--noProgress', '--destinationServerSideEncryption',
+                destination_encryption.mode.value, '--sourceServerSideEncryption',
+                source_encryption.mode.value, b2_sync_point, other_b2_sync_point
+            ],
+            additional_env={
+                'B2_DESTINATION_SSE_C_KEY_B64':
+                    base64.b64encode(destination_encryption.key.secret).decode(),
+                'B2_DESTINATION_SSE_C_KEY_ID':
+                    destination_encryption.key.key_id,
+                'B2_SOURCE_SSE_C_KEY_B64':
+                    base64.b64encode(source_encryption.key.secret).decode(),
+                'B2_SOURCE_SSE_C_KEY_ID':
+                    source_encryption.key.key_id,
+            }
+        )
+        expected_encryption_str = encryption_summary(
+            expected_encryption.as_value_dict(),
+            {'sse_c_key_id': destination_encryption.key.key_id}
+        )
+
     else:
-        raise ValueError(expected_encryption)
+        raise ValueError(destination_encryption)
 
     file_versions = b2_tool.list_file_versions(other_bucket_name)
-
-    expected_encryption_str = encryption_summary(expected_encryption.as_value_dict())
 
     should_equal(
         [
@@ -1122,24 +1307,220 @@ def sse_b2_test(b2_tool, bucket_name):
     #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
 
 
+def sse_c_test(b2_tool, bucket_name):
+
+    file_to_upload = 'README.md'
+    secret = os.urandom(32)
+
+    b2_tool.should_fail(
+        [
+            'upload-file', '--noProgress', '--quiet', '--destinationServerSideEncryption', 'SSE-C',
+            bucket_name, file_to_upload, 'gonna-fail-anyway'
+        ],
+        'Using SSE-C requires providing an encryption key via B2_DESTINATION_SSE_C_KEY_B64 env var'
+    )
+    file_version_info = b2_tool.should_succeed_json(
+        [
+            'upload-file', '--noProgress', '--quiet', '--destinationServerSideEncryption', 'SSE-C',
+            bucket_name, file_to_upload, 'uploaded_encrypted'
+        ],
+        additional_env={
+            'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
+            'B2_DESTINATION_SSE_C_KEY_ID': 'user-generated-key-id',
+        }
+    )
+    should_equal(
+        {
+            "algorithm": "AES256",
+            "customerKey": "******",
+            "customerKeyMd5": "******",
+            "mode": "SSE-C"
+        }, file_version_info['serverSideEncryption']
+    )
+    should_equal('user-generated-key-id', file_version_info['fileInfo']['sse_c_key_id'])
+
+    b2_tool.should_fail(
+        [
+            'download-file-by-name', '--noProgress', bucket_name, 'uploaded_encrypted',
+            'gonna_fail_anyway'
+        ],
+        expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
+        'correct parameters must be provided to retrieve the object. \(bad_request\)'
+    )
+    b2_tool.should_fail(
+        [
+            'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+            bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
+        ],
+        expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+        'B2_SOURCE_SSE_C_KEY_B64 env var'
+    )
+    b2_tool.should_fail(
+        [
+            'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+            bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
+        ],
+        expected_pattern='ERROR: Wrong or no SSE-C key provided when reading a file.',
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode()}
+    )
+    with TempDir() as dir_path:
+        p = lambda fname: os.path.join(dir_path, fname)
+        b2_tool.should_succeed(
+            [
+                'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+                bucket_name, 'uploaded_encrypted',
+                p('a')
+            ],
+            additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+        )
+        assert read_file(p('a')) == read_file(file_to_upload)
+        b2_tool.should_succeed(
+            [
+                'download-file-by-id', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+                file_version_info['fileId'],
+                p('b')
+            ],
+            additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+        )
+        assert read_file(p('b')) == read_file(file_to_upload)
+
+    b2_tool.should_fail(
+        ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
+        expected_pattern=
+        'ERROR: The object was stored using a form of Server Side Encryption. The correct '
+        'parameters must be provided to retrieve the object. \(bad_request\)'
+    )
+    b2_tool.should_fail(
+        [
+            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C', file_version_info['fileId'],
+            bucket_name, 'gonna-fail-anyway'
+        ],
+        expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+        'B2_SOURCE_SSE_C_KEY_B64 env var'
+    )
+    b2_tool.should_fail(
+        [
+            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
+            'gonna-fail-anyway'
+        ],
+        expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+        'B2_DESTINATION_SSE_C_KEY_B64 env var',
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C', file_version_info['fileId'],
+            bucket_name, 'not_encrypted_copied_from_encrypted'
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
+            'encrypted_no_id_copied_from_encrypted'
+        ],
+        additional_env={
+            'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
+            'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode(),
+        }
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
+            'encrypted_with_id_copied_from_encrypted'
+        ],
+        additional_env={
+            'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
+            'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode(),
+            'B2_DESTINATION_SSE_C_KEY_ID': 'another-user-generated-id',
+        }
+    )
+    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    should_equal(
+        [
+            {
+                'file_name': 'encrypted_no_id_copied_from_encrypted',
+                'sse_c_key_id':
+                    'user-generated-key-id',  # FIXME: this should be 'missing_key', but console tool uses
+                # legacy Bucket.copy_file
+                'serverSideEncryption':
+                    {
+                        "algorithm": "AES256",
+                        "customerKey": "******",
+                        "customerKeyMd5": "******",
+                        "mode": "SSE-C"
+                    },
+            },
+            {
+                'file_name': 'encrypted_with_id_copied_from_encrypted',
+                'sse_c_key_id':
+                    'user-generated-key-id',  # FIXME: this should be 'another-user-generated-key-id', but
+                # console tool uses legacy Bucket.copy_file
+                'serverSideEncryption':
+                    {
+                        'algorithm': 'AES256',
+                        "customerKey": "******",
+                        "customerKeyMd5": "******",
+                        'mode': 'SSE-C',
+                    },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted',
+                'sse_c_key_id': 'user-generated-key-id',  # plain copy does that
+                'serverSideEncryption': {
+                    'mode': 'none',
+                },
+            },
+            {
+                'file_name': 'uploaded_encrypted',
+                'sse_c_key_id': 'user-generated-key-id',
+                'serverSideEncryption':
+                    {
+                        "algorithm": "AES256",
+                        "customerKey": "******",
+                        "customerKeyMd5": "******",
+                        "mode": "SSE-C"
+                    },
+            },
+        ],
+        sorted(
+            [
+                {
+                    'sse_c_key_id': f['fileInfo'].get('sse_c_key_id', 'missing_key'),
+                    'serverSideEncryption': f['serverSideEncryption'],
+                    'file_name': f['fileName']
+                } for f in list_of_files
+            ],
+            key=lambda r: r['file_name']
+        )
+    )
+
+
 def main(bucket_name_prefix):
     test_map = {
         'account': account_test,
         'basic': basic_test,
         'keys': key_restrictions_test,
         'sync_down': sync_down_test,
+        'sync_down_sse_c': sync_down_sse_c_test_no_prefix,
         'sync_down_no_prefix': sync_down_test_no_prefix,
         'sync_up': sync_up_test,
         'sync_up_sse_b2': sync_up_sse_b2_test,
+        'sync_up_sse_c': sync_up_sse_c_test,
         'sync_up_no_prefix': sync_up_test_no_prefix,
         'sync_long_path': sync_long_path_test,
         'sync_copy': sync_copy_test,
         'sync_copy_test_no_prefix_default_encryption': sync_copy_test_no_prefix_default_encryption,
         #'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption, # not supported by the server
         'sync_copy_test_no_prefix_sse_b2': sync_copy_test_no_prefix_sse_b2,
+        'sync_copy_test_no_prefix_sse_c': sync_copy_test_no_prefix_sse_c,
         'download': download_test,
         'default_sse_b2': default_sse_b2_test,
         'sse_b2': sse_b2_test,
+        'sse_c': sse_c_test,
     }
 
     args = parse_args(tests=sorted(test_map))
