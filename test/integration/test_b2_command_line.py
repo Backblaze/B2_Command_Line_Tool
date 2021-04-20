@@ -202,7 +202,7 @@ def print_json_indented(value):
 def serialize_enc_settings(value):
     if not isinstance(value, EncryptionSetting):
         raise TypeError
-    return value.as_value_dict()
+    return value.as_dict()
 
 
 def print_output(status, stdout, stderr):
@@ -659,7 +659,7 @@ def find_file_id(list_of_files, file_name):
 
 def encryption_summary(sse_dict, file_info):
     if isinstance(sse_dict, EncryptionSetting):
-        sse_dict = sse_dict.as_value_dict()
+        sse_dict = sse_dict.as_dict()
     encryption = sse_dict['mode']
     algorithm = sse_dict.get('algorithm')
     if algorithm is not None:
@@ -720,7 +720,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         if encryption is None:
             command = ['sync', '--noProgress', dir_path, b2_sync_point]
             expected_encryption = SSE_NONE
-            expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+            expected_encryption_str = encryption_summary(expected_encryption.as_dict(), {})
         elif encryption == SSE_B2_AES:
             command = [
                 'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2', dir_path,
@@ -1105,7 +1105,7 @@ def sync_copy_helper(
     # Sync all the files
     if destination_encryption is None:
         b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
-        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+        expected_encryption_str = encryption_summary(expected_encryption.as_dict(), {})
     elif destination_encryption == SSE_NONE:
         b2_tool.should_succeed(
             [
@@ -1113,7 +1113,7 @@ def sync_copy_helper(
                 other_b2_sync_point
             ]
         )
-        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+        expected_encryption_str = encryption_summary(expected_encryption.as_dict(), {})
     elif destination_encryption == SSE_B2_AES:
         b2_tool.should_succeed(
             [
@@ -1121,7 +1121,7 @@ def sync_copy_helper(
                 b2_sync_point, other_b2_sync_point
             ]
         )
-        expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+        expected_encryption_str = encryption_summary(expected_encryption.as_dict(), {})
     elif destination_encryption.mode == EncryptionMode.SSE_C:
         b2_tool.should_fail(
             [
@@ -1157,7 +1157,7 @@ def sync_copy_helper(
             }
         )
         expected_encryption_str = encryption_summary(
-            expected_encryption.as_value_dict(),
+            expected_encryption.as_dict(),
             {'sse_c_key_id': destination_encryption.key.key_id}
         )
 
@@ -1326,7 +1326,7 @@ def sse_c_test(b2_tool, bucket_name):
         ],
         additional_env={
             'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
-            'B2_DESTINATION_SSE_C_KEY_ID': 'user-generated-key-id',
+            'B2_DESTINATION_SSE_C_KEY_ID': 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',
         }
     )
     should_equal(
@@ -1337,7 +1337,7 @@ def sse_c_test(b2_tool, bucket_name):
             "mode": "SSE-C"
         }, file_version_info['serverSideEncryption']
     )
-    should_equal('user-generated-key-id', file_version_info['fileInfo']['sse_c_key_id'])
+    should_equal('user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü', file_version_info['fileInfo']['sse_c_key_id'])
 
     b2_tool.should_fail(
         [
@@ -1408,7 +1408,9 @@ def sse_c_test(b2_tool, bucket_name):
         'B2_DESTINATION_SSE_C_KEY_B64 env var',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
     )
-    b2_tool.should_succeed(
+    b2_tool.should_succeed(  # FIXME: this should fail without providing target fileInfo and ContentType or source
+        # fileInfo and ContentType, but: 1) CLI uses legacy Bucket.copy_file; 2) CopyFileById doesn't yet accept
+        # these arguments
         [
             'copy-file-by-id', '--sourceServerSideEncryption=SSE-C', file_version_info['fileId'],
             bucket_name, 'not_encrypted_copied_from_encrypted'
@@ -1435,7 +1437,7 @@ def sse_c_test(b2_tool, bucket_name):
         additional_env={
             'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
             'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode(),
-            'B2_DESTINATION_SSE_C_KEY_ID': 'another-user-generated-id',
+            'B2_DESTINATION_SSE_C_KEY_ID': 'another-user-generated-key-id',
         }
     )
     list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
@@ -1444,7 +1446,7 @@ def sse_c_test(b2_tool, bucket_name):
             {
                 'file_name': 'encrypted_no_id_copied_from_encrypted',
                 'sse_c_key_id':
-                    'user-generated-key-id',  # FIXME: this should be 'missing_key', but console tool uses
+                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'missing_key', but console tool uses
                 # legacy Bucket.copy_file
                 'serverSideEncryption':
                     {
@@ -1457,7 +1459,7 @@ def sse_c_test(b2_tool, bucket_name):
             {
                 'file_name': 'encrypted_with_id_copied_from_encrypted',
                 'sse_c_key_id':
-                    'user-generated-key-id',  # FIXME: this should be 'another-user-generated-key-id', but
+                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'another-user-generated-key-id', but
                 # console tool uses legacy Bucket.copy_file
                 'serverSideEncryption':
                     {
@@ -1469,14 +1471,15 @@ def sse_c_test(b2_tool, bucket_name):
             },
             {
                 'file_name': 'not_encrypted_copied_from_encrypted',
-                'sse_c_key_id': 'user-generated-key-id',  # plain copy does that
+                'sse_c_key_id': 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'missing_key',
+                # but console tool uses legacy Bucket.copy_file
                 'serverSideEncryption': {
                     'mode': 'none',
                 },
             },
             {
                 'file_name': 'uploaded_encrypted',
-                'sse_c_key_id': 'user-generated-key-id',
+                'sse_c_key_id': 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',
                 'serverSideEncryption':
                     {
                         "algorithm": "AES256",
