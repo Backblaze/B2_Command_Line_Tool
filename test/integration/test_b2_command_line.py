@@ -727,7 +727,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
                 b2_sync_point
             ]
             expected_encryption = encryption
-            expected_encryption_str = encryption_summary(expected_encryption.as_value_dict(), {})
+            expected_encryption_str = encryption_summary(expected_encryption.as_dict(), {})
         elif encryption == SSE_C_AES:
             command = [
                 'sync', '--noProgress', '--destinationServerSideEncryption', 'SSE-C', dir_path,
@@ -739,7 +739,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
                 'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
             }
             expected_encryption_str = encryption_summary(
-                expected_encryption.as_value_dict(), {'sse_c_key_id': SSE_C_AES.key.key_id}
+                expected_encryption.as_dict(), {'sse_c_key_id': SSE_C_AES.key.key_id}
             )
         else:
             raise ValueError('unsupported encryption mode: %s' % encryption)
