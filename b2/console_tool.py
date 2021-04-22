@@ -148,6 +148,7 @@ class Described:
     Base class for Commands, providing them with tools for evaluating docstrings to CLI help texts.
     Allows for including superclasses' evaluated docstrings.
     """
+
     @classmethod
     def _get_description(cls):
         mro_docs = {
@@ -250,11 +251,15 @@ class DestinationSseMixin(Described):
                     )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
-                    logger.warning('Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
-                                   'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,))
+                    logger.warning(
+                        'Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
+                        'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,)
+                    )
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
             else:
-                raise NotImplementedError('Unsupported encryption mode for writes: %s' % (mode.value,))
+                raise NotImplementedError(
+                    'Unsupported encryption mode for writes: %s' % (mode.value,)
+                )
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
@@ -294,8 +299,10 @@ class SourceSseMixin(Described):
                     )
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=None)
             else:
-                raise NotImplementedError('Encryption modes other than %s are not supported in reads' % (
-                    EncryptionMode.SSE_C.value,))
+                raise NotImplementedError(
+                    'Encryption modes other than %s are not supported in reads' %
+                    (EncryptionMode.SSE_C.value,)
+                )
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
