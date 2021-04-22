@@ -253,7 +253,11 @@ class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
         re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
-        re.compile(r'^$')  # empty line
+        re.compile(r'^$'),  # empty line
+        re.compile(
+            r'Encrypting file\(s\) with SSE-C without providing key id. '
+            r'Set B2_DESTINATION_SSE_C_KEY_ID to allow key identification'
+        ),
     ]
 
     def __init__(self, command, account_id, application_key, bucket_name_prefix):
