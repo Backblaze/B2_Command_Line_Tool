@@ -29,6 +29,8 @@ REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==6.1.1', 'liccheck
 REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 
+OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
+
 nox.options.reuse_existing_virtualenvs = True
 nox.options.sessions = [
     'lint',
@@ -169,6 +171,12 @@ def bundle(session):
     session.install('pyinstaller')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     install_myself(session)
+
+    system = platform.system().lower()
+
+    if system == 'darwin':
+        session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
+
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
 
     # Set outputs for GitHub Actions
@@ -177,9 +185,31 @@ def bundle(session):
         print('::set-output name=asset_path::', asset_path, sep='')
 
         name, ext = os.path.splitext(os.path.basename(asset_path))
-        system = platform.system().lower()
         asset_name = '{}-{}{}'.format(name, system, ext)
         print('::set-output name=asset_name::', asset_name, sep='')
+
+
+@nox.session(python=False)
+def sign(session):
+    """Sign the bundled distribution (OSX only)."""
+    system = platform.system().lower()
+
+    if system != 'darwin':
+        session.skip('signing process is for OSX only')
+
+    session.run('security', 'find-identity', external=True)
+    session.run(
+        'codesign',
+        '--force',
+        '--verbose',
+        '--timestamp',
+        '--identifier',
+        OSX_BUNDLE_IDENTIFIER,
+        *session.posargs,
+        'dist/b2',
+        external=True
+    )
+    session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)

@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+* Sign OSX binary
 * Add support for SSE-C server-side encryption mode
+
+### Fixed
+* Exclude packages inside the test package when installing
 
 ## [2.3.0] - 2021-03-25
 
