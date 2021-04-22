@@ -902,6 +902,8 @@ class DownloadFileById(SourceSseMixin, Command):
     on stderr.  Without it, simple text progress is printed.
     Use ``--noProgress`` to disable progress reporting.
 
+    {SOURCESSEMIXIN}
+
     Requires capability:
 
     - **readFiles**
@@ -933,6 +935,8 @@ class DownloadFileByName(SourceSseMixin, Command):
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
     Use ``--noProgress`` to disable progress reporting.
+
+    {SOURCESSEMIXIN}
 
     Requires capability:
 
