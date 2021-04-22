@@ -742,7 +742,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
                 expected_encryption.as_dict(), {'sse_c_key_id': SSE_C_AES.key.key_id}
             )
         else:
-            raise ValueError('unsupported encryption mode: %s' % encryption)
+            raise NotImplementedError('unsupported encryption mode: %s' % encryption)
 
         b2_tool.should_succeed(
             command, expected_pattern="d could not be accessed", additional_env=additional_env
@@ -949,7 +949,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             'B2_SOURCE_SSE_C_KEY_ID': encryption.key.key_id,
         }
     else:
-        raise ValueError(encryption)
+        raise NotImplementedError(encryption)
 
     with TempDir() as local_path:
         # Sync from an empty "folder" as a source.
@@ -969,7 +969,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
         )
         b2_tool.should_succeed(
             ['sync', b2_sync_point, local_path] + sync_encryption_args,
-            additional_env=sync_additional_env
+            additional_env=sync_additional_env,
         )
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
@@ -1100,7 +1100,7 @@ def sync_copy_helper(
                 },
             )
     else:
-        raise ValueError(source_encryption)
+        raise NotImplementedError(source_encryption)
 
     # Sync all the files
     if destination_encryption is None:
@@ -1161,7 +1161,7 @@ def sync_copy_helper(
         )
 
     else:
-        raise ValueError(destination_encryption)
+        raise NotImplementedError(destination_encryption)
 
     file_versions = b2_tool.list_file_versions(other_bucket_name)
 

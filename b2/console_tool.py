@@ -144,6 +144,10 @@ class DescriptionGetter:
 
 
 class Described:
+    """
+    Base class for Commands, providing them with tools for evaluating docstrings to CLI help texts.
+    Allows for including superclasses' evaluated docstrings.
+    """
     @classmethod
     def _get_description(cls):
         mro_docs = {
@@ -235,8 +239,9 @@ class DestinationSseMixin(Described):
             algorithm = apply_or_none(
                 EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
             )
-            key = None
-            if mode == EncryptionMode.SSE_C:
+            if mode == EncryptionMode.SSE_B2:
+                key = None
+            elif mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
                     raise ValueError(
@@ -244,7 +249,12 @@ class DestinationSseMixin(Described):
                         B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
                     )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
+                if key_id is None:
+                    logger.warning('Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
+                                   'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,))
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
+            else:
+                raise NotImplementedError('Unsupported encryption mode for writes: %s' % (mode.value,))
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
@@ -283,7 +293,9 @@ class SourceSseMixin(Described):
                         B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
                     )
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=None)
-
+            else:
+                raise NotImplementedError('Encryption modes other than %s are not supported in reads' % (
+                    EncryptionMode.SSE_C.value,))
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
