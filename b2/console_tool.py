@@ -52,6 +52,7 @@ from b2sdk.v1 import (
     EncryptionSetting,
     EncryptionKey,
     BasicSyncEncryptionSettingsProvider,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
@@ -94,7 +95,7 @@ DOC_STRING_DATA = dict(
     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR=B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR=B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR=B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
-    FILE_INFO_KEY_ID='sse_c_key_id',
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME=SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
 )
 
 
@@ -218,7 +219,7 @@ class DestinationSseMixin(Described):
     Using SSE-C requires providing ``{B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR}`` environment variable,
     containing the base64 encoded encryption key.
     If ``{B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR}`` environment variable is provided,
-    it's value will be saved as ``{FILE_INFO_KEY_ID}`` in the
+    it's value will be saved as ``{SSE_C_KEY_ID_FILE_INFO_KEY_NAME}`` in the
     uploaded file's fileInfo.
     """
 
@@ -1641,31 +1642,27 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
         )
 
         kwargs = {}
-        encryption_settings = {}
+        read_encryption_settings = {}
+        write_encryption_settings = {}
         source_bucket = destination_bucket = None
         destination_sse = self._get_destination_sse_setting(args)
         if destination.folder_type() == 'b2':
             destination_bucket = destination.bucket_name
-            encryption_settings[destination_bucket] = destination_sse
+            write_encryption_settings[destination_bucket] = destination_sse
         elif destination_sse is not None:
             raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
 
         source_sse = self._get_source_sse_setting(args)
         if source.folder_type() == 'b2':
             source_bucket = source.bucket_name
-            encryption_settings[source_bucket] = source_sse
+            read_encryption_settings[source_bucket] = source_sse
         elif source_sse is not None:
             raise ValueError('server-side encryption cannot be set for a non-b2 sync source')
 
-        if source_bucket == destination_bucket and source_sse != destination_sse:
-            raise ValueError(
-                'SOURCE and DESTINATION server side encyrption settings have to be equal when syncing '
-                'within one bucket'
-            )
-
-        if encryption_settings:
+        if read_encryption_settings or write_encryption_settings:
             kwargs['encryption_settings_provider'] = BasicSyncEncryptionSettingsProvider(
-                encryption_settings
+                read_bucket_settings=read_encryption_settings,
+                write_bucket_settings=write_encryption_settings,
             )
 
         with SyncReport(self.stdout, args.noProgress) as reporter:

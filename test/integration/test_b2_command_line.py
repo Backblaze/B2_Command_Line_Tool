@@ -30,7 +30,7 @@ import pytest
 from typing import Optional
 
 from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
-from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey
+from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey, SSE_C_KEY_ID_FILE_INFO_KEY_NAME
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
@@ -138,7 +138,7 @@ def remove_warnings(text):
     )
 
 
-def run_command(cmd, args, additional_env: Optional[dict]):
+def run_command(cmd, args, additional_env: Optional[dict] = None):
     """
     :param cmd: a command to run
     :param args: command's arguments
@@ -166,7 +166,7 @@ def run_command(cmd, args, additional_env: Optional[dict]):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         close_fds=platform.system() != 'Windows',
-        env=env
+        env=env,
     )
     p.stdin.close()
     reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
@@ -665,12 +665,15 @@ def encryption_summary(sse_dict, file_info):
     if isinstance(sse_dict, EncryptionSetting):
         sse_dict = sse_dict.as_dict()
     encryption = sse_dict['mode']
+    assert encryption in (
+        EncryptionMode.NONE.value, EncryptionMode.SSE_B2.value, EncryptionMode.SSE_C.value
+    )
     algorithm = sse_dict.get('algorithm')
     if algorithm is not None:
         encryption += ':' + algorithm
     if sse_dict['mode'] == 'SSE-C':
-        sse_c_key_id = file_info.get('sse_c_key_id')
-        encryption += '?' + 'sse_c_key_id=' + str(sse_c_key_id)
+        sse_c_key_id = file_info.get(SSE_C_KEY_ID_FILE_INFO_KEY_NAME)
+        encryption += '?%s=%s' % (SSE_C_KEY_ID_FILE_INFO_KEY_NAME, sse_c_key_id)
 
     return encryption
 
@@ -743,7 +746,8 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
                 'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
             }
             expected_encryption_str = encryption_summary(
-                expected_encryption.as_dict(), {'sse_c_key_id': SSE_C_AES.key.key_id}
+                expected_encryption.as_dict(),
+                {SSE_C_KEY_ID_FILE_INFO_KEY_NAME: SSE_C_AES.key.key_id}
             )
         else:
             raise NotImplementedError('unsupported encryption mode: %s' % encryption)
@@ -1161,7 +1165,8 @@ def sync_copy_helper(
             }
         )
         expected_encryption_str = encryption_summary(
-            expected_encryption.as_dict(), {'sse_c_key_id': destination_encryption.key.key_id}
+            expected_encryption.as_dict(),
+            {SSE_C_KEY_ID_FILE_INFO_KEY_NAME: destination_encryption.key.key_id}
         )
 
     else:
@@ -1341,7 +1346,8 @@ def sse_c_test(b2_tool, bucket_name):
         }, file_version_info['serverSideEncryption']
     )
     should_equal(
-        'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü', file_version_info['fileInfo']['sse_c_key_id']
+        'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',
+        file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME]
     )
 
     b2_tool.should_fail(
@@ -1498,9 +1504,12 @@ def sse_c_test(b2_tool, bucket_name):
         sorted(
             [
                 {
-                    'sse_c_key_id': f['fileInfo'].get('sse_c_key_id', 'missing_key'),
-                    'serverSideEncryption': f['serverSideEncryption'],
-                    'file_name': f['fileName']
+                    'sse_c_key_id':
+                        f['fileInfo'].get(SSE_C_KEY_ID_FILE_INFO_KEY_NAME, 'missing_key'),
+                    'serverSideEncryption':
+                        f['serverSideEncryption'],
+                    'file_name':
+                        f['fileName']
                 } for f in list_of_files
             ],
             key=lambda r: r['file_name']
