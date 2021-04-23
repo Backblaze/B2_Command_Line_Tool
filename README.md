@@ -24,17 +24,31 @@ This tool can be installed with:
     b2 cancel-all-unfinished-large-files [-h] bucketName
     b2 cancel-large-file [-h] fileId
     b2 clear-account [-h]
-    b2 copy-file-by-id [-h] [--metadataDirective {copy,replace}] [--contentType CONTENTTYPE] [--range RANGE] [--info INFO] [--destinationServerSideEncryption {SSE-B2}]
-                     [--destinationServerSideEncryptionAlgorithm {AES256}]
-                     sourceFileId destinationBucketName b2FileName
-    b2 create-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}]
-                   bucketName bucketType
-    b2 create-key [-h] [--bucket BUCKET] [--namePrefix NAMEPREFIX] [--duration DURATION] keyName capabilities
+    b2 copy-file-by-id [-h] [--metadataDirective {copy,replace}]
+                       [--contentType CONTENTTYPE] [--range RANGE] [--info INFO]
+                       [--destinationServerSideEncryption {SSE-B2,SSE-C}]
+                       [--destinationServerSideEncryptionAlgorithm {AES256}]
+                       [--sourceServerSideEncryption {SSE-C}]
+                       [--sourceServerSideEncryptionAlgorithm {AES256}]
+                       sourceFileId destinationBucketName b2FileName
+    b2 create-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES]
+                     [--lifecycleRules LIFECYCLERULES]
+                     [--defaultServerSideEncryption {SSE-B2,none}]
+                     [--defaultServerSideEncryptionAlgorithm {AES256}]
+                     bucketName bucketType
+    b2 create-key [-h] [--bucket BUCKET] [--namePrefix NAMEPREFIX]
+                  [--duration DURATION] keyName capabilities
     b2 delete-bucket [-h] bucketName
     b2 delete-file-version [-h] [fileName] fileId
     b2 delete-key [-h] applicationKeyId
-    b2 download-file-by-id [-h] [--noProgress] fileId localFileName
-    b2 download-file-by-name [-h] [--noProgress] bucketName b2FileName localFileName
+    b2 download-file-by-id [-h] [--noProgress]
+                           [--sourceServerSideEncryption {SSE-C}]
+                           [--sourceServerSideEncryptionAlgorithm {AES256}]
+                           fileId localFileName
+    b2 download-file-by-name [-h] [--noProgress]
+                             [--sourceServerSideEncryption {SSE-C}]
+                             [--sourceServerSideEncryptionAlgorithm {AES256}]
+                             bucketName b2FileName localFileName
     b2 get-account-info [-h]
     b2 get-bucket [-h] [--showSize] bucketName
     b2 get-file-info [-h] fileId
@@ -48,23 +62,36 @@ This tool can be installed with:
     b2 ls [-h] [--long] [--json] [--versions] [--recursive] bucketName [folderName]
     b2 make-url [-h] fileId
     b2 make-friendly-url [-h] bucketName fileName
-    b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--threads THREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX]
-          [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--destinationServerSideEncryption {SSE-B2}] [--destinationServerSideEncryptionAlgorithm {AES256}]
-          [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS]
-          source destination
-    b2 update-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}]
-                   bucketName bucketType
-    b2 upload-file [-h] [--noProgress] [--quiet] [--contentType CONTENTTYPE] [--minPartSize MINPARTSIZE] [--sha1 SHA1] [--threads THREADS] [--info INFO] [--destinationServerSideEncryption {SSE-B2}]
-                 [--destinationServerSideEncryptionAlgorithm {AES256}]
-                 bucketName localFilePath b2FileName
+    b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource]
+            [--excludeAllSymlinks] [--threads THREADS]
+            [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS]
+            [--excludeRegex REGEX] [--includeRegex REGEX]
+            [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP]
+            [--destinationServerSideEncryption {SSE-B2,SSE-C}]
+            [--destinationServerSideEncryptionAlgorithm {AES256}]
+            [--sourceServerSideEncryption {SSE-C}]
+            [--sourceServerSideEncryptionAlgorithm {AES256}]
+            [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS]
+            source destination
+    b2 update-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES]
+                     [--lifecycleRules LIFECYCLERULES]
+                     [--defaultServerSideEncryption {SSE-B2,none}]
+                     [--defaultServerSideEncryptionAlgorithm {AES256}]
+                     bucketName bucketType
+    b2 upload-file [-h] [--noProgress] [--quiet] [--contentType CONTENTTYPE]
+                   [--minPartSize MINPARTSIZE] [--sha1 SHA1] [--threads THREADS]
+                   [--info INFO]
+                   [--destinationServerSideEncryption {SSE-B2,SSE-C}]
+                   [--destinationServerSideEncryptionAlgorithm {AES256}]
+                   bucketName localFilePath b2FileName
     b2 version [-h]
 
 
-The environment variable B2_ACCOUNT_INFO specifies the sqlite
+The environment variable `B2_ACCOUNT_INFO` specifies the sqlite
 file to use for caching authentication information.
-The default file to use is: ~/.b2_account_info
+The default file to use is: `~/.b2_account_info`
 
-For more details on one command: b2 <command> --help
+For more details on one command: `b2 <command> --help`
 
 When authorizing with application keys, this tool requires that the key
 have the 'listBuckets' capability so that it can take the bucket names
@@ -76,7 +103,7 @@ that command.
 ## Parallelism and the --threads parameter
 
 Users with high performance networks, or file sets with very small files, may benefit from
-increased parallelism. Experiment with using the --threads parameter with small values to
+increased parallelism. Experiment with using the `--threads` parameter with small values to
 determine if there are benefits.
 
 Note that using multiple threads will usually be detrimental to the other users on your network.
