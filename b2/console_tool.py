@@ -1644,7 +1644,6 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
         kwargs = {}
         read_encryption_settings = {}
         write_encryption_settings = {}
-        source_bucket = destination_bucket = None
         destination_sse = self._get_destination_sse_setting(args)
         if destination.folder_type() == 'b2':
             destination_bucket = destination.bucket_name
@@ -1666,13 +1665,17 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
             )
 
         with SyncReport(self.stdout, args.noProgress) as reporter:
-            synchronizer.sync_folders(
-                source_folder=source,
-                dest_folder=destination,
-                now_millis=current_time_millis(),
-                reporter=reporter,
-                **kwargs
-            )
+            try:
+                synchronizer.sync_folders(
+                    source_folder=source,
+                    dest_folder=destination,
+                    now_millis=current_time_millis(),
+                    reporter=reporter,
+                    **kwargs
+                )
+            except EmptyDirectory as ex:
+                raise CommandError(
+                    'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (ex.path,))
         return 0
 
     def get_policies_manager_from_args(self, args):
