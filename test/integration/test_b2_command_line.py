@@ -1564,48 +1564,28 @@ def sse_c_test(b2_tool, bucket_name):
 
 
 def main(bucket_name_prefix):
-    test_map = {
-        'account':
-            account_test,
-        'basic':
-            basic_test,
-        'keys':
-            key_restrictions_test,
-        'sync_down':
-            sync_down_test,
-        'sync_down_sse_c':
-            sync_down_sse_c_test_no_prefix,
-        'sync_down_no_prefix':
-            sync_down_test_no_prefix,
-        'sync_up':
-            sync_up_test,
-        'sync_up_sse_b2':
-            sync_up_sse_b2_test,
-        'sync_up_sse_c':
-            sync_up_sse_c_test,
-        'sync_up_no_prefix':
-            sync_up_test_no_prefix,
-        'sync_long_path':
-            sync_long_path_test,
-        'sync_copy':
-            sync_copy_test,
-        'sync_copy_test_no_prefix_default_encryption':
-            sync_copy_test_no_prefix_default_encryption,
-        #'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption, # not supported by the server
-        'sync_copy_test_no_prefix_sse_b2':
-            sync_copy_test_no_prefix_sse_b2,
-        'sync_copy_test_no_prefix_sse_c':
-            sync_copy_test_no_prefix_sse_c,
-        'sync_copy_test_no_prefix_sse_c_single_bucket':
-            sync_copy_test_no_prefix_sse_c_single_bucket,
-        'download':
-            download_test,
-        'default_sse_b2':
-            default_sse_b2_test,
-        'sse_b2':
-            sse_b2_test,
-        'sse_c':
-            sse_c_test,
+    test_map = {  # yapf: disable
+        'account': account_test,
+        'basic': basic_test,
+        'keys': key_restrictions_test,
+        'sync_down': sync_down_test,
+        'sync_down_sse_c': sync_down_sse_c_test_no_prefix,
+        'sync_down_no_prefix': sync_down_test_no_prefix,
+        'sync_up': sync_up_test,
+        'sync_up_sse_b2': sync_up_sse_b2_test,
+        'sync_up_sse_c': sync_up_sse_c_test,
+        'sync_up_no_prefix': sync_up_test_no_prefix,
+        'sync_long_path': sync_long_path_test,
+        'sync_copy': sync_copy_test,
+        'sync_copy_test_no_prefix_default_encryption': sync_copy_test_no_prefix_default_encryption,
+        # 'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption, # not supported by the server
+        'sync_copy_test_no_prefix_sse_b2': sync_copy_test_no_prefix_sse_b2,
+        'sync_copy_test_no_prefix_sse_c': sync_copy_test_no_prefix_sse_c,
+        'sync_copy_test_no_prefix_sse_c_single_bucket': sync_copy_test_no_prefix_sse_c_single_bucket,
+        'download': download_test,
+        'default_sse_b2': default_sse_b2_test,
+        'sse_b2': sse_b2_test,
+        'sse_c': sse_c_test,
     }
 
     args = parse_args(tests=sorted(test_map))
