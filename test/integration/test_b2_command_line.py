@@ -1056,7 +1056,7 @@ def sync_copy_test_no_prefix_sse_c(b2_tool, bucket_name):
     )
 
 
-def sync_copy_test_no_prefix_sse_c_single_bucket(b2_tool, bucket_name):
+def sync_copy_test_sse_c_single_bucket(b2_tool, bucket_name):
     run_sync_copy_with_basic_checks(
         b2_tool=b2_tool,
         b2_file_prefix='first_folder/',
@@ -1581,7 +1581,7 @@ def main(bucket_name_prefix):
         # 'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption, # not supported by the server
         'sync_copy_test_no_prefix_sse_b2': sync_copy_test_no_prefix_sse_b2,
         'sync_copy_test_no_prefix_sse_c': sync_copy_test_no_prefix_sse_c,
-        'sync_copy_test_no_prefix_sse_c_single_bucket': sync_copy_test_no_prefix_sse_c_single_bucket,
+        'sync_copy_test_sse_c_single_bucket': sync_copy_test_sse_c_single_bucket,
         'download': download_test,
         'default_sse_b2': default_sse_b2_test,
         'sse_b2': sse_b2_test,
