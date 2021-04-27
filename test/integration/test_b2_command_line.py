@@ -1181,9 +1181,9 @@ def run_sync_copy_with_basic_checks(
         raise NotImplementedError(source_encryption)
 
     # Sync all the files
-    if destination_encryption is None:
+    if destination_encryption in (None, SSE_NONE):
         b2_tool.should_succeed(['sync', '--noProgress', b2_sync_point, other_b2_sync_point])
-    elif destination_encryption in (SSE_NONE, SSE_B2_AES):
+    elif destination_encryption == SSE_B2_AES:
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--destinationServerSideEncryption',
