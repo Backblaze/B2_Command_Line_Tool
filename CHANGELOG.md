@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add integration test for sync within one bucket with different encryption
+
 ## [2.4.0] - 2021-04-22
 
 ### Added
