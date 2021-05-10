@@ -51,8 +51,8 @@ jobs:
           product-path: ${{ steps.bundle.outputs.asset_path }}
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
-      - name: Upload the distribution to GitHub
-        uses: actions/upload-release-asset@v1
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
         with:
           retention-days: 1
           path: ${{ steps.bundle.outputs.asset_path }}
