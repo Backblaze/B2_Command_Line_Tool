@@ -51,6 +51,7 @@ jobs:
           product-path: ${{ steps.bundle.outputs.asset_path }}
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
+          primary-bundle-id: com.backblaze.b2
           verbose: true
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
