@@ -98,6 +98,7 @@ jobs:
           product-path: ${{ steps.bundle.outputs.asset_path }}
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
+          primary-bundle-id: com.backblaze.b2
       - name: Upload the distribution to GitHub
         uses: actions/upload-release-asset@v1
         with:
