@@ -53,9 +53,17 @@ jobs:
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
           primary-bundle-id: com.backblaze.b2
           verbose: true
-      - name: 'Upload Artifact'
+      - name: 'Upload archive'
+        if: ${{ always() }}
         uses: actions/upload-artifact@v2
         with:
-          retention-days: 1
+          retention-days: 3
+          path: /private/tmp/archive.zip
+          name: archive.zip
+      - name: 'Upload binary'
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          retention-days: 3
           path: ${{ steps.bundle.outputs.asset_path }}
           name: b2
