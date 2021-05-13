@@ -30,6 +30,7 @@ REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
+OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
 
 nox.options.reuse_existing_virtualenvs = True
 nox.options.sessions = [
@@ -200,11 +201,16 @@ def sign(session):
     session.run('security', 'find-identity', external=True)
     session.run(
         'codesign',
+        '--deep',
         '--force',
         '--verbose',
         '--timestamp',
         '--identifier',
         OSX_BUNDLE_IDENTIFIER,
+        '--entitlements',
+        OSX_BUNDLE_ENTITLEMENTS,
+        '--options',
+        'runtime',
         *session.posargs,
         'dist/b2',
         external=True
