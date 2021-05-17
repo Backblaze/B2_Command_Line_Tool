@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add integration test for sync within one bucket with different encryption
+* Notarize OSX binary
 
 ### Fixed
 * Fixed breaking integration test case

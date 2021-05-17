@@ -62,6 +62,8 @@ jobs:
       B2_OSX_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE }}
       B2_OSX_CODE_SIGNING_CERTIFICATE_NAME: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}
       B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+      B2_OSX_NOTARY_NAME: ${{ secrets.B2_OSX_NOTARY_NAME }}
+      B2_OSX_NOTARY_PASSWORD: ${{ secrets.B2_OSX_NOTARY_PASSWORD }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -89,6 +91,14 @@ jobs:
       - name: Sign the bundle
         if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
         run: nox -vs sign -- --sign '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
+      - name: Notarize the bundle
+        if: ${{ env.B2_OSX_NOTARY_NAME != '' && runner.os == 'macOS' }}
+        uses: devbotsxyz/xcode-notarize@v1
+        with:
+          product-path: ${{ steps.bundle.outputs.asset_path }}
+          appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
+          appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
+          primary-bundle-id: com.backblaze.b2
       - name: Upload the distribution to GitHub
         uses: actions/upload-release-asset@v1
         with:
