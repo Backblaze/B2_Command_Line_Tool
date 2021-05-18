@@ -99,6 +99,14 @@ jobs:
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
+      - name: Upload assets
+        if: failure()
+        uses: actions/upload-artifact@v2
+        with:
+          path: ${{ steps.bundle.outputs.asset_path }}
+          name: ${{ steps.bundle.outputs.asset_name }}
+          if-no-files-found: warn
+          retention-days: 7
   doc:
     needs: build
     runs-on: ubuntu-latest

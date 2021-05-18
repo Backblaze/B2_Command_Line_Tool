@@ -1,13 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import copy_metadata
+from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 block_cipher = None
+
+# Data from "python-dateutil" is added because of
+# https://github.com/Backblaze/B2_Command_Line_Tool/issues/689
+datas = copy_metadata('b2') + collect_data_files('dateutil')
 
 a = Analysis(['b2/console_tool.py'],
              pathex=['.'],
              binaries=[],
-             datas=copy_metadata('b2'),
+             datas=datas,
              hiddenimports=['pkg_resources.py2_warn'],
              hookspath=[],
              runtime_hooks=[],
