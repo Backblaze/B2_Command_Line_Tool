@@ -216,16 +216,16 @@ def print_output(status, stdout, stderr):
 
 
 class Api:
-    def __init__(self, account_id, application_key, bucket_name_prefix):
+    def __init__(self, account_id, application_key, realm, bucket_name_prefix):
         self.account_id = account_id
         self.application_key = application_key
-
+        self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
 
         info = InMemoryAccountInfo()
         cache = InMemoryCache()
         self.api = B2Api(info, cache=cache)
-        self.api.authorize_account('production', self.account_id, self.application_key)
+        self.api.authorize_account(self.realm, self.account_id, self.application_key)
 
     def create_bucket(self):
         bucket_name = self.bucket_name_prefix + '-' + random_hex(8)
@@ -259,10 +259,11 @@ class CommandLine:
         ),
     ]
 
-    def __init__(self, command, account_id, application_key, bucket_name_prefix):
+    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
+        self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
 
     def run_command(self, args, additional_env: Optional[dict] = None):
@@ -325,7 +326,12 @@ class CommandLine:
     def reauthorize(self):
         """Clear and authorize again to the account."""
         self.should_succeed(['clear-account'])
-        self.should_succeed(['authorize-account', self.account_id, self.application_key])
+        self.should_succeed(
+            [
+                'authorize-account', '--environment', self.realm, self.account_id,
+                self.application_key
+            ]
+        )
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
@@ -546,7 +552,12 @@ def key_restrictions_test(b2_tool, bucket_name):
     b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
-    b2_tool.should_succeed(['authorize-account', b2_tool.account_id, b2_tool.application_key])
+    b2_tool.should_succeed(
+        [
+            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
+            b2_tool.application_key
+        ]
+    )
     b2_tool.should_succeed(['delete-bucket', second_bucket_name])
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
@@ -565,9 +576,17 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['clear-account'])
     bad_application_key = random_hex(len(b2_tool.application_key))
     b2_tool.should_fail(
-        ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+        [
+            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
+            bad_application_key
+        ], r'unauthorized'
     )
-    b2_tool.should_succeed(['authorize-account', b2_tool.account_id, b2_tool.application_key])
+    b2_tool.should_succeed(
+        [
+            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
+            b2_tool.application_key
+        ]
+    )
     tearDown_envvar_test('B2_ACCOUNT_INFO')
 
     # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
@@ -1591,12 +1610,13 @@ def main(bucket_name_prefix):
     print(args)
     account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
     application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
+    realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(args.command, account_id, application_key, bucket_name_prefix)
-    b2_api = Api(account_id, application_key, bucket_name_prefix)
+    b2_tool = CommandLine(args.command, account_id, application_key, realm, bucket_name_prefix)
+    b2_api = Api(account_id, application_key, realm, bucket_name_prefix)
 
     # Run each of the tests in its own empty bucket
     for test_name in args.tests:
