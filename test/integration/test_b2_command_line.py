@@ -524,7 +524,9 @@ def key_restrictions_test(b2_tool, bucket_name):
     )
     key_one_id, key_one = created_key_stdout.split()
 
-    b2_tool.should_succeed(['authorize-account', key_one_id, key_one],)
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, key_one_id, key_one],
+    )
 
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['get-bucket', second_bucket_name],)
@@ -541,7 +543,9 @@ def key_restrictions_test(b2_tool, bucket_name):
     )
     key_two_id, key_two = created_key_two_stdout.split()
 
-    b2_tool.should_succeed(['authorize-account', key_two_id, key_two],)
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, key_two_id, key_two],
+    )
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['ls', bucket_name],)
 
@@ -576,15 +580,15 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['clear-account'])
     bad_application_key = random_hex(len(b2_tool.application_key))
     b2_tool.should_fail(
-        [
-            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
-            bad_application_key
-        ], r'unauthorized'
-    )
+        ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+    )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
-            b2_tool.application_key
+            'authorize-account',
+            '--environment',
+            b2_tool.realm,
+            b2_tool.account_id,
+            b2_tool.application_key,
         ]
     )
     tearDown_envvar_test('B2_ACCOUNT_INFO')
