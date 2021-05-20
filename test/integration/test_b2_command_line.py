@@ -1659,7 +1659,7 @@ def cleanup_hook(application_key_id, application_key, bucket_name_prefix):
     print('# Clean up:')
     print('#')
     print()
-    b2_api = Api(application_key_id, application_key, bucket_name_prefix)
+    b2_api = Api(application_key_id, application_key, None, bucket_name_prefix)
     b2_api.clean_buckets()
 
 
