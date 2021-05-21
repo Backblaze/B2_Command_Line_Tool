@@ -9,10 +9,12 @@
 ######################################################################
 
 import argparse
+import re
 import textwrap
 
 import arrow
 from rst2ansi import rst2ansi
+from b2sdk.v1 import RetentionPeriod
 
 
 class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
@@ -109,3 +111,13 @@ def parse_range(s):
         )
 
     return bytes_range
+
+
+def parse_default_retention_period(s):
+    unit_part = '(' + ')|('.join(RetentionPeriod.KNOWN_UNITS) + ')'
+    m = re.match(r'^(?P<duration>\d+) (?P<unit>%s)$' % (unit_part), s)
+    if not m:
+        raise argparse.ArgumentTypeError(
+            'default retention period must be in the form of "X days|years "'
+        )
+    return RetentionPeriod(**{m.group('unit'): int(m.group('duration'))})
