@@ -1971,6 +1971,90 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
 
 
 @B2.register_subcommand
+class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
+    """
+    Only works in buckets with fileLockEnabled=true.
+    
+    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    
+    Requires capability:
+
+    - **writeFileLegalHolds**
+    - **readFiles** (if file name not provided)
+
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('legalHold', choices=(LegalHold.ON.value, LegalHold.OFF.value))
+
+    def run(self, args):
+        file_name = self._get_file_name_from_args(args)
+
+        legal_hold = LegalHold(args.legalHold)
+
+        self.api.update_file_legal_hold(args.fileId, file_name, legal_hold)
+        return 0
+
+
+@B2.register_subcommand
+class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
+    """
+    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires 
+    providing ``retainUntil``, which has to be a future timestamp.
+    
+    If a file already is governance mode, disabling retention or shortening it's period requires providing 
+    ``--bypassGovernance``.
+    
+    If a file already is compliance mode, disabling retention or shortening it's period is impossible.
+    
+    In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
+    
+    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    
+    Requires capability:
+
+    - **writeFileRetentions**
+    - **readFiles** (if file name not provided)
+
+    and optionally:
+
+    - **bypassGovernance**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument(
+            'retentionMode',
+            choices=(RetentionMode.GOVERNANCE.value, RetentionMode.COMPLIANCE.value, 'none')
+        )
+        parser.add_argument(
+            '--retainUntil',
+            type=parse_millis_from_float_timestamp,
+            metavar='TIMESTAMP',
+            default=None
+        )
+        parser.add_argument('--bypassGovernance', action='store_true', default=False)
+
+    def run(self, args):
+        file_name = self._get_file_name_from_args(args)
+
+        if args.retentionMode == 'none':
+            file_retention = FileRetentionSetting(RetentionMode.NONE)
+        else:
+            file_retention = FileRetentionSetting(
+                RetentionMode(args.retentionMode), args.retainUntil
+            )
+
+        self.api.update_file_retention(
+            args.fileId, file_name, file_retention, args.bypassGovernance
+        )
+        return 0
+
+
+@B2.register_subcommand
 class Version(Command):
     """
     Prints the version number of this tool.
