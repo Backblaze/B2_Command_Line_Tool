@@ -29,7 +29,8 @@ import threading
 import pytest
 from typing import Optional
 
-from b2sdk.v1 import B2Api, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
+from b2.console_tool import current_time_millis
+from b2sdk.v1 import B2Api, Bucket, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
 from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey, SSE_C_KEY_ID_FILE_INFO_KEY_NAME
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
@@ -47,6 +48,10 @@ SSE_C_AES_2 = EncryptionSetting(
     algorithm=EncryptionAlgorithm.AES256,
     key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
 )
+
+ONE_HOUR_MILLIS = 60 * 60 * 1000
+ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
+BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 
 
 def parse_args(tests):
@@ -216,11 +221,14 @@ def print_output(status, stdout, stderr):
 
 
 class Api:
-    def __init__(self, account_id, application_key, bucket_name_prefix):
+    def __init__(
+        self, account_id, application_key, general_bucket_name_prefix, this_run_bucket_name_prefix
+    ):
         self.account_id = account_id
         self.application_key = application_key
 
-        self.bucket_name_prefix = bucket_name_prefix
+        self.general_bucket_name_prefix = general_bucket_name_prefix
+        self.this_run_bucket_name_prefix = this_run_bucket_name_prefix
 
         info = InMemoryAccountInfo()
         cache = InMemoryCache()
@@ -228,23 +236,70 @@ class Api:
         self.api.authorize_account('production', self.account_id, self.application_key)
 
     def create_bucket(self):
-        bucket_name = self.bucket_name_prefix + '-' + random_hex(8)
+        bucket_name = self.this_run_bucket_name_prefix + '-' + random_hex(24)
         print('Creating bucket:', bucket_name)
-        self.api.create_bucket(bucket_name, 'allPublic')
+        self.api.create_bucket(
+            bucket_name, 'allPublic', bucket_info={'created_at_millis': str(current_time_millis())}
+        )
         print()
         return bucket_name
+
+    def _should_remove_bucket(self, bucket: Bucket):
+        if bucket.name.startswith(self.this_run_bucket_name_prefix):
+            return True
+        if bucket.name.startswith(self.general_bucket_name_prefix):
+            if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
+                if int(bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
+                      ) < current_time_millis() - ONE_HOUR_MILLIS:
+                    return True
+        return False
 
     def clean_buckets(self):
         buckets = self.api.list_buckets()
         for bucket in buckets:
-            if bucket.name.startswith(self.bucket_name_prefix):
-                print('Removing bucket:', bucket.name)
+            if not self._should_remove_bucket(bucket):
+                print('Skipping bucket removal:', bucket.name)
+            else:
+                print('Trying to remove bucket:', bucket.name)
+                files_leftover = False
                 file_versions = bucket.ls(show_versions=True, recursive=True)
                 for file_version_info, _ in file_versions:
+                    if file_version_info.file_retention:
+                        if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
+                            print('Removing retention from file version:', file_version_info.id_)
+                            self.api.update_file_retention(
+                                file_version_info.id_, file_version_info.file_name,
+                                NO_RETENTION_FILE_SETTING, True
+                            )
+                        elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
+                            if file_version_info.file_retention.retain_until > current_time_millis(
+                            ):
+                                print(
+                                    'File version: %s cannot be removed due to compliance mode retention'
+                                    % (file_version_info.id_,)
+                                )
+                                files_leftover = True
+                                continue
+                        elif file_version_info.file_retention.mode == RetentionMode.NONE:
+                            pass
+                        else:
+                            raise ValueError(
+                                'Unknown retention mode: %s' %
+                                (file_version_info.file_retention.mode,)
+                            )
+                    if file_version_info.legal_hold.is_on():
+                        print('Removing legal hold from file version:', file_version_info.id_)
+                        self.api.update_file_legal_hold(
+                            file_version_info.id_, file_version_info.file_name, LegalHold.OFF
+                        )
                     print('Removing file version:', file_version_info.id_)
                     self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
 
-                self.api.delete_bucket(bucket)
+                if files_leftover:
+                    print('Unable to remove bucket because some retained files remain')
+                else:
+                    print('Removing bucket:', bucket.name)
+                    self.api.delete_bucket(bucket)
                 print()
 
 
@@ -505,7 +560,7 @@ def basic_test(b2_tool, bucket_name):
 
 def key_restrictions_test(b2_tool, bucket_name):
 
-    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -555,7 +610,7 @@ def key_restrictions_test(b2_tool, bucket_name):
 def account_test(b2_tool, bucket_name):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
     b2_tool.should_succeed(['delete-bucket', bucket_name])
-    new_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    new_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     # apparently server behaves erratically when we delete a bucket and recreate it right away
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
@@ -577,7 +632,7 @@ def account_test(b2_tool, bucket_name):
 
     # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
     # successfully removed
-    bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     b2_tool.should_fail(
         ['create-bucket', bucket_name, 'allPrivate'],
         r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
@@ -590,7 +645,7 @@ def account_test(b2_tool, bucket_name):
     os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
     os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
 
-    bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     assert os.path.exists(new_creds), 'sqlite file not created'
@@ -1101,7 +1156,7 @@ def prepare_and_run_sync_copy_tests(
     else:
         b2_file_prefix = ''
 
-    other_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    other_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     success, _ = b2_tool.run_command(['create-bucket', other_bucket_name, 'allPublic'])
 
     other_b2_sync_point = 'b2:%s' % other_bucket_name
@@ -1280,7 +1335,7 @@ def default_sse_b2_test(b2_tool, bucket_name):
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     # Set default encryption via create-bucket
-    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(8)
+    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     b2_tool.should_succeed(
         ['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic']
     )
@@ -1562,7 +1617,7 @@ def sse_c_test(b2_tool, bucket_name):
     )
 
 
-def main(bucket_name_prefix):
+def main(general_bucket_name_prefix, this_run_bucket_name_prefix):
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
@@ -1595,8 +1650,10 @@ def main(bucket_name_prefix):
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(args.command, account_id, application_key, bucket_name_prefix)
-    b2_api = Api(account_id, application_key, bucket_name_prefix)
+    b2_tool = CommandLine(args.command, account_id, application_key, this_run_bucket_name_prefix)
+    b2_api = Api(
+        account_id, application_key, general_bucket_name_prefix, this_run_bucket_name_prefix
+    )
 
     # Run each of the tests in its own empty bucket
     for test_name in args.tests:
@@ -1629,13 +1686,17 @@ def main(bucket_name_prefix):
     print("ALL OK")
 
 
-def cleanup_hook(application_key_id, application_key, bucket_name_prefix):
+def cleanup_hook(
+    application_key_id, application_key, general_bucket_name_prefix, this_run_bucket_name_prefix
+):
     print()
     print('#')
     print('# Clean up:')
     print('#')
     print()
-    b2_api = Api(application_key_id, application_key, bucket_name_prefix)
+    b2_api = Api(
+        application_key_id, application_key, general_bucket_name_prefix, this_run_bucket_name_prefix
+    )
     b2_api.clean_buckets()
 
 
@@ -1652,14 +1713,19 @@ def test_integration(sut, cleanup):
     print()
 
     sys.argv = ['test_b2_command_line.py', '--command', sut]
-    bucket_name_prefix = 'test-b2-cli-' + random_hex(8)
+    general_bucket_name_prefix = 'test-b2-cli-'
+    this_run_bucket_name_prefix = general_bucket_name_prefix + random_hex(8)
 
     if cleanup:
-        atexit.register(cleanup_hook, application_key_id, application_key, bucket_name_prefix)
+        atexit.register(
+            cleanup_hook, application_key_id, application_key, general_bucket_name_prefix,
+            this_run_bucket_name_prefix
+        )
 
-    main(bucket_name_prefix)
+    main(general_bucket_name_prefix, this_run_bucket_name_prefix)
 
 
 if __name__ == '__main__':
-    bucket_name_prefix = 'test-b2-cli'
-    main(bucket_name_prefix)
+    general_bucket_name_prefix = 'test-b2-cli-'
+    this_run_bucket_name_prefix = general_bucket_name_prefix + random_hex(8)
+    main(general_bucket_name_prefix, this_run_bucket_name_prefix)
