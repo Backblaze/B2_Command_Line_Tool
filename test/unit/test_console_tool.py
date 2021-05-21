@@ -284,7 +284,7 @@ class TestConsoleTool(TestBase):
         # Update one of them
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -330,7 +330,7 @@ class TestConsoleTool(TestBase):
         # Update the one without encryption
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -357,7 +357,7 @@ class TestConsoleTool(TestBase):
         # Update the one with encryption
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_1",
             "bucketInfo": {},
             "bucketName": "your-bucket",
@@ -481,7 +481,7 @@ class TestConsoleTool(TestBase):
 
         get_bucket_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket-a",
@@ -513,7 +513,7 @@ class TestConsoleTool(TestBase):
 
         expected_get_bucket_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket-a",
@@ -543,7 +543,7 @@ class TestConsoleTool(TestBase):
 
         expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "bucketId": "bucket_0",
                 "bucketInfo": {
                     "color": "blue"
@@ -632,7 +632,7 @@ class TestConsoleTool(TestBase):
             mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "action": "upload",
                 "bucketId": "bucket_0",
                 "contentLength": 11,
@@ -809,7 +809,7 @@ class TestConsoleTool(TestBase):
             mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "action": "upload",
                 "bucketId": "bucket_0",
                 "contentLength": 11,
@@ -983,7 +983,7 @@ class TestConsoleTool(TestBase):
             # Copy File
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
                 "contentLength": 11,
@@ -1007,7 +1007,7 @@ class TestConsoleTool(TestBase):
             # Copy File with range parameter
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
                 "contentLength": 6,
@@ -1064,7 +1064,7 @@ class TestConsoleTool(TestBase):
             # replace with content type and file info
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
                 "contentLength": 11,
@@ -1112,7 +1112,7 @@ class TestConsoleTool(TestBase):
             self._run_command(['create-bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_1",
                 "contentLength": 11,
@@ -1305,7 +1305,7 @@ class TestConsoleTool(TestBase):
         expected_stdout = '''
         {
             "accountAuthToken": "auth_token_0",
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "allowed": {
                 "bucketId": null,
                 "bucketName": null,
@@ -1327,7 +1327,7 @@ class TestConsoleTool(TestBase):
                 "namePrefix": null
             },
             "apiUrl": "http://api.example.com",
-            "applicationKey": "{master_key}",
+            "applicationKey": self.master_key,
             "downloadUrl": "http://download.example.com"
         }
         '''
@@ -1338,7 +1338,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -1359,7 +1359,7 @@ class TestConsoleTool(TestBase):
         self._create_my_bucket()
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -1411,7 +1411,7 @@ class TestConsoleTool(TestBase):
             # Now check the output of get-bucket against the canon.
             expected_stdout = '''
             {
-                "accountId": "{account_id}",
+                "accountId": self.account_id,
                 "bucketId": "bucket_0",
                 "bucketInfo": {},
                 "bucketName": "my-bucket",
@@ -1449,7 +1449,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -1498,7 +1498,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -1541,7 +1541,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -1604,7 +1604,7 @@ class TestConsoleTool(TestBase):
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
@@ -1632,7 +1632,7 @@ class TestConsoleTool(TestBase):
         )
         expected_stdout = '''
         {
-            "accountId": "{account_id}",
+            "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
             "bucketName": "my-bucket",
