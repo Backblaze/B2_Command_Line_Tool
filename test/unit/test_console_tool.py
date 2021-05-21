@@ -282,8 +282,7 @@ class TestConsoleTool(TestBase):
         self._run_command(['create-bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
 
         # Update one of them
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -328,8 +327,7 @@ class TestConsoleTool(TestBase):
         )
 
         # Update the one without encryption
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -355,8 +353,7 @@ class TestConsoleTool(TestBase):
         )
 
         # Update the one with encryption
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_1",
             "bucketInfo": {},
@@ -479,8 +476,7 @@ class TestConsoleTool(TestBase):
             'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n', '', 0
         )
 
-        get_bucket_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -511,8 +507,7 @@ class TestConsoleTool(TestBase):
             'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
         )
 
-        expected_get_bucket_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -541,8 +536,7 @@ class TestConsoleTool(TestBase):
 
         bucket_info = {'color': 'blue'}
 
-        expected_stdout = '''
-            {
+        expected_json = {
                 "accountId": self.account_id,
                 "bucketId": "bucket_0",
                 "bucketInfo": {
@@ -630,8 +624,7 @@ class TestConsoleTool(TestBase):
 
             # Get file info
             mod_time_str = str(file_mod_time_millis(local_file1))
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "action": "upload",
                 "bucketId": "bucket_0",
@@ -682,8 +675,7 @@ class TestConsoleTool(TestBase):
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
             # Hide the file
-            expected_stdout = '''
-            {
+            expected_json = {
                 "action": "hide",
                 "contentSha1": "none",
                 "fileId": "9998",
@@ -742,8 +734,7 @@ class TestConsoleTool(TestBase):
             self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
 
             # Delete one file version, passing the name in
-            expected_stdout = '''
-            {
+            expected_json = {
                 "action": "delete",
                 "fileId": "9998",
                 "fileName": "file1.txt"
@@ -753,8 +744,7 @@ class TestConsoleTool(TestBase):
             self._run_command(['delete-file-version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
             # Delete one file version, not passing the name in
-            expected_stdout = '''
-            {
+            expected_json = {
                 "action": "delete",
                 "fileId": "9999",
                 "fileName": "file1.txt"
@@ -807,8 +797,7 @@ class TestConsoleTool(TestBase):
 
             # Get file info
             mod_time_str = str(file_mod_time_millis(local_file1))
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "action": "upload",
                 "bucketId": "bucket_0",
@@ -860,8 +849,7 @@ class TestConsoleTool(TestBase):
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
             # Hide the file
-            expected_stdout = '''
-            {
+            expected_json = {
                 "action": "hide",
                 "contentSha1": "none",
                 "fileId": "9998",
@@ -921,8 +909,7 @@ class TestConsoleTool(TestBase):
             self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
 
             # Delete one file version, passing the name in
-            expected_stdout = '''
-            {
+            expected_json = {
                 "action": "delete",
                 "fileId": "9998",
                 "fileName": "file1.txt"
@@ -932,8 +919,7 @@ class TestConsoleTool(TestBase):
             self._run_command(['delete-file-version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
             # Delete one file version, not passing the name in
-            expected_stdout = '''
-            {
+            expected_json = {
                 "action": "delete",
                 "fileId": "9999",
                 "fileName": "file1.txt"
@@ -981,8 +967,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Copy File
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
@@ -1005,8 +990,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Copy File with range parameter
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
@@ -1062,8 +1046,7 @@ class TestConsoleTool(TestBase):
             )
 
             # replace with content type and file info
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
@@ -1110,8 +1093,7 @@ class TestConsoleTool(TestBase):
 
             # Copy in different bucket
             self._run_command(['create-bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_1",
@@ -1302,8 +1284,7 @@ class TestConsoleTool(TestBase):
 
     def test_get_account_info(self):
         self._authorize_account()
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountAuthToken": "auth_token_0",
             "accountId": self.account_id,
             "allowed": {
@@ -1336,8 +1317,7 @@ class TestConsoleTool(TestBase):
     def test_get_bucket(self):
         self._authorize_account()
         self._create_my_bucket()
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -1357,8 +1337,7 @@ class TestConsoleTool(TestBase):
     def test_get_bucket_empty_show_size(self):
         self._authorize_account()
         self._create_my_bucket()
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -1409,8 +1388,7 @@ class TestConsoleTool(TestBase):
             )
 
             # Now check the output of get-bucket against the canon.
-            expected_stdout = '''
-            {
+            expected_json = {
                 "accountId": self.account_id,
                 "bucketId": "bucket_0",
                 "bucketInfo": {},
@@ -1447,8 +1425,7 @@ class TestConsoleTool(TestBase):
         bucket.upload(UploadSourceBytes(b'test'), 'test')
 
         # Now check the output of get-bucket against the canon.
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -1496,8 +1473,7 @@ class TestConsoleTool(TestBase):
         bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/7/8/9/check')
 
         # Now check the output of get-bucket against the canon.
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -1539,8 +1515,7 @@ class TestConsoleTool(TestBase):
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
         # Now check the output of get-bucket against the canon.
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -1602,8 +1577,7 @@ class TestConsoleTool(TestBase):
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
 
         # Now check the output of get-bucket against the canon.
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
@@ -1630,8 +1604,7 @@ class TestConsoleTool(TestBase):
                 '--defaultServerSideEncryptionAlgorithm=AES256', 'my-bucket', 'allPublic'
             ], 'bucket_0\n', '', 0
         )
-        expected_stdout = '''
-        {
+        expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
             "bucketInfo": {},
