@@ -1679,8 +1679,13 @@ def file_lock_test(b2_tool, bucket_name):
     )
     updated_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket', lock_enabled_bucket_name, 'allPrivate', '--defaultRetentionMode',
-            'governance', '--defaultRetentionPeriod', '1 days'
+            'update-bucket',
+            lock_enabled_bucket_name,
+            'allPrivate',
+            '--defaultRetentionMode',
+            'governance',
+            '--defaultRetentionPeriod',
+            '1 days',
         ],
     )
     new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)

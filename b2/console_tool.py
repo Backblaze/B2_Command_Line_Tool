@@ -88,6 +88,13 @@ NAME = os.path.basename(sys.argv[0])
 if NAME.endswith('.py'):
     NAME = 'b2'
 
+FILE_RETENTION_COMPATIBILITY_WARNING = """
+    .. warning::
+       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention 
+       period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default 
+       retention, as it may lead to high storage costs.
+""".format(RetentionMode.COMPLIANCE.value)
+
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
     NAME=NAME,
@@ -101,6 +108,7 @@ DOC_STRING_DATA = dict(
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR=B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR=B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME=SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    FILE_RETENTION_COMPATIBILITY_WARNING=FILE_RETENTION_COMPATIBILITY_WARNING,
 )
 
 
@@ -275,7 +283,8 @@ class FileRetentionSettingMixin(Described):
     """
     Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
     with fileLockEnabled=true. Providing ``--fileRetentionMode`` requires providing ``--retainUntil`` which has to
-    be a future timestamp. Leaving out these options results in a file retained according to bucket defaults.
+    be a future timestamp, in the form of an integer representing milliseconds
+    since epoch. Leaving out these options results in a file retained according to bucket defaults.
     """
 
     @classmethod
@@ -735,7 +744,10 @@ class CopyFileById(
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
-    and assigns the given name to the new B2 file.
+    and assigns the given name to the new B2 file,
+    possibly setting options like server-side encryption and retention.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     By default, it copies the file info and content type. You can replace those
     by setting the ``metadataDirective`` to ``replace``.
@@ -1824,7 +1836,9 @@ class UpdateBucket(DefaultSseMixin, Command):
     {DEFAULTSSEMIXIN}
 
     To set a default retention for files in the bucket ``--defaultRetentionMode`` and
-    ``--defaultRetentionPeriod`` have to be specified. The latter one is of the form "X days|years"
+    ``--defaultRetentionPeriod`` have to be specified. The latter one is of the form "X days|years".
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     Requires capability:
 
@@ -1889,7 +1903,10 @@ class UpdateBucket(DefaultSseMixin, Command):
 class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
-    of the local file, and assigns the given name to the B2 file.
+    of the local file, and assigns the given name to the B2 file,
+    possibly setting options like server-side encryption and retention.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     By default, upload_file will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
@@ -2002,13 +2019,16 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
 class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires 
-    providing ``retainUntil``, which has to be a future timestamp.
+    providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
+    since epoch.
     
-    If a file already is governance mode, disabling retention or shortening it's period requires providing 
+    If a file already is in governance mode, disabling retention or shortening it's period requires providing
     ``--bypassGovernance``.
     
-    If a file already is compliance mode, disabling retention or shortening it's period is impossible.
-    
+    If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
+
     In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
     
     {FILEIDANDOPTIONALFILENAMEMIXIN}
