@@ -53,6 +53,11 @@ from b2sdk.v1 import (
     EncryptionKey,
     BasicSyncEncryptionSettingsProvider,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    LegalHold,
+    NO_RETENTION_BUCKET_SETTING,
+    RetentionMode,
+    FileRetentionSetting,
+    BucketRetentionSetting,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
@@ -264,6 +269,61 @@ class DestinationSseMixin(Described):
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
+
+
+class FileRetentionSettingMixin(Described):
+    """
+    Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
+    with fileLockEnabled=true. Providing ``--fileRetentionMode`` requires providing ``--retainUntil`` which has to
+    be a future timestamp. Leaving out these options results in a file retained according to bucket defaults.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--fileRetentionMode',
+            default=None,
+            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value)
+        )
+
+        parser.add_argument(
+            '--retainUntil',
+            type=parse_millis_from_float_timestamp,
+            default=None,
+            metavar='TIMESTAMP'
+        )
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_file_retention_setting(cls, args):
+        if (args.fileRetentionMode is None) != (args.retainUntil is None):
+            raise ValueError(
+                'provide either both --retainUntil and --fileRetentionMode or none of them'
+            )
+
+        file_retention_mode = apply_or_none(RetentionMode, args.fileRetentionMode)
+        if file_retention_mode is None:
+            return None
+
+        return FileRetentionSetting(file_retention_mode, args.retainUntil)
+
+
+class LegalHoldMixin(Described):
+    """
+    Setting legal holds requires the **writeFileLegalHolds** capability, and only works in bucket
+    with fileLockEnabled=true.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--legalHold', default=None, choices=(LegalHold.ON.value, LegalHold.OFF.value)
+        )
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_legal_hold_setting(cls, args) -> LegalHold:
+        return apply_or_none(LegalHold.from_string_or_none, args.legalHold)
 
 
 class SourceSseMixin(Described):
@@ -669,7 +729,9 @@ class ClearAccount(Command):
 
 
 @B2.register_subcommand
-class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
+class CopyFileById(
+    DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin, LegalHoldMixin, Command
+):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
@@ -694,6 +756,8 @@ class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
 
     {DESTINATIONSSEMIXIN}
     {SOURCESSEMIXIN}
+    {FILERETENTIONSETTINGMIXIN}
+    {LEGALHOLDMIXIN}
 
     Requires capability:
 
@@ -728,6 +792,8 @@ class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
         destination_encryption_setting = self._get_destination_sse_setting(args)
         source_encryption_setting = self._get_source_sse_setting(args)
+        legal_hold = self._get_legal_hold_setting(args)
+        file_retention = self._get_file_retention_setting(args)
         response = bucket.copy_file(
             args.sourceFileId,
             args.b2FileName,
@@ -737,6 +803,8 @@ class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
             file_info=file_infos,
             destination_encryption=destination_encryption_setting,
             source_encryption=source_encryption_setting,
+            legal_hold=legal_hold,
+            file_retention=file_retention,
         )
         self._print_json(response)
         return 0
@@ -1779,7 +1847,7 @@ class UpdateBucket(DefaultSseMixin, Command):
 
 
 @B2.register_subcommand
-class UploadFile(DestinationSseMixin, Command):
+class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
     of the local file, and assigns the given name to the B2 file.
@@ -1807,6 +1875,8 @@ class UploadFile(DestinationSseMixin, Command):
     Each fileInfo is of the form ``a=b``.
 
     {DESTINATIONSSEMIXIN}
+    {FILERETENTIONSETTINGMIXIN}
+    {LEGALHOLDMIXIN}
 
     Requires capability:
 
@@ -1840,6 +1910,8 @@ class UploadFile(DestinationSseMixin, Command):
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         encryption_setting = self._get_destination_sse_setting(args)
+        legal_hold = self._get_legal_hold_setting(args)
+        file_retention = self._get_file_retention_setting(args)
         file_info = bucket.upload_local_file(
             local_file=args.localFilePath,
             file_name=args.b2FileName,
@@ -1849,6 +1921,8 @@ class UploadFile(DestinationSseMixin, Command):
             min_part_size=args.minPartSize,
             progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
             encryption=encryption_setting,
+            file_retention=file_retention,
+            legal_hold=legal_hold,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
