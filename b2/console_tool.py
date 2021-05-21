@@ -309,6 +309,26 @@ class SourceSseMixin(Described):
         return None
 
 
+class FileIdAndOptionalFileNameMixin(Described):
+    """
+    Specifying the ``fileName`` is more efficient than leaving it out.
+    If you omit the ``fileName``, it requires an initial query to B2
+    to get the file name, before making the call to delete the
+    file.  This extra query requires the ``readFiles`` capability.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('fileName', nargs='?')
+        parser.add_argument('fileId')
+
+    def _get_file_name_from_args(self, args):
+        if args.fileName is not None:
+            return args.fileName
+        file_info = self.api.get_file_info(args.fileId)
+        return file_info['fileName']
+
+
 class Command(Described):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
@@ -839,14 +859,11 @@ class DeleteBucket(Command):
 
 
 @B2.register_subcommand
-class DeleteFileVersion(Command):
+class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
-    Specifying the ``fileName`` is more efficient than leaving it out.
-    If you omit the ``fileName``, it requires an initial query to B2
-    to get the file name, before making the call to delete the
-    file.  This extra query requires the ``readFiles`` capability.
+    {FILEIDANDOPTIONALFILENAMEMIXIN}
 
     Requires capability:
 
@@ -854,24 +871,12 @@ class DeleteFileVersion(Command):
     - **readFiles** (if file name not provided)
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('fileName', nargs='?')
-        parser.add_argument('fileId')
-
     def run(self, args):
-        if args.fileName is not None:
-            file_name = args.fileName
-        else:
-            file_name = self._get_file_name_from_file_id(args.fileId)
+        file_name = self._get_file_name_from_args(args)
 
         file_info = self.api.delete_file_version(args.fileId, file_name)
         self._print_json(file_info)
         return 0
-
-    def _get_file_name_from_file_id(self, file_id):
-        file_info = self.api.get_file_info(file_id)
-        return file_info['fileName']
 
 
 @B2.register_subcommand
