@@ -273,8 +273,7 @@ class Api:
                                 NO_RETENTION_FILE_SETTING, True
                             )
                         elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
-                            if file_version_info.file_retention.retain_until > current_time_millis(
-                            ):
+                            if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
                                 print(
                                     'File version: %s cannot be removed due to compliance mode retention'
                                     % (file_version_info.id_,)
@@ -1919,8 +1918,7 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'update-file-retention', lockable_file_id, 'governance',
-            '--retainUntil',
+            'update-file-retention', lockable_file_id, 'governance', '--retainUntil',
             str(current_time_millis() + 7 * ONE_DAY_MILLIS)
         ],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
@@ -1929,8 +1927,7 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'update-file-retention', not_lockable_file_id, 'governance',
-            '--retainUntil',
+            'update-file-retention', not_lockable_file_id, 'governance', '--retainUntil',
             str(current_time_millis() + 7 * ONE_DAY_MILLIS)
         ],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
