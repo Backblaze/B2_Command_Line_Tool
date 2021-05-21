@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fixed breaking integration test case
 * Add zoneinfo to the Windows bundle
+* Fixed unit tests failing on new attributes of FileVersionInfo
 
 ## [2.4.0] - 2021-04-22
 
