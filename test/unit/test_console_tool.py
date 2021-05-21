@@ -283,23 +283,23 @@ class TestConsoleTool(TestBase):
 
         # Update one of them
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "isClientAuthorizedToRead": true,
-                "value": {{
+                "value": {
                     "mode": "none"
-                }}
-            }},
+                }
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
-        }}
+        }
         '''
 
         self._run_command(['update-bucket', 'my-bucket', 'allPublic'], expected_stdout, '', 0)
@@ -329,24 +329,24 @@ class TestConsoleTool(TestBase):
 
         # Update the one without encryption
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "isClientAuthorizedToRead": true,
-                "value": {{
+                "value": {
                     "algorithm": "AES256",
                     "mode": "SSE-B2"
-                }}
-            }},
+                }
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
-        }}
+        }
         '''
 
         self._run_command(
@@ -356,24 +356,24 @@ class TestConsoleTool(TestBase):
 
         # Update the one with encryption
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_1",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "your-bucket",
             "bucketType": "allPrivate",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "isClientAuthorizedToRead": true,
-                "value": {{
+                "value": {
                     "algorithm": "AES256",
                     "mode": "SSE-B2"
-                }}
-            }},
+                }
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
-        }}
+        }
         '''
 
         self._run_command(['update-bucket', 'your-bucket', 'allPrivate'], expected_stdout, '', 0)
@@ -480,20 +480,20 @@ class TestConsoleTool(TestBase):
         )
 
         get_bucket_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": null
-            }},
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 1
-        }}
+        }
         '''
         self._run_command(['get-bucket', 'my-bucket-a'], get_bucket_stdout, '', 0)
 
@@ -512,20 +512,20 @@ class TestConsoleTool(TestBase):
         )
 
         expected_get_bucket_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket-a",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 1
-        }}
+        }
         '''
 
         self._run_command(['get-bucket', 'my-bucket-a'], expected_get_bucket_stdout, '', 0)
@@ -542,25 +542,25 @@ class TestConsoleTool(TestBase):
         bucket_info = {'color': 'blue'}
 
         expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "bucketId": "bucket_0",
-                "bucketInfo": {{
+                "bucketInfo": {
                     "color": "blue"
-                }},
+                },
                 "bucketName": "my-bucket",
                 "bucketType": "allPrivate",
                 "corsRules": [],
-                "defaultServerSideEncryption": {{
+                "defaultServerSideEncryption": {
                     "isClientAuthorizedToRead": true,
-                    "value": {{
+                    "value": {
                         "mode": "none"
-                    }}
-                }},
+                    }
+                },
                 "lifecycleRules": [],
                 "options": [],
                 "revision": 2
-            }}
+            }
             '''
         self._run_command(
             ['update-bucket', '--bucketInfo',
@@ -606,21 +606,21 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
-            {{
+            {
                 "action": "upload",
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "size": 11,
                 "uploadTimestamp": 5000
-            }}
+            }
             '''
 
             self._run_command(
@@ -631,7 +631,7 @@ class TestConsoleTool(TestBase):
             # Get file info
             mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "action": "upload",
                 "bucketId": "bucket_0",
@@ -639,15 +639,15 @@ class TestConsoleTool(TestBase):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "uploadTimestamp": 5000
-            }}
+            }
             '''
 
             self._run_command(['get-file-info', '9999'], expected_stdout, '', 0)
@@ -683,18 +683,18 @@ class TestConsoleTool(TestBase):
 
             # Hide the file
             expected_stdout = '''
-            {{
+            {
                 "action": "hide",
                 "contentSha1": "none",
                 "fileId": "9998",
-                "fileInfo": {{}},
+                "fileInfo": {},
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "size": 0,
                 "uploadTimestamp": 5001
-            }}
+            }
             '''
 
             self._run_command(['hide-file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
@@ -702,33 +702,33 @@ class TestConsoleTool(TestBase):
             # List the file versions
             expected_stdout = '''
             [
-                {{
+                {
                     "action": "hide",
                     "contentSha1": "none",
                     "fileId": "9998",
-                    "fileInfo": {{}},
+                    "fileInfo": {},
                     "fileName": "file1.txt",
-                    "serverSideEncryption": {{
+                    "serverSideEncryption": {
                         "mode": "none"
-                    }},
+                    },
                     "size": 0,
                     "uploadTimestamp": 5001
-                }},
-                {{
+                },
+                {
                     "action": "upload",
                     "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                     "contentType": "b2/x-auto",
                     "fileId": "9999",
-                    "fileInfo": {{
+                    "fileInfo": {
                         "src_last_modified_millis": "%s"
-                    }},
+                    },
                     "fileName": "file1.txt",
-                    "serverSideEncryption": {{
+                    "serverSideEncryption": {
                         "mode": "none"
-                    }},
+                    },
                     "size": 11,
                     "uploadTimestamp": 5000
-                }}
+                }
             ]
             ''' % (mod_time_str,)
 
@@ -743,22 +743,22 @@ class TestConsoleTool(TestBase):
 
             # Delete one file version, passing the name in
             expected_stdout = '''
-            {{
+            {
                 "action": "delete",
                 "fileId": "9998",
                 "fileName": "file1.txt"
-            }}
+            }
             '''
 
             self._run_command(['delete-file-version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
             # Delete one file version, not passing the name in
             expected_stdout = '''
-            {{
+            {
                 "action": "delete",
                 "fileId": "9999",
                 "fileName": "file1.txt"
-            }}
+            }
             '''
 
             self._run_command(['delete-file-version', '9999'], expected_stdout, '', 0)
@@ -780,22 +780,22 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
-            {{
+            {
                 "action": "upload",
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "algorithm": "AES256",
                     "mode": "SSE-B2"
-                }},
+                },
                 "size": 11,
                 "uploadTimestamp": 5000
-            }}
+            }
             '''
 
             self._run_command(
@@ -808,7 +808,7 @@ class TestConsoleTool(TestBase):
             # Get file info
             mod_time_str = str(file_mod_time_millis(local_file1))
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "action": "upload",
                 "bucketId": "bucket_0",
@@ -816,16 +816,16 @@ class TestConsoleTool(TestBase):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "algorithm": "AES256",
                     "mode": "SSE-B2"
-                }},
+                },
                 "uploadTimestamp": 5000
-            }}
+            }
             '''
 
             self._run_command(['get-file-info', '9999'], expected_stdout, '', 0)
@@ -861,18 +861,18 @@ class TestConsoleTool(TestBase):
 
             # Hide the file
             expected_stdout = '''
-            {{
+            {
                 "action": "hide",
                 "contentSha1": "none",
                 "fileId": "9998",
-                "fileInfo": {{}},
+                "fileInfo": {},
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "size": 0,
                 "uploadTimestamp": 5001
-            }}
+            }
             '''
 
             self._run_command(['hide-file', 'my-bucket', 'file1.txt'], expected_stdout, '', 0)
@@ -880,34 +880,34 @@ class TestConsoleTool(TestBase):
             # List the file versions
             expected_stdout = '''
             [
-                {{
+                {
                     "action": "hide",
                     "contentSha1": "none",
                     "fileId": "9998",
-                    "fileInfo": {{}},
+                    "fileInfo": {},
                     "fileName": "file1.txt",
-                    "serverSideEncryption": {{
+                    "serverSideEncryption": {
                         "mode": "none"
-                    }},
+                    },
                     "size": 0,
                     "uploadTimestamp": 5001
-                }},
-                {{
+                },
+                {
                     "action": "upload",
                     "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                     "contentType": "b2/x-auto",
                     "fileId": "9999",
-                    "fileInfo": {{
+                    "fileInfo": {
                         "src_last_modified_millis": "%s"
-                    }},
+                    },
                     "fileName": "file1.txt",
-                    "serverSideEncryption": {{
+                    "serverSideEncryption": {
                         "algorithm": "AES256",
                         "mode": "SSE-B2"
-                    }},
+                    },
                     "size": 11,
                     "uploadTimestamp": 5000
-                }}
+                }
             ]
             ''' % (mod_time_str,)
 
@@ -922,22 +922,22 @@ class TestConsoleTool(TestBase):
 
             # Delete one file version, passing the name in
             expected_stdout = '''
-            {{
+            {
                 "action": "delete",
                 "fileId": "9998",
                 "fileName": "file1.txt"
-            }}
+            }
             '''
 
             self._run_command(['delete-file-version', 'file1.txt', '9998'], expected_stdout, '', 0)
 
             # Delete one file version, not passing the name in
             expected_stdout = '''
-            {{
+            {
                 "action": "delete",
                 "fileId": "9999",
                 "fileName": "file1.txt"
-            }}
+            }
             '''
 
             self._run_command(['delete-file-version', '9999'], expected_stdout, '', 0)
@@ -958,21 +958,21 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
-            {{
+            {
                 "action": "upload",
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "size": 11,
                 "uploadTimestamp": 5000
-            }}
+            }
             '''
 
             self._run_command(
@@ -982,7 +982,7 @@ class TestConsoleTool(TestBase):
 
             # Copy File
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "action": "copy",
                 "bucketId": "bucket_0",
@@ -990,15 +990,15 @@ class TestConsoleTool(TestBase):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9998",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1_copy.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "uploadTimestamp": 5001
-            }}
+            }
             '''
             self._run_command(
                 ['copy-file-by-id', '9999', 'my-bucket', 'file1_copy.txt'], expected_stdout, '', 0
@@ -1006,7 +1006,7 @@ class TestConsoleTool(TestBase):
 
             # Copy File with range parameter
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "action": "copy",
                 "bucketId": "bucket_0",
@@ -1014,15 +1014,15 @@ class TestConsoleTool(TestBase):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9997",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1_copy.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "uploadTimestamp": 5002
-            }}
+            }
             '''
             self._run_command(
                 ['copy-file-by-id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
@@ -1063,7 +1063,7 @@ class TestConsoleTool(TestBase):
 
             # replace with content type and file info
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "action": "copy",
                 "bucketId": "bucket_0",
@@ -1071,15 +1071,15 @@ class TestConsoleTool(TestBase):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "text/plain",
                 "fileId": "9996",
-                "fileInfo": {{
+                "fileInfo": {
                     "a": "b"
-                }},
+                },
                 "fileName": "file1_copy.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "uploadTimestamp": 5003
-            }}
+            }
             '''
             self._run_command(
                 [
@@ -1111,7 +1111,7 @@ class TestConsoleTool(TestBase):
             # Copy in different bucket
             self._run_command(['create-bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "action": "copy",
                 "bucketId": "bucket_1",
@@ -1119,15 +1119,15 @@ class TestConsoleTool(TestBase):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9994",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "1500111222000"
-                }},
+                },
                 "fileName": "file1_copy.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "uploadTimestamp": 5004
-            }}
+            }
             '''
             self._run_command(
                 ['copy-file-by-id', '9999', 'my-bucket1', 'file1_copy.txt'], expected_stdout, '', 0
@@ -1236,21 +1236,21 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/test.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
-            {{
+            {
                 "action": "upload",
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "%s"
-                }},
+                },
                 "fileName": "test.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "size": 600,
                 "uploadTimestamp": 5000
-            }}
+            }
             ''' % (mod_time_str,)
 
             self._run_command(
@@ -1275,22 +1275,22 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/test.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
-            {{
+            {
                 "action": "upload",
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "%s"
-                }},
+                },
                 "fileName": "test.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "algorithm": "AES256",
                     "mode": "SSE-B2"
-                }},
+                },
                 "size": 600,
                 "uploadTimestamp": 5000
-            }}
+            }
             ''' % (mod_time_str,)
 
             self._run_command(
@@ -1303,10 +1303,10 @@ class TestConsoleTool(TestBase):
     def test_get_account_info(self):
         self._authorize_account()
         expected_stdout = '''
-        {{
+        {
             "accountAuthToken": "auth_token_0",
             "accountId": "{account_id}",
-            "allowed": {{
+            "allowed": {
                 "bucketId": null,
                 "bucketName": null,
                 "capabilities": [
@@ -1325,11 +1325,11 @@ class TestConsoleTool(TestBase):
                     "deleteFiles"
                 ],
                 "namePrefix": null
-            }},
+            },
             "apiUrl": "http://api.example.com",
             "applicationKey": "{master_key}",
             "downloadUrl": "http://download.example.com"
-        }}
+        }
         '''
         self._run_command(['get-account-info'], expected_stdout, '', 0)
 
@@ -1337,20 +1337,20 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         self._create_my_bucket()
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 1
-        }}
+        }
         '''
         self._run_command(['get-bucket', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1358,22 +1358,22 @@ class TestConsoleTool(TestBase):
         self._authorize_account()
         self._create_my_bucket()
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "fileCount": 0,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 0
-        }}
+        }
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1387,21 +1387,21 @@ class TestConsoleTool(TestBase):
             expected_stdout = '''
             URL by file name: http://download.example.com/file/my-bucket/file1.txt
             URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999
-            {{
+            {
                 "action": "upload",
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {{
+                "fileInfo": {
                     "src_last_modified_millis": "%s"
-                }},
+                },
                 "fileName": "file1.txt",
-                "serverSideEncryption": {{
+                "serverSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "size": 11,
                 "uploadTimestamp": 5000
-            }}
+            }
             ''' % (mod_time_str,)
             self._run_command(
                 ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
@@ -1410,22 +1410,22 @@ class TestConsoleTool(TestBase):
 
             # Now check the output of get-bucket against the canon.
             expected_stdout = '''
-            {{
+            {
                 "accountId": "{account_id}",
                 "bucketId": "bucket_0",
-                "bucketInfo": {{}},
+                "bucketInfo": {},
                 "bucketName": "my-bucket",
                 "bucketType": "allPublic",
                 "corsRules": [],
-                "defaultServerSideEncryption": {{
+                "defaultServerSideEncryption": {
                     "mode": "none"
-                }},
+                },
                 "fileCount": 1,
                 "lifecycleRules": [],
                 "options": [],
                 "revision": 1,
                 "totalSize": 11
-            }}
+            }
             '''
             self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1448,22 +1448,22 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "fileCount": 10,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 40
-        }}
+        }
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1497,22 +1497,22 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "fileCount": 20,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 90
-        }}
+        }
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1540,22 +1540,22 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "fileCount": 10,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 24
-        }}
+        }
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1603,22 +1603,22 @@ class TestConsoleTool(TestBase):
 
         # Now check the output of get-bucket against the canon.
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "mode": "none"
-            }},
+            },
             "fileCount": 29,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 99
-        }}
+        }
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1631,23 +1631,23 @@ class TestConsoleTool(TestBase):
             ], 'bucket_0\n', '', 0
         )
         expected_stdout = '''
-        {{
+        {
             "accountId": "{account_id}",
             "bucketId": "bucket_0",
-            "bucketInfo": {{}},
+            "bucketInfo": {},
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption": {{
+            "defaultServerSideEncryption": {
                 "algorithm": "AES256",
                 "mode": "SSE-B2"
-            }},
+            },
             "fileCount": 0,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
             "totalSize": 0
-        }}
+        }
         '''
         self._run_command(['get-bucket', '--showSize', 'my-bucket'], expected_stdout, '', 0)
 
@@ -1717,21 +1717,21 @@ class TestConsoleTool(TestBase):
             mtime = file_mod_time_millis(temp_file)
             expected_stdout = '''
             [
-                {{
+                {
                     "action": "upload",
                     "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                     "contentType": "b2/x-auto",
                     "fileId": "9999",
-                    "fileInfo": {{
+                    "fileInfo": {
                         "src_last_modified_millis": "%d"
-                    }},
+                    },
                     "fileName": "test-dry-run.txt",
-                    "serverSideEncryption": {{
+                    "serverSideEncryption": {
                         "mode": "none"
-                    }},
+                    },
                     "size": 11,
                     "uploadTimestamp": 5000
-                }}
+                }
             ]
             ''' % mtime
             self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
