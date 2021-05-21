@@ -13,6 +13,7 @@ import os
 import re
 import unittest.mock as mock
 from io import StringIO
+from typing import Optional
 
 from b2sdk.v1 import StubAccountInfo
 from b2sdk.v1 import B2Api
@@ -32,6 +33,19 @@ def file_mod_time_millis(path):
 class TestConsoleTool(TestBase):
 
     RE_API_VERSION = re.compile(r"\/v\d\/")
+
+    def assertDictIsContained(self, subset, superset):
+        """Asserts that all keys in `subset` are present is `superset` and their corresponding values are the same"""
+        truncated_superset = {k: v for k, v in superset.items() if k in subset}
+        self.assertEqual(subset, truncated_superset)
+
+    def assertListOfDictsIsContained(self, list_of_subsets, list_of_supersets):
+        """Performs the same assertion as assertDictIsContained, but for dicts in two lists itertively"""
+        self.assertEqual(len(list_of_subsets), len(list_of_supersets))
+        truncated_list_of_supersets = []
+        for subset, superset in zip(list_of_subsets, list_of_supersets):
+            truncated_list_of_supersets.append({k: v for k, v in superset.items() if k in subset})
+        self.assertEqual(list_of_subsets, truncated_list_of_supersets)
 
     def setUp(self):
         self.account_info = StubAccountInfo()
@@ -1983,14 +1997,18 @@ class TestConsoleTool(TestBase):
     def _create_my_bucket(self):
         self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
+    json_pattern = re.compile(r'[^{,^\[]*(?P<dict_json>{.*})|(?P<list_json>\[.*]).*', re.DOTALL)
+
     def _run_command(
         self,
         argv,
-        expected_stdout='',
+        expected_stdout=None,
         expected_stderr='',
         expected_status=0,
         format_vars=None,
         remove_version=False,
+        expected_json_in_stdout: Optional[dict] = None,
+        expected_part_of_stdout=None,
     ):
         """
         Runs one command using the ConsoleTool, checking stdout, stderr, and
@@ -2004,13 +2022,11 @@ class TestConsoleTool(TestBase):
         The ConsoleTool is stateless, so we can make a new one for each
         call, with a fresh stdout and stderr
         """
-        expected_stdout = self._normalize_expected_output(expected_stdout, format_vars)
         expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
         stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         actual_status = console_tool.run_command(['b2'] + argv)
 
-        # The json module in Python 2.6 includes trailing spaces.  Later version of Python don't.
         actual_stdout = self._trim_trailing_spaces(stdout.getvalue())
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
@@ -2019,16 +2035,37 @@ class TestConsoleTool(TestBase):
             actual_stdout = self._remove_api_version_number(actual_stdout)
             actual_stderr = self._remove_api_version_number(actual_stderr)
 
-        if expected_stdout != actual_stdout:
+        if expected_stdout is not None and expected_stdout != actual_stdout:
+            expected_stdout = self._normalize_expected_output(expected_stdout, format_vars)
             print('EXPECTED STDOUT:', repr(expected_stdout))
             print('ACTUAL STDOUT:  ', repr(actual_stdout))
             print(actual_stdout)
+        if expected_part_of_stdout is not None and expected_part_of_stdout not in actual_stdout:
+            expected_part_of_stdout = self._normalize_expected_output(
+                expected_part_of_stdout, format_vars
+            )
+            print('EXPECTED TO FIND IN STDOUT:', repr(expected_part_of_stdout))
+            print('ACTUAL STDOUT:             ', repr(actual_stdout))
         if expected_stderr != actual_stderr:
             print('EXPECTED STDERR:', repr(expected_stderr))
             print('ACTUAL STDERR:  ', repr(actual_stderr))
             print(actual_stderr)
 
-        self.assertEqual(expected_stdout, actual_stdout, 'stdout')
+        if expected_json_in_stdout is not None:
+            json_match = self.json_pattern.match(actual_stdout)
+            if not json_match:
+                self.fail('EXPECTED TO FIND A JSON IN: ' + repr(actual_stdout))
+
+            found_json = json.loads(json_match.group('dict_json') or json_match.group('list_json'))
+            if json_match.group('dict_json'):
+                self.assertDictIsContained(expected_json_in_stdout, found_json)
+            else:
+                self.assertListOfDictsIsContained(expected_json_in_stdout, found_json)
+
+        if expected_stdout is not None:
+            self.assertEqual(expected_stdout, actual_stdout, 'stdout')
+        if expected_part_of_stdout is not None:
+            self.assertIn(expected_part_of_stdout, actual_stdout)
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
 
