@@ -61,7 +61,7 @@ from b2sdk.v1 import (
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
-    parse_millis_from_float_timestamp, parse_range
+    parse_millis_from_float_timestamp, parse_range, parse_default_retention_period
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
@@ -825,6 +825,7 @@ class CreateBucket(DefaultSseMixin, Command):
     - **writeBuckets**
     - **readBucketEncryption**
     - **writeBucketEncryption**
+    - **writeBucketRetentions**
     """
 
     @classmethod
@@ -832,6 +833,12 @@ class CreateBucket(DefaultSseMixin, Command):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
+        parser.add_argument(
+            '--fileLockEnabled',
+            action='store_true',
+            help=
+            "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
+        )
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -845,7 +852,8 @@ class CreateBucket(DefaultSseMixin, Command):
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules,
-            default_server_side_encryption=encryption_setting
+            default_server_side_encryption=encryption_setting,
+            is_file_lock_enabled=args.fileLockEnabled,
         )
         self._print(bucket.id_)
         return 0
@@ -1815,10 +1823,17 @@ class UpdateBucket(DefaultSseMixin, Command):
 
     {DEFAULTSSEMIXIN}
 
+    To set a default retention for files in the bucket ``--defaultRetentionMode`` and
+    ``--defaultRetentionPeriod`` have to be specified. The latter one is of the form "X days|years"
+
     Requires capability:
 
     - **writeBuckets**
     - **readBucketEncryption**
+
+    and for some operations:
+
+    - **writeBucketRetentions**
     - **writeBucketEncryption**
     """
 
@@ -1827,12 +1842,35 @@ class UpdateBucket(DefaultSseMixin, Command):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
+        parser.add_argument(
+            '--defaultRetentionMode',
+            choices=(
+                RetentionMode.COMPLIANCE.value,
+                RetentionMode.GOVERNANCE.value,
+                'none',
+            ),
+            default=None,
+        )
+        parser.add_argument(
+            '--defaultRetentionPeriod',
+            type=parse_default_retention_period,
+            metavar='period',
+        )
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
+        if args.defaultRetentionMode is not None:
+            if args.defaultRetentionMode == 'none':
+                default_retention = NO_RETENTION_BUCKET_SETTING
+            else:
+                default_retention = BucketRetentionSetting(
+                    RetentionMode(args.defaultRetentionMode), args.defaultRetentionPeriod
+                )
+        else:
+            default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
@@ -1840,7 +1878,8 @@ class UpdateBucket(DefaultSseMixin, Command):
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules,
-            default_server_side_encryption=encryption_setting
+            default_server_side_encryption=encryption_setting,
+            default_retention=default_retention,
         )
         self._print_json(response)
         return 0
