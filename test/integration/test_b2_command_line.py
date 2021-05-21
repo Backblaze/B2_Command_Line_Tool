@@ -32,6 +32,7 @@ from typing import Optional
 from b2.console_tool import current_time_millis
 from b2sdk.v1 import B2Api, Bucket, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
 from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey, SSE_C_KEY_ID_FILE_INFO_KEY_NAME
+from b2sdk.v1 import BucketRetentionSetting, FileLockConfiguration, LegalHold, RetentionMode, RetentionPeriod, FileRetentionSetting, NO_RETENTION_FILE_SETTING
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
@@ -1617,10 +1618,429 @@ def sse_c_test(b2_tool, bucket_name):
     )
 
 
+def file_lock_test(b2_tool, bucket_name):
+    lock_disabled_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    b2_tool.should_succeed([
+        'create-bucket',
+        lock_disabled_bucket_name,
+        'allPrivate',
+    ],)
+
+    file_to_upload = 'README.md'
+    now_millis = current_time_millis()
+
+    not_lockable_file = b2_tool.should_succeed_json(  # file in a lock disabled bucket
+        ['upload-file', '--noProgress', '--quiet', lock_disabled_bucket_name, file_to_upload, 'a']
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        not_lockable_file['fileId'],
+        retention_mode=RetentionMode.NONE,
+        legal_hold=LegalHold.UNSET
+    )
+
+    b2_tool.should_fail(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            lock_disabled_bucket_name,
+            file_to_upload,
+            'a',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(now_millis + 1.5 * ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.ON.value,
+        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+    )
+
+    b2_tool.should_fail(
+        [
+            'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--defaultRetentionMode',
+            'compliance'
+        ], 'ValueError: must specify period for retention mode RetentionMode.COMPLIANCE'
+    )
+    b2_tool.should_fail(
+        [
+            'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--defaultRetentionMode',
+            'compliance', '--defaultRetentionPeriod', '7 days'
+        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+    )
+    lock_enabled_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            lock_enabled_bucket_name,
+            'allPrivate',
+            '--fileLockEnabled',
+        ],
+    )
+    updated_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket', lock_enabled_bucket_name, 'allPrivate', '--defaultRetentionMode',
+            'governance', '--defaultRetentionPeriod', '1 days'
+        ],
+    )
+    new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)
+    expected_file_lock_configuration = FileLockConfiguration(
+        BucketRetentionSetting(
+            RetentionMode.GOVERNANCE,
+            RetentionPeriod(days=1),
+        ), True
+    )
+    assert expected_file_lock_configuration == new_file_lock_configuration
+
+    lockable_file = b2_tool.should_succeed_json(  # file in a lock enabled bucket
+        ['upload-file', '--noProgress', '--quiet', lock_enabled_bucket_name, file_to_upload, 'a']
+    )
+
+    b2_tool.should_fail(
+        [
+            'update-file-retention', not_lockable_file['fileName'], not_lockable_file['fileId'],
+            RetentionMode.GOVERNANCE.value, '--retainUntil',
+            str(now_millis + ONE_DAY_MILLIS + ONE_HOUR_MILLIS)
+        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+    )
+
+    b2_tool.should_succeed(  # first let's try with a file name
+        ['update-file-retention', lockable_file['fileName'], lockable_file['fileId'], RetentionMode.GOVERNANCE.value,
+         '--retainUntil',str(now_millis + ONE_DAY_MILLIS + ONE_HOUR_MILLIS)]
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        lockable_file['fileId'],
+        retention_mode=RetentionMode.GOVERNANCE,
+        retain_until=now_millis + ONE_DAY_MILLIS + ONE_HOUR_MILLIS
+    )
+
+    b2_tool.should_succeed(  # and now without a file name
+        ['update-file-retention', lockable_file['fileId'], RetentionMode.GOVERNANCE.value,
+         '--retainUntil',str(now_millis + ONE_DAY_MILLIS + 2 * ONE_HOUR_MILLIS)]
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        lockable_file['fileId'],
+        retention_mode=RetentionMode.GOVERNANCE,
+        retain_until=now_millis + ONE_DAY_MILLIS + 2 * ONE_HOUR_MILLIS
+    )
+
+    b2_tool.should_fail(
+        [
+            'update-file-retention', lockable_file['fileName'], lockable_file['fileId'],
+            RetentionMode.GOVERNANCE.value, '--retainUntil',
+            str(now_millis + ONE_HOUR_MILLIS)
+        ],
+        "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
+        "bypassGovernance=true parameter missing",
+    )
+    b2_tool.should_succeed(
+        [
+            'update-file-retention', lockable_file['fileName'], lockable_file['fileId'],
+            RetentionMode.GOVERNANCE.value, '--retainUntil',
+            str(now_millis + ONE_HOUR_MILLIS), '--bypassGovernance'
+        ],
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        lockable_file['fileId'],
+        retention_mode=RetentionMode.GOVERNANCE,
+        retain_until=now_millis + ONE_HOUR_MILLIS
+    )
+
+    b2_tool.should_fail(
+        ['update-file-retention', lockable_file['fileName'], lockable_file['fileId'], 'none'],
+        "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
+        "bypassGovernance=true parameter missing",
+    )
+    b2_tool.should_succeed(
+        [
+            'update-file-retention', lockable_file['fileName'], lockable_file['fileId'], 'none',
+            '--bypassGovernance'
+        ],
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool, lockable_file['fileId'], retention_mode=RetentionMode.NONE
+    )
+
+    b2_tool.should_fail(
+        ['update-file-legal-hold', not_lockable_file['fileId'], LegalHold.ON.value],
+        'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+    )
+
+    b2_tool.should_succeed(  # first let's try with a file name
+        ['update-file-legal-hold', lockable_file['fileName'], lockable_file['fileId'], LegalHold.ON.value],
+    )
+
+    _assert_file_lock_configuration(b2_tool, lockable_file['fileId'], legal_hold=LegalHold.ON)
+
+    b2_tool.should_succeed(  # and now without a file name
+        ['update-file-legal-hold', lockable_file['fileId'], LegalHold.OFF.value],
+    )
+
+    _assert_file_lock_configuration(b2_tool, lockable_file['fileId'], legal_hold=LegalHold.OFF)
+
+    updated_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket',
+            lock_enabled_bucket_name,
+            'allPrivate',
+            '--defaultRetentionMode',
+            'none',
+        ],
+    )
+    new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)
+    expected_file_lock_configuration = FileLockConfiguration(
+        BucketRetentionSetting(RetentionMode.NONE,), True
+    )
+    assert expected_file_lock_configuration == new_file_lock_configuration
+
+    b2_tool.should_fail(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            lock_enabled_bucket_name,
+            file_to_upload,
+            'a',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(now_millis - 1.5 * ONE_HOUR_MILLIS),
+        ],
+        'ERROR: The retainUntilTimestamp must be in future \(retain_until_timestamp_must_be_in_future\)',
+    )
+
+    uploaded_file = b2_tool.should_succeed_json(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            lock_enabled_bucket_name,
+            file_to_upload,
+            'a',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(now_millis + 1.5 * ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.ON.value,
+        ]
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        uploaded_file['fileId'],
+        retention_mode=RetentionMode.GOVERNANCE,
+        retain_until=now_millis + 1.5 * ONE_HOUR_MILLIS,
+        legal_hold=LegalHold.ON
+    )
+
+    b2_tool.should_fail(
+        [
+            'copy-file-by-id',
+            lockable_file['fileId'],
+            lock_disabled_bucket_name,
+            'copied',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(now_millis + 1.25 * ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.OFF.value,
+        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+    )
+
+    copied_file = b2_tool.should_succeed_json(
+        [
+            'copy-file-by-id',
+            lockable_file['fileId'],
+            lock_enabled_bucket_name,
+            'copied',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(now_millis + 1.25 * ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.OFF.value,
+        ]
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        copied_file['fileId'],
+        retention_mode=RetentionMode.GOVERNANCE,
+        retain_until=now_millis + 1.25 * ONE_HOUR_MILLIS,
+        legal_hold=LegalHold.OFF
+    )
+
+    file_lock_without_perms_test(
+        b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file['fileId'],
+        not_lockable_file['fileId']
+    )
+
+
+def file_lock_without_perms_test(
+    b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
+    not_lockable_file_id
+):
+    key_name = 'no-perms-for-file-lock' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_name,
+            'listFiles,listBuckets,readFiles,writeKeys',
+        ]
+    )
+    key_one_id, key_one = created_key_stdout.split()
+
+    b2_tool.should_succeed(['authorize-account', key_one_id, key_one],)
+
+    b2_tool.should_fail(
+        [
+            'update-bucket', lock_enabled_bucket_name, 'allPrivate', '--defaultRetentionMode',
+            'governance', '--defaultRetentionPeriod', '1 days'
+        ],
+        'ERROR: unauthorized for application key with capabilities',
+    )
+
+    _assert_file_lock_configuration(
+        b2_tool,
+        lockable_file_id,
+        retention_mode=RetentionMode.UNKNOWN,
+        legal_hold=LegalHold.UNKNOWN
+    )
+
+    b2_tool.should_fail(
+        [
+            'update-file-retention', lockable_file_id, RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(current_time_millis() + 7 * ONE_DAY_MILLIS)
+        ],
+        "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
+        "bypassGovernance=true parameter missing",
+    )
+
+    b2_tool.should_fail(
+        [
+            'update-file-retention', not_lockable_file_id, RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(current_time_millis() + 7 * ONE_DAY_MILLIS)
+        ],
+        "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
+        "bypassGovernance=true parameter missing",
+    )
+
+    b2_tool.should_fail(
+        ['update-file-legal-hold', lockable_file_id, LegalHold.ON.value],
+        "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
+        "bypassGovernance=true parameter missing",
+    )
+
+    b2_tool.should_fail(
+        ['update-file-legal-hold', not_lockable_file_id, LegalHold.ON.value],
+        "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
+        "bypassGovernance=true parameter missing",
+    )
+
+    b2_tool.should_fail(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            lock_enabled_bucket_name,
+            'README.md',
+            'bound_to_fail_anyway',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(current_time_millis() + ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.ON.value,
+        ],
+        "unauthorized for application key with capabilities",
+    )
+
+    b2_tool.should_fail(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            lock_disabled_bucket_name,
+            'README.md',
+            'bound_to_fail_anyway',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(current_time_millis() + ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.ON.value,
+        ],
+        "unauthorized for application key with capabilities",
+    )
+
+    b2_tool.should_fail(
+        [
+            'copy-file-by-id',
+            lockable_file_id,
+            lock_enabled_bucket_name,
+            'copied',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(current_time_millis() + ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.OFF.value,
+        ],
+        'ERROR: unauthorized for application key with capabilities',
+    )
+
+    b2_tool.should_fail(
+        [
+            'copy-file-by-id',
+            lockable_file_id,
+            lock_disabled_bucket_name,
+            'copied',
+            '--fileRetentionMode',
+            RetentionMode.GOVERNANCE.value,
+            '--retainUntil',
+            str(current_time_millis() + ONE_HOUR_MILLIS),
+            '--legalHold',
+            LegalHold.OFF.value,
+        ],
+        'ERROR: unauthorized for application key with capabilities',
+    )
+
+
+def _assert_file_lock_configuration(
+    b2_tool,
+    file_id,
+    retention_mode: Optional['RetentionMode'] = None,
+    retain_until: Optional[int] = None,
+    legal_hold: Optional[LegalHold] = None
+):
+
+    file_version = b2_tool.should_succeed_json(['get-file-info', file_id])
+    if retention_mode is not None:
+        actual_file_retention = FileRetentionSetting.from_file_version_dict(file_version)
+        expected_file_retention = FileRetentionSetting(retention_mode, retain_until)
+        assert expected_file_retention == actual_file_retention
+    if legal_hold is not None:
+        actual_legal_hold = LegalHold.from_file_version_dict(file_version)
+        assert legal_hold == actual_legal_hold
+
+
 def main(general_bucket_name_prefix, this_run_bucket_name_prefix):
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
+        'file_lock': file_lock_test,
         'keys': key_restrictions_test,
         'sync_down': sync_down_test,
         'sync_down_sse_c': sync_down_sse_c_test_no_prefix,
