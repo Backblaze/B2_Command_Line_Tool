@@ -222,7 +222,10 @@ def print_output(status, stdout, stderr):
 
 
 class Api:
-    def __init__(self, account_id, application_key, realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
+    def __init__(
+        self, account_id, application_key, realm, general_bucket_name_prefix,
+        this_run_bucket_name_prefix
+    ):
         self.account_id = account_id
         self.application_key = application_key
         self.realm = realm
@@ -2094,8 +2097,12 @@ def main(general_bucket_name_prefix, this_run_bucket_name_prefix):
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
 
-    b2_tool = CommandLine(args.command, account_id, application_key, realm, this_run_bucket_name_prefix)
-    b2_api = Api(account_id, application_key, realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
+    b2_tool = CommandLine(
+        args.command, account_id, application_key, realm, this_run_bucket_name_prefix
+    )
+    b2_api = Api(
+        account_id, application_key, realm, general_bucket_name_prefix, this_run_bucket_name_prefix
+    )
 
     # Run each of the tests in its own empty bucket
     for test_name in args.tests:
@@ -2137,7 +2144,8 @@ def cleanup_hook(
     print('#')
     print()
     b2_api = Api(
-        application_key_id, application_key, None, general_bucket_name_prefix, this_run_bucket_name_prefix
+        application_key_id, application_key, None, general_bucket_name_prefix,
+        this_run_bucket_name_prefix
     )
     b2_api.clean_buckets()
 
