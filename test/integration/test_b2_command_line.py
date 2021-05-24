@@ -2062,7 +2062,7 @@ def _assert_file_lock_configuration(
         assert legal_hold == actual_legal_hold
 
 
-def main(general_bucket_name_prefix, this_run_bucket_name_prefix):
+def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
@@ -2092,7 +2092,6 @@ def main(general_bucket_name_prefix, this_run_bucket_name_prefix):
     print(args)
     account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
     application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
-    realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
 
     if os.environ.get('B2_ACCOUNT_INFO') is not None:
         del os.environ['B2_ACCOUNT_INFO']
@@ -2136,7 +2135,8 @@ def main(general_bucket_name_prefix, this_run_bucket_name_prefix):
 
 
 def cleanup_hook(
-    application_key_id, application_key, general_bucket_name_prefix, this_run_bucket_name_prefix
+    application_key_id, application_key, realm, general_bucket_name_prefix,
+    this_run_bucket_name_prefix
 ):
     print()
     print('#')
@@ -2144,7 +2144,7 @@ def cleanup_hook(
     print('#')
     print()
     b2_api = Api(
-        application_key_id, application_key, None, general_bucket_name_prefix,
+        application_key_id, application_key, realm, general_bucket_name_prefix,
         this_run_bucket_name_prefix
     )
     b2_api.clean_buckets()
@@ -2162,20 +2162,24 @@ def test_integration(sut, cleanup):
 
     print()
 
+    realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
+
     sys.argv = ['test_b2_command_line.py', '--command', sut]
     general_bucket_name_prefix = 'test-b2-cli-'
     this_run_bucket_name_prefix = general_bucket_name_prefix + random_hex(8)
 
-    if cleanup:
-        atexit.register(
-            cleanup_hook, application_key_id, application_key, general_bucket_name_prefix,
-            this_run_bucket_name_prefix
-        )
-
-    main(general_bucket_name_prefix, this_run_bucket_name_prefix)
+    try:
+        main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
+    finally:
+        if cleanup:
+            cleanup_hook(
+                application_key_id, application_key, realm, general_bucket_name_prefix,
+                this_run_bucket_name_prefix
+            )
 
 
 if __name__ == '__main__':
     general_bucket_name_prefix = 'test-b2-cli-'
+    realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
     this_run_bucket_name_prefix = general_bucket_name_prefix + random_hex(8)
-    main(general_bucket_name_prefix, this_run_bucket_name_prefix)
+    main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
