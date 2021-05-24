@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+* Add possibility to change realm during integration tests
+
+## [2.5.0] - 2021-05-22
+
+### Added
 * Add integration test for sync within one bucket with different encryption
 * Notarize OSX binary
-* Add possibility to change realm during integration tests
+* File lock arguments and new commands
 
 ### Fixed
 * Fixed breaking integration test case
 * Add zoneinfo to the Windows bundle
+* Fixed unit tests failing on new attributes of FileVersionInfo
+* Removing old buckets in integration tests
 
 ## [2.4.0] - 2021-04-22
 
@@ -202,7 +209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.1.0...v2.2.0

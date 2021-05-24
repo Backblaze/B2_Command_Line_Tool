@@ -53,10 +53,15 @@ from b2sdk.v1 import (
     EncryptionKey,
     BasicSyncEncryptionSettingsProvider,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    LegalHold,
+    NO_RETENTION_BUCKET_SETTING,
+    RetentionMode,
+    FileRetentionSetting,
+    BucketRetentionSetting,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
-    parse_millis_from_float_timestamp, parse_range
+    parse_millis_from_float_timestamp, parse_range, parse_default_retention_period
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
@@ -83,6 +88,13 @@ NAME = os.path.basename(sys.argv[0])
 if NAME.endswith('.py'):
     NAME = 'b2'
 
+FILE_RETENTION_COMPATIBILITY_WARNING = """
+    .. warning::
+       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention 
+       period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default 
+       retention, as it may lead to high storage costs.
+""".format(RetentionMode.COMPLIANCE.value)
+
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
     NAME=NAME,
@@ -96,6 +108,7 @@ DOC_STRING_DATA = dict(
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR=B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR=B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME=SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    FILE_RETENTION_COMPATIBILITY_WARNING=FILE_RETENTION_COMPATIBILITY_WARNING,
 )
 
 
@@ -266,6 +279,62 @@ class DestinationSseMixin(Described):
         return None
 
 
+class FileRetentionSettingMixin(Described):
+    """
+    Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
+    with fileLockEnabled=true. Providing ``--fileRetentionMode`` requires providing ``--retainUntil`` which has to
+    be a future timestamp, in the form of an integer representing milliseconds
+    since epoch. Leaving out these options results in a file retained according to bucket defaults.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--fileRetentionMode',
+            default=None,
+            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value)
+        )
+
+        parser.add_argument(
+            '--retainUntil',
+            type=parse_millis_from_float_timestamp,
+            default=None,
+            metavar='TIMESTAMP'
+        )
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_file_retention_setting(cls, args):
+        if (args.fileRetentionMode is None) != (args.retainUntil is None):
+            raise ValueError(
+                'provide either both --retainUntil and --fileRetentionMode or none of them'
+            )
+
+        file_retention_mode = apply_or_none(RetentionMode, args.fileRetentionMode)
+        if file_retention_mode is None:
+            return None
+
+        return FileRetentionSetting(file_retention_mode, args.retainUntil)
+
+
+class LegalHoldMixin(Described):
+    """
+    Setting legal holds requires the **writeFileLegalHolds** capability, and only works in bucket
+    with fileLockEnabled=true.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--legalHold', default=None, choices=(LegalHold.ON.value, LegalHold.OFF.value)
+        )
+        super()._setup_parser(parser)  # noqa
+
+    @classmethod
+    def _get_legal_hold_setting(cls, args) -> LegalHold:
+        return apply_or_none(LegalHold.from_string_or_none, args.legalHold)
+
+
 class SourceSseMixin(Described):
     """
     To access SSE-C encrypted files,
@@ -307,6 +376,26 @@ class SourceSseMixin(Described):
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
+
+
+class FileIdAndOptionalFileNameMixin(Described):
+    """
+    Specifying the ``fileName`` is more efficient than leaving it out.
+    If you omit the ``fileName``, it requires an initial query to B2
+    to get the file name, before making the call to delete the
+    file.  This extra query requires the ``readFiles`` capability.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('fileName', nargs='?')
+        parser.add_argument('fileId')
+
+    def _get_file_name_from_args(self, args):
+        if args.fileName is not None:
+            return args.fileName
+        file_info = self.api.get_file_info(args.fileId)
+        return file_info['fileName']
 
 
 class Command(Described):
@@ -649,11 +738,16 @@ class ClearAccount(Command):
 
 
 @B2.register_subcommand
-class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
+class CopyFileById(
+    DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin, LegalHoldMixin, Command
+):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
     Copies the contents of the source B2 file to destination bucket
-    and assigns the given name to the new B2 file.
+    and assigns the given name to the new B2 file,
+    possibly setting options like server-side encryption and retention.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     By default, it copies the file info and content type. You can replace those
     by setting the ``metadataDirective`` to ``replace``.
@@ -674,6 +768,8 @@ class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
 
     {DESTINATIONSSEMIXIN}
     {SOURCESSEMIXIN}
+    {FILERETENTIONSETTINGMIXIN}
+    {LEGALHOLDMIXIN}
 
     Requires capability:
 
@@ -708,6 +804,8 @@ class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
         destination_encryption_setting = self._get_destination_sse_setting(args)
         source_encryption_setting = self._get_source_sse_setting(args)
+        legal_hold = self._get_legal_hold_setting(args)
+        file_retention = self._get_file_retention_setting(args)
         response = bucket.copy_file(
             args.sourceFileId,
             args.b2FileName,
@@ -717,6 +815,8 @@ class CopyFileById(DestinationSseMixin, SourceSseMixin, Command):
             file_info=file_infos,
             destination_encryption=destination_encryption_setting,
             source_encryption=source_encryption_setting,
+            legal_hold=legal_hold,
+            file_retention=file_retention,
         )
         self._print_json(response)
         return 0
@@ -737,6 +837,7 @@ class CreateBucket(DefaultSseMixin, Command):
     - **writeBuckets**
     - **readBucketEncryption**
     - **writeBucketEncryption**
+    - **writeBucketRetentions**
     """
 
     @classmethod
@@ -744,6 +845,12 @@ class CreateBucket(DefaultSseMixin, Command):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
+        parser.add_argument(
+            '--fileLockEnabled',
+            action='store_true',
+            help=
+            "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
+        )
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -757,7 +864,8 @@ class CreateBucket(DefaultSseMixin, Command):
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules,
-            default_server_side_encryption=encryption_setting
+            default_server_side_encryption=encryption_setting,
+            is_file_lock_enabled=args.fileLockEnabled,
         )
         self._print(bucket.id_)
         return 0
@@ -839,14 +947,11 @@ class DeleteBucket(Command):
 
 
 @B2.register_subcommand
-class DeleteFileVersion(Command):
+class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
-    Specifying the ``fileName`` is more efficient than leaving it out.
-    If you omit the ``fileName``, it requires an initial query to B2
-    to get the file name, before making the call to delete the
-    file.  This extra query requires the ``readFiles`` capability.
+    {FILEIDANDOPTIONALFILENAMEMIXIN}
 
     Requires capability:
 
@@ -854,24 +959,12 @@ class DeleteFileVersion(Command):
     - **readFiles** (if file name not provided)
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('fileName', nargs='?')
-        parser.add_argument('fileId')
-
     def run(self, args):
-        if args.fileName is not None:
-            file_name = args.fileName
-        else:
-            file_name = self._get_file_name_from_file_id(args.fileId)
+        file_name = self._get_file_name_from_args(args)
 
         file_info = self.api.delete_file_version(args.fileId, file_name)
         self._print_json(file_info)
         return 0
-
-    def _get_file_name_from_file_id(self, file_id):
-        file_info = self.api.get_file_info(file_id)
-        return file_info['fileName']
 
 
 @B2.register_subcommand
@@ -1742,10 +1835,19 @@ class UpdateBucket(DefaultSseMixin, Command):
 
     {DEFAULTSSEMIXIN}
 
+    To set a default retention for files in the bucket ``--defaultRetentionMode`` and
+    ``--defaultRetentionPeriod`` have to be specified. The latter one is of the form "X days|years".
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
+
     Requires capability:
 
     - **writeBuckets**
     - **readBucketEncryption**
+
+    and for some operations:
+
+    - **writeBucketRetentions**
     - **writeBucketEncryption**
     """
 
@@ -1754,12 +1856,35 @@ class UpdateBucket(DefaultSseMixin, Command):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument('--corsRules', type=json.loads)
         parser.add_argument('--lifecycleRules', type=json.loads)
+        parser.add_argument(
+            '--defaultRetentionMode',
+            choices=(
+                RetentionMode.COMPLIANCE.value,
+                RetentionMode.GOVERNANCE.value,
+                'none',
+            ),
+            default=None,
+        )
+        parser.add_argument(
+            '--defaultRetentionPeriod',
+            type=parse_default_retention_period,
+            metavar='period',
+        )
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
+        if args.defaultRetentionMode is not None:
+            if args.defaultRetentionMode == 'none':
+                default_retention = NO_RETENTION_BUCKET_SETTING
+            else:
+                default_retention = BucketRetentionSetting(
+                    RetentionMode(args.defaultRetentionMode), args.defaultRetentionPeriod
+                )
+        else:
+            default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         response = bucket.update(
@@ -1767,17 +1892,21 @@ class UpdateBucket(DefaultSseMixin, Command):
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
             lifecycle_rules=args.lifecycleRules,
-            default_server_side_encryption=encryption_setting
+            default_server_side_encryption=encryption_setting,
+            default_retention=default_retention,
         )
         self._print_json(response)
         return 0
 
 
 @B2.register_subcommand
-class UploadFile(DestinationSseMixin, Command):
+class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, Command):
     """
     Uploads one file to the given bucket.  Uploads the contents
-    of the local file, and assigns the given name to the B2 file.
+    of the local file, and assigns the given name to the B2 file,
+    possibly setting options like server-side encryption and retention.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     By default, upload_file will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
@@ -1802,6 +1931,8 @@ class UploadFile(DestinationSseMixin, Command):
     Each fileInfo is of the form ``a=b``.
 
     {DESTINATIONSSEMIXIN}
+    {FILERETENTIONSETTINGMIXIN}
+    {LEGALHOLDMIXIN}
 
     Requires capability:
 
@@ -1835,6 +1966,8 @@ class UploadFile(DestinationSseMixin, Command):
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
         encryption_setting = self._get_destination_sse_setting(args)
+        legal_hold = self._get_legal_hold_setting(args)
+        file_retention = self._get_file_retention_setting(args)
         file_info = bucket.upload_local_file(
             local_file=args.localFilePath,
             file_name=args.b2FileName,
@@ -1844,11 +1977,100 @@ class UploadFile(DestinationSseMixin, Command):
             min_part_size=args.minPartSize,
             progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
             encryption=encryption_setting,
+            file_retention=file_retention,
+            legal_hold=legal_hold,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
         self._print_json(file_info)
+        return 0
+
+
+@B2.register_subcommand
+class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
+    """
+    Only works in buckets with fileLockEnabled=true.
+    
+    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    
+    Requires capability:
+
+    - **writeFileLegalHolds**
+    - **readFiles** (if file name not provided)
+
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('legalHold', choices=(LegalHold.ON.value, LegalHold.OFF.value))
+
+    def run(self, args):
+        file_name = self._get_file_name_from_args(args)
+
+        legal_hold = LegalHold(args.legalHold)
+
+        self.api.update_file_legal_hold(args.fileId, file_name, legal_hold)
+        return 0
+
+
+@B2.register_subcommand
+class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
+    """
+    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires 
+    providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
+    since epoch.
+    
+    If a file already is in governance mode, disabling retention or shortening it's period requires providing
+    ``--bypassGovernance``.
+    
+    If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
+
+    In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
+    
+    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    
+    Requires capability:
+
+    - **writeFileRetentions**
+    - **readFiles** (if file name not provided)
+
+    and optionally:
+
+    - **bypassGovernance**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument(
+            'retentionMode',
+            choices=(RetentionMode.GOVERNANCE.value, RetentionMode.COMPLIANCE.value, 'none')
+        )
+        parser.add_argument(
+            '--retainUntil',
+            type=parse_millis_from_float_timestamp,
+            metavar='TIMESTAMP',
+            default=None
+        )
+        parser.add_argument('--bypassGovernance', action='store_true', default=False)
+
+    def run(self, args):
+        file_name = self._get_file_name_from_args(args)
+
+        if args.retentionMode == 'none':
+            file_retention = FileRetentionSetting(RetentionMode.NONE)
+        else:
+            file_retention = FileRetentionSetting(
+                RetentionMode(args.retentionMode), args.retainUntil
+            )
+
+        self.api.update_file_retention(
+            args.fileId, file_name, file_retention, args.bypassGovernance
+        )
         return 0
 
 
