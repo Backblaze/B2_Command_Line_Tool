@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fix integration tests on non-production environments
+* Fix warnings thrown by integration tests
 
 ## [2.5.0] - 2021-05-22
 

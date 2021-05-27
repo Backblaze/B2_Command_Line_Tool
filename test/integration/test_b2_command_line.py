@@ -1094,7 +1094,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
                 expected_pattern=
                 'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
                 'Encryption. The correct parameters must be provided to retrieve the object. '
-                '\(bad_request\)',
+                r'\(bad_request\)',
             )
 
 
@@ -1284,7 +1284,7 @@ def run_sync_copy_with_basic_checks(
             expected_pattern=
             'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
             'Encryption. The correct parameters must be provided to retrieve the object. '
-            '\(bad_request\)'
+            r'\(bad_request\)'
         )
         b2_tool.should_succeed(
             [
@@ -1481,7 +1481,7 @@ def sse_c_test(b2_tool, bucket_name):
             'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
-        'correct parameters must be provided to retrieve the object. \(bad_request\)'
+        r'correct parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
         [
@@ -1524,7 +1524,7 @@ def sse_c_test(b2_tool, bucket_name):
         ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
         expected_pattern=
         'ERROR: The object was stored using a form of Server Side Encryption. The correct '
-        'parameters must be provided to retrieve the object. \(bad_request\)'
+        r'parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
         [
@@ -1678,7 +1678,7 @@ def file_lock_test(b2_tool, bucket_name):
             str(now_millis + 1.5 * ONE_HOUR_MILLIS),
             '--legalHold',
             'on',
-        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     b2_tool.should_fail(
@@ -1691,7 +1691,7 @@ def file_lock_test(b2_tool, bucket_name):
         [
             'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--defaultRetentionMode',
             'compliance', '--defaultRetentionPeriod', '7 days'
-        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
     lock_enabled_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     b2_tool.should_succeed(
@@ -1731,7 +1731,7 @@ def file_lock_test(b2_tool, bucket_name):
             'update-file-retention', not_lockable_file['fileName'], not_lockable_file['fileId'],
             'governance', '--retainUntil',
             str(now_millis + ONE_DAY_MILLIS + ONE_HOUR_MILLIS)
-        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     b2_tool.should_succeed(  # first let's try with a file name
@@ -1800,7 +1800,7 @@ def file_lock_test(b2_tool, bucket_name):
 
     b2_tool.should_fail(
         ['update-file-legal-hold', not_lockable_file['fileId'], 'on'],
-        'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     b2_tool.should_succeed(  # first let's try with a file name
@@ -1843,7 +1843,7 @@ def file_lock_test(b2_tool, bucket_name):
             '--retainUntil',
             str(now_millis - 1.5 * ONE_HOUR_MILLIS),
         ],
-        'ERROR: The retainUntilTimestamp must be in future \(retain_until_timestamp_must_be_in_future\)',
+        r'ERROR: The retainUntilTimestamp must be in future \(retain_until_timestamp_must_be_in_future\)',
     )
 
     uploaded_file = b2_tool.should_succeed_json(
@@ -1883,7 +1883,7 @@ def file_lock_test(b2_tool, bucket_name):
             str(now_millis + 1.25 * ONE_HOUR_MILLIS),
             '--legalHold',
             'off',
-        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     copied_file = b2_tool.should_succeed_json(
