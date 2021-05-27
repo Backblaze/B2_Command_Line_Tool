@@ -668,6 +668,7 @@ def account_test(b2_tool, bucket_name):
     # then, let's see that auth data from env vars works
     os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
     os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
+    os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
     bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
     b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
@@ -1928,7 +1929,9 @@ def file_lock_without_perms_test(
     )
     key_one_id, key_one = created_key_stdout.split()
 
-    b2_tool.should_succeed(['authorize-account', key_one_id, key_one],)
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, key_one_id, key_one],
+    )
 
     b2_tool.should_fail(
         [
