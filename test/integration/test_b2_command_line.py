@@ -10,7 +10,6 @@
 ######################################################################
 
 import argparse
-import atexit
 import base64
 import hashlib
 import json
@@ -21,6 +20,7 @@ import platform
 import random
 import re
 import shutil
+import string
 import subprocess
 import sys
 import tempfile
@@ -53,6 +53,13 @@ SSE_C_AES_2 = EncryptionSetting(
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
+
+BUCKET_NAME_CHARS = string.ascii_letters + string.digits + '-'
+BUCKET_NAME_LENGTH = 50
+
+
+def bucket_name_part(length):
+    return ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(length))
 
 
 def parse_args(tests):
@@ -238,7 +245,9 @@ class Api:
         self.api.authorize_account(self.realm, self.account_id, self.application_key)
 
     def create_bucket(self):
-        bucket_name = self.this_run_bucket_name_prefix + '-' + random_hex(24)
+        bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
+            BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
+        )
         print('Creating bucket:', bucket_name)
         self.api.create_bucket(
             bucket_name, 'allPublic', bucket_info={'created_at_millis': str(current_time_millis())}
@@ -321,6 +330,11 @@ class CommandLine:
         self.application_key = application_key
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
+
+    def generate_bucket_name(self):
+        return self.bucket_name_prefix + bucket_name_part(
+            BUCKET_NAME_LENGTH - len(self.bucket_name_prefix)
+        )
 
     def run_command(self, args, additional_env: Optional[dict] = None):
         """
@@ -567,7 +581,7 @@ def basic_test(b2_tool, bucket_name):
 
 def key_restrictions_test(b2_tool, bucket_name):
 
-    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -626,7 +640,7 @@ def key_restrictions_test(b2_tool, bucket_name):
 def account_test(b2_tool, bucket_name):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
     b2_tool.should_succeed(['delete-bucket', bucket_name])
-    new_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    new_bucket_name = b2_tool.generate_bucket_name()
     # apparently server behaves erratically when we delete a bucket and recreate it right away
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
@@ -656,7 +670,7 @@ def account_test(b2_tool, bucket_name):
 
     # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
     # successfully removed
-    bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_fail(
         ['create-bucket', bucket_name, 'allPrivate'],
         r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
@@ -669,7 +683,7 @@ def account_test(b2_tool, bucket_name):
     os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
     os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
 
-    bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     assert os.path.exists(new_creds), 'sqlite file not created'
@@ -1180,7 +1194,7 @@ def prepare_and_run_sync_copy_tests(
     else:
         b2_file_prefix = ''
 
-    other_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    other_bucket_name = b2_tool.generate_bucket_name()
     success, _ = b2_tool.run_command(['create-bucket', other_bucket_name, 'allPublic'])
 
     other_b2_sync_point = 'b2:%s' % other_bucket_name
@@ -1359,7 +1373,7 @@ def default_sse_b2_test(b2_tool, bucket_name):
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     # Set default encryption via create-bucket
-    second_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         ['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic']
     )
@@ -1642,7 +1656,7 @@ def sse_c_test(b2_tool, bucket_name):
 
 
 def file_lock_test(b2_tool, bucket_name):
-    lock_disabled_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    lock_disabled_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed([
         'create-bucket',
         lock_disabled_bucket_name,
@@ -1692,7 +1706,7 @@ def file_lock_test(b2_tool, bucket_name):
             'compliance', '--defaultRetentionPeriod', '7 days'
         ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
-    lock_enabled_bucket_name = b2_tool.bucket_name_prefix + '-' + random_hex(24)
+    lock_enabled_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
             'create-bucket',
@@ -2165,8 +2179,8 @@ def test_integration(sut, cleanup):
     realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
 
     sys.argv = ['test_b2_command_line.py', '--command', sut]
-    general_bucket_name_prefix = 'test-b2-cli-'
-    this_run_bucket_name_prefix = general_bucket_name_prefix + random_hex(8)
+    general_bucket_name_prefix = 'clitst'
+    this_run_bucket_name_prefix = general_bucket_name_prefix + bucket_name_part(8)
 
     try:
         main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
@@ -2179,7 +2193,7 @@ def test_integration(sut, cleanup):
 
 
 if __name__ == '__main__':
-    general_bucket_name_prefix = 'test-b2-cli-'
+    general_bucket_name_prefix = 'clitst'
     realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
-    this_run_bucket_name_prefix = general_bucket_name_prefix + random_hex(8)
+    this_run_bucket_name_prefix = general_bucket_name_prefix + bucket_name_part(8)
     main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)

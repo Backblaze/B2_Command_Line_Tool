@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add zoneinfo to the Windows bundle
 * Fixed unit tests failing on new attributes of FileVersionInfo
 * Removing old buckets in integration tests
+* Bucket name entropy in tests increased
 
 ## [2.4.0] - 2021-04-22
 
