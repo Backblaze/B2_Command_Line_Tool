@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fix integration tests on non-production environments
 * Fix warnings thrown by integration tests
+* delete-key unit test adjusted to a less mocked simulator
 
 ## [2.5.0] - 2021-05-22
 
