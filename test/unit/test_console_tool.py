@@ -463,7 +463,7 @@ class TestConsoleTool(TestBase):
         )
 
         # Delete one key
-        self._run_command(['delete-key', 'abc123'], 'abc123\n', '', 0)
+        self._run_command(['delete-key', 'appKeyId2'], 'appKeyId2\n', '', 0)
 
         # Delete one bucket, to test listing when a bucket is gone.
         self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
