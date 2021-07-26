@@ -28,9 +28,12 @@
 #
 
 import os
+from os import path
+import re
 import sys
 sys.path.insert(0, os.path.abspath('../..'))
 
+from b2.console_tool import B2
 from b2.version import VERSION
 
 # -- General configuration ------------------------------------------------
@@ -196,3 +199,19 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
+
+
+white_spaces_start = re.compile(r'^\s*')
+
+
+def setup(_):
+    main_help_text = str(B2.lazy_get_description())
+    indentation = min(len(white_spaces_start.match(line).group(0)) for line in main_help_text.splitlines() if len(line) > 1)
+    main_help_text = '\n'.join(line[indentation:] for line in main_help_text.splitlines())
+    main_help_path = path.join(path.dirname(__file__), 'main_help.rst')
+    if path.exists(main_help_path):
+        with open(main_help_path, 'r') as main_help_file:
+            if main_help_file.read() == main_help_text:
+                return
+    with open(main_help_path, 'w') as main_help_file:
+        main_help_file.write(main_help_text)

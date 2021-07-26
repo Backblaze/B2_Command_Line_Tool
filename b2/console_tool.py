@@ -104,6 +104,7 @@ DOC_STRING_DATA = dict(
     NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
+    XDG_CONFIG_HOME_ENV_VAR=XDG_CONFIG_HOME_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
@@ -531,13 +532,17 @@ class B2(Command):
 
     There are two flows of authorization:
 
-    * call ``{NAME}`` authorize-account and have the credentials cached in sqlite
+    * call ``{NAME} authorize-account`` and have the credentials cached in sqlite
     * set ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and ``{B2_APPLICATION_KEY_ENV_VAR}`` environment
       variables when running this program
 
-    The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
-    file to use for caching authentication information.
-    The default file to use is: ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``
+    This program caches authentication-related and other data in a local SQLite database.
+    The location of this database is determined in the following way:
+
+    * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
+    * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
+    * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
+    * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, as default
 
     For more details on one command:
 
@@ -589,8 +594,14 @@ class AuthorizeAccount(Command):
     using environment variables ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and
     ``{B2_APPLICATION_KEY_ENV_VAR}`` respectively.
 
-    Stores an account auth token in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` by default,
-    or the file specified by the ``{B2_ACCOUNT_INFO_ENV_VAR}`` environment variable.
+    Stores an account auth token in a local cache, see
+
+    .. code-block::
+
+        {NAME} --help
+
+    for details on how the location of this cache is determined.
+
 
     Requires capability:
 
@@ -730,8 +741,15 @@ class CancelLargeFile(Command):
 @B2.register_subcommand
 class ClearAccount(Command):
     """
-    Erases everything in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``.  Location
-    of file can be overridden by setting ``{B2_ACCOUNT_INFO_ENV_VAR}``.
+    Erases everything in local cache.
+
+    See
+
+    .. code-block::
+
+        {NAME} --help
+
+    for details on how the location of this cache is determined.
     """
 
     REQUIRES_AUTH = False

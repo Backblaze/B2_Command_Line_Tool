@@ -345,6 +345,7 @@ class CommandLine:
         self.application_key = application_key
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
+        self.account_info_file_name = SqliteAccountInfo().filename
 
     def generate_bucket_name(self):
         return self.bucket_name_prefix + bucket_name_part(
@@ -421,6 +422,37 @@ class CommandLine:
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
 
+    def setup_envvar_test(self, envvar_name, envvar_value):
+        """
+        Establish config for environment variable test.
+        The envvar_value names the new credential file
+        Create an environment variable with the given value
+        Copy the B2 credential file and rename the existing copy
+        Extract and return the account_id and application_key from the credential file
+        """
+
+        src = self.account_info_file_name
+        dst = os.path.expanduser(envvar_value)
+        shutil.copyfile(src, dst)
+        shutil.move(src, src + '.bkup')
+        os.environ[envvar_name] = envvar_value
+
+    def tearDown_envvar_test(self, envvar_name):
+        """
+        Clean up after running the environment variable test.
+        Delete the new B2 credential file (file contained in the
+        envvar_name environment variable.
+        Rename the backup of the original credential file back to
+        the standard name
+        Delete the environment variable
+        """
+
+        os.remove(os.environ.get(envvar_name))
+        fname = self.account_info_file_name
+        shutil.move(fname + '.bkup', fname)
+        if os.environ.get(envvar_name) is not None:
+            del os.environ[envvar_name]
+
 
 def should_equal(expected, actual):
     print('  expected:')
@@ -438,39 +470,6 @@ def _exit(error_code):
     sys.stdout.flush()
     sys.stderr.flush()
     sys.exit(error_code)
-
-
-def setup_envvar_test(envvar_name, envvar_value):
-    """
-    Establish config for environment variable test.
-    The envvar_value names the new credential file
-    Create an environment variable with the given value
-    Copy the B2 credential file (~/.b2_account_info) and rename the existing copy
-    Extract and return the account_id and application_key from the credential file
-    """
-
-    src = os.path.expanduser('~/.b2_account_info')
-    dst = os.path.expanduser(envvar_value)
-    shutil.copyfile(src, dst)
-    shutil.move(src, src + '.bkup')
-    os.environ[envvar_name] = envvar_value
-
-
-def tearDown_envvar_test(envvar_name):
-    """
-    Clean up after running the environment variable test.
-    Delete the new B2 credential file (file contained in the
-    envvar_name environment variable.
-    Rename the backup of the original credential file back to
-    the standard name (~/.b2_account_info)
-    Delete the environment variable
-    """
-
-    os.remove(os.environ.get(envvar_name))
-    fname = os.path.expanduser('~/.b2_account_info')
-    shutil.move(fname + '.bkup', fname)
-    if os.environ.get(envvar_name) is not None:
-        del os.environ[envvar_name]
 
 
 def download_test(b2_tool, bucket_name):
@@ -661,7 +660,7 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
     new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-    setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
+    b2_tool.setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     b2_tool.should_succeed(['clear-account'])
     bad_application_key = random_hex(len(b2_tool.application_key))
     b2_tool.should_fail(
@@ -676,11 +675,11 @@ def account_test(b2_tool, bucket_name):
             b2_tool.application_key,
         ]
     )
-    tearDown_envvar_test('B2_ACCOUNT_INFO')
+    b2_tool.tearDown_envvar_test('B2_ACCOUNT_INFO')
 
     # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
     new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-    setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
+    b2_tool.setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
     os.remove(new_creds)
 
     # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
@@ -722,7 +721,7 @@ def account_test(b2_tool, bucket_name):
     )
     os.environ.pop('B2_APPLICATION_KEY_ID')
 
-    tearDown_envvar_test('B2_ACCOUNT_INFO')
+    b2_tool.tearDown_envvar_test('B2_ACCOUNT_INFO')
 
 
 def file_version_summary(list_of_files):
