@@ -651,7 +651,7 @@ class AuthorizeAccount(Command):
         :param realm: authorization realm
         :return: exit status
         """
-        url = self.api.account_info.REALM_URLS.get(realm, realm)
+        url = REALM_URLS.get(realm, realm)
         self._print('Using %s' % url)
         try:
             self.api.authorize_account(realm, application_key_id, application_key)
@@ -1195,8 +1195,8 @@ class GetBucket(Command):
                 result = b.as_dict()
                 # `files` is a generator. We don't want to collect all of the values from the
                 # generator, as there many be billions of files in a large bucket.
-                files = b.ls("", show_versions=True, recursive=True)
-                # `files` yields tuples of (file_version_info, folder_name). We don't care about
+                files = b.ls("", latest_only=False, recursive=True)
+                # `files` yields tuples of (file_version, folder_name). We don't care about
                 # `folder_name`, so just access the first slot of the tuple directly in the
                 # reducer. We can't ask a generator for its size, as the elements are yielded
                 # lazily, so we need to accumulate the count as we go. By using a tuple of
@@ -1540,7 +1540,7 @@ class Ls(Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         generator = bucket.ls(
             start_file_name,
-            show_versions=args.versions,
+            latest_only=not args.versions,
             recursive=args.recursive,
         )
 
@@ -1965,7 +1965,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.update(
+        bucket = bucket.update(
             bucket_type=args.bucketType,
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
@@ -1973,7 +1973,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
         )
-        self._print_json(response)
+        self._print_json(bucket)
         return 0
 
 
@@ -2374,8 +2374,11 @@ class InvalidArgument(B2Error):
 def main():
     info = SqliteAccountInfo()
     cache = AuthInfoCache(info)
-    raw_api = B2RawApi(B2Http(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)))
-    b2_api = B2Api(info, cache=cache, raw_api=raw_api)
+    b2_api = B2Api(
+        info,
+        cache=cache,
+        api_config=B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR))
+    )
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)

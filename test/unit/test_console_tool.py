@@ -35,9 +35,91 @@ def file_mod_time_millis(path):
     return int(os.path.getmtime(path) * 1000)
 
 
-class TestConsoleTool(TestBase):
-
+class BaseConsoleToolTest(TestBase):
     RE_API_VERSION = re.compile(r"\/v\d\/")
+    json_pattern = re.compile(r'[^{,^\[]*(?P<dict_json>{.*})|(?P<list_json>\[.*]).*', re.DOTALL)
+
+    def setUp(self):
+        self.account_info = StubAccountInfo()
+
+        self.b2_api = B2Api(
+            self.account_info, None, api_config=B2HttpApiConfig(_raw_api_class=RawSimulator)
+        )
+        self.raw_api = self.b2_api.session.raw_api
+        (self.account_id, self.master_key) = self.raw_api.create_account()
+
+    def _get_stdouterr(self):
+        stdout = StringIO()
+        stderr = StringIO()
+        return stdout, stderr
+
+    def _run_command_ignore_output(self, argv):
+        """
+        Runs the given command in the console tool, checking that it
+        success, but ignoring the stdout.
+        """
+        stdout, stderr = self._get_stdouterr()
+        actual_status = ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
+        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
+
+        if '' != actual_stderr:
+            print('ACTUAL STDERR:  ', repr(actual_stderr))
+            print(actual_stderr)
+
+        self.assertEqual('', actual_stderr, 'stderr')
+        self.assertEqual(0, actual_status, 'exit status code')
+
+    def _trim_leading_spaces(self, s):
+        """
+        Takes the contents of a triple-quoted string, and removes the leading
+        newline and leading spaces that come from it being indented with code.
+        """
+        # The first line starts on the line following the triple
+        # quote, so the first line after splitting can be discarded.
+        lines = s.split('\n')
+        if lines[0] == '':
+            lines = lines[1:]
+        if len(lines) == 0:
+            return ''
+
+        # Count the leading spaces
+        space_count = min(self._leading_spaces(line) for line in lines if line != '')
+
+        # Remove the leading spaces from each line, based on the line
+        # with the fewest leading spaces
+        leading_spaces = ' ' * space_count
+        assert all(
+            line.startswith(leading_spaces) or line == '' for line in lines
+        ), 'all lines have leading spaces'
+        return '\n'.join('' if line == '' else line[space_count:] for line in lines)
+
+    def _leading_spaces(self, s):
+        space_count = 0
+        while space_count < len(s) and s[space_count] == ' ':
+            space_count += 1
+        return space_count
+
+    def _trim_trailing_spaces(self, s):
+        return '\n'.join(line.rstrip() for line in s.split('\n'))
+
+    def _make_local_file(self, temp_dir, file_name):
+        local_path = os.path.join(temp_dir, file_name)
+        with open(local_path, 'wb') as f:
+            f.write(b'hello world')
+        return local_path
+
+    def _read_file(self, local_path):
+        with open(local_path, 'rb') as f:
+            return f.read()
+
+    def _remove_api_version_number(self, s):
+        return re.sub(self.RE_API_VERSION, '/vx/', s)
+
+    def _normalize_expected_output(self, text, format_vars=None):
+        format_vars = format_vars or {}
+        return self._trim_leading_spaces(text).format(
+            account_id=self.account_id, master_key=self.master_key, **format_vars
+        )
 
     def assertDictIsContained(self, subset, superset):
         """Asserts that all keys in `subset` are present is `superset` and their corresponding values are the same"""
@@ -52,13 +134,89 @@ class TestConsoleTool(TestBase):
             truncated_list_of_supersets.append({k: v for k, v in superset.items() if k in subset})
         self.assertEqual(list_of_subsets, truncated_list_of_supersets)
 
-    def setUp(self):
-        self.account_info = StubAccountInfo()
-        self.cache = None
-        self.raw_api = RawSimulator()
-        self.b2_api = B2Api(self.account_info, self.cache, self.raw_api)
-        (self.account_id, self.master_key) = self.raw_api.create_account()
+    def _authorize_account(self):
+        """
+        Prepare for a test by authorizing an account and getting an
+        account auth token
+        """
+        self._run_command_ignore_output(['authorize-account', self.account_id, self.master_key])
 
+    def _create_my_bucket(self):
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+    def _run_command(
+        self,
+        argv,
+        expected_stdout=None,
+        expected_stderr='',
+        expected_status=0,
+        format_vars=None,
+        remove_version=False,
+        expected_json_in_stdout: Optional[dict] = None,
+        expected_part_of_stdout=None,
+    ):
+        """
+        Runs one command using the ConsoleTool, checking stdout, stderr, and
+        the returned status code.
+
+        The expected output strings are format strings (as used by str.format),
+        so braces need to be escaped by doubling them.  The variables 'account_id'
+        and 'master_key' are set by default, plus any variables passed in the dict
+        format_vars.
+
+        The ConsoleTool is stateless, so we can make a new one for each
+        call, with a fresh stdout and stderr
+        """
+        expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
+        stdout, stderr = self._get_stdouterr()
+        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        actual_status = console_tool.run_command(['b2'] + argv)
+
+        actual_stdout = self._trim_trailing_spaces(stdout.getvalue())
+        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
+
+        # ignore any references to specific api version
+        if remove_version:
+            actual_stdout = self._remove_api_version_number(actual_stdout)
+            actual_stderr = self._remove_api_version_number(actual_stderr)
+
+        if expected_stdout is not None and expected_stdout != actual_stdout:
+            expected_stdout = self._normalize_expected_output(expected_stdout, format_vars)
+            print('EXPECTED STDOUT:', repr(expected_stdout))
+            print('ACTUAL STDOUT:  ', repr(actual_stdout))
+            print(actual_stdout)
+        if expected_part_of_stdout is not None and expected_part_of_stdout not in actual_stdout:
+            expected_part_of_stdout = self._normalize_expected_output(
+                expected_part_of_stdout, format_vars
+            )
+            print('EXPECTED TO FIND IN STDOUT:', repr(expected_part_of_stdout))
+            print('ACTUAL STDOUT:             ', repr(actual_stdout))
+        if expected_stderr != actual_stderr:
+            print('EXPECTED STDERR:', repr(expected_stderr))
+            print('ACTUAL STDERR:  ', repr(actual_stderr))
+            print(actual_stderr)
+
+        if expected_json_in_stdout is not None:
+            json_match = self.json_pattern.match(actual_stdout)
+            if not json_match:
+                self.fail('EXPECTED TO FIND A JSON IN: ' + repr(actual_stdout))
+
+            found_json = json.loads(json_match.group('dict_json') or json_match.group('list_json'))
+            if json_match.group('dict_json'):
+                self.assertDictIsContained(expected_json_in_stdout, found_json)
+            else:
+                self.assertListOfDictsIsContained(expected_json_in_stdout, found_json)
+
+        if expected_stdout is not None:
+            self.assertEqual(expected_stdout, actual_stdout, 'stdout')
+        if expected_part_of_stdout is not None:
+            self.assertIn(expected_part_of_stdout, actual_stdout)
+        self.assertEqual(expected_stderr, actual_stderr, 'stderr')
+        self.assertEqual(expected_status, actual_status, 'exit status code')
+
+
+@mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
+class TestConsoleTool(BaseConsoleToolTest):
     def test_authorize_with_bad_key(self):
         expected_stdout = '''
         Using http://production.example.com
@@ -308,13 +466,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption":
-                {
-                    "isClientAuthorizedToRead": True,
-                    "value": {
-                        "mode": "none"
-                    }
-                },
+            "defaultServerSideEncryption": {
+                "mode": "none"
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
@@ -355,14 +509,10 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPublic",
             "corsRules": [],
-            "defaultServerSideEncryption":
-                {
-                    "isClientAuthorizedToRead": True,
-                    "value": {
-                        "algorithm": "AES256",
-                        "mode": "SSE-B2"
-                    }
-                },
+            "defaultServerSideEncryption": {
+                "algorithm": "AES256",
+                "mode": "SSE-B2"
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
@@ -381,14 +531,10 @@ class TestConsoleTool(TestBase):
             "bucketName": "your-bucket",
             "bucketType": "allPrivate",
             "corsRules": [],
-            "defaultServerSideEncryption":
-                {
-                    "isClientAuthorizedToRead": True,
-                    "value": {
-                        "algorithm": "AES256",
-                        "mode": "SSE-B2"
-                    }
-                },
+            "defaultServerSideEncryption": {
+                "algorithm": "AES256",
+                "mode": "SSE-B2"
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
@@ -566,13 +712,9 @@ class TestConsoleTool(TestBase):
             "bucketName": "my-bucket",
             "bucketType": "allPrivate",
             "corsRules": [],
-            "defaultServerSideEncryption":
-                {
-                    "isClientAuthorizedToRead": True,
-                    "value": {
-                        "mode": "none"
-                    }
-                },
+            "defaultServerSideEncryption": {
+                "mode": "none"
+            },
             "lifecycleRules": [],
             "options": [],
             "revision": 2
@@ -581,28 +723,6 @@ class TestConsoleTool(TestBase):
             ['update-bucket', '--bucketInfo',
              json.dumps(bucket_info), 'my-bucket', 'allPrivate'],
             expected_json_in_stdout=expected_json,
-        )
-
-    def test_cancel_large_file(self):
-        self._authorize_account()
-        self._create_my_bucket()
-        bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = bucket.start_large_file('file1', 'text/plain', {})
-        self._run_command(['cancel-large-file', file.file_id], '9999 canceled\n', '', 0)
-
-    def test_cancel_all_large_file(self):
-        self._authorize_account()
-        self._create_my_bucket()
-        bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        bucket.start_large_file('file1', 'text/plain', {})
-        bucket.start_large_file('file2', 'text/plain', {})
-        expected_stdout = '''
-        9999 canceled
-        9998 canceled
-        '''
-
-        self._run_command(
-            ['cancel-all-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0
         )
 
     def test_files(self):
@@ -1172,65 +1292,15 @@ class TestConsoleTool(TestBase):
             '', 0
         )
 
-    def test_list_parts_with_none(self):
-        self._authorize_account()
-        self._create_my_bucket()
-        bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = bucket.start_large_file('file', 'text/plain', {})
-        self._run_command(['list-parts', file.file_id], '', '', 0)
-
-    def test_list_parts_with_parts(self):
-        self._authorize_account()
-        self._create_my_bucket()
-        bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = bucket.start_large_file('file', 'text/plain', {})
-        content = b'hello world'
-        large_file_upload_state = mock.MagicMock()
-        large_file_upload_state.has_error.return_value = False
-        bucket.api.services.upload_manager._upload_part(
-            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state, None,
-            None
-        )
-        bucket.api.services.upload_manager._upload_part(
-            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state, None,
-            None
-        )
-        expected_stdout = '''
-            1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
-            3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
-        '''
-
-        self._run_command(['list-parts', file.file_id], expected_stdout, '', 0)
-
     def test_list_unfinished_large_files_with_none(self):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(['list-unfinished-large-files', 'my-bucket'], '', '', 0)
 
-    def test_list_unfinished_large_files_with_some(self):
-        self._authorize_account()
-        self._create_my_bucket()
-        api_url = self.account_info.get_api_url()
-        auth_token = self.account_info.get_account_auth_token()
-        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
-        self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
-        )
-        self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
-        )
-        expected_stdout = '''
-        9999 file1 text/plain
-        9998 file2 text/plain color=blue
-        9997 file3 application/json
-        '''
-
-        self._run_command(['list-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0)
-
     def test_upload_large_file(self):
         self._authorize_account()
         self._create_my_bucket()
-        min_part_size = self.account_info.get_minimum_part_size()
+        min_part_size = self.account_info.get_recommended_part_size()
         file_size = min_part_size * 3
 
         with TempDir() as temp_dir:
@@ -1271,7 +1341,7 @@ class TestConsoleTool(TestBase):
     def test_upload_large_file_encrypted(self):
         self._authorize_account()
         self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
-        min_part_size = self.account_info.get_minimum_part_size()
+        min_part_size = self.account_info.get_recommended_part_size()
         file_size = min_part_size * 3
 
         with TempDir() as temp_dir:
@@ -2015,94 +2085,6 @@ class TestConsoleTool(TestBase):
             0,
         )
 
-    def _authorize_account(self):
-        """
-        Prepare for a test by authorizing an account and getting an
-        account auth token
-        """
-        self._run_command_ignore_output(['authorize-account', self.account_id, self.master_key])
-
-    def _create_my_bucket(self):
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
-
-    json_pattern = re.compile(r'[^{,^\[]*(?P<dict_json>{.*})|(?P<list_json>\[.*]).*', re.DOTALL)
-
-    def _run_command(
-        self,
-        argv,
-        expected_stdout=None,
-        expected_stderr='',
-        expected_status=0,
-        format_vars=None,
-        remove_version=False,
-        expected_json_in_stdout: Optional[dict] = None,
-        expected_part_of_stdout=None,
-    ):
-        """
-        Runs one command using the ConsoleTool, checking stdout, stderr, and
-        the returned status code.
-
-        The expected output strings are format strings (as used by str.format),
-        so braces need to be escaped by doubling them.  The variables 'account_id'
-        and 'master_key' are set by default, plus any variables passed in the dict
-        format_vars.
-
-        The ConsoleTool is stateless, so we can make a new one for each
-        call, with a fresh stdout and stderr
-        """
-        expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
-        stdout, stderr = self._get_stdouterr()
-        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        actual_status = console_tool.run_command(['b2'] + argv)
-
-        actual_stdout = self._trim_trailing_spaces(stdout.getvalue())
-        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
-
-        # ignore any references to specific api version
-        if remove_version:
-            actual_stdout = self._remove_api_version_number(actual_stdout)
-            actual_stderr = self._remove_api_version_number(actual_stderr)
-
-        if expected_stdout is not None and expected_stdout != actual_stdout:
-            expected_stdout = self._normalize_expected_output(expected_stdout, format_vars)
-            print('EXPECTED STDOUT:', repr(expected_stdout))
-            print('ACTUAL STDOUT:  ', repr(actual_stdout))
-            print(actual_stdout)
-        if expected_part_of_stdout is not None and expected_part_of_stdout not in actual_stdout:
-            expected_part_of_stdout = self._normalize_expected_output(
-                expected_part_of_stdout, format_vars
-            )
-            print('EXPECTED TO FIND IN STDOUT:', repr(expected_part_of_stdout))
-            print('ACTUAL STDOUT:             ', repr(actual_stdout))
-        if expected_stderr != actual_stderr:
-            print('EXPECTED STDERR:', repr(expected_stderr))
-            print('ACTUAL STDERR:  ', repr(actual_stderr))
-            print(actual_stderr)
-
-        if expected_json_in_stdout is not None:
-            json_match = self.json_pattern.match(actual_stdout)
-            if not json_match:
-                self.fail('EXPECTED TO FIND A JSON IN: ' + repr(actual_stdout))
-
-            found_json = json.loads(json_match.group('dict_json') or json_match.group('list_json'))
-            if json_match.group('dict_json'):
-                self.assertDictIsContained(expected_json_in_stdout, found_json)
-            else:
-                self.assertListOfDictsIsContained(expected_json_in_stdout, found_json)
-
-        if expected_stdout is not None:
-            self.assertEqual(expected_stdout, actual_stdout, 'stdout')
-        if expected_part_of_stdout is not None:
-            self.assertIn(expected_part_of_stdout, actual_stdout)
-        self.assertEqual(expected_stderr, actual_stderr, 'stderr')
-        self.assertEqual(expected_status, actual_status, 'exit status code')
-
-    def _normalize_expected_output(self, text, format_vars=None):
-        format_vars = format_vars or {}
-        return self._trim_leading_spaces(text).format(
-            account_id=self.account_id, master_key=self.master_key, **format_vars
-        )
-
     def test_bad_terminal(self):
         stdout = mock.MagicMock()
         stdout.write = mock.MagicMock(
@@ -2114,69 +2096,78 @@ class TestConsoleTool(TestBase):
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
-    def _get_stdouterr(self):
-        stdout = StringIO()
-        stderr = StringIO()
-        return stdout, stderr
 
-    def _run_command_ignore_output(self, argv):
-        """
-        Runs the given command in the console tool, checking that it
-        success, but ignoring the stdout.
-        """
-        stdout, stderr = self._get_stdouterr()
-        actual_status = ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
-        actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
+@mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
+class TestConsoleToolWithV1(BaseConsoleToolTest):
+    """These tests use v1 interface to perform various setups before running CLI commands"""
 
-        if '' != actual_stderr:
-            print('ACTUAL STDERR:  ', repr(actual_stderr))
-            print(actual_stderr)
+    def setUp(self):
+        super().setUp()
+        self.v1_account_info = v1.StubAccountInfo()
 
-        self.assertEqual('', actual_stderr, 'stderr')
-        self.assertEqual(0, actual_status, 'exit status code')
+        self.v1_b2_api = v1.B2Api(self.v1_account_info, None)
+        self.v1_b2_api.session.raw_api = self.raw_api
+        self.v1_b2_api.authorize_account('production', self.account_id, self.master_key)
+        self._authorize_account()
+        self._create_my_bucket()
+        self.v1_bucket = self.v1_b2_api.create_bucket('my-v1-bucket', 'allPrivate')
 
-    def _trim_leading_spaces(self, s):
-        """
-        Takes the contents of a triple-quoted string, and removes the leading
-        newline and leading spaces that come from it being indented with code.
-        """
-        # The first line starts on the line following the triple
-        # quote, so the first line after splitting can be discarded.
-        lines = s.split('\n')
-        if lines[0] == '':
-            lines = lines[1:]
-        if len(lines) == 0:
-            return ''
+    def test_cancel_large_file(self):
+        file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        self._run_command(['cancel-large-file', file.file_id], '9999 canceled\n', '', 0)
 
-        # Count the leading spaces
-        space_count = min(self._leading_spaces(line) for line in lines if line != '')
+    def test_cancel_all_large_file(self):
+        self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        self.v1_bucket.start_large_file('file2', 'text/plain', {})
+        expected_stdout = '''
+        9999 canceled
+        9998 canceled
+        '''
 
-        # Remove the leading spaces from each line, based on the line
-        # with the fewest leading spaces
-        leading_spaces = ' ' * space_count
-        assert all(
-            line.startswith(leading_spaces) or line == '' for line in lines
-        ), 'all lines have leading spaces'
-        return '\n'.join('' if line == '' else line[space_count:] for line in lines)
+        self._run_command(
+            ['cancel-all-unfinished-large-files', 'my-v1-bucket'], expected_stdout, '', 0
+        )
 
-    def _leading_spaces(self, s):
-        space_count = 0
-        while space_count < len(s) and s[space_count] == ' ':
-            space_count += 1
-        return space_count
+    def test_list_parts_with_none(self):
+        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        self._run_command(['list-parts', file.file_id], '', '', 0)
 
-    def _trim_trailing_spaces(self, s):
-        return '\n'.join(line.rstrip() for line in s.split('\n'))
+    def test_list_parts_with_parts(self):
 
-    def _make_local_file(self, temp_dir, file_name):
-        local_path = os.path.join(temp_dir, file_name)
-        with open(local_path, 'wb') as f:
-            f.write(b'hello world')
-        return local_path
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        content = b'hello world'
+        large_file_upload_state = mock.MagicMock()
+        large_file_upload_state.has_error.return_value = False
+        bucket.api.services.upload_manager._upload_part(
+            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state, None,
+            None
+        )
+        bucket.api.services.upload_manager._upload_part(
+            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state, None,
+            None
+        )
+        expected_stdout = '''
+            1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+        '''
 
-    def _read_file(self, local_path):
-        with open(local_path, 'rb') as f:
-            return f.read()
+        self._run_command(['list-parts', file.file_id], expected_stdout, '', 0)
 
-    def _remove_api_version_number(self, s):
-        return re.sub(self.RE_API_VERSION, '/vx/', s)
+    def test_list_unfinished_large_files_with_some(self):
+        api_url = self.account_info.get_api_url()
+        auth_token = self.account_info.get_account_auth_token()
+        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+        )
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
+        )
+        expected_stdout = '''
+        9999 file1 text/plain
+        9998 file2 text/plain color=blue
+        9997 file3 application/json
+        '''
+
+        self._run_command(['list-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0)

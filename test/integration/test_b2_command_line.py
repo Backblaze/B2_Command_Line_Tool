@@ -288,7 +288,7 @@ class Api:
             else:
                 print('Trying to remove bucket:', bucket.name)
                 files_leftover = False
-                file_versions = bucket.ls(show_versions=True, recursive=True)
+                file_versions = bucket.ls(latest_only=False, recursive=True)
                 for file_version_info, _ in file_versions:
                     if file_version_info.file_retention:
                         if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
@@ -1376,11 +1376,8 @@ def default_sse_b2_test(b2_tool, bucket_name):
         ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic']
     )
     bucket_default_sse = {
-        'isClientAuthorizedToRead': True,
-        'value': {
-            'algorithm': 'AES256',
-            'mode': 'SSE-B2',
-        }
+        'algorithm': 'AES256',
+        'mode': 'SSE-B2',
     }
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
@@ -1444,7 +1441,7 @@ def sse_b2_test(b2_tool, bucket_name):
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
     not_encrypted_version = list_of_files[1]
     file_info = b2_tool.should_succeed_json(['get-file-info', not_encrypted_version['fileId']])
-    #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
+    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
     b2_tool.should_succeed(
         [
@@ -1474,7 +1471,7 @@ def sse_b2_test(b2_tool, bucket_name):
     file_info = b2_tool.should_succeed_json(
         ['get-file-info', copied_not_encrypted_version['fileId']]
     )
-    #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
+    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
 
 def sse_c_test(b2_tool, bucket_name):
@@ -1834,14 +1831,13 @@ def file_lock_test(b2_tool, bucket_name):
             '1 days',
         ],
     )
-    new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)
-    expected_file_lock_configuration = FileLockConfiguration(
-        BucketRetentionSetting(
-            RetentionMode.GOVERNANCE,
-            RetentionPeriod(days=1),
-        ), True
-    )
-    assert expected_file_lock_configuration == new_file_lock_configuration
+    assert updated_bucket['defaultRetention'] == {
+        'mode': 'governance',
+        'period': {
+            'duration': 1,
+            'unit': 'days',
+        },
+    }
 
     lockable_file = b2_tool.should_succeed_json(  # file in a lock enabled bucket
         ['upload-file', '--noProgress', '--quiet', lock_enabled_bucket_name, file_to_upload, 'a']
@@ -1945,11 +1941,7 @@ def file_lock_test(b2_tool, bucket_name):
             'none',
         ],
     )
-    new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)
-    expected_file_lock_configuration = FileLockConfiguration(
-        BucketRetentionSetting(RetentionMode.NONE,), True
-    )
-    assert expected_file_lock_configuration == new_file_lock_configuration
+    assert updated_bucket['defaultRetention'] == {'mode': None}
 
     b2_tool.should_fail(
         [
@@ -2178,11 +2170,19 @@ def _assert_file_lock_configuration(
 
     file_version = b2_tool.should_succeed_json(['get-file-info', file_id])
     if retention_mode is not None:
-        actual_file_retention = FileRetentionSetting.from_file_version_dict(file_version)
+        if file_version['fileRetention']['mode'] == 'unknown':
+            actual_file_retention = UNKNOWN_FILE_RETENTION_SETTING
+        else:
+            actual_file_retention = FileRetentionSetting.from_file_retention_value_dict(
+                file_version['fileRetention']
+            )
         expected_file_retention = FileRetentionSetting(retention_mode, retain_until)
         assert expected_file_retention == actual_file_retention
     if legal_hold is not None:
-        actual_legal_hold = LegalHold.from_file_version_dict(file_version)
+        if file_version['legalHold'] == 'unknown':
+            actual_legal_hold = LegalHold.UNKNOWN
+        else:
+            actual_legal_hold = LegalHold.from_string_or_none(file_version['legalHold'])
         assert legal_hold == actual_legal_hold
 
 
