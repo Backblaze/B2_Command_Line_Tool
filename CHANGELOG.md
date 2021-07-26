@@ -9,11 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add possibility to change realm during integration tests
 * Add possibility to install SDK from local folder instead of pypi when running tests
+* Add full support of establishing file metadata when copying, with either source or target using SSE-C
+* Add `--noInfo` option to `copy-file-by-id`
 
 ### Fixed
 * Fix integration tests on non-production environments
 * Fix warnings thrown by integration tests
 * delete-key unit test adjusted to a less mocked simulator
+* Representing encryption-related metadata in buckets and file versions is now consistent
+
+### Changed
+* CLI now uses `b2sdk.v2`
+* New way of establishing location of the SQLite cache file, using `XDG_CONFIG_HOME` env var
+* Downloaded file's metadata is complete and is displayed before the file is downloaded
+* `contentLength` changed to `size` where appropriate
+
+### Removed
+* Support of `--metadataDirective` argument in `copy-file-by-id`
+
 
 ## [2.5.0] - 2021-05-22
 
