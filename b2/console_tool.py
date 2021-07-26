@@ -955,7 +955,7 @@ class CreateKey(Command):
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
 
-    The ``duration`` is the length of time the new application key will exist.
+    The ``duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
@@ -987,7 +987,7 @@ class CreateKey(Command):
         else:
             bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
 
-        response = self.api.create_key(
+        application_key = self.api.create_key(
             capabilities=args.capabilities,
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
@@ -995,9 +995,7 @@ class CreateKey(Command):
             name_prefix=args.namePrefix
         )
 
-        application_key_id = response['applicationKeyId']
-        application_key = response['applicationKey']
-        self._print(application_key_id + " " + application_key)
+        self._print('%s %s' % (application_key.id_, application_key.application_key))
         return 0
 
 
@@ -1057,8 +1055,8 @@ class DeleteKey(Command):
         parser.add_argument('applicationKeyId')
 
     def run(self, args):
-        response = self.api.delete_key(application_key_id=args.applicationKeyId)
-        self._print(response['applicationKeyId'])
+        application_key = self.api.delete_key_by_id(application_key_id=args.applicationKeyId)
+        self._print(application_key.id_)
         return 0
 
 
@@ -1396,42 +1394,28 @@ class ListKeys(Command):
         self.bucket_id_to_bucket_name = None
 
     def run(self, args):
-        # The first query doesn't pass in a starting key id
-        start_id = None
-
-        # Keep querying until there are no more.
-        while True:
-            # Get some keys and print them
-            response = self.api.list_keys(start_id)
-            self.print_keys(response['keys'], args.long)
-
-            # Are there more?  If so, we'll set the start_id for the next time around.
-            next_id = response.get('nextApplicationKeyId')
-            if next_id is None:
-                break
-            else:
-                start_id = next_id
+        for key in self.api.list_keys():
+            self.print_key(key, args.long)
 
         return 0
 
-    def print_keys(self, keys_from_response, is_long_format):
+    def print_key(self, key: ApplicationKey, is_long_format: bool):
         if is_long_format:
             format_str = "{keyId}   {keyName:20s}   {bucketName:20s}   {dateStr:10s}   {timeStr:8s}   '{namePrefix}'   {capabilities}"
         else:
             format_str = '{keyId}   {keyName:20s}'
-        for key in keys_from_response:
-            timestamp_or_none = apply_or_none(int, key.get('expirationTimestamp'))
-            (date_str, time_str) = self.timestamp_display(timestamp_or_none)
-            key_str = format_str.format(
-                keyId=key['applicationKeyId'],
-                keyName=key['keyName'],
-                bucketName=self.bucket_display_name(key.get('bucketId')),
-                namePrefix=(key.get('namePrefix') or ''),
-                capabilities=','.join(key['capabilities']),
-                dateStr=date_str,
-                timeStr=time_str
-            )
-            self._print(key_str)
+        timestamp_or_none = apply_or_none(int, key.expiration_timestamp_millis)
+        (date_str, time_str) = self.timestamp_display(timestamp_or_none)
+        key_str = format_str.format(
+            keyId=key.id_,
+            keyName=key.key_name,
+            bucketName=self.bucket_display_name(key.bucket_id),
+            namePrefix=(key.name_prefix or ''),
+            capabilities=','.join(key.capabilities),
+            dateStr=date_str,
+            timeStr=time_str
+        )
+        self._print(key_str)
 
     def bucket_display_name(self, bucket_id):
         # Special case for no bucket ID
