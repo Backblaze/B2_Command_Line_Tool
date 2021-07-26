@@ -24,26 +24,27 @@ import sys
 import time
 
 from class_registry import ClassRegistry
+from typing import Optional, Tuple
 
-from b2sdk.account_info.sqlite_account_info import (
-    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
-)
-from b2sdk.progress import make_progress_listener
-from b2sdk.raw_api import MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS
 from b2sdk.version import VERSION as b2sdk_version
-from b2sdk.v1 import (
-    parse_sync_folder,
+from b2sdk.v2 import (
+    ApplicationKey,
     AuthInfoCache,
+    B2_ACCOUNT_INFO_ENV_VAR,
+    B2_ACCOUNT_INFO_DEFAULT_FILE,
+    parse_sync_folder,
     B2Api,
-    B2Http,
-    B2RawApi,
+    B2HttpApiConfig,
+    current_time_millis,
+    DownloadedFile,
+    FileVersion,
     Synchronizer,
     SyncReport,
     NewerFileSyncMode,
     CompareVersionMode,
     KeepOrDeleteMode,
-    DownloadDestLocalFile,
-    FileVersionInfo,
+    SRC_LAST_MODIFIED_MILLIS,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     SqliteAccountInfo,
     ScanPoliciesManager,
     DEFAULT_SCAN_MANAGER,
@@ -52,14 +53,17 @@ from b2sdk.v1 import (
     EncryptionSetting,
     EncryptionKey,
     BasicSyncEncryptionSettingsProvider,
-    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     LegalHold,
+    make_progress_listener,
     NO_RETENTION_BUCKET_SETTING,
+    UNKNOWN_KEY_ID,
+    REALM_URLS,
     RetentionMode,
     FileRetentionSetting,
     BucketRetentionSetting,
+    XDG_CONFIG_HOME_ENV_VAR,
 )
-from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
+from b2sdk.v2.exception import B2Error, BadFileInfo, MissingAccountData, EmptyDirectory, NotADirectory, UnableToCreateDirectory
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
     parse_millis_from_float_timestamp, parse_range, parse_default_retention_period
 from b2.json_encoder import B2CliJsonEncoder

@@ -10,18 +10,23 @@
 
 import json
 import os
+import pytest
 import re
 import unittest.mock as mock
 from io import StringIO
 from typing import Optional
 
-from b2sdk.v1 import StubAccountInfo
-from b2sdk.v1 import B2Api
+from b2sdk import v1
+
+from b2sdk.v2 import REALM_URLS
+from b2sdk.v2 import StubAccountInfo
+from b2sdk.v2 import B2Api
+from b2sdk.v2 import B2HttpApiConfig
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR, \
     B2_ENVIRONMENT_ENV_VAR
-from b2sdk.v1 import RawSimulator
-from b2sdk.v1 import UploadSourceBytes
-from b2sdk.v1 import TempDir, fix_windows_path_limit
+from b2sdk.v2 import RawSimulator
+from b2sdk.v2 import UploadSourceBytes
+from b2sdk.v2 import TempDir, fix_windows_path_limit
 
 from .test_base import TestBase
 
