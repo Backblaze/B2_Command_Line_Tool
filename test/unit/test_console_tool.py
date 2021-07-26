@@ -673,11 +673,14 @@ class TestConsoleTool(TestBase):
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
             expected_stdout = '''
-            File name:    file1.txt
-            File id:      9999
-            File size:    11
-            Content type: b2/x-auto
-            Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            File name:           file1.txt
+            File id:             9999
+            File size:           11
+            Content type:        b2/x-auto
+            Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            Encryption:          none
+            Retention:           none
+            Legal hold:          <unset>
             INFO src_last_modified_millis: 1500111222000
             checksum matches
             '''
@@ -847,11 +850,14 @@ class TestConsoleTool(TestBase):
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
             expected_stdout = '''
-            File name:    file1.txt
-            File id:      9999
-            File size:    11
-            Content type: b2/x-auto
-            Content sha1: 2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            File name:           file1.txt
+            File id:             9999
+            File size:           11
+            Content type:        b2/x-auto
+            Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            Encryption:          mode=SSE-B2, algorithm=AES256
+            Retention:           none
+            Legal hold:          <unset>
             INFO src_last_modified_millis: 1500111222000
             checksum matches
             '''
