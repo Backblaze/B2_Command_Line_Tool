@@ -531,9 +531,13 @@ def basic_test(b2_tool, bucket_name):
         ]
     )
 
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', bucket_name, 'b/1', os.devnull]
-    )
+    with TempDir() as dir_path:
+        b2_tool.should_succeed(
+            [
+                'download-file-by-name', '--noProgress', bucket_name, 'b/1',
+                os.path.join(dir_path, 'a')
+            ]
+        )
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
@@ -1412,13 +1416,18 @@ def sse_b2_test(b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted']
     )
-
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', bucket_name, 'encrypted', os.devnull]
-    )
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', bucket_name, 'not_encrypted', os.devnull]
-    )
+    with TempDir() as dir_path:
+        p = lambda fname: os.path.join(dir_path, fname)
+        b2_tool.should_succeed(
+            ['download-file-by-name', '--noProgress', bucket_name, 'encrypted',
+             p('encrypted')]
+        )
+        b2_tool.should_succeed(
+            [
+                'download-file-by-name', '--noProgress', bucket_name, 'not_encrypted',
+                p('not_encypted')
+            ]
+        )
 
     list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
     should_equal(
