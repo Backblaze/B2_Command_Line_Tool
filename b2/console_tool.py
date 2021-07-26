@@ -117,11 +117,19 @@ DOC_STRING_DATA = dict(
 )
 
 
-def current_time_millis():
+class CommandError(B2Error):
     """
-    File times are in integer milliseconds, to avoid roundoff errors.
+    b2 command error (user caused).  Accepts exactly one argument: message.
+
+    We expect users of shell scripts will parse our ``__str__`` output.
     """
-    return int(round(time.time() * 1000))
+
+    def __init__(self, message):
+        super(CommandError, self).__init__()
+        self.message = message
+
+    def __str__(self):
+        return self.message
 
 
 def local_path_to_b2_path(path):
@@ -1837,13 +1845,22 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
             )
 
         with SyncReport(self.stdout, args.noProgress) as reporter:
-            synchronizer.sync_folders(
-                source_folder=source,
-                dest_folder=destination,
-                now_millis=current_time_millis(),
-                reporter=reporter,
-                **kwargs
-            )
+            try:
+                synchronizer.sync_folders(
+                    source_folder=source,
+                    dest_folder=destination,
+                    now_millis=current_time_millis(),
+                    reporter=reporter,
+                    **kwargs
+                )
+            except EmptyDirectory as ex:
+                raise CommandError(
+                    'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (ex.path,)
+                )
+            except NotADirectory as ex:
+                raise CommandError('%s is not a directory' % (ex.path,))
+            except UnableToCreateDirectory as ex:
+                raise CommandError('unable to create directory %s' % (ex.path,))
         return 0
 
     def get_policies_manager_from_args(self, args):
