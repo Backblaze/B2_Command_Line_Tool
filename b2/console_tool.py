@@ -260,8 +260,7 @@ class DestinationSseMixin(Described):
 
         super()._setup_parser(parser)  # noqa
 
-    @classmethod
-    def _get_destination_sse_setting(cls, args):
+    def _get_destination_sse_setting(self, args):
         mode = apply_or_none(EncryptionMode, args.destinationServerSideEncryption)
         if mode is not None:
             algorithm = apply_or_none(
@@ -278,7 +277,7 @@ class DestinationSseMixin(Described):
                     )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
-                    logger.warning(
+                    self._print(
                         'Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
                         'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,)
                     )
