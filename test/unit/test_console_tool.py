@@ -1037,12 +1037,10 @@ class TestConsoleTool(TestBase):
             )
 
             # Invalid metadata copy with file info
-            expected_stderr = "ERROR: content_type and file_info should be None when metadata_directive is COPY\n"
+            expected_stderr = "ERROR: File info can be set only when content type is set\n"
             self._run_command(
                 [
                     'copy-file-by-id',
-                    '--metadataDirective',
-                    'copy',
                     '--info',
                     'a=b',
                     '9999',
@@ -1055,11 +1053,15 @@ class TestConsoleTool(TestBase):
             )
 
             # Invalid metadata replace without file info
-            expected_stderr = "ERROR: content_type cannot be None when metadata_directive is REPLACE\n"
+            expected_stderr = "ERROR: File info can be not set only when content type is not set\n"
             self._run_command(
                 [
-                    'copy-file-by-id', '--metadataDirective', 'replace', '9999', 'my-bucket',
-                    'file1_copy.txt'
+                    'copy-file-by-id',
+                    '--contentType',
+                    'text/plain',
+                    '9999',
+                    'my-bucket',
+                    'file1_copy.txt',
                 ],
                 '',
                 expected_stderr,
@@ -1087,8 +1089,6 @@ class TestConsoleTool(TestBase):
             self._run_command(
                 [
                     'copy-file-by-id',
-                    '--metadataDirective',
-                    'replace',
                     '--contentType',
                     'text/plain',
                     '--info',

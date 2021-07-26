@@ -1572,20 +1572,63 @@ def sse_c_test(b2_tool, bucket_name):
         'B2_DESTINATION_SSE_C_KEY_B64 env var',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
     )
-    b2_tool.should_succeed(  # FIXME: this should fail without providing target fileInfo and ContentType or source
-        # fileInfo and ContentType, but: 1) CLI uses legacy Bucket.copy_file; 2) CopyFileById doesn't yet accept
-        # these arguments
+    b2_tool.should_fail(
         [
             'copy-file-by-id', '--sourceServerSideEncryption=SSE-C', file_version_info['fileId'],
-            bucket_name, 'not_encrypted_copied_from_encrypted'
+            bucket_name, 'gonna-fail-anyway'
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
+        expected_pattern=
+        'Attempting to copy file with metadata while either source or destination uses '
+        'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.',
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'not_encrypted_copied_from_encrypted_metadata_replace',
+            '--info',
+            'a=b',
+            '--contentType',
+            'text/plain',
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
-            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
-            'encrypted_no_id_copied_from_encrypted'
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'not_encrypted_copied_from_encrypted_metadata_replace_empty',
+            '--noInfo',
+            '--contentType',
+            'text/plain',
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+            '--fetchMetadata',
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'encrypted_no_id_copied_from_encrypted',
+            '--fetchMetadata',
         ],
         additional_env={
             'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
@@ -1594,9 +1637,31 @@ def sse_c_test(b2_tool, bucket_name):
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
-            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
-            'encrypted_with_id_copied_from_encrypted'
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'encrypted_with_id_copied_from_encrypted_metadata_replace',
+            '--noInfo',
+            '--contentType',
+            'text/plain',
+        ],
+        additional_env={
+            'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
+            'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode(),
+            'B2_DESTINATION_SSE_C_KEY_ID': 'another-user-generated-key-id',
+        }
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+            '--fetchMetadata',
         ],
         additional_env={
             'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
@@ -1609,9 +1674,7 @@ def sse_c_test(b2_tool, bucket_name):
         [
             {
                 'file_name': 'encrypted_no_id_copied_from_encrypted',
-                'sse_c_key_id':
-                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'missing_key', but console tool uses
-                # legacy Bucket.copy_file
+                'sse_c_key_id': 'missing_key',
                 'serverSideEncryption':
                     {
                         "algorithm": "AES256",
@@ -1621,10 +1684,8 @@ def sse_c_test(b2_tool, bucket_name):
                     },
             },
             {
-                'file_name': 'encrypted_with_id_copied_from_encrypted',
-                'sse_c_key_id':
-                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'another-user-generated-key-id', but
-                # console tool uses legacy Bucket.copy_file
+                'file_name': 'encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+                'sse_c_key_id': 'another-user-generated-key-id',
                 'serverSideEncryption':
                     {
                         'algorithm': 'AES256',
@@ -1634,10 +1695,33 @@ def sse_c_test(b2_tool, bucket_name):
                     },
             },
             {
-                'file_name': 'not_encrypted_copied_from_encrypted',
-                'sse_c_key_id':
-                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'missing_key',
-                # but console tool uses legacy Bucket.copy_file
+                'file_name': 'encrypted_with_id_copied_from_encrypted_metadata_replace',
+                'sse_c_key_id': 'another-user-generated-key-id',
+                'serverSideEncryption':
+                    {
+                        'algorithm': 'AES256',
+                        "customerKey": "******",
+                        "customerKeyMd5": "******",
+                        'mode': 'SSE-C',
+                    },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+                'sse_c_key_id': 'missing_key',
+                'serverSideEncryption': {
+                    'mode': 'none',
+                },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted_metadata_replace',
+                'sse_c_key_id': 'missing_key',
+                'serverSideEncryption': {
+                    'mode': 'none',
+                },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted_metadata_replace_empty',
+                'sse_c_key_id': 'missing_key',
                 'serverSideEncryption': {
                     'mode': 'none',
                 },

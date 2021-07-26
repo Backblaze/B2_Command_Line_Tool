@@ -372,7 +372,9 @@ class SourceSseMixin(Described):
                         'Using SSE-C requires providing an encryption key via %s env var' %
                         B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
                     )
-                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=None)
+                key = EncryptionKey(
+                    secret=base64.b64decode(encryption_key_b64), key_id=UNKNOWN_KEY_ID
+                )
             else:
                 raise NotImplementedError(
                     'Encryption modes other than %s are not supported in reads' %
@@ -771,15 +773,10 @@ class CopyFileById(
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
-    By default, it copies the file info and content type. You can replace those
-    by setting the ``metadataDirective`` to ``replace``.
+    By default, it copies the file info and content type, therefore ``--contentType`` and ``--info`` are optional.
+    If one of them is set, the other has to be set as well.
 
-    ``--contentType`` and ``--info`` should only be provided when ``--metadataDirective``
-    is set to ``replace`` and should not be provided when ``--metadataDirective``
-    is set to ``copy``.
-
-    ``--contentType`` and ``--info`` are optional.  If not set, they will be set based on the
-    source file.
+    To force the destination file to have empty fileInfo, use ``--noInfo``.
 
     By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
     from the source file to the new file using ``--range`` option.
@@ -793,6 +790,10 @@ class CopyFileById(
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
 
+    If either the source or the destination uses SSE-C and ``--contentType`` and ``--info`` are not provided, then
+    to perform the copy the source file's metadata has to be fetched first - an additional request to B2 cloud has
+    to be made. To achieve that, provide ``--fetchMetadata``. Without that flag, the command will fail.
+
     Requires capability:
 
     - **readFiles** (if ``sourceFileId`` bucket is private)
@@ -801,10 +802,16 @@ class CopyFileById(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--metadataDirective', choices=('copy', 'replace'))
+        parser.add_argument('--fetchMetadata', action='store_true', default=False)
+        parser.add_argument('--metadataDirective', default=None, help=argparse.SUPPRESS)
         parser.add_argument('--contentType')
         parser.add_argument('--range', type=parse_range)
-        parser.add_argument('--info', action='append', default=[])
+
+        info_group = parser.add_mutually_exclusive_group()
+
+        info_group.add_argument('--info', action='append', default=[])
+        info_group.add_argument('--noInfo', action='store_true', default=False)
+
         parser.add_argument('sourceFileId')
         parser.add_argument('destinationBucketName')
         parser.add_argument('b2FileName')
@@ -813,35 +820,81 @@ class CopyFileById(
 
     def run(self, args):
         file_infos = None
-        if args.info is not None:
+        if args.info:
             file_infos = self._parse_file_infos(args.info)
+        elif args.noInfo:
+            file_infos = {}
 
-        if args.metadataDirective == 'copy':
-            metadata_directive = MetadataDirectiveMode.COPY
-        elif args.metadataDirective == 'replace':
-            metadata_directive = MetadataDirectiveMode.REPLACE
-        else:
-            metadata_directive = None
+        if args.metadataDirective is not None:
+            self._print(
+                '--metadataDirective is deprecated, the value of this argument is determined based on the existence of '
+                '--contentType and --info.'
+            )
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
         destination_encryption_setting = self._get_destination_sse_setting(args)
         source_encryption_setting = self._get_source_sse_setting(args)
         legal_hold = self._get_legal_hold_setting(args)
         file_retention = self._get_file_retention_setting(args)
-        response = bucket.copy_file(
+        if args.range is not None:
+            range_args = {
+                'offset': args.range[0],
+                'length': args.range[1] - args.range[0] + 1,
+            }
+        else:
+            range_args = {}
+        source_file_info, source_content_type = self._determine_source_metadata(
+            source_file_id=args.sourceFileId,
+            source_encryption=source_encryption_setting,
+            destination_encryption=destination_encryption_setting,
+            target_content_type=args.contentType,
+            target_file_info=file_infos,
+            fetch_if_necessary=args.fetchMetadata,
+        )
+        file_version = bucket.copy(
             args.sourceFileId,
             args.b2FileName,
-            bytes_range=args.range,
-            metadata_directive=metadata_directive,
+            **range_args,
             content_type=args.contentType,
             file_info=file_infos,
             destination_encryption=destination_encryption_setting,
             source_encryption=source_encryption_setting,
             legal_hold=legal_hold,
             file_retention=file_retention,
+            source_file_info=source_file_info,
+            source_content_type=source_content_type,
         )
-        self._print_json(response)
+        self._print_json(file_version)
         return 0
+
+    def _is_ssec(self, encryption: Optional[EncryptionSetting]):
+        if encryption is not None and encryption.mode == EncryptionMode.SSE_C:
+            return True
+        return False
+
+    def _determine_source_metadata(
+        self,
+        source_file_id: str,
+        destination_encryption: Optional[EncryptionSetting],
+        source_encryption: Optional[EncryptionSetting],
+        target_file_info: Optional[dict],
+        target_content_type: Optional[str],
+        fetch_if_necessary: bool,
+    ) -> Tuple[Optional[dict], Optional[str]]:
+        """Determine if source file metadata is necessary to perform the copy - due to sse_c_key_id"""
+        if not self._is_ssec(source_encryption) and not self._is_ssec(
+            destination_encryption
+        ):  # no sse-c, no problem
+            return None, None
+        if target_file_info is not None or target_content_type is not None:  # metadataDirective=REPLACE, no problem
+            return None, None
+        if not fetch_if_necessary:
+            raise ValueError(
+                'Attempting to copy file with metadata while either source or destination uses '
+                'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.'
+            )
+        source_file_version = self.api.get_file_info(source_file_id)
+        return source_file_version.file_info, source_file_version.content_type
 
 
 @B2.register_subcommand
