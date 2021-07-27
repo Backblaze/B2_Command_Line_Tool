@@ -34,6 +34,9 @@ from b2sdk.v1 import B2Api, Bucket, InMemoryAccountInfo, InMemoryCache, fix_wind
 from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey, SSE_C_KEY_ID_FILE_INFO_KEY_NAME
 from b2sdk.v1 import BucketRetentionSetting, FileLockConfiguration, LegalHold, RetentionMode, RetentionPeriod, FileRetentionSetting, NO_RETENTION_FILE_SETTING
 
+from b2sdk.exception import BadRequest  # TODO: add this exception to v2
+from b2sdk.v2.exception import FileNotPresent
+
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_B2,
@@ -303,13 +306,26 @@ class Api:
                             file_version_info.id_, file_version_info.file_name, LegalHold.OFF
                         )
                     print('Removing file version:', file_version_info.id_)
-                    self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
+                    try:
+                        self.api.delete_file_version(
+                            file_version_info.id_, file_version_info.file_name
+                        )
+                    except FileNotPresent:
+                        print(
+                            'It seems that file version %s has already been removed' %
+                            (file_version_info.id_,)
+                        )
 
                 if files_leftover:
                     print('Unable to remove bucket because some retained files remain')
                 else:
                     print('Removing bucket:', bucket.name)
-                    self.api.delete_bucket(bucket)
+                    try:
+                        self.api.delete_bucket(bucket)
+                    except BadRequest as e:
+                        if e.code != 'bad_bucket_id':
+                            raise
+                        print('It seems that bucket %s has already been removed' % (bucket.name,))
                 print()
 
 
