@@ -328,6 +328,32 @@ class Api:
                 print()
 
 
+class EnvVarTestContext:
+    """
+    Establish config for environment variable test.
+    Copy the B2 credential file and rename the existing copy
+    """
+    ENV_VAR = 'B2_ACCOUNT_INFO'
+
+    def __init__(self, account_info_file_name: str):
+        self.account_info_file_name = account_info_file_name
+
+    def __enter__(self):
+        src = self.account_info_file_name
+        dst = os.path.join(tempfile.gettempdir(), 'b2_account_info')
+        shutil.copyfile(src, dst)
+        shutil.move(src, src + '.bkup')
+        os.environ[self.ENV_VAR] = dst
+        return dst
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.remove(os.environ.get(self.ENV_VAR))
+        fname = self.account_info_file_name
+        shutil.move(fname + '.bkup', fname)
+        if os.environ.get(self.ENV_VAR) is not None:
+            del os.environ[self.ENV_VAR]
+
+
 class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
@@ -345,6 +371,7 @@ class CommandLine:
         self.application_key = application_key
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
+        self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.account_info_file_name = SqliteAccountInfo().filename
 
     def generate_bucket_name(self):
@@ -421,37 +448,6 @@ class CommandLine:
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
-
-    def setup_envvar_test(self, envvar_name, envvar_value):
-        """
-        Establish config for environment variable test.
-        The envvar_value names the new credential file
-        Create an environment variable with the given value
-        Copy the B2 credential file and rename the existing copy
-        Extract and return the account_id and application_key from the credential file
-        """
-
-        src = self.account_info_file_name
-        dst = os.path.expanduser(envvar_value)
-        shutil.copyfile(src, dst)
-        shutil.move(src, src + '.bkup')
-        os.environ[envvar_name] = envvar_value
-
-    def tearDown_envvar_test(self, envvar_name):
-        """
-        Clean up after running the environment variable test.
-        Delete the new B2 credential file (file contained in the
-        envvar_name environment variable.
-        Rename the backup of the original credential file back to
-        the standard name
-        Delete the environment variable
-        """
-
-        os.remove(os.environ.get(envvar_name))
-        fname = self.account_info_file_name
-        shutil.move(fname + '.bkup', fname)
-        if os.environ.get(envvar_name) is not None:
-            del os.environ[envvar_name]
 
 
 def should_equal(expected, actual):
@@ -663,69 +659,64 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
-    new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-    b2_tool.setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
-    b2_tool.should_succeed(['clear-account'])
-    bad_application_key = random_hex(len(b2_tool.application_key))
-    b2_tool.should_fail(
-        ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
-    )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
-    b2_tool.should_succeed(
-        [
-            'authorize-account',
-            '--environment',
-            b2_tool.realm,
-            b2_tool.account_id,
-            b2_tool.application_key,
-        ]
-    )
-    b2_tool.tearDown_envvar_test('B2_ACCOUNT_INFO')
+    with b2_tool.env_var_test_context:
+        b2_tool.should_succeed(['clear-account'])
+        bad_application_key = random_hex(len(b2_tool.application_key))
+        b2_tool.should_fail(
+            ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+        )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
+        b2_tool.should_succeed(
+            [
+                'authorize-account',
+                '--environment',
+                b2_tool.realm,
+                b2_tool.account_id,
+                b2_tool.application_key,
+            ]
+        )
 
     # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
-    new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-    b2_tool.setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
-    os.remove(new_creds)
+    with b2_tool.env_var_test_context as new_creds:
+        os.remove(new_creds)
 
-    # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
-    # successfully removed
-    bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_fail(
-        ['create-bucket', bucket_name, 'allPrivate'],
-        r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
-        r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
-        r'"B2_APPLICATION_KEY" environment variables'
-    )
-    os.remove(new_creds)
+        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
+        # successfully removed
+        bucket_name = b2_tool.generate_bucket_name()
+        b2_tool.should_fail(
+            ['create-bucket', bucket_name, 'allPrivate'],
+            r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
+            r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
+            r'"B2_APPLICATION_KEY" environment variables'
+        )
+        os.remove(new_creds)
 
-    # then, let's see that auth data from env vars works
-    os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
-    os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
-    os.environ['B2_ENVIRONMENT'] = b2_tool.realm
+        # then, let's see that auth data from env vars works
+        os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
+        os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
+        os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
-    bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
-    assert os.path.exists(new_creds), 'sqlite file not created'
+        bucket_name = b2_tool.generate_bucket_name()
+        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
+        b2_tool.should_succeed(['delete-bucket', bucket_name])
+        assert os.path.exists(new_creds), 'sqlite file not created'
 
-    os.environ.pop('B2_APPLICATION_KEY')
-    os.environ.pop('B2_APPLICATION_KEY_ID')
+        os.environ.pop('B2_APPLICATION_KEY')
+        os.environ.pop('B2_APPLICATION_KEY_ID')
 
-    # last, let's see that providing only one of the env vars results in a failure
-    os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
-    b2_tool.should_fail(
-        ['create-bucket', bucket_name, 'allPrivate'],
-        r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
-    )
-    os.environ.pop('B2_APPLICATION_KEY')
+        # last, let's see that providing only one of the env vars results in a failure
+        os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
+        b2_tool.should_fail(
+            ['create-bucket', bucket_name, 'allPrivate'],
+            r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+        )
+        os.environ.pop('B2_APPLICATION_KEY')
 
-    os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
-    b2_tool.should_fail(
-        ['create-bucket', bucket_name, 'allPrivate'],
-        r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
-    )
-    os.environ.pop('B2_APPLICATION_KEY_ID')
-
-    b2_tool.tearDown_envvar_test('B2_ACCOUNT_INFO')
+        os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
+        b2_tool.should_fail(
+            ['create-bucket', bucket_name, 'allPrivate'],
+            r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+        )
+        os.environ.pop('B2_APPLICATION_KEY_ID')
 
 
 def file_version_summary(list_of_files):

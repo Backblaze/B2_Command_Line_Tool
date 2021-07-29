@@ -26,10 +26,6 @@ class B2CliJsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
-        elif isinstance(obj, FileVersion):
+        elif isinstance(obj, (FileVersion, FileIdAndName, Bucket)):
             return obj.as_dict()
-        elif isinstance(obj, FileIdAndName):
-            return obj.as_dict()
-        elif isinstance(obj, Bucket):
-            return obj.as_dict()
-        return super(B2CliJsonEncoder, self).default(obj)
+        return super().default(obj)
