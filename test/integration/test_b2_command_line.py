@@ -34,8 +34,7 @@ from b2sdk.v1 import B2Api, Bucket, InMemoryAccountInfo, InMemoryCache, fix_wind
 from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey, SSE_C_KEY_ID_FILE_INFO_KEY_NAME
 from b2sdk.v1 import BucketRetentionSetting, FileLockConfiguration, LegalHold, RetentionMode, RetentionPeriod, FileRetentionSetting, NO_RETENTION_FILE_SETTING
 
-from b2sdk.exception import BadRequest  # TODO: add this exception to v2
-from b2sdk.v2.exception import FileNotPresent
+from b2sdk.v2.exception import BucketIdNotFound, FileNotPresent
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
@@ -322,9 +321,7 @@ class Api:
                     print('Removing bucket:', bucket.name)
                     try:
                         self.api.delete_bucket(bucket)
-                    except BadRequest as e:
-                        if e.code != 'bad_bucket_id':
-                            raise
+                    except BucketIdNotFound:
                         print('It seems that bucket %s has already been removed' % (bucket.name,))
                 print()
 
