@@ -434,7 +434,7 @@ class CommandLine:
         if re.search(expected_pattern, stdout + stderr) is None:
             print(expected_pattern)
             print(stdout + stderr)
-            error_and_exit('did not match pattern: ' + expected_pattern)
+            error_and_exit('did not match pattern: ' + str(expected_pattern))
 
     def reauthorize(self):
         """Clear and authorize again to the account."""
@@ -591,6 +591,13 @@ def basic_test(b2_tool, bucket_name):
             file_to_upload,
         ),
     )  # \r? is for Windows, as $ doesn't match \r\n
+    to_be_removed_bucket_name = b2_tool.generate_bucket_name()
+    b2_tool.should_succeed(['create-bucket', to_be_removed_bucket_name, 'allPublic'],)
+    b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name],
+        re.compile(r'^ERROR: Bucket with id=\w* not found$')
+    )
 
 
 def key_restrictions_test(b2_tool, bucket_name):

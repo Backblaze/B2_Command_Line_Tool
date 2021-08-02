@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add possibility to install SDK from local folder instead of pypi when running tests
 * Add full support of establishing file metadata when copying, with either source or target using SSE-C
 * Add `--noInfo` option to `copy-file-by-id`
+* Integration test for checking if `bad_bucket_id` error code is returned
 
 ### Fixed
 * Fix integration tests on non-production environments
