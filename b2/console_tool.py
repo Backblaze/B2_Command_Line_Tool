@@ -290,7 +290,7 @@ class DestinationSseMixin(Described):
                     )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
-                    self._print(
+                    self._print_stderr(
                         'Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
                         'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,)
                     )
@@ -846,7 +846,7 @@ class CopyFileById(
             file_infos = {}
 
         if args.metadataDirective is not None:
-            self._print(
+            self._print_stderr(
                 '--metadataDirective is deprecated, the value of this argument is determined based on the existence of '
                 '--contentType and --info.'
             )
@@ -2237,7 +2237,7 @@ class ConsoleTool(object):
             return 1
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')
-            self._print('\nInterrupted.  Shutting down...\n')
+            self._print_stderr('\nInterrupted.  Shutting down...\n')
             return 1
         except Exception:
             logger.exception('ConsoleTool unexpected exception')
