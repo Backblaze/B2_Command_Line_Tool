@@ -29,7 +29,7 @@ from b2sdk.account_info.sqlite_account_info import (
     B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
 )
 from b2sdk.progress import make_progress_listener
-from b2sdk.raw_api import MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS
+from b2sdk.raw_api import MetadataDirectiveMode
 from b2sdk.version import VERSION as b2sdk_version
 from b2sdk.v1 import (
     parse_sync_folder,
@@ -58,6 +58,7 @@ from b2sdk.v1 import (
     RetentionMode,
     FileRetentionSetting,
     BucketRetentionSetting,
+    SRC_LAST_MODIFIED_MILLIS,
 )
 from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
 from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
