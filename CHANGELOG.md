@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * CLI now uses `b2sdk.v2`
+* Downloading files prints file metadata as soon as the download commences (not when it finishes)
 * New way of establishing location of the SQLite cache file, using `XDG_CONFIG_HOME` env var
 * Downloaded file's metadata is complete and is displayed before the file is downloaded
 * `contentLength` changed to `size` where appropriate

@@ -62,7 +62,7 @@ class BaseConsoleToolTest(TestBase):
         actual_status = ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
-        if '' != actual_stderr:
+        if actual_stderr != '':
             print('ACTUAL STDERR:  ', repr(actual_stderr))
             print(actual_stderr)
 
@@ -136,8 +136,7 @@ class BaseConsoleToolTest(TestBase):
 
     def _authorize_account(self):
         """
-        Prepare for a test by authorizing an account and getting an
-        account auth token
+        Prepare for a test by authorizing an account and getting an account auth token
         """
         self._run_command_ignore_output(['authorize-account', self.account_id, self.master_key])
 
@@ -802,7 +801,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             Retention:           none
             Legal hold:          <unset>
             INFO src_last_modified_millis: 1500111222000
-            checksum matches
+            Checksum matches
+            Download finished
             '''
 
             self._run_command(
@@ -979,7 +979,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             Retention:           none
             Legal hold:          <unset>
             INFO src_last_modified_millis: 1500111222000
-            checksum matches
+            Checksum matches
+            Download finished
             '''
 
             self._run_command(

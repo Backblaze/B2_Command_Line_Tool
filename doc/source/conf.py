@@ -31,6 +31,8 @@ import os
 from os import path
 import re
 import sys
+import textwrap
+
 sys.path.insert(0, os.path.abspath('../..'))
 
 from b2.console_tool import B2
@@ -205,9 +207,14 @@ white_spaces_start = re.compile(r'^\s*')
 
 
 def setup(_):
+    """
+    Building docs requires dumping the main CLI help text to an .rst file before the actual build. This is the most
+    reasonable way to piggy back that behaviour. Checking if the new file contents would the same as the old one
+    (if any) is important, so that the automatic file-watcher/doc-builder doesn't fall into an endless loop.
+    """
     main_help_text = str(B2.lazy_get_description())
-    indentation = min(len(white_spaces_start.match(line).group(0)) for line in main_help_text.splitlines() if len(line) > 1)
-    main_help_text = '\n'.join(line[indentation:] for line in main_help_text.splitlines())
+    main_help_text = textwrap.dedent(main_help_text)
+
     main_help_path = path.join(path.dirname(__file__), 'main_help.rst')
     if path.exists(main_help_path):
         with open(main_help_path, 'r') as main_help_file:

@@ -1111,6 +1111,7 @@ class DownloadFileById(SourceSseMixin, Command):
         )
         self.console_tool._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
+        self._print('Download finished')
         return 0
 
 
@@ -1147,6 +1148,7 @@ class DownloadFileByName(SourceSseMixin, Command):
         )
         self.console_tool._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
+        self._print('Download finished')
         return 0
 
 
@@ -1433,7 +1435,7 @@ class ListKeys(Command):
             namePrefix=(key.name_prefix or ''),
             capabilities=','.join(key.capabilities),
             dateStr=date_str,
-            timeStr=time_str
+            timeStr=time_str,
         )
         self._print(key_str)
 
@@ -2299,10 +2301,11 @@ class ConsoleTool(object):
         for name in sorted(download_version.file_info):
             self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
         if download_version.content_sha1 != 'none':
-            self._print('checksum matches')
+            self._print('Checksum matches')
         return 0
 
     def _represent_encryption(self, encryption: EncryptionSetting):
+        # TODO: refactor to use "match" syntax after dropping python 3.9 support
         if encryption.mode is EncryptionMode.NONE:
             return 'none'
         result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
@@ -2406,7 +2409,7 @@ def main():
     b2_api = B2Api(
         info,
         cache=cache,
-        api_config=B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR))
+        api_config=B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
     )
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
