@@ -610,7 +610,7 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
     b2_tool.should_fail(
         ['delete-bucket', to_be_removed_bucket_name],
-        re.compile(r'^ERROR: Bucket with id=\w* not found$')
+        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
 
 
