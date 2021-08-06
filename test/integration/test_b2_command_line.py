@@ -446,7 +446,8 @@ class CommandLine:
             _exit(1)
         if re.search(expected_pattern, stdout + stderr) is None:
             print(expected_pattern)
-            print(stdout + stderr)
+            # quotes are helpful when reading fail logs, they help find trailing white spaces etc.
+            print("'%s'" % (stdout + stderr,))
             error_and_exit('did not match pattern: ' + str(expected_pattern))
 
     def reauthorize(self):
