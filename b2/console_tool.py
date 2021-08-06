@@ -23,49 +23,62 @@ import signal
 import sys
 import time
 
-from class_registry import ClassRegistry
 from typing import Optional, Tuple
 
-from b2sdk.version import VERSION as b2sdk_version
 from b2sdk.v2 import (
-    ApplicationKey,
-    AuthInfoCache,
-    B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
-    parse_sync_folder,
-    B2Api,
-    B2HttpApiConfig,
-    current_time_millis,
-    DownloadedFile,
-    FileVersion,
-    Synchronizer,
-    SyncReport,
-    NewerFileSyncMode,
-    CompareVersionMode,
-    KeepOrDeleteMode,
+    B2_ACCOUNT_INFO_ENV_VAR,
+    DEFAULT_SCAN_MANAGER,
+    NO_RETENTION_BUCKET_SETTING,
+    REALM_URLS,
     SRC_LAST_MODIFIED_MILLIS,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
-    SqliteAccountInfo,
-    ScanPoliciesManager,
-    DEFAULT_SCAN_MANAGER,
+    UNKNOWN_KEY_ID,
+    XDG_CONFIG_HOME_ENV_VAR,
+    ApplicationKey,
+    AuthInfoCache,
+    B2Api,
+    B2HttpApiConfig,
+    BasicSyncEncryptionSettingsProvider,
+    BucketRetentionSetting,
+    CompareVersionMode,
+    DownloadedFile,
     EncryptionAlgorithm,
+    EncryptionKey,
     EncryptionMode,
     EncryptionSetting,
-    EncryptionKey,
-    BasicSyncEncryptionSettingsProvider,
-    LegalHold,
-    make_progress_listener,
-    NO_RETENTION_BUCKET_SETTING,
-    UNKNOWN_KEY_ID,
-    REALM_URLS,
-    RetentionMode,
     FileRetentionSetting,
-    BucketRetentionSetting,
-    XDG_CONFIG_HOME_ENV_VAR,
+    FileVersion,
+    KeepOrDeleteMode,
+    LegalHold,
+    NewerFileSyncMode,
+    RetentionMode,
+    ScanPoliciesManager,
+    SqliteAccountInfo,
+    Synchronizer,
+    SyncReport,
+    current_time_millis,
+    make_progress_listener,
+    parse_sync_folder,
 )
-from b2sdk.v2.exception import B2Error, BadFileInfo, MissingAccountData, EmptyDirectory, NotADirectory, UnableToCreateDirectory
-from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
-    parse_millis_from_float_timestamp, parse_range, parse_default_retention_period
+from b2sdk.v2.exception import (
+    B2Error,
+    BadFileInfo,
+    EmptyDirectory,
+    MissingAccountData,
+    NotADirectory,
+    UnableToCreateDirectory,
+)
+from b2sdk.version import VERSION as b2sdk_version
+from class_registry import ClassRegistry
+
+from b2.arg_parser import (
+    ArgumentParser,
+    parse_comma_separated_list,
+    parse_default_retention_period,
+    parse_millis_from_float_timestamp,
+    parse_range,
+)
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
