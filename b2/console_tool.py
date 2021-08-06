@@ -2346,23 +2346,29 @@ class ConsoleTool(object):
 
     @classmethod
     def _setup_logging(cls, args, command, argv):
+        if args.logConfig and (args.verbose or args.debugLogs):
+            raise ValueError('Please provide either --logConfig or --verbose/--debugLogs')
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
-        elif args.verbose:
-            logging.basicConfig(level=logging.DEBUG)
-        elif args.debugLogs:
+        elif args.verbose or args.debugLogs:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.CRITICAL + 1)
+        if args.verbose:
+            formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+            handler = logging.StreamHandler()
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+        if args.debugLogs:
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
             handler = logging.FileHandler('b2_cli.log')
-            handler.setLevel(logging.DEBUG)
             handler.setFormatter(formatter)
 
-            b2_logger = logging.getLogger('b2')
-            b2_logger.setLevel(logging.DEBUG)
-            b2_logger.addHandler(handler)
-            b2_logger.propagate = False
+            logger.setLevel(logging.DEBUG)
+            logger.addHandler(handler)
 
         logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())

@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * New way of establishing location of the SQLite cache file, using `XDG_CONFIG_HOME` env var
 * Downloaded file's metadata is complete and is displayed before the file is downloaded
 * `contentLength` changed to `size` where appropriate
+* Log configuration: stack traces are not printed in case of errors byt default, `--verbose` changes that 
+* Log configuration arguments bahaviour altered: `--logConfig` is exclusive with `--verbose` and `--debugLogs`
+* Log configuration arguments bahaviour altered: `--verbose` and `--debugLogs` can be used at the some time 
+  (and they will both be taken into account)
 
 ### Removed
 * Support of `--metadataDirective` argument in `copy-file-by-id`
