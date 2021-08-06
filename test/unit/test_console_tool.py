@@ -14,6 +14,7 @@ import re
 import unittest.mock as mock
 from io import StringIO
 from typing import Optional
+from unittest import skip
 
 from b2sdk.v1 import StubAccountInfo
 from b2sdk.v1 import B2Api
@@ -401,6 +402,7 @@ class TestConsoleTool(TestBase):
 
         self._run_command(['list-buckets'], expected_stdout, '', 0)
 
+    @skip('New b2-sdk already works with simulated keys')
     def test_keys(self):
         self._authorize_account()
 
