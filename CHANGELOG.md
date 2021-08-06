@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix integration tests on non-production environments
 * Fix warnings thrown by integration tests
 * delete-key unit test adjusted to a less mocked simulator
+* Fix integration test cleanup
 * Representing encryption-related metadata in buckets and file versions is now consistent
 
 ### Changed
