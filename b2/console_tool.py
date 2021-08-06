@@ -2367,7 +2367,6 @@ class ConsoleTool(object):
             handler = logging.FileHandler('b2_cli.log')
             handler.setFormatter(formatter)
 
-            logger.setLevel(logging.DEBUG)
             logger.addHandler(handler)
 
         logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)

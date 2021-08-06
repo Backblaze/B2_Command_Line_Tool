@@ -24,15 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * CLI now uses `b2sdk.v2`
 * Downloading files prints file metadata as soon as the download commences (not when it finishes)
 * New way of establishing location of the SQLite cache file, using `XDG_CONFIG_HOME` env var
-* Downloaded file's metadata is complete and is displayed before the file is downloaded
+* Downloaded file's metadata is complete and is displayed before the file is downloaded, a `Download finished` message
+  is issued at the end
 * `contentLength` changed to `size` where appropriate
-* Log configuration: stack traces are not printed in case of errors byt default, `--verbose` changes that 
+* Log configuration: stack traces are not printed in case of errors by default, `--verbose` changes that 
 * Log configuration arguments bahaviour altered: `--logConfig` is exclusive with `--verbose` and `--debugLogs`
-* Log configuration arguments bahaviour altered: `--verbose` and `--debugLogs` can be used at the some time 
+* Log configuration arguments bahaviour altered: `--verbose` and `--debugLogs` can be used at the same time 
   (and they will both be taken into account)
 
 ### Removed
-* Support of `--metadataDirective` argument in `copy-file-by-id`
+* Support of `--metadataDirective` argument in `copy-file-by-id` (the `metadataDirective` sent to B2 cloud is
+  detected automatically)
 
 
 ## [2.5.0] - 2021-05-22
