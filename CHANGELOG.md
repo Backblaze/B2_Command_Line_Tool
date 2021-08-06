@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 * Support of `--metadataDirective` argument in `copy-file-by-id` (the `metadataDirective` sent to B2 cloud is
   detected automatically)
-  
+
 ## [2.5.1] - 2021-08-06
 
 * `SRC_LAST_MODIFIED_MILLIS` import fix
