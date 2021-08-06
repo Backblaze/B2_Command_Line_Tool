@@ -15,6 +15,7 @@ import re
 import unittest.mock as mock
 from io import StringIO
 from typing import Optional
+from unittest import skip
 
 from b2sdk import v1
 
@@ -551,6 +552,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(['list-buckets'], expected_stdout, '', 0)
 
+    @skip('New b2-sdk already works with simulated keys')
     def test_keys(self):
         self._authorize_account()
 

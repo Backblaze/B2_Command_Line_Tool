@@ -35,7 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 * Support of `--metadataDirective` argument in `copy-file-by-id` (the `metadataDirective` sent to B2 cloud is
   detected automatically)
+  
+## [2.5.1] - 2021-08-06
 
+* `SRC_LAST_MODIFIED_MILLIS` import fix
 
 ## [2.5.0] - 2021-05-22
 
@@ -241,7 +244,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.2.0...v2.3.0
