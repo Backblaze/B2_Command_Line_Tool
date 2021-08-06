@@ -10,3 +10,4 @@ build
 coverage.xml
 dist
 venv
+doc/source/main_help.rst

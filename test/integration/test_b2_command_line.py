@@ -30,9 +30,24 @@ import pytest
 from typing import Optional
 
 from b2.console_tool import current_time_millis
-from b2sdk.v1 import B2Api, Bucket, InMemoryAccountInfo, InMemoryCache, fix_windows_path_limit
-from b2sdk.v1 import EncryptionAlgorithm, EncryptionMode, EncryptionSetting, EncryptionKey, SSE_C_KEY_ID_FILE_INFO_KEY_NAME
-from b2sdk.v1 import BucketRetentionSetting, FileLockConfiguration, LegalHold, RetentionMode, RetentionPeriod, FileRetentionSetting, NO_RETENTION_FILE_SETTING
+from b2sdk.v2 import (
+    B2Api,
+    Bucket,
+    EncryptionAlgorithm,
+    EncryptionMode,
+    EncryptionSetting,
+    EncryptionKey,
+    FileRetentionSetting,
+    fix_windows_path_limit,
+    InMemoryAccountInfo,
+    InMemoryCache,
+    LegalHold,
+    NO_RETENTION_FILE_SETTING,
+    RetentionMode,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    SqliteAccountInfo,
+    UNKNOWN_FILE_RETENTION_SETTING,
+)
 
 from b2sdk.v2.exception import BucketIdNotFound, FileNotPresent
 
@@ -275,7 +290,7 @@ class Api:
             else:
                 print('Trying to remove bucket:', bucket.name)
                 files_leftover = False
-                file_versions = bucket.ls(show_versions=True, recursive=True)
+                file_versions = bucket.ls(latest_only=False, recursive=True)
                 for file_version_info, _ in file_versions:
                     if file_version_info.file_retention:
                         if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
@@ -326,6 +341,32 @@ class Api:
                 print()
 
 
+class EnvVarTestContext:
+    """
+    Establish config for environment variable test.
+    Copy the B2 credential file and rename the existing copy
+    """
+    ENV_VAR = 'B2_ACCOUNT_INFO'
+
+    def __init__(self, account_info_file_name: str):
+        self.account_info_file_name = account_info_file_name
+
+    def __enter__(self):
+        src = self.account_info_file_name
+        dst = os.path.join(tempfile.gettempdir(), 'b2_account_info')
+        shutil.copyfile(src, dst)
+        shutil.move(src, src + '.bkup')
+        os.environ[self.ENV_VAR] = dst
+        return dst
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.remove(os.environ.get(self.ENV_VAR))
+        fname = self.account_info_file_name
+        shutil.move(fname + '.bkup', fname)
+        if os.environ.get(self.ENV_VAR) is not None:
+            del os.environ[self.ENV_VAR]
+
+
 class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
@@ -343,6 +384,8 @@ class CommandLine:
         self.application_key = application_key
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
+        self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
+        self.account_info_file_name = SqliteAccountInfo().filename
 
     def generate_bucket_name(self):
         return self.bucket_name_prefix + bucket_name_part(
@@ -403,8 +446,9 @@ class CommandLine:
             _exit(1)
         if re.search(expected_pattern, stdout + stderr) is None:
             print(expected_pattern)
-            print(stdout + stderr)
-            error_and_exit('did not match pattern: ' + expected_pattern)
+            # quotes are helpful when reading fail logs, they help find trailing white spaces etc.
+            print("'%s'" % (stdout + stderr,))
+            error_and_exit('did not match pattern: ' + str(expected_pattern))
 
     def reauthorize(self):
         """Clear and authorize again to the account."""
@@ -436,39 +480,6 @@ def _exit(error_code):
     sys.stdout.flush()
     sys.stderr.flush()
     sys.exit(error_code)
-
-
-def setup_envvar_test(envvar_name, envvar_value):
-    """
-    Establish config for environment variable test.
-    The envvar_value names the new credential file
-    Create an environment variable with the given value
-    Copy the B2 credential file (~/.b2_account_info) and rename the existing copy
-    Extract and return the account_id and application_key from the credential file
-    """
-
-    src = os.path.expanduser('~/.b2_account_info')
-    dst = os.path.expanduser(envvar_value)
-    shutil.copyfile(src, dst)
-    shutil.move(src, src + '.bkup')
-    os.environ[envvar_name] = envvar_value
-
-
-def tearDown_envvar_test(envvar_name):
-    """
-    Clean up after running the environment variable test.
-    Delete the new B2 credential file (file contained in the
-    envvar_name environment variable.
-    Rename the backup of the original credential file back to
-    the standard name (~/.b2_account_info)
-    Delete the environment variable
-    """
-
-    os.remove(os.environ.get(envvar_name))
-    fname = os.path.expanduser('~/.b2_account_info')
-    shutil.move(fname + '.bkup', fname)
-    if os.environ.get(envvar_name) is not None:
-        del os.environ[envvar_name]
 
 
 def download_test(b2_tool, bucket_name):
@@ -530,9 +541,13 @@ def basic_test(b2_tool, bucket_name):
         ]
     )
 
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', bucket_name, 'b/1', os.devnull]
-    )
+    with TempDir() as dir_path:
+        b2_tool.should_succeed(
+            [
+                'download-file-by-name', '--noProgress', bucket_name, 'b/1',
+                os.path.join(dir_path, 'a')
+            ]
+        )
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
@@ -590,6 +605,38 @@ def basic_test(b2_tool, bucket_name):
             file_to_upload,
         ),
     )  # \r? is for Windows, as $ doesn't match \r\n
+    to_be_removed_bucket_name = b2_tool.generate_bucket_name()
+    b2_tool.should_succeed(['create-bucket', to_be_removed_bucket_name, 'allPublic'],)
+    b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name],
+        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+    )
+    # Check logging settings
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name, '--debugLogs'],
+        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+    )
+    stack_trace_regex = re.compile(
+        r'Traceback \(most recent call last\):.*Bucket with id=\w* not found', re.DOTALL
+    )
+    with open('b2_cli.log', 'r') as logfile:
+        log = logfile.read()
+        print(log)
+        assert re.search(stack_trace_regex, log), log
+    os.remove('b2_cli.log')
+
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name, '--verbose'], stack_trace_regex
+    )
+    assert not os.path.exists('b2_cli.log')
+
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stack_trace_regex
+    )
+    with open('b2_cli.log', 'r') as logfile:
+        log = logfile.read()
+        assert re.search(stack_trace_regex, log), log
 
 
 def key_restrictions_test(b2_tool, bucket_name):
@@ -658,69 +705,64 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
-    new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-    setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
-    b2_tool.should_succeed(['clear-account'])
-    bad_application_key = random_hex(len(b2_tool.application_key))
-    b2_tool.should_fail(
-        ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
-    )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
-    b2_tool.should_succeed(
-        [
-            'authorize-account',
-            '--environment',
-            b2_tool.realm,
-            b2_tool.account_id,
-            b2_tool.application_key,
-        ]
-    )
-    tearDown_envvar_test('B2_ACCOUNT_INFO')
+    with b2_tool.env_var_test_context:
+        b2_tool.should_succeed(['clear-account'])
+        bad_application_key = random_hex(len(b2_tool.application_key))
+        b2_tool.should_fail(
+            ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+        )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
+        b2_tool.should_succeed(
+            [
+                'authorize-account',
+                '--environment',
+                b2_tool.realm,
+                b2_tool.account_id,
+                b2_tool.application_key,
+            ]
+        )
 
     # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
-    new_creds = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-    setup_envvar_test('B2_ACCOUNT_INFO', new_creds)
-    os.remove(new_creds)
+    with b2_tool.env_var_test_context as new_creds:
+        os.remove(new_creds)
 
-    # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
-    # successfully removed
-    bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_fail(
-        ['create-bucket', bucket_name, 'allPrivate'],
-        r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
-        r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
-        r'"B2_APPLICATION_KEY" environment variables'
-    )
-    os.remove(new_creds)
+        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
+        # successfully removed
+        bucket_name = b2_tool.generate_bucket_name()
+        b2_tool.should_fail(
+            ['create-bucket', bucket_name, 'allPrivate'],
+            r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
+            r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
+            r'"B2_APPLICATION_KEY" environment variables'
+        )
+        os.remove(new_creds)
 
-    # then, let's see that auth data from env vars works
-    os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
-    os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
-    os.environ['B2_ENVIRONMENT'] = b2_tool.realm
+        # then, let's see that auth data from env vars works
+        os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
+        os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
+        os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
-    bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
-    assert os.path.exists(new_creds), 'sqlite file not created'
+        bucket_name = b2_tool.generate_bucket_name()
+        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
+        b2_tool.should_succeed(['delete-bucket', bucket_name])
+        assert os.path.exists(new_creds), 'sqlite file not created'
 
-    os.environ.pop('B2_APPLICATION_KEY')
-    os.environ.pop('B2_APPLICATION_KEY_ID')
+        os.environ.pop('B2_APPLICATION_KEY')
+        os.environ.pop('B2_APPLICATION_KEY_ID')
 
-    # last, let's see that providing only one of the env vars results in a failure
-    os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
-    b2_tool.should_fail(
-        ['create-bucket', bucket_name, 'allPrivate'],
-        r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
-    )
-    os.environ.pop('B2_APPLICATION_KEY')
+        # last, let's see that providing only one of the env vars results in a failure
+        os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
+        b2_tool.should_fail(
+            ['create-bucket', bucket_name, 'allPrivate'],
+            r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+        )
+        os.environ.pop('B2_APPLICATION_KEY')
 
-    os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
-    b2_tool.should_fail(
-        ['create-bucket', bucket_name, 'allPrivate'],
-        r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
-    )
-    os.environ.pop('B2_APPLICATION_KEY_ID')
-
-    tearDown_envvar_test('B2_ACCOUNT_INFO')
+        os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
+        b2_tool.should_fail(
+            ['create-bucket', bucket_name, 'allPrivate'],
+            r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+        )
+        os.environ.pop('B2_APPLICATION_KEY_ID')
 
 
 def file_version_summary(list_of_files):
@@ -1371,11 +1413,8 @@ def default_sse_b2_test(b2_tool, bucket_name):
         ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic']
     )
     bucket_default_sse = {
-        'isClientAuthorizedToRead': True,
-        'value': {
-            'algorithm': 'AES256',
-            'mode': 'SSE-B2',
-        }
+        'algorithm': 'AES256',
+        'mode': 'SSE-B2',
     }
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
@@ -1411,13 +1450,18 @@ def sse_b2_test(b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted']
     )
-
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', bucket_name, 'encrypted', os.devnull]
-    )
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', bucket_name, 'not_encrypted', os.devnull]
-    )
+    with TempDir() as dir_path:
+        p = lambda fname: os.path.join(dir_path, fname)
+        b2_tool.should_succeed(
+            ['download-file-by-name', '--noProgress', bucket_name, 'encrypted',
+             p('encrypted')]
+        )
+        b2_tool.should_succeed(
+            [
+                'download-file-by-name', '--noProgress', bucket_name, 'not_encrypted',
+                p('not_encypted')
+            ]
+        )
 
     list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
     should_equal(
@@ -1434,7 +1478,7 @@ def sse_b2_test(b2_tool, bucket_name):
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
     not_encrypted_version = list_of_files[1]
     file_info = b2_tool.should_succeed_json(['get-file-info', not_encrypted_version['fileId']])
-    #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
+    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
     b2_tool.should_succeed(
         [
@@ -1464,7 +1508,7 @@ def sse_b2_test(b2_tool, bucket_name):
     file_info = b2_tool.should_succeed_json(
         ['get-file-info', copied_not_encrypted_version['fileId']]
     )
-    #should_equal({'mode': 'none'}, file_info['serverSideEncryption'])  # v1 B2Api.get_file_info is a legacy interface which returns raw server response
+    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
 
 def sse_c_test(b2_tool, bucket_name):
@@ -1571,20 +1615,63 @@ def sse_c_test(b2_tool, bucket_name):
         'B2_DESTINATION_SSE_C_KEY_B64 env var',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
     )
-    b2_tool.should_succeed(  # FIXME: this should fail without providing target fileInfo and ContentType or source
-        # fileInfo and ContentType, but: 1) CLI uses legacy Bucket.copy_file; 2) CopyFileById doesn't yet accept
-        # these arguments
+    b2_tool.should_fail(
         [
             'copy-file-by-id', '--sourceServerSideEncryption=SSE-C', file_version_info['fileId'],
-            bucket_name, 'not_encrypted_copied_from_encrypted'
+            bucket_name, 'gonna-fail-anyway'
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
+        expected_pattern=
+        'Attempting to copy file with metadata while either source or destination uses '
+        'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.',
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'not_encrypted_copied_from_encrypted_metadata_replace',
+            '--info',
+            'a=b',
+            '--contentType',
+            'text/plain',
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
-            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
-            'encrypted_no_id_copied_from_encrypted'
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'not_encrypted_copied_from_encrypted_metadata_replace_empty',
+            '--noInfo',
+            '--contentType',
+            'text/plain',
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+            '--fetchMetadata',
+        ],
+        additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'encrypted_no_id_copied_from_encrypted',
+            '--fetchMetadata',
         ],
         additional_env={
             'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
@@ -1593,9 +1680,31 @@ def sse_c_test(b2_tool, bucket_name):
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id', '--sourceServerSideEncryption=SSE-C',
-            '--destinationServerSideEncryption=SSE-C', file_version_info['fileId'], bucket_name,
-            'encrypted_with_id_copied_from_encrypted'
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'encrypted_with_id_copied_from_encrypted_metadata_replace',
+            '--noInfo',
+            '--contentType',
+            'text/plain',
+        ],
+        additional_env={
+            'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
+            'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode(),
+            'B2_DESTINATION_SSE_C_KEY_ID': 'another-user-generated-key-id',
+        }
+    )
+    b2_tool.should_succeed(
+        [
+            'copy-file-by-id',
+            '--sourceServerSideEncryption=SSE-C',
+            '--destinationServerSideEncryption=SSE-C',
+            file_version_info['fileId'],
+            bucket_name,
+            'encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+            '--fetchMetadata',
         ],
         additional_env={
             'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
@@ -1608,9 +1717,7 @@ def sse_c_test(b2_tool, bucket_name):
         [
             {
                 'file_name': 'encrypted_no_id_copied_from_encrypted',
-                'sse_c_key_id':
-                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'missing_key', but console tool uses
-                # legacy Bucket.copy_file
+                'sse_c_key_id': 'missing_key',
                 'serverSideEncryption':
                     {
                         "algorithm": "AES256",
@@ -1620,10 +1727,8 @@ def sse_c_test(b2_tool, bucket_name):
                     },
             },
             {
-                'file_name': 'encrypted_with_id_copied_from_encrypted',
-                'sse_c_key_id':
-                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'another-user-generated-key-id', but
-                # console tool uses legacy Bucket.copy_file
+                'file_name': 'encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+                'sse_c_key_id': 'another-user-generated-key-id',
                 'serverSideEncryption':
                     {
                         'algorithm': 'AES256',
@@ -1633,10 +1738,33 @@ def sse_c_test(b2_tool, bucket_name):
                     },
             },
             {
-                'file_name': 'not_encrypted_copied_from_encrypted',
-                'sse_c_key_id':
-                    'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',  # FIXME: this should be 'missing_key',
-                # but console tool uses legacy Bucket.copy_file
+                'file_name': 'encrypted_with_id_copied_from_encrypted_metadata_replace',
+                'sse_c_key_id': 'another-user-generated-key-id',
+                'serverSideEncryption':
+                    {
+                        'algorithm': 'AES256',
+                        "customerKey": "******",
+                        "customerKeyMd5": "******",
+                        'mode': 'SSE-C',
+                    },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+                'sse_c_key_id': 'missing_key',
+                'serverSideEncryption': {
+                    'mode': 'none',
+                },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted_metadata_replace',
+                'sse_c_key_id': 'missing_key',
+                'serverSideEncryption': {
+                    'mode': 'none',
+                },
+            },
+            {
+                'file_name': 'not_encrypted_copied_from_encrypted_metadata_replace_empty',
+                'sse_c_key_id': 'missing_key',
                 'serverSideEncryption': {
                     'mode': 'none',
                 },
@@ -1740,14 +1868,13 @@ def file_lock_test(b2_tool, bucket_name):
             '1 days',
         ],
     )
-    new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)
-    expected_file_lock_configuration = FileLockConfiguration(
-        BucketRetentionSetting(
-            RetentionMode.GOVERNANCE,
-            RetentionPeriod(days=1),
-        ), True
-    )
-    assert expected_file_lock_configuration == new_file_lock_configuration
+    assert updated_bucket['defaultRetention'] == {
+        'mode': 'governance',
+        'period': {
+            'duration': 1,
+            'unit': 'days',
+        },
+    }
 
     lockable_file = b2_tool.should_succeed_json(  # file in a lock enabled bucket
         ['upload-file', '--noProgress', '--quiet', lock_enabled_bucket_name, file_to_upload, 'a']
@@ -1851,11 +1978,7 @@ def file_lock_test(b2_tool, bucket_name):
             'none',
         ],
     )
-    new_file_lock_configuration = FileLockConfiguration.from_bucket_dict(updated_bucket)
-    expected_file_lock_configuration = FileLockConfiguration(
-        BucketRetentionSetting(RetentionMode.NONE,), True
-    )
-    assert expected_file_lock_configuration == new_file_lock_configuration
+    assert updated_bucket['defaultRetention'] == {'mode': None}
 
     b2_tool.should_fail(
         [
@@ -2084,11 +2207,19 @@ def _assert_file_lock_configuration(
 
     file_version = b2_tool.should_succeed_json(['get-file-info', file_id])
     if retention_mode is not None:
-        actual_file_retention = FileRetentionSetting.from_file_version_dict(file_version)
+        if file_version['fileRetention']['mode'] == 'unknown':
+            actual_file_retention = UNKNOWN_FILE_RETENTION_SETTING
+        else:
+            actual_file_retention = FileRetentionSetting.from_file_retention_value_dict(
+                file_version['fileRetention']
+            )
         expected_file_retention = FileRetentionSetting(retention_mode, retain_until)
         assert expected_file_retention == actual_file_retention
     if legal_hold is not None:
-        actual_legal_hold = LegalHold.from_file_version_dict(file_version)
+        if file_version['legalHold'] == 'unknown':
+            actual_legal_hold = LegalHold.UNKNOWN
+        else:
+            actual_legal_hold = LegalHold.from_string_or_none(file_version['legalHold'])
         assert legal_hold == actual_legal_hold
 
 

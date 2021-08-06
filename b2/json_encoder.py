@@ -10,7 +10,7 @@
 
 import json
 
-from b2sdk.v1 import FileVersionInfo, FileIdAndName, Bucket
+from b2sdk.v2 import FileVersion, FileIdAndName, Bucket
 
 
 class B2CliJsonEncoder(json.JSONEncoder):
@@ -26,10 +26,6 @@ class B2CliJsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
-        elif isinstance(obj, FileVersionInfo):
+        elif isinstance(obj, (FileVersion, FileIdAndName, Bucket)):
             return obj.as_dict()
-        elif isinstance(obj, FileIdAndName):
-            return obj.as_dict()
-        elif isinstance(obj, Bucket):
-            return obj.as_dict()
-        return super(B2CliJsonEncoder, self).default(obj)
+        return super().default(obj)

@@ -23,45 +23,62 @@ import signal
 import sys
 import time
 
-from class_registry import ClassRegistry
+from typing import Optional, Tuple
 
-from b2sdk.account_info.sqlite_account_info import (
-    B2_ACCOUNT_INFO_ENV_VAR, B2_ACCOUNT_INFO_DEFAULT_FILE
-)
-from b2sdk.progress import make_progress_listener
-from b2sdk.raw_api import MetadataDirectiveMode, SRC_LAST_MODIFIED_MILLIS
-from b2sdk.version import VERSION as b2sdk_version
-from b2sdk.v1 import (
-    parse_sync_folder,
+from b2sdk.v2 import (
+    B2_ACCOUNT_INFO_DEFAULT_FILE,
+    B2_ACCOUNT_INFO_ENV_VAR,
+    DEFAULT_SCAN_MANAGER,
+    NO_RETENTION_BUCKET_SETTING,
+    REALM_URLS,
+    SRC_LAST_MODIFIED_MILLIS,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    UNKNOWN_KEY_ID,
+    XDG_CONFIG_HOME_ENV_VAR,
+    ApplicationKey,
     AuthInfoCache,
     B2Api,
-    B2Http,
-    B2RawApi,
-    Synchronizer,
-    SyncReport,
-    NewerFileSyncMode,
+    B2HttpApiConfig,
+    BasicSyncEncryptionSettingsProvider,
+    BucketRetentionSetting,
     CompareVersionMode,
-    KeepOrDeleteMode,
-    DownloadDestLocalFile,
-    FileVersionInfo,
-    SqliteAccountInfo,
-    ScanPoliciesManager,
-    DEFAULT_SCAN_MANAGER,
+    DownloadedFile,
     EncryptionAlgorithm,
+    EncryptionKey,
     EncryptionMode,
     EncryptionSetting,
-    EncryptionKey,
-    BasicSyncEncryptionSettingsProvider,
-    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
-    LegalHold,
-    NO_RETENTION_BUCKET_SETTING,
-    RetentionMode,
     FileRetentionSetting,
-    BucketRetentionSetting,
+    FileVersion,
+    KeepOrDeleteMode,
+    LegalHold,
+    NewerFileSyncMode,
+    RetentionMode,
+    ScanPoliciesManager,
+    SqliteAccountInfo,
+    Synchronizer,
+    SyncReport,
+    current_time_millis,
+    make_progress_listener,
+    parse_sync_folder,
 )
-from b2sdk.v1.exception import B2Error, BadFileInfo, MissingAccountData
-from b2.arg_parser import ArgumentParser, parse_comma_separated_list, \
-    parse_millis_from_float_timestamp, parse_range, parse_default_retention_period
+from b2sdk.v2.exception import (
+    B2Error,
+    BadFileInfo,
+    EmptyDirectory,
+    MissingAccountData,
+    NotADirectory,
+    UnableToCreateDirectory,
+)
+from b2sdk.version import VERSION as b2sdk_version
+from class_registry import ClassRegistry
+
+from b2.arg_parser import (
+    ArgumentParser,
+    parse_comma_separated_list,
+    parse_default_retention_period,
+    parse_millis_from_float_timestamp,
+    parse_range,
+)
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
@@ -100,6 +117,7 @@ DOC_STRING_DATA = dict(
     NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
+    XDG_CONFIG_HOME_ENV_VAR=XDG_CONFIG_HOME_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR=B2_USER_AGENT_APPEND_ENV_VAR,
@@ -112,11 +130,19 @@ DOC_STRING_DATA = dict(
 )
 
 
-def current_time_millis():
+class CommandError(B2Error):
     """
-    File times are in integer milliseconds, to avoid roundoff errors.
+    b2 command error (user caused).  Accepts exactly one argument: message.
+
+    We expect users of shell scripts will parse our ``__str__`` output.
     """
-    return int(round(time.time() * 1000))
+
+    def __init__(self, message):
+        super(CommandError, self).__init__()
+        self.message = message
+
+    def __str__(self):
+        return self.message
 
 
 def local_path_to_b2_path(path):
@@ -247,8 +273,7 @@ class DestinationSseMixin(Described):
 
         super()._setup_parser(parser)  # noqa
 
-    @classmethod
-    def _get_destination_sse_setting(cls, args):
+    def _get_destination_sse_setting(self, args):
         mode = apply_or_none(EncryptionMode, args.destinationServerSideEncryption)
         if mode is not None:
             algorithm = apply_or_none(
@@ -265,7 +290,7 @@ class DestinationSseMixin(Described):
                     )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
-                    logger.warning(
+                    self._print_stderr(
                         'Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
                         'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,)
                     )
@@ -367,7 +392,9 @@ class SourceSseMixin(Described):
                         'Using SSE-C requires providing an encryption key via %s env var' %
                         B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
                     )
-                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=None)
+                key = EncryptionKey(
+                    secret=base64.b64decode(encryption_key_b64), key_id=UNKNOWN_KEY_ID
+                )
             else:
                 raise NotImplementedError(
                     'Encryption modes other than %s are not supported in reads' %
@@ -395,7 +422,7 @@ class FileIdAndOptionalFileNameMixin(Described):
         if args.fileName is not None:
             return args.fileName
         file_info = self.api.get_file_info(args.fileId)
-        return file_info['fileName']
+        return file_info.file_name
 
 
 class Command(Described):
@@ -527,13 +554,17 @@ class B2(Command):
 
     There are two flows of authorization:
 
-    * call ``{NAME}`` authorize-account and have the credentials cached in sqlite
+    * call ``{NAME} authorize-account`` and have the credentials cached in sqlite
     * set ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and ``{B2_APPLICATION_KEY_ENV_VAR}`` environment
       variables when running this program
 
-    The environment variable ``{B2_ACCOUNT_INFO_ENV_VAR}`` specifies the sqlite
-    file to use for caching authentication information.
-    The default file to use is: ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``
+    This program caches authentication-related and other data in a local SQLite database.
+    The location of this database is determined in the following way:
+
+    * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
+    * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
+    * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
+    * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, as default
 
     For more details on one command:
 
@@ -585,8 +616,14 @@ class AuthorizeAccount(Command):
     using environment variables ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and
     ``{B2_APPLICATION_KEY_ENV_VAR}`` respectively.
 
-    Stores an account auth token in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` by default,
-    or the file specified by the ``{B2_ACCOUNT_INFO_ENV_VAR}`` environment variable.
+    Stores an account auth token in a local cache, see
+
+    .. code-block::
+
+        {NAME} --help
+
+    for details on how the location of this cache is determined.
+
 
     Requires capability:
 
@@ -634,7 +671,7 @@ class AuthorizeAccount(Command):
         :param realm: authorization realm
         :return: exit status
         """
-        url = self.api.account_info.REALM_URLS.get(realm, realm)
+        url = REALM_URLS.get(realm, realm)
         self._print('Using %s' % url)
         try:
             self.api.authorize_account(realm, application_key_id, application_key)
@@ -726,8 +763,15 @@ class CancelLargeFile(Command):
 @B2.register_subcommand
 class ClearAccount(Command):
     """
-    Erases everything in ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``.  Location
-    of file can be overridden by setting ``{B2_ACCOUNT_INFO_ENV_VAR}``.
+    Erases everything in local cache.
+
+    See
+
+    .. code-block::
+
+        {NAME} --help
+
+    for details on how the location of this cache is determined.
     """
 
     REQUIRES_AUTH = False
@@ -749,15 +793,10 @@ class CopyFileById(
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
-    By default, it copies the file info and content type. You can replace those
-    by setting the ``metadataDirective`` to ``replace``.
+    By default, it copies the file info and content type, therefore ``--contentType`` and ``--info`` are optional.
+    If one of them is set, the other has to be set as well.
 
-    ``--contentType`` and ``--info`` should only be provided when ``--metadataDirective``
-    is set to ``replace`` and should not be provided when ``--metadataDirective``
-    is set to ``copy``.
-
-    ``--contentType`` and ``--info`` are optional.  If not set, they will be set based on the
-    source file.
+    To force the destination file to have empty fileInfo, use ``--noInfo``.
 
     By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
     from the source file to the new file using ``--range`` option.
@@ -771,6 +810,10 @@ class CopyFileById(
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
 
+    If either the source or the destination uses SSE-C and ``--contentType`` and ``--info`` are not provided, then
+    to perform the copy the source file's metadata has to be fetched first - an additional request to B2 cloud has
+    to be made. To achieve that, provide ``--fetchMetadata``. Without that flag, the command will fail.
+
     Requires capability:
 
     - **readFiles** (if ``sourceFileId`` bucket is private)
@@ -779,10 +822,16 @@ class CopyFileById(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--metadataDirective', choices=('copy', 'replace'))
+        parser.add_argument('--fetchMetadata', action='store_true', default=False)
+        parser.add_argument('--metadataDirective', default=None, help=argparse.SUPPRESS)
         parser.add_argument('--contentType')
         parser.add_argument('--range', type=parse_range)
-        parser.add_argument('--info', action='append', default=[])
+
+        info_group = parser.add_mutually_exclusive_group()
+
+        info_group.add_argument('--info', action='append', default=[])
+        info_group.add_argument('--noInfo', action='store_true', default=False)
+
         parser.add_argument('sourceFileId')
         parser.add_argument('destinationBucketName')
         parser.add_argument('b2FileName')
@@ -791,35 +840,81 @@ class CopyFileById(
 
     def run(self, args):
         file_infos = None
-        if args.info is not None:
+        if args.info:
             file_infos = self._parse_file_infos(args.info)
+        elif args.noInfo:
+            file_infos = {}
 
-        if args.metadataDirective == 'copy':
-            metadata_directive = MetadataDirectiveMode.COPY
-        elif args.metadataDirective == 'replace':
-            metadata_directive = MetadataDirectiveMode.REPLACE
-        else:
-            metadata_directive = None
+        if args.metadataDirective is not None:
+            self._print_stderr(
+                '--metadataDirective is deprecated, the value of this argument is determined based on the existence of '
+                '--contentType and --info.'
+            )
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
         destination_encryption_setting = self._get_destination_sse_setting(args)
         source_encryption_setting = self._get_source_sse_setting(args)
         legal_hold = self._get_legal_hold_setting(args)
         file_retention = self._get_file_retention_setting(args)
-        response = bucket.copy_file(
+        if args.range is not None:
+            range_args = {
+                'offset': args.range[0],
+                'length': args.range[1] - args.range[0] + 1,
+            }
+        else:
+            range_args = {}
+        source_file_info, source_content_type = self._determine_source_metadata(
+            source_file_id=args.sourceFileId,
+            source_encryption=source_encryption_setting,
+            destination_encryption=destination_encryption_setting,
+            target_content_type=args.contentType,
+            target_file_info=file_infos,
+            fetch_if_necessary=args.fetchMetadata,
+        )
+        file_version = bucket.copy(
             args.sourceFileId,
             args.b2FileName,
-            bytes_range=args.range,
-            metadata_directive=metadata_directive,
+            **range_args,
             content_type=args.contentType,
             file_info=file_infos,
             destination_encryption=destination_encryption_setting,
             source_encryption=source_encryption_setting,
             legal_hold=legal_hold,
             file_retention=file_retention,
+            source_file_info=source_file_info,
+            source_content_type=source_content_type,
         )
-        self._print_json(response)
+        self._print_json(file_version)
         return 0
+
+    def _is_ssec(self, encryption: Optional[EncryptionSetting]):
+        if encryption is not None and encryption.mode == EncryptionMode.SSE_C:
+            return True
+        return False
+
+    def _determine_source_metadata(
+        self,
+        source_file_id: str,
+        destination_encryption: Optional[EncryptionSetting],
+        source_encryption: Optional[EncryptionSetting],
+        target_file_info: Optional[dict],
+        target_content_type: Optional[str],
+        fetch_if_necessary: bool,
+    ) -> Tuple[Optional[dict], Optional[str]]:
+        """Determine if source file metadata is necessary to perform the copy - due to sse_c_key_id"""
+        if not self._is_ssec(source_encryption) and not self._is_ssec(
+            destination_encryption
+        ):  # no sse-c, no problem
+            return None, None
+        if target_file_info is not None or target_content_type is not None:  # metadataDirective=REPLACE, no problem
+            return None, None
+        if not fetch_if_necessary:
+            raise ValueError(
+                'Attempting to copy file with metadata while either source or destination uses '
+                'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.'
+            )
+        source_file_version = self.api.get_file_info(source_file_id)
+        return source_file_version.file_info, source_file_version.content_type
 
 
 @B2.register_subcommand
@@ -880,7 +975,7 @@ class CreateKey(Command):
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
 
-    The ``duration`` is the length of time the new application key will exist.
+    The ``duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
@@ -912,7 +1007,7 @@ class CreateKey(Command):
         else:
             bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
 
-        response = self.api.create_key(
+        application_key = self.api.create_key(
             capabilities=args.capabilities,
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
@@ -920,9 +1015,7 @@ class CreateKey(Command):
             name_prefix=args.namePrefix
         )
 
-        application_key_id = response['applicationKeyId']
-        application_key = response['applicationKey']
-        self._print(application_key_id + " " + application_key)
+        self._print('%s %s' % (application_key.id_, application_key.application_key))
         return 0
 
 
@@ -982,8 +1075,8 @@ class DeleteKey(Command):
         parser.add_argument('applicationKeyId')
 
     def run(self, args):
-        response = self.api.delete_key(application_key_id=args.applicationKeyId)
-        self._print(response['applicationKeyId'])
+        application_key = self.api.delete_key_by_id(application_key_id=args.applicationKeyId)
+        self._print(application_key.id_)
         return 0
 
 
@@ -1012,12 +1105,13 @@ class DownloadFileById(SourceSseMixin, Command):
 
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
-        download_dest = DownloadDestLocalFile(args.localFileName)
         encryption_setting = self._get_source_sse_setting(args)
-        self.api.download_file_by_id(
-            args.fileId, download_dest, progress_listener, encryption=encryption_setting
+        downloaded_file = self.api.download_file_by_id(
+            args.fileId, progress_listener, encryption=encryption_setting
         )
-        self.console_tool._print_download_info(download_dest)
+        self.console_tool._print_download_info(downloaded_file)
+        downloaded_file.save_to(args.localFileName)
+        self._print('Download finished')
         return 0
 
 
@@ -1048,12 +1142,13 @@ class DownloadFileByName(SourceSseMixin, Command):
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
-        download_dest = DownloadDestLocalFile(args.localFileName)
         encryption_setting = self._get_source_sse_setting(args)
-        bucket.download_file_by_name(
-            args.b2FileName, download_dest, progress_listener, encryption=encryption_setting
+        downloaded_file = bucket.download_file_by_name(
+            args.b2FileName, progress_listener, encryption=encryption_setting
         )
-        self.console_tool._print_download_info(download_dest)
+        self.console_tool._print_download_info(downloaded_file)
+        downloaded_file.save_to(args.localFileName)
+        self._print('Download finished')
         return 0
 
 
@@ -1122,8 +1217,8 @@ class GetBucket(Command):
                 result = b.as_dict()
                 # `files` is a generator. We don't want to collect all of the values from the
                 # generator, as there many be billions of files in a large bucket.
-                files = b.ls("", show_versions=True, recursive=True)
-                # `files` yields tuples of (file_version_info, folder_name). We don't care about
+                files = b.ls("", latest_only=False, recursive=True)
+                # `files` yields tuples of (file_version, folder_name). We don't care about
                 # `folder_name`, so just access the first slot of the tuple directly in the
                 # reducer. We can't ask a generator for its size, as the elements are yielded
                 # lazily, so we need to accumulate the count as we go. By using a tuple of
@@ -1155,8 +1250,8 @@ class GetFileInfo(Command):
         parser.add_argument('fileId')
 
     def run(self, args):
-        response = self.api.get_file_info(args.fileId)
-        self._print_json(response)
+        file_version = self.api.get_file_info(args.fileId)
+        self._print_json(file_version)
         return 0
 
 
@@ -1321,42 +1416,28 @@ class ListKeys(Command):
         self.bucket_id_to_bucket_name = None
 
     def run(self, args):
-        # The first query doesn't pass in a starting key id
-        start_id = None
-
-        # Keep querying until there are no more.
-        while True:
-            # Get some keys and print them
-            response = self.api.list_keys(start_id)
-            self.print_keys(response['keys'], args.long)
-
-            # Are there more?  If so, we'll set the start_id for the next time around.
-            next_id = response.get('nextApplicationKeyId')
-            if next_id is None:
-                break
-            else:
-                start_id = next_id
+        for key in self.api.list_keys():
+            self.print_key(key, args.long)
 
         return 0
 
-    def print_keys(self, keys_from_response, is_long_format):
+    def print_key(self, key: ApplicationKey, is_long_format: bool):
         if is_long_format:
             format_str = "{keyId}   {keyName:20s}   {bucketName:20s}   {dateStr:10s}   {timeStr:8s}   '{namePrefix}'   {capabilities}"
         else:
             format_str = '{keyId}   {keyName:20s}'
-        for key in keys_from_response:
-            timestamp_or_none = apply_or_none(int, key.get('expirationTimestamp'))
-            (date_str, time_str) = self.timestamp_display(timestamp_or_none)
-            key_str = format_str.format(
-                keyId=key['applicationKeyId'],
-                keyName=key['keyName'],
-                bucketName=self.bucket_display_name(key.get('bucketId')),
-                namePrefix=(key.get('namePrefix') or ''),
-                capabilities=','.join(key['capabilities']),
-                dateStr=date_str,
-                timeStr=time_str
-            )
-            self._print(key_str)
+        timestamp_or_none = apply_or_none(int, key.expiration_timestamp_millis)
+        (date_str, time_str) = self.timestamp_display(timestamp_or_none)
+        key_str = format_str.format(
+            keyId=key.id_,
+            keyName=key.key_name,
+            bucketName=self.bucket_display_name(key.bucket_id),
+            namePrefix=(key.name_prefix or ''),
+            capabilities=','.join(key.capabilities),
+            dateStr=date_str,
+            timeStr=time_str,
+        )
+        self._print(key_str)
 
     def bucket_display_name(self, bucket_id):
         # Special case for no bucket ID
@@ -1459,6 +1540,8 @@ class Ls(Command):
     - **listFiles**
     """
 
+    LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'  # order is file_id, action, date, time, size, name
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
@@ -1479,23 +1562,40 @@ class Ls(Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         generator = bucket.ls(
             start_file_name,
-            show_versions=args.versions,
+            latest_only=not args.versions,
             recursive=args.recursive,
         )
 
         if args.json:
-            self._print_json([file_version_info for file_version_info, _ in generator])
+            self._print_json([file_version for file_version, _ in generator])
             return 0
 
-        for file_version_info, folder_name in generator:
+        for file_version, folder_name in generator:
             if not args.long:
-                self._print(folder_name or file_version_info.file_name)
+                self._print(folder_name or file_version.file_name)
             elif folder_name is not None:
-                self._print(FileVersionInfo.format_folder_ls_entry(folder_name))
+                self._print(self.format_folder_ls_entry(folder_name))
             else:
-                self._print(file_version_info.format_ls_entry())
+                self._print(self.format_ls_entry(file_version))
 
         return 0
+
+    def format_folder_ls_entry(self, name):
+        return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
+
+    def format_ls_entry(self, file_version: FileVersion):
+        dt = datetime.datetime.utcfromtimestamp(file_version.upload_timestamp / 1000)
+        date_str = dt.strftime('%Y-%m-%d')
+        time_str = dt.strftime('%H:%M:%S')
+        size = file_version.size or 0  # required if self.action == 'hide'
+        return self.LS_ENTRY_TEMPLATE % (
+            file_version.id_,
+            file_version.action,
+            date_str,
+            time_str,
+            size,
+            file_version.file_name,
+        )
 
 
 @B2.register_subcommand
@@ -1759,13 +1859,22 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
             )
 
         with SyncReport(self.stdout, args.noProgress) as reporter:
-            synchronizer.sync_folders(
-                source_folder=source,
-                dest_folder=destination,
-                now_millis=current_time_millis(),
-                reporter=reporter,
-                **kwargs
-            )
+            try:
+                synchronizer.sync_folders(
+                    source_folder=source,
+                    dest_folder=destination,
+                    now_millis=current_time_millis(),
+                    reporter=reporter,
+                    **kwargs
+                )
+            except EmptyDirectory as ex:
+                raise CommandError(
+                    'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (ex.path,)
+                )
+            except NotADirectory as ex:
+                raise CommandError('%s is not a directory' % (ex.path,))
+            except UnableToCreateDirectory as ex:
+                raise CommandError('unable to create directory %s' % (ex.path,))
         return 0
 
     def get_policies_manager_from_args(self, args):
@@ -1887,7 +1996,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        response = bucket.update(
+        bucket = bucket.update(
             bucket_type=args.bucketType,
             bucket_info=args.bucketInfo,
             cors_rules=args.corsRules,
@@ -1895,7 +2004,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
         )
-        self._print_json(response)
+        self._print_json(bucket)
         return 0
 
 
@@ -2130,7 +2239,7 @@ class ConsoleTool(object):
             return 1
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')
-            self._print('\nInterrupted.  Shutting down...\n')
+            self._print_stderr('\nInterrupted.  Shutting down...\n')
             return 1
         except Exception:
             logger.exception('ConsoleTool unexpected exception')
@@ -2165,37 +2274,100 @@ class ConsoleTool(object):
     def _print_stderr(self, *args, **kwargs):
         print(*args, file=self.stderr, **kwargs)
 
-    def _print_download_info(self, download_dest):
-        self._print('File name:   ', download_dest.file_name)
-        self._print('File id:     ', download_dest.file_id)
-        self._print('File size:   ', download_dest.content_length)
-        self._print('Content type:', download_dest.content_type)
-        self._print('Content sha1:', download_dest.content_sha1)
-        for name in sorted(download_dest.file_info):
-            self._print('INFO', name + ':', download_dest.file_info[name])
-        if download_dest.content_sha1 != 'none':
-            self._print('checksum matches')
+    def _print_download_info(self, downloaded_file: DownloadedFile):
+        download_version = downloaded_file.download_version
+        self._print_file_attribute('File name', download_version.file_name)
+        self._print_file_attribute('File id', download_version.id_)
+        self._print_file_attribute('File size', download_version.content_length)
+        self._print_file_attribute('Content type', download_version.content_type)
+        self._print_file_attribute('Content sha1', download_version.content_sha1)
+        self._print_file_attribute(
+            'Encryption', self._represent_encryption(download_version.server_side_encryption)
+        )
+        self._print_file_attribute(
+            'Retention', self._represent_retention(download_version.file_retention)
+        )
+        self._print_file_attribute(
+            'Legal hold', self._represent_legal_hold(download_version.legal_hold)
+        )
+        for label, attr_name in [
+            ('ContentDisposition', 'content_disposition'),
+            ('ContentLanguage', 'content_language'),
+            ('ContentEncoding', 'content_encoding'),
+        ]:
+            attr_value = getattr(download_version, attr_name)
+            if attr_value is not None:
+                self._print_file_attribute(label, attr_value)
+        for name in sorted(download_version.file_info):
+            self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
+        if download_version.content_sha1 != 'none':
+            self._print('Checksum matches')
         return 0
+
+    def _represent_encryption(self, encryption: EncryptionSetting):
+        # TODO: refactor to use "match" syntax after dropping python 3.9 support
+        if encryption.mode is EncryptionMode.NONE:
+            return 'none'
+        result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
+        if encryption.mode is EncryptionMode.SSE_B2:
+            pass
+        elif encryption.mode is EncryptionMode.SSE_C:
+            if encryption.key.key_id is not None:
+                result += ', key_id=%s' % (encryption.key.key_id,)
+        else:
+            raise ValueError('Unsupported encryption mode: %s' % (encryption.mode,))
+
+        return result
+
+    def _represent_retention(self, retention: FileRetentionSetting):
+        if retention.mode is RetentionMode.NONE:
+            return 'none'
+        if retention.mode is RetentionMode.UNKNOWN:
+            return '<unauthorized to read>'
+        if retention.mode in (RetentionMode.COMPLIANCE, RetentionMode.GOVERNANCE):
+            return 'mode=%s, retainUntil=%s' % (
+                retention.mode.value,
+                datetime.datetime.
+                fromtimestamp(retention.retain_until / 1000, datetime.timezone.utc)
+            )
+        raise ValueError('Unsupported retention mode: %s' % (retention.mode,))
+
+    def _represent_legal_hold(self, legal_hold: LegalHold):
+        if legal_hold in (LegalHold.ON, LegalHold.OFF):
+            return legal_hold.value
+        if legal_hold is LegalHold.UNKNOWN:
+            return '<unauthorized to read>'
+        if legal_hold is LegalHold.UNSET:
+            return '<unset>'
+        raise ValueError('Unsupported legal hold: %s' % (legal_hold,))
+
+    def _print_file_attribute(self, label, value):
+        self._print((label + ':').ljust(20), value)
 
     @classmethod
     def _setup_logging(cls, args, command, argv):
+        if args.logConfig and (args.verbose or args.debugLogs):
+            raise ValueError('Please provide either --logConfig or --verbose/--debugLogs')
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
-        elif args.verbose:
-            logging.basicConfig(level=logging.DEBUG)
-        elif args.debugLogs:
+        elif args.verbose or args.debugLogs:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.CRITICAL + 1)  # No logs!
+        if args.verbose:
+            formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+            handler = logging.StreamHandler()
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+        if args.debugLogs:
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
             handler = logging.FileHandler('b2_cli.log')
-            handler.setLevel(logging.DEBUG)
             handler.setFormatter(formatter)
 
-            b2_logger = logging.getLogger('b2')
-            b2_logger.setLevel(logging.DEBUG)
-            b2_logger.addHandler(handler)
-            b2_logger.propagate = False
+            logger.addHandler(handler)
 
         logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
@@ -2239,8 +2411,11 @@ class InvalidArgument(B2Error):
 def main():
     info = SqliteAccountInfo()
     cache = AuthInfoCache(info)
-    raw_api = B2RawApi(B2Http(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)))
-    b2_api = B2Api(info, cache=cache, raw_api=raw_api)
+    b2_api = B2Api(
+        info,
+        cache=cache,
+        api_config=B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
+    )
     ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)

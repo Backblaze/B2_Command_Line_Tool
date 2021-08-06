@@ -9,12 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add possibility to change realm during integration tests
 * Add possibility to install SDK from local folder instead of pypi when running tests
+* Add full support of establishing file metadata when copying, with either source or target using SSE-C
+* Add `--noInfo` option to `copy-file-by-id`
+* Integration test for checking if `bad_bucket_id` error code is returned
 
 ### Fixed
 * Fix integration tests on non-production environments
 * Fix warnings thrown by integration tests
 * delete-key unit test adjusted to a less mocked simulator
 * Fix integration test cleanup
+* Representing encryption-related metadata in buckets and file versions is now consistent
+
+### Changed
+* CLI now uses `b2sdk.v2`
+* Downloading files prints file metadata as soon as the download commences (not when it finishes)
+* New way of establishing location of the SQLite cache file, using `XDG_CONFIG_HOME` env var
+* Downloaded file's metadata is complete and is displayed before the file is downloaded, a `Download finished` message
+  is issued at the end
+* `contentLength` changed to `size` where appropriate
+* Log configuration: stack traces are not printed in case of errors by default, `--verbose` changes that 
+* Log configuration arguments bahaviour altered: `--logConfig` is exclusive with `--verbose` and `--debugLogs`
+* Log configuration arguments bahaviour altered: `--verbose` and `--debugLogs` can be used at the same time 
+  (and they will both be taken into account)
+
+### Removed
+* Support of `--metadataDirective` argument in `copy-file-by-id` (the `metadataDirective` sent to B2 cloud is
+  detected automatically)
+
+## [2.5.1] - 2021-08-06
+
+* `SRC_LAST_MODIFIED_MILLIS` import fix
 
 ## [2.5.0] - 2021-05-22
 
@@ -220,7 +244,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.2.0...v2.3.0
