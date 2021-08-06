@@ -2353,7 +2353,7 @@ class ConsoleTool(object):
         elif args.verbose or args.debugLogs:
             logger.setLevel(logging.DEBUG)
         else:
-            logger.setLevel(logging.CRITICAL + 1)
+            logger.setLevel(logging.CRITICAL + 1)  # No logs!
         if args.verbose:
             formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
             handler = logging.StreamHandler()

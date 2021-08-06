@@ -612,6 +612,31 @@ def basic_test(b2_tool, bucket_name):
         ['delete-bucket', to_be_removed_bucket_name],
         re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
+    # Check logging settings
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name, '--debugLogs'],
+        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+    )
+    stack_trace_regex = re.compile(
+        r'Traceback \(most recent call last\):.*Bucket with id=\w* not found', re.DOTALL
+    )
+    with open('b2_cli.log', 'r') as logfile:
+        log = logfile.read()
+        print(log)
+        assert re.search(stack_trace_regex, log), log
+    os.remove('b2_cli.log')
+
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name, '--verbose'], stack_trace_regex
+    )
+    assert not os.path.exists('b2_cli.log')
+
+    b2_tool.should_fail(
+        ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stack_trace_regex
+    )
+    with open('b2_cli.log', 'r') as logfile:
+        log = logfile.read()
+        assert re.search(stack_trace_regex, log), log
 
 
 def key_restrictions_test(b2_tool, bucket_name):
