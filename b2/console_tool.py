@@ -2351,14 +2351,18 @@ class ConsoleTool(object):
         if args.logConfig:
             logging.config.fileConfig(args.logConfig)
         elif args.verbose or args.debugLogs:
-            logger.setLevel(logging.DEBUG)
+            # set log level to DEBUG for ALL loggers (even those not belonging to B2), but without any handlers,
+            # those will added as needed (file and/or stderr)
+            logging.basicConfig(level=logging.DEBUG, handlers=[])
         else:
             logger.setLevel(logging.CRITICAL + 1)  # No logs!
         if args.verbose:
             formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
             handler = logging.StreamHandler()
             handler.setFormatter(formatter)
-            logger.addHandler(handler)
+
+            # logs from ALL loggers sent to stderr should be formatted this way
+            logging.root.addHandler(handler)
         if args.debugLogs:
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
@@ -2367,9 +2371,10 @@ class ConsoleTool(object):
             handler = logging.FileHandler('b2_cli.log')
             handler.setFormatter(formatter)
 
-            logger.addHandler(handler)
+            # logs from ALL loggers sent to the log file should be formatted this way
+            logging.root.addHandler(handler)
 
-        logger.info('// %s %s %s \\\\', SEPARATOR, VERSION.center(8), SEPARATOR)
+        logger.info(r'// %s %s %s \\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
         logger.debug(
             'Python version is %s %s', platform.python_implementation(),

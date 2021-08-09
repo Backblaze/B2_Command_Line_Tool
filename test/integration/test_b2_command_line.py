@@ -617,26 +617,34 @@ def basic_test(b2_tool, bucket_name):
         ['delete-bucket', to_be_removed_bucket_name, '--debugLogs'],
         re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
-    stack_trace_regex = re.compile(
-        r'Traceback \(most recent call last\):.*Bucket with id=\w* not found', re.DOTALL
+    stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
+
+    # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
+    # check global logging settings
+    stderr_regex = re.compile(
+        r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v2/b2_delete_bucket HTTP'
+        r'.*' + stack_trace_in_log,
+        re.DOTALL,
+    )
+    log_file_regex = re.compile(
+        r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v2/b2_delete_bucket HTTP'
+        r'.*' + stack_trace_in_log,
+        re.DOTALL,
     )
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
-        print(log)
-        assert re.search(stack_trace_regex, log), log
+        assert re.search(log_file_regex, log), log
     os.remove('b2_cli.log')
 
-    b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name, '--verbose'], stack_trace_regex
-    )
+    b2_tool.should_fail(['delete-bucket', to_be_removed_bucket_name, '--verbose'], stderr_regex)
     assert not os.path.exists('b2_cli.log')
 
     b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stack_trace_regex
+        ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stderr_regex
     )
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
-        assert re.search(stack_trace_regex, log), log
+        assert re.search(log_file_regex, log), log
 
 
 def key_restrictions_test(b2_tool, bucket_name):
