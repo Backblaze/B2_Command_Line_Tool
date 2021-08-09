@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2021-08-09
+
+### Fixed
+* logs from all loggers (in dependencies too) brought back
+
 ## [3.0.0] - 2021-08-07
 
 ### Added
@@ -246,7 +251,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.1...v3.0.0
 [2.5.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v2.4.0...v2.5.0
