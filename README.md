@@ -14,7 +14,11 @@ The latest documentation is available on [Read the Docs](https://b2-command-line
 
 # Installation
 
-This tool can be installed with:
+Stand-alone binaries are available for Linux, MacOS and Windows - this is the most straightforward way to use the 
+command-line tool and is sufficient in most use cases. The latest versions are available for download from the 
+[Releases page](https://github.com/Backblaze/B2_Command_Line_Tool/releases).
+
+Alternatively, you can install with:
 
     pip install b2
 
