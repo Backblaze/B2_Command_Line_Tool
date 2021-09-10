@@ -64,6 +64,8 @@ jobs:
       B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
       B2_OSX_NOTARY_NAME: ${{ secrets.B2_OSX_NOTARY_NAME }}
       B2_OSX_NOTARY_PASSWORD: ${{ secrets.B2_OSX_NOTARY_PASSWORD }}
+      B2_WINDOWS_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
+      B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -82,16 +84,16 @@ jobs:
       - name: Bundle the distribution
         id: bundle
         run: nox -vs bundle
-      - name: Import certificate
+      - name: (macOS) Import certificate
         if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
         uses: apple-actions/import-codesign-certs@v1
         with:
           p12-file-base64: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE }}
           p12-password: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
-      - name: Sign the bundle
+      - name: (macOS) Sign the bundle
         if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
-        run: nox -vs sign -- --sign '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
-      - name: Notarize the bundle
+        run: nox -vs sign -- '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
+      - name: (macOS) Notarize the bundle
         if: ${{ env.B2_OSX_NOTARY_NAME != '' && runner.os == 'macOS' }}
         uses: devbotsxyz/xcode-notarize@v1
         with:
@@ -99,6 +101,16 @@ jobs:
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
           primary-bundle-id: com.backblaze.b2
+      - name: (Windows) Import certificate
+        id: windows_import_cert
+        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'Windows' }}
+        uses: timheuer/base64-to-file@v1
+        with:
+          fileName: 'cert.pfx'
+          encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
+      - name: (Windows) Sign the bundle
+        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'Windows' }}
+        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
       - name: Upload the distribution to GitHub
         uses: actions/upload-release-asset@v1
         with:

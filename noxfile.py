@@ -200,30 +200,73 @@ def bundle(session):
 
 @nox.session(python=False)
 def sign(session):
-    """Sign the bundled distribution (OSX only)."""
+    """Sign the bundled distribution (macOS and Windows only)."""
     system = platform.system().lower()
 
-    if system != 'darwin':
-        session.skip('signing process is for OSX only')
+    if system == 'darwin':
+        try:
+            cert_name, = session.posargs
+        except ValueError:
+            session.error('pass the certificate name as a positional argument')
+            return
 
-    session.run('security', 'find-identity', external=True)
-    session.run(
-        'codesign',
-        '--deep',
-        '--force',
-        '--verbose',
-        '--timestamp',
-        '--identifier',
-        OSX_BUNDLE_IDENTIFIER,
-        '--entitlements',
-        OSX_BUNDLE_ENTITLEMENTS,
-        '--options',
-        'runtime',
-        *session.posargs,
-        'dist/b2',
-        external=True
-    )
-    session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
+        session.run('security', 'find-identity', external=True)
+        session.run(
+            'codesign',
+            '--deep',
+            '--force',
+            '--verbose',
+            '--timestamp',
+            '--identifier',
+            OSX_BUNDLE_IDENTIFIER,
+            '--entitlements',
+            OSX_BUNDLE_ENTITLEMENTS,
+            '--options',
+            'runtime',
+            '--sign',
+            cert_name,
+            'dist/b2',
+            external=True
+        )
+        session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
+    elif system == 'windows':
+        try:
+            cert_file, cert_password = session.posargs
+        except ValueError:
+            session.error('pass the certificate file and the password as positional arguments')
+            return
+
+        signtool = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
+
+        session.run(
+            'certutil',
+            '-f',
+            '-p',
+            cert_password,
+            '-importpfx',
+            cert_file
+        )
+        session.run(
+            signtool,
+            'sign',
+            '/f',
+            cert_file,
+            '/p',
+            cert_password,
+            '/tr',
+            'http://timestamp.digicert.com',
+            '/td',
+            'sha256',
+            '/fd',
+            'sha256',
+            'dist/b2.exe',
+            external=True
+        )
+        session.run(signtool, 'verify', '/pa', '/all', 'dist/b2.exe', external=True)
+    elif system == 'linux':
+        session.skip('signing is not supported for Linux')
+    else:
+        session.error(f'unrecognized platform: {system}')
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
