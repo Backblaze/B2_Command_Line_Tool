@@ -192,7 +192,7 @@ def bundle(session):
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
 
     if SYSTEM == 'linux':
-        session.run('staticx', 'dist/b2', 'dist/b2-static')
+        session.run('staticx', '--no-compress', '--loglevel', 'INFO', 'dist/b2', 'dist/b2-static')
         session.run('mv', '-f', 'dist/b2-static', 'dist/b2', external=True)
 
     # Set outputs for GitHub Actions
