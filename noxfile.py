@@ -33,6 +33,9 @@ REQUIREMENTS_BUILD = ['setuptools>=20.2']
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
 OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
 
+WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
+WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
+
 nox.options.reuse_existing_virtualenvs = True
 nox.options.sessions = [
     'lint',
@@ -236,18 +239,16 @@ def sign(session):
             session.error('pass the certificate file and the password as positional arguments')
             return
 
-        signtool = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
-
         session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
         session.run(
-            signtool,
+            WINDOWS_SIGNTOOL_PATH,
             'sign',
             '/f',
             cert_file,
             '/p',
             cert_password,
             '/tr',
-            'http://timestamp.digicert.com',
+            WINDOWS_TIMESTAMP_SERVER,
             '/td',
             'sha256',
             '/fd',
@@ -255,7 +256,7 @@ def sign(session):
             'dist/b2.exe',
             external=True
         )
-        session.run(signtool, 'verify', '/pa', '/all', 'dist/b2.exe', external=True)
+        session.run(WINDOWS_SIGNTOOL_PATH, 'verify', '/pa', '/all', 'dist/b2.exe', external=True)
     elif system == 'linux':
         session.skip('signing is not supported for Linux')
     else:
