@@ -29,6 +29,7 @@ REQUIREMENTS_FORMAT = ['yapf==0.27']
 REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==6.1.1', 'liccheck==0.4.7']
 REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
+REQUIREMENTS_BUNDLE = ['patchelf-wrapper', 'pyinstaller', 'staticx']
 
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
 OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
@@ -177,7 +178,7 @@ def build(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session):
     """Bundle the distribution."""
-    session.install('pyinstaller')
+    session.install(*REQUIREMENTS_BUNDLE)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     install_myself(session)
 
@@ -187,6 +188,11 @@ def bundle(session):
         session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
 
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
+
+    if system == 'linux':
+        session.run('mv', 'dist/b2', 'dist/b2-linked', external=True)
+        session.run('staticx', 'dist/b2-linked', 'dist/b2')
+        session.run('rm', '-f', 'dist/b2-linked', external=True)
 
     # Set outputs for GitHub Actions
     if CI:
