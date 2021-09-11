@@ -238,14 +238,7 @@ def sign(session):
 
         signtool = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
-        session.run(
-            'certutil',
-            '-f',
-            '-p',
-            cert_password,
-            '-importpfx',
-            cert_file
-        )
+        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
         session.run(
             signtool,
             'sign',
