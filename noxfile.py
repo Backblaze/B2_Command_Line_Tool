@@ -259,7 +259,7 @@ def sign(session):
     elif system == 'linux':
         session.skip('signing is not supported for Linux')
     else:
-        session.error(f'unrecognized platform: {system}')
+        session.error('unrecognized platform: {}'.format(system))
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
