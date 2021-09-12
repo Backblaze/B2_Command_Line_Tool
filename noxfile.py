@@ -25,10 +25,15 @@ PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 
+SYSTEM = platform.system().lower()
+
 REQUIREMENTS_FORMAT = ['yapf==0.27']
 REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==6.1.1', 'liccheck==0.4.7']
 REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
+REQUIREMENTS_BUNDLE = ['pyinstaller']
+if SYSTEM == 'linux':
+    REQUIREMENTS_BUNDLE.extend(['patchelf-wrapper', 'staticx'])
 
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
 OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
@@ -180,16 +185,18 @@ def build(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session):
     """Bundle the distribution."""
-    session.install('pyinstaller')
+    session.install(*REQUIREMENTS_BUNDLE)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     install_myself(session)
 
-    system = platform.system().lower()
-
-    if system == 'darwin':
+    if SYSTEM == 'darwin':
         session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
 
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
+
+    if SYSTEM == 'linux':
+        session.run('staticx', '--no-compress', '--loglevel', 'INFO', 'dist/b2', 'dist/b2-static')
+        session.run('mv', '-f', 'dist/b2-static', 'dist/b2', external=True)
 
     # Set outputs for GitHub Actions
     if CI:
@@ -197,7 +204,7 @@ def bundle(session):
         print('::set-output name=asset_path::', asset_path, sep='')
 
         name, ext = os.path.splitext(os.path.basename(asset_path))
-        asset_name = '{}-{}{}'.format(name, system, ext)
+        asset_name = '{}-{}{}'.format(name, SYSTEM, ext)
         print('::set-output name=asset_name::', asset_name, sep='')
 
 
