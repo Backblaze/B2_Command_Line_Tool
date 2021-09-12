@@ -211,15 +211,8 @@ def bundle(session):
 @nox.session(python=False)
 def sign(session):
     """Sign the bundled distribution (macOS and Windows only)."""
-    system = platform.system().lower()
 
-    if system == 'darwin':
-        try:
-            cert_name, = session.posargs
-        except ValueError:
-            session.error('pass the certificate name as a positional argument')
-            return
-
+    def sign_darwin(cert_name):
         session.run('security', 'find-identity', external=True)
         session.run(
             'codesign',
@@ -239,13 +232,8 @@ def sign(session):
             external=True
         )
         session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
-    elif system == 'windows':
-        try:
-            cert_file, cert_password = session.posargs
-        except ValueError:
-            session.error('pass the certificate file and the password as positional arguments')
-            return
 
+    def sign_windows(cert_file, cert_password):
         session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
         session.run(
             WINDOWS_SIGNTOOL_PATH,
@@ -264,10 +252,27 @@ def sign(session):
             external=True
         )
         session.run(WINDOWS_SIGNTOOL_PATH, 'verify', '/pa', '/all', 'dist/b2.exe', external=True)
-    elif system == 'linux':
+
+    if SYSTEM == 'darwin':
+        try:
+            certificate_name, = session.posargs
+        except ValueError:
+            session.error('pass the certificate name as a positional argument')
+            return
+
+        sign_darwin(certificate_name)
+    elif SYSTEM == 'windows':
+        try:
+            certificate_file, certificate_password = session.posargs
+        except ValueError:
+            session.error('pass the certificate file and the password as positional arguments')
+            return
+
+        sign_windows(certificate_file, certificate_password)
+    elif SYSTEM == 'linux':
         session.skip('signing is not supported for Linux')
     else:
-        session.error('unrecognized platform: {}'.format(system))
+        session.error('unrecognized platform: {}'.format(SYSTEM))
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
