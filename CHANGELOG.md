@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Sign Windows binary
+
 ### Changed
 * Download instruction in README.md (wording suggested by https://github.com/philh7456)
 * Make Linux binary statically linked

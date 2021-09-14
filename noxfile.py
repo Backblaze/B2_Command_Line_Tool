@@ -38,6 +38,9 @@ if SYSTEM == 'linux':
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
 OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
 
+WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
+WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
+
 nox.options.reuse_existing_virtualenvs = True
 nox.options.sessions = [
     'lint',
@@ -207,30 +210,69 @@ def bundle(session):
 
 @nox.session(python=False)
 def sign(session):
-    """Sign the bundled distribution (OSX only)."""
-    system = platform.system().lower()
+    """Sign the bundled distribution (macOS and Windows only)."""
 
-    if system != 'darwin':
-        session.skip('signing process is for OSX only')
+    def sign_darwin(cert_name):
+        session.run('security', 'find-identity', external=True)
+        session.run(
+            'codesign',
+            '--deep',
+            '--force',
+            '--verbose',
+            '--timestamp',
+            '--identifier',
+            OSX_BUNDLE_IDENTIFIER,
+            '--entitlements',
+            OSX_BUNDLE_ENTITLEMENTS,
+            '--options',
+            'runtime',
+            '--sign',
+            cert_name,
+            'dist/b2',
+            external=True
+        )
+        session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
 
-    session.run('security', 'find-identity', external=True)
-    session.run(
-        'codesign',
-        '--deep',
-        '--force',
-        '--verbose',
-        '--timestamp',
-        '--identifier',
-        OSX_BUNDLE_IDENTIFIER,
-        '--entitlements',
-        OSX_BUNDLE_ENTITLEMENTS,
-        '--options',
-        'runtime',
-        *session.posargs,
-        'dist/b2',
-        external=True
-    )
-    session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
+    def sign_windows(cert_file, cert_password):
+        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
+        session.run(
+            WINDOWS_SIGNTOOL_PATH,
+            'sign',
+            '/f',
+            cert_file,
+            '/p',
+            cert_password,
+            '/tr',
+            WINDOWS_TIMESTAMP_SERVER,
+            '/td',
+            'sha256',
+            '/fd',
+            'sha256',
+            'dist/b2.exe',
+            external=True
+        )
+        session.run(WINDOWS_SIGNTOOL_PATH, 'verify', '/pa', '/all', 'dist/b2.exe', external=True)
+
+    if SYSTEM == 'darwin':
+        try:
+            certificate_name, = session.posargs
+        except ValueError:
+            session.error('pass the certificate name as a positional argument')
+            return
+
+        sign_darwin(certificate_name)
+    elif SYSTEM == 'windows':
+        try:
+            certificate_file, certificate_password = session.posargs
+        except ValueError:
+            session.error('pass the certificate file and the password as positional arguments')
+            return
+
+        sign_windows(certificate_file, certificate_password)
+    elif SYSTEM == 'linux':
+        session.skip('signing is not supported for Linux')
+    else:
+        session.error('unrecognized platform: {}'.format(SYSTEM))
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
