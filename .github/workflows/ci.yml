@@ -104,7 +104,6 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           path: ${{ steps.bundle.outputs.asset_path }}
-          name: ${{ steps.bundle.outputs.asset_name }}
           if-no-files-found: warn
           retention-days: 7
   doc:

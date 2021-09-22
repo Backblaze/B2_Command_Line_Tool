@@ -175,9 +175,6 @@ def build(session):
         asset_path = glob('dist/*')[0]
         print('::set-output name=asset_path::', asset_path, sep='')
 
-        asset_name = os.path.basename(asset_path)
-        print('::set-output name=asset_name::', asset_name, sep='')
-
         version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
         print('::set-output name=version::', version, sep='')
 
@@ -195,17 +192,15 @@ def bundle(session):
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
 
     if SYSTEM == 'linux':
-        session.run('staticx', '--no-compress', '--loglevel', 'INFO', 'dist/b2', 'dist/b2-static')
+        session.run(
+            'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', 'dist/b2', 'dist/b2-static'
+        )
         session.run('mv', '-f', 'dist/b2-static', 'dist/b2', external=True)
 
     # Set outputs for GitHub Actions
     if CI:
         asset_path = glob('dist/*')[0]
         print('::set-output name=asset_path::', asset_path, sep='')
-
-        name, ext = os.path.splitext(os.path.basename(asset_path))
-        asset_name = '{}-{}{}'.format(name, SYSTEM, ext)
-        print('::set-output name=asset_name::', asset_name, sep='')
 
 
 @nox.session(python=False)
@@ -270,9 +265,21 @@ def sign(session):
 
         sign_windows(certificate_file, certificate_password)
     elif SYSTEM == 'linux':
-        session.skip('signing is not supported for Linux')
+        session.log('signing is not supported for Linux')
     else:
         session.error('unrecognized platform: {}'.format(SYSTEM))
+
+    # Append OS name to the binary
+    asset_old_path = glob('dist/*')[0]
+    name, ext = os.path.splitext(os.path.basename(asset_old_path))
+    asset_path = 'dist/{}-{}{}'.format(name, SYSTEM, ext)
+
+    session.run('mv', '-f', asset_old_path, asset_path, external=True)
+
+    # Set outputs for GitHub Actions
+    if CI:
+        asset_path = glob('dist/*')[0]
+        print('::set-output name=asset_path::', asset_path, sep='')
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)

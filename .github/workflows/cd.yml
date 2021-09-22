@@ -5,17 +5,17 @@ on:
     tags: 'v*'  # push events to matching v*, i.e. v1.0, v20.15.10
 
 env:
-  PYTHON_DEFAULT_VERSION: 3.9
+  ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PYTHON_DEFAULT_VERSION: 3.9
 
 jobs:
   deploy:
     env:
       B2_PYPI_PASSWORD: ${{ secrets.B2_PYPI_PASSWORD }}
-      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create-release.outputs.upload_url }}
+      version: ${{ steps.build.outputs.version }}
     steps:
       - uses: actions/checkout@v2
         with:
@@ -34,29 +34,51 @@ jobs:
         uses: mindsers/changelog-reader-action@v1
         with:
           version: ${{ steps.build.outputs.version }}
-      - name: Create GitHub release
+      - name: Create GitHub release and upload the distribution
         id: create-release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ steps.build.outputs.version }}
+          name: ${{ steps.build.outputs.version }}
           body: ${{ steps.read-changelog.outputs.log_entry }}
           draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
           prerelease: false
-      - name: Upload the distribution to GitHub
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.build.outputs.asset_path }}
-          asset_name: ${{ steps.build.outputs.asset_name }}
-          asset_content_type: application/gzip
+          files: ${{ steps.build.outputs.asset_path }}
       - name: Upload the distribution to PyPI
         if: ${{ env.B2_PYPI_PASSWORD != '' }}
         uses: pypa/gh-action-pypi-publish@v1.3.1
         with:
           user: __token__
           password: ${{ env.B2_PYPI_PASSWORD }}
-  deploy-bundle:
+  deploy-linux-bundle:
+    needs: deploy
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.9  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          apt-get -y update
+          apt-get -y install patchelf
+          python -m pip install --upgrade nox pip setuptools
+      - name: Bundle the distribution
+        id: bundle
+        run: nox -vs bundle
+      - name: Sign the bundle
+        id: sign
+        run: nox -vs sign
+      - name: Upload the bundle to the GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.deploy.outputs.version }}
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          prerelease: false
+          files: ${{ steps.sign.outputs.asset_path }}
+  deploy-macos-bundle:
     needs: deploy
     env:
       B2_OSX_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE }}
@@ -64,13 +86,7 @@ jobs:
       B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
       B2_OSX_NOTARY_NAME: ${{ secrets.B2_OSX_NOTARY_NAME }}
       B2_OSX_NOTARY_PASSWORD: ${{ secrets.B2_OSX_NOTARY_PASSWORD }}
-      B2_WINDOWS_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
-      B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-10.15, windows-2019]
+    runs-on: macos-10.15
     steps:
       - uses: actions/checkout@v2
         with:
@@ -84,37 +100,61 @@ jobs:
       - name: Bundle the distribution
         id: bundle
         run: nox -vs bundle
-      - name: (macOS) Import certificate
-        if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
+      - name: Import certificate
         uses: apple-actions/import-codesign-certs@v1
         with:
           p12-file-base64: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE }}
           p12-password: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
-      - name: (macOS) Sign the bundle
-        if: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'macOS' }}
+      - name: Sign the bundle
+        id: sign
         run: nox -vs sign -- '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
-      - name: (macOS) Notarize the bundle
-        if: ${{ env.B2_OSX_NOTARY_NAME != '' && runner.os == 'macOS' }}
+      - name: Notarize the bundle
+        if: ${{ env.B2_OSX_NOTARY_NAME != '' }}
         uses: devbotsxyz/xcode-notarize@v1
         with:
-          product-path: ${{ steps.bundle.outputs.asset_path }}
+          product-path: ${{ steps.sign.outputs.asset_path }}
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
           primary-bundle-id: com.backblaze.b2
-      - name: (Windows) Import certificate
+      - name: Upload the bundle to the GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.deploy.outputs.version }}
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          prerelease: false
+          files: ${{ steps.sign.outputs.asset_path }}
+  deploy-windows-bundle:
+    needs: deploy
+    env:
+      B2_WINDOWS_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
+      B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pip setuptools
+      - name: Bundle the distribution
+        id: bundle
+        run: nox -vs bundle
+      - name: Import certificate
         id: windows_import_cert
-        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'Windows' }}
         uses: timheuer/base64-to-file@v1
         with:
           fileName: 'cert.pfx'
           encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
-      - name: (Windows) Sign the bundle
-        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' && runner.os == 'Windows' }}
+      - name: Sign the bundle
+        id: sign
         run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
-      - name: Upload the distribution to GitHub
-        uses: actions/upload-release-asset@v1
+      - name: Upload the bundle to the GitHub release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.deploy.outputs.upload_url }}
-          asset_path: ${{ steps.bundle.outputs.asset_path }}
-          asset_name: ${{ steps.bundle.outputs.asset_name }}
-          asset_content_type: application/octet-stream
+          name: ${{ needs.deploy.outputs.version }}
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          prerelease: false
+          files: ${{ steps.sign.outputs.asset_path }}
