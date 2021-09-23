@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Make Linux binary statically linked
 
 ### Fixed
+* Fix pypy selector in CI
 * Fix for static linking of Linux binary (CD uses python container)
 
 ## [3.0.1] - 2021-08-09
