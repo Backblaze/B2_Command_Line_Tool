@@ -19,7 +19,7 @@ CI = os.environ.get('CI') is not None
 INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 
-PYTHON_VERSIONS = ['3.5', '3.6', '3.7', '3.8', '3.9'
+PYTHON_VERSIONS = ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10'
                   ] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
@@ -28,13 +28,18 @@ PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 SYSTEM = platform.system().lower()
 
 REQUIREMENTS_FORMAT = ['yapf==0.27']
-REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==6.1.1', 'liccheck==0.4.7']
-REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
+REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.4.0', 'pytest==6.2.5', 'liccheck==0.6.2']
+REQUIREMENTS_TEST = [
+    "pytest==6.2.5;python_version>'3.5'",
+    "pytest==6.1.1;python_version=='3.5'",
+    "pytest-cov==3.0.0;python_version>'3.5'",
+    "pytest-cov==2.10.1;python_version=='3.5'",
+]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
-    'pyinstaller==4.5.1',
+    'pyinstaller==4.6.0',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
-    "staticx==0.13.4;platform_system=='Linux'",
+    "staticx==0.13.5;platform_system=='Linux'",
 ]
 
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'

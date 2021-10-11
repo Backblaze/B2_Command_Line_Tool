@@ -1,0 +1,7 @@
+sadisplay
+sphinx<4.0; python_version <= '3.5'  # sphinx>=4.0 doesn't support Python 3.5
+sphinx<5.0; python_version > '3.5'
+sphinx-argparse
+sphinx-autobuild
+sphinx-rtd-theme
+sphinxcontrib-plantuml
