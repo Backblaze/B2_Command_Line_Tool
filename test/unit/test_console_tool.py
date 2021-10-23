@@ -613,9 +613,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            [
-                'create-key', '--allCapabilities', 'goodKeyName-Four'
-            ],
+            ['create-key', '--allCapabilities', 'goodKeyName-Four'],
             'appKeyId3 appKey3\n',
             '',
             0,
