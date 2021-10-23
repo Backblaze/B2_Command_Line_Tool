@@ -18,6 +18,7 @@ from typing import Optional
 
 from b2sdk import v1
 
+from b2sdk.v2 import ALL_CAPABILITIES
 from b2sdk.v2 import REALM_URLS
 from b2sdk.v2 import StubAccountInfo
 from b2sdk.v2 import B2Api
@@ -611,6 +612,14 @@ class TestConsoleTool(BaseConsoleToolTest):
             '',
             0,
         )
+        self._run_command(
+            [
+                'create-key', '--allCapabilities', 'goodKeyName-Four'
+            ],
+            'appKeyId3 appKey3\n',
+            '',
+            0,
+        )
 
         # Delete one key
         self._run_command(['delete-key', 'appKeyId2'], 'appKeyId2\n', '', 0)
@@ -623,13 +632,15 @@ class TestConsoleTool(BaseConsoleToolTest):
             appKeyId0   goodKeyName-One
             appKeyId1   goodKeyName-Two
             appKeyId2   goodKeyName-Three
+            appKeyId3   goodKeyName-Four
             """
 
         expected_list_keys_out_long = """
             appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
             appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
             appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
-            """
+            appKeyId3   goodKeyName-Four       -                      -            -          ''   %s
+            """ % (','.join(ALL_CAPABILITIES),)
 
         self._run_command(['list-keys'], expected_list_keys_out, '', 0)
         self._run_command(['list-keys', '--long'], expected_list_keys_out_long, '', 0)
