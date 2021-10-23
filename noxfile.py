@@ -31,9 +31,11 @@ REQUIREMENTS_FORMAT = ['yapf==0.27']
 REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.2.0', 'pytest==6.1.1', 'liccheck==0.4.7']
 REQUIREMENTS_TEST = ['pytest==6.1.1', 'pytest-cov==2.10.1']
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
-REQUIREMENTS_BUNDLE = ['pyinstaller']
-if SYSTEM == 'linux':
-    REQUIREMENTS_BUNDLE.extend(['patchelf-wrapper', 'staticx'])
+REQUIREMENTS_BUNDLE = [
+    'pyinstaller==4.5.1',
+    "patchelf-wrapper==1.2.0;platform_system=='Linux'",
+    "staticx==0.13.4;platform_system=='Linux'",
+]
 
 OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
 OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
