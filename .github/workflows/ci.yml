@@ -75,7 +75,39 @@ jobs:
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs integration -- --cleanup
-  test-bundle:
+  test-linux-bundle:
+    needs: lint
+    env:
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.9  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          apt-get -y update
+          apt-get -y install patchelf
+          python -m pip install --upgrade nox pip setuptools
+      - name: Bundle the distribution
+        id: bundle
+        run: nox -vs bundle
+      - name: Run integration tests
+        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
+      - name: Upload assets
+        if: failure()
+        uses: actions/upload-artifact@v2
+        with:
+          path: ${{ steps.bundle.outputs.asset_path }}
+          if-no-files-found: warn
+          retention-days: 7
+  test-macos-and-windows-bundle:
     needs: lint
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
@@ -84,7 +116,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-10.15, windows-2019]
+        os: [macos-10.15, windows-2019]
     steps:
       - uses: actions/checkout@v2
         with:

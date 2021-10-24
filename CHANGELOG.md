@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add `--allCapabilities` to `create-key`
 
+### Fixed
+* Fix testing bundle in CI for a new `staticx` version
+
 ## [3.0.3] - 2021-09-27
 
 ### Fixed
