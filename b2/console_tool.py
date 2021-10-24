@@ -975,7 +975,7 @@ class CreateKey(Command):
     their IDs, but not the secret keys.
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
-    Optionally, you can pass all capabilities with ``--allCapabilities``.
+    Optionally, you can pass all capabilities known to this client with ``--allCapabilities``.
 
     The ``duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
