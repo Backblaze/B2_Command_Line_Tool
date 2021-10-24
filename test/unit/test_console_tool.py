@@ -1401,10 +1401,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                     "bucketName": None,
                     "capabilities":
                         [
-                            "listKeys", "writeKeys", "deleteKeys", "listBuckets", "writeBuckets",
-                            "deleteBuckets", "readBucketEncryption", "writeBucketEncryption",
-                            "readBucketRetentions", "writeBucketRetentions", "writeFileRetentions",
-                            "writeFileLegalHolds", "readFileRetentions", "readFileLegalHolds",
+                            "listKeys", "writeKeys", "deleteKeys", "listBuckets",
+                            "listAllBucketNames", "readBuckets", "writeBuckets", "deleteBuckets",
+                            "readBucketEncryption", "writeBucketEncryption", "readBucketRetentions",
+                            "writeBucketRetentions", "readFileRetentions", "writeFileRetentions",
+                            "readFileLegalHolds", "writeFileLegalHolds", "bypassGovernance",
                             "listFiles", "readFiles", "shareFiles", "writeFiles", "deleteFiles"
                         ],
                     "namePrefix": None
