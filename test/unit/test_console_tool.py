@@ -1399,15 +1399,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 {
                     "bucketId": None,
                     "bucketName": None,
-                    "capabilities":
-                        [
-                            "listKeys", "writeKeys", "deleteKeys", "listBuckets",
-                            "listAllBucketNames", "readBuckets", "writeBuckets", "deleteBuckets",
-                            "readBucketEncryption", "writeBucketEncryption", "readBucketRetentions",
-                            "writeBucketRetentions", "readFileRetentions", "writeFileRetentions",
-                            "readFileLegalHolds", "writeFileLegalHolds", "bypassGovernance",
-                            "listFiles", "readFiles", "shareFiles", "writeFiles", "deleteFiles"
-                        ],
+                    "capabilities": ALL_CAPABILITIES,
                     "namePrefix": None
                 },
             "apiUrl": "http://api.example.com",
