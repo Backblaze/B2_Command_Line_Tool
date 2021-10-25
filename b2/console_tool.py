@@ -26,6 +26,7 @@ import time
 from typing import Optional, Tuple
 
 from b2sdk.v2 import (
+    ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
     DEFAULT_SCAN_MANAGER,
@@ -974,6 +975,7 @@ class CreateKey(Command):
     their IDs, but not the secret keys.
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
+    Optionally, you can pass all capabilities known to this client with ``--allCapabilities``.
 
     The ``duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
@@ -998,7 +1000,10 @@ class CreateKey(Command):
         parser.add_argument('--namePrefix')
         parser.add_argument('--duration', type=int)
         parser.add_argument('keyName')
-        parser.add_argument('capabilities', type=parse_comma_separated_list)
+
+        capabilities = parser.add_mutually_exclusive_group(required=True)
+        capabilities.add_argument('capabilities', type=parse_comma_separated_list, nargs='?')
+        capabilities.add_argument('--allCapabilities', action='store_true')
 
     def run(self, args):
         # Translate the bucket name into a bucketId
@@ -1006,6 +1011,9 @@ class CreateKey(Command):
             bucket_id_or_none = None
         else:
             bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
+
+        if args.allCapabilities:
+            args.capabilities = ALL_CAPABILITIES
 
         application_key = self.api.create_key(
             capabilities=args.capabilities,
