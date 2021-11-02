@@ -56,8 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is issued at the end
 * `contentLength` changed to `size` where appropriate
 * Log configuration: stack traces are not printed in case of errors by default, `--verbose` changes that 
-* Log configuration arguments bahaviour altered: `--logConfig` is exclusive with `--verbose` and `--debugLogs`
-* Log configuration arguments bahaviour altered: `--verbose` and `--debugLogs` can be used at the same time 
+* Log configuration arguments behaviour altered: `--logConfig` is exclusive with `--verbose` and `--debugLogs`
+* Log configuration arguments behaviour altered: `--verbose` and `--debugLogs` can be used at the same time 
   (and they will both be taken into account)
 
 ### Removed
@@ -217,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Tests fixed for Python 3.7
-* Add documentation about what capabilites are required for different commands.
+* Add documentation about what capabilities are required for different commands.
 * Better error messages for authorization problems with application keys.
 
 ## [1.3.0] - 2018-07-20

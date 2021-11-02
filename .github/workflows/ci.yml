@@ -16,6 +16,9 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      - uses: codespell-project/actions-codespell@2391250ab05295bddd51e36a8c6295edb6343b0e
+        with:
+          ignore_words_list: datas
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
         uses: actions/setup-python@v2
         with:
