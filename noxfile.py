@@ -64,7 +64,7 @@ def install_myself(session, extras=None):
     # In CI, install B2 SDK from the master branch
 
     if CI and not INSTALL_SDK_FROM:
-        session.install('git+git://github.com/Backblaze/b2-sdk-python#egg=b2sdk')
+        session.install('git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk')
 
     arg = '.'
     if extras:
