@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add `--allCapabilities` to `create-key`
+* Add support for Python 3.10
 
 ### Fixed
 * Fix testing bundle in CI for a new `staticx` version
