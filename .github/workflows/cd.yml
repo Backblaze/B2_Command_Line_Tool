@@ -5,6 +5,7 @@ on:
     tags: 'v*'  # push events to matching v*, i.e. v1.0, v20.15.10
 
 env:
+  CD: "true"
   ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PYTHON_DEFAULT_VERSION: "3.10"

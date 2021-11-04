@@ -16,6 +16,7 @@ from glob import glob
 import nox
 
 CI = os.environ.get('CI') is not None
+CD = CI and (os.environ.get('CD') is not None)
 INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 
@@ -63,7 +64,7 @@ def install_myself(session, extras=None):
     """Install from the source."""
     # In CI, install B2 SDK from the master branch
 
-    if CI and not INSTALL_SDK_FROM:
+    if CI and not CD and not INSTALL_SDK_FROM:
         session.install('git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk')
 
     arg = '.'
