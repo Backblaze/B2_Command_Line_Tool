@@ -71,7 +71,9 @@ class ArgumentParser(argparse.ArgumentParser):
                 self._description = textwrap.dedent(self._raw_description)
             else:
                 encoding = self._get_encoding()
-                self._description = rst2ansi(self._raw_description.encode(encoding), output_encoding=encoding)
+                self._description = rst2ansi(
+                    self._raw_description.encode(encoding), output_encoding=encoding
+                )
 
         return self._description
 
