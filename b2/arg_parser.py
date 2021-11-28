@@ -9,7 +9,9 @@
 ######################################################################
 
 import argparse
+import locale
 import re
+import sys
 import textwrap
 
 import arrow
@@ -68,7 +70,10 @@ class ArgumentParser(argparse.ArgumentParser):
             if self._for_docs:
                 self._description = textwrap.dedent(self._raw_description)
             else:
-                self._description = rst2ansi(self._raw_description.encode('utf-8'))
+                encoding = self._get_encoding()
+                self._description = rst2ansi(
+                    self._raw_description.encode(encoding), output_encoding=encoding
+                )
 
         return self._description
 
@@ -78,8 +83,18 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def error(self, message):
         self.print_help()
+
         args = {'prog': self.prog, 'message': message}
         self.exit(2, '\n%(prog)s: error: %(message)s\n' % args)
+
+    @classmethod
+    def _get_encoding(cls):
+        _, locale_encoding = locale.getdefaultlocale()
+        if locale_encoding is not None:
+            return sys.getdefaultencoding()
+
+        # locales are improperly configured
+        return 'ascii'
 
 
 def parse_comma_separated_list(s):
