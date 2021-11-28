@@ -18,6 +18,7 @@ import nox
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
 INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
+NO_STATICX = os.environ.get('NO_STATICX') is not None
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 
 PYTHON_VERSIONS = ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10'
@@ -38,7 +39,7 @@ REQUIREMENTS_TEST = [
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
-    'pyinstaller==4.6.0',
+    'pyinstaller==4.7.0',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
     "staticx==0.13.5;platform_system=='Linux'",
 ]
@@ -199,7 +200,7 @@ def bundle(session):
 
     session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
 
-    if SYSTEM == 'linux':
+    if SYSTEM == 'linux' and not NO_STATICX:
         session.run(
             'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', 'dist/b2', 'dist/b2-static'
         )
