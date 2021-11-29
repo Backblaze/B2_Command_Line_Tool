@@ -15,21 +15,28 @@ import dataclasses
 import datetime
 import functools
 import getpass
+import io
 import json
 import locale
 import logging
 import logging.config
 import os
+import pathlib
 import platform
 import re
 import signal
+import subprocess
 import sys
 import time
+
+import requests
+import rst2ansi
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
 from enum import Enum
 
+import b2sdk
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -94,6 +101,13 @@ from b2.arg_parser import (
 )
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
+
+try:
+    import piplicenses
+    import prettytable
+except ImportError:
+    piplicenses = None
+    prettytable = None
 
 logger = logging.getLogger(__name__)
 
@@ -2624,6 +2638,138 @@ class Version(Command):
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
+
+
+@B2.register_subcommand
+class License(Command):  # pragma: no cover
+    """
+    Prints the license of B2 Command line tool and all libraries shipped with it.
+    """
+    LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent / 'licenses_output.txt'
+
+    REQUIRES_AUTH = False
+
+    def __init__(self, console_tool):
+        super().__init__(console_tool)
+        self.request_session = requests.session()
+        self._ignore_modules = {'b2', 'distlib', 'patchelf-wrapper', 'platformdirs'}
+        self._modules_to_override_license_text = {
+            'rst2ansi', 'b2sdk', 'PTable'
+        }  # in case of some modules, we provide manual
+        # overrides to the license text extracted by piplicenses. Thanks to this set, we make sure the module is
+        # still used
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--dump', action='store_true', default=False, help=argparse.SUPPRESS
+        )  # this is for
+        # building, users should not call this
+
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        if self.LICENSE_OUTPUT_FILE.exists() and not args.dump:
+            self._print(self.LICENSE_OUTPUT_FILE.read_text())
+            return 0
+        assert piplicenses, 'Install the `license` extras to run this command'
+        stream = io.StringIO()
+        self._get_license_text(stream)
+        stream.seek(0)
+        if args.dump:
+            self.LICENSE_OUTPUT_FILE.write_text(stream.read())
+        else:
+            self._print(stream.read())
+        return 0
+
+    def _get_license_text(self, stream: io.StringIO):
+        licenses_output = subprocess.check_output(
+            [
+                'pip-licenses', '--format=j', '--with-system', '--with-authors', '--with-urls',
+                '--with-license-file'
+            ]
+        ).decode()
+        licenses = json.loads(licenses_output)
+
+        license_table = prettytable.PrettyTable(
+            ['Module name', 'License text'], hrules=prettytable.ALL
+        )
+        summary_table = prettytable.PrettyTable(
+            ['Module name', 'Version', 'License', 'Author', 'URL'], hrules=prettytable.ALL
+        )
+
+        for module_info in licenses:
+            if module_info['Name'] in self._ignore_modules:
+                continue
+            summary_table.add_row(
+                [
+                    module_info['Name'], module_info['Version'],
+                    module_info['License'].replace(';',
+                                                   '\n'), module_info['Author'], module_info['URL']
+                ]
+            )
+            license_table.add_row([module_info['Name'], self._get_single_license(module_info)])
+
+        assert not self._modules_to_override_license_text, str(
+            self._modules_to_override_license_text
+        )
+        stream.write(
+            'Licenses of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+        )
+        stream.write(str(license_table))
+        stream.write(
+            '\n\nSummary of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+        )
+        stream.write(str(summary_table))
+        from b2sdk.v2 import get_included_sources  # TODO: fix this import
+        included_sources = get_included_sources()
+        if included_sources:
+            stream.write(
+                '\n\nThird party libraries modified and included in %s or %s:\n' %
+                (NAME, b2sdk.__name__)
+            )
+        for src in included_sources:
+            stream.write('\n')
+            stream.write(src.name)
+            stream.write('\n')
+            stream.write(src.comment)
+            stream.write('\n')
+            stream.write('Files included for legal compliance reasons:\n')
+            files_table = prettytable.PrettyTable(['File name', 'Content'], hrules=prettytable.ALL)
+            for file_name, file_content in src.files.items():
+                files_table.add_row([file_name, file_content])
+            stream.write(str(files_table))
+        stream.write('\n\n%s license:\n' % (NAME,))
+        with (pathlib.Path(__file__).parent / 'LICENSE').open() as b2_license_file:
+            stream.write(b2_license_file.read())
+
+    def _get_single_license(self, module_dict: dict):
+        license_ = module_dict['LicenseText']
+        module_name = module_dict['Name']
+        if module_name == 'rst2ansi':
+            # this one module is problematic, we need to extract the license text from it's docstring
+            assert license_ == piplicenses.LICENSE_UNKNOWN  # let's make sure they didn't fix it
+            self._modules_to_override_license_text.remove('rst2ansi')
+            license_ = rst2ansi.__doc__
+            assert 'MIT License' in license_  # let's make sure the license is still there
+        elif module_name == 'b2sdk':
+            self._modules_to_override_license_text.remove('b2sdk')
+            with (pathlib.Path(b2sdk.__file__).parent / 'LICENSE').open() as license_file:
+                license_ = license_file.read()
+        elif module_name == 'platformdirs':
+            license_ = self.request_session.get(
+                'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt'
+            )
+            self._modules_to_override_license_text.remove('platformdirs')
+        elif module_name == 'PTable':
+            license_ = self.request_session.get(
+                'https://raw.githubusercontent.com/jazzband/prettytable/master/COPYING'
+            )
+            self._modules_to_override_license_text.remove('PTable')
+
+        assert license_ != piplicenses.LICENSE_UNKNOWN, module_name
+
+        return license_
 
 
 class ConsoleTool(object):

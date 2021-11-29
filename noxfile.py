@@ -134,7 +134,7 @@ def lint(session):
 @nox.session(python=PYTHON_VERSIONS)
 def unit(session):
     """Run unit tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.install(*REQUIREMENTS_TEST)
     session.run(
         'pytest',
@@ -154,7 +154,7 @@ def unit(session):
 @nox.session(python=PYTHON_VERSIONS)
 def integration(session):
     """Run integration tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.install(*REQUIREMENTS_TEST)
     session.run(
         'pytest', '-s', '-n', str(min(cpu_count(), 8) * 5), *session.posargs, 'test/integration'
@@ -185,6 +185,7 @@ def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
     session.install(*REQUIREMENTS_BUILD)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv')
     session.run('python', 'setup.py', 'check', '--metadata', '--strict')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     session.run('python', 'setup.py', 'sdist', *session.posargs)
@@ -199,10 +200,17 @@ def build(session):
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def bundle(session):
+def dump_license(session: nox.Session):
+    install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump')
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def bundle(session: nox.Session):
     """Bundle the distribution."""
     session.install(*REQUIREMENTS_BUNDLE)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv')
     install_myself(session)
 
     if SYSTEM == 'darwin':
