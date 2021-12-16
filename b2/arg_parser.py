@@ -18,6 +18,8 @@ import arrow
 from rst2ansi import rst2ansi
 from b2sdk.v1 import RetentionPeriod
 
+_arrow_version = tuple(int(p) for p in arrow.__version__.split("."))
+
 
 class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     """
@@ -101,14 +103,18 @@ def parse_comma_separated_list(s):
     """
     Parse comma-separated list.
     """
-    return [word.strip() for word in s.split(',')]
+    return [word.strip() for word in s.split(",")]
 
 
 def parse_millis_from_float_timestamp(s):
     """
     Parse timestamp, e.g. 1367900664 or 1367900664.152
     """
-    return int(arrow.get(float(s)).format('XSSS'))
+    parsed = arrow.get(float(s))
+    if _arrow_version < (1, 0, 0):
+        return int(parsed.format("XSSS"))
+    else:
+        return int(parsed.format("x")[:13])
 
 
 def parse_range(s):

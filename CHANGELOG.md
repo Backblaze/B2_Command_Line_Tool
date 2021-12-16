@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add compatibility support for arrow >= 1.0.2 on newer Python versions while
+  continuing to support Python 3.5
+
 ### Fixed
 * Fallback to `ascii` decoder when printing help in case the locales are not properly set
 
