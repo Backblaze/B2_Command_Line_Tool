@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2021-12-23
+
 ### Added
 * Add compatibility support for arrow >= 1.0.2 on newer Python versions while
   continuing to support Python 3.5
@@ -282,7 +284,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.2.0...HEAD
+[3.1.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.0.3...v3.1.0
 [3.0.3]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.0.2...v3.0.3
 [3.0.2]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.0.1...v3.0.2
