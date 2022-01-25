@@ -816,8 +816,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
-                    local_download1
+                    'download-file-by-name', '--noProgress', '--threads', '1', 'my-bucket',
+                    'file1.txt', local_download1
                 ], expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -826,8 +826,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
-                '', 0
+                ['download-file-by-id', '--noProgress', '--threads', '1', '9999', local_download2],
+                expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
@@ -994,8 +994,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
-                    local_download1
+                    'download-file-by-name', '--noProgress', '--threads', '1', 'my-bucket',
+                    'file1.txt', local_download1
                 ], expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -1004,8 +1004,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
-                '', 0
+                ['download-file-by-id', '--threads', '1', '--noProgress', '9999', local_download2],
+                expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 

@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `--threads` parameter to `download-file-by-name` and `download-file-by-id` 
+* Add `--syncThreads`, `--downloadThreads` and `--uploadThreads` to `sync`
+
 ### Fixed
 * Fix license header checker on Windows
 * Fix `UnicodeEncodeError` after successful SSE-C download on a non-utf8 terminal (#786)
