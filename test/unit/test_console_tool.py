@@ -1009,6 +1009,22 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
+            # Download with default number of threads
+            local_download3 = os.path.join(temp_dir, 'download3.txt')
+            self._run_command(
+                ['download-file-by-id', '--noProgress', '9999', local_download3],
+                expected_stdout, '', 0
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download3))
+
+            # Download with 10 threads
+            local_download4 = os.path.join(temp_dir, 'download4.txt')
+            self._run_command(
+                ['download-file-by-id', '--threads', '10', '--noProgress', '9999', local_download4],
+                expected_stdout, '', 0
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download4))
+
             # Hide the file
             expected_json = {
                 "action": "hide",
