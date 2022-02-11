@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fallback to `ascii` decoder when printing help in case the locales are not properly set
+* Make `--threads` parameter for `sync` apply to downloader threads as well
 
 ## [3.1.0] - 2021-11-02
 

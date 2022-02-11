@@ -816,8 +816,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'download-file-by-name', '--noProgress', '--threads', '1', 'my-bucket',
-                    'file1.txt', local_download1
+                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
+                    local_download1
                 ], expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -826,8 +826,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download-file-by-id', '--noProgress', '--threads', '1', '9999', local_download2],
-                expected_stdout, '', 0
+                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
+                '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
@@ -994,8 +994,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'download-file-by-name', '--noProgress', '--threads', '1', 'my-bucket',
-                    'file1.txt', local_download1
+                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
+                    local_download1
                 ], expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -1004,26 +1004,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download-file-by-id', '--threads', '1', '--noProgress', '9999', local_download2],
-                expected_stdout, '', 0
+                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
+                '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
-
-            # Download with default number of threads
-            local_download3 = os.path.join(temp_dir, 'download3.txt')
-            self._run_command(
-                ['download-file-by-id', '--noProgress', '9999', local_download3],
-                expected_stdout, '', 0
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download3))
-
-            # Download with 10 threads
-            local_download4 = os.path.join(temp_dir, 'download4.txt')
-            self._run_command(
-                ['download-file-by-id', '--threads', '10', '--noProgress', '9999', local_download4],
-                expected_stdout, '', 0
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download4))
 
             # Hide the file
             expected_json = {
@@ -1102,6 +1086,52 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ['delete-file-version', '9999'],
                 expected_json_in_stdout=expected_json,
             )
+
+    def test_download_threads(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+
+            self._run_command(
+                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                remove_version=True,
+            )
+
+            # Download by name with 1 thread
+            local_download1 = os.path.join(temp_dir, 'download1.txt')
+            self._run_command(
+                [
+                    'download-file-by-name', '--noProgress', '--threads', '1', 'my-bucket',
+                    'file1.txt', local_download1
+                ]
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download1))
+
+            # Download by ID with 1 thread
+            local_download2 = os.path.join(temp_dir, 'download2.txt')
+            self._run_command(
+                ['download-file-by-id', '--threads', '1', '--noProgress', '9999', local_download2],
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download2))
+
+            # Download by name with 10 threads
+            local_download3 = os.path.join(temp_dir, 'download3.txt')
+            self._run_command(
+                [
+                    'download-file-by-name', '--noProgress', '--threads', '10', 'my-bucket',
+                    'file1.txt', local_download3
+                ]
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download3))
+
+            # Download by ID with 10 threads
+            local_download4 = os.path.join(temp_dir, 'download4.txt')
+            self._run_command(
+                ['download-file-by-id', '--threads', '10', '--noProgress', '9999', local_download4],
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download4))
 
     def test_copy_file_by_id(self):
         self._authorize_account()
