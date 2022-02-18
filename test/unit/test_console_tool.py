@@ -1089,33 +1089,38 @@ class TestConsoleTool(BaseConsoleToolTest):
                 expected_json_in_stdout=expected_json,
             )
 
-    def test_download_threads(self):
+    def _test_download_threads(self, download_by, num_threads):
         self._authorize_account()
         self._create_my_bucket()
 
         with TempDir() as temp_dir:
-            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
-
+            local_file = self._make_local_file(temp_dir, 'file.txt')
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                ['upload-file', '--noProgress', 'my-bucket', local_file, 'file.txt'],
                 remove_version=True,
             )
 
-            def test_download(download_by, num_threads):
-                command = [
-                    f'download-file-by-{download_by}', '--noProgress', '--threads',
-                    str(num_threads)
-                ]
-                command += ['9999'] if download_by == 'id' else ['my-bucket', 'file1.txt']
-                with tempfile.NamedTemporaryFile(dir=temp_dir, mode='rb') as temp_file:
-                    command += [os.path.join(temp_dir, temp_file.name)]
-                    self._run_command(command)
-                    self.assertEqual(b'hello world', temp_file.read())
+            command = [
+                f'download-file-by-{download_by}', '--noProgress', '--threads',
+                str(num_threads)
+            ]
+            command += ['9999'] if download_by == 'id' else ['my-bucket', 'file.txt']
+            local_download = os.path.join(temp_dir, 'download.txt')
+            command += [local_download]
+            self._run_command(command)
+            self.assertEqual(b'hello world', self._read_file(local_download))
 
-            test_download(download_by='id', num_threads=1)
-            test_download(download_by='id', num_threads=10)
-            test_download(download_by='name', num_threads=1)
-            test_download(download_by='name', num_threads=10)
+    def test_download_by_id_1_thread(self):
+        self._test_download_threads(download_by='id', num_threads=1)
+
+    def test_download_by_id_10_threads(self):
+        self._test_download_threads(download_by='id', num_threads=10)
+
+    def test_download_by_name_1_thread(self):
+        self._test_download_threads(download_by='name', num_threads=1)
+
+    def test_download_by_name_10_threads(self):
+        self._test_download_threads(download_by='name', num_threads=10)
 
     def test_copy_file_by_id(self):
         self._authorize_account()
@@ -1881,13 +1886,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         with TempDir() as temp_dir:
             self._make_local_file(temp_dir, 'test.txt')
             os.symlink('test.txt', os.path.join(temp_dir, 'alink'))
-            expected_stdout = '''
+            # Exact stdout cannot be asserted because line order is non-deterministic
+            expected_part_of_stdout = '''
             upload alink
-            upload test.txt
             '''
 
             command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
-            self._run_command(command, expected_stdout, '', 0)
+            self._run_command(command, expected_part_of_stdout=expected_part_of_stdout)
 
     def test_sync_exclude_if_modified_after_in_range(self):
         self._authorize_account()
@@ -1936,11 +1941,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'file.txt')
             command = [f'sync', '--noProgress']
-            if sync_threads:
+            if sync_threads is not None:
                 command += ['--syncThreads', str(sync_threads)]
-            if download_threads:
+            if download_threads is not None:
                 command += ['--downloadThreads', str(download_threads)]
-            if upload_threads:
+            if upload_threads is not None:
                 command += ['--uploadThreads', str(upload_threads)]
             command += [temp_dir, 'b2://my-bucket']
             expected_stdout = '''
