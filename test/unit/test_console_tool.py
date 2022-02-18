@@ -10,6 +10,8 @@
 
 import json
 import os
+import tempfile
+
 import pytest
 import re
 import unittest.mock as mock
@@ -1099,39 +1101,21 @@ class TestConsoleTool(BaseConsoleToolTest):
                 remove_version=True,
             )
 
-            # Download by name with 1 thread
-            local_download1 = os.path.join(temp_dir, 'download1.txt')
-            self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', '--threads', '1', 'my-bucket',
-                    'file1.txt', local_download1
+            def test_download(download_by, num_threads):
+                command = [
+                    f'download-file-by-{download_by}', '--noProgress', '--threads',
+                    str(num_threads)
                 ]
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download1))
+                command += ['9999'] if download_by == 'id' else ['my-bucket', 'file1.txt']
+                with tempfile.NamedTemporaryFile(dir=temp_dir, mode='rb') as temp_file:
+                    command += [os.path.join(temp_dir, temp_file.name)]
+                    self._run_command(command)
+                    self.assertEqual(b'hello world', temp_file.read())
 
-            # Download by ID with 1 thread
-            local_download2 = os.path.join(temp_dir, 'download2.txt')
-            self._run_command(
-                ['download-file-by-id', '--threads', '1', '--noProgress', '9999', local_download2],
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download2))
-
-            # Download by name with 10 threads
-            local_download3 = os.path.join(temp_dir, 'download3.txt')
-            self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', '--threads', '10', 'my-bucket',
-                    'file1.txt', local_download3
-                ]
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download3))
-
-            # Download by ID with 10 threads
-            local_download4 = os.path.join(temp_dir, 'download4.txt')
-            self._run_command(
-                ['download-file-by-id', '--threads', '10', '--noProgress', '9999', local_download4],
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download4))
+            test_download(download_by='id', num_threads=1)
+            test_download(download_by='id', num_threads=10)
+            test_download(download_by='name', num_threads=1)
+            test_download(download_by='name', num_threads=10)
 
     def test_copy_file_by_id(self):
         self._authorize_account()
