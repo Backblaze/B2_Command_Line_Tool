@@ -1789,14 +1789,14 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = ['sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_empty_folder_when_not_enabled(self):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
             expected_stderr = 'ERROR: Directory %s is empty.  Use --allowEmptySource to sync anyway.\n' % fix_windows_path_limit(
                 temp_dir.replace('\\\\', '\\')
             )
@@ -1806,10 +1806,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = [
-                'sync', '--threads', '1', '--noProgress', '--allowEmptySource', temp_dir,
-                'b2://my-bucket'
-            ]
+            command = ['sync', '--noProgress', '--allowEmptySource', temp_dir, 'b2://my-bucket']
             self._run_command(command, '', '', 0)
 
     def test_sync_dry_run(self):
@@ -1874,10 +1871,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = [
-                'sync', '--threads', '1', '--noProgress', '--excludeAllSymlinks', temp_dir,
-                'b2://my-bucket'
-            ]
+            command = ['sync', '--noProgress', '--excludeAllSymlinks', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_dont_exclude_all_symlinks(self):
@@ -1892,7 +1886,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_exclude_if_modified_after_in_range(self):
@@ -1910,8 +1904,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             command = [
-                'sync', '--threads', '1', '--noProgress', '--excludeIfModifiedAfter',
-                '1367700664.152', temp_dir, 'b2://my-bucket'
+                'sync', '--noProgress', '--excludeIfModifiedAfter', '1367700664.152', temp_dir,
+                'b2://my-bucket'
             ]
             self._run_command(command, expected_stdout, '', 0)
 
@@ -1930,10 +1924,41 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             command = [
-                'sync', '--threads', '1', '--noProgress', '--excludeIfModifiedAfter',
-                '1367600664.152', temp_dir, 'b2://my-bucket'
+                'sync', '--noProgress', '--excludeIfModifiedAfter', '1367600664.152', temp_dir,
+                'b2://my-bucket'
             ]
             self._run_command(command, expected_stdout, '', 0)
+
+    def _test_sync_threads(self, sync_threads=None, download_threads=None, upload_threads=None):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            local_file = self._make_local_file(temp_dir, 'file.txt')
+            command = [f'sync', '--noProgress']
+            if sync_threads:
+                command += ['--syncThreads', str(sync_threads)]
+            if download_threads:
+                command += ['--downloadThreads', str(download_threads)]
+            if upload_threads:
+                command += ['--uploadThreads', str(upload_threads)]
+            command += [temp_dir, 'b2://my-bucket']
+            expected_stdout = '''
+            upload file.txt
+            '''
+            self._run_command(command, expected_stdout)
+
+    def test_sync_sync_threads(self):
+        self._test_sync_threads(sync_threads=1)
+
+    def test_sync_download_threads(self):
+        self._test_sync_threads(download_threads=1)
+
+    def test_sync_upload_threads(self):
+        self._test_sync_threads(upload_threads=1)
+
+    def test_sync_all_threads(self):
+        self._test_sync_threads(sync_threads=1, download_threads=1, upload_threads=1)
 
     def test_ls(self):
         self._authorize_account()

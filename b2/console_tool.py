@@ -1757,9 +1757,10 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     or is empty.  (This check only applies to version 1.0 and later.)
 
     Users with high-performance networks, or file sets with very small
-    files, will benefit from multi-threaded uploads.  The default number
-    of threads is 10.  Experiment with the ``--threads`` parameter if the
-    default is not working well.
+    files, will benefit from multi-threaded uploads and downloads. The default
+    number of threads for syncing, downloading, and uploading is 10.
+    Experiment with the ``--syncThreads``, ``--downloadThreads``, and
+    `--uploadThreads`` parameters if the defaults are not working well.
 
     Users with low-performance networks may benefit from reducing the
     number of threads.  Using just one thread will minimize the impact
@@ -1892,7 +1893,9 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
-        parser.add_argument('--threads', type=int, default=10)
+        parser.add_argument('--syncThreads', type=int, default=10)
+        parser.add_argument('--downloadThreads', type=int, default=10)
+        parser.add_argument('--uploadThreads', type=int, default=10)
         parser.add_argument(
             '--compareVersions', default='modTime', choices=('none', 'modTime', 'size')
         )
@@ -1923,8 +1926,8 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
         # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
         #        There are `max_X_workers` params in B2Api constructor for this.
-        self.api.services.upload_manager.set_thread_pool_size(args.threads)
-        self.api.services.download_manager.set_thread_pool_size(args.threads)
+        self.api.services.upload_manager.set_thread_pool_size(args.uploadThreads)
+        self.api.services.download_manager.set_thread_pool_size(args.downloadThreads)
 
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
@@ -1932,7 +1935,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
         synchronizer = self.get_synchronizer_from_args(
             args,
-            args.threads,
+            args.syncThreads,
             policies_manager,
             allow_empty_source,
         )

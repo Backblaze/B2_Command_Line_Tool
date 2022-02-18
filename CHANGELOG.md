@@ -8,7 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add `--threads` parameter to `download-file-by-name` and `download-file-by-id` 
-* Add `--syncThreads`, `--downloadThreads` and `--uploadThreads` to `sync`
+* Add `--uploadThreads` and `--downloadThreads` parameters to `sync`
+
+### Changed
+* Rename `--threads` parameter for `--sync` to `--syncThreads`
 
 ### Fixed
 * Fix license header checker on Windows
