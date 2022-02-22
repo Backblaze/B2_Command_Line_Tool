@@ -1759,8 +1759,11 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     Users with high-performance networks, or file sets with very small
     files, will benefit from multi-threaded uploads and downloads. The default
     number of threads for syncing, downloading, and uploading is 10.
-    Experiment with the ``--syncThreads``, ``--downloadThreads``, and
-    `--uploadThreads`` parameters if the defaults are not working well.
+    The number of files processed in parallel is set by ``--syncThreads``,
+    the number of files/file parts downloaded in parallel is set by``--downloadThreads``,
+    and the number of files/file parts uploaded in parallel is set by `--uploadThreads``.
+    All the three parameters can be set to the same value by ``--threads``.
+    Experiment with parameters if the defaults are not working well.
 
     Users with low-performance networks may benefit from reducing the
     number of threads.  Using just one thread will minimize the impact
@@ -1768,7 +1771,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
     .. note::
 
-        Note that using multiple threads will usually be detrimental to
+        Note that using multiple threads could be detrimental to
         the other users on your network.
 
     You can specify ``--excludeRegex`` to selectively ignore files that
@@ -1893,6 +1896,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
+        parser.add_argument('--threads', type=int)
         parser.add_argument('--syncThreads', type=int, default=10)
         parser.add_argument('--downloadThreads', type=int, default=10)
         parser.add_argument('--uploadThreads', type=int, default=10)
@@ -1924,10 +1928,19 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     def run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
+        if args.threads is not None:
+            if args.syncThreads != 10 or args.uploadThreads != 10 or args.downloadThreads != 10:
+                raise ValueError("--threads cannot be used with other thread options")
+            sync_threads = upload_threads = download_threads = args.threads
+        else:
+            sync_threads = args.syncThreads
+            upload_threads = args.uploadThreads
+            download_threads = args.downloadThreads
+
         # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
         #        There are `max_X_workers` params in B2Api constructor for this.
-        self.api.services.upload_manager.set_thread_pool_size(args.uploadThreads)
-        self.api.services.download_manager.set_thread_pool_size(args.downloadThreads)
+        self.api.services.upload_manager.set_thread_pool_size(upload_threads)
+        self.api.services.download_manager.set_thread_pool_size(download_threads)
 
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
@@ -1935,7 +1948,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
         synchronizer = self.get_synchronizer_from_args(
             args,
-            args.syncThreads,
+            sync_threads,
             policies_manager,
             allow_empty_source,
         )

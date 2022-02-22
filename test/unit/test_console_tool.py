@@ -1934,13 +1934,17 @@ class TestConsoleTool(BaseConsoleToolTest):
             ]
             self._run_command(command, expected_stdout, '', 0)
 
-    def _test_sync_threads(self, sync_threads=None, download_threads=None, upload_threads=None):
+    def _test_sync_threads(
+        self, threads=None, sync_threads=None, download_threads=None, upload_threads=None
+    ):
         self._authorize_account()
         self._create_my_bucket()
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'file.txt')
             command = [f'sync', '--noProgress']
+            if threads is not None:
+                command += ['--threads', str(threads)]
             if sync_threads is not None:
                 command += ['--syncThreads', str(sync_threads)]
             if download_threads is not None:
@@ -1953,6 +1957,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
             self._run_command(command, expected_stdout)
 
+    def test_sync_threads(self):
+        self._test_sync_threads(threads=1)
+
     def test_sync_sync_threads(self):
         self._test_sync_threads(sync_threads=1)
 
@@ -1962,8 +1969,13 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_sync_upload_threads(self):
         self._test_sync_threads(upload_threads=1)
 
-    def test_sync_all_threads(self):
+    def test_sync_many_thread_options(self):
         self._test_sync_threads(sync_threads=1, download_threads=1, upload_threads=1)
+
+    def test_sync_all_thread_options(self):
+        # Using --threads is exclusive with other options
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, sync_threads=1, download_threads=1, upload_threads=1)
 
     def test_ls(self):
         self._authorize_account()
