@@ -1935,7 +1935,11 @@ class TestConsoleTool(BaseConsoleToolTest):
             self._run_command(command, expected_stdout, '', 0)
 
     def _test_sync_threads(
-        self, threads=None, sync_threads=None, download_threads=None, upload_threads=None
+        self,
+        threads=None,
+        sync_threads=None,
+        download_threads=None,
+        upload_threads=None,
     ):
         self._authorize_account()
         self._create_my_bucket()
@@ -1972,8 +1976,14 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_sync_many_thread_options(self):
         self._test_sync_threads(sync_threads=1, download_threads=1, upload_threads=1)
 
-    def test_sync_all_thread_options(self):
+    def test_sync_thread_exclusive_options(self):
         # Using --threads is exclusive with other options
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, upload_threads=1)
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, sync_threads=1)
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, download_threads=1)
         with self.assertRaises(ValueError):
             self._test_sync_threads(threads=1, sync_threads=1, download_threads=1, upload_threads=1)
 
