@@ -1890,6 +1890,10 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     - **writeFiles** (for uploading)
     """
 
+    DEFAULT_SYNC_THREADS = 10
+    DEFAULT_DOWNLOAD_THREADS = 10
+    DEFAULT_UPLOAD_THREADS = 10
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
@@ -1897,9 +1901,9 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
         parser.add_argument('--threads', type=int)
-        parser.add_argument('--syncThreads', type=int, default=10)
-        parser.add_argument('--downloadThreads', type=int, default=10)
-        parser.add_argument('--uploadThreads', type=int, default=10)
+        parser.add_argument('--syncThreads', type=int, default=cls.DEFAULT_SYNC_THREADS)
+        parser.add_argument('--downloadThreads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS)
+        parser.add_argument('--uploadThreads', type=int, default=cls.DEFAULT_UPLOAD_THREADS)
         parser.add_argument(
             '--compareVersions', default='modTime', choices=('none', 'modTime', 'size')
         )
@@ -1929,7 +1933,9 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
         policies_manager = self.get_policies_manager_from_args(args)
 
         if args.threads is not None:
-            if args.syncThreads != 10 or args.uploadThreads != 10 or args.downloadThreads != 10:
+            if args.syncThreads != self.DEFAULT_SYNC_THREADS \
+                    or args.uploadThreads != self.DEFAULT_UPLOAD_THREADS \
+                    or args.downloadThreads != self.DEFAULT_DOWNLOAD_THREADS:
                 raise ValueError("--threads cannot be used with other thread options")
             sync_threads = upload_threads = download_threads = args.threads
         else:
