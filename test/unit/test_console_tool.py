@@ -1101,7 +1101,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             command = [
-                f'download-file-by-{download_by}', '--noProgress', '--threads',
+                'download-file-by-%s' % download_by, '--noProgress', '--threads',
                 str(num_threads)
             ]
             command += ['9999'] if download_by == 'id' else ['my-bucket', 'file.txt']
