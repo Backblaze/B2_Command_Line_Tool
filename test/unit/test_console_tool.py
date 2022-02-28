@@ -1946,7 +1946,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'file.txt')
-            command = [f'sync', '--noProgress']
+            command = ['sync', '--noProgress']
             if threads is not None:
                 command += ['--threads', str(threads)]
             if sync_threads is not None:
