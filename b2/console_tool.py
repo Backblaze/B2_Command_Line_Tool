@@ -28,6 +28,7 @@ from typing import Optional, Tuple
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
+    B2_ACCOUNT_INFO_PROFILE_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
     DEFAULT_SCAN_MANAGER,
     NO_RETENTION_BUCKET_SETTING,
@@ -118,6 +119,7 @@ DOC_STRING_DATA = dict(
     NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
+    B2_ACCOUNT_INFO_PROFILE_FILE=B2_ACCOUNT_INFO_PROFILE_FILE,
     XDG_CONFIG_HOME_ENV_VAR=XDG_CONFIG_HOME_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
@@ -495,6 +497,7 @@ class Command(Described):
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
+                common_parser.add_argument('--profile', default=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
@@ -567,10 +570,17 @@ class B2(Command):
     This program caches authentication-related and other data in a local SQLite database.
     The location of this database is determined in the following way:
 
+    If ``profile`` arg is provided:
+    * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/db-<profile>.sqlite``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
+    * ``{B2_ACCOUNT_INFO_PROFILE_FILE}``
+
+    Otherwise:
     * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, as default
+
+    If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
 
     For more details on one command:
 
@@ -2328,24 +2338,45 @@ class ConsoleTool(object):
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
 
-    Uses the StoredAccountInfo object to keep account data in
-    ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` between runs.
+    Uses the StoredAccountInfo object to keep account data between runs.
     """
 
-    def __init__(self, b2_api, stdout, stderr):
+    def __init__(self, b2_api: Optional[B2Api], stdout, stderr):
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        b2_command = B2(self)
-        args = b2_command.get_parser().parse_args(argv[1:])
+        args = B2.get_parser().parse_args(argv[1:])
+        self._setup_logging(args, argv)
 
+        b2_api_kwargs = {
+            'api_config': B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
+        }
+
+        if args.profile:
+            if self.api:
+                self._print_stderr('ERROR: cannot switch profile on already initialized object')
+                return 1
+
+            account_info = SqliteAccountInfo(profile=args.profile)
+            logger.info('Using profile "%s" (%s)', args.profile, account_info.filename)
+            b2_api_kwargs.update({
+                'account_info': account_info,
+                'cache': AuthInfoCache(account_info),
+            })
+
+        self.api = self.api or B2Api(**b2_api_kwargs)
+
+        b2_command = B2(self)
         command_class = b2_command.run(args)
         command = command_class(self)
 
-        self._setup_logging(args, command, argv)
+        if command.FORBID_LOGGING_ARGUMENTS:
+            logger.info('starting command [%s] (arguments hidden)', command)
+        else:
+            logger.info('starting command [%s] with arguments: %s', command, argv)
 
         try:
             auth_ret = self.authorize_from_env(command_class)
@@ -2402,7 +2433,7 @@ class ConsoleTool(object):
         print(*args, file=self.stderr, **kwargs)
 
     @classmethod
-    def _setup_logging(cls, args, command, argv):
+    def _setup_logging(cls, args, argv):
         if args.logConfig and (args.verbose or args.debugLogs):
             raise ValueError('Please provide either --logConfig or --verbose/--debugLogs')
         if args.logConfig:
@@ -2441,11 +2472,6 @@ class ConsoleTool(object):
         logger.debug('locale is %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
 
-        if command.FORBID_LOGGING_ARGUMENTS:
-            logger.info('starting command [%s] (arguments hidden)', command)
-        else:
-            logger.info('starting command [%s] with arguments: %s', command, argv)
-
 
 # used by Sphinx
 get_parser = functools.partial(B2.get_parser, for_docs=True)
@@ -2471,14 +2497,7 @@ class InvalidArgument(B2Error):
 
 
 def main():
-    info = SqliteAccountInfo()
-    cache = AuthInfoCache(info)
-    b2_api = B2Api(
-        info,
-        cache=cache,
-        api_config=B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
-    )
-    ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
+    ct = ConsoleTool(b2_api=None, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 
