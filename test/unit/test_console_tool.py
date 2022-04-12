@@ -1154,8 +1154,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
-                "size": 6,
-                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "size": 5,
+                "contentSha1": "4f664540ff30b8d34e037298a84e4736be39d731",
                 "contentType": "b2/x-auto",
                 "fileId": "9997",
                 "fileInfo": {
@@ -1168,9 +1168,18 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5002
             }
             self._run_command(
-                ['copy-file-by-id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy-file-by-id', '--range', '3,7', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
+
+            local_download1 = os.path.join(temp_dir, 'file1_copy.txt')
+            self._run_command(
+                [
+                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1_copy.txt',
+                    local_download1
+                ]
+            )
+            self.assertEqual(b'lo wo', self._read_file(local_download1))
 
             # Invalid metadata copy with file info
             expected_stderr = "ERROR: File info can be set only when content type is set\n"
