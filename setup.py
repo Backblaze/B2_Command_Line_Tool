@@ -82,8 +82,6 @@ setup(
 
         # Specify the Python versions you support here.
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
@@ -113,7 +111,7 @@ setup(
     # for example:
     # $ pip install -e .[dev,test]
     extras_require={'doc': read_requirements('doc')},
-    setup_requires=['setuptools_scm<6.0'],  # setuptools_scm>=6.0 doesn't support Python 3.5
+    setup_requires=['setuptools_scm<6.0'],
     use_scm_version=True,
 
     # If there are data files included in your packages that need to be

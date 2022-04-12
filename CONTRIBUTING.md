@@ -27,7 +27,7 @@ With `nox`, you can run different sessions (default are `lint` and `test`):
 
 * `format` -> Format the code.
 * `lint` -> Run linters.
-* `test` (`test-3.5`, `test-3.6`, `test-3.7`, `test-3.8`, `test-3.9`, `test-3.10`) -> Run test suite.
+* `test` (`test-3.7`, `test-3.8`, `test-3.9`, `test-3.10`) -> Run test suite.
 * `cover` -> Perform coverage analysis.
 * `build` -> Build the distribution.
 * `deploy` -> Deploy the distribution to the PyPi.
@@ -50,15 +50,15 @@ For example:
     nox > Running session format
     ...
 
-Sessions `test` ,`unit`, and `integration` can run on many Python versions, 3.5-3.10 by default.
+Sessions `test` ,`unit`, and `integration` can run on many Python versions, 3.7-3.10 by default.
 
 Sessions other than than use the last given Python version, 3.10 by default.
 
 You can change it:
 
-    export NOX_PYTHONS=3.6,3.7
+    export NOX_PYTHONS=3.9,3.10
 
-With the above setting, session `test` will run on Python 3.6 and 3.7, and all other sessions on Python 3.7.
+With the above setting, session `test` will run on Python 3.9 and 3.10, and all other sessions on Python 3.10.
 
 Given Python interpreters should be installed in the operating system or via [pyenv](https://github.com/pyenv/pyenv).
 

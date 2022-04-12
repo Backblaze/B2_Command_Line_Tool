@@ -10,7 +10,7 @@
 
 try:
     from importlib.metadata import version
-except ImportError:  # ModuleNotFoundError is not available in Python 3.5
+except ModuleNotFoundError:
     from importlib_metadata import version
 
 VERSION = version('b2')
