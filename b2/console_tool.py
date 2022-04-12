@@ -581,6 +581,8 @@ class B2(Command):
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, as default
 
     If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
+    Please note that the above rules may be changed in next versions of b2sdk, and in order to get
+    reliable authentication file location you should use ``b2 get-account-info``.
 
     For more details on one command:
 
@@ -1275,11 +1277,12 @@ class GetAccountInfo(Command):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
+            accountFilePath=getattr(account_info, 'filename', None),
             allowed=account_info.get_allowed(),
             applicationKey=account_info.get_application_key(),
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
-            downloadUrl=account_info.get_download_url()
+            downloadUrl=account_info.get_download_url(),
         )
         self._print_json(data)
         return 0

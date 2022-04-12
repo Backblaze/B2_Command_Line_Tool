@@ -1438,6 +1438,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         expected_json = {
             "accountAuthToken": "auth_token_0",
+            "accountFilePath": getattr(self.account_info, 'filename', None),
             "accountId": self.account_id,
             "allowed":
                 {
