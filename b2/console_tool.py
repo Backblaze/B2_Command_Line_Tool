@@ -1277,7 +1277,7 @@ class GetAccountInfo(Command):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
-            accountFilePath=getattr(account_info, 'filename', None),
+            accountFilePath=getattr(account_info, 'filename', None),  # missing in StubAccountInfo in tests
             allowed=account_info.get_allowed(),
             applicationKey=account_info.get_application_key(),
             accountAuthToken=account_info.get_account_auth_token(),
