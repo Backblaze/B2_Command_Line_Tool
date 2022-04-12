@@ -1438,7 +1438,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         expected_json = {
             "accountAuthToken": "auth_token_0",
-            "accountFilePath": getattr(self.account_info, 'filename', None),  # missing in StubAccountInfo in tests
+            "accountFilePath": getattr(self.account_info, 'filename',
+                                       None),  # missing in StubAccountInfo in tests
             "accountId": self.account_id,
             "allowed":
                 {

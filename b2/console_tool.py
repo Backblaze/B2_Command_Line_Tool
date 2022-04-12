@@ -1277,7 +1277,8 @@ class GetAccountInfo(Command):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
-            accountFilePath=getattr(account_info, 'filename', None),  # missing in StubAccountInfo in tests
+            accountFilePath=getattr(account_info, 'filename',
+                                    None),  # missing in StubAccountInfo in tests
             allowed=account_info.get_allowed(),
             applicationKey=account_info.get_application_key(),
             accountAuthToken=account_info.get_account_auth_token(),
@@ -2355,7 +2356,8 @@ class ConsoleTool(object):
         self._setup_logging(args, argv)
 
         b2_api_kwargs = {
-            'api_config': B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
+            'api_config':
+                B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
         }
 
         if args.profile:
@@ -2365,10 +2367,12 @@ class ConsoleTool(object):
 
             account_info = SqliteAccountInfo(profile=args.profile)
             logger.info('Using profile "%s" (%s)', args.profile, account_info.filename)
-            b2_api_kwargs.update({
-                'account_info': account_info,
-                'cache': AuthInfoCache(account_info),
-            })
+            b2_api_kwargs.update(
+                {
+                    'account_info': account_info,
+                    'cache': AuthInfoCache(account_info),
+                }
+            )
 
         self.api = self.api or B2Api(**b2_api_kwargs)
 
