@@ -31,12 +31,13 @@ from typing import Optional
 
 from b2.console_tool import current_time_millis, Command
 from b2sdk.v2 import (
+    B2_ACCOUNT_INFO_ENV_VAR,
     B2Api,
     Bucket,
     EncryptionAlgorithm,
+    EncryptionKey,
     EncryptionMode,
     EncryptionSetting,
-    EncryptionKey,
     FileRetentionSetting,
     fix_windows_path_limit,
     InMemoryAccountInfo,
@@ -44,9 +45,10 @@ from b2sdk.v2 import (
     LegalHold,
     NO_RETENTION_FILE_SETTING,
     RetentionMode,
-    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     SqliteAccountInfo,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     UNKNOWN_FILE_RETENTION_SETTING,
+    XDG_CONFIG_HOME_ENV_VAR,
 )
 
 from b2sdk.v2.exception import BucketIdNotFound, FileNotPresent
@@ -2265,23 +2267,40 @@ def profile_switch_test(b2_tool, bucket_name):
 
     MISSING_ACCOUNT_PATTERN = 'Missing account data'
 
-    # default account is already authorized
+    b2_tool.should_succeed(
+        [
+            'authorize-account',
+            '--environment',
+            b2_tool.realm,
+            b2_tool.account_id,
+            b2_tool.application_key,
+        ]
+    )
     b2_tool.should_succeed(['get-account-info'])
     b2_tool.should_succeed(['clear-account'])
     b2_tool.should_fail(['get-account-info'], expected_pattern=MISSING_ACCOUNT_PATTERN)
 
+    # in order to use --profile flag, we need to temporary
+    # delete B2_ACCOUNT_INFO_ENV_VAR
+    B2_ACCOUNT_INFO = os.environ.pop(B2_ACCOUNT_INFO_ENV_VAR, None)
+
     # now authorize a different account
-    profile = 'eu-central'
+    profile = 'profile-for-test-' + random_hex(6)
     b2_tool.should_fail(
         ['get-account-info', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
-    b2_tool.should_succeed([
-        'authorize-account',
-        '--environment', b2_tool.realm,
-        '--profile', profile,
-        b2_tool.account_id, b2_tool.application_key,
-    ])
+    b2_tool.should_succeed(
+        [
+            'authorize-account',
+            '--environment',
+            b2_tool.realm,
+            '--profile',
+            profile,
+            b2_tool.account_id,
+            b2_tool.application_key,
+        ]
+    )
 
     account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
     account_file_path = account_info['accountFilePath']
@@ -2295,6 +2314,11 @@ def profile_switch_test(b2_tool, bucket_name):
         ['get-account-info', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
+    os.remove(account_file_path)
+
+    # restore B2_ACCOUNT_INFO_ENV_VAR, if existed
+    if B2_ACCOUNT_INFO:
+        os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
 def _assert_file_lock_configuration(
@@ -2323,7 +2347,7 @@ def _assert_file_lock_configuration(
         assert legal_hold == actual_legal_hold
 
 
-def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
+def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeypatch, tmpdir):
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
@@ -2355,8 +2379,9 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
     account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
     application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
 
-    if os.environ.get('B2_ACCOUNT_INFO') is not None:
-        del os.environ['B2_ACCOUNT_INFO']
+    # make b2sdk use temp dir for storing default & per-profile account information
+    monkeypatch.setenv(B2_ACCOUNT_INFO_ENV_VAR, str(tmpdir / '.b2_account_info'))
+    monkeypatch.setenv(XDG_CONFIG_HOME_ENV_VAR, str(tmpdir))
 
     b2_tool = CommandLine(
         args.command, account_id, application_key, realm, this_run_bucket_name_prefix
@@ -2413,7 +2438,7 @@ def cleanup_hook(
 
 
 # TODO: rewrite to multiple tests
-def test_integration(sut, cleanup):
+def test_integration(sut, cleanup, monkeypatch, tmpdir):
     application_key_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID')
     if application_key_id is None:
         pytest.fail('B2_TEST_APPLICATION_KEY_ID is not set.')
@@ -2431,7 +2456,13 @@ def test_integration(sut, cleanup):
     this_run_bucket_name_prefix = general_bucket_name_prefix + bucket_name_part(8)
 
     try:
-        main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
+        main(
+            realm,
+            general_bucket_name_prefix,
+            this_run_bucket_name_prefix,
+            monkeypatch,
+            tmpdir,
+        )
     finally:
         if cleanup:
             cleanup_hook(
