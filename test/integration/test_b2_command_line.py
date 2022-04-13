@@ -2258,6 +2258,42 @@ def file_lock_without_perms_test(
     )
 
 
+def profile_switch_test(b2_tool, bucket_name):
+    # this test could be unit, but it adds a lot of complexity because of
+    # necessarity to pass mocked B2Api to ConsoleTool; it's much easier to
+    # just have an integration test instead
+
+    MISSING_ACCOUNT_PATTERN = 'Missing account data'
+
+    # default account is already authorized
+    b2_tool.should_succeed(['get-account-info'])
+    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_fail(['get-account-info'], expected_pattern=MISSING_ACCOUNT_PATTERN)
+
+    # now authorize a different account
+    profile = 'eu-central'
+    b2_tool.should_fail(
+        ['get-account-info', '--profile', profile],
+        expected_pattern=MISSING_ACCOUNT_PATTERN,
+    )
+    b2_tool.should_succeed(
+        ['authorize-account', '--profile', profile, b2_tool.account_id, b2_tool.application_key],
+    )
+
+    account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
+    account_file_path = account_info['accountFilePath']
+    assert profile in account_file_path, \
+        'accountFilePath "{}" should contain profile name "{}"'.format(
+            account_file_path, profile,
+        )
+
+    b2_tool.should_succeed(['clear-account', '--profile', profile])
+    b2_tool.should_fail(
+        ['get-account-info', '--profile', profile],
+        expected_pattern=MISSING_ACCOUNT_PATTERN,
+    )
+
+
 def _assert_file_lock_configuration(
     b2_tool,
     file_id,
@@ -2308,6 +2344,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
         'default_sse_b2': default_sse_b2_test,
         'sse_b2': sse_b2_test,
         'sse_c': sse_c_test,
+        'profile_switch_test': profile_switch_test,
     }
 
     args = parse_args(tests=sorted(test_map))
