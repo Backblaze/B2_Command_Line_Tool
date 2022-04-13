@@ -875,7 +875,24 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
 
-        os.symlink('broken', p('d'))
+        #
+        # A note about OSError: [WinError 1314]
+        #
+        # If you are seeing this, then probably you ran the integration test suite from
+        # a non-admin account which on Windows doesn't by default get to create symlinks.
+        # A special permission is needed. Now maybe there is a way to give that permission,
+        # but it didn't work for me, so I just ran it as admin. A guide that I've found
+        # recommended to go to Control Panel, Administrative Tools, Local Security Policy,
+        # Local Policies, User Rights Assignment and there you can find a permission to
+        # create symbilic links. Add your user to it (or a group that the user is in).
+        #
+        # Finally in order to apply the new policy, run `cmd` and execute
+        # ``gpupdate /force``.
+        #
+        # Again, if it still doesn't work, consider just running the shell you are
+        # launching ``nox`` as admin.
+
+        os.symlink('broken', p('d'))  # OSError: [WinError 1314] ? See the comment above
 
         additional_env = None
 
