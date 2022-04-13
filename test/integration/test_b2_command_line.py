@@ -2276,9 +2276,12 @@ def profile_switch_test(b2_tool, bucket_name):
         ['get-account-info', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
-    b2_tool.should_succeed(
-        ['authorize-account', '--profile', profile, b2_tool.account_id, b2_tool.application_key],
-    )
+    b2_tool.should_succeed([
+        'authorize-account',
+        '--environment', b2_tool.realm,
+        '--profile', profile,
+        b2_tool.account_id, b2_tool.application_key,
+    ])
 
     account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
     account_file_path = account_info['accountFilePath']
