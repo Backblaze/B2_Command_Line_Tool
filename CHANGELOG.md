@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+* Fix license header checker on Windows
+
 ### Removed
 * Remove official support for python 3.5
 * Remove official support for python 3.6
