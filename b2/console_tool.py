@@ -2422,6 +2422,14 @@ class InvalidArgument(B2Error):
 
 
 def main():
+    # the documentation of multiprocessing.freeze_support says that it only do anything on Windows
+    # HOWEVER pyinstaller patches it to avoid program re-execution with really weird command
+    # parameters when running on OSX while bundled. This is really weird because we are not using
+    # multiprocessing at all and yet this issue started suddenly hitting our users on 2022-04-13.
+    # See https://github.com/pyinstaller/pyinstaller/issues/4865
+    from multiprocessing import freeze_support
+    freeze_support()
+
     info = SqliteAccountInfo()
     cache = AuthInfoCache(info)
     b2_api = B2Api(
