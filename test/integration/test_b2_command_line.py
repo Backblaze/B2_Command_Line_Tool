@@ -29,7 +29,7 @@ import threading
 import pytest
 from typing import Optional
 
-from b2.console_tool import current_time_millis
+from b2.console_tool import current_time_millis, Command
 from b2sdk.v2 import (
     B2Api,
     Bucket,
@@ -218,7 +218,7 @@ def print_text_indented(text):
     Prints text that may include weird characters, indented four spaces.
     """
     for line in text.split(os.linesep):
-        print('   ', repr(line)[1:-1])
+        Command._print_standard_descriptor(sys.stdout, '   ', repr(line)[1:-1])
 
 
 def print_json_indented(value):

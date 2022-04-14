@@ -521,16 +521,21 @@ class Command(Described):
             file_infos[parts[0]] = parts[1]
         return file_infos
 
-    def _print(self, *args):
-        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
-
     def _print_json(self, data):
         self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder))
 
-    def _print_stderr(self, *args, **kwargs):
-        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
+    def _print(self, *args):
+        self._print_standard_descriptor(self.stdout, 'stdout', *args)
 
-    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args):
+    def _print_stderr(self, *args, **kwargs):
+        self._print_standard_descriptor(self.stderr, 'stderr', *args)
+
+    @classmethod
+    def _print_standard_descriptor(cls, descriptor, descriptor_name, *args):
+        cls._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
+
+    @classmethod
+    def _print_helper(cls, descriptor, descriptor_encoding, descriptor_name, *args):
         try:
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
