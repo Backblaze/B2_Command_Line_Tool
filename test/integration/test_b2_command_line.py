@@ -517,6 +517,10 @@ def download_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-bucket', bucket_name])
 
 
+def test_bucketinfo():
+    return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
+
+
 def basic_test(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
@@ -619,7 +623,14 @@ def basic_test(b2_tool, bucket_name):
         ),
     )  # \r? is for Windows, as $ doesn't match \r\n
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', to_be_removed_bucket_name, 'allPublic'],)
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            to_be_removed_bucket_name,
+            'allPublic',
+            *test_bucketinfo(),
+        ],
+    )
     b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
     b2_tool.should_fail(
         ['delete-bucket', to_be_removed_bucket_name],
@@ -663,7 +674,7 @@ def basic_test(b2_tool, bucket_name):
 def key_restrictions_test(b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
+    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *test_bucketinfo()],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -723,7 +734,7 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     new_bucket_name = b2_tool.generate_bucket_name()
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
+    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *test_bucketinfo()])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
     with b2_tool.env_var_test_context:
@@ -763,7 +774,7 @@ def account_test(b2_tool, bucket_name):
         os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
         bucket_name = b2_tool.generate_bucket_name()
-        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
+        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()])
         b2_tool.should_succeed(['delete-bucket', bucket_name])
         assert os.path.exists(new_creds), 'sqlite file not created'
 
@@ -773,7 +784,7 @@ def account_test(b2_tool, bucket_name):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY')
@@ -1289,7 +1300,9 @@ def prepare_and_run_sync_copy_tests(
         b2_file_prefix = ''
 
     other_bucket_name = b2_tool.generate_bucket_name()
-    success, _ = b2_tool.run_command(['create-bucket', other_bucket_name, 'allPublic'])
+    success, _ = b2_tool.run_command(
+        ['create-bucket', other_bucket_name, 'allPublic', *test_bucketinfo()]
+    )
 
     other_b2_sync_point = 'b2:%s' % other_bucket_name
     if folder_in_bucket:
@@ -1466,7 +1479,13 @@ def default_sse_b2_test(b2_tool, bucket_name):
     # Set default encryption via create-bucket
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
-        ['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic']
+        [
+            'create-bucket',
+            '--defaultServerSideEncryption=SSE-B2',
+            second_bucket_name,
+            'allPublic',
+            *test_bucketinfo(),
+        ]
     )
     second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
     second_bucket_default_sse = {
@@ -1837,11 +1856,14 @@ def sse_c_test(b2_tool, bucket_name):
 
 def file_lock_test(b2_tool, bucket_name):
     lock_disabled_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed([
-        'create-bucket',
-        lock_disabled_bucket_name,
-        'allPrivate',
-    ],)
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            lock_disabled_bucket_name,
+            'allPrivate',
+            *test_bucketinfo(),
+        ],
+    )
 
     file_to_upload = 'README.md'
     now_millis = current_time_millis()
@@ -1893,6 +1915,7 @@ def file_lock_test(b2_tool, bucket_name):
             lock_enabled_bucket_name,
             'allPrivate',
             '--fileLockEnabled',
+            *test_bucketinfo(),
         ],
     )
     updated_bucket = b2_tool.should_succeed_json(
