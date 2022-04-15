@@ -267,28 +267,36 @@ class Api:
         )
         print('Creating bucket:', bucket_name)
         self.api.create_bucket(
-            bucket_name, 'allPublic', bucket_info={'created_at_millis': str(current_time_millis())}
+            bucket_name,
+            'allPublic',
+            bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
         )
         print()
         return bucket_name
 
     def _should_remove_bucket(self, bucket: Bucket):
         if bucket.name.startswith(self.this_run_bucket_name_prefix):
-            return True
-        if bucket.name.startswith(self.general_bucket_name_prefix):
+            return True, 'it is a bucket for this very run'
+        OLD_PATTERN = 'test-b2-cli-'
+        if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
             if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
-                if int(bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
-                      ) < current_time_millis() - ONE_HOUR_MILLIS:
-                    return True
-        return False
+                delete_older_than = current_time_millis() - ONE_HOUR_MILLIS
+                this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
+                if int(this_bucket_creation_time) < delete_older_than:
+                    return True, f"{this_bucket_creation_time} < {delete_older_than}"
+            else:
+                return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
+        return False, ''
 
     def clean_buckets(self):
         buckets = self.api.list_buckets()
+        print('Total bucket count:', len(buckets))
         for bucket in buckets:
-            if not self._should_remove_bucket(bucket):
+            should_remove, why = self._should_remove_bucket(bucket)
+            if not should_remove:
                 print('Skipping bucket removal:', bucket.name)
             else:
-                print('Trying to remove bucket:', bucket.name)
+                print('Trying to remove bucket:', bucket.name, 'because', why)
                 files_leftover = False
                 file_versions = bucket.ls(latest_only=False, recursive=True)
                 for file_version_info, _ in file_versions:
