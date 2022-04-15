@@ -387,7 +387,8 @@ class CommandLine:
         re.compile(
             r'WARNING: Unable to print unicode.  Encoding for stdout is: '
             r'\'[a-zA-Z0-9]+\''
-        ),  # windows bundle tests on CI use cp1252
+        ),  # windows-bundle tests on CI use cp1252
+        re.compile(r'Trying to print: .*'),
     ]
 
     def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
