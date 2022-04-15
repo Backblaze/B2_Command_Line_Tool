@@ -69,13 +69,13 @@ def install_myself(session, extras=None):
     if extras:
         arg += '[%s]' % ','.join(extras)
 
-    session.install('-e', arg)
     if INSTALL_SDK_FROM:
         cwd = os.getcwd()
         os.chdir(INSTALL_SDK_FROM)
         session.run('pip', 'uninstall', 'b2sdk', '-y')
         session.run('python', 'setup.py', 'develop')
         os.chdir(cwd)
+    session.install('-e', arg)
 
 
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)

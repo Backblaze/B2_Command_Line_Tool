@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+* Fix license header checker on Windows
+* Fix `UnicodeEncodeError` after successful SSE-C download on a non-utf8 terminal (#786)
+
 ### Removed
 * Remove official support for python 3.5
 * Remove official support for python 3.6

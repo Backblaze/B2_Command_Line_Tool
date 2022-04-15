@@ -521,16 +521,21 @@ class Command(Described):
             file_infos[parts[0]] = parts[1]
         return file_infos
 
-    def _print(self, *args):
-        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
-
     def _print_json(self, data):
         self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder))
 
-    def _print_stderr(self, *args, **kwargs):
-        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
+    def _print(self, *args):
+        self._print_standard_descriptor(self.stdout, 'stdout', *args)
 
-    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args):
+    def _print_stderr(self, *args, **kwargs):
+        self._print_standard_descriptor(self.stderr, 'stderr', *args)
+
+    @classmethod
+    def _print_standard_descriptor(cls, descriptor, descriptor_name, *args):
+        cls._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
+
+    @classmethod
+    def _print_helper(cls, descriptor, descriptor_encoding, descriptor_name, *args):
         try:
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
@@ -1088,8 +1093,85 @@ class DeleteKey(Command):
         return 0
 
 
+class DownloadCommand(Command):
+    """ helper methods for returning results from download commands """
+
+    def _print_download_info(self, downloaded_file: DownloadedFile):
+        download_version = downloaded_file.download_version
+        self._print_file_attribute('File name', download_version.file_name)
+        self._print_file_attribute('File id', download_version.id_)
+        self._print_file_attribute('File size', str(download_version.content_length))
+        self._print_file_attribute('Content type', download_version.content_type)
+        self._print_file_attribute('Content sha1', download_version.content_sha1)
+        self._print_file_attribute(
+            'Encryption', self._represent_encryption(download_version.server_side_encryption)
+        )
+        self._print_file_attribute(
+            'Retention', self._represent_retention(download_version.file_retention)
+        )
+        self._print_file_attribute(
+            'Legal hold', self._represent_legal_hold(download_version.legal_hold)
+        )
+        for label, attr_name in [
+            ('ContentDisposition', 'content_disposition'),
+            ('ContentLanguage', 'content_language'),
+            ('ContentEncoding', 'content_encoding'),
+        ]:
+            attr_value = getattr(download_version, attr_name)
+            if attr_value is not None:
+                self._print_file_attribute(label, attr_value)
+        for name in sorted(download_version.file_info):
+            self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
+        if download_version.content_sha1 != 'none':
+            self._print('Checksum matches')
+        return 0
+
+    @classmethod
+    def _represent_encryption(cls, encryption: EncryptionSetting):
+        # TODO: refactor to use "match" syntax after dropping python 3.9 support
+        if encryption.mode is EncryptionMode.NONE:
+            return 'none'
+        result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
+        if encryption.mode is EncryptionMode.SSE_B2:
+            pass
+        elif encryption.mode is EncryptionMode.SSE_C:
+            if encryption.key.key_id is not None:
+                result += ', key_id=%s' % (encryption.key.key_id,)
+        else:
+            raise ValueError('Unsupported encryption mode: %s' % (encryption.mode,))
+
+        return result
+
+    @classmethod
+    def _represent_retention(cls, retention: FileRetentionSetting):
+        if retention.mode is RetentionMode.NONE:
+            return 'none'
+        if retention.mode is RetentionMode.UNKNOWN:
+            return '<unauthorized to read>'
+        if retention.mode in (RetentionMode.COMPLIANCE, RetentionMode.GOVERNANCE):
+            return 'mode=%s, retainUntil=%s' % (
+                retention.mode.value,
+                datetime.datetime.
+                fromtimestamp(retention.retain_until / 1000, datetime.timezone.utc)
+            )
+        raise ValueError('Unsupported retention mode: %s' % (retention.mode,))
+
+    @classmethod
+    def _represent_legal_hold(cls, legal_hold: LegalHold):
+        if legal_hold in (LegalHold.ON, LegalHold.OFF):
+            return legal_hold.value
+        if legal_hold is LegalHold.UNKNOWN:
+            return '<unauthorized to read>'
+        if legal_hold is LegalHold.UNSET:
+            return '<unset>'
+        raise ValueError('Unsupported legal hold: %s' % (legal_hold,))
+
+    def _print_file_attribute(self, label, value):
+        self._print((label + ':').ljust(20) + ' ' + value)
+
+
 @B2.register_subcommand
-class DownloadFileById(SourceSseMixin, Command):
+class DownloadFileById(SourceSseMixin, DownloadCommand):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1117,14 +1199,14 @@ class DownloadFileById(SourceSseMixin, Command):
         downloaded_file = self.api.download_file_by_id(
             args.fileId, progress_listener, encryption=encryption_setting
         )
-        self.console_tool._print_download_info(downloaded_file)
+        self._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
         self._print('Download finished')
         return 0
 
 
 @B2.register_subcommand
-class DownloadFileByName(SourceSseMixin, Command):
+class DownloadFileByName(SourceSseMixin, DownloadCommand):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1154,7 +1236,7 @@ class DownloadFileByName(SourceSseMixin, Command):
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
         )
-        self.console_tool._print_download_info(downloaded_file)
+        self._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
         self._print('Download finished')
         return 0
@@ -2281,76 +2363,6 @@ class ConsoleTool(object):
 
     def _print_stderr(self, *args, **kwargs):
         print(*args, file=self.stderr, **kwargs)
-
-    def _print_download_info(self, downloaded_file: DownloadedFile):
-        download_version = downloaded_file.download_version
-        self._print_file_attribute('File name', download_version.file_name)
-        self._print_file_attribute('File id', download_version.id_)
-        self._print_file_attribute('File size', download_version.content_length)
-        self._print_file_attribute('Content type', download_version.content_type)
-        self._print_file_attribute('Content sha1', download_version.content_sha1)
-        self._print_file_attribute(
-            'Encryption', self._represent_encryption(download_version.server_side_encryption)
-        )
-        self._print_file_attribute(
-            'Retention', self._represent_retention(download_version.file_retention)
-        )
-        self._print_file_attribute(
-            'Legal hold', self._represent_legal_hold(download_version.legal_hold)
-        )
-        for label, attr_name in [
-            ('ContentDisposition', 'content_disposition'),
-            ('ContentLanguage', 'content_language'),
-            ('ContentEncoding', 'content_encoding'),
-        ]:
-            attr_value = getattr(download_version, attr_name)
-            if attr_value is not None:
-                self._print_file_attribute(label, attr_value)
-        for name in sorted(download_version.file_info):
-            self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
-        if download_version.content_sha1 != 'none':
-            self._print('Checksum matches')
-        return 0
-
-    def _represent_encryption(self, encryption: EncryptionSetting):
-        # TODO: refactor to use "match" syntax after dropping python 3.9 support
-        if encryption.mode is EncryptionMode.NONE:
-            return 'none'
-        result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
-        if encryption.mode is EncryptionMode.SSE_B2:
-            pass
-        elif encryption.mode is EncryptionMode.SSE_C:
-            if encryption.key.key_id is not None:
-                result += ', key_id=%s' % (encryption.key.key_id,)
-        else:
-            raise ValueError('Unsupported encryption mode: %s' % (encryption.mode,))
-
-        return result
-
-    def _represent_retention(self, retention: FileRetentionSetting):
-        if retention.mode is RetentionMode.NONE:
-            return 'none'
-        if retention.mode is RetentionMode.UNKNOWN:
-            return '<unauthorized to read>'
-        if retention.mode in (RetentionMode.COMPLIANCE, RetentionMode.GOVERNANCE):
-            return 'mode=%s, retainUntil=%s' % (
-                retention.mode.value,
-                datetime.datetime.
-                fromtimestamp(retention.retain_until / 1000, datetime.timezone.utc)
-            )
-        raise ValueError('Unsupported retention mode: %s' % (retention.mode,))
-
-    def _represent_legal_hold(self, legal_hold: LegalHold):
-        if legal_hold in (LegalHold.ON, LegalHold.OFF):
-            return legal_hold.value
-        if legal_hold is LegalHold.UNKNOWN:
-            return '<unauthorized to read>'
-        if legal_hold is LegalHold.UNSET:
-            return '<unset>'
-        raise ValueError('Unsupported legal hold: %s' % (legal_hold,))
-
-    def _print_file_attribute(self, label, value):
-        self._print((label + ':').ljust(20), value)
 
     @classmethod
     def _setup_logging(cls, args, command, argv):

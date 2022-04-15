@@ -12,7 +12,7 @@ from io import StringIO
 from b2sdk.v2 import B2Api
 from b2sdk.v2 import B2HttpApiConfig
 from b2sdk.v2 import StubAccountInfo
-from b2.console_tool import ConsoleTool
+from b2.console_tool import ConsoleTool, DownloadCommand
 from b2sdk.v2 import FileRetentionSetting, RetentionMode, LegalHold
 from b2sdk.v2 import EncryptionSetting, EncryptionMode, EncryptionKey, EncryptionAlgorithm, SSE_B2_AES
 from b2sdk.v2 import RawSimulator
@@ -55,15 +55,15 @@ class TestReprentFileMetadata(TestBase):
 
     def assertRetentionRepr(self, file_id: str, api: B2Api, expected_repr: str):
         file_version = api.get_file_info(file_id)
-        assert self.console_tool._represent_retention(file_version.file_retention) == expected_repr
+        assert DownloadCommand._represent_retention(file_version.file_retention) == expected_repr
 
     def assertLegalHoldRepr(self, file_id: str, api: B2Api, expected_repr: str):
         file_version = api.get_file_info(file_id)
-        assert self.console_tool._represent_legal_hold(file_version.legal_hold) == expected_repr
+        assert DownloadCommand._represent_legal_hold(file_version.legal_hold) == expected_repr
 
     def assertEncryptionRepr(self, file_id: str, expected_repr: str):
         file_version = self.master_b2_api.get_file_info(file_id)
-        assert self.console_tool._represent_encryption(
+        assert DownloadCommand._represent_encryption(
             file_version.server_side_encryption
         ) == expected_repr
 
