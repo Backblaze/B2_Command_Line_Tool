@@ -206,8 +206,8 @@ def run_command(cmd, args, additional_env: Optional[dict] = None):
     reader1.join()
     reader2.join()
 
-    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8'))
-    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8'))
+    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
+    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
 
     print_output(p.returncode, stdout_decoded, stderr_decoded)
     return p.returncode, stdout_decoded, stderr_decoded
