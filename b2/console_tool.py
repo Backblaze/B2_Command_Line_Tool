@@ -54,6 +54,7 @@ from b2sdk.v2 import (
     KeepOrDeleteMode,
     LegalHold,
     NewerFileSyncMode,
+    ReplicationConfiguration,
     RetentionMode,
     ScanPoliciesManager,
     SqliteAccountInfo,
@@ -964,6 +965,7 @@ class CreateBucket(DefaultSseMixin, Command):
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
         )
+        parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -979,6 +981,7 @@ class CreateBucket(DefaultSseMixin, Command):
             lifecycle_rules=args.lifecycleRules,
             default_server_side_encryption=encryption_setting,
             is_file_lock_enabled=args.fileLockEnabled,
+            replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
         )
         self._print(bucket.id_)
         return 0
@@ -2118,6 +2121,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
+        parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -2142,6 +2146,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             lifecycle_rules=args.lifecycleRules,
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
+            replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
         )
         self._print_json(bucket)
         return 0
