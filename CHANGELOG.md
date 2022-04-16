@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `--threads` parameter to `download-file-by-name` and `download-file-by-id` 
+* Add `--uploadThreads` and `--downloadThreads` parameters to `sync`
+* Add `--profile` switch support
+
+### Changed
+* Rename `--threads` parameter for `--sync` to `--syncThreads`
+
+### Fixed
+* Fix license header checker on Windows
+* Fix `UnicodeEncodeError` after successful SSE-C download on a non-utf8 terminal (#786)
+
 ### Removed
 * Remove official support for python 3.5
 * Remove official support for python 3.6
@@ -28,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fallback to `ascii` decoder when printing help in case the locales are not properly set
+* Apply the value of `--threads` parameter to `sync` downloader threads
 
 ## [3.1.0] - 2021-11-02
 

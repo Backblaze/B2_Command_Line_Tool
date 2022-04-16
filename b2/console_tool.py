@@ -28,6 +28,7 @@ from typing import Optional, Tuple
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
+    B2_ACCOUNT_INFO_PROFILE_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
     DEFAULT_SCAN_MANAGER,
     NO_RETENTION_BUCKET_SETTING,
@@ -118,6 +119,7 @@ DOC_STRING_DATA = dict(
     NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
+    B2_ACCOUNT_INFO_PROFILE_FILE=B2_ACCOUNT_INFO_PROFILE_FILE,
     XDG_CONFIG_HOME_ENV_VAR=XDG_CONFIG_HOME_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR=B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_APPLICATION_KEY_ENV_VAR=B2_APPLICATION_KEY_ENV_VAR,
@@ -495,6 +497,7 @@ class Command(Described):
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
+                common_parser.add_argument('--profile', default=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
@@ -521,16 +524,21 @@ class Command(Described):
             file_infos[parts[0]] = parts[1]
         return file_infos
 
-    def _print(self, *args):
-        self._print_helper(self.stdout, self.stdout.encoding, 'stdout', *args)
-
     def _print_json(self, data):
         self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder))
 
-    def _print_stderr(self, *args, **kwargs):
-        self._print_helper(self.stderr, self.stderr.encoding, 'stderr', *args)
+    def _print(self, *args):
+        self._print_standard_descriptor(self.stdout, 'stdout', *args)
 
-    def _print_helper(self, descriptor, descriptor_encoding, descriptor_name, *args):
+    def _print_stderr(self, *args, **kwargs):
+        self._print_standard_descriptor(self.stderr, 'stderr', *args)
+
+    @classmethod
+    def _print_standard_descriptor(cls, descriptor, descriptor_name, *args):
+        cls._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
+
+    @classmethod
+    def _print_helper(cls, descriptor, descriptor_encoding, descriptor_name, *args):
         try:
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
@@ -562,10 +570,19 @@ class B2(Command):
     This program caches authentication-related and other data in a local SQLite database.
     The location of this database is determined in the following way:
 
+    If ``profile`` arg is provided:
+    * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/db-<profile>.sqlite``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
+    * ``{B2_ACCOUNT_INFO_PROFILE_FILE}``
+
+    Otherwise:
     * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, as default
+
+    If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
+    Please note that the above rules may be changed in next versions of b2sdk, and in order to get
+    reliable authentication file location you should use ``b2 get-account-info``.
 
     For more details on one command:
 
@@ -1088,8 +1105,85 @@ class DeleteKey(Command):
         return 0
 
 
+class DownloadCommand(Command):
+    """ helper methods for returning results from download commands """
+
+    def _print_download_info(self, downloaded_file: DownloadedFile):
+        download_version = downloaded_file.download_version
+        self._print_file_attribute('File name', download_version.file_name)
+        self._print_file_attribute('File id', download_version.id_)
+        self._print_file_attribute('File size', str(download_version.content_length))
+        self._print_file_attribute('Content type', download_version.content_type)
+        self._print_file_attribute('Content sha1', download_version.content_sha1)
+        self._print_file_attribute(
+            'Encryption', self._represent_encryption(download_version.server_side_encryption)
+        )
+        self._print_file_attribute(
+            'Retention', self._represent_retention(download_version.file_retention)
+        )
+        self._print_file_attribute(
+            'Legal hold', self._represent_legal_hold(download_version.legal_hold)
+        )
+        for label, attr_name in [
+            ('ContentDisposition', 'content_disposition'),
+            ('ContentLanguage', 'content_language'),
+            ('ContentEncoding', 'content_encoding'),
+        ]:
+            attr_value = getattr(download_version, attr_name)
+            if attr_value is not None:
+                self._print_file_attribute(label, attr_value)
+        for name in sorted(download_version.file_info):
+            self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
+        if download_version.content_sha1 != 'none':
+            self._print('Checksum matches')
+        return 0
+
+    @classmethod
+    def _represent_encryption(cls, encryption: EncryptionSetting):
+        # TODO: refactor to use "match" syntax after dropping python 3.9 support
+        if encryption.mode is EncryptionMode.NONE:
+            return 'none'
+        result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
+        if encryption.mode is EncryptionMode.SSE_B2:
+            pass
+        elif encryption.mode is EncryptionMode.SSE_C:
+            if encryption.key.key_id is not None:
+                result += ', key_id=%s' % (encryption.key.key_id,)
+        else:
+            raise ValueError('Unsupported encryption mode: %s' % (encryption.mode,))
+
+        return result
+
+    @classmethod
+    def _represent_retention(cls, retention: FileRetentionSetting):
+        if retention.mode is RetentionMode.NONE:
+            return 'none'
+        if retention.mode is RetentionMode.UNKNOWN:
+            return '<unauthorized to read>'
+        if retention.mode in (RetentionMode.COMPLIANCE, RetentionMode.GOVERNANCE):
+            return 'mode=%s, retainUntil=%s' % (
+                retention.mode.value,
+                datetime.datetime.
+                fromtimestamp(retention.retain_until / 1000, datetime.timezone.utc)
+            )
+        raise ValueError('Unsupported retention mode: %s' % (retention.mode,))
+
+    @classmethod
+    def _represent_legal_hold(cls, legal_hold: LegalHold):
+        if legal_hold in (LegalHold.ON, LegalHold.OFF):
+            return legal_hold.value
+        if legal_hold is LegalHold.UNKNOWN:
+            return '<unauthorized to read>'
+        if legal_hold is LegalHold.UNSET:
+            return '<unset>'
+        raise ValueError('Unsupported legal hold: %s' % (legal_hold,))
+
+    def _print_file_attribute(self, label, value):
+        self._print((label + ':').ljust(20) + ' ' + value)
+
+
 @B2.register_subcommand
-class DownloadFileById(SourceSseMixin, Command):
+class DownloadFileById(SourceSseMixin, DownloadCommand):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1107,6 +1201,7 @@ class DownloadFileById(SourceSseMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
@@ -1114,17 +1209,21 @@ class DownloadFileById(SourceSseMixin, Command):
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
+        if args.threads:
+            # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+            #        There is `max_download_workers` param in B2Api constructor for this.
+            self.api.services.download_manager.set_thread_pool_size(args.threads)
         downloaded_file = self.api.download_file_by_id(
             args.fileId, progress_listener, encryption=encryption_setting
         )
-        self.console_tool._print_download_info(downloaded_file)
+        self._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
         self._print('Download finished')
         return 0
 
 
 @B2.register_subcommand
-class DownloadFileByName(SourceSseMixin, Command):
+class DownloadFileByName(SourceSseMixin, DownloadCommand):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1142,19 +1241,24 @@ class DownloadFileByName(SourceSseMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('bucketName')
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
 
     def run(self, args):
+        if args.threads:
+            # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+            #        There is `max_download_workers` param in B2Api constructor for this.
+            self.api.services.download_manager.set_thread_pool_size(args.threads)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
         )
-        self.console_tool._print_download_info(downloaded_file)
+        self._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
         self._print('Download finished')
         return 0
@@ -1173,11 +1277,13 @@ class GetAccountInfo(Command):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
+            accountFilePath=getattr(account_info, 'filename',
+                                    None),  # missing in StubAccountInfo in tests
             allowed=account_info.get_allowed(),
             applicationKey=account_info.get_application_key(),
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
-            downloadUrl=account_info.get_download_url()
+            downloadUrl=account_info.get_download_url(),
         )
         self._print_json(data)
         return 0
@@ -1665,9 +1771,13 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     or is empty.  (This check only applies to version 1.0 and later.)
 
     Users with high-performance networks, or file sets with very small
-    files, will benefit from multi-threaded uploads.  The default number
-    of threads is 10.  Experiment with the ``--threads`` parameter if the
-    default is not working well.
+    files, will benefit from multi-threaded uploads and downloads. The default
+    number of threads for syncing, downloading, and uploading is 10.
+    The number of files processed in parallel is set by ``--syncThreads``,
+    the number of files/file parts downloaded in parallel is set by``--downloadThreads``,
+    and the number of files/file parts uploaded in parallel is set by `--uploadThreads``.
+    All the three parameters can be set to the same value by ``--threads``.
+    Experiment with parameters if the defaults are not working well.
 
     Users with low-performance networks may benefit from reducing the
     number of threads.  Using just one thread will minimize the impact
@@ -1675,7 +1785,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
     .. note::
 
-        Note that using multiple threads will usually be detrimental to
+        Note that using multiple threads could be detrimental to
         the other users on your network.
 
     You can specify ``--excludeRegex`` to selectively ignore files that
@@ -1794,13 +1904,20 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     - **writeFiles** (for uploading)
     """
 
+    DEFAULT_SYNC_THREADS = 10
+    DEFAULT_DOWNLOAD_THREADS = 10
+    DEFAULT_UPLOAD_THREADS = 10
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
-        parser.add_argument('--threads', type=int, default=10)
+        parser.add_argument('--threads', type=int)
+        parser.add_argument('--syncThreads', type=int, default=cls.DEFAULT_SYNC_THREADS)
+        parser.add_argument('--downloadThreads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS)
+        parser.add_argument('--uploadThreads', type=int, default=cls.DEFAULT_UPLOAD_THREADS)
         parser.add_argument(
             '--compareVersions', default='modTime', choices=('none', 'modTime', 'size')
         )
@@ -1829,7 +1946,21 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     def run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
-        self.api.services.upload_manager.set_thread_pool_size(args.threads)
+        if args.threads is not None:
+            if args.syncThreads != self.DEFAULT_SYNC_THREADS \
+                    or args.uploadThreads != self.DEFAULT_UPLOAD_THREADS \
+                    or args.downloadThreads != self.DEFAULT_DOWNLOAD_THREADS:
+                raise ValueError("--threads cannot be used with other thread options")
+            sync_threads = upload_threads = download_threads = args.threads
+        else:
+            sync_threads = args.syncThreads
+            upload_threads = args.uploadThreads
+            download_threads = args.downloadThreads
+
+        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        #        There are `max_X_workers` params in B2Api constructor for this.
+        self.api.services.upload_manager.set_thread_pool_size(upload_threads)
+        self.api.services.download_manager.set_thread_pool_size(download_threads)
 
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
@@ -1837,7 +1968,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
         synchronizer = self.get_synchronizer_from_args(
             args,
-            args.threads,
+            sync_threads,
             policies_manager,
             allow_empty_source,
         )
@@ -2079,6 +2210,8 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
                 int(os.path.getmtime(args.localFilePath) * 1000)
             )
 
+        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        #        There is `max_upload_workers` param in B2Api constructor for this.
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -2209,24 +2342,48 @@ class ConsoleTool(object):
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
 
-    Uses the StoredAccountInfo object to keep account data in
-    ``{B2_ACCOUNT_INFO_DEFAULT_FILE}`` between runs.
+    Uses the StoredAccountInfo object to keep account data between runs.
     """
 
-    def __init__(self, b2_api, stdout, stderr):
+    def __init__(self, b2_api: Optional[B2Api], stdout, stderr):
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        b2_command = B2(self)
-        args = b2_command.get_parser().parse_args(argv[1:])
+        args = B2.get_parser().parse_args(argv[1:])
+        self._setup_logging(args, argv)
 
+        b2_api_kwargs = {
+            'api_config':
+                B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
+        }
+
+        if args.profile:
+            if self.api:
+                self._print_stderr('ERROR: cannot switch profile on already initialized object')
+                return 1
+
+            account_info = SqliteAccountInfo(profile=args.profile)
+            logger.info('Using profile "%s" (%s)', args.profile, account_info.filename)
+            b2_api_kwargs.update(
+                {
+                    'account_info': account_info,
+                    'cache': AuthInfoCache(account_info),
+                }
+            )
+
+        self.api = self.api or B2Api(**b2_api_kwargs)
+
+        b2_command = B2(self)
         command_class = b2_command.run(args)
         command = command_class(self)
 
-        self._setup_logging(args, command, argv)
+        if command.FORBID_LOGGING_ARGUMENTS:
+            logger.info('starting command [%s] (arguments hidden)', command)
+        else:
+            logger.info('starting command [%s] with arguments: %s', command, argv)
 
         try:
             auth_ret = self.authorize_from_env(command_class)
@@ -2282,78 +2439,8 @@ class ConsoleTool(object):
     def _print_stderr(self, *args, **kwargs):
         print(*args, file=self.stderr, **kwargs)
 
-    def _print_download_info(self, downloaded_file: DownloadedFile):
-        download_version = downloaded_file.download_version
-        self._print_file_attribute('File name', download_version.file_name)
-        self._print_file_attribute('File id', download_version.id_)
-        self._print_file_attribute('File size', download_version.content_length)
-        self._print_file_attribute('Content type', download_version.content_type)
-        self._print_file_attribute('Content sha1', download_version.content_sha1)
-        self._print_file_attribute(
-            'Encryption', self._represent_encryption(download_version.server_side_encryption)
-        )
-        self._print_file_attribute(
-            'Retention', self._represent_retention(download_version.file_retention)
-        )
-        self._print_file_attribute(
-            'Legal hold', self._represent_legal_hold(download_version.legal_hold)
-        )
-        for label, attr_name in [
-            ('ContentDisposition', 'content_disposition'),
-            ('ContentLanguage', 'content_language'),
-            ('ContentEncoding', 'content_encoding'),
-        ]:
-            attr_value = getattr(download_version, attr_name)
-            if attr_value is not None:
-                self._print_file_attribute(label, attr_value)
-        for name in sorted(download_version.file_info):
-            self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
-        if download_version.content_sha1 != 'none':
-            self._print('Checksum matches')
-        return 0
-
-    def _represent_encryption(self, encryption: EncryptionSetting):
-        # TODO: refactor to use "match" syntax after dropping python 3.9 support
-        if encryption.mode is EncryptionMode.NONE:
-            return 'none'
-        result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
-        if encryption.mode is EncryptionMode.SSE_B2:
-            pass
-        elif encryption.mode is EncryptionMode.SSE_C:
-            if encryption.key.key_id is not None:
-                result += ', key_id=%s' % (encryption.key.key_id,)
-        else:
-            raise ValueError('Unsupported encryption mode: %s' % (encryption.mode,))
-
-        return result
-
-    def _represent_retention(self, retention: FileRetentionSetting):
-        if retention.mode is RetentionMode.NONE:
-            return 'none'
-        if retention.mode is RetentionMode.UNKNOWN:
-            return '<unauthorized to read>'
-        if retention.mode in (RetentionMode.COMPLIANCE, RetentionMode.GOVERNANCE):
-            return 'mode=%s, retainUntil=%s' % (
-                retention.mode.value,
-                datetime.datetime.
-                fromtimestamp(retention.retain_until / 1000, datetime.timezone.utc)
-            )
-        raise ValueError('Unsupported retention mode: %s' % (retention.mode,))
-
-    def _represent_legal_hold(self, legal_hold: LegalHold):
-        if legal_hold in (LegalHold.ON, LegalHold.OFF):
-            return legal_hold.value
-        if legal_hold is LegalHold.UNKNOWN:
-            return '<unauthorized to read>'
-        if legal_hold is LegalHold.UNSET:
-            return '<unset>'
-        raise ValueError('Unsupported legal hold: %s' % (legal_hold,))
-
-    def _print_file_attribute(self, label, value):
-        self._print((label + ':').ljust(20), value)
-
     @classmethod
-    def _setup_logging(cls, args, command, argv):
+    def _setup_logging(cls, args, argv):
         if args.logConfig and (args.verbose or args.debugLogs):
             raise ValueError('Please provide either --logConfig or --verbose/--debugLogs')
         if args.logConfig:
@@ -2392,11 +2479,6 @@ class ConsoleTool(object):
         logger.debug('locale is %s', locale.getdefaultlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
 
-        if command.FORBID_LOGGING_ARGUMENTS:
-            logger.info('starting command [%s] (arguments hidden)', command)
-        else:
-            logger.info('starting command [%s] with arguments: %s', command, argv)
-
 
 # used by Sphinx
 get_parser = functools.partial(B2.get_parser, for_docs=True)
@@ -2432,12 +2514,7 @@ def main():
 
     info = SqliteAccountInfo()
     cache = AuthInfoCache(info)
-    b2_api = B2Api(
-        info,
-        cache=cache,
-        api_config=B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
-    )
-    ct = ConsoleTool(b2_api=b2_api, stdout=sys.stdout, stderr=sys.stderr)
+    ct = ConsoleTool(b2_api=None, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 

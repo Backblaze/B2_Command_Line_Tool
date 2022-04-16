@@ -29,14 +29,15 @@ import threading
 import pytest
 from typing import Optional
 
-from b2.console_tool import current_time_millis
+from b2.console_tool import current_time_millis, Command
 from b2sdk.v2 import (
+    B2_ACCOUNT_INFO_ENV_VAR,
     B2Api,
     Bucket,
     EncryptionAlgorithm,
+    EncryptionKey,
     EncryptionMode,
     EncryptionSetting,
-    EncryptionKey,
     FileRetentionSetting,
     fix_windows_path_limit,
     InMemoryAccountInfo,
@@ -44,9 +45,10 @@ from b2sdk.v2 import (
     LegalHold,
     NO_RETENTION_FILE_SETTING,
     RetentionMode,
-    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     SqliteAccountInfo,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     UNKNOWN_FILE_RETENTION_SETTING,
+    XDG_CONFIG_HOME_ENV_VAR,
 )
 
 from b2sdk.v2.exception import BucketIdNotFound, FileNotPresent
@@ -206,8 +208,8 @@ def run_command(cmd, args, additional_env: Optional[dict] = None):
     reader1.join()
     reader2.join()
 
-    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8'))
-    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8'))
+    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
+    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
 
     print_output(p.returncode, stdout_decoded, stderr_decoded)
     return p.returncode, stdout_decoded, stderr_decoded
@@ -218,7 +220,7 @@ def print_text_indented(text):
     Prints text that may include weird characters, indented four spaces.
     """
     for line in text.split(os.linesep):
-        print('   ', repr(line)[1:-1])
+        Command._print_standard_descriptor(sys.stdout, '   ', repr(line)[1:-1])
 
 
 def print_json_indented(value):
@@ -267,28 +269,36 @@ class Api:
         )
         print('Creating bucket:', bucket_name)
         self.api.create_bucket(
-            bucket_name, 'allPublic', bucket_info={'created_at_millis': str(current_time_millis())}
+            bucket_name,
+            'allPublic',
+            bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
         )
         print()
         return bucket_name
 
     def _should_remove_bucket(self, bucket: Bucket):
         if bucket.name.startswith(self.this_run_bucket_name_prefix):
-            return True
-        if bucket.name.startswith(self.general_bucket_name_prefix):
+            return True, 'it is a bucket for this very run'
+        OLD_PATTERN = 'test-b2-cli-'
+        if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
             if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
-                if int(bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
-                      ) < current_time_millis() - ONE_HOUR_MILLIS:
-                    return True
-        return False
+                delete_older_than = current_time_millis() - ONE_HOUR_MILLIS
+                this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
+                if int(this_bucket_creation_time) < delete_older_than:
+                    return True, f"{this_bucket_creation_time} < {delete_older_than}"
+            else:
+                return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
+        return False, ''
 
     def clean_buckets(self):
         buckets = self.api.list_buckets()
+        print('Total bucket count:', len(buckets))
         for bucket in buckets:
-            if not self._should_remove_bucket(bucket):
+            should_remove, why = self._should_remove_bucket(bucket)
+            if not should_remove:
                 print('Skipping bucket removal:', bucket.name)
             else:
-                print('Trying to remove bucket:', bucket.name)
+                print('Trying to remove bucket:', bucket.name, 'because', why)
                 files_leftover = False
                 file_versions = bucket.ls(latest_only=False, recursive=True)
                 for file_version_info, _ in file_versions:
@@ -371,11 +381,16 @@ class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
         re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
-        re.compile(r'^$'),  # empty line
+        re.compile(r'^\r?$'),  # empty line
         re.compile(
             r'Encrypting file\(s\) with SSE-C without providing key id. '
             r'Set B2_DESTINATION_SSE_C_KEY_ID to allow key identification'
         ),
+        re.compile(
+            r'WARNING: Unable to print unicode.  Encoding for stdout is: '
+            r'\'[a-zA-Z0-9]+\''
+        ),  # windows-bundle tests on CI use cp1252
+        re.compile(r'Trying to print: .*'),
     ]
 
     def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
@@ -504,6 +519,10 @@ def download_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-bucket', bucket_name])
 
 
+def test_bucketinfo():
+    return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
+
+
 def basic_test(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
@@ -606,7 +625,14 @@ def basic_test(b2_tool, bucket_name):
         ),
     )  # \r? is for Windows, as $ doesn't match \r\n
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', to_be_removed_bucket_name, 'allPublic'],)
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            to_be_removed_bucket_name,
+            'allPublic',
+            *test_bucketinfo(),
+        ],
+    )
     b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
     b2_tool.should_fail(
         ['delete-bucket', to_be_removed_bucket_name],
@@ -650,7 +676,7 @@ def basic_test(b2_tool, bucket_name):
 def key_restrictions_test(b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic'],)
+    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *test_bucketinfo()],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -710,7 +736,7 @@ def account_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     new_bucket_name = b2_tool.generate_bucket_name()
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate'])
+    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *test_bucketinfo()])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
     with b2_tool.env_var_test_context:
@@ -750,7 +776,7 @@ def account_test(b2_tool, bucket_name):
         os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
         bucket_name = b2_tool.generate_bucket_name()
-        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate'])
+        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()])
         b2_tool.should_succeed(['delete-bucket', bucket_name])
         assert os.path.exists(new_creds), 'sqlite file not created'
 
@@ -760,7 +786,7 @@ def account_test(b2_tool, bucket_name):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY')
@@ -875,7 +901,24 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
 
-        os.symlink('broken', p('d'))
+        #
+        # A note about OSError: [WinError 1314]
+        #
+        # If you are seeing this, then probably you ran the integration test suite from
+        # a non-admin account which on Windows doesn't by default get to create symlinks.
+        # A special permission is needed. Now maybe there is a way to give that permission,
+        # but it didn't work for me, so I just ran it as admin. A guide that I've found
+        # recommended to go to Control Panel, Administrative Tools, Local Security Policy,
+        # Local Policies, User Rights Assignment and there you can find a permission to
+        # create symbilic links. Add your user to it (or a group that the user is in).
+        #
+        # Finally in order to apply the new policy, run `cmd` and execute
+        # ``gpupdate /force``.
+        #
+        # Again, if it still doesn't work, consider just running the shell you are
+        # launching ``nox`` as admin.
+
+        os.symlink('broken', p('d'))  # OSError: [WinError 1314] ? See the comment above
 
         additional_env = None
 
@@ -1259,7 +1302,9 @@ def prepare_and_run_sync_copy_tests(
         b2_file_prefix = ''
 
     other_bucket_name = b2_tool.generate_bucket_name()
-    success, _ = b2_tool.run_command(['create-bucket', other_bucket_name, 'allPublic'])
+    success, _ = b2_tool.run_command(
+        ['create-bucket', other_bucket_name, 'allPublic', *test_bucketinfo()]
+    )
 
     other_b2_sync_point = 'b2:%s' % other_bucket_name
     if folder_in_bucket:
@@ -1436,7 +1481,13 @@ def default_sse_b2_test(b2_tool, bucket_name):
     # Set default encryption via create-bucket
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
-        ['create-bucket', '--defaultServerSideEncryption=SSE-B2', second_bucket_name, 'allPublic']
+        [
+            'create-bucket',
+            '--defaultServerSideEncryption=SSE-B2',
+            second_bucket_name,
+            'allPublic',
+            *test_bucketinfo(),
+        ]
     )
     second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
     second_bucket_default_sse = {
@@ -1807,11 +1858,14 @@ def sse_c_test(b2_tool, bucket_name):
 
 def file_lock_test(b2_tool, bucket_name):
     lock_disabled_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed([
-        'create-bucket',
-        lock_disabled_bucket_name,
-        'allPrivate',
-    ],)
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            lock_disabled_bucket_name,
+            'allPrivate',
+            *test_bucketinfo(),
+        ],
+    )
 
     file_to_upload = 'README.md'
     now_millis = current_time_millis()
@@ -1863,6 +1917,7 @@ def file_lock_test(b2_tool, bucket_name):
             lock_enabled_bucket_name,
             'allPrivate',
             '--fileLockEnabled',
+            *test_bucketinfo(),
         ],
     )
     updated_bucket = b2_tool.should_succeed_json(
@@ -2205,6 +2260,67 @@ def file_lock_without_perms_test(
     )
 
 
+def profile_switch_test(b2_tool, bucket_name):
+    # this test could be unit, but it adds a lot of complexity because of
+    # necessarity to pass mocked B2Api to ConsoleTool; it's much easier to
+    # just have an integration test instead
+
+    MISSING_ACCOUNT_PATTERN = 'Missing account data'
+
+    b2_tool.should_succeed(
+        [
+            'authorize-account',
+            '--environment',
+            b2_tool.realm,
+            b2_tool.account_id,
+            b2_tool.application_key,
+        ]
+    )
+    b2_tool.should_succeed(['get-account-info'])
+    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_fail(['get-account-info'], expected_pattern=MISSING_ACCOUNT_PATTERN)
+
+    # in order to use --profile flag, we need to temporary
+    # delete B2_ACCOUNT_INFO_ENV_VAR
+    B2_ACCOUNT_INFO = os.environ.pop(B2_ACCOUNT_INFO_ENV_VAR, None)
+
+    # now authorize a different account
+    profile = 'profile-for-test-' + random_hex(6)
+    b2_tool.should_fail(
+        ['get-account-info', '--profile', profile],
+        expected_pattern=MISSING_ACCOUNT_PATTERN,
+    )
+    b2_tool.should_succeed(
+        [
+            'authorize-account',
+            '--environment',
+            b2_tool.realm,
+            '--profile',
+            profile,
+            b2_tool.account_id,
+            b2_tool.application_key,
+        ]
+    )
+
+    account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
+    account_file_path = account_info['accountFilePath']
+    assert profile in account_file_path, \
+        'accountFilePath "{}" should contain profile name "{}"'.format(
+            account_file_path, profile,
+        )
+
+    b2_tool.should_succeed(['clear-account', '--profile', profile])
+    b2_tool.should_fail(
+        ['get-account-info', '--profile', profile],
+        expected_pattern=MISSING_ACCOUNT_PATTERN,
+    )
+    os.remove(account_file_path)
+
+    # restore B2_ACCOUNT_INFO_ENV_VAR, if existed
+    if B2_ACCOUNT_INFO:
+        os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
+
+
 def _assert_file_lock_configuration(
     b2_tool,
     file_id,
@@ -2231,7 +2347,7 @@ def _assert_file_lock_configuration(
         assert legal_hold == actual_legal_hold
 
 
-def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
+def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeypatch, tmpdir):
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
@@ -2255,6 +2371,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
         'default_sse_b2': default_sse_b2_test,
         'sse_b2': sse_b2_test,
         'sse_c': sse_c_test,
+        'profile_switch_test': profile_switch_test,
     }
 
     args = parse_args(tests=sorted(test_map))
@@ -2262,8 +2379,9 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix):
     account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
     application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
 
-    if os.environ.get('B2_ACCOUNT_INFO') is not None:
-        del os.environ['B2_ACCOUNT_INFO']
+    # make b2sdk use temp dir for storing default & per-profile account information
+    monkeypatch.setenv(B2_ACCOUNT_INFO_ENV_VAR, str(tmpdir / '.b2_account_info'))
+    monkeypatch.setenv(XDG_CONFIG_HOME_ENV_VAR, str(tmpdir))
 
     b2_tool = CommandLine(
         args.command, account_id, application_key, realm, this_run_bucket_name_prefix
@@ -2320,7 +2438,7 @@ def cleanup_hook(
 
 
 # TODO: rewrite to multiple tests
-def test_integration(sut, cleanup):
+def test_integration(sut, cleanup, monkeypatch, tmpdir):
     application_key_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID')
     if application_key_id is None:
         pytest.fail('B2_TEST_APPLICATION_KEY_ID is not set.')
@@ -2338,7 +2456,13 @@ def test_integration(sut, cleanup):
     this_run_bucket_name_prefix = general_bucket_name_prefix + bucket_name_part(8)
 
     try:
-        main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
+        main(
+            realm,
+            general_bucket_name_prefix,
+            this_run_bucket_name_prefix,
+            monkeypatch,
+            tmpdir,
+        )
     finally:
         if cleanup:
             cleanup_hook(

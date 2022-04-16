@@ -10,6 +10,8 @@
 
 import json
 import os
+import tempfile
+
 import pytest
 import re
 import unittest.mock as mock
@@ -1087,6 +1089,39 @@ class TestConsoleTool(BaseConsoleToolTest):
                 expected_json_in_stdout=expected_json,
             )
 
+    def _test_download_threads(self, download_by, num_threads):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            local_file = self._make_local_file(temp_dir, 'file.txt')
+            self._run_command(
+                ['upload-file', '--noProgress', 'my-bucket', local_file, 'file.txt'],
+                remove_version=True,
+            )
+
+            command = [
+                'download-file-by-%s' % download_by, '--noProgress', '--threads',
+                str(num_threads)
+            ]
+            command += ['9999'] if download_by == 'id' else ['my-bucket', 'file.txt']
+            local_download = os.path.join(temp_dir, 'download.txt')
+            command += [local_download]
+            self._run_command(command)
+            self.assertEqual(b'hello world', self._read_file(local_download))
+
+    def test_download_by_id_1_thread(self):
+        self._test_download_threads(download_by='id', num_threads=1)
+
+    def test_download_by_id_10_threads(self):
+        self._test_download_threads(download_by='id', num_threads=10)
+
+    def test_download_by_name_1_thread(self):
+        self._test_download_threads(download_by='name', num_threads=1)
+
+    def test_download_by_name_10_threads(self):
+        self._test_download_threads(download_by='name', num_threads=10)
+
     def test_copy_file_by_id(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -1154,8 +1189,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "accountId": self.account_id,
                 "action": "copy",
                 "bucketId": "bucket_0",
-                "size": 6,
-                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "size": 5,
+                "contentSha1": "4f664540ff30b8d34e037298a84e4736be39d731",
                 "contentType": "b2/x-auto",
                 "fileId": "9997",
                 "fileInfo": {
@@ -1168,9 +1203,18 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5002
             }
             self._run_command(
-                ['copy-file-by-id', '--range', '3,9', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['copy-file-by-id', '--range', '3,7', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
+
+            local_download1 = os.path.join(temp_dir, 'file1_copy.txt')
+            self._run_command(
+                [
+                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1_copy.txt',
+                    local_download1
+                ]
+            )
+            self.assertEqual(b'lo wo', self._read_file(local_download1))
 
             # Invalid metadata copy with file info
             expected_stderr = "ERROR: File info can be set only when content type is set\n"
@@ -1394,6 +1438,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         expected_json = {
             "accountAuthToken": "auth_token_0",
+            "accountFilePath": getattr(self.account_info, 'filename',
+                                       None),  # missing in StubAccountInfo in tests
             "accountId": self.account_id,
             "allowed":
                 {
@@ -1750,14 +1796,14 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = ['sync', '--threads', '5', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_empty_folder_when_not_enabled(self):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
             expected_stderr = 'ERROR: Directory %s is empty.  Use --allowEmptySource to sync anyway.\n' % fix_windows_path_limit(
                 temp_dir.replace('\\\\', '\\')
             )
@@ -1767,10 +1813,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = [
-                'sync', '--threads', '1', '--noProgress', '--allowEmptySource', temp_dir,
-                'b2://my-bucket'
-            ]
+            command = ['sync', '--noProgress', '--allowEmptySource', temp_dir, 'b2://my-bucket']
             self._run_command(command, '', '', 0)
 
     def test_sync_dry_run(self):
@@ -1835,10 +1878,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = [
-                'sync', '--threads', '1', '--noProgress', '--excludeAllSymlinks', temp_dir,
-                'b2://my-bucket'
-            ]
+            command = ['sync', '--noProgress', '--excludeAllSymlinks', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_dont_exclude_all_symlinks(self):
@@ -1848,13 +1888,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         with TempDir() as temp_dir:
             self._make_local_file(temp_dir, 'test.txt')
             os.symlink('test.txt', os.path.join(temp_dir, 'alink'))
-            expected_stdout = '''
+            # Exact stdout cannot be asserted because line order is non-deterministic
+            expected_part_of_stdout = '''
             upload alink
-            upload test.txt
             '''
 
-            command = ['sync', '--threads', '1', '--noProgress', temp_dir, 'b2://my-bucket']
-            self._run_command(command, expected_stdout, '', 0)
+            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
+            self._run_command(command, expected_part_of_stdout=expected_part_of_stdout)
 
     def test_sync_exclude_if_modified_after_in_range(self):
         self._authorize_account()
@@ -1871,8 +1911,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             command = [
-                'sync', '--threads', '1', '--noProgress', '--excludeIfModifiedAfter',
-                '1367700664.152', temp_dir, 'b2://my-bucket'
+                'sync', '--noProgress', '--excludeIfModifiedAfter', '1367700664.152', temp_dir,
+                'b2://my-bucket'
             ]
             self._run_command(command, expected_stdout, '', 0)
 
@@ -1891,10 +1931,72 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             command = [
-                'sync', '--threads', '1', '--noProgress', '--excludeIfModifiedAfter',
-                '1367600664.152', temp_dir, 'b2://my-bucket'
+                'sync', '--noProgress', '--excludeIfModifiedAfter', '1367600664.152', temp_dir,
+                'b2://my-bucket'
             ]
             self._run_command(command, expected_stdout, '', 0)
+
+    def _test_sync_threads(
+        self,
+        threads=None,
+        sync_threads=None,
+        download_threads=None,
+        upload_threads=None,
+    ):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TempDir() as temp_dir:
+            local_file = self._make_local_file(temp_dir, 'file.txt')
+            command = ['sync', '--noProgress']
+            if threads is not None:
+                command += ['--threads', str(threads)]
+            if sync_threads is not None:
+                command += ['--syncThreads', str(sync_threads)]
+            if download_threads is not None:
+                command += ['--downloadThreads', str(download_threads)]
+            if upload_threads is not None:
+                command += ['--uploadThreads', str(upload_threads)]
+            command += [temp_dir, 'b2://my-bucket']
+            expected_stdout = '''
+            upload file.txt
+            '''
+            self._run_command(command, expected_stdout)
+
+    def test_sync_threads(self):
+        self._test_sync_threads(threads=1)
+
+    def test_sync_sync_threads(self):
+        self._test_sync_threads(sync_threads=1)
+
+    def test_sync_download_threads(self):
+        self._test_sync_threads(download_threads=1)
+
+    def test_sync_upload_threads(self):
+        self._test_sync_threads(upload_threads=1)
+
+    def test_sync_many_thread_options(self):
+        self._test_sync_threads(sync_threads=1, download_threads=1, upload_threads=1)
+
+    def test_sync_threads_and_upload_threads(self):
+        # Using --threads is exclusive with other options
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, upload_threads=1)
+
+    def test_sync_threads_and_sync_threads(self):
+        # Using --threads is exclusive with other options
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, sync_threads=1)
+
+    def test_sync_threads_and_download_threads(self):
+        # Using --threads is exclusive with other options
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, download_threads=1)
+
+    def test_sync_all_thread_options(self):
+        # Using --threads is exclusive with other options
+        with self.assertRaises(ValueError):
+            self._test_sync_threads(threads=1, sync_threads=1, download_threads=1, upload_threads=1)
 
     def test_ls(self):
         self._authorize_account()
