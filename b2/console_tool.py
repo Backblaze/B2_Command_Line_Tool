@@ -1189,6 +1189,7 @@ class DownloadFileById(SourceSseMixin, DownloadCommand):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
@@ -1196,6 +1197,10 @@ class DownloadFileById(SourceSseMixin, DownloadCommand):
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
+        if args.threads:
+            # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+            #        There is `max_download_workers` param in B2Api constructor for this.
+            self.api.services.download_manager.set_thread_pool_size(args.threads)
         downloaded_file = self.api.download_file_by_id(
             args.fileId, progress_listener, encryption=encryption_setting
         )
@@ -1224,12 +1229,17 @@ class DownloadFileByName(SourceSseMixin, DownloadCommand):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('bucketName')
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
 
     def run(self, args):
+        if args.threads:
+            # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+            #        There is `max_download_workers` param in B2Api constructor for this.
+            self.api.services.download_manager.set_thread_pool_size(args.threads)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
@@ -1747,9 +1757,13 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     or is empty.  (This check only applies to version 1.0 and later.)
 
     Users with high-performance networks, or file sets with very small
-    files, will benefit from multi-threaded uploads.  The default number
-    of threads is 10.  Experiment with the ``--threads`` parameter if the
-    default is not working well.
+    files, will benefit from multi-threaded uploads and downloads. The default
+    number of threads for syncing, downloading, and uploading is 10.
+    The number of files processed in parallel is set by ``--syncThreads``,
+    the number of files/file parts downloaded in parallel is set by``--downloadThreads``,
+    and the number of files/file parts uploaded in parallel is set by `--uploadThreads``.
+    All the three parameters can be set to the same value by ``--threads``.
+    Experiment with parameters if the defaults are not working well.
 
     Users with low-performance networks may benefit from reducing the
     number of threads.  Using just one thread will minimize the impact
@@ -1757,7 +1771,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
     .. note::
 
-        Note that using multiple threads will usually be detrimental to
+        Note that using multiple threads could be detrimental to
         the other users on your network.
 
     You can specify ``--excludeRegex`` to selectively ignore files that
@@ -1876,13 +1890,20 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     - **writeFiles** (for uploading)
     """
 
+    DEFAULT_SYNC_THREADS = 10
+    DEFAULT_DOWNLOAD_THREADS = 10
+    DEFAULT_UPLOAD_THREADS = 10
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
-        parser.add_argument('--threads', type=int, default=10)
+        parser.add_argument('--threads', type=int)
+        parser.add_argument('--syncThreads', type=int, default=cls.DEFAULT_SYNC_THREADS)
+        parser.add_argument('--downloadThreads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS)
+        parser.add_argument('--uploadThreads', type=int, default=cls.DEFAULT_UPLOAD_THREADS)
         parser.add_argument(
             '--compareVersions', default='modTime', choices=('none', 'modTime', 'size')
         )
@@ -1911,7 +1932,21 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
     def run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
-        self.api.services.upload_manager.set_thread_pool_size(args.threads)
+        if args.threads is not None:
+            if args.syncThreads != self.DEFAULT_SYNC_THREADS \
+                    or args.uploadThreads != self.DEFAULT_UPLOAD_THREADS \
+                    or args.downloadThreads != self.DEFAULT_DOWNLOAD_THREADS:
+                raise ValueError("--threads cannot be used with other thread options")
+            sync_threads = upload_threads = download_threads = args.threads
+        else:
+            sync_threads = args.syncThreads
+            upload_threads = args.uploadThreads
+            download_threads = args.downloadThreads
+
+        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        #        There are `max_X_workers` params in B2Api constructor for this.
+        self.api.services.upload_manager.set_thread_pool_size(upload_threads)
+        self.api.services.download_manager.set_thread_pool_size(download_threads)
 
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
@@ -1919,7 +1954,7 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
         synchronizer = self.get_synchronizer_from_args(
             args,
-            args.threads,
+            sync_threads,
             policies_manager,
             allow_empty_source,
         )
@@ -2161,6 +2196,8 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
                 int(os.path.getmtime(args.localFilePath) * 1000)
             )
 
+        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        #        There is `max_upload_workers` param in B2Api constructor for this.
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
