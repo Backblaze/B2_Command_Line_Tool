@@ -2321,6 +2321,78 @@ def profile_switch_test(b2_tool, bucket_name):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
+def replication_test(b2_tool, destination_bucket_name):
+    APP_KEY_ID = os.environ['B2_TEST_APPLICATION_KEY_ID']
+
+    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+
+    # test that by default there's no `replication` key
+    assert 'replication' not in destination_bucket
+
+    # ---------------- set up replication source ----------------
+    source_replication_configuration = {
+        "asReplicationSource": {
+            "replicationRules": [
+                {
+                    "destinationBucketId": destination_bucket['bucketId'],
+                    "fileNamePrefix": "one/",
+                    "isEnabled": True,
+                    "priority": 1,
+                    "replicationRuleName": "replication-one"
+                },
+                {
+                    "destinationBucketId": "55f34d53a96a7ea284fb0719",
+                    "fileNamePrefix": "two/",
+                    "isEnabled": True,
+                    "priority": 2,
+                    "replicationRuleName": "replication-two"
+                }
+            ],
+            "sourceApplicationKeyId": APP_KEY_ID,
+        },
+    }
+    source_replication_configuration_json = json.dumps(source_replication_configuration)
+
+    # create a source bucket and set up replication to destination bucket
+    source_bucket_name = b2_tool.generate_bucket_name()
+    source_bucket = b2_tool.should_succeed_json(['create-bucket', source_bucket_name, 'allPublic', '--replication', source_replication_configuration_json])
+
+    # test that all replication rules are present in source bucket
+    assert source_bucket['replicationConfiguration']['asReplicationSource'] == source_replication_configuration['asReplicationSource']
+
+    # test that source bucket is not mentioned as replication destination
+    assert source_bucket['replicationConfiguration']['asReplicationDestionation'] is None
+
+    # ---------------- set up replication destination ----------------
+
+    # update destination bucket info
+    destination_replication_configuration = {
+        'asReplicationSource': None,
+        'asReplicationDestionation': {
+            'sourceToDestinationKeyMapping': {
+                APP_KEY_ID: APP_KEY_ID,
+            },
+        },
+    }
+    destination_replication_configuration_json = json.dumps(destination_replication_configuration)
+    destination_bucket = b2_tool.should_succeed_json(['update-bucket', destination_bucket_name, '--replication', destination_replication_configuration_json])
+
+    # test that destination bucket is registered as replication destination
+    assert destination_bucket['replicationConfiguration'] == destination_replication_configuration
+
+    # ---------------- remove replication source ----------------
+
+    no_replication_configuration = {
+        'asReplicationSource': None,
+        'asReplicationDestination': None,
+    }
+    no_replication_configuration_json = json.dumps(no_replication_configuration)
+    source_bucket = b2_tool.should_succeed_json(['update-bucket', source_bucket_name, 'allPublic', '--replication', no_replication_configuration_json])
+
+    # test that source bucket replication is removed
+    assert source_bucket['replicationConfiguration'] == no_replication_configuration
+
+
 def _assert_file_lock_configuration(
     b2_tool,
     file_id,
@@ -2372,6 +2444,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
         'sse_b2': sse_b2_test,
         'sse_c': sse_c_test,
         'profile_switch_test': profile_switch_test,
+        'replication': replication_test,
     }
 
     args = parse_args(tests=sorted(test_map))
