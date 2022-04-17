@@ -2324,7 +2324,25 @@ def profile_switch_test(b2_tool, bucket_name):
 
 
 def replication_test(b2_tool, destination_bucket_name):
-    APP_KEY_ID = os.environ['B2_TEST_APPLICATION_KEY_ID']
+    key_one_name = 'clt-testKey-01' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_one_name,
+            'listBuckets,readFiles',
+        ]
+    )
+    key_one_id, _ = created_key_stdout.split()
+
+    key_two_name = 'clt-testKey-02' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_two_name,
+            'listBuckets,writeFiles',
+        ]
+    )
+    key_two_id, _ = created_key_stdout.split()
 
     destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
@@ -2350,14 +2368,15 @@ def replication_test(b2_tool, destination_bucket_name):
                     "replicationRuleName": "replication-two"
                 }
             ],
-            "sourceApplicationKeyId": APP_KEY_ID,
+            "sourceApplicationKeyId": key_one_id,
         },
     }
     source_replication_configuration_json = json.dumps(source_replication_configuration)
 
     # create a source bucket and set up replication to destination bucket
     source_bucket_name = b2_tool.generate_bucket_name()
-    source_bucket = b2_tool.should_succeed_json(['create-bucket', source_bucket_name, 'allPublic', '--replication', source_replication_configuration_json])
+    b2_tool.should_succeed(['create-bucket', '--replication', source_replication_configuration_json, source_bucket_name, 'allPublic'])
+    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
     assert source_bucket['replicationConfiguration']['asReplicationSource'] == source_replication_configuration['asReplicationSource']
@@ -2372,7 +2391,7 @@ def replication_test(b2_tool, destination_bucket_name):
         'asReplicationSource': None,
         'asReplicationDestionation': {
             'sourceToDestinationKeyMapping': {
-                APP_KEY_ID: APP_KEY_ID,
+                key_one_id: key_two_id,
             },
         },
     }
@@ -2393,6 +2412,9 @@ def replication_test(b2_tool, destination_bucket_name):
 
     # test that source bucket replication is removed
     assert source_bucket['replicationConfiguration'] == no_replication_configuration
+    b2_tool.should_succeed(['delete-key', key_one_id])
+    b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
 
 
 def _assert_file_lock_configuration(
