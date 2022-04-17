@@ -76,6 +76,8 @@ BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 BUCKET_NAME_CHARS = string.ascii_letters + string.digits + '-'
 BUCKET_NAME_LENGTH = 50
 
+logger = logging.getLogger(__name__)
+
 
 def bucket_name_part(length):
     return ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(length))
@@ -2480,6 +2482,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
         print()
 
         b2_tool.reauthorize()  # authorization is common for all tests
+        logger.info('starting test %s with bucket %s', test_name, bucket_name)
         test_fcn = test_map[test_name]
         test_fcn(b2_tool, bucket_name)
 
