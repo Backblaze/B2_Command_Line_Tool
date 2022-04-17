@@ -2326,8 +2326,8 @@ def replication_test(b2_tool, destination_bucket_name):
 
     destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
-    # test that by default there's no `replication` key
-    assert 'replication' not in destination_bucket
+    # test that by default there's no `replicationConfiguration` key
+    assert 'replicationConfiguration' not in destination_bucket
 
     # ---------------- set up replication source ----------------
     source_replication_configuration = {
