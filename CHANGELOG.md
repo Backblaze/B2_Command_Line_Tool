@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fix license header checker on Windows
+* Fix program re-execution in OSX bundled binary
 * Fix `UnicodeEncodeError` after successful SSE-C download on a non-utf8 terminal (#786)
 
 ### Removed
