@@ -1274,16 +1274,19 @@ class GetAccountInfo(Command):
     the current application keys has.
     """
 
-    REQUIRES_AUTH = False
-
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
-            accountFilePath=getattr(account_info, 'filename',
-                                    None),  # missing in StubAccountInfo in tests
+            accountFilePath=getattr(
+                account_info,
+                'filename',
+                None,
+            ),  # missing in StubAccountInfo in tests
             allowed=account_info.get_allowed(),
+            applicationKeyId=account_info.get_application_key_id(),
             applicationKey=account_info.get_application_key(),
+            isMasterKey=account_info.is_master_key(),
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
             downloadUrl=account_info.get_download_url(),

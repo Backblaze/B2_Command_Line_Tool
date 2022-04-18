@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add `--threads` parameter to `download-file-by-name` and `download-file-by-id` 
 * Add `--uploadThreads` and `--downloadThreads` parameters to `sync`
 * Add `--profile` switch support
+* Add `applicationKeyId` and `isMasterKey` to the output of `get-account-info`
 
 ### Changed
 * Rename `--threads` parameter for `--sync` to `--syncThreads`
