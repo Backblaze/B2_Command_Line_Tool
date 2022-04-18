@@ -2351,35 +2351,42 @@ def replication_test(b2_tool, destination_bucket_name):
 
     # ---------------- set up replication source ----------------
     source_replication_configuration = {
-        "asReplicationSource": {
-            "replicationRules": [
-                {
-                    "destinationBucketId": destination_bucket['bucketId'],
-                    "fileNamePrefix": "one/",
-                    "isEnabled": True,
-                    "priority": 1,
-                    "replicationRuleName": "replication-one"
-                },
-                {
-                    "destinationBucketId": "55f34d53a96a7ea284fb0719",
-                    "fileNamePrefix": "two/",
-                    "isEnabled": True,
-                    "priority": 2,
-                    "replicationRuleName": "replication-two"
-                }
-            ],
-            "sourceApplicationKeyId": key_one_id,
-        },
+        "asReplicationSource":
+            {
+                "replicationRules":
+                    [
+                        {
+                            "destinationBucketId": destination_bucket['bucketId'],
+                            "fileNamePrefix": "one/",
+                            "isEnabled": True,
+                            "priority": 1,
+                            "replicationRuleName": "replication-one"
+                        }, {
+                            "destinationBucketId": "55f34d53a96a7ea284fb0719",
+                            "fileNamePrefix": "two/",
+                            "isEnabled": True,
+                            "priority": 2,
+                            "replicationRuleName": "replication-two"
+                        }
+                    ],
+                "sourceApplicationKeyId": key_one_id,
+            },
     }
     source_replication_configuration_json = json.dumps(source_replication_configuration)
 
     # create a source bucket and set up replication to destination bucket
     source_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', '--replication', source_replication_configuration_json, source_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(
+        [
+            'create-bucket', '--replication', source_replication_configuration_json,
+            source_bucket_name, 'allPublic'
+        ]
+    )
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
-    assert source_bucket['replicationConfiguration']['asReplicationSource'] == source_replication_configuration['asReplicationSource']
+    assert source_bucket['replicationConfiguration'][
+        'asReplicationSource'] == source_replication_configuration['asReplicationSource']
 
     # test that source bucket is not mentioned as replication destination
     assert source_bucket['replicationConfiguration']['asReplicationDestionation'] is None
@@ -2396,7 +2403,12 @@ def replication_test(b2_tool, destination_bucket_name):
         },
     }
     destination_replication_configuration_json = json.dumps(destination_replication_configuration)
-    destination_bucket = b2_tool.should_succeed_json(['update-bucket', destination_bucket_name, '--replication', destination_replication_configuration_json])
+    destination_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket', destination_bucket_name, '--replication',
+            destination_replication_configuration_json
+        ]
+    )
 
     # test that destination bucket is registered as replication destination
     assert destination_bucket['replicationConfiguration'] == destination_replication_configuration
@@ -2408,7 +2420,12 @@ def replication_test(b2_tool, destination_bucket_name):
         'asReplicationDestination': None,
     }
     no_replication_configuration_json = json.dumps(no_replication_configuration)
-    source_bucket = b2_tool.should_succeed_json(['update-bucket', source_bucket_name, 'allPublic', '--replication', no_replication_configuration_json])
+    source_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket', source_bucket_name, 'allPublic', '--replication',
+            no_replication_configuration_json
+        ]
+    )
 
     # test that source bucket replication is removed
     assert source_bucket['replicationConfiguration'] == no_replication_configuration
