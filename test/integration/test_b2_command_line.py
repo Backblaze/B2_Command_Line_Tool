@@ -2362,7 +2362,7 @@ def replication_test(b2_tool, destination_bucket_name):
                             "priority": 1,
                             "replicationRuleName": "replication-one"
                         }, {
-                            "destinationBucketId": "55f34d53a96a7ea284fb0719",
+                            "destinationBucketId": destination_bucket['bucketId'],
                             "fileNamePrefix": "two/",
                             "isEnabled": True,
                             "priority": 2,
@@ -2378,25 +2378,29 @@ def replication_test(b2_tool, destination_bucket_name):
     source_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
-            'create-bucket', '--replication', source_replication_configuration_json,
-            source_bucket_name, 'allPublic'
+            'create-bucket',
+            source_bucket_name,
+            'allPublic',
+            '--fileLockEnabled',
+            '--replication',
+            source_replication_configuration_json,
         ]
     )
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
-    assert source_bucket['replicationConfiguration'][
-        'asReplicationSource'] == source_replication_configuration['asReplicationSource']
+    assert source_bucket['replication']['asReplicationSource'
+                                       ] == source_replication_configuration['asReplicationSource']
 
     # test that source bucket is not mentioned as replication destination
-    assert source_bucket['replicationConfiguration']['asReplicationDestionation'] is None
+    assert source_bucket['replication'].get('asReplicationDestination') is None
 
     # ---------------- set up replication destination ----------------
 
     # update destination bucket info
     destination_replication_configuration = {
         'asReplicationSource': None,
-        'asReplicationDestionation': {
+        'asReplicationDestination': {
             'sourceToDestinationKeyMapping': {
                 key_one_id: key_two_id,
             },
@@ -2405,13 +2409,19 @@ def replication_test(b2_tool, destination_bucket_name):
     destination_replication_configuration_json = json.dumps(destination_replication_configuration)
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket', destination_bucket_name, '--replication',
-            destination_replication_configuration_json
+            'update-bucket',
+            destination_bucket_name,
+            'allPublic',
+            '--replication',
+            destination_replication_configuration_json,
         ]
     )
 
     # test that destination bucket is registered as replication destination
-    assert destination_bucket['replicationConfiguration'] == destination_replication_configuration
+    assert destination_bucket['replication'].get('asReplicationSource') is None
+    assert destination_bucket['replication'
+                             ]['asReplicationDestination'
+                              ] == destination_replication_configuration['asReplicationDestination']
 
     # ---------------- remove replication source ----------------
 
@@ -2428,7 +2438,7 @@ def replication_test(b2_tool, destination_bucket_name):
     )
 
     # test that source bucket replication is removed
-    assert source_bucket['replicationConfiguration'] == no_replication_configuration
+    assert source_bucket['replication'] is None
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
