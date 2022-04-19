@@ -15,6 +15,7 @@ import tempfile
 import pytest
 import re
 import unittest.mock as mock
+from contextlib import suppress
 from io import StringIO
 from typing import Optional
 
@@ -50,6 +51,13 @@ class BaseConsoleToolTest(TestBase):
         )
         self.raw_api = self.b2_api.session.raw_api
         (self.account_id, self.master_key) = self.raw_api.create_account()
+        for env_var_name in [
+            B2_APPLICATION_KEY_ID_ENV_VAR,
+            B2_APPLICATION_KEY_ENV_VAR,
+            B2_ENVIRONMENT_ENV_VAR,
+        ]:
+            with suppress(KeyError):
+                del os.environ[env_var_name]
 
     def _get_stdouterr(self):
         stdout = StringIO()

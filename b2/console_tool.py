@@ -2350,7 +2350,7 @@ class ConsoleTool(object):
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
 
-    Uses the StoredAccountInfo object to keep account data between runs.
+    Uses a ``b2sdk.SqlitedAccountInfo`` object to keep account data between runs.
     """
 
     def __init__(self, b2_api: Optional[B2Api], stdout, stderr):
@@ -2439,6 +2439,7 @@ class ConsoleTool(object):
         if self.api.account_info.is_same_key(key_id, realm):
             return 0
 
+        logger.info('authorize-account is being run from env variables')
         return AuthorizeAccount(self).authorize(key_id, key, realm)
 
     def _print(self, *args, **kwargs):
