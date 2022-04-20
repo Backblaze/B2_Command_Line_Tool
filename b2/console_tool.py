@@ -1655,12 +1655,16 @@ class Ls(Command):
     The ``--recursive`` option will descend into folders, and will show
     only files, not folders.
 
+    The ``--replication`` option adds replication status
+
     Requires capability:
 
     - **listFiles**
     """
 
-    LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'  # order is file_id, action, date, time, size, name
+    # order is file_id, action, date, time, size(, replication), name
+    LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'
+    LS_ENTRY_TEMPLATE_REPLICATION = LS_ENTRY_TEMPLATE + '  %s'
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1668,6 +1672,7 @@ class Ls(Command):
         parser.add_argument('--json', action='store_true')
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
+        parser.add_argument('--replication', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
 
@@ -1694,28 +1699,37 @@ class Ls(Command):
             if not args.long:
                 self._print(folder_name or file_version.file_name)
             elif folder_name is not None:
-                self._print(self.format_folder_ls_entry(folder_name))
+                self._print(self.format_folder_ls_entry(folder_name, args.replication))
             else:
-                self._print(self.format_ls_entry(file_version))
+                self._print(self.format_ls_entry(file_version, args.replication))
 
         return 0
 
-    def format_folder_ls_entry(self, name):
+    def format_folder_ls_entry(self, name, replication: bool):
+        if replication:
+            return self.LS_ENTRY_TEMPLATE_REPLICATION % ('-', '-', '-', '-', 0, '-', name)
         return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
 
-    def format_ls_entry(self, file_version: FileVersion):
+    def format_ls_entry(self, file_version: FileVersion, replication: bool):
         dt = datetime.datetime.utcfromtimestamp(file_version.upload_timestamp / 1000)
         date_str = dt.strftime('%Y-%m-%d')
         time_str = dt.strftime('%H:%M:%S')
         size = file_version.size or 0  # required if self.action == 'hide'
-        return self.LS_ENTRY_TEMPLATE % (
+        template = replication and self.LS_ENTRY_TEMPLATE_REPLICATION or self.LS_ENTRY_TEMPLATE
+        parameters = [
             file_version.id_,
             file_version.action,
             date_str,
             time_str,
             size,
-            file_version.file_name,
-        )
+        ]
+        if replication:
+            replication_status = file_version.replication_status
+            if replication_status is None:
+                replication_status = '-'
+            parameters.append(replication_status)
+        parameters.append(file_version.file_name)
+        return template % tuple(parameters)
 
 
 @B2.register_subcommand

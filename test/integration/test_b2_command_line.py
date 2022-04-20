@@ -530,7 +530,8 @@ def basic_test(b2_tool, bucket_name):
     file_to_upload = 'README.md'
     file_mod_time_str = str(file_mod_time_millis(file_to_upload))
 
-    hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
+    file_data = read_file(file_to_upload)
+    hex_sha1 = hashlib.sha1(file_data).hexdigest()
 
     list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
     should_equal(
@@ -596,9 +597,14 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
+    # file_id, action, date, time, size(, replication), name
     b2_tool.should_succeed(
         ['ls', '--long', bucket_name],
-        '^4_z.*upload.*a{0}.*-.*b/{0}4_z.*upload.*d{0}'.format(os.linesep)
+        '^4_z.* upload .* {1}  a{0}.* - .* b/{0}4_z.* upload .* {1}  d{0}'.format(os.linesep, len(file_data))
+    )
+    b2_tool.should_succeed(
+        ['ls', '--long', '--replication', bucket_name],
+        '^4_z.* upload .* {1}  -  a{0}.* - .*  -  b/{0}4_z.* upload .* {1}  -  d{0}'.format(os.linesep, len(file_data))
     )
     b2_tool.should_succeed(
         ['ls', '--versions', bucket_name], '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)

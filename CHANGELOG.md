@@ -15,6 +15,7 @@ to b2-sdk-python==1.16.0-alpha.1
 ### Added
 * Add basic replication support to `create-bucket` and `update-bucket`
 * Add more fields to `get-account-info` json
+* Add `--replication` to `ls --long`
 
 ## [3.3.0] - 2022-04-20
 
