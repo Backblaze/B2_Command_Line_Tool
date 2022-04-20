@@ -2438,7 +2438,7 @@ def replication_test(b2_tool, destination_bucket_name):
     )
 
     # test that source bucket replication is removed
-    assert source_bucket['replication'] is None
+    assert source_bucket['replication'] == {'asReplicationDestination': None, 'asReplicationSource': None}
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
