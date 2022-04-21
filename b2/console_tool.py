@@ -55,6 +55,7 @@ from b2sdk.v2 import (
     LegalHold,
     NewerFileSyncMode,
     ReplicationConfiguration,
+    ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
     SqliteAccountInfo,
@@ -2347,6 +2348,52 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
 
 
 @B2.register_subcommand
+class ReplicationSetup(Command):
+    """
+    Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
+
+    Requires capabilities on both profiles:
+
+    - **listKeys**
+    - **createKeys**
+    - **readReplications**
+    - **writeReplications**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('--destination-profile', default=None)
+        parser.add_argument('source', metavar='BUCKET_NAME')
+        parser.add_argument('destination', metavar='BUCKET_NAME')
+        parser.add_argument('--name', help='name for the new replication rule on the source side')
+        parser.add_argument(
+            '--priority', help='priority for the new replication rule on the source side[0-255]'
+        )
+        parser.add_argument(
+            '--file-name-prefix',
+            metavar='PREFIX',
+            help='only replicate files starting with PREFIX'
+        )
+
+    def run(self, args):
+        if args.destination_profile is None:
+            destination_api = self.api
+        else:
+            destination_api = _get_b2api_for_profile(args.destination_profile)
+
+        helper = ReplicationSetupHelper(self.api, destination_api)
+        helper.setup_both(
+            source_bucket_name=args.source,
+            destination_bucket=destination_api.get_bucket_by_name(args.destination),
+            name=args.name,
+            priority=args.priority,
+            prefix=args.file_name_prefix,
+        )
+        return 0
+
+
+@B2.register_subcommand
 class Version(Command):
     """
     Prints the version number of this tool.
@@ -2377,26 +2424,14 @@ class ConsoleTool(object):
         args = B2.get_parser().parse_args(argv[1:])
         self._setup_logging(args, argv)
 
-        b2_api_kwargs = {
-            'api_config':
-                B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
-        }
-
         if args.profile:
             if self.api:
                 self._print_stderr('ERROR: cannot switch profile on already initialized object')
                 return 1
-
-            account_info = SqliteAccountInfo(profile=args.profile)
-            logger.info('Using profile "%s" (%s)', args.profile, account_info.filename)
-            b2_api_kwargs.update(
-                {
-                    'account_info': account_info,
-                    'cache': AuthInfoCache(account_info),
-                }
-            )
-
-        self.api = self.api or B2Api(**b2_api_kwargs)
+            self.api = _get_b2api_for_profile(args.profile)
+            logger.info('Using profile "%s" (%s)', args.profile, self.api.account_info.filename)
+        elif not self.api:
+            self.api = B2Api(api_config=_get_b2httpapiconfig(),)
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -2524,6 +2559,19 @@ class InvalidArgument(B2Error):
 
     def __str__(self):
         return "%s %s" % (self.parameter_name, self.message)
+
+
+def _get_b2api_for_profile(profile):
+    account_info = SqliteAccountInfo(profile=profile)
+    return B2Api(
+        api_config=_get_b2httpapiconfig(),
+        account_info=account_info,
+        cache=AuthInfoCache(account_info),
+    )
+
+
+def _get_b2httpapiconfig():
+    return B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR),)
 
 
 def main():

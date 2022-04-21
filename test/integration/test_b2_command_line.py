@@ -600,11 +600,15 @@ def basic_test(b2_tool, bucket_name):
     # file_id, action, date, time, size(, replication), name
     b2_tool.should_succeed(
         ['ls', '--long', bucket_name],
-        '^4_z.* upload .* {1}  a{0}.* - .* b/{0}4_z.* upload .* {1}  d{0}'.format(os.linesep, len(file_data))
+        '^4_z.* upload .* {1}  a{0}.* - .* b/{0}4_z.* upload .* {1}  d{0}'.format(
+            os.linesep, len(file_data)
+        )
     )
     b2_tool.should_succeed(
         ['ls', '--long', '--replication', bucket_name],
-        '^4_z.* upload .* {1}  -  a{0}.* - .*  -  b/{0}4_z.* upload .* {1}  -  d{0}'.format(os.linesep, len(file_data))
+        '^4_z.* upload .* {1}  -  a{0}.* - .*  -  b/{0}4_z.* upload .* {1}  -  d{0}'.format(
+            os.linesep, len(file_data)
+        )
     )
     b2_tool.should_succeed(
         ['ls', '--versions', bucket_name], '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)
@@ -794,7 +798,7 @@ def account_test(b2_tool, bucket_name):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()],
+            ['create-bucket', bucket_name, 'allPrivate'],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY')
@@ -2329,7 +2333,7 @@ def profile_switch_test(b2_tool, bucket_name):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
-def replication_test(b2_tool, destination_bucket_name):
+def replication_basic(b2_tool, destination_bucket_name):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
@@ -2390,6 +2394,7 @@ def replication_test(b2_tool, destination_bucket_name):
             '--fileLockEnabled',
             '--replication',
             source_replication_configuration_json,
+            *test_bucketinfo(),
         ]
     )
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
@@ -2444,9 +2449,32 @@ def replication_test(b2_tool, destination_bucket_name):
     )
 
     # test that source bucket replication is removed
-    assert source_bucket['replication'] == {'asReplicationDestination': None, 'asReplicationSource': None}
+    assert source_bucket['replication'] == {
+        'asReplicationDestination': None,
+        'asReplicationSource': None
+    }
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+
+
+def replication_setup(b2_tool, destination_bucket_name):
+    source_bucket_name = b2_tool.generate_bucket_name()
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            source_bucket_name,
+            'allPublic',
+            '--fileLockEnabled',
+            *test_bucketinfo(),
+        ]
+    )
+    b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
+    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
+        'sourceToDestinationKeyMapping'].items():
+        b2_tool.should_succeed(['delete-key', key_one_id])
+        b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
 
 
@@ -2501,7 +2529,8 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
         #'sse_b2': sse_b2_test,
         #'sse_c': sse_c_test,
         #'profile_switch_test': profile_switch_test,
-        'replication': replication_test,
+        #'replication_basic': replication_basic,
+        'replication_setup': replication_setup,
     }
 
     args = parse_args(tests=sorted(test_map))
