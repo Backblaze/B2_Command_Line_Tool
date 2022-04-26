@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+* Made `bucketType` positional argument to `update-bucket` optional
+
 ## [3.3.0] - 2022-04-20
 
 ### Added

@@ -2119,7 +2119,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             metavar='period',
         )
         parser.add_argument('bucketName')
-        parser.add_argument('bucketType')
+        parser.add_argument('bucketType', nargs='?')
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
