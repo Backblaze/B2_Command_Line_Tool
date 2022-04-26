@@ -2139,7 +2139,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
-        parser.add_argument('--replication', type=json.loads)
+        parser.add_argument('--replication', type=json.loads, default=None)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -2156,6 +2156,10 @@ class UpdateBucket(DefaultSseMixin, Command):
         else:
             default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
+        if args.replication is None:
+            replication = None
+        else:
+            replication = ReplicationConfiguration.from_dict(args.replication)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         bucket = bucket.update(
             bucket_type=args.bucketType,
@@ -2164,7 +2168,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             lifecycle_rules=args.lifecycleRules,
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
-            replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
+            replication=replication,
         )
         self._print_json(bucket)
         return 0

@@ -2368,12 +2368,14 @@ def replication_basic(b2_tool, destination_bucket_name):
                         {
                             "destinationBucketId": destination_bucket['bucketId'],
                             "fileNamePrefix": "one/",
+                            "includeExistingFiles": False,
                             "isEnabled": True,
                             "priority": 1,
                             "replicationRuleName": "replication-one"
                         }, {
                             "destinationBucketId": destination_bucket['bucketId'],
                             "fileNamePrefix": "two/",
+                            "includeExistingFiles": False,
                             "isEnabled": True,
                             "priority": 2,
                             "replicationRuleName": "replication-two"
@@ -2453,6 +2455,25 @@ def replication_basic(b2_tool, destination_bucket_name):
         'asReplicationDestination': None,
         'asReplicationSource': None
     }
+
+    # ---------------- remove replication destination ----------------
+
+    destination_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket',
+            destination_bucket_name,
+            'allPublic',
+            '--replication',
+            '{}',
+        ]
+    )
+
+    # test that destination bucket replication is removed
+    assert destination_bucket['replication'] == {
+        'asReplicationDestination': None,
+        'asReplicationSource': None
+    }
+
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
