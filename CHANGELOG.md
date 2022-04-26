@@ -21,6 +21,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Add `replication-setup` command
 
 ### Changed
+* Made `bucketType` positional argument to `update-bucket` optional
 * Run unit tests on all CPUs
 
 ## [3.3.0] - 2022-04-20

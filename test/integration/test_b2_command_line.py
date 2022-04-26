@@ -1473,7 +1473,7 @@ def default_sse_b2_test(b2_tool, bucket_name):
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     bucket_info = b2_tool.should_succeed_json(
-        ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic']
+        ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name]
     )
     bucket_default_sse = {
         'algorithm': 'AES256',

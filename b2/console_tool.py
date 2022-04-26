@@ -2140,7 +2140,7 @@ class UpdateBucket(DefaultSseMixin, Command):
         )
         parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
-        parser.add_argument('bucketType')
+        parser.add_argument('bucketType', nargs='?')
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
