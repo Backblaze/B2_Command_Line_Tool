@@ -2491,12 +2491,50 @@ def replication_setup(b2_tool, destination_bucket_name):
         ]
     )
     b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
+    destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+
+    b2_tool.should_succeed(
+        [
+            'replication-setup',
+            '--priority',
+            '132',
+            '--file-name-prefix',
+            'foo',
+            '--name',
+            'my-replication-rule',
+            source_bucket_name,
+            destination_bucket_name,
+        ]
+    )
+    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
     destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    assert source_bucket['replication']['asReplicationSource']['replicationRules'] == [
+        {
+            "destinationBucketId": destination_bucket['bucketId'],
+            "fileNamePrefix": "",
+            "includeExistingFiles": False,
+            "isEnabled": True,
+            "priority": 128,
+            "replicationRuleName": destination_bucket['bucketName'],
+        },
+        {
+            "destinationBucketId": destination_bucket['bucketId'],
+            "fileNamePrefix": "foo",
+            "includeExistingFiles": False,
+            "isEnabled": True,
+            "priority": 132,
+            "replicationRuleName": "my-replication-rule",
+        },
+    ]
+
     for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'].items():
         b2_tool.should_succeed(['delete-key', key_one_id])
         b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+    assert destination_bucket_old['replication']['asReplicationDestination'][
+        'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
+            'asReplicationDestination']['sourceToDestinationKeyMapping']
 
 
 def _assert_file_lock_configuration(
