@@ -2372,7 +2372,9 @@ class ReplicationSetup(Command):
         parser.add_argument('destination', metavar='BUCKET_NAME')
         parser.add_argument('--name', help='name for the new replication rule on the source side')
         parser.add_argument(
-            '--priority', help='priority for the new replication rule on the source side[0-255]'
+            '--priority',
+            help='priority for the new replication rule on the source side[0-255]',
+            type=int,
         )
         parser.add_argument(
             '--file-name-prefix',
