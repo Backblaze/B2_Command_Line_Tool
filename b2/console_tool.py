@@ -1725,7 +1725,7 @@ class Ls(Command):
             size,
         ]
         if replication:
-            replication_status = file_version.replication_status
+            replication_status = file_version.replication_status.value
             if replication_status is None:
                 replication_status = '-'
             parameters.append(replication_status)
