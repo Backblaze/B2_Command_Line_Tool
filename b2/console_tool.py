@@ -2155,6 +2155,10 @@ class UpdateBucket(DefaultSseMixin, Command):
         else:
             default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
+        if args.replication is None:
+            replication = None
+        else:
+            replication = ReplicationConfiguration.from_dict(args.replication)
         replication = args.replication and ReplicationConfiguration.from_dict(args.replication)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         bucket = bucket.update(
@@ -2364,16 +2368,17 @@ class ReplicationSetup(Command):
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
         parser.add_argument('--destination-profile', default=None)
-        parser.add_argument('source', metavar='BUCKET_NAME')
-        parser.add_argument('destination', metavar='BUCKET_NAME')
+        parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
+        parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
         parser.add_argument('--name', help='name for the new replication rule on the source side')
         parser.add_argument(
             '--priority',
             help='priority for the new replication rule on the source side [%d-%d]' % (
-                ReplicationRule.MIN_VALUE,
-                ReplicationRule.MAX_VALUE,
+                ReplicationRule.MIN_PRIORITY,
+                ReplicationRule.MAX_PRIORITY,
             ),
             type=int,
+            default=ReplicationRule.DEFAULT_PRIORITY,
         )
         parser.add_argument(
             '--file-name-prefix',
