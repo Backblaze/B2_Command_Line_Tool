@@ -55,6 +55,7 @@ from b2sdk.v2 import (
     LegalHold,
     NewerFileSyncMode,
     ReplicationConfiguration,
+    ReplicationRule,
     ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
@@ -1725,10 +1726,8 @@ class Ls(Command):
             size,
         ]
         if replication:
-            replication_status = file_version.replication_status.value
-            if replication_status is None:
-                replication_status = '-'
-            parameters.append(replication_status)
+            replication_status = file_version.replication_status
+            parameters.append(replication_status.value if replication_status else '-')
         parameters.append(file_version.file_name)
         return template % tuple(parameters)
 
@@ -2139,7 +2138,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
-        parser.add_argument('--replication', type=json.loads, default=None)
+        parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -2156,10 +2155,7 @@ class UpdateBucket(DefaultSseMixin, Command):
         else:
             default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
-        if args.replication is None:
-            replication = None
-        else:
-            replication = ReplicationConfiguration.from_dict(args.replication)
+        replication = args.replication and ReplicationConfiguration.from_dict(args.replication)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         bucket = bucket.update(
             bucket_type=args.bucketType,
@@ -2373,7 +2369,10 @@ class ReplicationSetup(Command):
         parser.add_argument('--name', help='name for the new replication rule on the source side')
         parser.add_argument(
             '--priority',
-            help='priority for the new replication rule on the source side[0-255]',
+            help='priority for the new replication rule on the source side [%d-%d]' % (
+                ReplicationRule.MIN_VALUE,
+                ReplicationRule.MAX_VALUE,
+            ),
             type=int,
         )
         parser.add_argument(
@@ -2437,7 +2436,7 @@ class ConsoleTool(object):
             self.api = _get_b2api_for_profile(args.profile)
             logger.info('Using profile "%s" (%s)', args.profile, self.api.account_info.filename)
         elif not self.api:
-            self.api = B2Api(api_config=_get_b2httpapiconfig(),)
+            self.api = _get_b2api_for_profile()
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -2567,7 +2566,7 @@ class InvalidArgument(B2Error):
         return "%s %s" % (self.parameter_name, self.message)
 
 
-def _get_b2api_for_profile(profile):
+def _get_b2api_for_profile(profile: Optional[str] = None):
     account_info = SqliteAccountInfo(profile=profile)
     return B2Api(
         api_config=_get_b2httpapiconfig(),

@@ -15,7 +15,6 @@ import tempfile
 import pytest
 import re
 import unittest.mock as mock
-from contextlib import suppress
 from io import StringIO
 from typing import Optional
 
@@ -56,8 +55,7 @@ class BaseConsoleToolTest(TestBase):
             B2_APPLICATION_KEY_ENV_VAR,
             B2_ENVIRONMENT_ENV_VAR,
         ]:
-            with suppress(KeyError):
-                del os.environ[env_var_name]
+            os.environ.pop(env_var_name, None)
 
     def _get_stdouterr(self):
         stdout = StringIO()
