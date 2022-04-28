@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.4.0] - 2022-04-27
 
 This release contains a preview of replication support. It allows for basic usage
-of B2 replication feature (currently in closed beta). This version is pinned strictly
-to `b2-sdk-python==1.16.0`
+of B2 replication feature (currently in closed beta). Until this notice is removed,
+the interface of replication related functionality should be not considered as public
+API (as defined by SemVer).
+This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 
 ### Added
 * Add basic replication support to `create-bucket` and `update-bucket`
