@@ -47,19 +47,20 @@ Setup source replication
 
 .. code-block:: sh
 
-    $ b2 update-bucket --replication '
-    "asReplicationSource": {
-        "replicationRules": [
-            {
-                "destinationBucketId": "85644d98debc657d880b0e1e",
-                "fileNamePrefix": "files-to-share/",
-                "includeExistingFiles": false,
-                "isEnabled": true,
-                "priority": 128,
-                "replicationRuleName": "my-replication-rule-name"
-            }
-        ],
-        "sourceApplicationKeyId": "0014ab1234567890000000123"
+    $ b2 update-bucket --replication '{
+        "asReplicationSource": {
+            "replicationRules": [
+                {
+                    "destinationBucketId": "85644d98debc657d880b0e1e",
+                    "fileNamePrefix": "files-to-share/",
+                    "includeExistingFiles": false,
+                    "isEnabled": true,
+                    "priority": 128,
+                    "replicationRuleName": "my-replication-rule-name"
+                }
+            ],
+            "sourceApplicationKeyId": "0014ab1234567890000000123"
+        }
     }' my-source-bucket
 
 Setup destination replication
@@ -67,9 +68,10 @@ Setup destination replication
 
 .. code-block:: sh
 
-    $ b2 update-bucket --profile myprofile2 --replication '
-    "asReplicationDestination": {
-        "sourceToDestinationKeyMapping": {
-            "0014ab1234567890000000123": "0024ab2345678900000000234"
+    $ b2 update-bucket --profile myprofile2 --replication '{
+        "asReplicationDestination": {
+            "sourceToDestinationKeyMapping": {
+                "0014ab1234567890000000123": "0024ab2345678900000000234"
+            }
         }
     }' my-destination-bucket
