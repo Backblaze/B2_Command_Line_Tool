@@ -539,6 +539,9 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
+    b2_tool.should_succeed(
+        ['ls', '--long', '--replication', bucket_name]
+    )
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
