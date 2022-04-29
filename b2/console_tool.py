@@ -2159,7 +2159,6 @@ class UpdateBucket(DefaultSseMixin, Command):
             replication = None
         else:
             replication = ReplicationConfiguration.from_dict(args.replication)
-        replication = args.replication and ReplicationConfiguration.from_dict(args.replication)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         bucket = bucket.update(
             bucket_type=args.bucketType,
