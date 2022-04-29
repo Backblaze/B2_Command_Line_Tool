@@ -33,6 +33,7 @@ REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.4.0', 'pytest==6.2.5', 'liccheck
 REQUIREMENTS_TEST = [
     "pytest==6.2.5",
     "pytest-cov==3.0.0",
+    'pytest-xdist==2.5.0',
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
@@ -133,8 +134,15 @@ def unit(session):
     install_myself(session)
     session.install(*REQUIREMENTS_TEST)
     session.run(
-        'pytest', '--cov=b2', '--cov-branch', '--cov-report=xml', '--doctest-modules',
-        *session.posargs, 'test/unit'
+        'pytest',
+        '-n',
+        'auto',
+        '--cov=b2',
+        '--cov-branch',
+        '--cov-report=xml',
+        '--doctest-modules',
+        *session.posargs,
+        'test/unit',
     )
     if not session.posargs:
         session.notify('cover')

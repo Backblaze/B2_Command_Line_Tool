@@ -20,6 +20,9 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Add `--replication` to `ls --long`
 * Add `replication-setup` command
 
+### Changed
+* Run unit tests on all CPUs
+
 ## [3.3.0] - 2022-04-20
 
 ### Added
