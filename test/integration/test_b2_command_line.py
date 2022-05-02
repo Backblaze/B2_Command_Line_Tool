@@ -539,9 +539,7 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
-    b2_tool.should_succeed(
-        ['ls', '--long', '--replication', bucket_name]
-    )
+    b2_tool.should_succeed(['ls', '--long', '--replication', bucket_name])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
@@ -684,6 +682,24 @@ def basic_test(b2_tool, bucket_name):
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
         assert re.search(log_file_regex, log), log
+
+
+def bucket_test(b2_tool, bucket_name):
+    rules = """[{
+        "daysFromHidingToDeleting": 1,
+        "daysFromUploadingToHiding": null,
+        "fileNamePrefix": ""
+    }]"""
+    output = b2_tool.should_succeed_json(
+        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *test_bucketinfo()],
+    )
+    assert output["lifecycleRules"] == [
+        {
+            "daysFromHidingToDeleting": 1,
+            "daysFromUploadingToHiding": None,
+            "fileNamePrefix": ""
+        }
+    ]
 
 
 def key_restrictions_test(b2_tool, bucket_name):
@@ -2568,6 +2584,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
+        'bucket_test': bucket_test,
         'file_lock': file_lock_test,
         'keys': key_restrictions_test,
         'sync_down': sync_down_test,
