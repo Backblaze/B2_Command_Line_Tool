@@ -31,6 +31,7 @@ from typing import Optional
 
 from b2.console_tool import current_time_millis, Command
 from b2sdk.v2 import (
+    ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_ENV_VAR,
     B2Api,
     Bucket,
@@ -465,7 +466,7 @@ class CommandLine:
             print("'%s'" % (stdout + stderr,))
             error_and_exit('did not match pattern: ' + str(expected_pattern))
 
-    def reauthorize(self):
+    def reauthorize(self, check=False):
         """Clear and authorize again to the account."""
         self.should_succeed(['clear-account'])
         self.should_succeed(
@@ -474,6 +475,14 @@ class CommandLine:
                 self.application_key
             ]
         )
+        if check:
+            auth_dict = self.should_succeed_json(['get-account-info'])
+            missing_capabilities = set(ALL_CAPABILITIES) - set(['readBuckets']) - set(
+                auth_dict['allowed']['capabilities']
+            )
+            assert not missing_capabilities, 'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: %s' % (
+                missing_capabilities,
+            )
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
@@ -2627,7 +2636,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
     )
 
     # Run each of the tests in its own empty bucket
-    for test_name in args.tests:
+    for iteration, test_name in enumerate(args.tests):
 
         print('#')
         print('# Setup for test:', test_name)
@@ -2642,7 +2651,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
         print('#')
         print()
 
-        b2_tool.reauthorize()  # authorization is common for all tests
+        b2_tool.reauthorize(check=iteration == 0)  # authorization is common for all tests
         print('starting test %s with bucket %s' % (test_name, bucket_name))
         test_fcn = test_map[test_name]
         test_fcn(b2_tool, bucket_name)
