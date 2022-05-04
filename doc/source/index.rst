@@ -9,10 +9,14 @@ Documentation index
 #########################################
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :glob:
 
-   subcommands/*
+   quick_start
+
+   commands
+
+   replication
 
 #########################################
 Indices and tables

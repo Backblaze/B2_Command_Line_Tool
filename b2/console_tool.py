@@ -54,6 +54,9 @@ from b2sdk.v2 import (
     KeepOrDeleteMode,
     LegalHold,
     NewerFileSyncMode,
+    ReplicationConfiguration,
+    ReplicationRule,
+    ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
     SqliteAccountInfo,
@@ -964,6 +967,7 @@ class CreateBucket(DefaultSseMixin, Command):
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
         )
+        parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType')
 
@@ -979,6 +983,7 @@ class CreateBucket(DefaultSseMixin, Command):
             lifecycle_rules=args.lifecycleRules,
             default_server_side_encryption=encryption_setting,
             is_file_lock_enabled=args.fileLockEnabled,
+            replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
         )
         self._print(bucket.id_)
         return 0
@@ -1271,16 +1276,19 @@ class GetAccountInfo(Command):
     the current application keys has.
     """
 
-    REQUIRES_AUTH = False
-
     def run(self, args):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
-            accountFilePath=getattr(account_info, 'filename',
-                                    None),  # missing in StubAccountInfo in tests
+            accountFilePath=getattr(
+                account_info,
+                'filename',
+                None,
+            ),  # missing in StubAccountInfo in tests
             allowed=account_info.get_allowed(),
+            applicationKeyId=account_info.get_application_key_id(),
             applicationKey=account_info.get_application_key(),
+            isMasterKey=account_info.is_master_key(),
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
             downloadUrl=account_info.get_download_url(),
@@ -1649,12 +1657,16 @@ class Ls(Command):
     The ``--recursive`` option will descend into folders, and will show
     only files, not folders.
 
+    The ``--replication`` option adds replication status
+
     Requires capability:
 
     - **listFiles**
     """
 
-    LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'  # order is file_id, action, date, time, size, name
+    # order is file_id, action, date, time, size(, replication), name
+    LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'
+    LS_ENTRY_TEMPLATE_REPLICATION = LS_ENTRY_TEMPLATE + '  %s'
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1662,6 +1674,7 @@ class Ls(Command):
         parser.add_argument('--json', action='store_true')
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
+        parser.add_argument('--replication', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
 
@@ -1688,28 +1701,35 @@ class Ls(Command):
             if not args.long:
                 self._print(folder_name or file_version.file_name)
             elif folder_name is not None:
-                self._print(self.format_folder_ls_entry(folder_name))
+                self._print(self.format_folder_ls_entry(folder_name, args.replication))
             else:
-                self._print(self.format_ls_entry(file_version))
+                self._print(self.format_ls_entry(file_version, args.replication))
 
         return 0
 
-    def format_folder_ls_entry(self, name):
+    def format_folder_ls_entry(self, name, replication: bool):
+        if replication:
+            return self.LS_ENTRY_TEMPLATE_REPLICATION % ('-', '-', '-', '-', 0, '-', name)
         return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
 
-    def format_ls_entry(self, file_version: FileVersion):
+    def format_ls_entry(self, file_version: FileVersion, replication: bool):
         dt = datetime.datetime.utcfromtimestamp(file_version.upload_timestamp / 1000)
         date_str = dt.strftime('%Y-%m-%d')
         time_str = dt.strftime('%H:%M:%S')
         size = file_version.size or 0  # required if self.action == 'hide'
-        return self.LS_ENTRY_TEMPLATE % (
+        template = replication and self.LS_ENTRY_TEMPLATE_REPLICATION or self.LS_ENTRY_TEMPLATE
+        parameters = [
             file_version.id_,
             file_version.action,
             date_str,
             time_str,
             size,
-            file_version.file_name,
-        )
+        ]
+        if replication:
+            replication_status = file_version.replication_status
+            parameters.append(replication_status.value if replication_status else '-')
+        parameters.append(file_version.file_name)
+        return template % tuple(parameters)
 
 
 @B2.register_subcommand
@@ -2118,8 +2138,9 @@ class UpdateBucket(DefaultSseMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
+        parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
-        parser.add_argument('bucketType')
+        parser.add_argument('bucketType', nargs='?')
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
@@ -2134,6 +2155,10 @@ class UpdateBucket(DefaultSseMixin, Command):
         else:
             default_retention = None
         encryption_setting = self._get_default_sse_setting(args)
+        if args.replication is None:
+            replication = None
+        else:
+            replication = ReplicationConfiguration.from_dict(args.replication)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         bucket = bucket.update(
             bucket_type=args.bucketType,
@@ -2142,6 +2167,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             lifecycle_rules=args.lifecycleRules,
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
+            replication=replication,
         )
         self._print_json(bucket)
         return 0
@@ -2325,6 +2351,58 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
 
 
 @B2.register_subcommand
+class ReplicationSetup(Command):
+    """
+    Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
+
+    Requires capabilities on both profiles:
+
+    - **listKeys**
+    - **createKeys**
+    - **readReplications**
+    - **writeReplications**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('--destination-profile', default=None)
+        parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
+        parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
+        parser.add_argument('--name', help='name for the new replication rule on the source side')
+        parser.add_argument(
+            '--priority',
+            help='priority for the new replication rule on the source side [%d-%d]' % (
+                ReplicationRule.MIN_PRIORITY,
+                ReplicationRule.MAX_PRIORITY,
+            ),
+            type=int,
+            default=ReplicationRule.DEFAULT_PRIORITY,
+        )
+        parser.add_argument(
+            '--file-name-prefix',
+            metavar='PREFIX',
+            help='only replicate files starting with PREFIX'
+        )
+
+    def run(self, args):
+        if args.destination_profile is None:
+            destination_api = self.api
+        else:
+            destination_api = _get_b2api_for_profile(args.destination_profile)
+
+        helper = ReplicationSetupHelper(self.api, destination_api)
+        helper.setup_both(
+            source_bucket_name=args.source,
+            destination_bucket=destination_api.get_bucket_by_name(args.destination),
+            name=args.name,
+            priority=args.priority,
+            prefix=args.file_name_prefix,
+        )
+        return 0
+
+
+@B2.register_subcommand
 class Version(Command):
     """
     Prints the version number of this tool.
@@ -2342,7 +2420,7 @@ class ConsoleTool(object):
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
 
-    Uses the StoredAccountInfo object to keep account data between runs.
+    Uses a ``b2sdk.SqlitedAccountInfo`` object to keep account data between runs.
     """
 
     def __init__(self, b2_api: Optional[B2Api], stdout, stderr):
@@ -2355,26 +2433,14 @@ class ConsoleTool(object):
         args = B2.get_parser().parse_args(argv[1:])
         self._setup_logging(args, argv)
 
-        b2_api_kwargs = {
-            'api_config':
-                B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR)),
-        }
-
         if args.profile:
             if self.api:
                 self._print_stderr('ERROR: cannot switch profile on already initialized object')
                 return 1
-
-            account_info = SqliteAccountInfo(profile=args.profile)
-            logger.info('Using profile "%s" (%s)', args.profile, account_info.filename)
-            b2_api_kwargs.update(
-                {
-                    'account_info': account_info,
-                    'cache': AuthInfoCache(account_info),
-                }
-            )
-
-        self.api = self.api or B2Api(**b2_api_kwargs)
+            self.api = _get_b2api_for_profile(args.profile)
+            logger.info('Using profile "%s" (%s)', args.profile, self.api.account_info.filename)
+        elif not self.api:
+            self.api = _get_b2api_for_profile()
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -2431,6 +2497,7 @@ class ConsoleTool(object):
         if self.api.account_info.is_same_key(key_id, realm):
             return 0
 
+        logger.info('authorize-account is being run from env variables')
         return AuthorizeAccount(self).authorize(key_id, key, realm)
 
     def _print(self, *args, **kwargs):
@@ -2501,6 +2568,19 @@ class InvalidArgument(B2Error):
 
     def __str__(self):
         return "%s %s" % (self.parameter_name, self.message)
+
+
+def _get_b2api_for_profile(profile: Optional[str] = None):
+    account_info = SqliteAccountInfo(profile=profile)
+    return B2Api(
+        api_config=_get_b2httpapiconfig(),
+        account_info=account_info,
+        cache=AuthInfoCache(account_info),
+    )
+
+
+def _get_b2httpapiconfig():
+    return B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR),)
 
 
 def main():

@@ -31,6 +31,7 @@ from typing import Optional
 
 from b2.console_tool import current_time_millis, Command
 from b2sdk.v2 import (
+    ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_ENV_VAR,
     B2Api,
     Bucket,
@@ -465,7 +466,7 @@ class CommandLine:
             print("'%s'" % (stdout + stderr,))
             error_and_exit('did not match pattern: ' + str(expected_pattern))
 
-    def reauthorize(self):
+    def reauthorize(self, check=False):
         """Clear and authorize again to the account."""
         self.should_succeed(['clear-account'])
         self.should_succeed(
@@ -474,6 +475,14 @@ class CommandLine:
                 self.application_key
             ]
         )
+        if check:
+            auth_dict = self.should_succeed_json(['get-account-info'])
+            missing_capabilities = set(ALL_CAPABILITIES) - set(['readBuckets']) - set(
+                auth_dict['allowed']['capabilities']
+            )
+            assert not missing_capabilities, 'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: %s' % (
+                missing_capabilities,
+            )
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
@@ -528,7 +537,8 @@ def basic_test(b2_tool, bucket_name):
     file_to_upload = 'README.md'
     file_mod_time_str = str(file_mod_time_millis(file_to_upload))
 
-    hex_sha1 = hashlib.sha1(read_file(file_to_upload)).hexdigest()
+    file_data = read_file(file_to_upload)
+    hex_sha1 = hashlib.sha1(file_data).hexdigest()
 
     list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
     should_equal(
@@ -538,6 +548,7 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
+    b2_tool.should_succeed(['ls', '--long', '--replication', bucket_name])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
@@ -594,9 +605,18 @@ def basic_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
+    # file_id, action, date, time, size(, replication), name
     b2_tool.should_succeed(
         ['ls', '--long', bucket_name],
-        '^4_z.*upload.*a{0}.*-.*b/{0}4_z.*upload.*d{0}'.format(os.linesep)
+        '^4_z.* upload .* {1}  a{0}.* - .* b/{0}4_z.* upload .* {1}  d{0}'.format(
+            os.linesep, len(file_data)
+        )
+    )
+    b2_tool.should_succeed(
+        ['ls', '--long', '--replication', bucket_name],
+        '^4_z.* upload .* {1}  -  a{0}.* - .*  -  b/{0}4_z.* upload .* {1}  -  d{0}'.format(
+            os.linesep, len(file_data)
+        )
     )
     b2_tool.should_succeed(
         ['ls', '--versions', bucket_name], '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)
@@ -671,6 +691,24 @@ def basic_test(b2_tool, bucket_name):
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
         assert re.search(log_file_regex, log), log
+
+
+def bucket_test(b2_tool, bucket_name):
+    rules = """[{
+        "daysFromHidingToDeleting": 1,
+        "daysFromUploadingToHiding": null,
+        "fileNamePrefix": ""
+    }]"""
+    output = b2_tool.should_succeed_json(
+        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *test_bucketinfo()],
+    )
+    assert output["lifecycleRules"] == [
+        {
+            "daysFromHidingToDeleting": 1,
+            "daysFromUploadingToHiding": None,
+            "fileNamePrefix": ""
+        }
+    ]
 
 
 def key_restrictions_test(b2_tool, bucket_name):
@@ -786,7 +824,7 @@ def account_test(b2_tool, bucket_name):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()],
+            ['create-bucket', bucket_name, 'allPrivate'],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY')
@@ -1463,7 +1501,7 @@ def default_sse_b2_test(b2_tool, bucket_name):
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     bucket_info = b2_tool.should_succeed_json(
-        ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name, 'allPublic']
+        ['update-bucket', '--defaultServerSideEncryption=SSE-B2', bucket_name]
     )
     bucket_default_sse = {
         'algorithm': 'AES256',
@@ -2321,6 +2359,210 @@ def profile_switch_test(b2_tool, bucket_name):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
+def replication_basic(b2_tool, destination_bucket_name):
+    key_one_name = 'clt-testKey-01' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_one_name,
+            'listBuckets,readFiles',
+        ]
+    )
+    key_one_id, _ = created_key_stdout.split()
+
+    key_two_name = 'clt-testKey-02' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_two_name,
+            'listBuckets,writeFiles',
+        ]
+    )
+    key_two_id, _ = created_key_stdout.split()
+
+    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+
+    # test that by default there's no `replicationConfiguration` key
+    assert 'replicationConfiguration' not in destination_bucket
+
+    # ---------------- set up replication source ----------------
+    source_replication_configuration = {
+        "asReplicationSource":
+            {
+                "replicationRules":
+                    [
+                        {
+                            "destinationBucketId": destination_bucket['bucketId'],
+                            "fileNamePrefix": "one/",
+                            "includeExistingFiles": False,
+                            "isEnabled": True,
+                            "priority": 1,
+                            "replicationRuleName": "replication-one"
+                        }, {
+                            "destinationBucketId": destination_bucket['bucketId'],
+                            "fileNamePrefix": "two/",
+                            "includeExistingFiles": False,
+                            "isEnabled": True,
+                            "priority": 2,
+                            "replicationRuleName": "replication-two"
+                        }
+                    ],
+                "sourceApplicationKeyId": key_one_id,
+            },
+    }
+    source_replication_configuration_json = json.dumps(source_replication_configuration)
+
+    # create a source bucket and set up replication to destination bucket
+    source_bucket_name = b2_tool.generate_bucket_name()
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            source_bucket_name,
+            'allPublic',
+            '--fileLockEnabled',
+            '--replication',
+            source_replication_configuration_json,
+            *test_bucketinfo(),
+        ]
+    )
+    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
+
+    # test that all replication rules are present in source bucket
+    assert source_bucket['replication']['asReplicationSource'
+                                       ] == source_replication_configuration['asReplicationSource']
+
+    # test that source bucket is not mentioned as replication destination
+    assert source_bucket['replication'].get('asReplicationDestination') is None
+
+    # ---------------- set up replication destination ----------------
+
+    # update destination bucket info
+    destination_replication_configuration = {
+        'asReplicationSource': None,
+        'asReplicationDestination': {
+            'sourceToDestinationKeyMapping': {
+                key_one_id: key_two_id,
+            },
+        },
+    }
+    destination_replication_configuration_json = json.dumps(destination_replication_configuration)
+    destination_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket',
+            destination_bucket_name,
+            'allPublic',
+            '--replication',
+            destination_replication_configuration_json,
+        ]
+    )
+
+    # test that destination bucket is registered as replication destination
+    assert destination_bucket['replication'].get('asReplicationSource') is None
+    assert destination_bucket['replication'
+                             ]['asReplicationDestination'
+                              ] == destination_replication_configuration['asReplicationDestination']
+
+    # ---------------- remove replication source ----------------
+
+    no_replication_configuration = {
+        'asReplicationSource': None,
+        'asReplicationDestination': None,
+    }
+    no_replication_configuration_json = json.dumps(no_replication_configuration)
+    source_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket', source_bucket_name, 'allPublic', '--replication',
+            no_replication_configuration_json
+        ]
+    )
+
+    # test that source bucket replication is removed
+    assert source_bucket['replication'] == {
+        'asReplicationDestination': None,
+        'asReplicationSource': None
+    }
+
+    # ---------------- remove replication destination ----------------
+
+    destination_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket',
+            destination_bucket_name,
+            'allPublic',
+            '--replication',
+            '{}',
+        ]
+    )
+
+    # test that destination bucket replication is removed
+    assert destination_bucket['replication'] == {
+        'asReplicationDestination': None,
+        'asReplicationSource': None
+    }
+
+    b2_tool.should_succeed(['delete-key', key_one_id])
+    b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+
+
+def replication_setup(b2_tool, destination_bucket_name):
+    source_bucket_name = b2_tool.generate_bucket_name()
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            source_bucket_name,
+            'allPublic',
+            '--fileLockEnabled',
+            *test_bucketinfo(),
+        ]
+    )
+    b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
+    destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+
+    b2_tool.should_succeed(
+        [
+            'replication-setup',
+            '--priority',
+            '132',
+            '--file-name-prefix',
+            'foo',
+            '--name',
+            'my-replication-rule',
+            source_bucket_name,
+            destination_bucket_name,
+        ]
+    )
+    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
+    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    assert source_bucket['replication']['asReplicationSource']['replicationRules'] == [
+        {
+            "destinationBucketId": destination_bucket['bucketId'],
+            "fileNamePrefix": "",
+            "includeExistingFiles": False,
+            "isEnabled": True,
+            "priority": 128,
+            "replicationRuleName": destination_bucket['bucketName'],
+        },
+        {
+            "destinationBucketId": destination_bucket['bucketId'],
+            "fileNamePrefix": "foo",
+            "includeExistingFiles": False,
+            "isEnabled": True,
+            "priority": 132,
+            "replicationRuleName": "my-replication-rule",
+        },
+    ]
+
+    for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
+        'sourceToDestinationKeyMapping'].items():
+        b2_tool.should_succeed(['delete-key', key_one_id])
+        b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+    assert destination_bucket_old['replication']['asReplicationDestination'][
+        'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
+            'asReplicationDestination']['sourceToDestinationKeyMapping']
+
+
 def _assert_file_lock_configuration(
     b2_tool,
     file_id,
@@ -2351,6 +2593,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
     test_map = {  # yapf: disable
         'account': account_test,
         'basic': basic_test,
+        'bucket_test': bucket_test,
         'file_lock': file_lock_test,
         'keys': key_restrictions_test,
         'sync_down': sync_down_test,
@@ -2372,6 +2615,8 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
         'sse_b2': sse_b2_test,
         'sse_c': sse_c_test,
         'profile_switch_test': profile_switch_test,
+        'replication_basic': replication_basic,
+        'replication_setup': replication_setup,
     }
 
     args = parse_args(tests=sorted(test_map))
@@ -2391,7 +2636,7 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
     )
 
     # Run each of the tests in its own empty bucket
-    for test_name in args.tests:
+    for iteration, test_name in enumerate(args.tests):
 
         print('#')
         print('# Setup for test:', test_name)
@@ -2406,7 +2651,8 @@ def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeyp
         print('#')
         print()
 
-        b2_tool.reauthorize()  # authorization is common for all tests
+        b2_tool.reauthorize(check=iteration == 0)  # authorization is common for all tests
+        print('starting test %s with bucket %s' % (test_name, bucket_name))
         test_fcn = test_map[test_name]
         test_fcn(b2_tool, bucket_name)
 
