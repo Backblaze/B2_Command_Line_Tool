@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.4.0] - 2022-04-27
+## [3.4.0] - 2022-05-04
 
 This release contains a preview of replication support. It allows for basic usage
 of B2 replication feature (currently in closed beta). Until this notice is removed,
@@ -19,6 +19,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Add more fields to `get-account-info` json
 * Add `--replication` to `ls --long`
 * Add `replication-setup` command
+* Add "quick start guide" to documentation
 
 ### Changed
 * Made `bucketType` positional argument to `update-bucket` optional
