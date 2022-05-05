@@ -265,16 +265,20 @@ class Api:
         self.api.authorize_account(self.realm, self.account_id, self.application_key)
 
     def create_bucket(self):
-        bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
-            BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
-        )
-        print('Creating bucket:', bucket_name)
-        self.api.create_bucket(
-            bucket_name,
-            'allPublic',
-            bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
-        )
-        print()
+        while True:
+            bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
+                BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
+            )
+            print('Creating bucket:', bucket_name)
+            try:
+                self.api.create_bucket(
+                    bucket_name,
+                    'allPublic',
+                    bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
+                )
+            except DuplicateBucketName:
+                continue
+            print()
         return bucket_name
 
     def _should_remove_bucket(self, bucket: Bucket):
