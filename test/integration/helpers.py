@@ -1,3 +1,13 @@
+######################################################################
+#
+# File: test/integration/helpers.py
+#
+# Copyright 2022 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+
 import json
 import logging
 import os
@@ -19,7 +29,6 @@ from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket,
 from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent
 
 from b2.console_tool import Command, current_time_millis
-
 
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
@@ -191,9 +200,7 @@ def print_json_indented(value):
 
 
 def remove_warnings(text):
-    return linesep.join(
-        line for line in text.split(linesep) if 'DeprecationWarning' not in line
-    )
+    return linesep.join(line for line in text.split(linesep) if 'DeprecationWarning' not in line)
 
 
 class StringReader(object):
@@ -409,9 +416,9 @@ class CommandLine:
         )
         if check:
             auth_dict = self.should_succeed_json(['get-account-info'])
-            missing_capabilities = set(ALL_CAPABILITIES) - {'readBuckets', 'listAllBucketNames'} - set(
-                auth_dict['allowed']['capabilities']
-            )
+            missing_capabilities = set(ALL_CAPABILITIES) - {
+                'readBuckets', 'listAllBucketNames'
+            } - set(auth_dict['allowed']['capabilities'])
             assert not missing_capabilities, 'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: %s' % (
                 missing_capabilities,
             )

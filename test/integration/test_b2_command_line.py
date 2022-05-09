@@ -768,7 +768,8 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             )
             b2_tool.should_fail(
                 ['sync', '--noProgress', b2_sync_point, new_local_path],
-                expected_pattern='b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+                expected_pattern=
+                'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
                 'Encryption. The correct parameters must be provided to retrieve the object. '
                 r'\(bad_request\)',
             )
@@ -959,7 +960,8 @@ def run_sync_copy_with_basic_checks(
                 'B2_DESTINATION_SSE_C_KEY_ID':
                     destination_encryption.key.key_id,
             },
-            expected_pattern='b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+            expected_pattern=
+            'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
             'Encryption. The correct parameters must be provided to retrieve the object. '
             r'\(bad_request\)'
         )
@@ -1207,7 +1209,8 @@ def test_sse_c(b2_tool, bucket_name):
 
     b2_tool.should_fail(
         ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
-        expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The correct '
+        expected_pattern=
+        'ERROR: The object was stored using a form of Server Side Encryption. The correct '
         r'parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
@@ -1234,7 +1237,8 @@ def test_sse_c(b2_tool, bucket_name):
             bucket_name, 'gonna-fail-anyway'
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
-        expected_pattern='Attempting to copy file with metadata while either source or destination uses '
+        expected_pattern=
+        'Attempting to copy file with metadata while either source or destination uses '
         'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.',
     )
     b2_tool.should_succeed(
@@ -1944,7 +1948,8 @@ def test_replication_basic(b2_tool, bucket_name):
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
-    assert source_bucket['replication']['asReplicationSource'] == source_replication_configuration['asReplicationSource']
+    assert source_bucket['replication']['asReplicationSource'
+                                       ] == source_replication_configuration['asReplicationSource']
 
     # test that source bucket is not mentioned as replication destination
     assert source_bucket['replication'].get('asReplicationDestination') is None
@@ -1973,7 +1978,9 @@ def test_replication_basic(b2_tool, bucket_name):
 
     # test that destination bucket is registered as replication destination
     assert destination_bucket['replication'].get('asReplicationSource') is None
-    assert destination_bucket['replication']['asReplicationDestination'] == destination_replication_configuration['asReplicationDestination']
+    assert destination_bucket['replication'
+                             ]['asReplicationDestination'
+                              ] == destination_replication_configuration['asReplicationDestination']
 
     # ---------------- remove replication source ----------------
 
@@ -2067,7 +2074,8 @@ def test_replication_setup(b2_tool, bucket_name):
         },
     ]
 
-    for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination']['sourceToDestinationKeyMapping'].items():
+    for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
+        'sourceToDestinationKeyMapping'].items():
         b2_tool.should_succeed(['delete-key', key_one_id])
         b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])

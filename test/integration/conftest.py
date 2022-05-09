@@ -11,7 +11,6 @@ import sys
 
 from os import environ, path
 from tempfile import TemporaryDirectory
-from typing import Tuple
 
 import pytest
 
@@ -90,9 +89,13 @@ def auto_change_account_info_dir(monkey_patch) -> dir:
 
 
 @pytest.fixture(scope='module')
-def b2_api(application_key_id, application_key, realm, general_bucket_name_prefix, this_run_bucket_name_prefix) -> Api:
+def b2_api(
+    application_key_id, application_key, realm, general_bucket_name_prefix,
+    this_run_bucket_name_prefix
+) -> Api:
     yield Api(
-        application_key_id, application_key, realm, general_bucket_name_prefix, this_run_bucket_name_prefix
+        application_key_id, application_key, realm, general_bucket_name_prefix,
+        this_run_bucket_name_prefix
     )
 
 
@@ -106,7 +109,7 @@ def auto_clean_buckets(b2_api):
 @pytest.fixture(scope='module')
 def b2_tool(application_key_id, application_key, realm, this_run_bucket_name_prefix) -> CommandLine:
     tool = CommandLine(
-        f'{sys.executable} -m b2',  # TODO: args.command
+        f'{sys.executable} -m b2',
         application_key_id,
         application_key,
         realm,
