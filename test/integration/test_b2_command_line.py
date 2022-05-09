@@ -9,508 +9,27 @@
 #
 ######################################################################
 
-import argparse
 import base64
 import hashlib
 import json
-import logging
 import os
 import os.path
-import platform
-import random
 import re
-import shutil
-import string
-import subprocess
-import sys
-import tempfile
-import threading
 
-import pytest
-from typing import Optional
+from typing import Optional, Tuple
 
-from b2.console_tool import current_time_millis, Command
-from b2sdk.v2 import (
-    ALL_CAPABILITIES,
-    B2_ACCOUNT_INFO_ENV_VAR,
-    B2Api,
-    Bucket,
-    EncryptionAlgorithm,
-    EncryptionKey,
-    EncryptionMode,
-    EncryptionSetting,
-    FileRetentionSetting,
-    fix_windows_path_limit,
-    InMemoryAccountInfo,
-    InMemoryCache,
-    LegalHold,
-    NO_RETENTION_FILE_SETTING,
-    RetentionMode,
-    SqliteAccountInfo,
-    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
-    UNKNOWN_FILE_RETENTION_SETTING,
-    XDG_CONFIG_HOME_ENV_VAR,
-)
+from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, UNKNOWN_FILE_RETENTION_SETTING, EncryptionMode, EncryptionSetting, FileRetentionSetting, LegalHold, RetentionMode, fix_windows_path_limit
 
-from b2sdk.v2.exception import BucketIdNotFound, FileNotPresent
+from b2.console_tool import current_time_millis
 
-SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
-SSE_B2_AES = EncryptionSetting(
-    mode=EncryptionMode.SSE_B2,
-    algorithm=EncryptionAlgorithm.AES256,
-)
-SSE_C_AES = EncryptionSetting(
-    mode=EncryptionMode.SSE_C,
-    algorithm=EncryptionAlgorithm.AES256,
-    key=EncryptionKey(secret=os.urandom(32), key_id='user-generated-key-id')
-)
-SSE_C_AES_2 = EncryptionSetting(
-    mode=EncryptionMode.SSE_C,
-    algorithm=EncryptionAlgorithm.AES256,
-    key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
-)
+from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, write_file
 
-ONE_HOUR_MILLIS = 60 * 60 * 1000
-ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
-BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 
-BUCKET_NAME_CHARS = string.ascii_letters + string.digits + '-'
-BUCKET_NAME_LENGTH = 50
+def get_bucketinfo() -> Tuple[str, str]:
+    return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
 
 
-def bucket_name_part(length):
-    return ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(length))
-
-
-def parse_args(tests):
-    parser = argparse.ArgumentParser(
-        prog='test_b2_comand_line.py',
-        description='This program tests the B2 command-line client.',
-    )
-    parser.add_argument(
-        'tests',
-        help='Specifie which of the tests to run. If not specified, all test will run',
-        default='all',
-        nargs='*',
-        choices=['all'] + tests
-    )
-    parser.add_argument(
-        '--command',
-        help='Specifie a command tu run. If not specified, the tests will run from the source',
-        default='%s -m b2' % sys.executable
-    )
-
-    args = parser.parse_args()
-    if 'all' in args.tests:
-        args.tests = tests
-
-    return args
-
-
-def error_and_exit(message):
-    print('ERROR:', message)
-    _exit(1)
-
-
-def read_file(path):
-    with open(path, 'rb') as f:
-        return f.read()
-
-
-def write_file(path, contents):
-    with open(path, 'wb') as f:
-        f.write(contents)
-
-
-def file_mod_time_millis(path):
-    return int(os.path.getmtime(path) * 1000)
-
-
-def set_file_mod_time_millis(path, time):
-    os.utime(path, (os.path.getatime(path), time / 1000))
-
-
-def random_hex(length):
-    return ''.join(random.choice('0123456789abcdef') for _ in range(length))
-
-
-class TempDir(object):
-    def __init__(self):
-        self.dirpath = None
-
-    def get_dir(self):
-        return self.dirpath
-
-    def __enter__(self):
-        self.dirpath = tempfile.mkdtemp()
-        return self.dirpath
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        shutil.rmtree(fix_windows_path_limit(self.dirpath))
-
-
-class StringReader(object):
-    def __init__(self):
-        self.string = None
-
-    def get_string(self):
-        return self.string
-
-    def read_from(self, f):
-        try:
-            self.string = f.read()
-        except Exception as e:
-            print(e)
-            self.string = str(e)
-
-
-def remove_warnings(text):
-    return os.linesep.join(
-        line for line in text.split(os.linesep) if 'DeprecationWarning' not in line
-    )
-
-
-def run_command(cmd, args, additional_env: Optional[dict] = None):
-    """
-    :param cmd: a command to run
-    :param args: command's arguments
-    :param additional_env: environment variables to pass to the command, overwriting parent process ones
-    :return: (status, stdout, stderr)
-    """
-    # We'll run the b2 command-line by running the b2 module from
-    # the current directory or provided as parameter
-    os.environ['PYTHONPATH'] = '.'
-    os.environ['PYTHONIOENCODING'] = 'utf-8'
-    command = cmd.split(' ')
-    command.extend(args)
-
-    print('Running:', ' '.join(command))
-
-    stdout = StringReader()
-    stderr = StringReader()
-
-    env = os.environ.copy()
-    env.update(additional_env or {})
-
-    p = subprocess.Popen(
-        command,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=platform.system() != 'Windows',
-        env=env,
-    )
-    p.stdin.close()
-    reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
-    reader1.start()
-    reader2 = threading.Thread(target=stderr.read_from, args=[p.stderr])
-    reader2.start()
-    p.wait()
-    reader1.join()
-    reader2.join()
-
-    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
-    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
-
-    print_output(p.returncode, stdout_decoded, stderr_decoded)
-    return p.returncode, stdout_decoded, stderr_decoded
-
-
-def print_text_indented(text):
-    """
-    Prints text that may include weird characters, indented four spaces.
-    """
-    for line in text.split(os.linesep):
-        Command._print_standard_descriptor(sys.stdout, '   ', repr(line)[1:-1])
-
-
-def print_json_indented(value):
-    """
-    Converts the value to JSON, then prints it.
-    """
-    print_text_indented(json.dumps(value, indent=4, sort_keys=True, default=serialize_enc_settings))
-
-
-def serialize_enc_settings(value):
-    if not isinstance(value, EncryptionSetting):
-        raise TypeError
-    return value.as_dict()
-
-
-def print_output(status, stdout, stderr):
-    print('  status:', status)
-    if stdout != '':
-        print('  stdout:')
-        print_text_indented(stdout)
-    if stderr != '':
-        print('  stderr:')
-        print_text_indented(stderr)
-    print()
-
-
-class Api:
-    def __init__(
-        self, account_id, application_key, realm, general_bucket_name_prefix,
-        this_run_bucket_name_prefix
-    ):
-        self.account_id = account_id
-        self.application_key = application_key
-        self.realm = realm
-        self.general_bucket_name_prefix = general_bucket_name_prefix
-        self.this_run_bucket_name_prefix = this_run_bucket_name_prefix
-
-        info = InMemoryAccountInfo()
-        cache = InMemoryCache()
-        self.api = B2Api(info, cache=cache)
-        self.api.authorize_account(self.realm, self.account_id, self.application_key)
-
-    def create_bucket(self):
-        while True:
-            bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
-                BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
-            )
-            print('Creating bucket:', bucket_name)
-            try:
-                self.api.create_bucket(
-                    bucket_name,
-                    'allPublic',
-                    bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
-                )
-            except DuplicateBucketName:
-                continue
-            print()
-        return bucket_name
-
-    def _should_remove_bucket(self, bucket: Bucket):
-        if bucket.name.startswith(self.this_run_bucket_name_prefix):
-            return True, 'it is a bucket for this very run'
-        OLD_PATTERN = 'test-b2-cli-'
-        if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
-            if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
-                delete_older_than = current_time_millis() - ONE_HOUR_MILLIS
-                this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
-                if int(this_bucket_creation_time) < delete_older_than:
-                    return True, f"{this_bucket_creation_time} < {delete_older_than}"
-            else:
-                return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
-        return False, ''
-
-    def clean_buckets(self):
-        buckets = self.api.list_buckets()
-        print('Total bucket count:', len(buckets))
-        for bucket in buckets:
-            should_remove, why = self._should_remove_bucket(bucket)
-            if not should_remove:
-                print('Skipping bucket removal:', bucket.name)
-            else:
-                print('Trying to remove bucket:', bucket.name, 'because', why)
-                files_leftover = False
-                file_versions = bucket.ls(latest_only=False, recursive=True)
-                for file_version_info, _ in file_versions:
-                    if file_version_info.file_retention:
-                        if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
-                            print('Removing retention from file version:', file_version_info.id_)
-                            self.api.update_file_retention(
-                                file_version_info.id_, file_version_info.file_name,
-                                NO_RETENTION_FILE_SETTING, True
-                            )
-                        elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
-                            if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
-                                print(
-                                    'File version: %s cannot be removed due to compliance mode retention'
-                                    % (file_version_info.id_,)
-                                )
-                                files_leftover = True
-                                continue
-                        elif file_version_info.file_retention.mode == RetentionMode.NONE:
-                            pass
-                        else:
-                            raise ValueError(
-                                'Unknown retention mode: %s' %
-                                (file_version_info.file_retention.mode,)
-                            )
-                    if file_version_info.legal_hold.is_on():
-                        print('Removing legal hold from file version:', file_version_info.id_)
-                        self.api.update_file_legal_hold(
-                            file_version_info.id_, file_version_info.file_name, LegalHold.OFF
-                        )
-                    print('Removing file version:', file_version_info.id_)
-                    try:
-                        self.api.delete_file_version(
-                            file_version_info.id_, file_version_info.file_name
-                        )
-                    except FileNotPresent:
-                        print(
-                            'It seems that file version %s has already been removed' %
-                            (file_version_info.id_,)
-                        )
-
-                if files_leftover:
-                    print('Unable to remove bucket because some retained files remain')
-                else:
-                    print('Removing bucket:', bucket.name)
-                    try:
-                        self.api.delete_bucket(bucket)
-                    except BucketIdNotFound:
-                        print('It seems that bucket %s has already been removed' % (bucket.name,))
-                print()
-
-
-class EnvVarTestContext:
-    """
-    Establish config for environment variable test.
-    Copy the B2 credential file and rename the existing copy
-    """
-    ENV_VAR = 'B2_ACCOUNT_INFO'
-
-    def __init__(self, account_info_file_name: str):
-        self.account_info_file_name = account_info_file_name
-
-    def __enter__(self):
-        src = self.account_info_file_name
-        dst = os.path.join(tempfile.gettempdir(), 'b2_account_info')
-        shutil.copyfile(src, dst)
-        shutil.move(src, src + '.bkup')
-        os.environ[self.ENV_VAR] = dst
-        return dst
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        os.remove(os.environ.get(self.ENV_VAR))
-        fname = self.account_info_file_name
-        shutil.move(fname + '.bkup', fname)
-        if os.environ.get(self.ENV_VAR) is not None:
-            del os.environ[self.ENV_VAR]
-
-
-class CommandLine:
-
-    EXPECTED_STDERR_PATTERNS = [
-        re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
-        re.compile(r'^\r?$'),  # empty line
-        re.compile(
-            r'Encrypting file\(s\) with SSE-C without providing key id. '
-            r'Set B2_DESTINATION_SSE_C_KEY_ID to allow key identification'
-        ),
-        re.compile(
-            r'WARNING: Unable to print unicode.  Encoding for stdout is: '
-            r'\'[a-zA-Z0-9]+\''
-        ),  # windows-bundle tests on CI use cp1252
-        re.compile(r'Trying to print: .*'),
-    ]
-
-    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
-        self.command = command
-        self.account_id = account_id
-        self.application_key = application_key
-        self.realm = realm
-        self.bucket_name_prefix = bucket_name_prefix
-        self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
-        self.account_info_file_name = SqliteAccountInfo().filename
-
-    def generate_bucket_name(self):
-        return self.bucket_name_prefix + bucket_name_part(
-            BUCKET_NAME_LENGTH - len(self.bucket_name_prefix)
-        )
-
-    def run_command(self, args, additional_env: Optional[dict] = None):
-        """
-        Runs the command with the given arguments, returns a tuple in form of
-        (succeeded, stdout)
-        """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
-        return status == 0 and stderr == '', stdout
-
-    def should_succeed(self, args, expected_pattern=None, additional_env: Optional[dict] = None):
-        """
-        Runs the command-line with the given arguments.  Raises an exception
-        if there was an error; otherwise, returns the stdout of the command
-        as as string.
-        """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
-        if status != 0:
-            print('FAILED with status', status)
-            _exit(1)
-        if stderr != '':
-            failed = False
-            for line in (s.strip() for s in stderr.split(os.linesep)):
-                if not any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS):
-                    print('Unexpected stderr line:', repr(line))
-                    failed = True
-            if failed:
-                print('FAILED because of stderr')
-                print(stderr)
-                _exit(1)
-        if expected_pattern is not None:
-            if re.search(expected_pattern, stdout) is None:
-                print('STDOUT:')
-                print(stdout)
-                error_and_exit('did not match pattern: ' + expected_pattern)
-        return stdout
-
-    def should_succeed_json(self, args, additional_env: Optional[dict] = None):
-        """
-        Runs the command-line with the given arguments.  Raises an exception
-        if there was an error; otherwise, treats the stdout as JSON and returns
-        the data in it.
-        """
-        return json.loads(self.should_succeed(args, additional_env=additional_env))
-
-    def should_fail(self, args, expected_pattern, additional_env: Optional[dict] = None):
-        """
-        Runs the command-line with the given args, expecting the given pattern
-        to appear in stderr.
-        """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
-        if status == 0:
-            print('ERROR: should have failed')
-            _exit(1)
-        if re.search(expected_pattern, stdout + stderr) is None:
-            print(expected_pattern)
-            # quotes are helpful when reading fail logs, they help find trailing white spaces etc.
-            print("'%s'" % (stdout + stderr,))
-            error_and_exit('did not match pattern: ' + str(expected_pattern))
-
-    def reauthorize(self, check=False):
-        """Clear and authorize again to the account."""
-        self.should_succeed(['clear-account'])
-        self.should_succeed(
-            [
-                'authorize-account', '--environment', self.realm, self.account_id,
-                self.application_key
-            ]
-        )
-        if check:
-            auth_dict = self.should_succeed_json(['get-account-info'])
-            missing_capabilities = set(ALL_CAPABILITIES) - set(['readBuckets']) - set(
-                auth_dict['allowed']['capabilities']
-            )
-            assert not missing_capabilities, 'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: %s' % (
-                missing_capabilities,
-            )
-
-    def list_file_versions(self, bucket_name):
-        return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
-
-
-def should_equal(expected, actual):
-    print('  expected:')
-    print_json_indented(expected)
-    print('  actual:')
-    print_json_indented(actual)
-    if expected != actual:
-        print('  ERROR')
-        _exit(1)
-    print()
-
-
-def _exit(error_code):
-    logging.shutdown()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    sys.exit(error_code)
-
-
-def download_test(b2_tool, bucket_name):
+def test_download(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
 
@@ -518,7 +37,7 @@ def download_test(b2_tool, bucket_name):
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     with TempDir() as dir_path:
-        p = lambda fname: os.path.join(dir_path, fname)
+        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
         b2_tool.should_succeed(['download-file-by-name', '--noProgress', bucket_name, 'a', p('a')])
         assert read_file(p('a')) == read_file(file_to_upload)
         b2_tool.should_succeed(
@@ -532,11 +51,7 @@ def download_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-bucket', bucket_name])
 
 
-def test_bucketinfo():
-    return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
-
-
-def basic_test(b2_tool, bucket_name):
+def test_basic(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
     file_mod_time_str = str(file_mod_time_millis(file_to_upload))
@@ -654,7 +169,7 @@ def basic_test(b2_tool, bucket_name):
             'create-bucket',
             to_be_removed_bucket_name,
             'allPublic',
-            *test_bucketinfo(),
+            *get_bucketinfo(),
         ],
     )
     b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
@@ -697,14 +212,14 @@ def basic_test(b2_tool, bucket_name):
         assert re.search(log_file_regex, log), log
 
 
-def bucket_test(b2_tool, bucket_name):
+def test_bucket(b2_tool, bucket_name):
     rules = """[{
         "daysFromHidingToDeleting": 1,
         "daysFromUploadingToHiding": null,
         "fileNamePrefix": ""
     }]"""
     output = b2_tool.should_succeed_json(
-        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *test_bucketinfo()],
+        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *get_bucketinfo()],
     )
     assert output["lifecycleRules"] == [
         {
@@ -715,10 +230,10 @@ def bucket_test(b2_tool, bucket_name):
     ]
 
 
-def key_restrictions_test(b2_tool, bucket_name):
+def test_key_restrictions(b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *test_bucketinfo()],)
+    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -773,12 +288,12 @@ def key_restrictions_test(b2_tool, bucket_name):
     b2_tool.should_succeed(['delete-key', key_two_id])
 
 
-def account_test(b2_tool, bucket_name):
+def test_account(b2_tool, bucket_name):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
     b2_tool.should_succeed(['delete-bucket', bucket_name])
     new_bucket_name = b2_tool.generate_bucket_name()
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *test_bucketinfo()])
+    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *get_bucketinfo()])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
 
     with b2_tool.env_var_test_context:
@@ -818,7 +333,7 @@ def account_test(b2_tool, bucket_name):
         os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
         bucket_name = b2_tool.generate_bucket_name()
-        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate', *test_bucketinfo()])
+        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate', *get_bucketinfo()])
         b2_tool.should_succeed(['delete-bucket', bucket_name])
         assert os.path.exists(new_creds), 'sqlite file not created'
 
@@ -902,19 +417,19 @@ def encryption_summary(sse_dict, file_info):
     return encryption
 
 
-def sync_up_test(b2_tool, bucket_name):
+def test_sync_up(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, 'sync')
 
 
-def sync_up_sse_b2_test(b2_tool, bucket_name):
+def test_sync_up_sse_b2(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_B2_AES)
 
 
-def sync_up_sse_c_test(b2_tool, bucket_name):
+def test_sync_up_sse_c(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_C_AES)
 
 
-def sync_up_test_no_prefix(b2_tool, bucket_name):
+def test_sync_up_no_prefix(b2_tool, bucket_name):
     sync_up_helper(b2_tool, bucket_name, '')
 
 
@@ -929,7 +444,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
 
     with TempDir() as dir_path:
 
-        p = lambda fname: os.path.join(dir_path, fname)
+        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
 
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
@@ -1044,10 +559,10 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             '+ ' + prefix + 'c',
         ], file_version_summary(file_versions))
 
-        #test --compareThreshold with file size
+        # test --compareThreshold with file size
         write_file(p('c'), b'hello world!')
 
-        #should not upload new version of c
+        # should not upload new version of c
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'size',
@@ -1059,7 +574,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             '+ ' + prefix + 'c',
         ], file_version_summary(file_versions))
 
-        #should upload new version of c
+        # should upload new version of c
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'size', dir_path,
@@ -1076,8 +591,8 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
 
         set_file_mod_time_millis(p('c'), file_mod_time_millis(p('c')) + 2000)
 
-        #test --compareThreshold with modTime
-        #should not upload new version of c
+        # test --compareThreshold with modTime
+        # should not upload new version of c
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'modTime',
@@ -1092,7 +607,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             ], file_version_summary(file_versions)
         )
 
-        #should upload new version of c
+        # should upload new version of c
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--keepDays', '10', '--compareVersions', 'modTime',
@@ -1158,15 +673,15 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         )
 
 
-def sync_down_test(b2_tool, bucket_name):
+def test_sync_down(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, 'sync')
 
 
-def sync_down_test_no_prefix(b2_tool, bucket_name):
+def test_sync_down_no_prefix(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, '')
 
 
-def sync_down_sse_c_test_no_prefix(b2_tool, bucket_name):
+def test_sync_down_sse_c_no_prefix(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, '', SSE_C_AES)
 
 
@@ -1253,18 +768,17 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             )
             b2_tool.should_fail(
                 ['sync', '--noProgress', b2_sync_point, new_local_path],
-                expected_pattern=
-                'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+                expected_pattern='b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
                 'Encryption. The correct parameters must be provided to retrieve the object. '
                 r'\(bad_request\)',
             )
 
 
-def sync_copy_test(b2_tool, bucket_name):
+def test_sync_copy(b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(b2_tool, bucket_name, 'sync')
 
 
-def sync_copy_test_no_prefix_default_encryption(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_default_encryption(b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
         b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
     )
@@ -1276,7 +790,7 @@ def sync_copy_test_no_prefix_no_encryption(b2_tool, bucket_name):
     )
 
 
-def sync_copy_test_no_prefix_sse_b2(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_b2(b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
         b2_tool,
         bucket_name,
@@ -1286,7 +800,7 @@ def sync_copy_test_no_prefix_sse_b2(b2_tool, bucket_name):
     )
 
 
-def sync_copy_test_no_prefix_sse_c(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_c(b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
         b2_tool,
         bucket_name,
@@ -1297,7 +811,7 @@ def sync_copy_test_no_prefix_sse_c(b2_tool, bucket_name):
     )
 
 
-def sync_copy_test_sse_c_single_bucket(b2_tool, bucket_name):
+def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
     run_sync_copy_with_basic_checks(
         b2_tool=b2_tool,
         b2_file_prefix='first_folder/',
@@ -1345,7 +859,7 @@ def prepare_and_run_sync_copy_tests(
 
     other_bucket_name = b2_tool.generate_bucket_name()
     success, _ = b2_tool.run_command(
-        ['create-bucket', other_bucket_name, 'allPublic', *test_bucketinfo()]
+        ['create-bucket', other_bucket_name, 'allPublic', *get_bucketinfo()]
     )
 
     other_b2_sync_point = 'b2:%s' % other_bucket_name
@@ -1445,8 +959,7 @@ def run_sync_copy_with_basic_checks(
                 'B2_DESTINATION_SSE_C_KEY_ID':
                     destination_encryption.key.key_id,
             },
-            expected_pattern=
-            'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+            expected_pattern='b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
             'Encryption. The correct parameters must be provided to retrieve the object. '
             r'\(bad_request\)'
         )
@@ -1472,7 +985,7 @@ def run_sync_copy_with_basic_checks(
         raise NotImplementedError(destination_encryption)
 
 
-def sync_long_path_test(b2_tool, bucket_name):
+def test_sync_long_path(b2_tool, bucket_name):
     """
     test sync with very long path (overcome windows 260 character limit)
     """
@@ -1498,7 +1011,7 @@ def sync_long_path_test(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
-def default_sse_b2_test(b2_tool, bucket_name):
+def test_default_sse_b2(b2_tool, bucket_name):
     # Set default encryption via update-bucket
     bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
     bucket_default_sse = {'mode': 'none'}
@@ -1528,7 +1041,7 @@ def default_sse_b2_test(b2_tool, bucket_name):
             '--defaultServerSideEncryption=SSE-B2',
             second_bucket_name,
             'allPublic',
-            *test_bucketinfo(),
+            *get_bucketinfo(),
         ]
     )
     second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
@@ -1539,7 +1052,7 @@ def default_sse_b2_test(b2_tool, bucket_name):
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
 
 
-def sse_b2_test(b2_tool, bucket_name):
+def test_sse_b2(b2_tool, bucket_name):
     file_to_upload = 'README.md'
 
     b2_tool.should_succeed(
@@ -1552,7 +1065,7 @@ def sse_b2_test(b2_tool, bucket_name):
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted']
     )
     with TempDir() as dir_path:
-        p = lambda fname: os.path.join(dir_path, fname)
+        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
         b2_tool.should_succeed(
             ['download-file-by-name', '--noProgress', bucket_name, 'encrypted',
              p('encrypted')]
@@ -1612,7 +1125,7 @@ def sse_b2_test(b2_tool, bucket_name):
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
 
-def sse_c_test(b2_tool, bucket_name):
+def test_sse_c(b2_tool, bucket_name):
 
     file_to_upload = 'README.md'
     secret = os.urandom(32)
@@ -1672,7 +1185,7 @@ def sse_c_test(b2_tool, bucket_name):
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode()}
     )
     with TempDir() as dir_path:
-        p = lambda fname: os.path.join(dir_path, fname)
+        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
         b2_tool.should_succeed(
             [
                 'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
@@ -1694,8 +1207,7 @@ def sse_c_test(b2_tool, bucket_name):
 
     b2_tool.should_fail(
         ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
-        expected_pattern=
-        'ERROR: The object was stored using a form of Server Side Encryption. The correct '
+        expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The correct '
         r'parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
@@ -1722,8 +1234,7 @@ def sse_c_test(b2_tool, bucket_name):
             bucket_name, 'gonna-fail-anyway'
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
-        expected_pattern=
-        'Attempting to copy file with metadata while either source or destination uses '
+        expected_pattern='Attempting to copy file with metadata while either source or destination uses '
         'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.',
     )
     b2_tool.should_succeed(
@@ -1898,14 +1409,14 @@ def sse_c_test(b2_tool, bucket_name):
     )
 
 
-def file_lock_test(b2_tool, bucket_name):
+def test_file_lock(b2_tool):
     lock_disabled_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
             'create-bucket',
             lock_disabled_bucket_name,
             'allPrivate',
-            *test_bucketinfo(),
+            *get_bucketinfo(),
         ],
     )
 
@@ -1959,7 +1470,7 @@ def file_lock_test(b2_tool, bucket_name):
             lock_enabled_bucket_name,
             'allPrivate',
             '--fileLockEnabled',
-            *test_bucketinfo(),
+            *get_bucketinfo(),
         ],
     )
     updated_bucket = b2_tool.should_succeed_json(
@@ -2302,7 +1813,7 @@ def file_lock_without_perms_test(
     )
 
 
-def profile_switch_test(b2_tool, bucket_name):
+def test_profile_switch(b2_tool):
     # this test could be unit, but it adds a lot of complexity because of
     # necessarity to pass mocked B2Api to ConsoleTool; it's much easier to
     # just have an integration test instead
@@ -2363,7 +1874,7 @@ def profile_switch_test(b2_tool, bucket_name):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
-def replication_basic(b2_tool, destination_bucket_name):
+def test_replication_basic(b2_tool, bucket_name):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
@@ -2384,6 +1895,7 @@ def replication_basic(b2_tool, destination_bucket_name):
     )
     key_two_id, _ = created_key_stdout.split()
 
+    destination_bucket_name = bucket_name
     destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
     # test that by default there's no `replicationConfiguration` key
@@ -2426,14 +1938,13 @@ def replication_basic(b2_tool, destination_bucket_name):
             '--fileLockEnabled',
             '--replication',
             source_replication_configuration_json,
-            *test_bucketinfo(),
+            *get_bucketinfo(),
         ]
     )
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
-    assert source_bucket['replication']['asReplicationSource'
-                                       ] == source_replication_configuration['asReplicationSource']
+    assert source_bucket['replication']['asReplicationSource'] == source_replication_configuration['asReplicationSource']
 
     # test that source bucket is not mentioned as replication destination
     assert source_bucket['replication'].get('asReplicationDestination') is None
@@ -2462,9 +1973,7 @@ def replication_basic(b2_tool, destination_bucket_name):
 
     # test that destination bucket is registered as replication destination
     assert destination_bucket['replication'].get('asReplicationSource') is None
-    assert destination_bucket['replication'
-                             ]['asReplicationDestination'
-                              ] == destination_replication_configuration['asReplicationDestination']
+    assert destination_bucket['replication']['asReplicationDestination'] == destination_replication_configuration['asReplicationDestination']
 
     # ---------------- remove replication source ----------------
 
@@ -2509,7 +2018,7 @@ def replication_basic(b2_tool, destination_bucket_name):
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
 
 
-def replication_setup(b2_tool, destination_bucket_name):
+def test_replication_setup(b2_tool, bucket_name):
     source_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
@@ -2517,9 +2026,10 @@ def replication_setup(b2_tool, destination_bucket_name):
             source_bucket_name,
             'allPublic',
             '--fileLockEnabled',
-            *test_bucketinfo(),
+            *get_bucketinfo(),
         ]
     )
+    destination_bucket_name = bucket_name
     b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
     destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
@@ -2557,8 +2067,7 @@ def replication_setup(b2_tool, destination_bucket_name):
         },
     ]
 
-    for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
-        'sourceToDestinationKeyMapping'].items():
+    for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination']['sourceToDestinationKeyMapping'].items():
         b2_tool.should_succeed(['delete-key', key_one_id])
         b2_tool.should_succeed(['delete-key', key_two_id])
     b2_tool.should_succeed(['delete-bucket', source_bucket_name])
@@ -2591,138 +2100,3 @@ def _assert_file_lock_configuration(
         else:
             actual_legal_hold = LegalHold.from_string_or_none(file_version['legalHold'])
         assert legal_hold == actual_legal_hold
-
-
-def main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix, monkeypatch, tmpdir):
-    test_map = {  # yapf: disable
-        'account': account_test,
-        'basic': basic_test,
-        'bucket_test': bucket_test,
-        'file_lock': file_lock_test,
-        'keys': key_restrictions_test,
-        'sync_down': sync_down_test,
-        'sync_down_sse_c': sync_down_sse_c_test_no_prefix,
-        'sync_down_no_prefix': sync_down_test_no_prefix,
-        'sync_up': sync_up_test,
-        'sync_up_sse_b2': sync_up_sse_b2_test,
-        'sync_up_sse_c': sync_up_sse_c_test,
-        'sync_up_no_prefix': sync_up_test_no_prefix,
-        'sync_long_path': sync_long_path_test,
-        'sync_copy': sync_copy_test,
-        'sync_copy_test_no_prefix_default_encryption': sync_copy_test_no_prefix_default_encryption,
-        # 'sync_copy_test_no_prefix_no_encryption': sync_copy_test_no_prefix_no_encryption, # not supported by the server
-        'sync_copy_test_no_prefix_sse_b2': sync_copy_test_no_prefix_sse_b2,
-        'sync_copy_test_no_prefix_sse_c': sync_copy_test_no_prefix_sse_c,
-        'sync_copy_test_sse_c_single_bucket': sync_copy_test_sse_c_single_bucket,
-        'download': download_test,
-        'default_sse_b2': default_sse_b2_test,
-        'sse_b2': sse_b2_test,
-        'sse_c': sse_c_test,
-        'profile_switch_test': profile_switch_test,
-        'replication_basic': replication_basic,
-        'replication_setup': replication_setup,
-    }
-
-    args = parse_args(tests=sorted(test_map))
-    print(args)
-    account_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID', '')
-    application_key = os.environ.get('B2_TEST_APPLICATION_KEY', '')
-
-    # make b2sdk use temp dir for storing default & per-profile account information
-    monkeypatch.setenv(B2_ACCOUNT_INFO_ENV_VAR, str(tmpdir / '.b2_account_info'))
-    monkeypatch.setenv(XDG_CONFIG_HOME_ENV_VAR, str(tmpdir))
-
-    b2_tool = CommandLine(
-        args.command, account_id, application_key, realm, this_run_bucket_name_prefix
-    )
-    b2_api = Api(
-        account_id, application_key, realm, general_bucket_name_prefix, this_run_bucket_name_prefix
-    )
-
-    # Run each of the tests in its own empty bucket
-    for iteration, test_name in enumerate(args.tests):
-
-        print('#')
-        print('# Setup for test:', test_name)
-        print('#')
-        print()
-
-        b2_api.clean_buckets()
-        bucket_name = b2_api.create_bucket()
-
-        print('#')
-        print('# Running test:', test_name)
-        print('#')
-        print()
-
-        b2_tool.reauthorize(check=iteration == 0)  # authorization is common for all tests
-        print('starting test %s with bucket %s' % (test_name, bucket_name))
-        test_fcn = test_map[test_name]
-        test_fcn(b2_tool, bucket_name)
-
-        print('#')
-        print('# Teardown for test:', test_name)
-        print('#')
-        print()
-
-        b2_api.clean_buckets()
-
-    print()
-    print("ALL OK")
-
-
-def cleanup_hook(
-    application_key_id, application_key, realm, general_bucket_name_prefix,
-    this_run_bucket_name_prefix
-):
-    print()
-    print('#')
-    print('# Clean up:')
-    print('#')
-    print()
-    b2_api = Api(
-        application_key_id, application_key, realm, general_bucket_name_prefix,
-        this_run_bucket_name_prefix
-    )
-    b2_api.clean_buckets()
-
-
-# TODO: rewrite to multiple tests
-def test_integration(sut, cleanup, monkeypatch, tmpdir):
-    application_key_id = os.environ.get('B2_TEST_APPLICATION_KEY_ID')
-    if application_key_id is None:
-        pytest.fail('B2_TEST_APPLICATION_KEY_ID is not set.')
-
-    application_key = os.environ.get('B2_TEST_APPLICATION_KEY')
-    if application_key is None:
-        pytest.fail('B2_TEST_APPLICATION_KEY is not set.')
-
-    print()
-
-    realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
-
-    sys.argv = ['test_b2_command_line.py', '--command', sut]
-    general_bucket_name_prefix = 'clitst'
-    this_run_bucket_name_prefix = general_bucket_name_prefix + bucket_name_part(8)
-
-    try:
-        main(
-            realm,
-            general_bucket_name_prefix,
-            this_run_bucket_name_prefix,
-            monkeypatch,
-            tmpdir,
-        )
-    finally:
-        if cleanup:
-            cleanup_hook(
-                application_key_id, application_key, realm, general_bucket_name_prefix,
-                this_run_bucket_name_prefix
-            )
-
-
-if __name__ == '__main__':
-    general_bucket_name_prefix = 'clitst'
-    realm = os.environ.get('B2_TEST_ENVIRONMENT', 'production')
-    this_run_bucket_name_prefix = general_bucket_name_prefix + bucket_name_part(8)
-    main(realm, general_bucket_name_prefix, this_run_bucket_name_prefix)
