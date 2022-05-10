@@ -28,11 +28,6 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope='session')
-def sut(request):
-    return request.config.getoption('--sut')
-
-
-@pytest.fixture(scope='session')
 def application_key() -> str:
     key = environ.get('B2_TEST_APPLICATION_KEY')
     assert application_key, 'B2_TEST_APPLICATION_KEY is not set'
@@ -114,9 +109,9 @@ def auto_clean_buckets(b2_api, request):
 
 
 @pytest.fixture(scope='module')
-def b2_tool(application_key_id, application_key, realm, this_run_bucket_name_prefix) -> CommandLine:
+def b2_tool(request, application_key_id, application_key, realm, this_run_bucket_name_prefix) -> CommandLine:
     tool = CommandLine(
-        f'{sys.executable} -m b2',
+        request.config.getoption('--sut'),
         application_key_id,
         application_key,
         realm,
