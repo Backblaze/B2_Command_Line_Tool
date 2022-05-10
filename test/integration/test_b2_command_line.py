@@ -785,7 +785,7 @@ def test_sync_copy_no_prefix_default_encryption(b2_tool, bucket_name):
     )
 
 
-def sync_copy_test_no_prefix_no_encryption(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_no_encryption(b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
         b2_tool, bucket_name, '', destination_encryption=SSE_NONE, expected_encryption=SSE_NONE
     )
