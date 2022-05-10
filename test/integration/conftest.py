@@ -68,7 +68,7 @@ def this_run_bucket_name_prefix(general_bucket_name_prefix) -> str:
 
 @pytest.fixture(scope='module')
 def monkey_patch():
-    """ Module-scope monkeypatching """
+    """ Module-scope monkeypatching (original `monkeypatch` is function-scope) """
     from _pytest.monkeypatch import MonkeyPatch
     monkey = MonkeyPatch()
     yield monkey
@@ -77,6 +77,11 @@ def monkey_patch():
 
 @pytest.fixture(scope='module', autouse=True)
 def auto_change_account_info_dir(monkey_patch) -> dir:
+    """
+    Automatically for the whole module testing:
+    1) temporary remove B2_APPLICATION_KEY and B2_APPLICATION_KEY_ID from environment
+    2) create a temporary directory for storing account info database
+    """
 
     monkey_patch.delenv('B2_APPLICATION_KEY_ID')
     monkey_patch.delenv('B2_APPLICATION_KEY')
@@ -100,10 +105,12 @@ def b2_api(
 
 
 @pytest.fixture(scope='module', autouse=True)
-def auto_clean_buckets(b2_api):
+def auto_clean_buckets(b2_api, request):
+    """ Automatically clean buckets before and after the whole module testing """
     b2_api.clean_buckets()
     yield
-    b2_api.clean_buckets()
+    if request.config.getoption('--cleanup'):
+        b2_api.clean_buckets()
 
 
 @pytest.fixture(scope='module')
@@ -115,10 +122,11 @@ def b2_tool(application_key_id, application_key, realm, this_run_bucket_name_pre
         realm,
         this_run_bucket_name_prefix,
     )
-    tool.reauthorize(check=True)
+    tool.reauthorize(check=True)  # reauthorize for the first time (with check)
     return tool
 
 
 @pytest.fixture(scope='function', autouse=True)
 def auto_reauthorize(request, b2_tool):
+    """ Automatically reauthorize for each test (without check) """
     b2_tool.reauthorize(check=False)
