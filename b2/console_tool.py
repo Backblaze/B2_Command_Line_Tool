@@ -112,8 +112,8 @@ if NAME.endswith('.py'):
 
 FILE_RETENTION_COMPATIBILITY_WARNING = """
     .. warning::
-       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention 
-       period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default 
+       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention
+       period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default
        retention, as it may lead to high storage costs.
 """.format(RetentionMode.COMPLIANCE.value)
 
@@ -501,6 +501,10 @@ class Command(Described):
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
                 common_parser.add_argument('--profile', default=None)
+                common_parser.add_argument('--write-buffer-size', type=int, help=argparse.SUPPRESS)
+                common_parser.add_argument(
+                    '--check-download-hash', action='store_true', help=argparse.SUPPRESS
+                )
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
@@ -2267,9 +2271,9 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
 class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true.
-    
+
     {FILEIDANDOPTIONALFILENAMEMIXIN}
-    
+
     Requires capability:
 
     - **writeFileLegalHolds**
@@ -2294,21 +2298,21 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
 @B2.register_subcommand
 class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
     """
-    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires 
+    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires
     providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
     since epoch.
-    
+
     If a file already is in governance mode, disabling retention or shortening it's period requires providing
     ``--bypassGovernance``.
-    
+
     If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
-    
+
     {FILEIDANDOPTIONALFILENAMEMIXIN}
-    
+
     Requires capability:
 
     - **writeFileRetentions**
@@ -2433,14 +2437,25 @@ class ConsoleTool(object):
         args = B2.get_parser().parse_args(argv[1:])
         self._setup_logging(args, argv)
 
-        if args.profile:
-            if self.api:
-                self._print_stderr('ERROR: cannot switch profile on already initialized object')
+        if self.api:
+            if args.profile or args.write_buffer_size or args.check_download_hash:
+                self._print_stderr(
+                    'ERROR: cannot change configuration on already initialized object'
+                )
                 return 1
-            self.api = _get_b2api_for_profile(args.profile)
-            logger.info('Using profile "%s" (%s)', args.profile, self.api.account_info.filename)
-        elif not self.api:
-            self.api = _get_b2api_for_profile()
+
+        else:
+            kwargs = {
+                'profile': args.profile,
+            }
+
+            if args.write_buffer_size:
+                kwargs['save_to_buffer_size'] = args.write_buffer_size
+
+            if args.check_download_hash:
+                kwargs['check_download_hash'] = True
+
+            self.api = _get_b2api_for_profile(**kwargs)
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -2570,12 +2585,13 @@ class InvalidArgument(B2Error):
         return "%s %s" % (self.parameter_name, self.message)
 
 
-def _get_b2api_for_profile(profile: Optional[str] = None):
+def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs):
     account_info = SqliteAccountInfo(profile=profile)
     return B2Api(
         api_config=_get_b2httpapiconfig(),
         account_info=account_info,
         cache=AuthInfoCache(account_info),
+        **kwargs,
     )
 
 
