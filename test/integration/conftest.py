@@ -78,8 +78,8 @@ def auto_change_account_info_dir(monkey_patch) -> dir:
     2) create a temporary directory for storing account info database
     """
 
-    monkey_patch.delenv('B2_APPLICATION_KEY_ID')
-    monkey_patch.delenv('B2_APPLICATION_KEY')
+    monkey_patch.delenv('B2_APPLICATION_KEY_ID', raising=False)
+    monkey_patch.delenv('B2_APPLICATION_KEY', raising=False)
 
     # make b2sdk use temp dir for storing default & per-profile account information
     with TemporaryDirectory() as temp_dir:
@@ -117,11 +117,11 @@ def b2_tool(request, application_key_id, application_key, realm, this_run_bucket
         realm,
         this_run_bucket_name_prefix,
     )
-    tool.reauthorize(check=True)  # reauthorize for the first time (with check)
+    tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
     return tool
 
 
 @pytest.fixture(scope='function', autouse=True)
 def auto_reauthorize(request, b2_tool):
     """ Automatically reauthorize for each test (without check) """
-    b2_tool.reauthorize(check=False)
+    b2_tool.reauthorize(check_key_capabilities=False)

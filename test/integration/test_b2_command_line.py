@@ -37,14 +37,13 @@ def test_download(b2_tool, bucket_name):
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     with TempDir() as dir_path:
-        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
-        b2_tool.should_succeed(['download-file-by-name', '--noProgress', bucket_name, 'a', p('a')])
-        assert read_file(p('a')) == read_file(file_to_upload)
+        b2_tool.should_succeed(['download-file-by-name', '--noProgress', bucket_name, 'a', os.path.join(dir_path, 'a')])
+        assert read_file(os.path.join(dir_path, 'a')) == read_file(file_to_upload)
         b2_tool.should_succeed(
             ['download-file-by-id', '--noProgress', uploaded_a['fileId'],
-             p('b')]
+             os.path.join(dir_path, 'b')]
         )
-        assert read_file(p('b')) == read_file(file_to_upload)
+        assert read_file(os.path.join(dir_path, 'b')) == read_file(file_to_upload)
 
     # there is just one file, so clean after itself for faster execution
     b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
@@ -443,15 +442,12 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
     b2_sync_point = 'b2:' + '/'.join(sync_point_parts)
 
     with TempDir() as dir_path:
-
-        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
-
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal([], file_version_summary(file_versions))
 
-        write_file(p('a'), b'hello')
-        write_file(p('b'), b'hello')
-        write_file(p('c'), b'hello')
+        write_file(os.path.join(dir_path, 'a'), b'hello')
+        write_file(os.path.join(dir_path, 'b'), b'hello')
+        write_file(os.path.join(dir_path, 'c'), b'hello')
 
         # simulate action (nothing should be uploaded)
         b2_tool.should_succeed(['sync', '--noProgress', '--dryRun', dir_path, b2_sync_point])
@@ -475,7 +471,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         # Again, if it still doesn't work, consider just running the shell you are
         # launching ``nox`` as admin.
 
-        os.symlink('broken', p('d'))  # OSError: [WinError 1314] ? See the comment above
+        os.symlink('broken', os.path.join(dir_path, 'd'))  # OSError: [WinError 1314] ? See the comment above
 
         additional_env = None
 
@@ -532,10 +528,10 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
 
         c_id = find_file_id(file_versions, prefix + 'c')
         file_info = b2_tool.should_succeed_json(['get-file-info', c_id])['fileInfo']
-        should_equal(file_mod_time_millis(p('c')), int(file_info['src_last_modified_millis']))
+        should_equal(file_mod_time_millis(os.path.join(dir_path, 'c')), int(file_info['src_last_modified_millis']))
 
-        os.unlink(p('b'))
-        write_file(p('c'), b'hello world')
+        os.unlink(os.path.join(dir_path, 'b'))
+        write_file(os.path.join(dir_path, 'c'), b'hello world')
 
         b2_tool.should_succeed(
             ['sync', '--noProgress', '--keepDays', '10', dir_path, b2_sync_point]
@@ -551,7 +547,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             ], file_version_summary(file_versions)
         )
 
-        os.unlink(p('a'))
+        os.unlink(os.path.join(dir_path, 'a'))
 
         b2_tool.should_succeed(['sync', '--noProgress', '--delete', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
@@ -560,7 +556,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         ], file_version_summary(file_versions))
 
         # test --compareThreshold with file size
-        write_file(p('c'), b'hello world!')
+        write_file(os.path.join(dir_path, 'c'), b'hello world!')
 
         # should not upload new version of c
         b2_tool.should_succeed(
@@ -589,7 +585,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             ], file_version_summary(file_versions)
         )
 
-        set_file_mod_time_millis(p('c'), file_mod_time_millis(p('c')) + 2000)
+        set_file_mod_time_millis(os.path.join(dir_path, 'c'), file_mod_time_millis(os.path.join(dir_path, 'c')) + 2000)
 
         # test --compareThreshold with modTime
         # should not upload new version of c
@@ -624,8 +620,8 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         )
 
         # create one more file
-        write_file(p('linktarget'), b'hello')
-        mod_time = str((file_mod_time_millis(p('linktarget')) - 10) / 1000)
+        write_file(os.path.join(dir_path, 'linktarget'), b'hello')
+        mod_time = str((file_mod_time_millis(os.path.join(dir_path, 'linktarget')) - 10) / 1000)
 
         # exclude last created file because of mtime
         b2_tool.should_succeed(
@@ -642,7 +638,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         )
 
         # confirm symlink is skipped
-        os.symlink('linktarget', p('alink'))
+        os.symlink('linktarget', os.path.join(dir_path, 'alink'))
 
         b2_tool.should_succeed(
             ['sync', '--noProgress', '--excludeAllSymlinks', dir_path, b2_sync_point],
@@ -1067,15 +1063,14 @@ def test_sse_b2(b2_tool, bucket_name):
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted']
     )
     with TempDir() as dir_path:
-        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
         b2_tool.should_succeed(
             ['download-file-by-name', '--noProgress', bucket_name, 'encrypted',
-             p('encrypted')]
+             os.path.join(dir_path, 'encrypted')]
         )
         b2_tool.should_succeed(
             [
                 'download-file-by-name', '--noProgress', bucket_name, 'not_encrypted',
-                p('not_encypted')
+                os.path.join(dir_path, 'not_encypted')
             ]
         )
 
@@ -1187,25 +1182,24 @@ def test_sse_c(b2_tool, bucket_name):
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode()}
     )
     with TempDir() as dir_path:
-        p = lambda fname: os.path.join(dir_path, fname)  # noqa: E731
         b2_tool.should_succeed(
             [
                 'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
                 bucket_name, 'uploaded_encrypted',
-                p('a')
+                os.path.join(dir_path, 'a'),
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
         )
-        assert read_file(p('a')) == read_file(file_to_upload)
+        assert read_file(os.path.join(dir_path, 'a')) == read_file(file_to_upload)
         b2_tool.should_succeed(
             [
                 'download-file-by-id', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
                 file_version_info['fileId'],
-                p('b')
+                os.path.join(dir_path, 'b'),
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
         )
-        assert read_file(p('b')) == read_file(file_to_upload)
+        assert read_file(os.path.join(dir_path, 'b')) == read_file(file_to_upload)
 
     b2_tool.should_fail(
         ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],

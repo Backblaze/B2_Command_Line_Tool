@@ -9,7 +9,6 @@
 ######################################################################
 
 import json
-import logging
 import os
 import platform
 import random
@@ -29,6 +28,7 @@ from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket,
 from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent
 
 from b2.console_tool import Command, current_time_millis
+
 
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
@@ -113,58 +113,59 @@ class Api:
             should_remove, why = self._should_remove_bucket(bucket)
             if not should_remove:
                 print('Skipping bucket removal:', bucket.name)
-            else:
-                print('Trying to remove bucket:', bucket.name, 'because', why)
-                files_leftover = False
-                file_versions = bucket.ls(latest_only=False, recursive=True)
-                for file_version_info, _ in file_versions:
-                    if file_version_info.file_retention:
-                        if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
-                            print('Removing retention from file version:', file_version_info.id_)
-                            self.api.update_file_retention(
-                                file_version_info.id_, file_version_info.file_name,
-                                NO_RETENTION_FILE_SETTING, True
-                            )
-                        elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
-                            if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
-                                print(
-                                    'File version: %s cannot be removed due to compliance mode retention'
-                                    % (file_version_info.id_,)
-                                )
-                                files_leftover = True
-                                continue
-                        elif file_version_info.file_retention.mode == RetentionMode.NONE:
-                            pass
-                        else:
-                            raise ValueError(
-                                'Unknown retention mode: %s' %
-                                (file_version_info.file_retention.mode,)
-                            )
-                    if file_version_info.legal_hold.is_on():
-                        print('Removing legal hold from file version:', file_version_info.id_)
-                        self.api.update_file_legal_hold(
-                            file_version_info.id_, file_version_info.file_name, LegalHold.OFF
-                        )
-                    print('Removing file version:', file_version_info.id_)
-                    try:
-                        self.api.delete_file_version(
-                            file_version_info.id_, file_version_info.file_name
-                        )
-                    except FileNotPresent:
-                        print(
-                            'It seems that file version %s has already been removed' %
-                            (file_version_info.id_,)
-                        )
+                continue
 
-                if files_leftover:
-                    print('Unable to remove bucket because some retained files remain')
-                else:
-                    print('Removing bucket:', bucket.name)
-                    try:
-                        self.api.delete_bucket(bucket)
-                    except BucketIdNotFound:
-                        print('It seems that bucket %s has already been removed' % (bucket.name,))
-                print()
+            print('Trying to remove bucket:', bucket.name, 'because', why)
+            files_leftover = False
+            file_versions = bucket.ls(latest_only=False, recursive=True)
+            for file_version_info, _ in file_versions:
+                if file_version_info.file_retention:
+                    if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
+                        print('Removing retention from file version:', file_version_info.id_)
+                        self.api.update_file_retention(
+                            file_version_info.id_, file_version_info.file_name,
+                            NO_RETENTION_FILE_SETTING, True
+                        )
+                    elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
+                        if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
+                            print(
+                                'File version: %s cannot be removed due to compliance mode retention'
+                                % (file_version_info.id_,)
+                            )
+                            files_leftover = True
+                            continue
+                    elif file_version_info.file_retention.mode == RetentionMode.NONE:
+                        pass
+                    else:
+                        raise ValueError(
+                            'Unknown retention mode: %s' %
+                            (file_version_info.file_retention.mode,)
+                        )
+                if file_version_info.legal_hold.is_on():
+                    print('Removing legal hold from file version:', file_version_info.id_)
+                    self.api.update_file_legal_hold(
+                        file_version_info.id_, file_version_info.file_name, LegalHold.OFF
+                    )
+                print('Removing file version:', file_version_info.id_)
+                try:
+                    self.api.delete_file_version(
+                        file_version_info.id_, file_version_info.file_name
+                    )
+                except FileNotPresent:
+                    print(
+                        'It seems that file version %s has already been removed' %
+                        (file_version_info.id_,)
+                    )
+
+            if files_leftover:
+                print('Unable to remove bucket because some retained files remain')
+            else:
+                print('Removing bucket:', bucket.name)
+                try:
+                    self.api.delete_bucket(bucket)
+                except BucketIdNotFound:
+                    print('It seems that bucket %s has already been removed' % (bucket.name,))
+            print()
 
 
 def print_text_indented(text):
@@ -294,26 +295,12 @@ class EnvVarTestContext:
             del environ[self.ENV_VAR]
 
 
-def _exit(error_code):
-    logging.shutdown()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    sys.exit(error_code)
-
-
-def error_and_exit(message):
-    print('ERROR:', message)
-    _exit(1)
-
-
 def should_equal(expected, actual):
     print('  expected:')
     print_json_indented(expected)
     print('  actual:')
     print_json_indented(actual)
-    if expected != actual:
-        print('  ERROR')
-        _exit(1)
+    assert expected == actual
     print()
 
 
@@ -355,31 +342,29 @@ class CommandLine:
         status, stdout, stderr = run_command(self.command, args, additional_env)
         return status == 0 and stderr == '', stdout
 
-    def should_succeed(self, args, expected_pattern=None, additional_env: Optional[dict] = None):
+    def should_succeed(
+        self,
+        args: Optional[List[str]],
+        expected_pattern: Optional[str] = None,
+        additional_env: Optional[dict] = None,
+    ) -> str:
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
         status, stdout, stderr = run_command(self.command, args, additional_env)
-        if status != 0:
-            print('FAILED with status', status)
-            _exit(1)
+        assert status == 0, f'FAILED with status {status}'
+
         if stderr != '':
-            failed = False
             for line in (s.strip() for s in stderr.split(os.linesep)):
-                if not any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS):
-                    print('Unexpected stderr line:', repr(line))
-                    failed = True
-            if failed:
-                print('FAILED because of stderr')
-                print(stderr)
-                _exit(1)
+                assert any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS), \
+                    f'Unexpected stderr line: {repr(line)}'
+
         if expected_pattern is not None:
-            if re.search(expected_pattern, stdout) is None:
-                print('STDOUT:')
-                print(stdout)
-                error_and_exit('did not match pattern: ' + expected_pattern)
+            assert re.search(expected_pattern, stdout), \
+                f'did not match pattern: {expected_pattern}'
+
         return stdout
 
     def should_succeed_json(self, args, additional_env: Optional[dict] = None):
@@ -396,16 +381,12 @@ class CommandLine:
         to appear in stderr.
         """
         status, stdout, stderr = run_command(self.command, args, additional_env)
-        if status == 0:
-            print('ERROR: should have failed')
-            _exit(1)
-        if re.search(expected_pattern, stdout + stderr) is None:
-            print(expected_pattern)
-            # quotes are helpful when reading fail logs, they help find trailing white spaces etc.
-            print("'%s'" % (stdout + stderr,))
-            error_and_exit('did not match pattern: ' + str(expected_pattern))
+        assert status != 0, 'ERROR: should have failed'
 
-    def reauthorize(self, check=False):
+        assert re.search(expected_pattern, stdout + stderr), \
+            f'did not match pattern="{expected_pattern}", stdout="{stdout}", stderr="{stderr}"'
+
+    def reauthorize(self, check_key_capabilities=False):
         """Clear and authorize again to the account."""
         self.should_succeed(['clear-account'])
         self.should_succeed(
@@ -414,7 +395,7 @@ class CommandLine:
                 self.application_key
             ]
         )
-        if check:
+        if check_key_capabilities:
             auth_dict = self.should_succeed_json(['get-account-info'])
             missing_capabilities = set(ALL_CAPABILITIES) - {
                 'readBuckets', 'listAllBucketNames'
@@ -432,6 +413,8 @@ class TempDir(object):
         self.dirpath = None
 
     def get_dir(self):
+        assert self.dirpath is not None, \
+            "can't call get_dir() before entering the context manager"
         return self.dirpath
 
     def __enter__(self):
