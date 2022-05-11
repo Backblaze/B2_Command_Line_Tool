@@ -2469,7 +2469,10 @@ class ConsoleTool(object):
         self._setup_logging(args, argv)
 
         if self.api:
-            if args.profile or ('write_buffer_size' in args) or ('skip_hash_verification' in args):
+            if (
+                args.profile or getattr(args, 'write_buffer_size', None) or
+                getattr(args, 'skip_hash_verification', None)
+            ):
                 self._print_stderr(
                     'ERROR: cannot change configuration on already initialized object'
                 )
