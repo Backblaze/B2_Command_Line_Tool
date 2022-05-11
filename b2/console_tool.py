@@ -1210,7 +1210,9 @@ class DownloadCommand(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand):
+class DownloadFileById(
+    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand
+):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1252,7 +1254,9 @@ class DownloadFileById(SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificatio
 
 
 @B2.register_subcommand
-class DownloadFileByName(SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand):
+class DownloadFileByName(
+    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand
+):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1792,7 +1796,9 @@ class MakeFriendlyUrl(Command):
 
 
 @B2.register_subcommand
-class Sync(DestinationSseMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command):
+class Sync(
+    DestinationSseMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command
+):
     """
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
