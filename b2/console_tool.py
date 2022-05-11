@@ -411,6 +411,28 @@ class SourceSseMixin(Described):
         return None
 
 
+class WriteBufferSizeMixin(Described):
+    """
+    Use --write-buffer-size to set the size (in bytes) of the buffer used to write files.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--write-buffer-size', type=int, metavar='BYTES')
+        super()._setup_parser(parser)  # noqa
+
+
+class SkipHashVerificationMixin(Described):
+    """
+    Use --skip-hash-verification to disable hash check on downloaded files.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--skip-hash-verification', action='store_true')
+        super()._setup_parser(parser)  # noqa
+
+
 class FileIdAndOptionalFileNameMixin(Described):
     """
     Specifying the ``fileName`` is more efficient than leaving it out.
@@ -501,10 +523,6 @@ class Command(Described):
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
                 common_parser.add_argument('--profile', default=None)
-                common_parser.add_argument('--write-buffer-size', type=int, help=argparse.SUPPRESS)
-                common_parser.add_argument(
-                    '--check-download-hash', action='store_true', help=argparse.SUPPRESS
-                )
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
@@ -566,7 +584,7 @@ class Command(Described):
 
 class B2(Command):
     """
-    This program provides command-line access to the B2 service.
+    This program provides command-line access to the B2 service.f
 
     There are two flows of authorization:
 
@@ -1192,7 +1210,7 @@ class DownloadCommand(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(SourceSseMixin, DownloadCommand):
+class DownloadFileById(SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1201,6 +1219,8 @@ class DownloadFileById(SourceSseMixin, DownloadCommand):
     Use ``--noProgress`` to disable progress reporting.
 
     {SOURCESSEMIXIN}
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
 
     Requires capability:
 
@@ -1232,7 +1252,7 @@ class DownloadFileById(SourceSseMixin, DownloadCommand):
 
 
 @B2.register_subcommand
-class DownloadFileByName(SourceSseMixin, DownloadCommand):
+class DownloadFileByName(SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1241,6 +1261,8 @@ class DownloadFileByName(SourceSseMixin, DownloadCommand):
     Use ``--noProgress`` to disable progress reporting.
 
     {SOURCESSEMIXIN}
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
 
     Requires capability:
 
@@ -1770,7 +1792,7 @@ class MakeFriendlyUrl(Command):
 
 
 @B2.register_subcommand
-class Sync(DestinationSseMixin, SourceSseMixin, Command):
+class Sync(DestinationSseMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command):
     """
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
@@ -1920,6 +1942,9 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
     {DESTINATIONSSEMIXIN}
     {SOURCESSEMIXIN}
+
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
 
     Requires capabilities:
 
@@ -2438,7 +2463,7 @@ class ConsoleTool(object):
         self._setup_logging(args, argv)
 
         if self.api:
-            if args.profile or args.write_buffer_size or args.check_download_hash:
+            if args.profile or ('write_buffer_size' in args) or ('skip_hash_verification' in args):
                 self._print_stderr(
                     'ERROR: cannot change configuration on already initialized object'
                 )
@@ -2449,11 +2474,11 @@ class ConsoleTool(object):
                 'profile': args.profile,
             }
 
-            if args.write_buffer_size:
+            if 'write_buffer_size' in args:
                 kwargs['save_to_buffer_size'] = args.write_buffer_size
 
-            if args.check_download_hash:
-                kwargs['check_download_hash'] = True
+            if 'skip_hash_verification' in args:
+                kwargs['check_download_hash'] = False
 
             self.api = _get_b2api_for_profile(**kwargs)
 
