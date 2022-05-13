@@ -37,11 +37,12 @@ def test_download(b2_tool, bucket_name):
         ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     with TempDir() as dir_path:
-        b2_tool.should_succeed(['download-file-by-name', '--noProgress', bucket_name, 'a', dir_path / 'a'])
+        b2_tool.should_succeed(
+            ['download-file-by-name', '--noProgress', bucket_name, 'a', dir_path / 'a']
+        )
         assert read_file(dir_path / 'a') == read_file(file_to_upload)
         b2_tool.should_succeed(
-            ['download-file-by-id', '--noProgress', uploaded_a['fileId'],
-             dir_path / 'b']
+            ['download-file-by-id', '--noProgress', uploaded_a['fileId'], dir_path / 'b']
         )
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
 
@@ -91,10 +92,7 @@ def test_basic(b2_tool, bucket_name):
 
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            [
-                'download-file-by-name', '--noProgress', bucket_name, 'b/1',
-                dir_path / 'a'
-            ]
+            ['download-file-by-name', '--noProgress', bucket_name, 'b/1', dir_path / 'a']
         )
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
@@ -528,7 +526,9 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
 
         c_id = find_file_id(file_versions, prefix + 'c')
         file_info = b2_tool.should_succeed_json(['get-file-info', c_id])['fileInfo']
-        should_equal(file_mod_time_millis(dir_path / 'c'), int(file_info['src_last_modified_millis']))
+        should_equal(
+            file_mod_time_millis(dir_path / 'c'), int(file_info['src_last_modified_millis'])
+        )
 
         os.unlink(dir_path / 'b')
         write_file(dir_path / 'c', b'hello world')
@@ -1064,8 +1064,10 @@ def test_sse_b2(b2_tool, bucket_name):
     )
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            ['download-file-by-name', '--noProgress', bucket_name, 'encrypted',
-             dir_path / 'encrypted']
+            [
+                'download-file-by-name', '--noProgress', bucket_name, 'encrypted',
+                dir_path / 'encrypted'
+            ]
         )
         b2_tool.should_succeed(
             [
@@ -1184,8 +1186,12 @@ def test_sse_c(b2_tool, bucket_name):
     with TempDir() as dir_path:
         b2_tool.should_succeed(
             [
-                'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
-                bucket_name, 'uploaded_encrypted',
+                'download-file-by-name',
+                '--noProgress',
+                '--sourceServerSideEncryption',
+                'SSE-C',
+                bucket_name,
+                'uploaded_encrypted',
                 dir_path / 'a',
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
@@ -1193,7 +1199,10 @@ def test_sse_c(b2_tool, bucket_name):
         assert read_file(dir_path / 'a') == read_file(file_to_upload)
         b2_tool.should_succeed(
             [
-                'download-file-by-id', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+                'download-file-by-id',
+                '--noProgress',
+                '--sourceServerSideEncryption',
+                'SSE-C',
                 file_version_info['fileId'],
                 dir_path / 'b',
             ],

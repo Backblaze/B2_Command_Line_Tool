@@ -30,7 +30,6 @@ from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPre
 
 from b2.console_tool import Command, current_time_millis
 
-
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
@@ -134,8 +133,8 @@ class Api:
                 elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
                     if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
                         print(
-                            'File version: %s cannot be removed due to compliance mode retention'
-                            % (file_version_info.id_,)
+                            'File version: %s cannot be removed due to compliance mode retention' %
+                            (file_version_info.id_,)
                         )
                         files_leftover = True
                         continue
@@ -143,8 +142,7 @@ class Api:
                     pass
                 else:
                     raise ValueError(
-                        'Unknown retention mode: %s' %
-                        (file_version_info.file_retention.mode,)
+                        'Unknown retention mode: %s' % (file_version_info.file_retention.mode,)
                     )
             if file_version_info.legal_hold.is_on():
                 print('Removing legal hold from file version:', file_version_info.id_)
@@ -153,9 +151,7 @@ class Api:
                 )
             print('Removing file version:', file_version_info.id_)
             try:
-                self.api.delete_file_version(
-                    file_version_info.id_, file_version_info.file_name
-                )
+                self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
             except FileNotPresent:
                 print(
                     'It seems that file version %s has already been removed' %

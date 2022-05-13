@@ -109,7 +109,9 @@ def auto_clean_buckets(b2_api, request):
 
 
 @pytest.fixture(scope='module')
-def b2_tool(request, application_key_id, application_key, realm, this_run_bucket_name_prefix) -> CommandLine:
+def b2_tool(
+    request, application_key_id, application_key, realm, this_run_bucket_name_prefix
+) -> CommandLine:
     tool = CommandLine(
         request.config.getoption('--sut'),
         application_key_id,
