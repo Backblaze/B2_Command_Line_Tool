@@ -21,8 +21,9 @@ import threading
 
 from dataclasses import dataclass
 from os import environ, linesep, path
+from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
 from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent
@@ -74,23 +75,23 @@ class Api:
         self.api = B2Api(info, cache=cache)
         self.api.authorize_account(self.realm, self.account_id, self.application_key)
 
-    def create_bucket(self):
-        while True:
+    def create_bucket(self) -> Bucket:
+        for _ in range(10):
             bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
                 BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
             )
             print('Creating bucket:', bucket_name)
             try:
-                self.api.create_bucket(
+                return self.api.create_bucket(
                     bucket_name,
                     'allPublic',
                     bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
                 )
-                break
             except DuplicateBucketName:
-                continue
+                pass
             print()
-        return bucket_name
+
+        raise ValueError('Failed to create bucket due to name collision')
 
     def _should_remove_bucket(self, bucket: Bucket):
         if bucket.name.startswith(self.this_run_bucket_name_prefix):
@@ -101,7 +102,7 @@ class Api:
                 delete_older_than = current_time_millis() - ONE_HOUR_MILLIS
                 this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
                 if int(this_bucket_creation_time) < delete_older_than:
-                    return True, f"{this_bucket_creation_time} < {delete_older_than}"
+                    return True, f"{this_bucket_creation_time=} < {delete_older_than=}"
             else:
                 return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
         return False, ''
@@ -112,60 +113,64 @@ class Api:
         for bucket in buckets:
             should_remove, why = self._should_remove_bucket(bucket)
             if not should_remove:
-                print('Skipping bucket removal:', bucket.name)
+                print(f'Skipping bucket removal: "{bucket.name}"')
                 continue
 
             print('Trying to remove bucket:', bucket.name, 'because', why)
-            files_leftover = False
-            file_versions = bucket.ls(latest_only=False, recursive=True)
-            for file_version_info, _ in file_versions:
-                if file_version_info.file_retention:
-                    if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
-                        print('Removing retention from file version:', file_version_info.id_)
-                        self.api.update_file_retention(
-                            file_version_info.id_, file_version_info.file_name,
-                            NO_RETENTION_FILE_SETTING, True
-                        )
-                    elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
-                        if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
-                            print(
-                                'File version: %s cannot be removed due to compliance mode retention'
-                                % (file_version_info.id_,)
-                            )
-                            files_leftover = True
-                            continue
-                    elif file_version_info.file_retention.mode == RetentionMode.NONE:
-                        pass
-                    else:
-                        raise ValueError(
-                            'Unknown retention mode: %s' %
-                            (file_version_info.file_retention.mode,)
-                        )
-                if file_version_info.legal_hold.is_on():
-                    print('Removing legal hold from file version:', file_version_info.id_)
-                    self.api.update_file_legal_hold(
-                        file_version_info.id_, file_version_info.file_name, LegalHold.OFF
-                    )
-                print('Removing file version:', file_version_info.id_)
-                try:
-                    self.api.delete_file_version(
-                        file_version_info.id_, file_version_info.file_name
-                    )
-                except FileNotPresent:
-                    print(
-                        'It seems that file version %s has already been removed' %
-                        (file_version_info.id_,)
-                    )
+            self.clean_bucket(bucket)
 
-            if files_leftover:
-                print('Unable to remove bucket because some retained files remain')
-            else:
-                print('Removing bucket:', bucket.name)
-                try:
-                    self.api.delete_bucket(bucket)
-                except BucketIdNotFound:
-                    print('It seems that bucket %s has already been removed' % (bucket.name,))
-            print()
+    def clean_bucket(self, bucket: Bucket):
+        files_leftover = False
+        file_versions = bucket.ls(latest_only=False, recursive=True)
+
+        for file_version_info, _ in file_versions:
+            if file_version_info.file_retention:
+                if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
+                    print('Removing retention from file version:', file_version_info.id_)
+                    self.api.update_file_retention(
+                        file_version_info.id_, file_version_info.file_name,
+                        NO_RETENTION_FILE_SETTING, True
+                    )
+                elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
+                    if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
+                        print(
+                            'File version: %s cannot be removed due to compliance mode retention'
+                            % (file_version_info.id_,)
+                        )
+                        files_leftover = True
+                        continue
+                elif file_version_info.file_retention.mode == RetentionMode.NONE:
+                    pass
+                else:
+                    raise ValueError(
+                        'Unknown retention mode: %s' %
+                        (file_version_info.file_retention.mode,)
+                    )
+            if file_version_info.legal_hold.is_on():
+                print('Removing legal hold from file version:', file_version_info.id_)
+                self.api.update_file_legal_hold(
+                    file_version_info.id_, file_version_info.file_name, LegalHold.OFF
+                )
+            print('Removing file version:', file_version_info.id_)
+            try:
+                self.api.delete_file_version(
+                    file_version_info.id_, file_version_info.file_name
+                )
+            except FileNotPresent:
+                print(
+                    'It seems that file version %s has already been removed' %
+                    (file_version_info.id_,)
+                )
+
+        if files_leftover:
+            print('Unable to remove bucket because some retained files remain')
+        else:
+            print('Removing bucket:', bucket.name)
+            try:
+                self.api.delete_bucket(bucket)
+            except BucketIdNotFound:
+                print('It seems that bucket %s has already been removed' % (bucket.name,))
+        print()
 
 
 def print_text_indented(text):
@@ -221,7 +226,7 @@ class StringReader(object):
 
 def run_command(
     cmd: str,
-    args: Optional[List[str]] = None,
+    args: Optional[List[Union[str, Path, int]]] = None,
     additional_env: Optional[dict] = None,
 ):
     """
@@ -235,6 +240,7 @@ def run_command(
     environ['PYTHONPATH'] = '.'
     environ['PYTHONIOENCODING'] = 'utf-8'
     command = cmd.split(' ')
+    args = [str(arg) for arg in args]
     command.extend(args or [])
 
     print('Running:', ' '.join(command))
@@ -354,7 +360,7 @@ class CommandLine:
         as as string.
         """
         status, stdout, stderr = run_command(self.command, args, additional_env)
-        assert status == 0, f'FAILED with status {status}'
+        assert status == 0, f'FAILED with status {status}, {stderr=}'
 
         if stderr != '':
             for line in (s.strip() for s in stderr.split(os.linesep)):
@@ -419,27 +425,35 @@ class TempDir(object):
 
     def __enter__(self):
         self.dirpath = mkdtemp()
-        return self.dirpath
+        return Path(self.dirpath)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         shutil.rmtree(fix_windows_path_limit(self.dirpath))
 
 
-def read_file(path):
+def read_file(path: Union[str, Path]):
+    if isinstance(path, Path):
+        path = str(path)
     with open(path, 'rb') as f:
         return f.read()
 
 
-def write_file(path, contents):
+def write_file(path: Union[str, Path], contents: bytes):
+    if isinstance(path, Path):
+        path = str(path)
     with open(path, 'wb') as f:
         f.write(contents)
 
 
-def file_mod_time_millis(path):
+def file_mod_time_millis(path: Union[str, Path]):
+    if isinstance(path, Path):
+        path = str(path)
     return int(os.path.getmtime(path) * 1000)
 
 
-def set_file_mod_time_millis(path, time):
+def set_file_mod_time_millis(path: Union[str, Path], time):
+    if isinstance(path, Path):
+        path = str(path)
     os.utime(path, (os.path.getatime(path), time / 1000))
 
 

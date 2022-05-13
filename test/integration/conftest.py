@@ -47,8 +47,8 @@ def realm() -> str:
 
 
 @pytest.fixture(scope='function')
-def bucket_name(b2_api):
-    yield b2_api.create_bucket()
+def bucket_name(b2_api) -> str:
+    yield b2_api.create_bucket().name
 
 
 @pytest.fixture(scope='session')
