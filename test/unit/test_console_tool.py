@@ -2209,7 +2209,10 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_passing_api_parameters(self):
         for command in [
-            ['b2', 'download-file-by-name', 'dummy-name', 'dummy-file-name', 'dummy-local-file-name'],
+            [
+                'b2', 'download-file-by-name', 'dummy-name', 'dummy-file-name',
+                'dummy-local-file-name'
+            ],
             ['b2', 'download-file-by-id', 'dummy-id', 'dummy-local-file-name'],
             ['b2', 'sync', 'b2:dummy-source', 'dummy-destination'],
         ]:
@@ -2218,7 +2221,9 @@ class TestConsoleTool(BaseConsoleToolTest):
                 mock.MagicMock(),
                 mock.MagicMock(),
             )
-            console_tool.run_command(command + ['--write-buffer-size', '123', '--skip-hash-verification'])
+            console_tool.run_command(
+                command + ['--write-buffer-size', '123', '--skip-hash-verification']
+            )
             assert console_tool.api.services.download_manager.write_buffer_size == 123
             assert console_tool.api.services.download_manager.check_hash is False
 
