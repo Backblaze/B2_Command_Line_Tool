@@ -10,6 +10,7 @@
 
 import argparse
 import base64
+import dataclasses
 import datetime
 import functools
 import getpass
@@ -22,6 +23,7 @@ import platform
 import signal
 import sys
 import time
+from tabulate import tabulate
 
 from typing import Optional, Tuple
 
@@ -65,6 +67,7 @@ from b2sdk.v2 import (
     current_time_millis,
     make_progress_listener,
     parse_sync_folder,
+    ReplicationMonitor,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -2434,6 +2437,69 @@ class ReplicationSetup(Command):
             priority=args.priority,
             prefix=args.file_name_prefix,
         )
+        return 0
+
+
+@B2.register_subcommand
+class ReplicationStatus(Command):
+    """
+    Inspects files in only source or both source and destination buckets
+    (potentially from different accounts) and provides detailed replication statistics.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
+        parser.add_argument('--rule', metavar='REPLICATION_RULE_NAME', default=None)
+        parser.add_argument('--destination-profile', default=None)
+        parser.add_argument('--dont-scan-destination', action='store_true')
+        parser.add_argument('--output-format', default='table', choices=('table', 'json'))
+
+    def run(self, args):
+        destination_api = args.destination_profile and _get_b2api_for_profile(args.destination_profile)
+
+        try:
+            bucket = self.api.list_buckets(args.source)[0]
+        except IndexError:
+            self._print_stderr(f'ERROR: bucket "{args.source}" not found')
+            return 1
+
+        if not bucket.replication:
+            self._print_stderr(f'ERROR: no replication set up for bucket "{args.source}"')
+            return 1
+
+        rules = bucket.replication.rules
+        if args.rule:
+            rules = [rule for rule in rules if rule.name == args.rule]
+
+        results_by_rule_name = {}
+        for rule in rules:
+            monitor = ReplicationMonitor(
+                bucket=bucket,
+                rule=rule,
+                destination_api=destination_api,
+            )
+            report = monitor.scan(scan_destination=not bool(args.dont_scan_destination))
+
+            results_by_rule_name[rule.name] = [{
+                **dataclasses.asdict(result),
+                'count': count,
+            } for result, count in report.counter_by_status.items()]
+
+        if args.output_format == 'json':
+            self._print_json(results_by_rule_name)
+        elif args.output_format == 'table':
+            for rule_name, rule_results in results_by_rule_name.items():
+                self._print(f'Replication "{rule_name}":')
+                rule_results = [{
+                    key.replace('_', '\n'): value  # split key to minimize column size
+                    for key, value in result.items()
+                } for result in rule_results]
+                self._print(tabulate(rule_results, headers='keys'))
+        else:
+            self._print_stderr(f'ERROR: format "{args.output_format}" is not supported')
+
         return 0
 
 
