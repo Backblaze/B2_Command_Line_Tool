@@ -584,7 +584,7 @@ class Command(Described):
 
 class B2(Command):
     """
-    This program provides command-line access to the B2 service.f
+    This program provides command-line access to the B2 service.
 
     There are two flows of authorization:
 
