@@ -112,8 +112,8 @@ if NAME.endswith('.py'):
 
 FILE_RETENTION_COMPATIBILITY_WARNING = """
     .. warning::
-       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention 
-       period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default 
+       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention
+       period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default
        retention, as it may lead to high storage costs.
 """.format(RetentionMode.COMPLIANCE.value)
 
@@ -409,6 +409,28 @@ class SourceSseMixin(Described):
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
+
+
+class WriteBufferSizeMixin(Described):
+    """
+    Use --write-buffer-size to set the size (in bytes) of the buffer used to write files.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--write-buffer-size', type=int, metavar='BYTES')
+        super()._setup_parser(parser)  # noqa
+
+
+class SkipHashVerificationMixin(Described):
+    """
+    Use --skip-hash-verification to disable hash check on downloaded files.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--skip-hash-verification', action='store_true')
+        super()._setup_parser(parser)  # noqa
 
 
 class FileIdAndOptionalFileNameMixin(Described):
@@ -1188,7 +1210,9 @@ class DownloadCommand(Command):
 
 
 @B2.register_subcommand
-class DownloadFileById(SourceSseMixin, DownloadCommand):
+class DownloadFileById(
+    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand
+):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1197,6 +1221,8 @@ class DownloadFileById(SourceSseMixin, DownloadCommand):
     Use ``--noProgress`` to disable progress reporting.
 
     {SOURCESSEMIXIN}
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
 
     Requires capability:
 
@@ -1228,7 +1254,9 @@ class DownloadFileById(SourceSseMixin, DownloadCommand):
 
 
 @B2.register_subcommand
-class DownloadFileByName(SourceSseMixin, DownloadCommand):
+class DownloadFileByName(
+    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand
+):
     """
     Downloads the given file, and stores it in the given local file.
 
@@ -1237,6 +1265,8 @@ class DownloadFileByName(SourceSseMixin, DownloadCommand):
     Use ``--noProgress`` to disable progress reporting.
 
     {SOURCESSEMIXIN}
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
 
     Requires capability:
 
@@ -1766,7 +1796,9 @@ class MakeFriendlyUrl(Command):
 
 
 @B2.register_subcommand
-class Sync(DestinationSseMixin, SourceSseMixin, Command):
+class Sync(
+    DestinationSseMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command
+):
     """
     Copies multiple files from source to destination.  Optionally
     deletes or hides destination files that the source does not have.
@@ -1916,6 +1948,9 @@ class Sync(DestinationSseMixin, SourceSseMixin, Command):
 
     {DESTINATIONSSEMIXIN}
     {SOURCESSEMIXIN}
+
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
 
     Requires capabilities:
 
@@ -2267,9 +2302,9 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
 class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true.
-    
+
     {FILEIDANDOPTIONALFILENAMEMIXIN}
-    
+
     Requires capability:
 
     - **writeFileLegalHolds**
@@ -2294,21 +2329,21 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
 @B2.register_subcommand
 class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
     """
-    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires 
+    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires
     providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
     since epoch.
-    
+
     If a file already is in governance mode, disabling retention or shortening it's period requires providing
     ``--bypassGovernance``.
-    
+
     If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
-    
+
     {FILEIDANDOPTIONALFILENAMEMIXIN}
-    
+
     Requires capability:
 
     - **writeFileRetentions**
@@ -2433,14 +2468,28 @@ class ConsoleTool(object):
         args = B2.get_parser().parse_args(argv[1:])
         self._setup_logging(args, argv)
 
-        if args.profile:
-            if self.api:
-                self._print_stderr('ERROR: cannot switch profile on already initialized object')
+        if self.api:
+            if (
+                args.profile or getattr(args, 'write_buffer_size', None) or
+                getattr(args, 'skip_hash_verification', None)
+            ):
+                self._print_stderr(
+                    'ERROR: cannot change configuration on already initialized object'
+                )
                 return 1
-            self.api = _get_b2api_for_profile(args.profile)
-            logger.info('Using profile "%s" (%s)', args.profile, self.api.account_info.filename)
-        elif not self.api:
-            self.api = _get_b2api_for_profile()
+
+        else:
+            kwargs = {
+                'profile': args.profile,
+            }
+
+            if 'write_buffer_size' in args:
+                kwargs['save_to_buffer_size'] = args.write_buffer_size
+
+            if 'skip_hash_verification' in args:
+                kwargs['check_download_hash'] = False
+
+            self.api = _get_b2api_for_profile(**kwargs)
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -2570,12 +2619,13 @@ class InvalidArgument(B2Error):
         return "%s %s" % (self.parameter_name, self.message)
 
 
-def _get_b2api_for_profile(profile: Optional[str] = None):
+def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs):
     account_info = SqliteAccountInfo(profile=profile)
     return B2Api(
         api_config=_get_b2httpapiconfig(),
         account_info=account_info,
         cache=AuthInfoCache(account_info),
+        **kwargs,
     )
 
 

@@ -2207,6 +2207,26 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
+    def test_passing_api_parameters(self):
+        for command in [
+            [
+                'b2', 'download-file-by-name', 'dummy-name', 'dummy-file-name',
+                'dummy-local-file-name'
+            ],
+            ['b2', 'download-file-by-id', 'dummy-id', 'dummy-local-file-name'],
+            ['b2', 'sync', 'b2:dummy-source', 'dummy-destination'],
+        ]:
+            console_tool = ConsoleTool(
+                None,  # do not initialize b2 api to allow passing in additional parameters
+                mock.MagicMock(),
+                mock.MagicMock(),
+            )
+            console_tool.run_command(
+                command + ['--write-buffer-size', '123', '--skip-hash-verification']
+            )
+            assert console_tool.api.services.download_manager.write_buffer_size == 123
+            assert console_tool.api.services.download_manager.check_hash is False
+
 
 @mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
 class TestConsoleToolWithV1(BaseConsoleToolTest):
