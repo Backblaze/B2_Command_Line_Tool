@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add `--write-buffer-size` parameter
-* Add `--check-download-hash` parameter
+* Add `--skip-hash-verification` parameter
 
 ## [3.4.0] - 2022-05-04
 
