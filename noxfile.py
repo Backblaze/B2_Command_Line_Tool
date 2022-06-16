@@ -11,7 +11,9 @@
 import os
 import platform
 import subprocess
+
 from glob import glob
+from multiprocessing import cpu_count
 
 import nox
 
@@ -34,6 +36,7 @@ REQUIREMENTS_TEST = [
     "pytest==6.2.5",
     "pytest-cov==3.0.0",
     'pytest-xdist==2.5.0',
+    'filelock==3.6.0',
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
@@ -153,7 +156,9 @@ def integration(session):
     """Run integration tests."""
     install_myself(session)
     session.install(*REQUIREMENTS_TEST)
-    session.run('pytest', '-s', *session.posargs, 'test/integration')
+    session.run(
+        'pytest', '-s', '-n', str(min(cpu_count(), 8) * 5), *session.posargs, 'test/integration'
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS)

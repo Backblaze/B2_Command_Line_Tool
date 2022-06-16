@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add `--write-buffer-size` parameter
 * Add `--skip-hash-verification` parameter
 
+### Infrastructure
+* Try not to crash tests due to bucket name collision
+
 ## [3.4.0] - 2022-05-04
 
 This release contains a preview of replication support. It allows for basic usage
