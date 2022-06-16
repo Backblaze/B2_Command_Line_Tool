@@ -101,7 +101,7 @@ class Api:
                 delete_older_than = current_time_millis() - ONE_HOUR_MILLIS
                 this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
                 if int(this_bucket_creation_time) < delete_older_than:
-                    return True, f"{this_bucket_creation_time=} < {delete_older_than=}"
+                    return True, f"this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}"
             else:
                 return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
         return False, ''
@@ -356,7 +356,7 @@ class CommandLine:
         as as string.
         """
         status, stdout, stderr = run_command(self.command, args, additional_env)
-        assert status == 0, f'FAILED with status {status}, {stderr=}'
+        assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':
             for line in (s.strip() for s in stderr.split(os.linesep)):
