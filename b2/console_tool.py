@@ -26,7 +26,7 @@ import sys
 import time
 from tabulate import tabulate
 
-from typing import Optional, Tuple, List, Any
+from typing import Optional, Tuple, List, Any, Dict
 from enum import Enum
 
 from b2sdk.v2 import (
@@ -2538,10 +2538,10 @@ class ReplicationStatus(Command):
 
         return str(value)
 
-    def output_json(self, results: List[dict]) -> None:
+    def output_json(self, results: Dict[str, List[dict]]) -> None:
         self._print_json(results)
 
-    def output_console(self, results: List[dict]) -> None:
+    def output_console(self, results: Dict[str, List[dict]]) -> None:
         for rule_name, rule_results in results.items():
             self._print(f'Replication "{rule_name}":')
             rule_results = [
