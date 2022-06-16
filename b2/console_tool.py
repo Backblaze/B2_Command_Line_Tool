@@ -2523,7 +2523,7 @@ class ReplicationStatus(Command):
     @classmethod
     def to_human_readable(cls, value: Any) -> str:
         if isinstance(value, Enum):
-            return value.value
+            return value.name
 
         if isinstance(value, bool):
             return 'Yes' if value else 'No'
