@@ -2482,7 +2482,7 @@ class ReplicationStatus(Command):
                 rule=rule,
                 destination_api=destination_api,
             )
-            report = monitor.scan(scan_destination=not bool(args.dont_scan_destination))
+            report = monitor.scan(scan_destination=not args.dont_scan_destination)
 
             results_by_rule_name[rule.name] = [
                 {
