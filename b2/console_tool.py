@@ -2546,7 +2546,7 @@ class ReplicationStatus(Command):
                     for key, value in result.items()
                 } for result in rule_results
             ]
-            self._print(tabulate(rule_results, headers='keys'))
+            self._print(tabulate(rule_results, headers='keys', tablefmt='grid'))
 
 
 @B2.register_subcommand
