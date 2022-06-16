@@ -2467,9 +2467,6 @@ class ReplicationStatus(Command):
             self._print_stderr(f'ERROR: bucket "{args.source}" not found')
             return 1
 
-        if not bucket.replication:
-            self._print_stderr(f'ERROR: no replication set up for bucket "{args.source}"')
-            return 1
 
         rules = bucket.replication.rules
         if args.rule:
