@@ -25,7 +25,8 @@ import sys
 import time
 from tabulate import tabulate
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Any
+from enum import Enum
 
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
@@ -44,6 +45,7 @@ from b2sdk.v2 import (
     B2Api,
     B2HttpApiConfig,
     BasicSyncEncryptionSettingsProvider,
+    Bucket,
     BucketRetentionSetting,
     CompareVersionMode,
     DownloadedFile,
@@ -2475,41 +2477,76 @@ class ReplicationStatus(Command):
         if args.rule:
             rules = [rule for rule in rules if rule.name == args.rule]
             if not rules:
-                self._print_stderr(f'ERROR: no replication rule "{args.rule}" set up for bucket "{args.source}"')
+                self._print_stderr(
+                    f'ERROR: no replication rule "{args.rule}" set up for bucket "{args.source}"'
+                )
                 return 1
 
-        results_by_rule_name = {}
-        for rule in rules:
-            monitor = ReplicationMonitor(
+        results = {
+            rule.name: self.get_results_for_rule(
                 bucket=bucket,
                 rule=rule,
                 destination_api=destination_api,
+                scan_destination=not args.dont_scan_destination,
             )
-            report = monitor.scan(scan_destination=not args.dont_scan_destination)
-
-            results_by_rule_name[rule.name] = [
-                {
-                    **dataclasses.asdict(result),
-                    'count': count,
-                } for result, count in report.counter_by_status.items()
-            ]
+            for rule in rules
+        }
 
         if args.output_format == 'json':
-            self._print_json(results_by_rule_name)
+            self.output_json(results)
         elif args.output_format == 'console':
-            for rule_name, rule_results in results_by_rule_name.items():
-                self._print(f'Replication "{rule_name}":')
-                rule_results = [
-                    {
-                        key.replace('_', '\n'): value  # split key to minimize column size
-                        for key, value in result.items()
-                    } for result in rule_results
-                ]
-                self._print(tabulate(rule_results, headers='keys'))
+            self.output_console(results)
         else:
             self._print_stderr(f'ERROR: format "{args.output_format}" is not supported')
 
         return 0
+
+    @classmethod
+    def get_results_for_rule(
+        cls, bucket: Bucket, rule: ReplicationRule, destination_api: Optional[B2Api],
+        scan_destination: bool
+    ) -> List[dict]:
+        monitor = ReplicationMonitor(
+            bucket=bucket,
+            rule=rule,
+            destination_api=destination_api,
+        )
+        report = monitor.scan(scan_destination=scan_destination)
+
+        return [
+            {
+                **dataclasses.asdict(result),
+                'count': count,
+            } for result, count in report.counter_by_status.items()
+        ]
+
+    @classmethod
+    def to_human_readable(cls, value: Any) -> str:
+        if isinstance(value, Enum):
+            return value.value
+
+        if isinstance(value, bool):
+            return 'Yes' if value else 'No'
+
+        if value is None:
+            return ''
+
+        return str(value)
+
+    def output_json(self, results: List[dict]) -> None:
+        self._print_json(results)
+
+    def output_console(self, results: List[dict]) -> None:
+        for rule_name, rule_results in results.items():
+            self._print(f'Replication "{rule_name}":')
+            rule_results = [
+                {
+                    key.replace('_', '\n'):  # split key to minimize column size
+                    self.to_human_readable(value)
+                    for key, value in result.items()
+                } for result in rule_results
+            ]
+            self._print(tabulate(rule_results, headers='keys'))
 
 
 @B2.register_subcommand
