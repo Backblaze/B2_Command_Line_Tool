@@ -72,6 +72,7 @@ from b2sdk.v2 import (
     make_progress_listener,
     parse_sync_folder,
     ReplicationMonitor,
+    ProgressReport,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -2453,7 +2454,9 @@ class ReplicationStatus(Command):
     --output-format
     "Console" output format is meant to be human-readable and is subject to change
     in any further release. One should use "json" for reliable "no-breaking-changes"
-    output format.
+    output format. When piping "csv" format to some .csv file, it's handy to use
+    --quiet flag which will disable interactive reporting output, otherwise it will
+    also go to target csv file's first line.
 
     --columns
     Comma-separated list of columns to be shown. The rows are still grouped by _all_
@@ -2470,6 +2473,7 @@ class ReplicationStatus(Command):
         parser.add_argument(
             '--output-format', default='console', choices=('console', 'json', 'csv')
         )
+        parser.add_argument('--quiet', action='store_true')
         parser.add_argument(
             '--columns',
             default=['all'],
@@ -2503,6 +2507,7 @@ class ReplicationStatus(Command):
                 rule=rule,
                 destination_api=destination_api,
                 scan_destination=not args.dont_scan_destination,
+                quiet=args.quiet,
             )
             for rule in rules
         }
@@ -2531,12 +2536,13 @@ class ReplicationStatus(Command):
     @classmethod
     def get_results_for_rule(
         cls, bucket: Bucket, rule: ReplicationRule, destination_api: Optional[B2Api],
-        scan_destination: bool
+        scan_destination: bool, quiet: bool
     ) -> List[dict]:
         monitor = ReplicationMonitor(
             bucket=bucket,
             rule=rule,
             destination_api=destination_api,
+            report=ProgressReport(sys.stdout, quiet),
         )
         report = monitor.scan(scan_destination=scan_destination)
 
