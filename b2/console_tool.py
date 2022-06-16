@@ -21,6 +21,7 @@ import logging
 import logging.config
 import os
 import platform
+import re
 import signal
 import sys
 import time
@@ -2449,9 +2450,14 @@ class ReplicationStatus(Command):
     Inspects files in only source or both source and destination buckets
     (potentially from different accounts) and provides detailed replication statistics.
 
+    --output-format
     "Console" output format is meant to be human-readable and is subject to change
     in any further release. One should use "json" for reliable "no-breaking-changes"
     output format.
+
+    --columns
+    Comma-separated list of columns to be shown. The rows are still grouped by _all_
+    columns, no matter which of them are shown / hidden when using --columns flag.
     """
 
     @classmethod
@@ -2463,6 +2469,12 @@ class ReplicationStatus(Command):
         parser.add_argument('--dont-scan-destination', action='store_true')
         parser.add_argument(
             '--output-format', default='console', choices=('console', 'json', 'csv')
+        )
+        parser.add_argument(
+            '--columns',
+            default=['all'],
+            type=lambda value: re.split(r', ?', value),
+            metavar='COLUMN ONE,COLUMN TWO'
         )
 
     def run(self, args):
@@ -2495,6 +2507,16 @@ class ReplicationStatus(Command):
             for rule in rules
         }
 
+        if args.columns[0] != 'all':
+            results = {
+                rule_name: self.filter_results_columns(
+                    rule_results,
+                    [column.replace(' ', '_') for column in args.columns
+                    ],  # allow users to use spaces instead of underscores
+                )
+                for rule_name, rule_results in results.items()
+            }
+
         if args.output_format == 'json':
             self.output_json(results)
         elif args.output_format == 'console':
@@ -2524,6 +2546,10 @@ class ReplicationStatus(Command):
                 'count': count,
             } for result, count in report.counter_by_status.items()
         ]
+
+    @classmethod
+    def filter_results_columns(cls, results: List[dict], columns: List[str]) -> List[dict]:
+        return [{key: result[key] for key in columns} for result in results]
 
     @classmethod
     def to_human_readable(cls, value: Any) -> str:
