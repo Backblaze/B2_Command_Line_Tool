@@ -10,6 +10,7 @@
 
 import argparse
 import base64
+import csv
 import dataclasses
 import datetime
 import functools
@@ -2460,7 +2461,9 @@ class ReplicationStatus(Command):
         parser.add_argument('--rule', metavar='REPLICATION_RULE_NAME', default=None)
         parser.add_argument('--destination-profile', default=None)
         parser.add_argument('--dont-scan-destination', action='store_true')
-        parser.add_argument('--output-format', default='console', choices=('console', 'json'))
+        parser.add_argument(
+            '--output-format', default='console', choices=('console', 'json', 'csv')
+        )
 
     def run(self, args):
         destination_api = args.destination_profile and _get_b2api_for_profile(
@@ -2496,6 +2499,8 @@ class ReplicationStatus(Command):
             self.output_json(results)
         elif args.output_format == 'console':
             self.output_console(results)
+        elif args.output_format == 'csv':
+            self.output_csv(results)
         else:
             self._print_stderr(f'ERROR: format "{args.output_format}" is not supported')
 
@@ -2547,6 +2552,29 @@ class ReplicationStatus(Command):
                 } for result in rule_results
             ]
             self._print(tabulate(rule_results, headers='keys', tablefmt='grid'))
+
+    def output_csv(self, results: Dict[str, List[dict]]) -> None:
+
+        rows = []
+
+        for rule_name, rule_results in results.items():
+            rows += [
+                {
+                    'rule name': rule_name,
+                    **{
+                        key.replace('_', '\n'):  # split key to minimize column size
+                        self.to_human_readable(value)
+                        for key, value in result.items()
+                    },
+                } for result in rule_results
+            ]
+
+        if not rows:
+            return
+
+        writer = csv.DictWriter(sys.stdout, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 @B2.register_subcommand
