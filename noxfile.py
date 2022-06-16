@@ -37,6 +37,7 @@ REQUIREMENTS_TEST = [
     "pytest==6.2.5",
     "pytest-cov==3.0.0",
     'pytest-xdist==2.5.0',
+    'filelock==3.6.0',
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [

@@ -10,11 +10,13 @@
 import sys
 
 from os import environ, path
-from tempfile import TemporaryDirectory
+from pathlib import Path
+from tempfile import TemporaryDirectory, gettempdir
 
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
+from filelock import SoftFileLock
 
 from .helpers import Api, CommandLine, bucket_name_part
 
@@ -100,12 +102,32 @@ def b2_api(
 
 
 @pytest.fixture(scope='module', autouse=True)
-def auto_clean_buckets(b2_api, request):
+def auto_clean_buckets(b2_api, request, testrun_uid):
     """ Automatically clean buckets before and after the whole module testing """
-    b2_api.clean_buckets()
+
+    lock_file = Path(gettempdir()) / f'{testrun_uid}.lock'
+
+    # lock file cannot be used to store info - use another file to track # of active workers
+    worker_count_file = Path(gettempdir()) / f'{testrun_uid}.active-workers-count.txt'
+
+    with SoftFileLock(str(lock_file)):
+        if not worker_count_file.is_file():
+            b2_api.clean_buckets()
+            worker_count_file.write_text('1')
+
+        else:
+            worker_count = int(worker_count_file.read_text())
+            worker_count_file.write_text(str(worker_count + 1))
+
     yield
+
     if request.config.getoption('--cleanup'):
-        b2_api.clean_buckets()
+        with SoftFileLock(str(lock_file)):
+            worker_count = int(worker_count_file.read_text())
+            worker_count_file.write_text(str(worker_count - 1))
+            if worker_count == 1:
+                b2_api.clean_buckets()
+                worker_count_file.unlink()
 
 
 @pytest.fixture(scope='module')
