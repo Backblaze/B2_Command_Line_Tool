@@ -2471,6 +2471,9 @@ class ReplicationStatus(Command):
         rules = bucket.replication.rules
         if args.rule:
             rules = [rule for rule in rules if rule.name == args.rule]
+            if not rules:
+                self._print_stderr(f'ERROR: no replication rule "{args.rule}" set up for bucket "{args.source}"')
+                return 1
 
         results_by_rule_name = {}
         for rule in rules:
