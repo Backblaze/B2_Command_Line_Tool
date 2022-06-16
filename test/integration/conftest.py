@@ -16,7 +16,7 @@ from tempfile import TemporaryDirectory, gettempdir
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
-from filelock import SoftFileLock
+from filelock import FileLock
 
 from .helpers import Api, CommandLine, bucket_name_part
 
@@ -110,7 +110,7 @@ def auto_clean_buckets(b2_api, request, testrun_uid):
     # lock file cannot be used to store info - use another file to track # of active workers
     worker_count_file = Path(gettempdir()) / f'{testrun_uid}.active-workers-count.txt'
 
-    with SoftFileLock(str(lock_file)):
+    with FileLock(str(lock_file)):
         if not worker_count_file.is_file():
             b2_api.clean_buckets()
             worker_count_file.write_text('1')
@@ -122,7 +122,7 @@ def auto_clean_buckets(b2_api, request, testrun_uid):
     yield
 
     if request.config.getoption('--cleanup'):
-        with SoftFileLock(str(lock_file)):
+        with FileLock(str(lock_file)):
             worker_count = int(worker_count_file.read_text())
             worker_count_file.write_text(str(worker_count - 1))
             if worker_count == 1:
