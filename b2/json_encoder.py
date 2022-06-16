@@ -10,7 +10,9 @@
 
 import json
 
-from b2sdk.v2 import FileVersion, FileIdAndName, Bucket
+from enum import Enum
+
+from b2sdk.v2 import Bucket, FileIdAndName, FileVersion
 
 
 class B2CliJsonEncoder(json.JSONEncoder):
@@ -28,4 +30,6 @@ class B2CliJsonEncoder(json.JSONEncoder):
             return list(obj)
         elif isinstance(obj, (FileVersion, FileIdAndName, Bucket)):
             return obj.as_dict()
+        elif isinstance(obj, Enum):
+            return obj.value
         return super().default(obj)
