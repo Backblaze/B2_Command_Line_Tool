@@ -2455,7 +2455,7 @@ class ReplicationStatus(Command):
     "Console" output format is meant to be human-readable and is subject to change
     in any further release. One should use "json" for reliable "no-breaking-changes"
     output format. When piping "csv" format to some .csv file, it's handy to use
-    --quiet flag which will disable interactive reporting output, otherwise it will
+    --noProgress flag which will disable interactive reporting output, otherwise it will
     also go to target csv file's first line.
 
     --columns
@@ -2473,7 +2473,7 @@ class ReplicationStatus(Command):
         parser.add_argument(
             '--output-format', default='console', choices=('console', 'json', 'csv')
         )
-        parser.add_argument('--quiet', action='store_true')
+        parser.add_argument('--noProgress', action='store_true')
         parser.add_argument(
             '--columns',
             default=['all'],
@@ -2507,7 +2507,7 @@ class ReplicationStatus(Command):
                 rule=rule,
                 destination_api=destination_api,
                 scan_destination=not args.dont_scan_destination,
-                quiet=args.quiet,
+                quiet=args.noProgress,
             )
             for rule in rules
         }
