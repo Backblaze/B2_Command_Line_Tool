@@ -2451,6 +2451,9 @@ class ReplicationStatus(Command):
     Inspects files in only source or both source and destination buckets
     (potentially from different accounts) and provides detailed replication statistics.
 
+    Please be aware that only latest file versions are inspected, so any previous
+    file versions are not represented in these statistics.
+
     --output-format
     "Console" output format is meant to be human-readable and is subject to change
     in any further release. One should use "json" for reliable "no-breaking-changes"
