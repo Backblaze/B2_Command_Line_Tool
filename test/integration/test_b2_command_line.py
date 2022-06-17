@@ -2087,6 +2087,76 @@ def test_replication_setup(b2_tool, bucket_name):
             'asReplicationDestination']['sourceToDestinationKeyMapping']
 
 
+def test_replication_monitoring(b2_tool, bucket_name):
+
+    key_one_name = 'clt-testKey-01' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_one_name,
+            'listBuckets,readFiles,writeFiles',
+        ]
+    )
+    key_one_id, _ = created_key_stdout.split()
+
+    destination_bucket_name = bucket_name
+    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+
+    # test that by default there's no `replicationConfiguration` key
+    assert 'replicationConfiguration' not in destination_bucket
+
+    # ---------------- set up replication source ----------------
+    source_replication_configuration = {
+        "asReplicationSource":
+            {
+                "replicationRules":
+                    [
+                        {
+                            "destinationBucketId": destination_bucket['bucketId'],
+                            "fileNamePrefix": "one/",
+                            "includeExistingFiles": False,
+                            "isEnabled": True,
+                            "priority": 1,
+                            "replicationRuleName": "replication-one"
+                        }, {
+                            "destinationBucketId": destination_bucket['bucketId'],
+                            "fileNamePrefix": "two/",
+                            "includeExistingFiles": False,
+                            "isEnabled": True,
+                            "priority": 2,
+                            "replicationRuleName": "replication-two"
+                        }
+                    ],
+                "sourceApplicationKeyId": key_one_id,
+            },
+    }
+    source_replication_configuration_json = json.dumps(source_replication_configuration)
+
+    # create a source bucket and set up replication to destination bucket
+    source_bucket_name = b2_tool.generate_bucket_name()
+    b2_tool.should_succeed(
+        [
+            'create-bucket',
+            source_bucket_name,
+            'allPublic',
+            '--fileLockEnabled',
+            '--replication',
+            source_replication_configuration_json,
+            *get_bucketinfo(),
+        ]
+    )
+
+    # run stats command
+    b2_tool.should_succeed(
+        [
+            'replication-status',
+            source_bucket_name,
+            '--noProgress',
+            '--columns=count, hash differs',
+        ]
+    )
+
+
 def _assert_file_lock_configuration(
     b2_tool,
     file_id,
