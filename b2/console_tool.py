@@ -2434,9 +2434,9 @@ class ReplicationSetup(Command):
         else:
             destination_api = _get_b2api_for_profile(args.destination_profile)
 
-        helper = ReplicationSetupHelper(self.api, destination_api)
+        helper = ReplicationSetupHelper()
         helper.setup_both(
-            source_bucket_name=args.source,
+            source_bucket=self.api.get_bucket_by_name(args.source),
             destination_bucket=destination_api.get_bucket_by_name(args.destination),
             name=args.name,
             priority=args.priority,
