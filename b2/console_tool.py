@@ -2436,8 +2436,9 @@ class ReplicationSetup(Command):
 
         helper = ReplicationSetupHelper()
         helper.setup_both(
-            source_bucket=self.api.get_bucket_by_name(args.source),
-            destination_bucket=destination_api.get_bucket_by_name(args.destination),
+            source_bucket=self.api.get_bucket_by_name(args.source).get_fresh_state(),
+            destination_bucket=destination_api.get_bucket_by_name(args.destination
+                                                                 ).get_fresh_state(),
             name=args.name,
             priority=args.priority,
             prefix=args.file_name_prefix,
