@@ -2472,7 +2472,7 @@ class ReplicationStatus(Command):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        parser.add_argument('--destination-profile', default=None)
+        parser.add_argument('--destination-profile', required=True)
         parser.add_argument('--dont-scan-destination', action='store_true')
         parser.add_argument(
             '--output-format', default='console', choices=('console', 'json', 'csv')
