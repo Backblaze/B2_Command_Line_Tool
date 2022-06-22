@@ -2524,6 +2524,40 @@ class ReplicationDelete(ReplicationRuleChanger):
 
 
 @B2.register_subcommand
+class ReplicationPause(ReplicationRuleChanger):
+    """
+    Pauses a replication rule
+
+    Requires capabilities:
+
+    - **readReplications**
+    - **writeReplications**
+    """
+    @classmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete rule """
+        rule.is_enabled = False
+        return rule
+
+
+@B2.register_subcommand
+class ReplicationUnpause(ReplicationRuleChanger):
+    """
+    Unpauses a replication rule
+
+    Requires capabilities:
+
+    - **readReplications**
+    - **writeReplications**
+    """
+    @classmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete rule """
+        rule.is_enabled = True
+        return rule
+
+
+@B2.register_subcommand
 class ReplicationStatus(Command):
     """
     Inspects files in only source or both source and destination buckets
