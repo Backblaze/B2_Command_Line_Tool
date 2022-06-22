@@ -2428,6 +2428,7 @@ class ReplicationSetup(Command):
             metavar='PREFIX',
             help='only replicate files starting with PREFIX'
         )
+        parser.add_argument('--include-existing-files', action='store_true', help='if given, also replicates files uploaded prior to creation of the replication rule')
 
     def run(self, args):
         if args.destination_profile is None:
@@ -2443,6 +2444,7 @@ class ReplicationSetup(Command):
             name=args.name,
             priority=args.priority,
             prefix=args.file_name_prefix,
+            include_existing_files=args.include_existing_files,
         )
         return 0
 
