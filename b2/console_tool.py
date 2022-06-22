@@ -2416,12 +2416,12 @@ class ReplicationSetup(Command):
         parser.add_argument('--name', help='name for the new replication rule on the source side')
         parser.add_argument(
             '--priority',
-            help='priority for the new replication rule on the source side [%d-%d]' % (
+            help='priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.' % (
                 ReplicationRule.MIN_PRIORITY,
                 ReplicationRule.MAX_PRIORITY,
             ),
             type=int,
-            default=ReplicationRule.DEFAULT_PRIORITY,
+            default=None,
         )
         parser.add_argument(
             '--file-name-prefix',

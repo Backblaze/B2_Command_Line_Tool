@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `replication-status` command
+* Add `replication-delete` command
+* Add `replication-pause` command
+* Add `replication-unpause` command
+
+### Fixed
+* Fix `replication-setup` default priority setter
+
 ## [3.5.0] - 2022-07-27
 
 As in 3.4.0, replication support may be unstable, however no backward-incompatible
@@ -15,10 +24,6 @@ This version is pinned strictly to `b2-sdk-python==1.17.3` for the same reason.
 ### Added
 * Add `--write-buffer-size` parameter
 * Add `--skip-hash-verification` parameter
-* Add `replication-status` command
-* Add `replication-delete` command
-* Add `replication-pause` command
-* Add `replication-unpause` command
 
 ### Changed
 * Minimum MacOS version from 10.15 to 11.0
