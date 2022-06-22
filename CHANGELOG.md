@@ -16,6 +16,7 @@ This version is pinned strictly to `b2-sdk-python==1.17.3` for the same reason.
 * Add `--write-buffer-size` parameter
 * Add `--skip-hash-verification` parameter
 * Add `replication-status` command
+* Add `replication-delete` command
 
 ### Changed
 * Minimum MacOS version from 10.15 to 11.0

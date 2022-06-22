@@ -2508,6 +2508,22 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
 
 
 @B2.register_subcommand
+class ReplicationDelete(ReplicationRuleChanger):
+    """
+    Deletes a replication rule
+
+    Requires capabilities:
+
+    - **readReplications**
+    - **writeReplications**
+    """
+    @classmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete rule """
+        return None
+
+
+@B2.register_subcommand
 class ReplicationStatus(Command):
     """
     Inspects files in only source or both source and destination buckets
