@@ -6,9 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+As in 3.4.0, replication support may be unstable, however no backward-incompatible
+changes are currently planned.
+This version is pinned strictly to `b2-sdk-python==1.17.0` for the same reason.
+
 ### Added
 * Add `--write-buffer-size` parameter
 * Add `--skip-hash-verification` parameter
+* Add `replication-status` command
 
 ### Infrastructure
 * Try not to crash tests due to bucket name collision
@@ -335,7 +340,8 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.4.0...HEAD
+[3.4.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.2.1...v3.3.0
 [3.2.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.1.0...v3.2.0

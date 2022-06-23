@@ -2210,11 +2210,14 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_passing_api_parameters(self):
         for command in [
             [
-                'b2', 'download-file-by-name', 'dummy-name', 'dummy-file-name',
+                'b2', 'download-file-by-name', '--profile', 'nonexistent', 'dummy-name',
+                'dummy-file-name', 'dummy-local-file-name'
+            ],
+            [
+                'b2', 'download-file-by-id', '--profile', 'nonexistent', 'dummy-id',
                 'dummy-local-file-name'
             ],
-            ['b2', 'download-file-by-id', 'dummy-id', 'dummy-local-file-name'],
-            ['b2', 'sync', 'b2:dummy-source', 'dummy-destination'],
+            ['b2', 'sync', '--profile', 'nonexistent', 'b2:dummy-source', 'dummy-destination'],
         ]:
             console_tool = ConsoleTool(
                 None,  # do not initialize b2 api to allow passing in additional parameters
