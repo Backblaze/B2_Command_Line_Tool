@@ -2416,7 +2416,9 @@ class ReplicationSetup(Command):
         parser.add_argument('--name', help='name for the new replication rule on the source side')
         parser.add_argument(
             '--priority',
-            help='priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.' % (
+            help=
+            'priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.'
+            % (
                 ReplicationRule.MIN_PRIORITY,
                 ReplicationRule.MAX_PRIORITY,
             ),
@@ -2428,7 +2430,11 @@ class ReplicationSetup(Command):
             metavar='PREFIX',
             help='only replicate files starting with PREFIX'
         )
-        parser.add_argument('--include-existing-files', action='store_true', help='if given, also replicates files uploaded prior to creation of the replication rule')
+        parser.add_argument(
+            '--include-existing-files',
+            action='store_true',
+            help='if given, also replicates files uploaded prior to creation of the replication rule'
+        )
 
     def run(self, args):
         if args.destination_profile is None:
@@ -2519,6 +2525,7 @@ class ReplicationDelete(ReplicationRuleChanger):
     - **readReplications**
     - **writeReplications**
     """
+
     @classmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
         """ return None to delete rule """
@@ -2535,6 +2542,7 @@ class ReplicationPause(ReplicationRuleChanger):
     - **readReplications**
     - **writeReplications**
     """
+
     @classmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
         """ return None to delete rule """
@@ -2552,6 +2560,7 @@ class ReplicationUnpause(ReplicationRuleChanger):
     - **readReplications**
     - **writeReplications**
     """
+
     @classmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
         """ return None to delete rule """
