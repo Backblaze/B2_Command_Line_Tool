@@ -2474,10 +2474,10 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
         return 0
 
     @classmethod
-    def alter_rule_by_name(cls, bucket: Bucket, name: str) -> bool:
+    def alter_rule_by_name(cls, bucket: Bucket, name: str) -> Tuple[bool, bool]:
         """ returns False if rule could not be found """
         if not bucket.replication or not bucket.replication.rules:
-            return False
+            return False, False
 
         found = False
         altered = False
