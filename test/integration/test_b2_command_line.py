@@ -1949,7 +1949,7 @@ def test_profile_switch(b2_tool):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
-@pytest.smark.kip('for now now')
+@pytest.mark.skip('for now now')
 def test_replication_basic(b2_tool, bucket_name):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
