@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add `--write-buffer-size` parameter
 * Add `--skip-hash-verification` parameter
-* Added Dependabot configuration
+* Add dependabot configuration
 
 ### Infrastructure
 * Try not to crash tests due to bucket name collision
