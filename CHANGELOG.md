@@ -11,6 +11,8 @@ changes are currently planned.
 This version is pinned strictly to `b2-sdk-python==1.17.0` for the same reason.
 
 ### Added
+* Add `--write-buffer-size` parameter
+* Add `--skip-hash-verification` parameter
 * Add `replication-status` command
 * Add dependabot configuration
 
