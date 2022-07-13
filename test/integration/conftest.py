@@ -16,9 +16,12 @@ from tempfile import TemporaryDirectory, gettempdir
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
+from b2sdk.exception import BucketIdNotFound
 from filelock import FileLock
 
 from .helpers import Api, CommandLine, bucket_name_part
+
+GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 
 
 @pytest.hookimpl
@@ -53,14 +56,25 @@ def bucket_name(b2_api) -> str:
     yield b2_api.create_bucket().name
 
 
-@pytest.fixture(scope='session')
-def general_bucket_name_prefix() -> str:
-    yield 'clitst'
+@pytest.fixture(scope='function')  # , autouse=True)
+def debug_print_buckets(b2_api):
+    print('-' * 30)
+    print('Buckets before test ' + environ['PYTEST_CURRENT_TEST'])
+    num_buckets = b2_api.count_and_print_buckets()
+    print('-' * 30)
+    try:
+        yield
+    finally:
+        print('-' * 30)
+        print('Buckets after test ' + environ['PYTEST_CURRENT_TEST'])
+        delta = b2_api.print_buckets() - num_buckets
+        print(f'DELTA: {delta}')
+        print('-' * 30)
 
 
 @pytest.fixture(scope='session')
-def this_run_bucket_name_prefix(general_bucket_name_prefix) -> str:
-    yield general_bucket_name_prefix + bucket_name_part(8)
+def this_run_bucket_name_prefix() -> str:
+    yield GENERAL_BUCKET_NAME_PREFIX + bucket_name_part(8)
 
 
 @pytest.fixture(scope='module')

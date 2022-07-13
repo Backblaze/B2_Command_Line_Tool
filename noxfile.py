@@ -37,6 +37,7 @@ REQUIREMENTS_TEST = [
     "pytest-cov==3.0.0",
     'pytest-xdist==2.5.0',
     'filelock==3.6.0',
+    'backoff==2.1.2',
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
@@ -170,6 +171,14 @@ def test(session):
     else:
         session.notify('unit')
         session.notify('integration')
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def cleanup_buckets(session):
+    """Remove buckets from previous test runs."""
+    install_myself(session)
+    session.install(*REQUIREMENTS_TEST)
+    session.run('pytest', '-s', '-x', *session.posargs, 'test/integration/cleanup_buckets.py')
 
 
 @nox.session
