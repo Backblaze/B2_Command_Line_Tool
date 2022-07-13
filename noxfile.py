@@ -13,7 +13,6 @@ import platform
 import subprocess
 
 from glob import glob
-from multiprocessing import cpu_count
 
 import nox
 
@@ -157,9 +156,7 @@ def integration(session):
     """Run integration tests."""
     install_myself(session)
     session.install(*REQUIREMENTS_TEST)
-    session.run(
-        'pytest', '-s', '-n', str(min(cpu_count(), 8) * 5), *session.posargs, 'test/integration'
-    )
+    session.run('pytest', '-s', '-x', '-n', '4', *session.posargs, 'test/integration')
 
 
 @nox.session(python=PYTHON_VERSIONS)

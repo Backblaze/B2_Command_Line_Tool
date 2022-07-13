@@ -105,12 +105,9 @@ def auto_change_account_info_dir(monkey_patch) -> dir:
 
 
 @pytest.fixture(scope='module')
-def b2_api(
-    application_key_id, application_key, realm, general_bucket_name_prefix,
-    this_run_bucket_name_prefix
-) -> Api:
+def b2_api(application_key_id, application_key, realm, this_run_bucket_name_prefix) -> Api:
     yield Api(
-        application_key_id, application_key, realm, general_bucket_name_prefix,
+        application_key_id, application_key, realm, GENERAL_BUCKET_NAME_PREFIX,
         this_run_bucket_name_prefix
     )
 
