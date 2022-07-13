@@ -46,10 +46,6 @@ def test_download(b2_tool, bucket_name):
         )
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
 
-    # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
-
 
 def test_basic(b2_tool, bucket_name):
 
@@ -292,6 +288,7 @@ def test_account(b2_tool, bucket_name):
     # apparently server behaves erratically when we delete a bucket and recreate it right away
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *get_bucketinfo()])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(['delete-bucket', new_bucket_name])
 
     with b2_tool.env_var_test_context:
         b2_tool.should_succeed(['clear-account'])
@@ -771,24 +768,30 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             )
 
 
-def test_sync_copy(b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(b2_tool, bucket_name, 'sync')
+def test_sync_copy(b2_api, b2_tool, bucket_name):
+    prepare_and_run_sync_copy_tests(b2_api, b2_tool, bucket_name, 'sync')
 
 
-def test_sync_copy_no_prefix_default_encryption(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_default_encryption(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
-        b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
+        b2_api, b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
     )
 
 
-def test_sync_copy_no_prefix_no_encryption(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_no_encryption(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
-        b2_tool, bucket_name, '', destination_encryption=SSE_NONE, expected_encryption=SSE_NONE
+        b2_api,
+        b2_tool,
+        bucket_name,
+        '',
+        destination_encryption=SSE_NONE,
+        expected_encryption=SSE_NONE
     )
 
 
-def test_sync_copy_no_prefix_sse_b2(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_b2(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
+        b2_api,
         b2_tool,
         bucket_name,
         '',
@@ -797,8 +800,9 @@ def test_sync_copy_no_prefix_sse_b2(b2_tool, bucket_name):
     )
 
 
-def test_sync_copy_no_prefix_sse_c(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_c(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
+        b2_api,
         b2_tool,
         bucket_name,
         '',
@@ -840,6 +844,7 @@ def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
 
 
 def prepare_and_run_sync_copy_tests(
+    b2_api,
     b2_tool,
     bucket_name,
     folder_in_bucket,
@@ -891,6 +896,8 @@ def prepare_and_run_sync_copy_tests(
         ],
         file_version_summary_with_encryption(file_versions),
     )
+
+    b2_api.clean_bucket(other_bucket_name)
 
 
 def run_sync_copy_with_basic_checks(
@@ -1048,6 +1055,7 @@ def test_default_sse_b2(b2_tool, bucket_name):
         'mode': 'SSE-B2',
     }
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
+    b2_tool.should_succeed(['delete-bucket', second_bucket_name])
 
 
 def test_sse_b2(b2_tool, bucket_name):
@@ -1416,7 +1424,7 @@ def test_sse_c(b2_tool, bucket_name):
     )
 
 
-def test_file_lock(b2_tool):
+def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
     lock_disabled_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
@@ -1686,6 +1694,18 @@ def test_file_lock(b2_tool):
         b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file['fileId'],
         not_lockable_file['fileId']
     )
+
+    # ---- perform test cleanup ----
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
+    )
+    # b2_tool.reauthorize(check_key_capabilities=False)
+    buckets = [
+        bucket for bucket in b2_api.api.list_buckets()
+        if bucket.name in {lock_enabled_bucket_name, lock_disabled_bucket_name}
+    ]
+    for bucket in buckets:
+        b2_api.clean_bucket(bucket)
 
 
 def file_lock_without_perms_test(

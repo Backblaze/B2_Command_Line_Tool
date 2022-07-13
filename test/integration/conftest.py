@@ -53,7 +53,12 @@ def realm() -> str:
 
 @pytest.fixture(scope='function')
 def bucket_name(b2_api) -> str:
-    yield b2_api.create_bucket().name
+    bucket = b2_api.create_bucket()
+    yield bucket.name
+    try:
+        b2_api.clean_bucket(bucket)
+    except BucketIdNotFound:
+        pass
 
 
 @pytest.fixture(scope='function')  # , autouse=True)
