@@ -117,35 +117,6 @@ def b2_api(application_key_id, application_key, realm, this_run_bucket_name_pref
     )
 
 
-@pytest.fixture(scope='module', autouse=True)
-def auto_clean_buckets(b2_api, request, testrun_uid):
-    """ Automatically clean buckets before and after the whole module testing """
-
-    lock_file = Path(gettempdir()) / f'{testrun_uid}.lock'
-
-    # lock file cannot be used to store info - use another file to track # of active workers
-    worker_count_file = Path(gettempdir()) / f'{testrun_uid}.active-workers-count.txt'
-
-    with FileLock(str(lock_file)):
-        if not worker_count_file.is_file():
-            b2_api.clean_buckets()
-            worker_count_file.write_text('1')
-
-        else:
-            worker_count = int(worker_count_file.read_text())
-            worker_count_file.write_text(str(worker_count + 1))
-
-    yield
-
-    if request.config.getoption('--cleanup'):
-        with FileLock(str(lock_file)):
-            worker_count = int(worker_count_file.read_text())
-            worker_count_file.write_text(str(worker_count - 1))
-            if worker_count == 1:
-                b2_api.clean_buckets()
-                worker_count_file.unlink()
-
-
 @pytest.fixture(scope='module')
 def b2_tool(
     request, application_key_id, application_key, realm, this_run_bucket_name_prefix
