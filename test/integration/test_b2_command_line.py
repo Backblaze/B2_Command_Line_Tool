@@ -224,7 +224,7 @@ def test_bucket(b2_tool, bucket_name):
     ]
 
 
-def test_key_restrictions(b2_tool, bucket_name):
+def test_key_restrictions(b2_api, b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
@@ -277,7 +277,7 @@ def test_key_restrictions(b2_tool, bucket_name):
             b2_tool.application_key
         ]
     )
-    b2_tool.should_succeed(['delete-bucket', second_bucket_name])
+    b2_api.clean_bucket(second_bucket_name)
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
 
@@ -1017,7 +1017,7 @@ def test_sync_long_path(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
-def test_default_sse_b2(b2_tool, bucket_name):
+def test_default_sse_b2(b2_api, b2_tool, bucket_name):
     # Set default encryption via update-bucket
     bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
     bucket_default_sse = {'mode': 'none'}
@@ -1056,7 +1056,7 @@ def test_default_sse_b2(b2_tool, bucket_name):
         'mode': 'SSE-B2',
     }
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
-    b2_tool.should_succeed(['delete-bucket', second_bucket_name])
+    b2_api.clean_bucket(second_bucket_name)
 
 
 def test_sse_b2(b2_tool, bucket_name):
@@ -1902,7 +1902,7 @@ def test_profile_switch(b2_tool):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
-def test_replication_basic(b2_tool, bucket_name):
+def test_replication_basic(b2_api, b2_tool, bucket_name):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
@@ -2046,10 +2046,10 @@ def test_replication_basic(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
-    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+    b2_api.clean_bucket(source_bucket_name)
 
 
-def test_replication_setup(b2_tool, bucket_name):
+def test_replication_setup(b2_api, b2_tool, bucket_name):
     source_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
@@ -2102,7 +2102,7 @@ def test_replication_setup(b2_tool, bucket_name):
         'sourceToDestinationKeyMapping'].items():
         b2_tool.should_succeed(['delete-key', key_one_id])
         b2_tool.should_succeed(['delete-key', key_two_id])
-    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+    b2_api.clean_bucket(source_bucket_name)
     assert destination_bucket_old['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
             'asReplicationDestination']['sourceToDestinationKeyMapping']
