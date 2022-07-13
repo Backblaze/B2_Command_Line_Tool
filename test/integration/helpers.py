@@ -188,6 +188,14 @@ class Api:
                 print('It seems that bucket %s has already been removed' % (bucket.name,))
         print()
 
+    def count_and_print_buckets(self) -> int:
+        buckets = self.api.list_buckets()
+        count = len(buckets)
+        print(f'Total bucket count at {datetime.now()}: {count}')
+        for i, bucket in enumerate(buckets, start=1):
+            print(f'- {i}\t{bucket.name} [{bucket.id_}]')
+        return count
+
 
 def print_text_indented(text):
     """
