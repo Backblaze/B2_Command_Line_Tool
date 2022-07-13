@@ -16,6 +16,7 @@ import os
 import os.path
 import re
 
+from pathlib import Path
 from typing import Optional, Tuple
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, UNKNOWN_FILE_RETENTION_SETTING, EncryptionMode, EncryptionSetting, FileRetentionSetting, LegalHold, RetentionMode, fix_windows_path_limit
@@ -1007,7 +1008,7 @@ def test_sync_long_path(b2_tool, bucket_name):
 
     with TempDir() as dir_path:
         local_long_path = (dir_path / long_path).resolve()
-        fixed_local_long_path = fix_windows_path_limit(local_long_path)
+        fixed_local_long_path = Path(fix_windows_path_limit(str(local_long_path)))
         os.makedirs(fixed_local_long_path.parent)
         write_file(fixed_local_long_path, b'asdf')
 
