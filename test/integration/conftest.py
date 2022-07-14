@@ -10,14 +10,12 @@
 import sys
 
 from os import environ, path
-from pathlib import Path
-from tempfile import TemporaryDirectory, gettempdir
+from tempfile import TemporaryDirectory
 
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
 from b2sdk.exception import BucketIdNotFound
-from filelock import FileLock
 
 from .helpers import Api, CommandLine, bucket_name_part
 
