@@ -15,16 +15,12 @@ This version is pinned strictly to `b2-sdk-python==1.17.0` for the same reason.
 * Add `--skip-hash-verification` parameter
 * Add `replication-status` command
 
-### Changed
-* Limit number of workers for integration tests to 4
-* Make integration tests remove buckets only based on name, not based on creation time
-
-### Fixed
-* Fix integration tests (replication) due to internal B2 API change
-* Fix leaking buckets in integration tests
-
 ### Infrastructure
 * Try not to crash tests due to bucket name collision
+* Fix integration tests (replication) due to internal B2 API change
+* Fix leaking buckets in integration tests
+* Limit number of workers for integration tests to 4
+* Make integration tests remove buckets only based on name, not based on creation time
 
 ## [3.4.0] - 2022-05-04
 
