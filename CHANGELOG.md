@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 As in 3.4.0, replication support may be unstable, however no backward-incompatible
 changes are currently planned.
-This version is pinned strictly to `b2-sdk-python==1.17.0` for the same reason.
+This version is pinned strictly to `b2-sdk-python==1.17.3` for the same reason.
 
 ### Added
 * Add `--write-buffer-size` parameter
