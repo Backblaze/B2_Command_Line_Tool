@@ -17,6 +17,7 @@ This version is pinned strictly to `b2-sdk-python==1.17.0` for the same reason.
 
 ### Infrastructure
 * Try not to crash tests due to bucket name collision
+* Add dependabot configuration
 
 ## [3.4.0] - 2022-05-04
 
