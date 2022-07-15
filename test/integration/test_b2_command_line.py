@@ -11,6 +11,7 @@
 
 import base64
 import hashlib
+import itertools
 import json
 import os
 import os.path
@@ -2271,71 +2272,73 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         ]
     )
 
-    assert replication_status_json == {
-        "replication-one":
-            [
-                {
-                    "count": 1,
-                    "destination_replication_status": None,
-                    "hash_differs": None,
-                    "metadata_differs": None,
-                    "source_has_file_retention": None,
-                    "source_has_hide_marker": None,
-                    "source_has_large_metadata": None,
-                    "source_has_legal_hold": None,
-                    "source_has_sse_c_enabled": None,
-                    "source_replication_status": None,
-                }
-            ],
-        "replication-two":
-            [
-                {
-                    "count": 1,
-                    "destination_replication_status": None,
-                    "hash_differs": None,
-                    "metadata_differs": None,
-                    "source_has_file_retention": False,
-                    "source_has_hide_marker": False,
-                    "source_has_large_metadata": False,
-                    "source_has_legal_hold": True,
-                    "source_has_sse_c_enabled": False,
-                    "source_replication_status": "FAILED"
-                }, {
-                    "count": 1,
-                    "destination_replication_status": None,
-                    "hash_differs": None,
-                    "metadata_differs": None,
-                    "source_has_file_retention": False,
-                    "source_has_hide_marker": False,
-                    "source_has_large_metadata": False,
-                    "source_has_legal_hold": False,
-                    "source_has_sse_c_enabled": False,
-                    "source_replication_status": "FAILED"
-                }, {
-                    "count": 1,
-                    "destination_replication_status": None,
-                    "hash_differs": None,
-                    "metadata_differs": None,
-                    "source_has_file_retention": False,
-                    "source_has_hide_marker": False,
-                    "source_has_large_metadata": False,
-                    "source_has_legal_hold": False,
-                    "source_has_sse_c_enabled": True,
-                    "source_replication_status": None,
-                }, {
-                    "count": 1,
-                    "destination_replication_status": None,
-                    "hash_differs": None,
-                    "metadata_differs": None,
-                    "source_has_file_retention": False,
-                    "source_has_hide_marker": False,
-                    "source_has_large_metadata": False,
-                    "source_has_legal_hold": True,
-                    "source_has_sse_c_enabled": True,
-                    "source_replication_status": None,
-                }
-            ]
-    }
+    assert replication_status_json in [
+        {
+            "replication-one":
+                [
+                    {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": None,
+                        "source_has_hide_marker": None,
+                        "source_has_large_metadata": None,
+                        "source_has_legal_hold": None,
+                        "source_has_sse_c_enabled": None,
+                        "source_replication_status": None,
+                    }
+                ],
+            "replication-two":
+                [
+                    {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": True,
+                        "source_has_sse_c_enabled": False,
+                        "source_replication_status": first,
+                    }, {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": False,
+                        "source_has_sse_c_enabled": False,
+                        "source_replication_status": second,
+                    }, {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": False,
+                        "source_has_sse_c_enabled": True,
+                        "source_replication_status": None,
+                    }, {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": True,
+                        "source_has_sse_c_enabled": True,
+                        "source_replication_status": None,
+                    }
+                ]
+        } for first, second in itertools.product(['FAILED', 'PENDING'], ['FAILED', 'PENDING'])
+    ]
 
     b2_api.clean_bucket(source_bucket_name)
 
