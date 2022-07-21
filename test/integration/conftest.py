@@ -70,7 +70,7 @@ def debug_print_buckets(b2_api):
     finally:
         print('-' * 30)
         print('Buckets after test ' + environ['PYTEST_CURRENT_TEST'])
-        delta = b2_api.print_buckets() - num_buckets
+        delta = b2_api.count_and_print_buckets() - num_buckets
         print(f'DELTA: {delta}')
         print('-' * 30)
 
