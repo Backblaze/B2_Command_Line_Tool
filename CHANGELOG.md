@@ -15,6 +15,9 @@ This version is pinned strictly to `b2-sdk-python==1.17.3` for the same reason.
 * Add `--skip-hash-verification` parameter
 * Add `replication-status` command
 
+### Changed
+* Minimum MacOS version from 10.15 to 11.0
+
 ### Infrastructure
 * Try not to crash tests due to bucket name collision
 * Fix replication integration tests
