@@ -20,16 +20,21 @@ import sys
 import threading
 
 from dataclasses import dataclass
+from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
 from typing import List, Optional, Union
 
+import backoff
+
+from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
 from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
-from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent
+from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent, TooManyRequests
 
 from b2.console_tool import Command, current_time_millis
 
+BUCKET_CLEANUP_PERIOD_MILLIS = 0
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
@@ -98,7 +103,7 @@ class Api:
         OLD_PATTERN = 'test-b2-cli-'
         if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
             if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
-                delete_older_than = current_time_millis() - ONE_HOUR_MILLIS
+                delete_older_than = current_time_millis() - BUCKET_CLEANUP_PERIOD_MILLIS
                 this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
                 if int(this_bucket_creation_time) < delete_older_than:
                     return True, f"this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}"
@@ -116,9 +121,24 @@ class Api:
                 continue
 
             print('Trying to remove bucket:', bucket.name, 'because', why)
-            self.clean_bucket(bucket)
+            try:
+                self.clean_bucket(bucket)
+            except (BucketIdNotFound, v3BucketIdNotFound):
+                print('It seems that bucket %s has already been removed' % (bucket.name,))
+        buckets = self.api.list_buckets()
+        print('Total bucket count after cleanup:', len(buckets))
+        for bucket in buckets:
+            print(bucket)
 
-    def clean_bucket(self, bucket: Bucket):
+    @backoff.on_exception(
+        backoff.expo,
+        TooManyRequests,
+        max_tries=8,
+    )
+    def clean_bucket(self, bucket: Union[Bucket, str]):
+        if isinstance(bucket, str):
+            bucket = self.api.get_bucket_by_name(bucket)
+
         files_leftover = False
         file_versions = bucket.ls(latest_only=False, recursive=True)
 
@@ -167,6 +187,14 @@ class Api:
             except BucketIdNotFound:
                 print('It seems that bucket %s has already been removed' % (bucket.name,))
         print()
+
+    def count_and_print_buckets(self) -> int:
+        buckets = self.api.list_buckets()
+        count = len(buckets)
+        print(f'Total bucket count at {datetime.now()}: {count}')
+        for i, bucket in enumerate(buckets, start=1):
+            print(f'- {i}\t{bucket.name} [{bucket.id_}]')
+        return count
 
 
 def print_text_indented(text):

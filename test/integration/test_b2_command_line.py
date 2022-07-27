@@ -11,11 +11,13 @@
 
 import base64
 import hashlib
+import itertools
 import json
 import os
 import os.path
 import re
 
+from pathlib import Path
 from typing import Optional, Tuple
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, UNKNOWN_FILE_RETENTION_SETTING, EncryptionMode, EncryptionSetting, FileRetentionSetting, LegalHold, RetentionMode, fix_windows_path_limit
@@ -45,10 +47,6 @@ def test_download(b2_tool, bucket_name):
             ['download-file-by-id', '--noProgress', uploaded_a['fileId'], dir_path / 'b']
         )
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
-
-    # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
 
 
 def test_basic(b2_tool, bucket_name):
@@ -227,7 +225,7 @@ def test_bucket(b2_tool, bucket_name):
     ]
 
 
-def test_key_restrictions(b2_tool, bucket_name):
+def test_key_restrictions(b2_api, b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
@@ -280,7 +278,7 @@ def test_key_restrictions(b2_tool, bucket_name):
             b2_tool.application_key
         ]
     )
-    b2_tool.should_succeed(['delete-bucket', second_bucket_name])
+    b2_api.clean_bucket(second_bucket_name)
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
 
@@ -292,6 +290,7 @@ def test_account(b2_tool, bucket_name):
     # apparently server behaves erratically when we delete a bucket and recreate it right away
     b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *get_bucketinfo()])
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(['delete-bucket', new_bucket_name])
 
     with b2_tool.env_var_test_context:
         b2_tool.should_succeed(['clear-account'])
@@ -771,24 +770,30 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             )
 
 
-def test_sync_copy(b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(b2_tool, bucket_name, 'sync')
+def test_sync_copy(b2_api, b2_tool, bucket_name):
+    prepare_and_run_sync_copy_tests(b2_api, b2_tool, bucket_name, 'sync')
 
 
-def test_sync_copy_no_prefix_default_encryption(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_default_encryption(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
-        b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
+        b2_api, b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
     )
 
 
-def test_sync_copy_no_prefix_no_encryption(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_no_encryption(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
-        b2_tool, bucket_name, '', destination_encryption=SSE_NONE, expected_encryption=SSE_NONE
+        b2_api,
+        b2_tool,
+        bucket_name,
+        '',
+        destination_encryption=SSE_NONE,
+        expected_encryption=SSE_NONE
     )
 
 
-def test_sync_copy_no_prefix_sse_b2(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_b2(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
+        b2_api,
         b2_tool,
         bucket_name,
         '',
@@ -797,8 +802,9 @@ def test_sync_copy_no_prefix_sse_b2(b2_tool, bucket_name):
     )
 
 
-def test_sync_copy_no_prefix_sse_c(b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_c(b2_api, b2_tool, bucket_name):
     prepare_and_run_sync_copy_tests(
+        b2_api,
         b2_tool,
         bucket_name,
         '',
@@ -840,6 +846,7 @@ def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
 
 
 def prepare_and_run_sync_copy_tests(
+    b2_api,
     b2_tool,
     bucket_name,
     folder_in_bucket,
@@ -891,6 +898,8 @@ def prepare_and_run_sync_copy_tests(
         ],
         file_version_summary_with_encryption(file_versions),
     )
+
+    b2_api.clean_bucket(other_bucket_name)
 
 
 def run_sync_copy_with_basic_checks(
@@ -1000,7 +1009,7 @@ def test_sync_long_path(b2_tool, bucket_name):
 
     with TempDir() as dir_path:
         local_long_path = (dir_path / long_path).resolve()
-        fixed_local_long_path = fix_windows_path_limit(local_long_path)
+        fixed_local_long_path = Path(fix_windows_path_limit(str(local_long_path)))
         os.makedirs(fixed_local_long_path.parent)
         write_file(fixed_local_long_path, b'asdf')
 
@@ -1009,7 +1018,7 @@ def test_sync_long_path(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
-def test_default_sse_b2(b2_tool, bucket_name):
+def test_default_sse_b2(b2_api, b2_tool, bucket_name):
     # Set default encryption via update-bucket
     bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
     bucket_default_sse = {'mode': 'none'}
@@ -1048,6 +1057,7 @@ def test_default_sse_b2(b2_tool, bucket_name):
         'mode': 'SSE-B2',
     }
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
+    b2_api.clean_bucket(second_bucket_name)
 
 
 def test_sse_b2(b2_tool, bucket_name):
@@ -1416,7 +1426,7 @@ def test_sse_c(b2_tool, bucket_name):
     )
 
 
-def test_file_lock(b2_tool):
+def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
     lock_disabled_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
@@ -1687,6 +1697,18 @@ def test_file_lock(b2_tool):
         not_lockable_file['fileId']
     )
 
+    # ---- perform test cleanup ----
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
+    )
+    # b2_tool.reauthorize(check_key_capabilities=False)
+    buckets = [
+        bucket for bucket in b2_api.api.list_buckets()
+        if bucket.name in {lock_enabled_bucket_name, lock_disabled_bucket_name}
+    ]
+    for bucket in buckets:
+        b2_api.clean_bucket(bucket)
+
 
 def file_lock_without_perms_test(
     b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
@@ -1881,7 +1903,7 @@ def test_profile_switch(b2_tool):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
-def test_replication_basic(b2_tool, bucket_name):
+def test_replication_basic(b2_api, b2_tool, bucket_name):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
@@ -1907,6 +1929,34 @@ def test_replication_basic(b2_tool, bucket_name):
 
     # test that by default there's no `replicationConfiguration` key
     assert 'replicationConfiguration' not in destination_bucket
+
+    # ---------------- set up replication destination ----------------
+
+    # update destination bucket info
+    destination_replication_configuration = {
+        'asReplicationSource': None,
+        'asReplicationDestination': {
+            'sourceToDestinationKeyMapping': {
+                key_one_id: key_two_id,
+            },
+        },
+    }
+    destination_replication_configuration_json = json.dumps(destination_replication_configuration)
+    destination_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket',
+            destination_bucket_name,
+            'allPublic',
+            '--replication',
+            destination_replication_configuration_json,
+        ]
+    )
+
+    # test that destination bucket is registered as replication destination
+    assert destination_bucket['replication'].get('asReplicationSource') is None
+    assert destination_bucket['replication'
+                             ]['asReplicationDestination'
+                              ] == destination_replication_configuration['asReplicationDestination']
 
     # ---------------- set up replication source ----------------
     source_replication_configuration = {
@@ -1957,34 +2007,6 @@ def test_replication_basic(b2_tool, bucket_name):
     # test that source bucket is not mentioned as replication destination
     assert source_bucket['replication'].get('asReplicationDestination') is None
 
-    # ---------------- set up replication destination ----------------
-
-    # update destination bucket info
-    destination_replication_configuration = {
-        'asReplicationSource': None,
-        'asReplicationDestination': {
-            'sourceToDestinationKeyMapping': {
-                key_one_id: key_two_id,
-            },
-        },
-    }
-    destination_replication_configuration_json = json.dumps(destination_replication_configuration)
-    destination_bucket = b2_tool.should_succeed_json(
-        [
-            'update-bucket',
-            destination_bucket_name,
-            'allPublic',
-            '--replication',
-            destination_replication_configuration_json,
-        ]
-    )
-
-    # test that destination bucket is registered as replication destination
-    assert destination_bucket['replication'].get('asReplicationSource') is None
-    assert destination_bucket['replication'
-                             ]['asReplicationDestination'
-                              ] == destination_replication_configuration['asReplicationDestination']
-
     # ---------------- remove replication source ----------------
 
     no_replication_configuration = {
@@ -2025,10 +2047,10 @@ def test_replication_basic(b2_tool, bucket_name):
 
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
-    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+    b2_api.clean_bucket(source_bucket_name)
 
 
-def test_replication_setup(b2_tool, bucket_name):
+def test_replication_setup(b2_api, b2_tool, bucket_name):
     source_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
@@ -2081,29 +2103,62 @@ def test_replication_setup(b2_tool, bucket_name):
         'sourceToDestinationKeyMapping'].items():
         b2_tool.should_succeed(['delete-key', key_one_id])
         b2_tool.should_succeed(['delete-key', key_two_id])
-    b2_tool.should_succeed(['delete-bucket', source_bucket_name])
+    b2_api.clean_bucket(source_bucket_name)
     assert destination_bucket_old['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
             'asReplicationDestination']['sourceToDestinationKeyMapping']
 
 
-def test_replication_monitoring(b2_tool, bucket_name):
+def test_replication_monitoring(b2_tool, bucket_name, b2_api):
 
+    # ---------------- set up keys ----------------
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
             'create-key',
             key_one_name,
-            'listBuckets,readFiles,writeFiles',
+            'listBuckets,readFiles',
         ]
     )
     key_one_id, _ = created_key_stdout.split()
 
-    destination_bucket_name = bucket_name
-    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    key_two_name = 'clt-testKey-02' + random_hex(6)
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            key_two_name,
+            'listBuckets,writeFiles',
+        ]
+    )
+    key_two_id, _ = created_key_stdout.split()
 
-    # test that by default there's no `replicationConfiguration` key
-    assert 'replicationConfiguration' not in destination_bucket
+    # ---------------- add test data ----------------
+    destination_bucket_name = bucket_name
+    uploaded_a = b2_tool.should_succeed_json(
+        ['upload-file', '--noProgress', '--quiet', destination_bucket_name, 'README.md', 'one/a']
+    )
+
+    # ---------------- set up replication destination ----------------
+
+    # update destination bucket info
+    destination_replication_configuration = {
+        'asReplicationSource': None,
+        'asReplicationDestination': {
+            'sourceToDestinationKeyMapping': {
+                key_one_id: key_two_id,
+            },
+        },
+    }
+    destination_replication_configuration_json = json.dumps(destination_replication_configuration)
+    destination_bucket = b2_tool.should_succeed_json(
+        [
+            'update-bucket',
+            destination_bucket_name,
+            'allPublic',
+            '--replication',
+            destination_replication_configuration_json,
+        ]
+    )
 
     # ---------------- set up replication source ----------------
     source_replication_configuration = {
@@ -2146,15 +2201,146 @@ def test_replication_monitoring(b2_tool, bucket_name):
         ]
     )
 
-    # run stats command
-    b2_tool.should_succeed(
+    # make test data
+    uploaded_a = b2_tool.should_succeed_json(
+        ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'CHANGELOG.md', 'one/a']
+    )
+    uploaded_b = b2_tool.should_succeed_json(
         [
-            'replication-status',
-            source_bucket_name,
+            'upload-file',
             '--noProgress',
-            '--columns=count, hash differs',
+            '--quiet',
+            source_bucket_name,
+            '--legalHold',
+            'on',
+            'README.md',
+            'two/b',
         ]
     )
+
+    # encryption
+    # SSE-B2
+    upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-B2']
+    upload_additional_env = {}
+    uploaded_c = b2_tool.should_succeed_json(
+        ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/c'] +
+        upload_encryption_args,
+        additional_env=upload_additional_env,
+    )
+
+    # SSE-C
+    upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-C']
+    upload_additional_env = {
+        'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(SSE_C_AES.key.secret).decode(),
+        'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
+    }
+    uploaded_d = b2_tool.should_succeed_json(
+        ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/d'] +
+        upload_encryption_args,
+        additional_env=upload_additional_env,
+    )
+
+    # encryption + legal hold
+    uploaded_e = b2_tool.should_succeed_json(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            source_bucket_name,
+            'README.md',
+            'two/e',
+            '--legalHold',
+            'on',
+        ] + upload_encryption_args,
+        additional_env=upload_additional_env,
+    )
+
+    # there is just one file, so clean after itself for faster execution
+    b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
+
+    # run stats command
+    replication_status_json = b2_tool.should_succeed_json(
+        [
+            'replication-status',
+            # '--destination-profile',
+            # profile,
+            '--noProgress',
+            # '--columns=count, hash differs',
+            '--output-format',
+            'json',
+            source_bucket_name,
+        ]
+    )
+
+    assert replication_status_json in [
+        {
+            "replication-one":
+                [
+                    {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": None,
+                        "source_has_hide_marker": None,
+                        "source_has_large_metadata": None,
+                        "source_has_legal_hold": None,
+                        "source_has_sse_c_enabled": None,
+                        "source_replication_status": None,
+                    }
+                ],
+            "replication-two":
+                [
+                    {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": True,
+                        "source_has_sse_c_enabled": False,
+                        "source_replication_status": first,
+                    }, {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": False,
+                        "source_has_sse_c_enabled": False,
+                        "source_replication_status": second,
+                    }, {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": False,
+                        "source_has_sse_c_enabled": True,
+                        "source_replication_status": None,
+                    }, {
+                        "count": 1,
+                        "destination_replication_status": None,
+                        "hash_differs": None,
+                        "metadata_differs": None,
+                        "source_has_file_retention": False,
+                        "source_has_hide_marker": False,
+                        "source_has_large_metadata": False,
+                        "source_has_legal_hold": True,
+                        "source_has_sse_c_enabled": True,
+                        "source_replication_status": None,
+                    }
+                ]
+        } for first, second in itertools.product(['FAILED', 'PENDING'], ['FAILED', 'PENDING'])
+    ]
+
+    b2_api.clean_bucket(source_bucket_name)
 
 
 def _assert_file_lock_configuration(

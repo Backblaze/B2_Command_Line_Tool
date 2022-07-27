@@ -7,18 +7,21 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+
+import contextlib
 import sys
 
 from os import environ, path
-from pathlib import Path
-from tempfile import TemporaryDirectory, gettempdir
+from tempfile import TemporaryDirectory
 
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
-from filelock import FileLock
+from b2sdk.exception import BucketIdNotFound
 
 from .helpers import Api, CommandLine, bucket_name_part
+
+GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 
 
 @pytest.hookimpl
@@ -50,17 +53,31 @@ def realm() -> str:
 
 @pytest.fixture(scope='function')
 def bucket_name(b2_api) -> str:
-    yield b2_api.create_bucket().name
+    bucket = b2_api.create_bucket()
+    yield bucket.name
+    with contextlib.suppress(BucketIdNotFound):
+        b2_api.clean_bucket(bucket)
+
+
+@pytest.fixture(scope='function')  # , autouse=True)
+def debug_print_buckets(b2_api):
+    print('-' * 30)
+    print('Buckets before test ' + environ['PYTEST_CURRENT_TEST'])
+    num_buckets = b2_api.count_and_print_buckets()
+    print('-' * 30)
+    try:
+        yield
+    finally:
+        print('-' * 30)
+        print('Buckets after test ' + environ['PYTEST_CURRENT_TEST'])
+        delta = b2_api.count_and_print_buckets() - num_buckets
+        print(f'DELTA: {delta}')
+        print('-' * 30)
 
 
 @pytest.fixture(scope='session')
-def general_bucket_name_prefix() -> str:
-    yield 'clitst'
-
-
-@pytest.fixture(scope='session')
-def this_run_bucket_name_prefix(general_bucket_name_prefix) -> str:
-    yield general_bucket_name_prefix + bucket_name_part(8)
+def this_run_bucket_name_prefix() -> str:
+    yield GENERAL_BUCKET_NAME_PREFIX + bucket_name_part(8)
 
 
 @pytest.fixture(scope='module')
@@ -91,43 +108,11 @@ def auto_change_account_info_dir(monkey_patch) -> dir:
 
 
 @pytest.fixture(scope='module')
-def b2_api(
-    application_key_id, application_key, realm, general_bucket_name_prefix,
-    this_run_bucket_name_prefix
-) -> Api:
+def b2_api(application_key_id, application_key, realm, this_run_bucket_name_prefix) -> Api:
     yield Api(
-        application_key_id, application_key, realm, general_bucket_name_prefix,
+        application_key_id, application_key, realm, GENERAL_BUCKET_NAME_PREFIX,
         this_run_bucket_name_prefix
     )
-
-
-@pytest.fixture(scope='module', autouse=True)
-def auto_clean_buckets(b2_api, request, testrun_uid):
-    """ Automatically clean buckets before and after the whole module testing """
-
-    lock_file = Path(gettempdir()) / f'{testrun_uid}.lock'
-
-    # lock file cannot be used to store info - use another file to track # of active workers
-    worker_count_file = Path(gettempdir()) / f'{testrun_uid}.active-workers-count.txt'
-
-    with FileLock(str(lock_file)):
-        if not worker_count_file.is_file():
-            b2_api.clean_buckets()
-            worker_count_file.write_text('1')
-
-        else:
-            worker_count = int(worker_count_file.read_text())
-            worker_count_file.write_text(str(worker_count + 1))
-
-    yield
-
-    if request.config.getoption('--cleanup'):
-        with FileLock(str(lock_file)):
-            worker_count = int(worker_count_file.read_text())
-            worker_count_file.write_text(str(worker_count - 1))
-            if worker_count == 1:
-                b2_api.clean_buckets()
-                worker_count_file.unlink()
 
 
 @pytest.fixture(scope='module')
