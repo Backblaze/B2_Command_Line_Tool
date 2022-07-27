@@ -7,6 +7,8 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+
+import contextlib
 import sys
 
 from os import environ, path
@@ -53,10 +55,8 @@ def realm() -> str:
 def bucket_name(b2_api) -> str:
     bucket = b2_api.create_bucket()
     yield bucket.name
-    try:
+    with contextlib.suppress(BucketIdNotFound):
         b2_api.clean_bucket(bucket)
-    except BucketIdNotFound:
-        pass
 
 
 @pytest.fixture(scope='function')  # , autouse=True)
