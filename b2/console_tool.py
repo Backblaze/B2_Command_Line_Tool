@@ -25,6 +25,7 @@ import re
 import signal
 import sys
 import time
+from abc import ABCMeta, abstractclassmethod
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
@@ -2415,17 +2416,24 @@ class ReplicationSetup(Command):
         parser.add_argument('--name', help='name for the new replication rule on the source side')
         parser.add_argument(
             '--priority',
-            help='priority for the new replication rule on the source side [%d-%d]' % (
+            help=
+            'priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.'
+            % (
                 ReplicationRule.MIN_PRIORITY,
                 ReplicationRule.MAX_PRIORITY,
             ),
             type=int,
-            default=ReplicationRule.DEFAULT_PRIORITY,
+            default=None,
         )
         parser.add_argument(
             '--file-name-prefix',
             metavar='PREFIX',
             help='only replicate files starting with PREFIX'
+        )
+        parser.add_argument(
+            '--include-existing-files',
+            action='store_true',
+            help='if given, also replicates files uploaded prior to creation of the replication rule'
         )
 
     def run(self, args):
@@ -2442,8 +2450,122 @@ class ReplicationSetup(Command):
             name=args.name,
             priority=args.priority,
             prefix=args.file_name_prefix,
+            include_existing_files=args.include_existing_files,
         )
         return 0
+
+
+class ReplicationRuleChanger(Command, metaclass=ABCMeta):
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
+        parser.add_argument('rule_name', metavar='REPLICATION_RULE_NAME')
+
+    def run(self, args):
+        bucket = self.api.get_bucket_by_name(args.source).get_fresh_state()
+        found, altered = self.alter_rule_by_name(bucket, args.rule_name)
+        if not found:
+            print('ERROR: replication rule could not be found!')
+            return 1
+        elif not altered:
+            print('ERROR: replication rule was found, but could not be changed!')
+            return 1
+        return 0
+
+    @classmethod
+    def alter_rule_by_name(cls, bucket: Bucket, name: str) -> Tuple[bool, bool]:
+        """ returns False if rule could not be found """
+        if not bucket.replication or not bucket.replication.rules:
+            return False, False
+
+        found = False
+        altered = False
+
+        new_rules = []
+        for rule in bucket.replication.rules:
+            if rule.name == name:
+                found = True
+                old_dict_form = rule.as_dict()
+                new = cls.alter_one_rule(rule)
+                if new is None:
+                    altered = True
+                    continue
+                if old_dict_form != new.as_dict():
+                    altered = True
+            new_rules.append(rule)
+
+        if altered:
+            new_replication_configuration = ReplicationConfiguration(
+                **{
+                    'rules': new_rules,
+                    'source_key_id': bucket.replication.source_key_id,
+                },
+                **bucket.replication.get_destination_configuration_as_dict(),
+            )
+            bucket.update(
+                if_revision_is=bucket.revision,
+                replication=new_replication_configuration,
+            )
+        return found, altered
+
+    @abstractclassmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete a rule """
+        pass
+
+
+@B2.register_subcommand
+class ReplicationDelete(ReplicationRuleChanger):
+    """
+    Deletes a replication rule
+
+    Requires capabilities:
+
+    - **readReplications**
+    - **writeReplications**
+    """
+
+    @classmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete rule """
+        return None
+
+
+@B2.register_subcommand
+class ReplicationPause(ReplicationRuleChanger):
+    """
+    Pauses a replication rule
+
+    Requires capabilities:
+
+    - **readReplications**
+    - **writeReplications**
+    """
+
+    @classmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete rule """
+        rule.is_enabled = False
+        return rule
+
+
+@B2.register_subcommand
+class ReplicationUnpause(ReplicationRuleChanger):
+    """
+    Unpauses a replication rule
+
+    Requires capabilities:
+
+    - **readReplications**
+    - **writeReplications**
+    """
+
+    @classmethod
+    def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
+        """ return None to delete rule """
+        rule.is_enabled = True
+        return rule
 
 
 @B2.register_subcommand
