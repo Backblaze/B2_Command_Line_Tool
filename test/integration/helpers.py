@@ -393,7 +393,7 @@ class CommandLine:
 
         if expected_pattern is not None:
             assert re.search(expected_pattern, stdout), \
-                f'did not match pattern: {expected_pattern}'
+            f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
 
         return stdout
 
