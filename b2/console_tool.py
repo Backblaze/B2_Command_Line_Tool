@@ -1953,7 +1953,7 @@ class Sync(
 
     .. code-block::
 
-        {NAME} sync --excludeRegex '(.*\.DS_Store)|(.*\.Spotlight-V100)' ... b2://...
+        {NAME} sync --excludeRegex '(.*\\.DS_Store)|(.*\\.Spotlight-V100)' ... b2://...
 
     {DESTINATIONSSEMIXIN}
     {SOURCESSEMIXIN}
