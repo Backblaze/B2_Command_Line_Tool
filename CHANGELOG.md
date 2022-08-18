@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Fix `replication-setup` default priority setter
 
+### Infrastructure
+* Fix warnings in tests
+
 ## [3.5.0] - 2022-07-27
 
 As in 3.4.0, replication support may be unstable, however no backward-incompatible

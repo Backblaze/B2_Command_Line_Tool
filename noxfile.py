@@ -66,13 +66,15 @@ def install_myself(session, extras=None):
     # In CI, install B2 SDK from the master branch
 
     if CI and not CD and not INSTALL_SDK_FROM:
-        session.install('git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk')
+        session.run(
+            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk'
+        )
 
     arg = '.'
     if extras:
         arg += '[%s]' % ','.join(extras)
 
-    session.install('-e', arg)
+    session.run('pip', 'install', '-e', arg)
 
     if INSTALL_SDK_FROM:
         cwd = os.getcwd()
@@ -85,7 +87,7 @@ def install_myself(session, extras=None):
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
 def format_(session):
     """Format the code."""
-    session.install(*REQUIREMENTS_FORMAT)
+    session.run('pip', 'install', *REQUIREMENTS_FORMAT)
     # TODO: incremental mode for yapf
     session.run('yapf', '--in-place', '--parallel', '--recursive', *PY_PATHS)
     # TODO: uncomment if we want to use isort and docformatter
@@ -104,7 +106,7 @@ def format_(session):
 def lint(session):
     """Run linters."""
     install_myself(session)
-    session.install(*REQUIREMENTS_LINT)
+    session.run('pip', 'install', *REQUIREMENTS_LINT)
     session.run('yapf', '--diff', '--parallel', '--recursive', *PY_PATHS)
     # TODO: uncomment if we want to use isort and docformatter
     # session.run('isort', '--check', *PY_PATHS)
@@ -135,7 +137,7 @@ def lint(session):
 def unit(session):
     """Run unit tests."""
     install_myself(session)
-    session.install(*REQUIREMENTS_TEST)
+    session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run(
         'pytest',
         '-n',
@@ -155,9 +157,12 @@ def unit(session):
 def integration(session):
     """Run integration tests."""
     install_myself(session)
-    session.install(*REQUIREMENTS_TEST)
+    session.run('pip', 'install', *REQUIREMENTS_TEST)
     #session.run('pytest', '-s', '-x', '-v', '-n', '4', *session.posargs, 'test/integration')
-    session.run('pytest', '-s', '-x', '-v', *session.posargs, 'test/integration')
+    session.run(
+        'pytest', '-s', '-x', '-v', '-W', 'ignore::DeprecationWarning:rst2ansi.visitor:',
+        *session.posargs, 'test/integration'
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -175,14 +180,14 @@ def test(session):
 def cleanup_buckets(session):
     """Remove buckets from previous test runs."""
     install_myself(session)
-    session.install(*REQUIREMENTS_TEST)
+    session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run('pytest', '-s', '-x', *session.posargs, 'test/integration/cleanup_buckets.py')
 
 
 @nox.session
 def cover(session):
     """Perform coverage analysis."""
-    session.install('coverage')
+    session.run('pip', 'install', 'coverage')
     session.run('coverage', 'report', '--fail-under=75', '--show-missing', '--skip-covered')
     session.run('coverage', 'erase')
 
@@ -191,7 +196,7 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
-    session.install(*REQUIREMENTS_BUILD)
+    session.run('pip', 'install', *REQUIREMENTS_BUILD)
     session.run('python', 'setup.py', 'check', '--metadata', '--strict')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     session.run('python', 'setup.py', 'sdist', *session.posargs)
@@ -208,7 +213,7 @@ def build(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session):
     """Bundle the distribution."""
-    session.install(*REQUIREMENTS_BUNDLE)
+    session.run('pip', 'install', *REQUIREMENTS_BUNDLE)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     install_myself(session)
 
