@@ -10,13 +10,14 @@
 
 import json
 import os
-import tempfile
 
-import pytest
 import re
 import unittest.mock as mock
 from io import StringIO
 from typing import Optional
+from itertools import product, chain
+
+from more_itertools import one
 
 from b2sdk import v1
 
@@ -2214,7 +2215,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
     def test_passing_api_parameters(self):
-        for command in [
+        commands = [
             [
                 'b2', 'download-file-by-name', '--profile', 'nonexistent', 'dummy-name',
                 'dummy-file-name', 'dummy-local-file-name'
@@ -2224,17 +2225,37 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'dummy-local-file-name'
             ],
             ['b2', 'sync', '--profile', 'nonexistent', 'b2:dummy-source', 'dummy-destination'],
-        ]:
+        ]
+        parameters = [
+            {
+                '--write-buffer-size': 123,
+                '--skip-hash-verification': None,
+                '--max-download-streams-per-file': 8,
+            },
+            {
+                '--write-buffer-size': 321,
+                '--max-download-streams-per-file': 7,
+            },
+        ]
+        for command, params in product(commands, parameters):
             console_tool = ConsoleTool(
                 None,  # do not initialize b2 api to allow passing in additional parameters
                 mock.MagicMock(),
                 mock.MagicMock(),
             )
-            console_tool.run_command(
-                command + ['--write-buffer-size', '123', '--skip-hash-verification']
+
+            args = list(map(str, filter(None, chain.from_iterable(params.items()))))
+            console_tool.run_command(command + args)
+
+            download_manager = console_tool.api.services.download_manager
+            assert download_manager.write_buffer_size == params['--write-buffer-size']
+            assert download_manager.check_hash is ('--skip-hash-verification' not in params)
+
+            parallel_strategy = one(
+                strategy for strategy in download_manager.strategies
+                if isinstance(strategy, download_manager.PARALLEL_DOWNLOADER_CLASS)
             )
-            assert console_tool.api.services.download_manager.write_buffer_size == 123
-            assert console_tool.api.services.download_manager.check_hash is False
+            assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
 
 
 @mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
