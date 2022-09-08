@@ -2009,6 +2009,12 @@ def test_replication_basic(b2_api, b2_tool, bucket_name):
     # test that source bucket is not mentioned as replication destination
     assert source_bucket['replication'].get('asReplicationDestination') is None
 
+    # ---------------- attempt enabling object lock  ----------------
+    b2_tool.should_fail(
+        ['update-bucket', source_bucket_name, '--fileLockEnabled'],
+        'ERROR: Operation not supported for buckets with source replication'
+    )
+
     # ---------------- remove replication source ----------------
 
     no_replication_configuration = {
@@ -2343,6 +2349,62 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     ]
 
     b2_api.clean_bucket(source_bucket_name)
+
+
+def test_enable_file_lock_first_retention_second(b2_tool, b2_api, bucket_name):
+    # enable file lock only
+    b2_tool.should_succeed(['update-bucket', bucket_name, '--fileLockEnabled'])
+
+    # set retention with file lock already enabled
+    b2_tool.should_succeed(
+        [
+            'update-bucket', bucket_name, '--defaultRetentionMode', 'compliance',
+            '--defaultRetentionPeriod', '7 days'
+        ]
+    )
+
+    # attempt to re-enable should be a noop
+    b2_tool.should_succeed(['update-bucket', bucket_name, '--fileLockEnabled'])
+
+    b2_api.clean_bucket(bucket_name)
+
+
+def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name):
+    # attempt setting retention without file lock enabled
+    b2_tool.should_fail(
+        [
+            'update-bucket', bucket_name, '--defaultRetentionMode', 'compliance',
+            '--defaultRetentionPeriod', '7 days'
+        ], 'ERROR: The bucket is not file lock enabled (bucket_missing_file_lock)'
+    )
+
+    # enable file lock and set retention at once
+    b2_tool.should_succeed(
+        [
+            'update-bucket', bucket_name, '--defaultRetentionMode', 'compliance',
+            '--defaultRetentionPeriod', '7 days', '--fileLockEnabled'
+        ]
+    )
+
+    # attempt to re-enable should be a noop
+    b2_tool.should_succeed(['update-bucket', bucket_name, '--fileLockEnabled'])
+
+    b2_api.clean_bucket(bucket_name)
+
+
+def test_attempt_enabling_file_lock_on_restricted_bucket(b2_tool, b2_api, bucket_name):
+    key_name = 'clt-testKey-01' + random_hex(6)
+    key_id, key = b2_tool.should_succeed(['create-key', key_name, 'readBuckets,writeKeys']).split()
+
+    b2_tool.should_succeed(['authorize-account', '--environment', b2_tool.realm, key_id, key])
+
+    b2_tool.should_fail(
+        ['update-bucket', bucket_name, '--fileLockEnabled'],
+        f'ERROR: Application key is restricted to bucket: {bucket_name}'
+    )
+
+    b2_api.clean_bucket(bucket_name)
+    b2_tool.should_succeed(['delete-key', key_id])
 
 
 def _assert_file_lock_configuration(

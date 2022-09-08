@@ -2152,6 +2152,10 @@ class UpdateBucket(DefaultSseMixin, Command):
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
+    This command can be used to set the bucket's ``fileLockEnabled`` flag to ``true`` using the ``--fileLockEnabled``
+    option.  This can only be done if the bucket is not set up as a replication source.  Once ``fileLockEnabled`` is
+    set, it can't be reverted back to ``false``.
+
     Requires capability:
 
     - **writeBuckets**
@@ -2183,6 +2187,13 @@ class UpdateBucket(DefaultSseMixin, Command):
             metavar='period',
         )
         parser.add_argument('--replication', type=json.loads)
+        parser.add_argument(
+            '--fileLockEnabled',
+            action='store_true',
+            default=None,
+            help=
+            "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed back."
+        )
         parser.add_argument('bucketName')
         parser.add_argument('bucketType', nargs='?')
 
@@ -2212,6 +2223,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
             replication=replication,
+            is_file_lock_enabled=args.fileLockEnabled,
         )
         self._print_json(bucket)
         return 0
