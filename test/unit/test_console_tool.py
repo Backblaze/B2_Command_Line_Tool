@@ -637,14 +637,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         expected_list_keys_out = """
             appKeyId0   goodKeyName-One
             appKeyId1   goodKeyName-Two
-            appKeyId2   goodKeyName-Three
             appKeyId3   goodKeyName-Four
             """
 
         expected_list_keys_out_long = """
             appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
             appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
-            appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
             appKeyId3   goodKeyName-Four       -                      -            -          ''   %s
             """ % (','.join(ALL_CAPABILITIES),)
 

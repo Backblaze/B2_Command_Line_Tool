@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 * Fix warnings in tests
+* Fix `test_keys` unit test after changes in b2sdk
 
 ## [3.5.0] - 2022-07-27
 
