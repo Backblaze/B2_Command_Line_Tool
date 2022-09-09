@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+import argparse
+import contextlib
 import json
 import os
 import platform
@@ -29,18 +31,16 @@ from typing import List, Optional, Union
 import backoff
 
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
-from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
+from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, BucketTrackingMixin, SqliteAccountInfo, fix_windows_path_limit
 from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent, TooManyRequests
 
 from b2.console_tool import Command, current_time_millis
 
-BUCKET_CLEANUP_PERIOD_MILLIS = 0
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
 BUCKET_NAME_LENGTH = 50
 BUCKET_NAME_CHARS = string.ascii_letters + string.digits + '-'
-BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
@@ -58,77 +58,34 @@ SSE_C_AES_2 = EncryptionSetting(
     key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
 )
 
+BUCKET_NAME_PREFIX = 'clitst'
+BUCKET_NAME_PREFIX_OLD = 'test-b2-cli-'
 
-def bucket_name_part(length: int) -> str:
-    return ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(length))
+
+def generate_bucket_name():
+    suffix_length = BUCKET_NAME_LENGTH - len(BUCKET_NAME_PREFIX)
+    suffix = ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(suffix_length))
+    return BUCKET_NAME_PREFIX + suffix
 
 
-@dataclass
-class Api:
-    account_id: str
-    application_key: str
-    realm: str
-    general_bucket_name_prefix: str
-    this_run_bucket_name_prefix: str
-
-    api: B2Api = None
-
-    def __post_init__(self):
+class Api(BucketTrackingMixin, B2Api):
+    def __init__(self, account_id, application_key, realm):
         info = InMemoryAccountInfo()
         cache = InMemoryCache()
-        self.api = B2Api(info, cache=cache)
-        self.api.authorize_account(self.realm, self.account_id, self.application_key)
+        super().__init__(info, cache=cache)
+        self.authorize_account(realm, account_id, application_key)
 
-    def create_bucket(self) -> Bucket:
+    def create_test_bucket(self, bucket_type="allPublic", **kwargs) -> Bucket:
         for _ in range(10):
-            bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
-                BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
-            )
+            bucket_name = generate_bucket_name()
             print('Creating bucket:', bucket_name)
             try:
-                return self.api.create_bucket(
-                    bucket_name,
-                    'allPublic',
-                    bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
-                )
+                return self.create_bucket(bucket_name, bucket_type, **kwargs)
             except DuplicateBucketName:
                 pass
             print()
 
         raise ValueError('Failed to create bucket due to name collision')
-
-    def _should_remove_bucket(self, bucket: Bucket):
-        if bucket.name.startswith(self.this_run_bucket_name_prefix):
-            return True, 'it is a bucket for this very run'
-        OLD_PATTERN = 'test-b2-cli-'
-        if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
-            if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
-                delete_older_than = current_time_millis() - BUCKET_CLEANUP_PERIOD_MILLIS
-                this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
-                if int(this_bucket_creation_time) < delete_older_than:
-                    return True, f"this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}"
-            else:
-                return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
-        return False, ''
-
-    def clean_buckets(self):
-        buckets = self.api.list_buckets()
-        print('Total bucket count:', len(buckets))
-        for bucket in buckets:
-            should_remove, why = self._should_remove_bucket(bucket)
-            if not should_remove:
-                print(f'Skipping bucket removal: "{bucket.name}"')
-                continue
-
-            print('Trying to remove bucket:', bucket.name, 'because', why)
-            try:
-                self.clean_bucket(bucket)
-            except (BucketIdNotFound, v3BucketIdNotFound):
-                print('It seems that bucket %s has already been removed' % (bucket.name,))
-        buckets = self.api.list_buckets()
-        print('Total bucket count after cleanup:', len(buckets))
-        for bucket in buckets:
-            print(bucket)
 
     @backoff.on_exception(
         backoff.expo,
@@ -137,7 +94,7 @@ class Api:
     )
     def clean_bucket(self, bucket: Union[Bucket, str]):
         if isinstance(bucket, str):
-            bucket = self.api.get_bucket_by_name(bucket)
+            bucket = self.get_bucket_by_name(bucket)
 
         files_leftover = False
         file_versions = bucket.ls(latest_only=False, recursive=True)
@@ -146,7 +103,7 @@ class Api:
             if file_version_info.file_retention:
                 if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
                     print('Removing retention from file version:', file_version_info.id_)
-                    self.api.update_file_retention(
+                    self.update_file_retention(
                         file_version_info.id_, file_version_info.file_name,
                         NO_RETENTION_FILE_SETTING, True
                     )
@@ -166,12 +123,12 @@ class Api:
                     )
             if file_version_info.legal_hold.is_on():
                 print('Removing legal hold from file version:', file_version_info.id_)
-                self.api.update_file_legal_hold(
+                self.update_file_legal_hold(
                     file_version_info.id_, file_version_info.file_name, LegalHold.OFF
                 )
             print('Removing file version:', file_version_info.id_)
             try:
-                self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
+                self.delete_file_version(file_version_info.id_, file_version_info.file_name)
             except FileNotPresent:
                 print(
                     'It seems that file version %s has already been removed' %
@@ -183,13 +140,40 @@ class Api:
         else:
             print('Removing bucket:', bucket.name)
             try:
-                self.api.delete_bucket(bucket)
+                self.delete_bucket(bucket)
             except BucketIdNotFound:
                 print('It seems that bucket %s has already been removed' % (bucket.name,))
         print()
 
+    def clean_buckets(self):
+        for bucket in self.buckets:
+            with contextlib.suppress(BucketIdNotFound, v3BucketIdNotFound):
+                self.clean_bucket(bucket)
+        self.buckets = []
+
+    def clean_all_buckets(self):
+
+        buckets = self.list_buckets()
+        print(f'Total bucket count: {len(buckets)}')
+
+        for bucket in buckets:
+            if not bucket.name.startswith((BUCKET_NAME_PREFIX, BUCKET_NAME_PREFIX_OLD)):
+                print(f'Skipping bucket removal: "{bucket.name}"')
+                continue
+
+            print(f'Removing bucket: "{bucket.name}"')
+            try:
+                self.clean_bucket(bucket)
+            except (BucketIdNotFound, v3BucketIdNotFound):
+                print(f'It seems that bucket "{bucket.name}" has already been removed')
+
+        buckets = self.list_buckets()
+        print(f'Total bucket count after cleanup: {len(buckets)}')
+        for bucket in buckets:
+            print(bucket)
+
     def count_and_print_buckets(self) -> int:
-        buckets = self.api.list_buckets()
+        buckets = self.list_buckets()
         count = len(buckets)
         print(f'Total bucket count at {datetime.now()}: {count}')
         for i, bucket in enumerate(buckets, start=1):
@@ -264,7 +248,6 @@ def run_command(
     environ['PYTHONPATH'] = '.'
     environ['PYTHONIOENCODING'] = 'utf-8'
     command = cmd.split(' ')
-    args = [str(arg) for arg in args]
     command.extend(args or [])
 
     print('Running:', ' '.join(command))
@@ -334,6 +317,11 @@ def should_equal(expected, actual):
     print()
 
 
+class ThrowingArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise ValueError
+
+
 class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
@@ -350,27 +338,37 @@ class CommandLine:
         re.compile(r'Trying to print: .*'),
     ]
 
-    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
+    def __init__(self, command, account_id, application_key, realm):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
         self.realm = realm
-        self.bucket_name_prefix = bucket_name_prefix
         self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.account_info_file_name = SqliteAccountInfo().filename
-
-    def generate_bucket_name(self):
-        return self.bucket_name_prefix + bucket_name_part(
-            BUCKET_NAME_LENGTH - len(self.bucket_name_prefix)
-        )
+        self.buckets = set()
 
     def run_command(self, args, additional_env: Optional[dict] = None):
-        """
-        Runs the command with the given arguments, returns a tuple in form of
-        (succeeded, stdout)
-        """
+        args = [str(arg) for arg in args]
+
         status, stdout, stderr = run_command(self.command, args, additional_env)
-        return status == 0 and stderr == '', stdout
+
+        # intercept bucket creation and deletion
+        if status == 0:
+            # a simple look at the first two elements in args is not
+            parser = ThrowingArgumentParser()
+            parser.add_argument('subcommand')
+            parser.add_argument('name_or_id')
+            try:
+                parsed_args, _ = parser.parse_known_args(args)
+            except ValueError:
+                pass
+            else:
+                if parsed_args.subcommand == 'create-bucket':
+                    self.buckets.add(parsed_args.name_or_id)
+                elif parsed_args.subcommand == 'delete-bucket':
+                    self.buckets.discard(parsed_args.name_or_id)
+
+        return status, stdout, stderr
 
     def should_succeed(
         self,
@@ -383,7 +381,7 @@ class CommandLine:
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = self.run_command(args, additional_env)
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':
@@ -410,7 +408,7 @@ class CommandLine:
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = self.run_command(args, additional_env)
         assert status != 0, 'ERROR: should have failed'
 
         assert re.search(expected_pattern, stdout + stderr), \
