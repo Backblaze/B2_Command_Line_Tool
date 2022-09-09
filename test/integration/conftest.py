@@ -17,11 +17,9 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
-from b2sdk.exception import BucketIdNotFound
+from b2sdk.exception import BucketIdNotFound, NonExistentBucket
 
-from .helpers import Api, CommandLine, bucket_name_part
-
-GENERAL_BUCKET_NAME_PREFIX = 'clitst'
+from .helpers import Api, CommandLine
 
 
 @pytest.hookimpl
@@ -52,32 +50,16 @@ def realm() -> str:
 
 
 @pytest.fixture(scope='function')
-def bucket_name(b2_api) -> str:
-    bucket = b2_api.create_bucket()
-    yield bucket.name
-    with contextlib.suppress(BucketIdNotFound):
-        b2_api.clean_bucket(bucket)
+def create_test_bucket(b2_api):
+    def factory(*args, **kwargs):
+        return b2_api.create_test_bucket(*args, **kwargs).name
+
+    return factory
 
 
-@pytest.fixture(scope='function')  # , autouse=True)
-def debug_print_buckets(b2_api):
-    print('-' * 30)
-    print('Buckets before test ' + environ['PYTEST_CURRENT_TEST'])
-    num_buckets = b2_api.count_and_print_buckets()
-    print('-' * 30)
-    try:
-        yield
-    finally:
-        print('-' * 30)
-        print('Buckets after test ' + environ['PYTEST_CURRENT_TEST'])
-        delta = b2_api.count_and_print_buckets() - num_buckets
-        print(f'DELTA: {delta}')
-        print('-' * 30)
-
-
-@pytest.fixture(scope='session')
-def this_run_bucket_name_prefix() -> str:
-    yield GENERAL_BUCKET_NAME_PREFIX + bucket_name_part(8)
+@pytest.fixture(scope='function')
+def bucket_name(create_test_bucket) -> str:
+    return create_test_bucket()
 
 
 @pytest.fixture(scope='module')
@@ -108,23 +90,14 @@ def auto_change_account_info_dir(monkey_patch) -> dir:
 
 
 @pytest.fixture(scope='module')
-def b2_api(application_key_id, application_key, realm, this_run_bucket_name_prefix) -> Api:
-    yield Api(
-        application_key_id, application_key, realm, GENERAL_BUCKET_NAME_PREFIX,
-        this_run_bucket_name_prefix
-    )
+def b2_api(application_key_id, application_key, realm) -> Api:
+    return Api(application_key_id, application_key, realm)
 
 
 @pytest.fixture(scope='module')
-def b2_tool(
-    request, application_key_id, application_key, realm, this_run_bucket_name_prefix
-) -> CommandLine:
+def b2_tool(request, application_key_id, application_key, realm) -> CommandLine:
     tool = CommandLine(
-        request.config.getoption('--sut'),
-        application_key_id,
-        application_key,
-        realm,
-        this_run_bucket_name_prefix,
+        request.config.getoption('--sut'), application_key_id, application_key, realm
     )
     tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
     return tool
@@ -134,3 +107,19 @@ def b2_tool(
 def auto_reauthorize(request, b2_tool):
     """ Automatically reauthorize for each test (without check) """
     b2_tool.reauthorize(check_key_capabilities=False)
+
+
+@pytest.fixture(scope='function', autouse=True)
+def auto_clean_buckets(b2_api, b2_tool):
+    """Automatically delete created buckets after each test case"""
+    yield
+
+    # remove buckets created using the CLI
+    while b2_tool.buckets:
+        with contextlib.suppress(BucketIdNotFound, NonExistentBucket):
+            # The buckets were created with the CLI tool, but we still delete them using the API as it will handle
+            # corner cases properly (like retries or deleting non-empty buckets).
+            b2_api.clean_bucket(b2_tool.buckets.pop())
+
+    # remove buckets created using the API
+    b2_api.clean_buckets()

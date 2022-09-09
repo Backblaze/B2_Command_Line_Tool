@@ -18,7 +18,7 @@ import os.path
 import re
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import pytest
 
@@ -26,11 +26,7 @@ from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, U
 
 from b2.console_tool import current_time_millis
 
-from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, write_file
-
-
-def get_bucketinfo() -> Tuple[str, str]:
-    return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
+from .helpers import ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, generate_bucket_name, random_hex, read_file, set_file_mod_time_millis, should_equal, write_file
 
 
 def test_download(b2_tool, bucket_name):
@@ -160,25 +156,20 @@ def test_basic(b2_tool, bucket_name):
             file_to_upload,
         ),
     )  # \r? is for Windows, as $ doesn't match \r\n
-    to_be_removed_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            to_be_removed_bucket_name,
-            'allPublic',
-            *get_bucketinfo(),
-        ],
-    )
-    b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
-    b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name],
-        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
-    )
+
+    to_be_removed_bucket_name = generate_bucket_name()
+    assert b2_tool.create_bucket(to_be_removed_bucket_name, 'allPublic').success
+    assert b2_tool.delete_bucket(to_be_removed_bucket_name).success
+
+    result = b2_tool.delete_bucket(to_be_removed_bucket_name)
+    assert result.failure
+    assert re.search(r'^ERROR: Bucket with id=\w* not found\s*$', result.output)
+
     # Check logging settings
-    b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name, '--debugLogs'],
-        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
-    )
+    result = b2_tool.delete_bucket(to_be_removed_bucket_name, '--debugLogs')
+    assert result.failure
+    assert re.search(r'^ERROR: Bucket with id=\w* not found\s*$', result.output)
+
     stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
 
     # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
@@ -198,12 +189,14 @@ def test_basic(b2_tool, bucket_name):
         assert re.search(log_file_regex, log), log
     os.remove('b2_cli.log')
 
-    b2_tool.should_fail(['delete-bucket', to_be_removed_bucket_name, '--verbose'], stderr_regex)
+    result = b2_tool.delete_bucket(to_be_removed_bucket_name, '--verbose')
+    assert result.failure
+    assert re.search(stderr_regex, result.output)
     assert not os.path.exists('b2_cli.log')
 
-    b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stderr_regex
-    )
+    result = b2_tool.delete_bucket(to_be_removed_bucket_name, '--verbose', '--debugLogs')
+    assert result.failure
+    assert re.search(stderr_regex, result.output)
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
         assert re.search(log_file_regex, log), log
@@ -216,7 +209,7 @@ def test_bucket(b2_tool, bucket_name):
         "fileNamePrefix": ""
     }]"""
     output = b2_tool.should_succeed_json(
-        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *get_bucketinfo()],
+        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic'],
     )
     assert output["lifecycleRules"] == [
         {
@@ -227,10 +220,9 @@ def test_bucket(b2_tool, bucket_name):
     ]
 
 
-def test_key_restrictions(b2_api, b2_tool, bucket_name):
-
-    second_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
+def test_key_restrictions(b2_tool, create_test_bucket):
+    first_bucket_name = create_test_bucket()
+    second_bucket_name = create_test_bucket()
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -246,7 +238,7 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
         ['authorize-account', '--environment', b2_tool.realm, key_one_id, key_one],
     )
 
-    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['get-bucket', first_bucket_name],)
     b2_tool.should_succeed(['get-bucket', second_bucket_name],)
 
     key_two_name = 'clt-testKey-02' + random_hex(6)
@@ -254,7 +246,7 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
         [
             'create-key',
             '--bucket',
-            bucket_name,
+            first_bucket_name,
             key_two_name,
             'listFiles,listBuckets,readFiles',
         ]
@@ -264,13 +256,13 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
     b2_tool.should_succeed(
         ['authorize-account', '--environment', b2_tool.realm, key_two_id, key_two],
     )
-    b2_tool.should_succeed(['get-bucket', bucket_name],)
-    b2_tool.should_succeed(['ls', bucket_name],)
+    b2_tool.should_succeed(['get-bucket', first_bucket_name],)
+    b2_tool.should_succeed(['ls', first_bucket_name],)
 
-    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + first_bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
 
-    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + first_bucket_name
     b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
@@ -280,19 +272,20 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
             b2_tool.application_key
         ]
     )
-    b2_api.clean_bucket(second_bucket_name)
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
 
 
-def test_account(b2_tool, bucket_name):
+def test_account(b2_tool, create_test_bucket):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
-    new_bucket_name = b2_tool.generate_bucket_name()
+    bucket_name = create_test_bucket()
+    assert b2_tool.delete_bucket(bucket_name).success
+    new_bucket_name = generate_bucket_name()
+
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *get_bucketinfo()])
+    assert b2_tool.create_bucket(new_bucket_name, 'allPrivate').success
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
-    b2_tool.should_succeed(['delete-bucket', new_bucket_name])
+    assert b2_tool.delete_bucket(new_bucket_name).success
 
     with b2_tool.env_var_test_context:
         b2_tool.should_succeed(['clear-account'])
@@ -316,13 +309,15 @@ def test_account(b2_tool, bucket_name):
 
         # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
         # successfully removed
-        bucket_name = b2_tool.generate_bucket_name()
-        b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+        bucket_name = generate_bucket_name()
+        result = b2_tool.create_bucket(bucket_name, 'allPrivate')
+        assert result.failure
+        assert re.search(
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
             r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
-            r'"B2_APPLICATION_KEY" environment variables'
+            r'"B2_APPLICATION_KEY" environment variables', result.output
         )
+
         os.remove(new_creds)
 
         # then, let's see that auth data from env vars works
@@ -330,9 +325,9 @@ def test_account(b2_tool, bucket_name):
         os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
         os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
-        bucket_name = b2_tool.generate_bucket_name()
-        b2_tool.should_succeed(['create-bucket', bucket_name, 'allPrivate', *get_bucketinfo()])
-        b2_tool.should_succeed(['delete-bucket', bucket_name])
+        bucket_name = generate_bucket_name()
+        assert b2_tool.create_bucket(bucket_name, 'allPrivate').success
+        assert b2_tool.delete_bucket(bucket_name).success
         assert os.path.exists(new_creds), 'sqlite file not created'
 
         os.environ.pop('B2_APPLICATION_KEY')
@@ -340,16 +335,22 @@ def test_account(b2_tool, bucket_name):
 
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
-        b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
-            r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+        result = b2_tool.create_bucket(bucket_name, 'allPrivate')
+        assert result.failure
+        assert re.search(
+            'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them',
+            result.output
         )
+
         os.environ.pop('B2_APPLICATION_KEY')
 
         os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
-        b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
-            r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
+
+        result = b2_tool.create_bucket(bucket_name, 'allPrivate')
+        assert result.failure
+        assert re.search(
+            'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them',
+            result.output
         )
         os.environ.pop('B2_APPLICATION_KEY_ID')
 
@@ -415,23 +416,15 @@ def encryption_summary(sse_dict, file_info):
     return encryption
 
 
-def test_sync_up(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, 'sync')
-
-
-def test_sync_up_sse_b2(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_B2_AES)
-
-
-def test_sync_up_sse_c(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_C_AES)
-
-
-def test_sync_up_no_prefix(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, '')
-
-
-def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
+@pytest.mark.parametrize(
+    "dir_,encryption", [
+        ('sync', None),
+        ('sync', SSE_B2_AES),
+        ('sync', SSE_C_AES),
+        ('', None),
+    ]
+)
+def test_sync_up(b2_tool, bucket_name, dir_, encryption):
     sync_point_parts = [bucket_name]
     if dir_:
         sync_point_parts.append(dir_)
@@ -670,19 +663,14 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         )
 
 
-def test_sync_down(b2_tool, bucket_name):
-    sync_down_helper(b2_tool, bucket_name, 'sync')
-
-
-def test_sync_down_no_prefix(b2_tool, bucket_name):
-    sync_down_helper(b2_tool, bucket_name, '')
-
-
-def test_sync_down_sse_c_no_prefix(b2_tool, bucket_name):
-    sync_down_helper(b2_tool, bucket_name, '', SSE_C_AES)
-
-
-def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
+@pytest.mark.parametrize(
+    'folder_in_bucket,encryption', [
+        ('sync', None),
+        ('', None),
+        ('', SSE_C_AES),
+    ]
+)
+def test_sync_down(b2_tool, bucket_name, folder_in_bucket, encryption):
 
     file_to_upload = 'README.md'
 
@@ -772,50 +760,6 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             )
 
 
-def test_sync_copy(b2_api, b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(b2_api, b2_tool, bucket_name, 'sync')
-
-
-def test_sync_copy_no_prefix_default_encryption(b2_api, b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(
-        b2_api, b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
-    )
-
-
-def test_sync_copy_no_prefix_no_encryption(b2_api, b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(
-        b2_api,
-        b2_tool,
-        bucket_name,
-        '',
-        destination_encryption=SSE_NONE,
-        expected_encryption=SSE_NONE
-    )
-
-
-def test_sync_copy_no_prefix_sse_b2(b2_api, b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(
-        b2_api,
-        b2_tool,
-        bucket_name,
-        '',
-        destination_encryption=SSE_B2_AES,
-        expected_encryption=SSE_B2_AES,
-    )
-
-
-def test_sync_copy_no_prefix_sse_c(b2_api, b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(
-        b2_api,
-        b2_tool,
-        bucket_name,
-        '',
-        destination_encryption=SSE_C_AES,
-        expected_encryption=SSE_C_AES,
-        source_encryption=SSE_C_AES_2,
-    )
-
-
 def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
     run_sync_copy_with_basic_checks(
         b2_tool=b2_tool,
@@ -847,26 +791,32 @@ def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
     )
 
 
-def prepare_and_run_sync_copy_tests(
-    b2_api,
+@pytest.mark.parametrize(
+    "folder_in_bucket,destination_encryption,expected_encryption,source_encryption", [
+        ('sync', None, SSE_NONE, None),
+        ('', None, SSE_NONE, None),
+        ('', SSE_NONE, SSE_NONE, None),
+        ('', SSE_B2_AES, SSE_B2_AES, None),
+        ('', SSE_C_AES, SSE_C_AES, SSE_C_AES_2),
+    ]
+)
+def test_sync_copy(
     b2_tool,
-    bucket_name,
+    create_test_bucket,
     folder_in_bucket,
-    destination_encryption=None,
-    expected_encryption=SSE_NONE,
-    source_encryption=None,
+    destination_encryption,
+    expected_encryption,
+    source_encryption,
 ):
+    bucket_name = create_test_bucket()
+    other_bucket_name = create_test_bucket()
+
     b2_sync_point = 'b2:%s' % bucket_name
     if folder_in_bucket:
         b2_sync_point += '/' + folder_in_bucket
         b2_file_prefix = folder_in_bucket + '/'
     else:
         b2_file_prefix = ''
-
-    other_bucket_name = b2_tool.generate_bucket_name()
-    success, _ = b2_tool.run_command(
-        ['create-bucket', other_bucket_name, 'allPublic', *get_bucketinfo()]
-    )
 
     other_b2_sync_point = 'b2:%s' % other_bucket_name
     if folder_in_bucket:
@@ -900,8 +850,6 @@ def prepare_and_run_sync_copy_tests(
         ],
         file_version_summary_with_encryption(file_versions),
     )
-
-    b2_api.clean_bucket(other_bucket_name)
 
 
 def run_sync_copy_with_basic_checks(
@@ -1020,7 +968,7 @@ def test_sync_long_path(b2_tool, bucket_name):
         should_equal(['+ ' + long_path], file_version_summary(file_versions))
 
 
-def test_default_sse_b2(b2_api, b2_tool, bucket_name):
+def test_default_sse_b2(b2_tool, bucket_name):
     # Set default encryption via update-bucket
     bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
     bucket_default_sse = {'mode': 'none'}
@@ -1043,23 +991,16 @@ def test_default_sse_b2(b2_api, b2_tool, bucket_name):
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     # Set default encryption via create-bucket
-    second_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            '--defaultServerSideEncryption=SSE-B2',
-            second_bucket_name,
-            'allPublic',
-            *get_bucketinfo(),
-        ]
-    )
+    second_bucket_name = generate_bucket_name()
+    assert b2_tool.create_bucket(
+        second_bucket_name, '--defaultServerSideEncryption=SSE-B2', 'allPublic'
+    ).success
     second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
     second_bucket_default_sse = {
         'algorithm': 'AES256',
         'mode': 'SSE-B2',
     }
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
-    b2_api.clean_bucket(second_bucket_name)
 
 
 def test_sse_b2(b2_tool, bucket_name):
@@ -1428,16 +1369,8 @@ def test_sse_c(b2_tool, bucket_name):
     )
 
 
-def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
-    lock_disabled_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            lock_disabled_bucket_name,
-            'allPrivate',
-            *get_bucketinfo(),
-        ],
-    )
+def test_file_lock(b2_tool, create_test_bucket):
+    lock_disabled_bucket_name = create_test_bucket("allPrivate")
 
     file_to_upload = 'README.md'
     now_millis = current_time_millis()
@@ -1482,16 +1415,11 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
             'compliance', '--defaultRetentionPeriod', '7 days'
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
-    lock_enabled_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            lock_enabled_bucket_name,
-            'allPrivate',
-            '--fileLockEnabled',
-            *get_bucketinfo(),
-        ],
-    )
+    lock_enabled_bucket_name = generate_bucket_name()
+    assert b2_tool.create_bucket(
+        lock_enabled_bucket_name, 'allPrivate', '--fileLockEnabled'
+    ).success
+
     updated_bucket = b2_tool.should_succeed_json(
         [
             'update-bucket',
@@ -1699,18 +1627,6 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
         not_lockable_file['fileId']
     )
 
-    # ---- perform test cleanup ----
-    b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
-    )
-    # b2_tool.reauthorize(check_key_capabilities=False)
-    buckets = [
-        bucket for bucket in b2_api.api.list_buckets()
-        if bucket.name in {lock_enabled_bucket_name, lock_disabled_bucket_name}
-    ]
-    for bucket in buckets:
-        b2_api.clean_bucket(bucket)
-
 
 def file_lock_without_perms_test(
     b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
@@ -1905,7 +1821,7 @@ def test_profile_switch(b2_tool):
         os.environ[B2_ACCOUNT_INFO_ENV_VAR] = B2_ACCOUNT_INFO
 
 
-def test_replication_basic(b2_api, b2_tool, bucket_name):
+def test_replication_basic(b2_tool, bucket_name):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
@@ -1988,17 +1904,13 @@ def test_replication_basic(b2_api, b2_tool, bucket_name):
     source_replication_configuration_json = json.dumps(source_replication_configuration)
 
     # create a source bucket and set up replication to destination bucket
-    source_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            source_bucket_name,
-            'allPublic',
-            '--replication',
-            source_replication_configuration_json,
-            *get_bucketinfo(),
-        ]
-    )
+    source_bucket_name = generate_bucket_name()
+    assert b2_tool.create_bucket(
+        source_bucket_name,
+        'allPublic',
+        '--replication',
+        source_replication_configuration_json,
+    ).success
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
@@ -2054,21 +1966,12 @@ def test_replication_basic(b2_api, b2_tool, bucket_name):
 
     b2_tool.should_succeed(['delete-key', key_one_id])
     b2_tool.should_succeed(['delete-key', key_two_id])
-    b2_api.clean_bucket(source_bucket_name)
 
 
-def test_replication_setup(b2_api, b2_tool, bucket_name):
-    source_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            source_bucket_name,
-            'allPublic',
-            '--fileLockEnabled',
-            *get_bucketinfo(),
-        ]
-    )
-    destination_bucket_name = bucket_name
+def test_replication_setup(b2_tool, create_test_bucket):
+    destination_bucket_name = create_test_bucket()
+    source_bucket_name = create_test_bucket(is_file_lock_enabled=True)
+
     b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
     destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
@@ -2110,13 +2013,12 @@ def test_replication_setup(b2_api, b2_tool, bucket_name):
         'sourceToDestinationKeyMapping'].items():
         b2_tool.should_succeed(['delete-key', key_one_id])
         b2_tool.should_succeed(['delete-key', key_two_id])
-    b2_api.clean_bucket(source_bucket_name)
     assert destination_bucket_old['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
             'asReplicationDestination']['sourceToDestinationKeyMapping']
 
 
-def test_replication_monitoring(b2_tool, bucket_name, b2_api):
+def test_replication_monitoring(b2_tool, bucket_name):
 
     # ---------------- set up keys ----------------
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -2195,18 +2097,14 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     source_replication_configuration_json = json.dumps(source_replication_configuration)
 
     # create a source bucket and set up replication to destination bucket
-    source_bucket_name = b2_tool.generate_bucket_name()
-    b2_tool.should_succeed(
-        [
-            'create-bucket',
-            source_bucket_name,
-            'allPublic',
-            '--fileLockEnabled',
-            '--replication',
-            source_replication_configuration_json,
-            *get_bucketinfo(),
-        ]
-    )
+    source_bucket_name = generate_bucket_name()
+    assert b2_tool.create_bucket(
+        source_bucket_name,
+        'allPublic',
+        '--fileLockEnabled',
+        '--replication',
+        source_replication_configuration_json,
+    ).success
 
     # make test data
     uploaded_a = b2_tool.should_succeed_json(
@@ -2347,8 +2245,6 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         } for first, second in itertools.product(['FAILED', 'PENDING'], ['FAILED', 'PENDING'])
     ]
 
-    b2_api.clean_bucket(source_bucket_name)
-
 
 def test_enable_file_lock_first_retention_second(b2_tool, b2_api, bucket_name):
     # enable file lock only
@@ -2364,8 +2260,6 @@ def test_enable_file_lock_first_retention_second(b2_tool, b2_api, bucket_name):
 
     # attempt to re-enable should be a noop
     b2_tool.should_succeed(['update-bucket', bucket_name, '--fileLockEnabled'])
-
-    b2_api.clean_bucket(bucket_name)
 
 
 def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name):
@@ -2387,8 +2281,6 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name
 
     # attempt to re-enable should be a noop
     b2_tool.should_succeed(['update-bucket', bucket_name, '--fileLockEnabled'])
-
-    b2_api.clean_bucket(bucket_name)
 
 
 def _assert_file_lock_configuration(

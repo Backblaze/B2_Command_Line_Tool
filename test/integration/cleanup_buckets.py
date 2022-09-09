@@ -13,4 +13,4 @@ def test_cleanup_buckets(b2_api):
     # this is not a test, but it is intended to be called
     # via pytest because it reuses fixtures which have everything
     # set up
-    b2_api.clean_buckets()
+    b2_api.clean_all_buckets()

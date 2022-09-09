@@ -8,6 +8,9 @@
 #
 ######################################################################
 
+import argparse
+import contextlib
+import dataclasses
 import json
 import os
 import platform
@@ -19,7 +22,6 @@ import subprocess
 import sys
 import threading
 
-from dataclasses import dataclass
 from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
@@ -29,18 +31,16 @@ from typing import List, Optional, Union
 import backoff
 
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
-from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
-from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent, TooManyRequests
+from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, BucketTrackingMixin, SqliteAccountInfo, fix_windows_path_limit
+from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent, TooManyRequests, NonExistentBucket
 
 from b2.console_tool import Command, current_time_millis
 
-BUCKET_CLEANUP_PERIOD_MILLIS = 0
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
 BUCKET_NAME_LENGTH = 50
 BUCKET_NAME_CHARS = string.ascii_letters + string.digits + '-'
-BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
@@ -58,77 +58,34 @@ SSE_C_AES_2 = EncryptionSetting(
     key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
 )
 
+BUCKET_NAME_PREFIX = 'clitst'
+BUCKET_NAME_PREFIX_OLD = 'test-b2-cli-'  # TODO: remove this when sure that there are no more old buckets
 
-def bucket_name_part(length: int) -> str:
-    return ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(length))
+
+def generate_bucket_name():
+    suffix_length = BUCKET_NAME_LENGTH - len(BUCKET_NAME_PREFIX)
+    suffix = ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(suffix_length))
+    return BUCKET_NAME_PREFIX + suffix
 
 
-@dataclass
-class Api:
-    account_id: str
-    application_key: str
-    realm: str
-    general_bucket_name_prefix: str
-    this_run_bucket_name_prefix: str
-
-    api: B2Api = None
-
-    def __post_init__(self):
+class Api(BucketTrackingMixin, B2Api):
+    def __init__(self, account_id, application_key, realm):
         info = InMemoryAccountInfo()
         cache = InMemoryCache()
-        self.api = B2Api(info, cache=cache)
-        self.api.authorize_account(self.realm, self.account_id, self.application_key)
+        super().__init__(info, cache=cache)
+        self.authorize_account(realm, account_id, application_key)
 
-    def create_bucket(self) -> Bucket:
+    def create_test_bucket(self, bucket_type="allPublic", **kwargs) -> Bucket:
         for _ in range(10):
-            bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
-                BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
-            )
+            bucket_name = generate_bucket_name()
             print('Creating bucket:', bucket_name)
             try:
-                return self.api.create_bucket(
-                    bucket_name,
-                    'allPublic',
-                    bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
-                )
+                return self.create_bucket(bucket_name, bucket_type, **kwargs)
             except DuplicateBucketName:
                 pass
             print()
 
         raise ValueError('Failed to create bucket due to name collision')
-
-    def _should_remove_bucket(self, bucket: Bucket):
-        if bucket.name.startswith(self.this_run_bucket_name_prefix):
-            return True, 'it is a bucket for this very run'
-        OLD_PATTERN = 'test-b2-cli-'
-        if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
-            if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
-                delete_older_than = current_time_millis() - BUCKET_CLEANUP_PERIOD_MILLIS
-                this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
-                if int(this_bucket_creation_time) < delete_older_than:
-                    return True, f"this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}"
-            else:
-                return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
-        return False, ''
-
-    def clean_buckets(self):
-        buckets = self.api.list_buckets()
-        print('Total bucket count:', len(buckets))
-        for bucket in buckets:
-            should_remove, why = self._should_remove_bucket(bucket)
-            if not should_remove:
-                print(f'Skipping bucket removal: "{bucket.name}"')
-                continue
-
-            print('Trying to remove bucket:', bucket.name, 'because', why)
-            try:
-                self.clean_bucket(bucket)
-            except (BucketIdNotFound, v3BucketIdNotFound):
-                print('It seems that bucket %s has already been removed' % (bucket.name,))
-        buckets = self.api.list_buckets()
-        print('Total bucket count after cleanup:', len(buckets))
-        for bucket in buckets:
-            print(bucket)
 
     @backoff.on_exception(
         backoff.expo,
@@ -137,7 +94,7 @@ class Api:
     )
     def clean_bucket(self, bucket: Union[Bucket, str]):
         if isinstance(bucket, str):
-            bucket = self.api.get_bucket_by_name(bucket)
+            bucket = self.get_bucket_by_name(bucket)
 
         files_leftover = False
         file_versions = bucket.ls(latest_only=False, recursive=True)
@@ -146,7 +103,7 @@ class Api:
             if file_version_info.file_retention:
                 if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
                     print('Removing retention from file version:', file_version_info.id_)
-                    self.api.update_file_retention(
+                    self.update_file_retention(
                         file_version_info.id_, file_version_info.file_name,
                         NO_RETENTION_FILE_SETTING, True
                     )
@@ -166,12 +123,12 @@ class Api:
                     )
             if file_version_info.legal_hold.is_on():
                 print('Removing legal hold from file version:', file_version_info.id_)
-                self.api.update_file_legal_hold(
+                self.update_file_legal_hold(
                     file_version_info.id_, file_version_info.file_name, LegalHold.OFF
                 )
             print('Removing file version:', file_version_info.id_)
             try:
-                self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
+                self.delete_file_version(file_version_info.id_, file_version_info.file_name)
             except FileNotPresent:
                 print(
                     'It seems that file version %s has already been removed' %
@@ -183,13 +140,39 @@ class Api:
         else:
             print('Removing bucket:', bucket.name)
             try:
-                self.api.delete_bucket(bucket)
+                self.delete_bucket(bucket)
             except BucketIdNotFound:
                 print('It seems that bucket %s has already been removed' % (bucket.name,))
         print()
 
+    def clean_buckets(self):
+        for bucket in self.buckets:
+            with contextlib.suppress(BucketIdNotFound, v3BucketIdNotFound, NonExistentBucket):
+                self.clean_bucket(bucket)
+        self.buckets = []
+
+    def clean_all_buckets(self):
+        buckets = self.list_buckets()
+        print(f'Total bucket count: {len(buckets)}')
+
+        for bucket in buckets:
+            if not bucket.name.startswith((BUCKET_NAME_PREFIX, BUCKET_NAME_PREFIX_OLD)):
+                print(f'Skipping bucket removal: "{bucket.name}"')
+                continue
+
+            print(f'Removing bucket: "{bucket.name}"')
+            try:
+                self.clean_bucket(bucket)
+            except (BucketIdNotFound, v3BucketIdNotFound):
+                print(f'It seems that bucket "{bucket.name}" has already been removed')
+
+        buckets = self.list_buckets()
+        print(f'Total bucket count after cleanup: {len(buckets)}')
+        for bucket in buckets:
+            print(bucket)
+
     def count_and_print_buckets(self) -> int:
-        buckets = self.api.list_buckets()
+        buckets = self.list_buckets()
         count = len(buckets)
         print(f'Total bucket count at {datetime.now()}: {count}')
         for i, bucket in enumerate(buckets, start=1):
@@ -248,11 +231,30 @@ class StringReader(object):
             self.string = str(e)
 
 
+@dataclasses.dataclass
+class CommandResult:
+    status: int
+    stdout: str
+    stderr: str
+
+    @property
+    def success(self):
+        return self.status == 0
+
+    @property
+    def failure(self):
+        return not self.success
+
+    @property
+    def output(self):
+        return self.stdout + self.stderr
+
+
 def run_command(
     cmd: str,
     args: Optional[List[Union[str, Path, int]]] = None,
     additional_env: Optional[dict] = None,
-):
+) -> CommandResult:
     """
     :param cmd: a command to run
     :param args: command's arguments
@@ -296,7 +298,8 @@ def run_command(
     stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
 
     print_output(p.returncode, stdout_decoded, stderr_decoded)
-    return p.returncode, stdout_decoded, stderr_decoded
+
+    return CommandResult(p.returncode, stdout_decoded, stderr_decoded)
 
 
 class EnvVarTestContext:
@@ -350,27 +353,41 @@ class CommandLine:
         re.compile(r'Trying to print: .*'),
     ]
 
-    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
+    def __init__(self, command, account_id, application_key, realm):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
         self.realm = realm
-        self.bucket_name_prefix = bucket_name_prefix
         self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.account_info_file_name = SqliteAccountInfo().filename
+        self.buckets = set()
 
-    def generate_bucket_name(self):
-        return self.bucket_name_prefix + bucket_name_part(
-            BUCKET_NAME_LENGTH - len(self.bucket_name_prefix)
-        )
+    def run(self, args, additional_env: Optional[dict] = None) -> CommandResult:
+        if args:
+            if args[0] == 'create-bucket':
+                raise ValueError(f'use {type(self).__name__}.create_bucket instead')
+            elif args[0] == 'delete-bucket':
+                raise ValueError(f'use {type(self).__name__}.delete_bucket instead')
 
-    def run_command(self, args, additional_env: Optional[dict] = None):
-        """
-        Runs the command with the given arguments, returns a tuple in form of
-        (succeeded, stdout)
-        """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
-        return status == 0 and stderr == '', stdout
+        return run_command(self.command, args, additional_env)
+
+    def create_bucket(
+        self, bucket_name, *args, additional_env: Optional[dict] = None
+    ) -> CommandResult:
+        args = ['create-bucket', bucket_name] + [str(arg) for arg in args]
+        result = run_command(self.command, args, additional_env)
+        if result.success:
+            self.buckets.add(bucket_name)
+        return result
+
+    def delete_bucket(
+        self, bucket_name, *args, additional_env: Optional[dict] = None
+    ) -> CommandResult:
+        args = ['delete-bucket', bucket_name] + [str(arg) for arg in args]
+        result = run_command(self.command, args, additional_env)
+        if result.success:
+            self.buckets.discard(bucket_name)
+        return result
 
     def should_succeed(
         self,
@@ -383,21 +400,21 @@ class CommandLine:
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
-        assert status == 0, f'FAILED with status {status}, stderr={stderr}'
+        result = self.run(args, additional_env)
+        assert result.success, f'FAILED with status {result.status}, stderr={result.stderr}'
 
-        if stderr != '':
-            for line in (s.strip() for s in stderr.split(os.linesep)):
+        if result.stderr:
+            for line in (s.strip() for s in result.stderr.split(os.linesep)):
                 assert any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS), \
                     f'Unexpected stderr line: {repr(line)}'
 
-        if expected_pattern is not None:
-            assert re.search(expected_pattern, stdout), \
-            f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
+        if expected_pattern:
+            assert re.search(expected_pattern, result.stdout), \
+                f'did not match pattern="{expected_pattern}", stdout="{result.stdout}"'
 
-        return stdout
+        return result.stdout
 
-    def should_succeed_json(self, args, additional_env: Optional[dict] = None):
+    def should_succeed_json(self, args, additional_env: Optional[dict] = None) -> dict:
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, treats the stdout as JSON and returns
@@ -405,18 +422,18 @@ class CommandLine:
         """
         return json.loads(self.should_succeed(args, additional_env=additional_env))
 
-    def should_fail(self, args, expected_pattern, additional_env: Optional[dict] = None):
+    def should_fail(self, args, expected_pattern, additional_env: Optional[dict] = None) -> None:
         """
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
-        assert status != 0, 'ERROR: should have failed'
+        result = self.run(args, additional_env)
+        assert result.failure, 'ERROR: should have failed'
 
-        assert re.search(expected_pattern, stdout + stderr), \
-            f'did not match pattern="{expected_pattern}", stdout="{stdout}", stderr="{stderr}"'
+        assert re.search(expected_pattern, result.output), \
+            f'did not match pattern="{expected_pattern}", stdout="{result.stdout}", stderr="{result.stderr}"'
 
-    def reauthorize(self, check_key_capabilities=False):
+    def reauthorize(self, check_key_capabilities=False) -> None:
         """Clear and authorize again to the account."""
         self.should_succeed(['clear-account'])
         self.should_succeed(
