@@ -9,6 +9,8 @@ on:
 env:
   PYTHON_DEFAULT_VERSION: "3.10"
 
+concurrency: continuous-integration
+
 jobs:
   lint:
     runs-on: ubuntu-latest
