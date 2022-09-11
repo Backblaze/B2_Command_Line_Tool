@@ -231,7 +231,8 @@ class StringReader(object):
             self.string = str(e)
 
 
-@dataclasses.dataclass
+# TODO: add slots=True when dropping support for Python 3.9
+@dataclasses.dataclass(frozen=True)
 class CommandResult:
     status: int
     stdout: str
@@ -362,9 +363,10 @@ class CommandLine:
 
     def run(self, args, additional_env: Optional[dict] = None) -> CommandResult:
         if args:
-            if args[0] == 'create-bucket':
+            subcommand = args[0].replace('_', '-')
+            if subcommand == 'create-bucket':
                 raise ValueError(f'use {type(self).__name__}.create_bucket instead')
-            elif args[0] == 'delete-bucket':
+            elif subcommand == 'delete-bucket':
                 raise ValueError(f'use {type(self).__name__}.delete_bucket instead')
 
         return run_command(self.command, args, additional_env)

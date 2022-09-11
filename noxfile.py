@@ -180,9 +180,8 @@ def integration(session):
     """Run integration tests."""
     install_myself(session)
     session.run('pip', 'install', *REQUIREMENTS_TEST)
-    #session.run('pytest', '-s', '-x', '-v', '-n', '4', *session.posargs, 'test/integration')
     session.run(
-        'pytest', '-s', '-x', '-v', '-W', 'ignore::DeprecationWarning:rst2ansi.visitor:',
+        'pytest', '-s', '-x', '-v', '-n', '4', '-W', 'ignore::DeprecationWarning:rst2ansi.visitor:',
         *session.posargs, 'test/integration'
     )
 

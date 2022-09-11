@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Ensured that changelog validation only happens on pull requests
 * Fix bucket leaks in integration tests
 * Allow only one CI workflow at a time
+* Re-enable pytest-xdist for integration tests
 
 ## [3.6.0] - 2022-09-20
 
