@@ -8,7 +8,9 @@
 #
 ######################################################################
 
+import io
 import os
+import pkg_resources
 import platform
 import subprocess
 
@@ -63,12 +65,6 @@ if CI:
 
 def install_myself(session, extras=None):
     """Install from the source."""
-    # In CI, install B2 SDK from the master branch
-
-    if CI and not CD and not INSTALL_SDK_FROM:
-        session.run(
-            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk'
-        )
 
     arg = '.'
     if extras:
@@ -82,6 +78,11 @@ def install_myself(session, extras=None):
         session.run('pip', 'uninstall', 'b2sdk', '-y')
         session.run('python', 'setup.py', 'develop')
         os.chdir(cwd)
+    elif CI and not CD:
+        # In CI, install B2 SDK from the master branch
+        session.run(
+            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk'
+        )
 
 
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
@@ -107,6 +108,7 @@ def lint(session):
     """Run linters."""
     install_myself(session)
     session.run('pip', 'install', *REQUIREMENTS_LINT)
+
     session.run('yapf', '--diff', '--parallel', '--recursive', *PY_PATHS)
     # TODO: uncomment if we want to use isort and docformatter
     # session.run('isort', '--check', *PY_PATHS)
@@ -130,7 +132,20 @@ def lint(session):
         session.error('pyflakes has failed')
     # session.run('flake8', *PY_PATHS)
     session.run('pytest', 'test/static')
-    session.run('liccheck', '-s', 'setup.cfg')
+
+    # Before checking licenses, create an updated requirements.txt file, which accepts any b2sdk version.  This way
+    # the tool will still work if the SDK was installed from the master branch or a different directory.
+    updated_requirements = os.path.join(session.create_tmp(), 'requirements.txt')
+    with open('requirements.txt', 'r') as orig_req_file, \
+            open(updated_requirements, 'w') as updated_req_file:
+        requirements = pkg_resources.parse_requirements(orig_req_file)
+        for requirement in requirements:
+            if requirement.project_name == "b2sdk":
+                updated_req_file.write("b2sdk\n")
+            else:
+                updated_req_file.write(f"{requirement}\n")
+
+    session.run('liccheck', '-s', 'setup.cfg', '-r', updated_requirements)
 
 
 @nox.session(python=PYTHON_VERSIONS)

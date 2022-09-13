@@ -626,6 +626,12 @@ class TestConsoleTool(BaseConsoleToolTest):
             '',
             0,
         )
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Five', capabilities_with_commas],
+            'appKeyId4 appKey4\n',
+            '',
+            0,
+        )
 
         # Delete one key
         self._run_command(['delete-key', 'appKeyId2'], 'appKeyId2\n', '', 0)
@@ -637,15 +643,15 @@ class TestConsoleTool(BaseConsoleToolTest):
         expected_list_keys_out = """
             appKeyId0   goodKeyName-One
             appKeyId1   goodKeyName-Two
-            appKeyId2   goodKeyName-Three
             appKeyId3   goodKeyName-Four
+            appKeyId4   goodKeyName-Five
             """
 
         expected_list_keys_out_long = """
             appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
             appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
-            appKeyId2   goodKeyName-Three      id=bucket_1            -            -          ''   readFiles,listBuckets
             appKeyId3   goodKeyName-Four       -                      -            -          ''   %s
+            appKeyId4   goodKeyName-Five       id=bucket_1            -            -          ''   readFiles,listBuckets
             """ % (','.join(ALL_CAPABILITIES),)
 
         self._run_command(['list-keys'], expected_list_keys_out, '', 0)

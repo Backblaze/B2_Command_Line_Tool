@@ -20,6 +20,8 @@ import re
 from pathlib import Path
 from typing import Optional, Tuple
 
+import pytest
+
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, UNKNOWN_FILE_RETENTION_SETTING, EncryptionMode, EncryptionSetting, FileRetentionSetting, LegalHold, RetentionMode, fix_windows_path_limit
 
 from b2.console_tool import current_time_millis
@@ -2109,6 +2111,7 @@ def test_replication_setup(b2_api, b2_tool, bucket_name):
             'asReplicationDestination']['sourceToDestinationKeyMapping']
 
 
+@pytest.mark.xfail(reason="Fails because of changes introduced in the SDK")
 def test_replication_monitoring(b2_tool, bucket_name, b2_api):
 
     # ---------------- set up keys ----------------
