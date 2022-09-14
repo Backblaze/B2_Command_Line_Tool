@@ -1994,7 +1994,6 @@ def test_replication_basic(b2_api, b2_tool, bucket_name):
             'create-bucket',
             source_bucket_name,
             'allPublic',
-            '--fileLockEnabled',
             '--replication',
             source_replication_configuration_json,
             *get_bucketinfo(),
@@ -2375,7 +2374,7 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name
         [
             'update-bucket', bucket_name, '--defaultRetentionMode', 'compliance',
             '--defaultRetentionPeriod', '7 days'
-        ], 'ERROR: The bucket is not file lock enabled (bucket_missing_file_lock)'
+        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     # enable file lock and set retention at once
