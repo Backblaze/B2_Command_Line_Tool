@@ -2153,8 +2153,18 @@ class UpdateBucket(DefaultSseMixin, Command):
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     This command can be used to set the bucket's ``fileLockEnabled`` flag to ``true`` using the ``--fileLockEnabled``
-    option.  This can only be done if the bucket is not set up as a replication source.  Once ``fileLockEnabled`` is
-    set, it can't be reverted back to ``false``.
+    option.  This can only be done if the bucket is not set up as a replication source.
+
+    .. warning::
+
+        Once ``fileLockEnabled`` is set, it can NOT be reverted back to ``false``
+
+    Please note that replication from file-lock-enabled bucket to file-lock-disabled bucket is not allowed, therefore
+    if file lock is enabled on a bucket, it can never again be the replication source bucket for a file-lock-disabled destination.
+
+    Additionally in a file-lock-enabled bucket the file metadata limit will be decreased from 7000 bytes to 2048 bytes for new file versions
+    Please consult ``b2_update_bucket`` official documentation for further guidance.
+
 
     Requires capability:
 
