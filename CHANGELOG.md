@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-* Add `replication-status` command
 * Add `replication-delete` command
 * Add `replication-pause` command
+* Add `replication-status` command
 * Add `replication-unpause` command
 * Add `--include-existing-files` to `replication-setup`
 
