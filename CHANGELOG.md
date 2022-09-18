@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `--incrementalMode` to `sync` and `upload-file`
+
 ### Fixed
 * Stop using b2sdk.v1 in arg_parser.py
 * Fix issues when running commands on Python 3.11
