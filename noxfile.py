@@ -38,6 +38,7 @@ REQUIREMENTS_TEST = [
     "pytest-cov==3.0.0",
     'pytest-xdist==2.5.0',
     'backoff==2.1.2',
+    'more_itertools==8.13.0',
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [

@@ -438,7 +438,18 @@ class SkipHashVerificationMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--skip-hash-verification', action='store_true')
+        parser.add_argument('--skip-hash-verification', action='store_true', default=False)
+        super()._setup_parser(parser)  # noqa
+
+
+class MaxDownloadStreamsMixin(Described):
+    """
+    Use --max-download-streams-per-file to set max num of streams for parallel downloader.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--max-download-streams-per-file', type=int)
         super()._setup_parser(parser)  # noqa
 
 
@@ -1220,7 +1231,8 @@ class DownloadCommand(Command):
 
 @B2.register_subcommand
 class DownloadFileById(
-    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand
+    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, MaxDownloadStreamsMixin,
+    DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1232,6 +1244,7 @@ class DownloadFileById(
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
+    {MAXDOWNLOADSTREAMSMIXIN}
 
     Requires capability:
 
@@ -1264,7 +1277,11 @@ class DownloadFileById(
 
 @B2.register_subcommand
 class DownloadFileByName(
-    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, DownloadCommand
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin,
+    DownloadCommand,
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1276,6 +1293,7 @@ class DownloadFileByName(
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
+    {MAXDOWNLOADSTREAMSMIXIN}
 
     Requires capability:
 
@@ -1806,7 +1824,12 @@ class MakeFriendlyUrl(Command):
 
 @B2.register_subcommand
 class Sync(
-    DestinationSseMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command
+    DestinationSseMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin,
+    Command,
 ):
     """
     Copies multiple files from source to destination.  Optionally
@@ -1960,6 +1983,7 @@ class Sync(
 
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
+    {MAXDOWNLOADSTREAMSMIXIN}
 
     Requires capabilities:
 
@@ -2791,7 +2815,8 @@ class ConsoleTool(object):
         if self.api:
             if (
                 args.profile or getattr(args, 'write_buffer_size', None) or
-                getattr(args, 'skip_hash_verification', None)
+                getattr(args, 'skip_hash_verification', None) or
+                getattr(args, 'max_download_streams_per_file', None)
             ):
                 self._print_stderr(
                     'ERROR: cannot change configuration on already initialized object'
@@ -2807,7 +2832,10 @@ class ConsoleTool(object):
                 kwargs['save_to_buffer_size'] = args.write_buffer_size
 
             if 'skip_hash_verification' in args:
-                kwargs['check_download_hash'] = False
+                kwargs['check_download_hash'] = not args.skip_hash_verification
+
+            if 'max_download_streams_per_file' in args:
+                kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
             self.api = _get_b2api_for_profile(**kwargs)
 
