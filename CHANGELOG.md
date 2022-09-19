@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add `replication-status` command
 * Add `replication-unpause` command
 * Add `--include-existing-files` to `replication-setup`
+* Add `--max-streams` parameter to download commands
 
 ### Fixed
 * Fix `replication-setup` default priority setter
