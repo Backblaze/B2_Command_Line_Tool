@@ -2393,7 +2393,9 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name
 
 def test_attempt_enabling_file_lock_on_restricted_bucket(b2_tool, b2_api, bucket_name):
     key_name = 'clt-testKey-01' + random_hex(6)
-    key_id, key = b2_tool.should_succeed(['create-key', key_name, 'readBuckets,writeKeys']).split()
+    key_id, key = b2_tool.should_succeed(
+        ['create-key', key_name, 'readBuckets,writeKeys,listBuckets']
+    ).split()
 
     b2_tool.should_succeed(['authorize-account', '--environment', b2_tool.realm, key_id, key])
 
