@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2022-09-20
+
 ### Added
 * Add `replication-delete` command
 * Add `replication-pause` command
@@ -366,7 +368,8 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.5.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.6.0...HEAD
+[3.6.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.2.1...v3.3.0
