@@ -158,16 +158,16 @@ def test_basic(b2_tool, bucket_name):
     )  # \r? is for Windows, as $ doesn't match \r\n
 
     to_be_removed_bucket_name = generate_bucket_name()
-    assert b2_tool.create_bucket(to_be_removed_bucket_name, 'allPublic').success
-    assert b2_tool.delete_bucket(to_be_removed_bucket_name).success
+    b2_tool.create_bucket(to_be_removed_bucket_name, 'allPublic').should_succeed()
+    b2_tool.delete_bucket(to_be_removed_bucket_name).should_succeed()
 
     result = b2_tool.delete_bucket(to_be_removed_bucket_name)
-    assert result.failure
+    result.should_fail()
     assert re.search(r'^ERROR: Bucket with id=\w* not found\s*$', result.output)
 
     # Check logging settings
     result = b2_tool.delete_bucket(to_be_removed_bucket_name, '--debugLogs')
-    assert result.failure
+    result.should_fail()
     assert re.search(r'^ERROR: Bucket with id=\w* not found\s*$', result.output)
 
     stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
@@ -190,12 +190,12 @@ def test_basic(b2_tool, bucket_name):
     os.remove('b2_cli.log')
 
     result = b2_tool.delete_bucket(to_be_removed_bucket_name, '--verbose')
-    assert result.failure
+    result.should_fail()
     assert re.search(stderr_regex, result.output)
     assert not os.path.exists('b2_cli.log')
 
     result = b2_tool.delete_bucket(to_be_removed_bucket_name, '--verbose', '--debugLogs')
-    assert result.failure
+    result.should_fail()
     assert re.search(stderr_regex, result.output)
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
@@ -279,13 +279,13 @@ def test_key_restrictions(b2_tool, create_test_bucket):
 def test_account(b2_tool, create_test_bucket):
     # actually a high level operations test - we run bucket tests here since this test doesn't use it
     bucket_name = create_test_bucket()
-    assert b2_tool.delete_bucket(bucket_name).success
+    b2_tool.delete_bucket(bucket_name).should_succeed()
     new_bucket_name = generate_bucket_name()
 
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    assert b2_tool.create_bucket(new_bucket_name, 'allPrivate').success
+    b2_tool.create_bucket(new_bucket_name, 'allPrivate').should_succeed()
     b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
-    assert b2_tool.delete_bucket(new_bucket_name).success
+    b2_tool.delete_bucket(new_bucket_name).should_succeed()
 
     with b2_tool.env_var_test_context:
         b2_tool.should_succeed(['clear-account'])
@@ -311,7 +311,7 @@ def test_account(b2_tool, create_test_bucket):
         # successfully removed
         bucket_name = generate_bucket_name()
         result = b2_tool.create_bucket(bucket_name, 'allPrivate')
-        assert result.failure
+        result.should_fail()
         assert re.search(
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
             r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
@@ -326,8 +326,8 @@ def test_account(b2_tool, create_test_bucket):
         os.environ['B2_ENVIRONMENT'] = b2_tool.realm
 
         bucket_name = generate_bucket_name()
-        assert b2_tool.create_bucket(bucket_name, 'allPrivate').success
-        assert b2_tool.delete_bucket(bucket_name).success
+        b2_tool.create_bucket(bucket_name, 'allPrivate').should_succeed()
+        b2_tool.delete_bucket(bucket_name).should_succeed()
         assert os.path.exists(new_creds), 'sqlite file not created'
 
         os.environ.pop('B2_APPLICATION_KEY')
@@ -336,7 +336,7 @@ def test_account(b2_tool, create_test_bucket):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         result = b2_tool.create_bucket(bucket_name, 'allPrivate')
-        assert result.failure
+        result.should_fail()
         assert re.search(
             'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them',
             result.output
@@ -347,7 +347,7 @@ def test_account(b2_tool, create_test_bucket):
         os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
 
         result = b2_tool.create_bucket(bucket_name, 'allPrivate')
-        assert result.failure
+        result.should_fail()
         assert re.search(
             'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them',
             result.output
@@ -992,9 +992,8 @@ def test_default_sse_b2(b2_tool, bucket_name):
 
     # Set default encryption via create-bucket
     second_bucket_name = generate_bucket_name()
-    assert b2_tool.create_bucket(
-        second_bucket_name, '--defaultServerSideEncryption=SSE-B2', 'allPublic'
-    ).success
+    b2_tool.create_bucket(second_bucket_name, '--defaultServerSideEncryption=SSE-B2',
+                          'allPublic').should_succeed()
     second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
     second_bucket_default_sse = {
         'algorithm': 'AES256',
@@ -1416,9 +1415,8 @@ def test_file_lock(b2_tool, create_test_bucket):
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
     lock_enabled_bucket_name = generate_bucket_name()
-    assert b2_tool.create_bucket(
-        lock_enabled_bucket_name, 'allPrivate', '--fileLockEnabled'
-    ).success
+    b2_tool.create_bucket(lock_enabled_bucket_name, 'allPrivate',
+                          '--fileLockEnabled').should_succeed()
 
     updated_bucket = b2_tool.should_succeed_json(
         [
@@ -1905,12 +1903,12 @@ def test_replication_basic(b2_tool, bucket_name):
 
     # create a source bucket and set up replication to destination bucket
     source_bucket_name = generate_bucket_name()
-    assert b2_tool.create_bucket(
+    b2_tool.create_bucket(
         source_bucket_name,
         'allPublic',
         '--replication',
         source_replication_configuration_json,
-    ).success
+    ).should_succeed()
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
 
     # test that all replication rules are present in source bucket
@@ -2098,13 +2096,13 @@ def test_replication_monitoring(b2_tool, bucket_name):
 
     # create a source bucket and set up replication to destination bucket
     source_bucket_name = generate_bucket_name()
-    assert b2_tool.create_bucket(
+    b2_tool.create_bucket(
         source_bucket_name,
         'allPublic',
         '--fileLockEnabled',
         '--replication',
         source_replication_configuration_json,
-    ).success
+    ).should_succeed()
 
     # make test data
     uploaded_a = b2_tool.should_succeed_json(

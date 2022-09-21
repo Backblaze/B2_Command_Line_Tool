@@ -237,13 +237,11 @@ class CommandResult:
     stdout: str
     stderr: str
 
-    @property
-    def success(self):
-        return self.status == 0
+    def should_succeed(self):
+        assert self.status == 0, f'FAILED with status {self.status}, stderr={self.stderr}'
 
-    @property
-    def failure(self):
-        return not self.success
+    def should_fail(self):
+        assert self.status != 0, 'ERROR: should have failed'
 
     @property
     def output(self):
@@ -376,7 +374,7 @@ class CommandLine:
     ) -> CommandResult:
         args = ['create-bucket', bucket_name] + [str(arg) for arg in args]
         result = run_command(self.command, args, additional_env)
-        if result.success:
+        if result.status == 0:
             self.buckets.add(bucket_name)
         return result
 
@@ -385,7 +383,7 @@ class CommandLine:
     ) -> CommandResult:
         args = ['delete-bucket', bucket_name] + [str(arg) for arg in args]
         result = run_command(self.command, args, additional_env)
-        if result.success:
+        if result.status == 0:
             self.buckets.discard(bucket_name)
         return result
 
@@ -401,7 +399,7 @@ class CommandLine:
         as as string.
         """
         result = self.run(args, additional_env)
-        assert result.success, f'FAILED with status {result.status}, stderr={result.stderr}'
+        result.should_succeed()
 
         if result.stderr:
             for line in (s.strip() for s in result.stderr.split(os.linesep)):
@@ -428,7 +426,7 @@ class CommandLine:
         to appear in stderr.
         """
         result = self.run(args, additional_env)
-        assert result.failure, 'ERROR: should have failed'
+        result.should_fail()
 
         assert re.search(expected_pattern, result.output), \
             f'did not match pattern="{expected_pattern}", stdout="{result.stdout}", stderr="{result.stderr}"'
