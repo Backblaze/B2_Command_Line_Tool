@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Fix `replication-setup` default priority setter
+* Fix warnings in tests
 
 ### Infrastructure
 * Fix warnings in tests
@@ -32,6 +33,7 @@ changes are currently planned.
 This version is pinned strictly to `b2-sdk-python==1.17.3` for the same reason.
 
 ### Added
+* Add `license` command, for printing licenses of b2 and libraries
 * Add `--write-buffer-size` parameter
 * Add `--skip-hash-verification` parameter
 

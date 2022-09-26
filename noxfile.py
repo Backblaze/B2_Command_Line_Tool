@@ -152,7 +152,7 @@ def lint(session):
 @nox.session(python=PYTHON_VERSIONS)
 def unit(session):
     """Run unit tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run(
         'pytest',
@@ -172,12 +172,18 @@ def unit(session):
 @nox.session(python=PYTHON_VERSIONS)
 def integration(session):
     """Run integration tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
-    #session.run('pytest', '-s', '-x', '-v', '-n', '4', *session.posargs, 'test/integration')
     session.run(
-        'pytest', '-s', '-x', '-v', '-W', 'ignore::DeprecationWarning:rst2ansi.visitor:',
-        *session.posargs, 'test/integration'
+        'pytest',
+        '-s',
+        '-n',
+        #TODO: revert to str(min(cpu_count(), 8) * 5),
+        '2',
+        '-W',
+        'ignore::DeprecationWarning:rst2ansi.visitor:',
+        *session.posargs,
+        'test/integration',
     )
 
 
@@ -213,6 +219,7 @@ def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
     session.run('pip', 'install', *REQUIREMENTS_BUILD)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv')
     session.run('python', 'setup.py', 'check', '--metadata', '--strict')
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
     session.run('python', 'setup.py', 'sdist', *session.posargs)
@@ -227,11 +234,18 @@ def build(session):
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def bundle(session):
+def dump_license(session: nox.Session):
+    install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump', '--with-packages')
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def bundle(session: nox.Session):
     """Bundle the distribution."""
     session.run('pip', 'install', *REQUIREMENTS_BUNDLE)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
-    install_myself(session)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv')
+    install_myself(session, ['license'])
 
     if SYSTEM == 'darwin':
         session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
