@@ -104,12 +104,11 @@ from b2.arg_parser import (
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
-try:
+piplicenses = None
+prettytable = None
+with suppress(ImportError):
     import piplicenses
     import prettytable
-except ImportError:
-    piplicenses = None
-    prettytable = None
 
 logger = logging.getLogger(__name__)
 

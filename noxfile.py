@@ -244,8 +244,8 @@ def bundle(session: nox.Session):
     """Bundle the distribution."""
     session.run('pip', 'install', *REQUIREMENTS_BUNDLE)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
-    session.run('nox', '-s', 'dump_license', '-fb', 'venv')
     install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump', '--with-packages')
 
     if SYSTEM == 'darwin':
         session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
