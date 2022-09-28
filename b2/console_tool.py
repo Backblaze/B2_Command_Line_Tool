@@ -2830,6 +2830,8 @@ class License(Command):  # pragma: no cover
             'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
         'userpath':
             'https://raw.githubusercontent.com/ofek/userpath/master/LICENSE.txt',
+        'future':
+            'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
     }
 
     class NormalizingStringIO(io.StringIO):
