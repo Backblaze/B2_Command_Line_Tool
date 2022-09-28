@@ -2832,6 +2832,8 @@ class License(Command):  # pragma: no cover
             'https://raw.githubusercontent.com/ofek/userpath/master/LICENSE.txt',
         'future':
             'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
+        'pefile':
+            'https://raw.githubusercontent.com/erocarrera/pefile/master/LICENSE',
     }
 
     class NormalizingStringIO(io.StringIO):
