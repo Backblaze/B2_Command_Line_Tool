@@ -179,7 +179,7 @@ def integration(session):
         '-s',
         '-n',
         #TODO: revert to str(min(cpu_count(), 8) * 5),
-        '2',
+        'auto',
         '-W',
         'ignore::DeprecationWarning:rst2ansi.visitor:',
         *session.posargs,
