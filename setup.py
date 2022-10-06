@@ -112,7 +112,7 @@ setup(
     # $ pip install -e .[dev,test]
     extras_require={
         'doc': read_requirements('doc'),
-        'license': read_requirements('license')
+        'license': read_requirements('license'),
     },
     setup_requires=['setuptools_scm<6.0'],
     use_scm_version=True,

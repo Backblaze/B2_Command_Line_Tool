@@ -2817,7 +2817,12 @@ class License(Command):  # pragma: no cover
 
     REQUIRES_AUTH = False
     IGNORE_MODULES = {'b2', 'distlib', 'patchelf-wrapper', 'platformdirs'}
-    REQUEST_TIMEOUT = 5
+    REQUEST_TIMEOUT_S = 5
+
+    # In case of some modules, we provide manual
+    # overrides to the license text extracted by piplicenses.
+    # Thanks to this set, we make sure the module is still used
+    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk', 'PTable'}
 
     LICENSES = {
         'atomicwrites':
@@ -2843,11 +2848,6 @@ class License(Command):  # pragma: no cover
     def __init__(self, console_tool):
         super().__init__(console_tool)
         self.request_session = requests.session()
-        self._modules_to_override_license_text = {
-            'rst2ansi', 'b2sdk', 'PTable'
-        }  # in case of some modules, we provide manual
-        # overrides to the license text extracted by piplicenses. Thanks to this set, we make sure the module is
-        # still used
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -2909,6 +2909,7 @@ class License(Command):  # pragma: no cover
         )
 
         licenses = self._get_license_dict()
+        modules_added = set()
         for module_info in licenses:
             if module_info['Name'] in self.IGNORE_MODULES:
                 continue
@@ -2922,10 +2923,9 @@ class License(Command):  # pragma: no cover
                 ]
             )
             license_table.add_row([module_info['Name'], self._get_single_license(module_info)])
+            modules_added.add(module_info['Name'])
 
-        assert not self._modules_to_override_license_text, str(
-            self._modules_to_override_license_text
-        )
+        assert not (self.MODULES_TO_OVERRIDE_LICENSE_TEXT - modules_added)
         stream.write(
             'Licenses of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
         )
@@ -2954,7 +2954,7 @@ class License(Command):  # pragma: no cover
         return licenses
 
     def _fetch_license_from_url(self, url: str) -> str:
-        response = self.request_session.get(url, timeout=self.REQUEST_TIMEOUT)
+        response = self.request_session.get(url, timeout=self.REQUEST_TIMEOUT_S)
         response.raise_for_status()
         return response.text
 
@@ -2970,9 +2970,6 @@ class License(Command):  # pragma: no cover
             license_ = (pathlib.Path(b2sdk.__file__).parent / 'LICENSE').read_text()
         elif module_name in self.LICENSES:
             license_ = self._fetch_license_from_url(self.LICENSES[module_name])
-
-        with suppress(KeyError):
-            self._modules_to_override_license_text.remove(module_name)
 
         assert license_ != piplicenses.LICENSE_UNKNOWN, module_name
 
