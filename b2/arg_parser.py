@@ -16,7 +16,7 @@ import textwrap
 
 import arrow
 from rst2ansi import rst2ansi
-from b2sdk.v1 import RetentionPeriod
+from b2sdk.v2 import RetentionPeriod
 
 _arrow_version = tuple(int(p) for p in arrow.__version__.split("."))
 
