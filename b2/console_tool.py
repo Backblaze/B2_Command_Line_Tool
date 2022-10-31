@@ -503,8 +503,8 @@ class Command(Described):
         name, alias = command_class.name_and_alias()
         decorator = cls.subcommands_registry.register(key=name)(command_class)
         # Register alias if present
-        if alias is not None:
-            cls.subcommands_registry[alias] = command_class
+        #if alias is not None:
+        #    cls.subcommands_registry[alias] = command_class
         return decorator
 
     @classmethod
