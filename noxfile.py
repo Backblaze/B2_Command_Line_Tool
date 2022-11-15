@@ -24,7 +24,13 @@ INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
 NO_STATICX = os.environ.get('NO_STATICX') is not None
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 
-PYTHON_VERSIONS = ['3.7', '3.8', '3.9', '3.10'] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
+PYTHON_VERSIONS = [
+    '3.7',
+    '3.8',
+    '3.9',
+    '3.10',
+    '3.11',
+] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']

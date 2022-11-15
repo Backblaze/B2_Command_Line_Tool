@@ -500,11 +500,8 @@ class Command(Described):
     @classmethod
     def register_subcommand(cls, command_class):
         assert cls.subcommands_registry is not None, 'Initialize the registry class'
-        name, alias = command_class.name_and_alias()
+        name, _ = command_class.name_and_alias()
         decorator = cls.subcommands_registry.register(key=name)(command_class)
-        # Register alias if present
-        if alias is not None:
-            cls.subcommands_registry[alias] = command_class
         return decorator
 
     @classmethod
@@ -531,6 +528,8 @@ class Command(Described):
                 aliases=[alias] if alias is not None and not for_docs else (),
                 for_docs=for_docs,
             )
+            # Register class that will handle this particular command, for both name and alias.
+            parser.set_defaults(command_class=cls)
 
         cls._setup_parser(parser)
 
@@ -655,7 +654,9 @@ class B2(Command):
         return NAME, None
 
     def run(self, args):
-        return self.subcommands_registry.get_class(args.command)
+        # Commands could be named via name or alias, so we fetch
+        # the command from args assigned during parser preparation.
+        return args.command_class
 
 
 @B2.register_subcommand
