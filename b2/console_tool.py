@@ -1691,8 +1691,42 @@ class ListUnfinishedLargeFiles(Command):
         return 0
 
 
+class LsCommand(Command):
+    """
+    The ``--versions`` option shows all versions of each file, not
+    just the most recent.
+
+    The ``--recursive`` option will descend into folders, and will show
+    only files, not folders.
+
+    The ``--wildcard`` option will allow using ``*``, ``?`` and ```[]```
+    characters in ``folderName`` as a greedy wildcard, single character
+    wildcard and range of characters. It automatically assumes ``--recursive``.
+    Remember to quote ``folderName`` to avoid shell expansion.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--versions', action='store_true')
+        parser.add_argument('--recursive', action='store_true')
+        parser.add_argument('--wildcard', action='store_true')
+        parser.add_argument('bucketName')
+        parser.add_argument('folderName', nargs='?')
+
+    def get_ls_generator(self, args):
+        start_file_name = args.folderName or ''
+
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        return bucket.ls(
+            start_file_name,
+            latest_only=not args.versions,
+            recursive=args.recursive,
+            with_wildcard=args.wildcard,
+        )
+
+
 @B2.register_subcommand
-class Ls(Command):
+class Ls(LsCommand):
     """
     Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
@@ -1708,13 +1742,9 @@ class Ls(Command):
     The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The ``--versions`` option shows all versions of each file, not
-    just the most recent.
-
-    The ``--recursive`` option will descend into folders, and will show
-    only files, not folders.
-
     The ``--replication`` option adds replication status
+
+    {LSCOMMAND}
 
     Requires capability:
 
@@ -1729,26 +1759,11 @@ class Ls(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
         parser.add_argument('--json', action='store_true')
-        parser.add_argument('--versions', action='store_true')
-        parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--replication', action='store_true')
-        parser.add_argument('bucketName')
-        parser.add_argument('folderName', nargs='?')
+        super()._setup_parser(parser)
 
     def run(self, args):
-        if args.folderName is None:
-            start_file_name = ""
-        else:
-            start_file_name = args.folderName
-            if not start_file_name.endswith('/'):
-                start_file_name += '/'
-
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        generator = bucket.ls(
-            start_file_name,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-        )
+        generator = self.get_ls_generator(args)
 
         if args.json:
             self._print_json([file_version for file_version, _ in generator])
@@ -1787,6 +1802,52 @@ class Ls(Command):
             parameters.append(replication_status.value if replication_status else '-')
         parameters.append(file_version.file_name)
         return template % tuple(parameters)
+
+
+@B2.register_subcommand
+class Rm(Ls):
+    """
+    Removes files listed via ``ls`` command.
+
+    By default, this command lists all files to be removed the same way
+    the ``ls`` command does. It also requires confirmation before
+    the actual removal process starts. To skip these steps, provide
+    ``--force``.
+
+    {LSCOMMAND}
+
+    The ``--force`` option removes confirmation requirement presented
+    before the actual removal process. Use with caution.
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+    """
+
+    RM_PROMPT = 'Files listed above will be removed. Do you want to continue [y/n]?'
+    RM_ACCEPT_MESSAGE = 'y'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--force', action='store_true')
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        if not args.force:
+            # Print all the files that are to be fetched.
+            super().run(args)
+
+            input_result = input(self.RM_PROMPT)
+            if input_result != self.RM_ACCEPT_MESSAGE:
+                return 0
+
+        generator = self.get_ls_generator(args)
+
+        for file_version, _ in generator:
+            self.api.delete_file_version(file_version.id_, file_version.file_name)
+
+        return 0
 
 
 @B2.register_subcommand
