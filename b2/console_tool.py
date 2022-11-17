@@ -2908,7 +2908,7 @@ class License(Command):  # pragma: no cover
             ['Module name', 'Version', 'License', 'Author', 'URL'], hrules=prettytable.ALL
         )
 
-        licenses = self._get_license_dict()
+        licenses = self._get_licenses_dicts()
         modules_added = set()
         for module_info in licenses:
             if module_info['Name'] in self.IGNORE_MODULES:
@@ -2936,7 +2936,7 @@ class License(Command):  # pragma: no cover
         stream.write(str(summary_table))
 
     @classmethod
-    def _get_license_dict(cls) -> list[dict]:
+    def _get_licenses_dicts(cls) -> list[dict]:
         assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
         parser = piplicenses.create_parser()
         args = parser.parse_args(
