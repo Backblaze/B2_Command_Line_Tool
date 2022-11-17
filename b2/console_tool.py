@@ -2936,7 +2936,7 @@ class License(Command):  # pragma: no cover
         stream.write(str(summary_table))
 
     @classmethod
-    def _get_license_dict(cls) -> dict:
+    def _get_license_dict(cls) -> list[dict]:
         assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
         parser = piplicenses.create_parser()
         args = parser.parse_args(
