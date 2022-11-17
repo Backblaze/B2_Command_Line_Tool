@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 * GitHub CI got checkout action updated to v3 and setup-python to v4
-* Moved changelog to the last working version
+* Moved changelog action to the last working version
 
 ## [3.6.0] - 2022-09-20
 
