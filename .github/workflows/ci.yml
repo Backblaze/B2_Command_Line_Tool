@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 env:
-  PYTHON_DEFAULT_VERSION: "3.10"
+  PYTHON_DEFAULT_VERSION: "3.11"
 
 jobs:
   lint:
