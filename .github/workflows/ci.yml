@@ -29,7 +29,7 @@ jobs:
         run: nox -vs lint
       - name: Validate changelog
         if: ${{ ! startsWith(github.ref, 'refs/heads/dependabot/') }}
-        uses: zattoo/changelog@v1
+        uses: zattoo/changelog@2f5ee4e229269d2fe78f53c102fce1285065c6a4
         with:
           token: ${{ github.token }}
   build:
