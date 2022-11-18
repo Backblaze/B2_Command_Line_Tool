@@ -1700,7 +1700,7 @@ class LsCommand(Command):
     The ``--recursive`` option will descend into folders, and will show
     only files, not folders.
 
-    The ``--wildcard`` option will allow using ``*``, ``?`` and ```[]```
+    The ``--with_wildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
     wildcard and range of characters. It automatically assumes ``--recursive``.
     Remember to quote ``folderName`` to avoid shell expansion.
@@ -1710,7 +1710,7 @@ class LsCommand(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
-        parser.add_argument('--wildcard', action='store_true')
+        parser.add_argument('--with_wildcard', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
 
@@ -1722,7 +1722,7 @@ class LsCommand(Command):
             start_file_name,
             latest_only=not args.versions,
             recursive=args.recursive,
-            with_wildcard=args.wildcard,
+            with_wildcard=args.with_wildcard,
         )
 
 
@@ -1808,17 +1808,14 @@ class Ls(LsCommand):
 @B2.register_subcommand
 class Rm(Ls):
     """
-    Removes files listed via ``ls`` command.
+    Removes a group of files. Use with caution.
 
-    By default, this command lists all files to be removed the same way
-    the ``ls`` command does. It also requires confirmation before
-    the actual removal process starts. To skip these steps, provide
-    ``--force``.
+    To list files to be deleted, use ``--dry``. You can also list files
+    via ``ls`` command – the listing behaviour is exactly the same.
 
     {LSCOMMAND}
 
-    The ``--force`` option removes confirmation requirement presented
-    before the actual removal process. Use with caution.
+    The ``--dry`` option prints all the files that will be removed.
 
     Requires capability:
 
@@ -1826,22 +1823,16 @@ class Rm(Ls):
     - **deleteFiles**
     """
 
-    RM_PROMPT = 'Files listed above will be removed. Do you want to continue [y/n]?'
-    RM_ACCEPT_MESSAGE = 'y'
-
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--force', action='store_true')
+        parser.add_argument('--dry', action='store_true')
         super()._setup_parser(parser)
 
     def run(self, args):
-        if not args.force:
+        if args.dry:
             # Print all the files that are to be fetched.
             super().run(args)
-
-            input_result = input(self.RM_PROMPT)
-            if input_result != self.RM_ACCEPT_MESSAGE:
-                return 0
+            return 0
 
         generator = self.get_ls_generator(args)
 

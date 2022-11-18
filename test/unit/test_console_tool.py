@@ -2060,6 +2060,113 @@ class TestConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
 
+    def test_ls_with_wildcard(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Check with no files
+        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '*.txt'], '', '', 0)
+
+        # Create some files, including files in a folder
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        data = UploadSourceBytes(b'test-data')
+        bucket.upload(data, 'a')
+        bucket.upload(data, 'b/b1/test.csv')
+        bucket.upload(data, 'b/b2/test.csv')
+        bucket.upload(data, 'b/b2/test.tsv')
+        bucket.upload(data, 'c/test.csv')
+        bucket.upload(data, 'c/test.tsv')
+
+        expected_stdout = '''
+        b/b1/test.csv
+        b/b2/test.csv
+        b/b2/test.tsv
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '*.[tc]sv'], expected_stdout)
+
+        expected_stdout = '''
+        b/b2/test.tsv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '*.tsv'], expected_stdout)
+
+        expected_stdout = '''
+        b/b1/test.csv
+        b/b2/test.csv
+        '''
+        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', 'b/b?/test.csv'], expected_stdout)
+
+        expected_stdout = '''
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '?/test.?sv'], expected_stdout)
+
+        expected_stdout = '''
+        b/b1/test.csv
+        b/b2/test.csv
+        '''
+        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '?/*/*.[!t]sv'], expected_stdout)
+
+    def test_ls_with_wildcard_no_recursive(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Check with no files
+        with self.assertRaises(ValueError):
+            self._run_command(['ls', '--with_wildcard', 'my-bucket'])
+
+    def _setup_rm_bucket(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Create some files, including files in a folder
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        data = UploadSourceBytes(b'test-data')
+        bucket.upload(data, 'a/test.csv')
+        bucket.upload(data, 'a/test.tsv')
+        bucket.upload(data, 'b/b/test.csv')
+        bucket.upload(data, 'b/b1/test.csv')
+        bucket.upload(data, 'b/b2/test.tsv')
+        bucket.upload(data, 'c/test.csv')
+        bucket.upload(data, 'c/test.tsv')
+
+    def test_rm(self):
+        self._setup_rm_bucket()
+
+        self._run_command(['rm', '--recursive', '--with_wildcard', 'my-bucket', '*.csv'])
+
+        expected_stdout = '''
+        a/test.tsv
+        b/b2/test.tsv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_with_dry_option(self):
+        self._setup_rm_bucket()
+
+        expected_stdout = '''
+        a/test.csv
+        b/b/test.csv
+        b/b1/test.csv
+        c/test.csv
+        '''
+        self._run_command(['rm', '--recursive', '--with_wildcard', '--dry', 'my-bucket', '*.csv'], expected_stdout)
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
     def test_restrictions(self):
         # Initial condition
         self.assertEqual(None, self.account_info.get_account_auth_token())
