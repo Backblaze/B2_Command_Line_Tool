@@ -2130,6 +2130,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket.upload(data, 'b/b/test.csv')
         bucket.upload(data, 'b/b1/test.csv')
         bucket.upload(data, 'b/b2/test.tsv')
+        bucket.upload(data, 'b/test.txt')
         bucket.upload(data, 'c/test.csv')
         bucket.upload(data, 'c/test.tsv')
 
@@ -2141,6 +2142,20 @@ class TestConsoleTool(BaseConsoleToolTest):
         expected_stdout = '''
         a/test.tsv
         b/b2/test.tsv
+        b/test.txt
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_no_recursive(self):
+        self._setup_rm_bucket()
+
+        self._run_command(['rm', 'my-bucket', 'b/'])
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        c/test.csv
         c/test.tsv
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
@@ -2162,6 +2177,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/b/test.csv
         b/b1/test.csv
         b/b2/test.tsv
+        b/test.txt
         c/test.csv
         c/test.tsv
         '''
