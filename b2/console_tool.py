@@ -2939,6 +2939,20 @@ class License(Command):  # pragma: no cover
     @classmethod
     def _get_licenses_dicts(cls) -> List[Dict]:
         assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
+
+        # Python 3.11 workaround.
+        # Note: version 4.0.0+ of pip-licenses handle this on their side,
+        # however they dropped support for Python 3.7 in that version as well.
+        # TODO: whenever B2 CLI project drops support for Python 3.7,
+        #  update pip-licenses and remove this workaround.
+        # Note that part of this hack is using enforced PTable in version 0.9.2
+        # (which is some old fork of prettytable that actually matches the expected interface)
+        # PTable is installed on Python versions up to 3.10.
+
+        # Workaround part 1 (described https://github.com/tox-dev/pipdeptree/issues/164)
+        import os
+        os.putenv('_PIP_USE_IMPORTLIB_METADATA', '0')
+
         parser = piplicenses.create_parser()
         args = parser.parse_args(
             [
@@ -2951,6 +2965,10 @@ class License(Command):  # pragma: no cover
             ]
         )
         licenses_output = piplicenses.create_output_string(args)
+
+        # Workaround part 2 (cleanup)
+        os.unsetenv('_PIP_USE_IMPORTLIB_METADATA')
+
         licenses = json.loads(licenses_output)
         return licenses
 
