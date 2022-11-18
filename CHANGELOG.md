@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Stop using b2sdk.v1 in arg_parser.py
+* Fix issues when running commands on Python 3.11
+
+### Infrastructure
+* GitHub CI got checkout action updated to v3 and setup-python to v4
 
 ## [3.6.0] - 2022-09-20
 
