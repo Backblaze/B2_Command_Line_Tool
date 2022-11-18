@@ -2118,12 +2118,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         with self.assertRaises(ValueError):
             self._run_command(['ls', '--with_wildcard', 'my-bucket'])
 
-    def _setup_rm_bucket(self):
-        self._authorize_account()
-        self._create_my_bucket()
-
-        # Create some files, including files in a folder
-        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+    def _upload_rm_data(self, bucket):
         data = UploadSourceBytes(b'test-data')
         bucket.upload(data, 'a/test.csv')
         bucket.upload(data, 'a/test.tsv')
@@ -2133,6 +2128,14 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket.upload(data, 'b/test.txt')
         bucket.upload(data, 'c/test.csv')
         bucket.upload(data, 'c/test.tsv')
+
+    def _setup_rm_bucket(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        self._upload_rm_data(bucket)
+        return bucket
 
     def test_rm(self):
         self._setup_rm_bucket()
@@ -2146,6 +2149,24 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_versions(self):
+        bucket = self._setup_rm_bucket()
+        self._upload_rm_data(bucket)
+
+        self._run_command(['rm', '--versions', '--recursive', '--with_wildcard', 'my-bucket', '*.csv'])
+
+        expected_stdout = '''
+        a/test.tsv
+        a/test.tsv
+        b/b2/test.tsv
+        b/b2/test.tsv
+        b/test.txt
+        b/test.txt
+        c/test.tsv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--versions', '--recursive', 'my-bucket'], expected_stdout)
 
     def test_rm_no_recursive(self):
         self._setup_rm_bucket()
@@ -2175,6 +2196,22 @@ class TestConsoleTool(BaseConsoleToolTest):
         a/test.csv
         a/test.tsv
         b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_with_exact_filename(self):
+        self._setup_rm_bucket()
+
+        self._run_command(['rm', '--recursive', '--with_wildcard', 'my-bucket', 'b/b/test.csv'])
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
         b/b1/test.csv
         b/b2/test.tsv
         b/test.txt

@@ -90,6 +90,10 @@ def test_basic(b2_tool, bucket_name):
         ]
     )
 
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm'])
+    # with_wildcard allows us to target a single file.
+    b2_tool.should_succeed(['rm', '--recursive', '--with_wildcard', bucket_name, 'rm'])
+
     with TempDir() as dir_path:
         b2_tool.should_succeed(
             ['download-file-by-name', '--noProgress', bucket_name, 'b/1', dir_path / 'a']
@@ -231,6 +235,8 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
+    # A single file for rm to fail on.
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, 'README.md', 'test'])
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -267,11 +273,21 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['ls', bucket_name],)
 
+    # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
+    # in ensures that there are three in total.
+    failed_bucket_err = r'ERROR: unauthorized for application key with capabilities ' \
+                        r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
+                        r"restricted to bucket '%s' (unauthorized)" % bucket_name
+    b2_tool.should_fail(['rm', '--recursive', bucket_name], failed_bucket_err)
+
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
+
+    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    b2_tool.should_fail(['rm', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(
