@@ -2824,7 +2824,8 @@ class License(Command):  # pragma: no cover
     # In case of some modules, we provide manual
     # overrides to the license text extracted by piplicenses.
     # Thanks to this set, we make sure the module is still used
-    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk', 'PTable'}
+    # PTable is used on versions below Python 3.11
+    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
 
     LICENSES = {
         'atomicwrites':
