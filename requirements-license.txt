@@ -1,1 +1,1 @@
-pip-licenses==3.5.4
+pip-licenses==4.0.1
