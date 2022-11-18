@@ -78,6 +78,7 @@ from b2sdk.v2 import (
     Synchronizer,
     SyncReport,
     current_time_millis,
+    get_included_sources,
     make_progress_listener,
     parse_sync_folder,
     ReplicationMonitor,
@@ -2879,7 +2880,6 @@ class License(Command):  # pragma: no cover
         if with_packages:
             self._put_license_text_for_packages(stream)
 
-        from b2sdk.v2 import get_included_sources  # TODO: fix this import
         included_sources = get_included_sources()
         if included_sources:
             stream.write(
