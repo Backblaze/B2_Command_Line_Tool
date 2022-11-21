@@ -275,10 +275,11 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
 
     # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
     # in ensures that there are three in total.
-    failed_bucket_err = r'ERROR: unauthorized for application key with capabilities ' \
+    failed_bucket_err = r'Deletion of file "test" \([^\)]+\) failed: unauthorized for ' \
+                        r'application key with capabilities ' \
                         r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
                         r"restricted to bucket '%s' \(unauthorized\)" % bucket_name
-    b2_tool.should_fail(['rm', '--recursive', bucket_name], failed_bucket_err)
+    b2_tool.should_fail(['rm', '--recursive', '--noProgress', bucket_name], failed_bucket_err)
 
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
@@ -2390,7 +2391,7 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name
         [
             'update-bucket', bucket_name, '--defaultRetentionMode', 'compliance',
             '--defaultRetentionPeriod', '7 days'
-        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     # enable file lock and set retention at once

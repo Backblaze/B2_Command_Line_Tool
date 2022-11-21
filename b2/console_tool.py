@@ -26,6 +26,7 @@ import signal
 import sys
 import time
 from abc import ABCMeta, abstractclassmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
@@ -79,6 +80,7 @@ from b2sdk.v2.exception import (
     B2Error,
     BadFileInfo,
     EmptyDirectory,
+    FileNotPresent,
     MissingAccountData,
     NotADirectory,
     UnableToCreateDirectory,
@@ -1837,15 +1839,23 @@ class Ls(AbstractLsCommand):
 @B2.register_subcommand
 class Rm(Ls):
     """
-    Removes a group of files. Use with caution.
+    Removes a group of files.  Use with caution.
 
-    To list (but not remove) files to be deleted, use ``--dryRun``. You can also
+    To list (but not remove) files to be deleted, use ``--dryRun``.  You can also
     list files via ``ls`` command – the listing behaviour is exactly the same.
+
+    Users with high-performance networks or multiple files to be removed, will benefit
+    from multi-threaded capabilities.  The default number of threads is 10.
+
+    Progress is displayed on the console unless ``--noProgress`` is specified.
 
     {ABSTRACTLSCOMMAND}
 
     The ``--dryRun`` option prints all the files that
     would be affected by the command, but removes nothing.
+
+    Command returns 0 if all files were removed successfully and
+    a value different from 0 if any file was left.
 
     Examples.
 
@@ -1887,19 +1897,51 @@ class Rm(Ls):
     - **deleteFiles**
     """
 
+    DEFAULT_THREADS = 10
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--dryRun', action='store_true')
+        parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
+        parser.add_argument('--noProgress', action='store_true')
         super()._setup_parser(parser)
 
     def run(self, args):
         if args.dryRun:
             return super().run(args)
 
-        for file_version, _ in self._get_ls_generator(args):
-            self.api.delete_file_version(file_version.id_, file_version.file_name)
+        failed_on_any_file = False
 
-        return 0
+        with ThreadPoolExecutor(max_workers=args.threads) as executor:
+            futures = {}
+            with ProgressReport(self.stdout, args.noProgress) as reporter:
+                for file_version, _ in self._get_ls_generator(args):
+                    future = executor.submit(
+                        self.api.delete_file_version,
+                        file_version.id_,
+                        file_version.file_name,
+                    )
+                    futures[future] = file_version
+                    reporter.update_total(1)
+                reporter.end_total()
+
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except FileNotPresent:
+                        # It could happen when two ``rm`` are working in parallel on the same bucket.
+                        # Since the file was to be removed, and it's not there – it's not an error.
+                        pass
+                    except B2Error as error:
+                        file_version = futures[future]
+                        message = f'Deletion of file "{file_version.file_name}" ' \
+                                  f'({file_version.id_}) failed: {str(error)}'
+                        reporter.print_completion(message)
+                        failed_on_any_file = True
+
+                    reporter.update_count(1)
+
+        return 1 if failed_on_any_file else 0
 
 
 @B2.register_subcommand

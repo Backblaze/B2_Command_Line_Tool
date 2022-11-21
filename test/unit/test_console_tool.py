@@ -31,6 +31,7 @@ from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLI
 from b2sdk.v2 import RawSimulator
 from b2sdk.v2 import UploadSourceBytes
 from b2sdk.v2 import TempDir, fix_windows_path_limit
+from b2sdk.v2 import ProgressReport
 
 from .test_base import TestBase
 
@@ -2072,7 +2073,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
 
-    def test_ls_with_wildcard(self):
+    def test_ls_wildcard(self):
         self._authorize_account()
         self._create_my_bucket()
 
@@ -2092,19 +2093,28 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.[tc]sv'], expected_stdout)
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '*.[tc]sv'],
+            expected_stdout,
+        )
 
         expected_stdout = '''
         a/test.tsv
         b/b2/test.tsv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.tsv'], expected_stdout)
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '*.tsv'],
+            expected_stdout,
+        )
 
         expected_stdout = '''
         b/b1/test.csv
         '''
-        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', 'b/b?/test.csv'], expected_stdout)
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', 'b/b?/test.csv'],
+            expected_stdout,
+        )
 
         expected_stdout = '''
         a/test.csv
@@ -2112,13 +2122,19 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '?/test.?sv'], expected_stdout)
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '?/test.?sv'],
+            expected_stdout,
+        )
 
         expected_stdout = '''
         b/b/test.csv
         b/b1/test.csv
         '''
-        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '?/*/*.[!t]sv'], expected_stdout)
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '?/*/*.[!t]sv'],
+            expected_stdout,
+        )
 
     def test_ls_with_wildcard_no_recursive(self):
         self._authorize_account()
@@ -2413,8 +2429,16 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self.bucket = self.b2_api.get_bucket_by_name('my-bucket')
         upload_multiple_files(self.bucket)
 
+        self.original_progress_interval = ProgressReport.UPDATE_INTERVAL
+        ProgressReport.UPDATE_INTERVAL = 0.0
+
+    def tearDown(self) -> None:
+        ProgressReport.UPDATE_INTERVAL = self.original_progress_interval
+
     def test_rm_wildcard(self):
-        self._run_command(['rm', '--recursive', '--withWildcard', 'my-bucket', '*.csv'])
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', '--noProgress', 'my-bucket', '*.csv'],
+        )
 
         expected_stdout = '''
         a/test.tsv
@@ -2428,7 +2452,9 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         # Uploading content of the bucket again to create second version of each file.
         upload_multiple_files(self.bucket)
 
-        self._run_command(['rm', '--versions', '--recursive', '--withWildcard', 'my-bucket', '*.csv'])
+        self._run_command(
+            ['rm', '--versions', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],
+        )
 
         expected_stdout = '''
         a/test.tsv
@@ -2443,7 +2469,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self._run_command(['ls', '--versions', '--recursive', 'my-bucket'], expected_stdout)
 
     def test_rm_no_recursive(self):
-        self._run_command(['rm', 'my-bucket', 'b/'])
+        self._run_command(['rm', '--noProgress', 'my-bucket', 'b/'])
 
         expected_stdout = '''
         a/test.csv
@@ -2460,7 +2486,10 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         c/test.csv
         '''
-        self._run_command(['rm', '--recursive', '--withWildcard', '--dryRun', 'my-bucket', '*.csv'], expected_stdout)
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', '--dryRun', 'my-bucket', '*.csv'],
+            expected_stdout,
+        )
 
         expected_stdout = '''
         a/test.csv
@@ -2475,7 +2504,9 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
 
     def test_rm_exact_filename(self):
-        self._run_command(['rm', '--recursive', '--withWildcard', 'my-bucket', 'b/b/test.csv'])
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', '--noProgress', 'my-bucket', 'b/b/test.csv'],
+        )
 
         expected_stdout = '''
         a/test.csv
@@ -2484,6 +2515,21 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/b2/test.tsv
         b/test.txt
         c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_progress(self):
+        expected_in_stdout = ' count: 4/4 '
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],
+            expected_part_of_stdout=expected_in_stdout,
+        )
+
+        expected_stdout = '''
+        a/test.tsv
+        b/b2/test.tsv
+        b/test.txt
         c/test.tsv
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
