@@ -2538,10 +2538,12 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
 
-    def _run_problematic_removal(self,
-                                 additional_parameters: Optional[list[str]] = None,
-                                 expected_in_stdout: Optional[str] = None,
-                                 unexpected_in_stdout: Optional[str] = None):
+    def _run_problematic_removal(
+        self,
+        additional_parameters: Optional[list[str]] = None,
+        expected_in_stdout: Optional[str] = None,
+        unexpected_in_stdout: Optional[str] = None
+    ):
         additional_parameters = additional_parameters or []
 
         original_delete_file_version = self.b2_api.raw_api.delete_file_version
@@ -2551,14 +2553,21 @@ class TestRmConsoleTool(BaseConsoleToolTest):
                 raise Conflict()
             return original_delete_file_version(this, account_auth_token, file_id, file_name)
 
-        with mock.patch.object(self.b2_api.raw_api, 'delete_file_version', side_effect=mocked_delete_file_version):
+        with mock.patch.object(
+            self.b2_api.raw_api,
+            'delete_file_version',
+            side_effect=mocked_delete_file_version,
+        ):
             self._run_command(
                 [
                     'rm',
-                    '--recursive', '--withWildcard',
-                    '--threads', '1',
+                    '--recursive',
+                    '--withWildcard',
+                    '--threads',
+                    '1',
                     *additional_parameters,
-                    'my-bucket', '*',
+                    'my-bucket',
+                    '*',
                 ],
                 expected_status=1,
                 expected_part_of_stdout=expected_in_stdout,
