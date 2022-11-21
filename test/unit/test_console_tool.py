@@ -2065,7 +2065,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         # Check with no files
-        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '*.txt'], '', '', 0)
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.txt'], '', '', 0)
 
         # Create some files, including files in a folder
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
@@ -2084,31 +2084,31 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '*.[tc]sv'], expected_stdout)
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.[tc]sv'], expected_stdout)
 
         expected_stdout = '''
         b/b2/test.tsv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '*.tsv'], expected_stdout)
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.tsv'], expected_stdout)
 
         expected_stdout = '''
         b/b1/test.csv
         b/b2/test.csv
         '''
-        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', 'b/b?/test.csv'], expected_stdout)
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', 'b/b?/test.csv'], expected_stdout)
 
         expected_stdout = '''
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '?/test.?sv'], expected_stdout)
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '?/test.?sv'], expected_stdout)
 
         expected_stdout = '''
         b/b1/test.csv
         b/b2/test.csv
         '''
-        self._run_command(['ls', '--recursive', '--with_wildcard', 'my-bucket', '?/*/*.[!t]sv'], expected_stdout)
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '?/*/*.[!t]sv'], expected_stdout)
 
     def test_ls_with_wildcard_no_recursive(self):
         self._authorize_account()
@@ -2116,7 +2116,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Check with no files
         with self.assertRaises(ValueError):
-            self._run_command(['ls', '--with_wildcard', 'my-bucket'])
+            self._run_command(['ls', '--withWildcard', 'my-bucket'])
 
     def _upload_rm_data(self, bucket):
         data = UploadSourceBytes(b'test-data')
@@ -2140,7 +2140,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_rm(self):
         self._setup_rm_bucket()
 
-        self._run_command(['rm', '--recursive', '--with_wildcard', 'my-bucket', '*.csv'])
+        self._run_command(['rm', '--recursive', '--withWildcard', 'my-bucket', '*.csv'])
 
         expected_stdout = '''
         a/test.tsv
@@ -2154,7 +2154,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket = self._setup_rm_bucket()
         self._upload_rm_data(bucket)
 
-        self._run_command(['rm', '--versions', '--recursive', '--with_wildcard', 'my-bucket', '*.csv'])
+        self._run_command(['rm', '--versions', '--recursive', '--withWildcard', 'my-bucket', '*.csv'])
 
         expected_stdout = '''
         a/test.tsv
@@ -2181,7 +2181,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
 
-    def test_rm_with_dry_option(self):
+    def test_rm_with_dry_run_option(self):
         self._setup_rm_bucket()
 
         expected_stdout = '''
@@ -2190,7 +2190,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         c/test.csv
         '''
-        self._run_command(['rm', '--recursive', '--with_wildcard', '--dry', 'my-bucket', '*.csv'], expected_stdout)
+        self._run_command(['rm', '--recursive', '--withWildcard', '--dryRun', 'my-bucket', '*.csv'], expected_stdout)
 
         expected_stdout = '''
         a/test.csv
@@ -2207,7 +2207,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_rm_with_exact_filename(self):
         self._setup_rm_bucket()
 
-        self._run_command(['rm', '--recursive', '--with_wildcard', 'my-bucket', 'b/b/test.csv'])
+        self._run_command(['rm', '--recursive', '--withWildcard', 'my-bucket', 'b/b/test.csv'])
 
         expected_stdout = '''
         a/test.csv

@@ -1,5 +1,5 @@
 arrow>=1.0.2,<2.0.0
-b2sdk>=1.18.1
+b2sdk>=1.19.0,<2.0.0
 docutils==0.19
 idna>=2.2.0; platform_system == 'Java'
 importlib-metadata>=3.3.0; python_version < '3.8'

@@ -1692,7 +1692,7 @@ class ListUnfinishedLargeFiles(Command):
         return 0
 
 
-class LsCommand(Command):
+class AbstractLsCommand(Command, metaclass=ABCMeta):
     """
     The ``--versions`` option shows all versions of each file, not
     just the most recent.
@@ -1700,7 +1700,7 @@ class LsCommand(Command):
     The ``--recursive`` option will descend into folders, and will show
     only files, not folders.
 
-    The ``--with_wildcard`` option will allow using ``*``, ``?`` and ```[]```
+    The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
     wildcard and range of characters. It automatically assumes ``--recursive``.
     Remember to quote ``folderName`` to avoid shell expansion.
@@ -1710,11 +1710,11 @@ class LsCommand(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
-        parser.add_argument('--with_wildcard', action='store_true')
+        parser.add_argument('--withWildcard', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
 
-    def get_ls_generator(self, args):
+    def _get_ls_generator(self, args):
         start_file_name = args.folderName or ''
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1722,12 +1722,12 @@ class LsCommand(Command):
             start_file_name,
             latest_only=not args.versions,
             recursive=args.recursive,
-            with_wildcard=args.with_wildcard,
+            with_wildcard=args.withWildcard,
         )
 
 
 @B2.register_subcommand
-class Ls(LsCommand):
+class Ls(AbstractLsCommand):
     """
     Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
@@ -1745,7 +1745,36 @@ class Ls(LsCommand):
 
     The ``--replication`` option adds replication status
 
-    {LSCOMMAND}
+    {ABSTRACTLSCOMMAND}
+
+    Examples
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    List csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    List all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    List all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
 
     Requires capability:
 
@@ -1764,7 +1793,7 @@ class Ls(LsCommand):
         super()._setup_parser(parser)
 
     def run(self, args):
-        generator = self.get_ls_generator(args)
+        generator = self._get_ls_generator(args)
 
         if args.json:
             self._print_json([file_version for file_version, _ in generator])
@@ -1810,12 +1839,47 @@ class Rm(Ls):
     """
     Removes a group of files. Use with caution.
 
-    To list files to be deleted, use ``--dry``. You can also list files
-    via ``ls`` command – the listing behaviour is exactly the same.
+    To list (but not remove) files to be deleted, use ``--dryRun``. You can also
+    list files via ``ls`` command – the listing behaviour is exactly the same.
 
-    {LSCOMMAND}
+    {ABSTRACTLSCOMMAND}
 
-    The ``--dry`` option prints all the files that will be removed.
+    The ``--dryRun`` option prints all the files that
+    would be affected by the command, but removes nothing.
+
+    Examples.
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    .. note::
+
+        Use with caution. Lines presented below can cause data-loss.
+
+
+    Remove all csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    Remove all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    Remove all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
 
     Requires capability:
 
@@ -1825,18 +1889,14 @@ class Rm(Ls):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--dry', action='store_true')
+        parser.add_argument('--dryRun', action='store_true')
         super()._setup_parser(parser)
 
     def run(self, args):
-        if args.dry:
-            # Print all the files that are to be fetched.
-            super().run(args)
-            return 0
+        if args.dryRun:
+            return super().run(args)
 
-        generator = self.get_ls_generator(args)
-
-        for file_version, _ in generator:
+        for file_version, _ in self._get_ls_generator(args):
             self.api.delete_file_version(file_version.id_, file_version.file_name)
 
         return 0
