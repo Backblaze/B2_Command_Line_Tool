@@ -1854,6 +1854,18 @@ class Rm(Ls):
     The ``--dryRun`` option prints all the files that
     would be affected by the command, but removes nothing.
 
+    Normally, when an error happens during file removal, log is printed and the command
+    goes further. If any error should be immediately breaking the command,
+    ``--fastFail`` can be passed to ensure that first error will stop the execution.
+    This could be useful to e.g. check whether provided credentials have **deleteFiles**
+    capabilities.
+
+    .. note::
+
+        Using ``--fastFail`` doesn't prevent the command from trying to remove further files.
+        It just stops the progress. Since multiple files are removed in parallel, it's possible
+        that just some of them were not reported.
+
     Command returns 0 if all files were removed successfully and
     a value different from 0 if any file was left.
 
@@ -1904,6 +1916,7 @@ class Rm(Ls):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
         parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--failFast', action='store_true')
         super()._setup_parser(parser)
 
     def run(self, args):
@@ -1923,6 +1936,7 @@ class Rm(Ls):
                     )
                     futures[future] = file_version
                     reporter.update_total(1)
+                    self.stdout.write('File added\n')
                 reporter.end_total()
 
                 for future in as_completed(futures):
@@ -1938,6 +1952,9 @@ class Rm(Ls):
                                   f'({file_version.id_}) failed: {str(error)}'
                         reporter.print_completion(message)
                         failed_on_any_file = True
+
+                        if args.failFast:
+                            break
 
                     reporter.update_count(1)
 

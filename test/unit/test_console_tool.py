@@ -32,6 +32,7 @@ from b2sdk.v2 import RawSimulator
 from b2sdk.v2 import UploadSourceBytes
 from b2sdk.v2 import TempDir, fix_windows_path_limit
 from b2sdk.v2 import ProgressReport
+from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
 
 from .test_base import TestBase
 
@@ -176,6 +177,7 @@ class BaseConsoleToolTest(TestBase):
         remove_version=False,
         expected_json_in_stdout: Optional[dict] = None,
         expected_part_of_stdout=None,
+        unexpected_part_of_stdout=None,
     ):
         """
         Runs one command using the ConsoleTool, checking stdout, stderr, and
@@ -233,6 +235,8 @@ class BaseConsoleToolTest(TestBase):
             self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         if expected_part_of_stdout is not None:
             self.assertIn(expected_part_of_stdout, actual_stdout)
+        if unexpected_part_of_stdout is not None:
+            self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
 
@@ -2531,5 +2535,49 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/b2/test.tsv
         b/test.txt
         c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def _run_problematic_removal(self,
+                                 additional_parameters: Optional[list[str]] = None,
+                                 expected_in_stdout: Optional[str] = None,
+                                 unexpected_in_stdout: Optional[str] = None):
+        additional_parameters = additional_parameters or []
+
+        original_delete_file_version = self.b2_api.raw_api.delete_file_version
+
+        def mocked_delete_file_version(this, account_auth_token, file_id, file_name):
+            if file_name == 'b/b1/test.csv':
+                raise Conflict()
+            return original_delete_file_version(this, account_auth_token, file_id, file_name)
+
+        with mock.patch.object(self.b2_api.raw_api, 'delete_file_version', side_effect=mocked_delete_file_version):
+            self._run_command(
+                [
+                    'rm',
+                    '--recursive', '--withWildcard',
+                    '--threads', '1',
+                    *additional_parameters,
+                    'my-bucket', '*',
+                ],
+                expected_status=1,
+                expected_part_of_stdout=expected_in_stdout,
+                unexpected_part_of_stdout=unexpected_in_stdout,
+            )
+
+    def test_rm_fail_fast(self):
+        # Since we already have all the jobs submitted to another thread,
+        # we can only rely on the log to tell when it stopped.
+        expected_in_stdout = '''
+        Deletion of file "b/b1/test.csv" (9996) failed: Conflict:
+         count: 3/8'''
+        unexpected_in_stdout = ' count: 4/8 '
+        self._run_problematic_removal(['--failFast'], expected_in_stdout, unexpected_in_stdout)
+
+    def test_rm_skipping_over_errors(self):
+        self._run_problematic_removal()
+
+        expected_stdout = '''
+        b/b1/test.csv
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
