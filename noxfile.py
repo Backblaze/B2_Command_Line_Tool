@@ -7,7 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-
+import datetime
 import os
 import pkg_resources
 import platform
@@ -415,8 +415,8 @@ def docker(session):
     vcs_ref = _get_git_ref()
 
     docker_file_template = [
-        # Header.
-        f'FROM python:{session.python}-slim',
+        # First layer, actual library.
+        f'FROM python:{session.python}-slim as base',
         '',
         # Labels. These are based on http://label-schema.org/
         'LABEL vendor=Backblaze',
@@ -427,8 +427,29 @@ def docker(session):
         # TODO: consider fetching it from `git ls-remote --get-url origin`
         'LABEL vcs-url=https://github.com/Backblaze/B2_Command_Line_Tool',
         f'LABEL vcs-ref={vcs_ref}',
+        f'LABEL build-date-iso8601={datetime.datetime.utcnow().isoformat()}'
+        '',
+        # Dependencies.
+        # Requirement for `setuptools_scm`.
+        'RUN ["apt-get", "update"]',
+        'RUN ["apt-get", "upgrade", "-y"]',
+        'RUN ["apt-get", "install", "-y", "git"]',
         '',
         # Installation.
+        'WORKDIR /b2',
+        'COPY . .',
+        'RUN ["pip", "install", "--upgrade", "pip"]',
+        # TODO: consider expanded images with e.g. curl installed out of the box.
+        'RUN ["pip", "install", "."]',
+        '',
+
+        # Second layer, tests. All tests are copied, but we're running only units for now.
+        'FROM base as test',
+        'COPY test /test',
+        'WORKDIR /test',
+        'RUN ["pip", "install", "nox"]',
+        f'CMD ["nox", "-s", "unit-{session.python}"]',
+        '',
     ]
 
     with open('Dockerfile', 'w') as f:
