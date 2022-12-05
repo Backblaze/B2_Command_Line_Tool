@@ -419,9 +419,16 @@ def docker(session):
     vcs_ref = _get_git_ref()
     built_distribution = list(pathlib.Path('.').glob('dist/*'))[0]
 
+    username = 'b2'
+    homedir = f'/{username}'
+
     docker_file_template = [
         # First layer, actual library.
         f'FROM python:{session.python}-slim as base',
+        # Even if we point to a different home directory, we'll get skeleton copied.
+        f'RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "{username}"]',
+        f'RUN ["usermod", "--home", "{homedir}", "{username}"]',
+        f'USER {username}',
         '',
         # Labels. These are based on http://label-schema.org/
         'LABEL vendor=Backblaze',
@@ -435,7 +442,7 @@ def docker(session):
         f'LABEL build-date-iso8601={datetime.datetime.utcnow().isoformat()}'
         '',
         # Installation.
-        'WORKDIR /b2',
+        f'WORKDIR {homedir}',
         # Not using ADD because I don't want this unpacked.
         f'COPY {built_distribution.as_posix()} .',
         'RUN ["pip", "install", "--upgrade", "pip"]',
@@ -445,10 +452,11 @@ def docker(session):
 
         # Second layer, tests. All tests are copied, but we're running only units for now.
         'FROM base as test',
-        'COPY test /test',
         'WORKDIR /test',
+        'COPY test ./test',
+        'COPY noxfile.py .',
         'RUN ["pip", "install", "nox"]',
-        f'CMD ["nox", "-s", "unit-{session.python}"]',
+        'CMD ["python", "-m", "nox", "--no-venv", "--no-install", "--reuse-existing-virtualenvs", "-s", "unit"]',
         '',
     ]
 
