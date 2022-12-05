@@ -8,15 +8,17 @@
 #
 ######################################################################
 
-import io
 import os
 import pkg_resources
 import platform
 import subprocess
 
 from glob import glob
+from typing import Tuple
 
 import nox
+
+import b2.version
 
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
@@ -367,3 +369,72 @@ def doc_cover(session):
         # If there is no undocumented files, the report should have only 2 lines (header)
         if sum(1 for _ in fd) != 2:
             session.error('sphinx coverage has failed')
+
+
+def _read_readme_name_and_description() -> Tuple[str, str]:
+    # Get name and the description from the readme. First line is assumed to be the project name,
+    # second contains list of all different checks. Third one and the following contains some description.
+    # We assume that description can be multiline, and it ends with an empty line.
+    with open('README.md', 'r') as f:
+        non_empty_lines = 0
+        full_name = None
+        description_parts = []
+
+        for line_with_ends in f.readlines():
+            line = line_with_ends.strip()
+            if len(line) == 0:
+                # If we found an empty line after we got anything for our description – finish.
+                if len(description_parts) > 0:
+                    break
+                continue
+
+            non_empty_lines += 1
+
+            if non_empty_lines == 1:
+                # Markdown header starts with some "# ", we strip everything up to first space.
+                full_name = line.split(' ', maxsplit=1)[1]
+
+            if non_empty_lines < 3:
+                continue
+
+            description_parts.append(line)
+
+    return full_name, ' '.join(description_parts)
+
+
+def _get_git_ref() -> str:
+    result = subprocess.run(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE)
+    assert result.returncode == 0
+    return result.stdout.decode('ascii').strip()
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def docker(session):
+    """Build the docker image."""
+    full_name, description = _read_readme_name_and_description()
+    vcs_ref = _get_git_ref()
+
+    docker_file_template = [
+        # Header.
+        f'FROM python:{session.python}-slim',
+        '',
+        # Labels. These are based on http://label-schema.org/
+        'LABEL vendor=Backblaze',
+        f'LABEL name="{full_name}"',
+        f'LABEL description="{description}"',
+        f'LABEL version={b2.version.VERSION}',
+        'LABEL url=https://www.backblaze.com',
+        # TODO: consider fetching it from `git ls-remote --get-url origin`
+        'LABEL vcs-url=https://github.com/Backblaze/B2_Command_Line_Tool',
+        f'LABEL vcs-ref={vcs_ref}',
+        '',
+        # Installation.
+    ]
+
+    with open('Dockerfile', 'w') as f:
+        f.write('\n'.join(docker_file_template))
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def docker_test(session):
+    """Run unittests against the docker image."""
