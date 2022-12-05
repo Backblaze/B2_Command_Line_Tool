@@ -9,6 +9,8 @@
 ######################################################################
 import datetime
 import os
+import pathlib
+
 import pkg_resources
 import platform
 import subprocess
@@ -411,8 +413,11 @@ def _get_git_ref() -> str:
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker(session):
     """Build the docker image."""
+    session.notify('build')
+
     full_name, description = _read_readme_name_and_description()
     vcs_ref = _get_git_ref()
+    built_distribution = list(pathlib.Path('.').glob('dist/*'))[0]
 
     docker_file_template = [
         # First layer, actual library.
@@ -429,18 +434,13 @@ def docker(session):
         f'LABEL vcs-ref={vcs_ref}',
         f'LABEL build-date-iso8601={datetime.datetime.utcnow().isoformat()}'
         '',
-        # Dependencies.
-        # Requirement for `setuptools_scm`.
-        'RUN ["apt-get", "update"]',
-        'RUN ["apt-get", "upgrade", "-y"]',
-        'RUN ["apt-get", "install", "-y", "git"]',
-        '',
         # Installation.
         'WORKDIR /b2',
-        'COPY . .',
+        # Not using ADD because I don't want this unpacked.
+        f'COPY {built_distribution.as_posix()} .',
         'RUN ["pip", "install", "--upgrade", "pip"]',
-        # TODO: consider expanded images with e.g. curl installed out of the box.
-        'RUN ["pip", "install", "."]',
+        # We can install all the extras here as well and then use multi-stage images to provide dependencies.
+        f'RUN ["pip", "install", "{built_distribution.relative_to("dist").as_posix()}"]',
         '',
 
         # Second layer, tests. All tests are copied, but we're running only units for now.
