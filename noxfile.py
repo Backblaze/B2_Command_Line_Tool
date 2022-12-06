@@ -436,37 +436,49 @@ def docker(session):
         'LABEL vendor=Backblaze',
         f'LABEL name="{full_name}"',
         f'LABEL description="{description}"',
-        f'LABEL version={b2.version.VERSION}',
-        'LABEL url=https://www.backblaze.com',
+        f'LABEL version="{b2.version.VERSION}"',
+        'LABEL url="https://www.backblaze.com"',
         # TODO: consider fetching it from `git ls-remote --get-url origin`
-        'LABEL vcs-url=https://github.com/Backblaze/B2_Command_Line_Tool',
-        f'LABEL vcs-ref={vcs_ref}',
-        f'LABEL build-date-iso8601={datetime.datetime.utcnow().isoformat()}'
+        'LABEL vcs-url="https://github.com/Backblaze/B2_Command_Line_Tool"',
+        f'LABEL vcs-ref="{vcs_ref}"',
+        f'LABEL build-date-iso8601="{datetime.datetime.utcnow().isoformat()}"',
         '',
         # Installation.
         f'WORKDIR {homedir}',
         # Not using ADD because I don't want this unpacked.
         f'COPY {built_distribution.as_posix()} .',
-        'RUN ["pip", "install", "--upgrade", "pip"]',
         # We can install all the extras here as well and then use multi-stage images to provide dependencies.
         f'RUN ["pip", "install", "{built_distribution.relative_to("dist").as_posix()}"]',
+        # Ensure that we can run installed packages.
         f'ENV PATH={homedir}/.local/bin:$PATH',
         '',
 
         # Second layer, tests. All tests are copied, but we're running only units for now.
         'FROM base as test',
+        '',
+        # Environment variables. Both are unset and here just to notify user that these are needed.
+        'ENV B2_TEST_APPLICATION_KEY=""',
+        'ENV B2_TEST_APPLICATION_KEY_ID=""',
+        '',
         'WORKDIR /test',
         'COPY test ./test',
         'COPY noxfile.py .',
+        # Required for some tests.
+        'COPY README.md .',
         'RUN ["pip", "install", "nox"]',
         # Ensuring that `pip install -e .` will be invoked. We're on
         # a special image that already has the latest version installed.
         'ENV NO_INSTALL=1',
-        'CMD ["nox", "--no-venv", "-s", "unit"]',
+        'CMD ["nox", "--no-venv", "-s", "test"]',
         '',
 
         # Final layer, production image.
         f'FROM base',
+        '',
+        # Environment variables. Both are unset and here just to notify user that these are needed.
+        'ENV B2_APPLICATION_KEY=""',
+        'ENV B2_APPLICATION_KEY_ID=""',
+        '',
         f'ENTRYPOINT ["b2"]',
         f'CMD ["--help"]',
     ]

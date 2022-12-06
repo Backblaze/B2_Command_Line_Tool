@@ -78,6 +78,31 @@ determine if there are benefits.
 
 Note that using multiple threads will usually be detrimental to the other users on your network.
 
+## Docker image
+
+An official docker image is provided for these who want to use B2 Command Line Tool in a docker environment.
+
+Assuming that `b2-credentials-file` contains two lines:
+
+```env
+B2_APPLICATION_KEY=key
+B2_APPLICATION_KEY_ID=key-id
+```
+
+An example workflow could be:
+
+    docker run --env-file b2-credentials-file b2 authorize-account
+    docker run --env-file b2-credentials-file b2 create-bucket test-bucket allPrivate
+    docker run --env-file b2-credentials-file -v `pwd`:/data b2 upload-file test-bucket /data/local-file remote-file
+    docker run --env-file b2-credentials-file -v `pwd`:/data b2 ls test-bucket
+    docker run --env-file b2-credentials-file -v `pwd`:/data b2 download-file-by-name test-bucket remote-file /data/local-file-2
+
+Where `-v ``pwd``:/data` mounts current directory to a `/data` on the image. Notice that since you're running commands 
+from inside the docker image, you need to mount a drive to both upload and download files properly.
+
+Note that both account info file and SQLite database will be, by default, created on the image. Mounting docker volumes
+should be used to alter this behaviour.
+
 # Contrib
 
 ## bash completion
