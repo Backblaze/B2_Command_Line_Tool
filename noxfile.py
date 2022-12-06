@@ -417,9 +417,11 @@ def docker(session):
     # This string is like `b2 command line tool, version <sem-ver-string>`
     version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
 
+    dist_path = 'dist/'
+
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
-    built_distribution = list(pathlib.Path('.').glob('dist/*'))[0]
+    built_distribution = list(pathlib.Path('.').glob(f'{dist_path}*'))[0]
 
     username = 'b2'
     homedir = f'/{username}'
@@ -431,7 +433,6 @@ def docker(session):
         # Even if we point to a different home directory, we'll get skeleton copied.
         f'RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "{username}"]',
         f'RUN ["usermod", "--home", "{homedir}", "{username}"]',
-        f'USER {username}',
         '',
         # Labels. These are based on http://label-schema.org/
         'LABEL vendor=Backblaze',
@@ -444,12 +445,14 @@ def docker(session):
         f'LABEL vcs-ref="{vcs_ref}"',
         f'LABEL build-date-iso8601="{datetime.datetime.utcnow().isoformat()}"',
         '',
-        # Installation.
         f'WORKDIR {homedir}',
-        # Not using ADD because I don't want this unpacked.
+        f'RUN ["chown", "-R", "{username}", "{homedir}"]',
+        f'USER {username}',
+        '',
+        # Installation.
         f'COPY {built_distribution.as_posix()} .',
         # We can install all the extras here as well and then use multi-stage images to provide dependencies.
-        f'RUN ["pip", "install", "{built_distribution.relative_to("dist").as_posix()}"]',
+        f'RUN ["pip", "install", "{built_distribution.relative_to(dist_path).as_posix()}"]',
         # Ensure that we can run installed packages.
         f'ENV PATH={homedir}/.local/bin:$PATH',
         '',
