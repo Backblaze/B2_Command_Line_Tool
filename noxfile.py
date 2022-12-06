@@ -27,7 +27,6 @@ CD = CI and (os.environ.get('CD') is not None)
 INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
 NO_STATICX = os.environ.get('NO_STATICX') is not None
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
-NO_INSTALL = os.environ.get('NO_INSTALL') is not None
 
 PYTHON_VERSIONS = [
     '3.7',
@@ -82,7 +81,11 @@ def install_myself(session, extras=None):
     if extras:
         arg += '[%s]' % ','.join(extras)
 
-    if not NO_INSTALL:
+    # `--no-install` works only on `run_always` in case where there is a virtualenv available.
+    # This is to be used also on the docker image during tests, where we have no venv, thus
+    # we're ensuring that `--no-install` doesn't work on this installation.
+    # Internal member is used, as there is no public interface for fetching options.
+    if not session._runner.global_config.no_install:  # noqa
         session.run('pip', 'install', '-e', arg)
 
     if INSTALL_SDK_FROM:
@@ -406,19 +409,13 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
     return full_name, ' '.join(description_parts)
 
 
-def _get_git_ref() -> str:
-    result = subprocess.run(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE)
-    assert result.returncode == 0
-    return result.stdout.decode('ascii').strip()
-
-
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker(session):
     """Build the docker image."""
     build(session)
 
     full_name, description = _read_readme_name_and_description()
-    vcs_ref = _get_git_ref()
+    vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob('dist/*'))[0]
 
     username = 'b2'
@@ -427,6 +424,7 @@ def docker(session):
     docker_file_template = [
         # First layer, actual library.
         f'FROM python:{session.python}-slim as base',
+        '',
         # Even if we point to a different home directory, we'll get skeleton copied.
         f'RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "{username}"]',
         f'RUN ["usermod", "--home", "{homedir}", "{username}"]',
@@ -452,32 +450,26 @@ def docker(session):
         # Ensure that we can run installed packages.
         f'ENV PATH={homedir}/.local/bin:$PATH',
         '',
+        '',
 
         # Second layer, tests. All tests are copied, but we're running only units for now.
         'FROM base as test',
         '',
-        # Environment variables. Both are unset and here just to notify user that these are needed.
-        'ENV B2_TEST_APPLICATION_KEY=""',
-        'ENV B2_TEST_APPLICATION_KEY_ID=""',
-        '',
         'WORKDIR /test',
         'COPY test ./test',
         'COPY noxfile.py .',
-        # Required for some tests.
+        '',
+        '# Files used by tests.',
         'COPY README.md .',
+        'COPY CHANGELOG.md .',
+        '',
         'RUN ["pip", "install", "nox"]',
-        # Ensuring that `pip install -e .` will be invoked. We're on
-        # a special image that already has the latest version installed.
-        'ENV NO_INSTALL=1',
-        'CMD ["nox", "--no-venv", "-s", "test"]',
+        'ENTRYPOINT ["nox", "--no-venv", "--no-install", "-s"]',
+        '',
         '',
 
         # Final layer, production image.
         f'FROM base',
-        '',
-        # Environment variables. Both are unset and here just to notify user that these are needed.
-        'ENV B2_APPLICATION_KEY=""',
-        'ENV B2_APPLICATION_KEY_ID=""',
         '',
         f'ENTRYPOINT ["b2"]',
         f'CMD ["--help"]',
@@ -490,3 +482,19 @@ def docker(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker_test(session):
     """Run unittests against the docker image."""
+    docker(session)
+
+    image_tag = 'b2:test'
+
+    session.run('docker', 'build', '-t', image_tag, '--target', 'test', '.', external=True)
+    docker_test_run = [
+        'docker',
+        'run',
+        '--rm',
+        '-e', 'B2_TEST_APPLICATION_KEY',
+        '-e', 'B2_TEST_APPLICATION_KEY_ID',
+        'b2:test',
+    ]
+    session.run(*docker_test_run, 'unit', external=True)
+    session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)
+    session.run('docker', 'rm', '--force', image_tag, external=True)
