@@ -414,7 +414,8 @@ def docker(session):
     build(session)
 
     install_myself(session)
-    version = importlib.import_module('b2').__version__
+    # This string is like `b2 command line tool, version <sem-ver-string>`
+    version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
