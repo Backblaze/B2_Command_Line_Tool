@@ -491,8 +491,10 @@ def docker_test(session):
         'docker',
         'run',
         '--rm',
-        '-e', 'B2_TEST_APPLICATION_KEY',
-        '-e', 'B2_TEST_APPLICATION_KEY_ID',
+        '-e',
+        'B2_TEST_APPLICATION_KEY',
+        '-e',
+        'B2_TEST_APPLICATION_KEY_ID',
         'b2:test',
     ]
     session.run(*docker_test_run, 'unit', external=True)
