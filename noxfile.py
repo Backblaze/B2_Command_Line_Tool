@@ -20,8 +20,6 @@ from typing import Tuple
 
 import nox
 
-import b2.version
-
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
 INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
@@ -412,7 +410,11 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker(session):
     """Build the docker image."""
+    install_myself(session)
     build(session)
+
+    # This cannot be imported before we install our library.
+    import b2.version
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
