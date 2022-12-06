@@ -418,6 +418,8 @@ def docker(session):
     version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
 
     dist_path = 'dist/'
+    tests_image_dir = '/test'
+    tests_path = 'test/'
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
@@ -429,10 +431,6 @@ def docker(session):
     docker_file_template = [
         # First layer, actual library.
         f'FROM python:{session.python}-slim as base',
-        '',
-        # Even if we point to a different home directory, we'll get skeleton copied.
-        f'RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "{username}"]',
-        f'RUN ["usermod", "--home", "{homedir}", "{username}"]',
         '',
         # Labels. These are based on http://label-schema.org/
         'LABEL vendor=Backblaze',
@@ -446,8 +444,6 @@ def docker(session):
         f'LABEL build-date-iso8601="{datetime.datetime.utcnow().isoformat()}"',
         '',
         f'WORKDIR {homedir}',
-        f'RUN ["chown", "-R", "{username}", "{homedir}"]',
-        f'USER {username}',
         '',
         # Installation.
         f'COPY {built_distribution.as_posix()} .',
@@ -461,8 +457,8 @@ def docker(session):
         # Second layer, tests. All tests are copied, but we're running only units for now.
         'FROM base as test',
         '',
-        'WORKDIR /test',
-        'COPY test ./test',
+        f'WORKDIR {tests_image_dir}',
+        f'COPY {tests_path} ./{tests_path}',
         'COPY noxfile.py .',
         '',
         '# Files used by tests.',
@@ -476,6 +472,12 @@ def docker(session):
 
         # Final layer, production image.
         f'FROM base',
+        '',
+        # Even if we point to a different home directory, we'll get skeleton copied.
+        f'RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "{username}"]',
+        f'RUN ["usermod", "--home", "{homedir}", "{username}"]',
+        f'RUN ["chown", "-R", "{username}", "{homedir}"]',
+        f'USER {username}',
         '',
         f'ENTRYPOINT ["b2"]',
         f'CMD ["--help"]',
