@@ -8,6 +8,7 @@
 #
 ######################################################################
 import datetime
+import importlib
 import os
 import pathlib
 
@@ -410,11 +411,10 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker(session):
     """Build the docker image."""
-    install_myself(session)
     build(session)
 
-    # This cannot be imported before we install our library.
-    import b2.version
+    install_myself(session)
+    version = importlib.import_module('b2').__version__
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
@@ -436,7 +436,7 @@ def docker(session):
         'LABEL vendor=Backblaze',
         f'LABEL name="{full_name}"',
         f'LABEL description="{description}"',
-        f'LABEL version="{b2.version.VERSION}"',
+        f'LABEL version="{version}"',
         'LABEL url="https://www.backblaze.com"',
         # TODO: consider fetching it from `git ls-remote --get-url origin`
         'LABEL vcs-url="https://github.com/Backblaze/B2_Command_Line_Tool"',
