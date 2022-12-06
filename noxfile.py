@@ -27,6 +27,7 @@ CD = CI and (os.environ.get('CD') is not None)
 INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
 NO_STATICX = os.environ.get('NO_STATICX') is not None
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
+NO_INSTALL = os.environ.get('NO_INSTALL') is not None
 
 PYTHON_VERSIONS = [
     '3.7',
@@ -81,7 +82,8 @@ def install_myself(session, extras=None):
     if extras:
         arg += '[%s]' % ','.join(extras)
 
-    session.run('pip', 'install', '-e', arg)
+    if not NO_INSTALL:
+        session.run('pip', 'install', '-e', arg)
 
     if INSTALL_SDK_FROM:
         cwd = os.getcwd()
@@ -413,7 +415,7 @@ def _get_git_ref() -> str:
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker(session):
     """Build the docker image."""
-    session.notify('build')
+    build(session)
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = _get_git_ref()
@@ -448,6 +450,7 @@ def docker(session):
         'RUN ["pip", "install", "--upgrade", "pip"]',
         # We can install all the extras here as well and then use multi-stage images to provide dependencies.
         f'RUN ["pip", "install", "{built_distribution.relative_to("dist").as_posix()}"]',
+        f'ENV PATH={homedir}/.local/bin:$PATH',
         '',
 
         # Second layer, tests. All tests are copied, but we're running only units for now.
@@ -456,8 +459,16 @@ def docker(session):
         'COPY test ./test',
         'COPY noxfile.py .',
         'RUN ["pip", "install", "nox"]',
-        'CMD ["python", "-m", "nox", "--no-venv", "--no-install", "--reuse-existing-virtualenvs", "-s", "unit"]',
+        # Ensuring that `pip install -e .` will be invoked. We're on
+        # a special image that already has the latest version installed.
+        'ENV NO_INSTALL=1',
+        'CMD ["nox", "--no-venv", "-s", "unit"]',
         '',
+
+        # Final layer, production image.
+        f'FROM base',
+        f'ENTRYPOINT ["b2"]',
+        f'CMD ["--help"]',
     ]
 
     with open('Dockerfile', 'w') as f:
