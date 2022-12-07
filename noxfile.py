@@ -503,8 +503,7 @@ def docker_test(session):
         'B2_TEST_APPLICATION_KEY',
         '-e',
         'B2_TEST_APPLICATION_KEY_ID',
-        'b2:test',
+        image_tag,
     ]
     session.run(*docker_test_run, 'unit', external=True)
     session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)
-    session.run('docker', 'rm', '--force', image_tag, external=True)
