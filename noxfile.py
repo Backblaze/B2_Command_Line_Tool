@@ -446,7 +446,7 @@ def docker(session):
         tests_path=tests_path,
         tar_path=dist_path,
         tar_name=built_distribution.name,
-        files_used_by_tests = '\n'.join([f'COPY {filename} .' for filename in FILES_USED_IN_TESTS])
+        files_used_by_tests='\n'.join([f'COPY {filename} .' for filename in FILES_USED_IN_TESTS])
     )
 
     template_file = DOCKER_TEMPLATE.read_text()
