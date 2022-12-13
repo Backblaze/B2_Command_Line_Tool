@@ -8,12 +8,12 @@
 #
 ######################################################################
 import datetime
-import importlib
 import os
 import pathlib
 
 import pkg_resources
 import platform
+import string
 import subprocess
 
 from glob import glob
@@ -37,6 +37,9 @@ PYTHON_VERSIONS = [
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
+
+DOCKER_TEMPLATE = pathlib.Path('./Dockerfile.template')
+FILES_USED_IN_TESTS = ['README.md', 'CHANGELOG.md']
 
 SYSTEM = platform.system().lower()
 
@@ -417,74 +420,39 @@ def docker(session):
     # This string is like `b2 command line tool, version <sem-ver-string>`
     version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
 
-    dist_path = 'dist/'
+    dist_path = 'dist'
     tests_image_dir = '/test'
     tests_path = 'test/'
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
-    built_distribution = list(pathlib.Path('.').glob(f'{dist_path}*'))[0]
-
+    built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
     username = 'b2'
-    homedir = f'/{username}'
 
-    docker_file_template = [
-        # First layer, actual library.
-        f'FROM python:{session.python}-slim as base',
-        '',
-        # Labels. These are based on http://label-schema.org/
-        'LABEL vendor=Backblaze',
-        f'LABEL name="{full_name}"',
-        f'LABEL description="{description}"',
-        f'LABEL version="{version}"',
-        'LABEL url="https://www.backblaze.com"',
+    template_mapping = dict(
+        username='b2',
+        homedir=f'/{username}',
+        python_version=session.python,
+        vendor='Backblaze',
+        name=full_name,
+        description=description,
+        version=version,
+        url='https://www.backblaze.com',
         # TODO: consider fetching it from `git ls-remote --get-url origin`
-        'LABEL vcs-url="https://github.com/Backblaze/B2_Command_Line_Tool"',
-        f'LABEL vcs-ref="{vcs_ref}"',
-        f'LABEL build-date-iso8601="{datetime.datetime.utcnow().isoformat()}"',
-        '',
-        f'WORKDIR {homedir}',
-        '',
-        # Installation.
-        f'COPY {built_distribution.as_posix()} .',
-        # We can install all the extras here as well and then use multi-stage images to provide dependencies.
-        f'RUN ["pip", "install", "{built_distribution.relative_to(dist_path).as_posix()}"]',
-        # Ensure that we can run installed packages.
-        f'ENV PATH={homedir}/.local/bin:$PATH',
-        '',
-        '',
+        vcs_url='https://github.com/Backblaze/B2_Command_Line_Tool',
+        vcs_ref=vcs_ref,
+        build_date=datetime.datetime.utcnow().isoformat(),
+        tests_image_dir=tests_image_dir,
+        tests_path=tests_path,
+        tar_path=dist_path,
+        tar_name=built_distribution.name,
+        files_used_by_tests = '\n'.join([f'COPY {filename} .' for filename in FILES_USED_IN_TESTS])
+    )
 
-        # Second layer, tests. All tests are copied, but we're running only units for now.
-        'FROM base as test',
-        '',
-        f'WORKDIR {tests_image_dir}',
-        f'COPY {tests_path} ./{tests_path}',
-        'COPY noxfile.py .',
-        '',
-        '# Files used by tests.',
-        'COPY README.md .',
-        'COPY CHANGELOG.md .',
-        '',
-        'RUN ["pip", "install", "nox"]',
-        'ENTRYPOINT ["nox", "--no-venv", "--no-install", "-s"]',
-        '',
-        '',
-
-        # Final layer, production image.
-        f'FROM base',
-        '',
-        # Even if we point to a different home directory, we'll get skeleton copied.
-        f'RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "{username}"]',
-        f'RUN ["usermod", "--home", "{homedir}", "{username}"]',
-        f'RUN ["chown", "-R", "{username}", "{homedir}"]',
-        f'USER {username}',
-        '',
-        f'ENTRYPOINT ["b2"]',
-        f'CMD ["--help"]',
-    ]
-
-    with open('Dockerfile', 'w') as f:
-        f.write('\n'.join(docker_file_template))
+    template_file = DOCKER_TEMPLATE.read_text()
+    template = string.Template(template_file)
+    dockerfile = template.substitute(template_mapping)
+    pathlib.Path('./Dockerfile').write_text(dockerfile)
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
