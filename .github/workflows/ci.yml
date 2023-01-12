@@ -129,7 +129,7 @@ jobs:
         run: nox -vs make_dist_digest
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2
@@ -159,13 +159,14 @@ jobs:
         run: python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
+        shell: bash
         run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Generate hashes
         id: hashes
         run: nox -vs make_dist_digest
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2

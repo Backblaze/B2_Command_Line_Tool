@@ -267,6 +267,9 @@ def bundle(session):
         # otherwise glob won't find files on windows in action-gh-release.
         print('asset_path=dist/*')
 
+        executable = str(next(pathlib.Path('dist').glob('*')))
+        print(f'sut_path={executable}')
+
 
 @nox.session(python=False)
 def sign(session):
