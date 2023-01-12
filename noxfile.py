@@ -380,7 +380,7 @@ def make_dist_digest(_session):
         if dist_file.stem.endswith(hashes_file_suffix):
             continue
 
-        algos_struct = {algo: hashlib.new(algo) for algo in available_algos}
+        hash_structs = [hashlib.new(algo) for algo in available_algos]
 
         with open(dist_file, 'rb') as f:
             while True:
@@ -388,14 +388,14 @@ def make_dist_digest(_session):
                 if not buffer:
                     break
 
-                for hash_struct in algos_struct.values():
+                for hash_struct in hash_structs:
                     hash_struct.update(buffer)
 
         output_lines = []
 
-        for algo, hash_struct in algos_struct.items():
+        for hash_struct in hash_structs:
             hash_value = hash_struct.hexdigest()
-            output_lines.append(line_format.format(algo=algo, hash_value=hash_value))
+            output_lines.append(line_format.format(algo=hash_struct.name, hash_value=hash_value))
 
         # Writing as bytes to ensure that Windows won't add BOM to the file.
         dist_file.with_stem(dist_file.name + hashes_file_suffix) \
