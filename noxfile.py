@@ -371,20 +371,30 @@ def make_dist_digest(_session):
 
     directory = pathlib.Path('dist')
     glob_match = '*'
+    read_size = 8192
 
     hashes_file_suffix = '_hashes'
     did_find_any_file = False
 
-    # I assume that these files fit into ram.
     for dist_file in directory.glob(glob_match):
         if dist_file.stem.endswith(hashes_file_suffix):
             continue
 
+        algos_struct = {algo: hashlib.new(algo) for algo in available_algos}
+
+        with open(dist_file, 'rb') as f:
+            while True:
+                buffer = f.read(read_size)
+                if not buffer:
+                    break
+
+                for hash_struct in algos_struct.values():
+                    hash_struct.update(buffer)
+
         output_lines = []
-        data = dist_file.read_bytes()
 
         for algo in available_algos:
-            hash_value = hashlib.new(algo, data).hexdigest()
+            hash_value = algos_struct[algo].hexdigest()
             output_lines.append(line_format.format(algo=algo, hash_value=hash_value))
 
         # Writing as bytes to ensure that Windows won't add BOM to the file.
