@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Infrastructure
 * GitHub CI got checkout action updated to v3 and setup-python to v4
 * Ensured that changelog validation only happens on pull requests
+* GitHub CI uses GITHUB_OUTPUT instead of deprecated set-output
+* Releases now feature digests of each file
 
 ## [3.6.0] - 2022-09-20
 
