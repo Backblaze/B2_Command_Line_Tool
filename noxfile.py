@@ -393,8 +393,8 @@ def make_dist_digest(_session):
 
         output_lines = []
 
-        for algo in available_algos:
-            hash_value = algos_struct[algo].hexdigest()
+        for algo, hash_struct in algos_struct.items():
+            hash_value = hash_struct.hexdigest()
             output_lines.append(line_format.format(algo=algo, hash_value=hash_value))
 
         # Writing as bytes to ensure that Windows won't add BOM to the file.
