@@ -2171,29 +2171,12 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
-
-        # In the latest version the error code changed, so we keep the old and the new for the resting purposes.
-        # TODO: remove the `except` part after 1.19.0 b2sdk is released
-        new_message = "ERROR: unable to authorize account: Application key is restricted to a bucket that doesn't exist\n"
-        old_message = "ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n"
-        try:
-            self._run_command(
-                ['authorize-account', 'appKeyId0', 'appKey0'],
-                'Using http://production.example.com\n',
-                new_message,
-                1,
-            )
-        except AssertionError as ex:
-            # If we got the whole old message in our exception, it means that we're handling the old version still.
-            if old_message not in str(ex):
-                raise
-            # Ensure that the command runs as expected anyway.
-            self._run_command(
-                ['authorize-account', 'appKeyId0', 'appKey0'],
-                'Using http://production.example.com\n',
-                old_message,
-                1,
-            )
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            'Using http://production.example.com\n',
+            "ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n",
+            1,
+        )
 
     def test_ls_for_restricted_bucket(self):
         # Create a bucket and a key restricted to that bucket.
