@@ -1384,10 +1384,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
-                    "src_last_modified_millis": str(mod_time_str)
-                },
+                "fileInfo":
+                    {
+                        "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
+                        "src_last_modified_millis": str(mod_time_str)
+                    },
                 "fileName": "test.txt",
                 "serverSideEncryption": {
                     "mode": "none"
@@ -1426,10 +1427,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
-                    "src_last_modified_millis": str(mod_time_str)
-                },
+                "fileInfo":
+                    {
+                        "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
+                        "src_last_modified_millis": str(mod_time_str)
+                    },
                 "fileName": "test.txt",
                 "serverSideEncryption": {
                     "algorithm": "AES256",
