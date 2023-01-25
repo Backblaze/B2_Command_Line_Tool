@@ -14,6 +14,7 @@ import pathlib
 import platform
 import subprocess
 from glob import glob
+from typing import List
 
 import nox
 import pkg_resources
@@ -362,16 +363,44 @@ def sign(session):
         print('asset_path=dist/*')
 
 
+def _calculate_hashes(
+    file_path: pathlib.Path,
+    algorithms: List[str],
+) -> List['hashlib._Hash']:  # noqa
+    read_size = 1024 * 1024
+    hash_structures = [hashlib.new(algo) for algo in algorithms]
+
+    with open(file_path, 'rb') as f:
+        while True:
+            buffer = f.read(read_size)
+            if not buffer:
+                break
+
+            for hash_struct in hash_structures:
+                hash_struct.update(buffer)
+
+    return hash_structures
+
+
+def _save_hashes(output_file: pathlib.Path, hashes: List['hashlib._Hash']) -> None:  # noqa
+    longest_algo_name = max([len(elem.name) for elem in hashes])
+    line_format = '{algo:<%s} {hash_value}' % longest_algo_name
+
+    output_lines = []
+    for hash_struct in hashes:
+        hash_value = hash_struct.hexdigest()
+        output_lines.append(line_format.format(algo=hash_struct.name, hash_value=hash_value))
+
+    output_file.write_bytes('\n'.join(output_lines).encode('ascii'))
+
+
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def make_dist_digest(_session):
     wanted_algos = ['sha256', 'sha512', 'sha3_256', 'sha3_512']
     available_algos = [algo for algo in wanted_algos if algo in hashlib.algorithms_available]
-    longest_algo_name = max([len(elem) for elem in available_algos])
-    line_format = '{algo:<%s} {hash_value}' % longest_algo_name
 
     directory = pathlib.Path('dist')
     glob_match = '*'
-    read_size = 8192
 
     hashes_file_suffix = '_hashes'
     did_find_any_file = False
@@ -380,27 +409,11 @@ def make_dist_digest(_session):
         if dist_file.stem.endswith(hashes_file_suffix):
             continue
 
-        hash_structs = [hashlib.new(algo) for algo in available_algos]
+        hashes_list = _calculate_hashes(dist_file, available_algos)
 
-        with open(dist_file, 'rb') as f:
-            while True:
-                buffer = f.read(read_size)
-                if not buffer:
-                    break
+        output_file = dist_file.with_stem(dist_file.name + hashes_file_suffix).with_suffix('.txt')
+        _save_hashes(output_file, hashes_list)
 
-                for hash_struct in hash_structs:
-                    hash_struct.update(buffer)
-
-        output_lines = []
-
-        for hash_struct in hash_structs:
-            hash_value = hash_struct.hexdigest()
-            output_lines.append(line_format.format(algo=hash_struct.name, hash_value=hash_value))
-
-        # Writing as bytes to ensure that Windows won't add BOM to the file.
-        dist_file.with_stem(dist_file.name + hashes_file_suffix) \
-            .with_suffix('.txt') \
-            .write_bytes('\n'.join(output_lines).encode('ascii'))
         did_find_any_file = True
 
     if not did_find_any_file:
