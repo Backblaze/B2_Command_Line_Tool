@@ -8,15 +8,16 @@
 #
 ######################################################################
 
-import io
+import hashlib
 import os
-import pkg_resources
+import pathlib
 import platform
 import subprocess
-
 from glob import glob
+from typing import List
 
 import nox
+import pkg_resources
 
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
@@ -65,9 +66,18 @@ nox.options.sessions = [
     'test',
 ]
 
+run_kwargs = {}
+
 # In CI, use Python interpreter provided by GitHub Actions
 if CI:
     nox.options.force_venv_backend = 'none'
+
+    # Inside the CI we need to silence most of the outputs to be able to use GITHUB_OUTPUT properly.
+    # Nox passes `stderr` and `stdout` directly to subprocess.Popen.
+    run_kwargs = dict(
+        stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+    )
 
 
 def install_myself(session, extras=None):
@@ -77,7 +87,7 @@ def install_myself(session, extras=None):
     if extras:
         arg += '[%s]' % ','.join(extras)
 
-    session.run('pip', 'install', '-e', arg)
+    session.run('pip', 'install', '-e', arg, **run_kwargs)
 
     if INSTALL_SDK_FROM:
         cwd = os.getcwd()
@@ -88,7 +98,8 @@ def install_myself(session, extras=None):
     elif CI and not CD:
         # In CI, install B2 SDK from the master branch
         session.run(
-            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk'
+            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk',
+            **run_kwargs
         )
 
 
@@ -218,42 +229,48 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
-    session.run('pip', 'install', *REQUIREMENTS_BUILD)
-    session.run('python', 'setup.py', 'check', '--metadata', '--strict')
-    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
-    session.run('python', 'setup.py', 'sdist', *session.posargs)
+    session.run('pip', 'install', *REQUIREMENTS_BUILD, **run_kwargs)
+    session.run('python', 'setup.py', 'check', '--metadata', '--strict', **run_kwargs)
+    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
+    session.run('python', 'setup.py', 'sdist', *session.posargs, **run_kwargs)
 
     # Set outputs for GitHub Actions
     if CI:
-        asset_path = glob('dist/*')[0]
-        print('::set-output name=asset_path::', asset_path, sep='')
+        # Path have to be specified with unix style slashes even for windows,
+        # otherwise glob won't find files on windows in action-gh-release.
+        print('asset_path=dist/*')
 
         version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
-        print('::set-output name=version::', version, sep='')
+        print(f'version={version}')
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session):
     """Bundle the distribution."""
-    session.run('pip', 'install', *REQUIREMENTS_BUNDLE)
-    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True)
+    session.run('pip', 'install', *REQUIREMENTS_BUNDLE, **run_kwargs)
+    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
     install_myself(session)
 
     if SYSTEM == 'darwin':
         session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
 
-    session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec')
+    session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec', **run_kwargs)
 
     if SYSTEM == 'linux' and not NO_STATICX:
         session.run(
-            'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', 'dist/b2', 'dist/b2-static'
+            'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', 'dist/b2',
+            'dist/b2-static', **run_kwargs
         )
-        session.run('mv', '-f', 'dist/b2-static', 'dist/b2', external=True)
+        session.run('mv', '-f', 'dist/b2-static', 'dist/b2', external=True, **run_kwargs)
 
     # Set outputs for GitHub Actions
     if CI:
-        asset_path = glob('dist/*')[0]
-        print('::set-output name=asset_path::', asset_path, sep='')
+        # Path have to be specified with unix style slashes even for windows,
+        # otherwise glob won't find files on windows in action-gh-release.
+        print('asset_path=dist/*')
+
+        executable = str(next(pathlib.Path('dist').glob('*')))
+        print(f'sut_path={executable}')
 
 
 @nox.session(python=False)
@@ -261,7 +278,7 @@ def sign(session):
     """Sign the bundled distribution (macOS and Windows only)."""
 
     def sign_darwin(cert_name):
-        session.run('security', 'find-identity', external=True)
+        session.run('security', 'find-identity', external=True, **run_kwargs)
         session.run(
             'codesign',
             '--deep',
@@ -277,12 +294,13 @@ def sign(session):
             '--sign',
             cert_name,
             'dist/b2',
-            external=True
+            external=True,
+            **run_kwargs
         )
-        session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True)
+        session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True, **run_kwargs)
 
     def sign_windows(cert_file, cert_password):
-        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
+        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file, **run_kwargs)
         session.run(
             WINDOWS_SIGNTOOL_PATH,
             'sign',
@@ -297,9 +315,18 @@ def sign(session):
             '/fd',
             'sha256',
             'dist/b2.exe',
-            external=True
+            external=True,
+            **run_kwargs
         )
-        session.run(WINDOWS_SIGNTOOL_PATH, 'verify', '/pa', '/all', 'dist/b2.exe', external=True)
+        session.run(
+            WINDOWS_SIGNTOOL_PATH,
+            'verify',
+            '/pa',
+            '/all',
+            'dist/b2.exe',
+            external=True,
+            **run_kwargs
+        )
 
     if SYSTEM == 'darwin':
         try:
@@ -327,12 +354,72 @@ def sign(session):
     name, ext = os.path.splitext(os.path.basename(asset_old_path))
     asset_path = 'dist/{}-{}{}'.format(name, SYSTEM, ext)
 
-    session.run('mv', '-f', asset_old_path, asset_path, external=True)
+    session.run('mv', '-f', asset_old_path, asset_path, external=True, **run_kwargs)
 
     # Set outputs for GitHub Actions
     if CI:
-        asset_path = glob('dist/*')[0]
-        print('::set-output name=asset_path::', asset_path, sep='')
+        # Path have to be specified with unix style slashes even for windows,
+        # otherwise glob won't find files on windows in action-gh-release.
+        print('asset_path=dist/*')
+
+
+def _calculate_hashes(
+    file_path: pathlib.Path,
+    algorithms: List[str],
+) -> List['hashlib._Hash']:  # noqa
+    read_size = 1024 * 1024
+    hash_structures = [hashlib.new(algo) for algo in algorithms]
+
+    with open(file_path, 'rb') as f:
+        while True:
+            buffer = f.read(read_size)
+            if not buffer:
+                break
+
+            for hash_struct in hash_structures:
+                hash_struct.update(buffer)
+
+    return hash_structures
+
+
+def _save_hashes(output_file: pathlib.Path, hashes: List['hashlib._Hash']) -> None:  # noqa
+    longest_algo_name = max([len(elem.name) for elem in hashes])
+    line_format = '{algo:<%s} {hash_value}' % longest_algo_name
+
+    output_lines = []
+    for hash_struct in hashes:
+        hash_value = hash_struct.hexdigest()
+        output_lines.append(line_format.format(algo=hash_struct.name, hash_value=hash_value))
+
+    output_file.write_bytes('\n'.join(output_lines).encode('ascii'))
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def make_dist_digest(_session):
+    wanted_algos = ['sha256', 'sha512', 'sha3_256', 'sha3_512']
+    available_algos = [algo for algo in wanted_algos if algo in hashlib.algorithms_available]
+
+    directory = pathlib.Path('dist')
+    glob_match = '*'
+
+    hashes_file_suffix = '_hashes'
+    did_find_any_file = False
+
+    for dist_file in directory.glob(glob_match):
+        if dist_file.stem.endswith(hashes_file_suffix):
+            continue
+
+        hashes_list = _calculate_hashes(dist_file, available_algos)
+
+        output_file = dist_file.with_stem(dist_file.name + hashes_file_suffix).with_suffix('.txt')
+        _save_hashes(output_file, hashes_list)
+
+        did_find_any_file = True
+
+    if not did_find_any_file:
+        raise RuntimeError(
+            f'No file found in {str(directory / glob_match)}, but was expected to find some.'
+        )
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
