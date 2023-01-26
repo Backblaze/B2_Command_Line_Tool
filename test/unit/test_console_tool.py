@@ -14,7 +14,7 @@ import os
 import re
 import unittest.mock as mock
 from io import StringIO
-from typing import Optional
+from typing import Optional, List
 from itertools import product, chain
 
 from more_itertools import one
@@ -2544,7 +2544,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     def _run_problematic_removal(
         self,
-        additional_parameters: Optional[list[str]] = None,
+        additional_parameters: Optional[List[str]] = None,
         expected_in_stdout: Optional[str] = None,
         unexpected_in_stdout: Optional[str] = None
     ):
