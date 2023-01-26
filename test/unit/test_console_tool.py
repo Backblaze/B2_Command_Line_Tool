@@ -1480,13 +1480,15 @@ class TestConsoleTool(BaseConsoleToolTest):
             self._run_command(incremental_upload_params)
 
             downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
-            self._run_command([
-                'download-file-by-name',
-                '--noProgress',
-                'my-bucket',
-                'test.txt',
-                str(downloaded_path),
-            ])
+            self._run_command(
+                [
+                    'download-file-by-name',
+                    '--noProgress',
+                    'my-bucket',
+                    'test.txt',
+                    str(downloaded_path),
+                ]
+            )
             assert downloaded_path.read_bytes() == file_path.read_bytes()
 
     def test_get_account_info(self):
