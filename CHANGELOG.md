@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Stop using b2sdk.v1 in arg_parser.py
 * Fix issues when running commands on Python 3.11
+* Fix tests after changes introduced in b2sdk 1.19.0
 
 ### Infrastructure
 * GitHub CI got checkout action updated to v3 and setup-python to v4
 * Ensured that changelog validation only happens on pull requests
+* GitHub CI uses GITHUB_OUTPUT instead of deprecated set-output
+* Releases now feature digests of each file
 * GitHub CD builds and uploads an official B2 CLI image to docker hub
 
 ## [3.6.0] - 2022-09-20
