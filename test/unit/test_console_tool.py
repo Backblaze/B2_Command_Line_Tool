@@ -1401,9 +1401,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "src_last_modified_millis": str(mod_time_str)
-                },
+                "fileInfo":
+                    {
+                        "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
+                        "src_last_modified_millis": str(mod_time_str)
+                    },
                 "fileName": "test.txt",
                 "serverSideEncryption": {
                     "mode": "none"
@@ -1442,9 +1444,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "src_last_modified_millis": str(mod_time_str)
-                },
+                "fileInfo":
+                    {
+                        "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
+                        "src_last_modified_millis": str(mod_time_str)
+                    },
                 "fileName": "test.txt",
                 "serverSideEncryption": {
                     "algorithm": "AES256",
@@ -2262,7 +2266,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
             'Using http://production.example.com\n',
-            "ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n",
+            "ERROR: unable to authorize account: Application key is restricted to a bucket that doesn't exist\n",
             1,
         )
 
