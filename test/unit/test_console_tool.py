@@ -27,7 +27,7 @@ from b2sdk.v2 import StubAccountInfo
 from b2sdk.v2 import B2Api
 from b2sdk.v2 import B2HttpApiConfig
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR, \
-    B2_ENVIRONMENT_ENV_VAR
+    B2_ENVIRONMENT_ENV_VAR, Rm
 from b2sdk.v2 import RawSimulator
 from b2sdk.v2 import UploadSourceBytes
 from b2sdk.v2 import TempDir, fix_windows_path_limit
@@ -39,18 +39,6 @@ from .test_base import TestBase
 
 def file_mod_time_millis(path):
     return int(os.path.getmtime(path) * 1000)
-
-
-def upload_multiple_files(bucket):
-    data = UploadSourceBytes(b'test-data')
-    bucket.upload(data, 'a/test.csv')
-    bucket.upload(data, 'a/test.tsv')
-    bucket.upload(data, 'b/b/test.csv')
-    bucket.upload(data, 'b/b1/test.csv')
-    bucket.upload(data, 'b/b2/test.tsv')
-    bucket.upload(data, 'b/test.txt')
-    bucket.upload(data, 'c/test.csv')
-    bucket.upload(data, 'c/test.tsv')
 
 
 class BaseConsoleToolTest(TestBase):
@@ -239,6 +227,18 @@ class BaseConsoleToolTest(TestBase):
             self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
+
+    @classmethod
+    def _upload_multiple_files(cls, bucket):
+        data = UploadSourceBytes(b'test-data')
+        bucket.upload(data, 'a/test.csv')
+        bucket.upload(data, 'a/test.tsv')
+        bucket.upload(data, 'b/b/test.csv')
+        bucket.upload(data, 'b/b1/test.csv')
+        bucket.upload(data, 'b/b2/test.tsv')
+        bucket.upload(data, 'b/test.txt')
+        bucket.upload(data, 'c/test.csv')
+        bucket.upload(data, 'c/test.tsv')
 
 
 @mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
@@ -2090,7 +2090,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Create some files, including files in a folder
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        upload_multiple_files(bucket)
+        self._upload_multiple_files(bucket)
 
         expected_stdout = '''
         a/test.csv
@@ -2428,6 +2428,19 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
 
 @mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
 class TestRmConsoleTool(BaseConsoleToolTest):
+    """
+    These tests replace default progress reporter of Rm class
+    to ensure that it reports everything as fast as possible.
+    """
+
+    class InstantReporter(ProgressReport):
+        UPDATE_INTERVAL = 0.0
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.original_progress_class = Rm.PROGRESS_REPORT_CLASS
+        Rm.PROGRESS_REPORT_CLASS = cls.InstantReporter
+
     def setUp(self):
         super().setUp()
 
@@ -2435,13 +2448,11 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         self.bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        upload_multiple_files(self.bucket)
+        self._upload_multiple_files(self.bucket)
 
-        self.original_progress_interval = ProgressReport.UPDATE_INTERVAL
-        ProgressReport.UPDATE_INTERVAL = 0.0
-
-    def tearDown(self) -> None:
-        ProgressReport.UPDATE_INTERVAL = self.original_progress_interval
+    @classmethod
+    def tearDownClass(cls) -> None:
+        Rm.PROGRESS_REPORT_CLASS = cls.original_progress_class
 
     def test_rm_wildcard(self):
         self._run_command(
@@ -2458,7 +2469,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     def test_rm_versions(self):
         # Uploading content of the bucket again to create second version of each file.
-        upload_multiple_files(self.bucket)
+        self._upload_multiple_files(self.bucket)
 
         self._run_command(
             ['rm', '--versions', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],

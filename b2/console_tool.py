@@ -1856,13 +1856,13 @@ class Rm(Ls):
 
     Normally, when an error happens during file removal, log is printed and the command
     goes further. If any error should be immediately breaking the command,
-    ``--fastFail`` can be passed to ensure that first error will stop the execution.
+    ``--failFast`` can be passed to ensure that first error will stop the execution.
     This could be useful to e.g. check whether provided credentials have **deleteFiles**
     capabilities.
 
     .. note::
 
-        Using ``--fastFail`` doesn't prevent the command from trying to remove further files.
+        Using ``--failFast`` doesn't prevent the command from trying to remove further files.
         It just stops the progress. Since multiple files are removed in parallel, it's possible
         that just some of them were not reported.
 
@@ -1879,7 +1879,7 @@ class Rm(Ls):
 
     .. note::
 
-        Use with caution. Lines presented below can cause data-loss.
+        Use with caution. Running examples presented below can cause data-loss.
 
 
     Remove all csv and tsv files (in any directory, in the whole bucket):
@@ -1910,6 +1910,7 @@ class Rm(Ls):
     """
 
     DEFAULT_THREADS = 10
+    PROGRESS_REPORT_CLASS = ProgressReport
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1927,7 +1928,7 @@ class Rm(Ls):
 
         with ThreadPoolExecutor(max_workers=args.threads) as executor:
             futures = {}
-            with ProgressReport(self.stdout, args.noProgress) as reporter:
+            with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
                 for file_version, _ in self._get_ls_generator(args):
                     future = executor.submit(
                         self.api.delete_file_version,
@@ -1936,7 +1937,6 @@ class Rm(Ls):
                     )
                     futures[future] = file_version
                     reporter.update_total(1)
-                    self.stdout.write('File added\n')
                 reporter.end_total()
 
                 for future in as_completed(futures):
