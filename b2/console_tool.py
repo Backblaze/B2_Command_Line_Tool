@@ -477,7 +477,7 @@ class FileIdAndOptionalFileNameMixin(Described):
 class UploadModeMixin(Described):
     """
     Use --incrementalMode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
-    have been appended since last upload.
+    have been appended to since last upload.
     """
 
     @classmethod
