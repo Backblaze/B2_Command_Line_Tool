@@ -472,9 +472,27 @@ def doc_cover(session):
 
 
 def _read_readme_name_and_description() -> Tuple[str, str]:
-    # Get name and the description from the readme. First line is assumed to be the project name,
-    # second contains list of all different checks. Third one and the following contains some description.
-    # We assume that description can be multiline, and it ends with an empty line.
+    """
+    Get name and the description from the readme. First line is assumed to be the project name,
+    second contains list of all different checks. Third one and the following contains some description.
+    We assume that description can be multiline, and it ends with an empty line.
+
+    An example of the content from README.md can look like this:
+
+    ..note:
+        # B2 Command Line Tool
+        &nbsp;[![Continuous Integration](https://github.com/Backblaze/B2_Command_Line_Tool/ ... (a very long line)
+
+        (a few empty lines)
+
+        The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
+
+        This program provides command-line access to the B2 service.
+
+    From this we should parse the following:
+    "B2 Command Line Tool" as the name and
+    "The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage." as the description.
+    """
     with open('README.md', 'r') as f:
         non_empty_lines = 0
         full_name = None
