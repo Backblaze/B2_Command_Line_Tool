@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+* Add `--incrementalMode` to `sync` and `upload-file`
 * Add wildcard support for the `ls` command
 * Add `rm` command
 
