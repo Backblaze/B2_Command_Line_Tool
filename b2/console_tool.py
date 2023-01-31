@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 ######################################################################
 #
 # File: b2/console_tool.py
@@ -36,6 +38,8 @@ from contextlib import suppress
 
 import requests
 import rst2ansi
+
+import argcomplete
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
@@ -97,11 +101,13 @@ from b2sdk.v2.exception import (
 from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 
+from b2._cli.argcompleters import bucket_name_completer
 from b2._cli.b2api import _get_b2api_for_profile
 from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
     B2_APPLICATION_KEY_ENV_VAR, B2_USER_AGENT_APPEND_ENV_VAR, \
     B2_ENVIRONMENT_ENV_VAR, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR, \
-    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
+    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR, \
+    CREATE_BUCKET_TYPES
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
@@ -820,7 +826,7 @@ class CancelAllUnfinishedLargeFiles(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1041,7 +1047,7 @@ class CreateBucket(DefaultSseMixin, Command):
         )
         parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
-        parser.add_argument('bucketType')
+        parser.add_argument('bucketType', choices=CREATE_BUCKET_TYPES)
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
@@ -1133,7 +1139,7 @@ class DeleteBucket(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1334,7 +1340,7 @@ class DownloadFileByName(
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--threads', type=int, default=10)
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('b2FileName')
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
@@ -1413,7 +1419,7 @@ class GetBucket(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         # This always wants up-to-date info, so it does not use
@@ -1486,7 +1492,7 @@ class GetDownloadAuth(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1519,7 +1525,7 @@ class GetDownloadUrlWithAuth(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('fileName')
 
     def run(self, args):
@@ -1545,7 +1551,7 @@ class HideFile(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('fileName')
 
     def run(self, args):
@@ -1706,7 +1712,7 @@ class ListUnfinishedLargeFiles(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1740,7 +1746,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('folderName', nargs='?')
 
     def run(self, args):
@@ -2130,7 +2136,7 @@ class MakeFriendlyUrl(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('fileName')
 
     def run(self, args):
@@ -2552,8 +2558,8 @@ class UpdateBucket(DefaultSseMixin, Command):
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed back."
         )
-        parser.add_argument('bucketName')
-        parser.add_argument('bucketType', nargs='?')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('bucketType', nargs='?', choices=CREATE_BUCKET_TYPES)
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
@@ -2639,7 +2645,7 @@ class UploadFile(
         parser.add_argument('--sha1')
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('--info', action='append', default=[])
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
 
@@ -3305,7 +3311,9 @@ class ConsoleTool(object):
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        args = B2.get_parser().parse_args(argv[1:])
+        parser = B2.get_parser()
+        argcomplete.autocomplete(parser)
+        args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 
         if self.api:
