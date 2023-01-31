@@ -21,12 +21,14 @@ import logging
 import logging.config
 import os
 import platform
+import queue
 import re
 import signal
 import sys
+import threading
 import time
 from abc import ABCMeta, abstractclassmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
@@ -1912,12 +1914,74 @@ class Rm(Ls):
     DEFAULT_THREADS = 10
     PROGRESS_REPORT_CLASS = ProgressReport
 
+    class SubmitThread(threading.Thread):
+        END_MARKER = object()
+
+        def __init__(
+            self,
+            runner: 'Rm',
+            args: argparse.Namespace,
+            messages_queue: queue.Queue,
+            reporter: ProgressReport,
+        ):
+            self.runner = runner
+            self.args = args
+            self.messages_queue = messages_queue
+            self.reporter = reporter
+            self.semaphore = threading.BoundedSemaphore(value=self.args.threads)
+            self.fail_fast_event = threading.Event()
+            self.mapping_lock = threading.Lock()
+            self.futures_mapping = {}
+            super().__init__()
+
+        def run(self) -> None:
+            with ThreadPoolExecutor(max_workers=self.args.threads) as executor:
+                for file_version, _ in self.runner._get_ls_generator(self.args):
+                    # Obtaining semaphore limits number of elements that we fetch from LS.
+                    self.semaphore.acquire(blocking=True)
+                    # This event is updated before the semaphore is released. This way,
+                    # in a single threaded scenario, we get synchronous responses.
+                    if self.fail_fast_event.is_set():
+                        break
+
+                    future = executor.submit(
+                        self.runner.api.delete_file_version,
+                        file_version.id_,
+                        file_version.file_name,
+                    )
+                    with self.mapping_lock:
+                        self.futures_mapping[future] = file_version
+                    # Done callback is added after, so it's "sure" that mapping is updated earlier.
+                    future.add_done_callback(self._removal_done)
+
+                    self.reporter.update_total(1)
+                self.reporter.end_total()
+                self.messages_queue.put(self.END_MARKER)
+
+        def _removal_done(self, future: Future) -> None:
+            with self.mapping_lock:
+                file_version = self.futures_mapping.pop(future)
+
+            try:
+                future.result()
+            except B2Error as error:
+                if self.args.failFast:
+                    # This is set before releasing the semaphore.
+                    # It means that when the semaphore is released,
+                    # we'll already have information about requirement to fail.
+                    self.fail_fast_event.set()
+                self.messages_queue.put(('error', file_version, error))
+            finally:
+                self.reporter.update_count(1)
+                self.semaphore.release()
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--failFast', action='store_true')
+        parser.add_argument('--forceSync', action='store_true')
         super()._setup_parser(parser)
 
     def run(self, args):
@@ -1925,38 +1989,29 @@ class Rm(Ls):
             return super().run(args)
 
         failed_on_any_file = False
+        messages_queue = queue.Queue()
 
-        with ThreadPoolExecutor(max_workers=args.threads) as executor:
-            futures = {}
-            with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
-                for file_version, _ in self._get_ls_generator(args):
-                    future = executor.submit(
-                        self.api.delete_file_version,
-                        file_version.id_,
-                        file_version.file_name,
-                    )
-                    futures[future] = file_version
-                    reporter.update_total(1)
-                reporter.end_total()
+        with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
+            submit_thread = self.SubmitThread(self, args, messages_queue, reporter)
+            submit_thread.start()
 
-                for future in as_completed(futures):
-                    try:
-                        future.result()
-                    except FileNotPresent:
-                        # It could happen when two ``rm`` are working in parallel on the same bucket.
-                        # Since the file was to be removed, and it's not there – it's not an error.
-                        pass
-                    except B2Error as error:
-                        file_version = futures[future]
-                        message = f'Deletion of file "{file_version.file_name}" ' \
-                                  f'({file_version.id_}) failed: {str(error)}'
-                        reporter.print_completion(message)
-                        failed_on_any_file = True
+            while True:
+                queue_entry = messages_queue.get(block=True)
+                if queue_entry is submit_thread.END_MARKER:
+                    break
 
-                        if args.failFast:
-                            break
+                event_type, *data = queue_entry
+                if event_type == 'error':
+                    file_version, error = data
+                    message = f'Deletion of file "{file_version.file_name}" ' \
+                              f'({file_version.id_}) failed: {str(error)}'
+                    reporter.print_completion(message)
+                    failed_on_any_file = True
 
-                    reporter.update_count(1)
+                    if args.failFast:
+                        break
+
+            submit_thread.join()
 
         return 1 if failed_on_any_file else 0
 
