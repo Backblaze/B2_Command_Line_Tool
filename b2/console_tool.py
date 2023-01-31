@@ -1937,13 +1937,12 @@ class Rm(Ls):
             super().__init__()
 
         def run(self) -> None:
-            with ThreadPoolExecutor(max_workers=self.args.threads) as executor:
-                try:
+            try:
+                with ThreadPoolExecutor(max_workers=self.args.threads) as executor:
                     self._run_removal(executor)
-                except Exception as error:
-                    self.messages_queue.put((self.EXCEPTION_TAG, error))
-
-                executor.shutdown(wait=True, cancel_futures=False)
+            except Exception as error:
+                self.messages_queue.put((self.EXCEPTION_TAG, error))
+            finally:
                 self.messages_queue.put(self.END_MARKER)
 
         def _run_removal(self, executor: Executor):
