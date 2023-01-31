@@ -2018,14 +2018,14 @@ class Rm(Ls):
                     file_version, error = data
                     message = f'Deletion of file "{file_version.file_name}" ' \
                               f'({file_version.id_}) failed: {str(error)}'
-                if event_type == submit_thread.EXCEPTION_TAG:
+                    reporter.print_completion(message)
+
+                    failed_on_any_file = True
+                    if args.failFast:
+                        break
+
+                elif event_type == submit_thread.EXCEPTION_TAG:
                     raise data[0]
-
-                reporter.print_completion(message)
-
-                failed_on_any_file = True
-                if args.failFast:
-                    break
 
             submit_thread.join()
 
