@@ -28,8 +28,9 @@ from b2sdk.v2 import REALM_URLS
 from b2sdk.v2 import StubAccountInfo
 from b2sdk.v2 import B2Api
 from b2sdk.v2 import B2HttpApiConfig
-from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR, \
-    B2_ENVIRONMENT_ENV_VAR, Rm
+from b2.console_tool import ConsoleTool, Rm
+from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
+    B2_APPLICATION_KEY_ENV_VAR, B2_ENVIRONMENT_ENV_VAR
 from b2sdk.v2 import RawSimulator
 from b2sdk.v2 import UploadSourceBytes
 from b2sdk.v2 import TempDir, fix_windows_path_limit

@@ -55,9 +55,7 @@ from b2sdk.v2 import (
     UNKNOWN_KEY_ID,
     XDG_CONFIG_HOME_ENV_VAR,
     ApplicationKey,
-    AuthInfoCache,
     B2Api,
-    B2HttpApiConfig,
     BasicSyncEncryptionSettingsProvider,
     Bucket,
     BucketRetentionSetting,
@@ -77,7 +75,6 @@ from b2sdk.v2 import (
     ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
-    SqliteAccountInfo,
     Synchronizer,
     SyncReport,
     UploadMode,
@@ -100,6 +97,11 @@ from b2sdk.v2.exception import (
 from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 
+from b2._cli.b2api import _get_b2api_for_profile
+from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
+    B2_APPLICATION_KEY_ENV_VAR, B2_USER_AGENT_APPEND_ENV_VAR, \
+    B2_ENVIRONMENT_ENV_VAR, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR, \
+    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
@@ -119,16 +121,6 @@ with suppress(ImportError):
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
-
-# Optional Env variable to use for getting account info while authorizing
-B2_APPLICATION_KEY_ID_ENV_VAR = 'B2_APPLICATION_KEY_ID'
-B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
-# Optional Env variable to use for adding custom string to the User Agent
-B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
-B2_ENVIRONMENT_ENV_VAR = 'B2_ENVIRONMENT'
-B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_B64'
-B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_ID'
-B2_SOURCE_SSE_C_KEY_B64_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_B64'
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -3469,20 +3461,6 @@ class InvalidArgument(B2Error):
 
     def __str__(self):
         return "%s %s" % (self.parameter_name, self.message)
-
-
-def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs):
-    account_info = SqliteAccountInfo(profile=profile)
-    return B2Api(
-        api_config=_get_b2httpapiconfig(),
-        account_info=account_info,
-        cache=AuthInfoCache(account_info),
-        **kwargs,
-    )
-
-
-def _get_b2httpapiconfig():
-    return B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR),)
 
 
 def main():
