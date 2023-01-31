@@ -1995,7 +1995,6 @@ class Rm(Ls):
         parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--failFast', action='store_true')
-        parser.add_argument('--forceSync', action='store_true')
         super()._setup_parser(parser)
 
     def run(self, args):
