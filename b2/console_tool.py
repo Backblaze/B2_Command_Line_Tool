@@ -28,7 +28,7 @@ import sys
 import threading
 import time
 from abc import ABCMeta, abstractclassmethod
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
@@ -1916,6 +1916,8 @@ class Rm(Ls):
 
     class SubmitThread(threading.Thread):
         END_MARKER = object()
+        ERROR_TAG = 'error'
+        EXCEPTION_TAG = 'general_exception'
 
         def __init__(
             self,
@@ -1936,27 +1938,35 @@ class Rm(Ls):
 
         def run(self) -> None:
             with ThreadPoolExecutor(max_workers=self.args.threads) as executor:
-                for file_version, _ in self.runner._get_ls_generator(self.args):
-                    # Obtaining semaphore limits number of elements that we fetch from LS.
-                    self.semaphore.acquire(blocking=True)
-                    # This event is updated before the semaphore is released. This way,
-                    # in a single threaded scenario, we get synchronous responses.
-                    if self.fail_fast_event.is_set():
-                        break
+                try:
+                    self._run_removal(executor)
+                except Exception as error:
+                    self.messages_queue.put((self.EXCEPTION_TAG, error))
 
-                    future = executor.submit(
-                        self.runner.api.delete_file_version,
-                        file_version.id_,
-                        file_version.file_name,
-                    )
-                    with self.mapping_lock:
-                        self.futures_mapping[future] = file_version
-                    # Done callback is added after, so it's "sure" that mapping is updated earlier.
-                    future.add_done_callback(self._removal_done)
-
-                    self.reporter.update_total(1)
-                self.reporter.end_total()
+                executor.shutdown(wait=True, cancel_futures=False)
                 self.messages_queue.put(self.END_MARKER)
+
+        def _run_removal(self, executor: Executor):
+            for file_version, _ in self.runner._get_ls_generator(self.args):
+                # Obtaining semaphore limits number of elements that we fetch from LS.
+                self.semaphore.acquire(blocking=True)
+                # This event is updated before the semaphore is released. This way,
+                # in a single threaded scenario, we get synchronous responses.
+                if self.fail_fast_event.is_set():
+                    break
+
+                future = executor.submit(
+                    self.runner.api.delete_file_version,
+                    file_version.id_,
+                    file_version.file_name,
+                )
+                with self.mapping_lock:
+                    self.futures_mapping[future] = file_version
+                # Done callback is added after, so it's "sure" that mapping is updated earlier.
+                future.add_done_callback(self._removal_done)
+
+                self.reporter.update_total(1)
+            self.reporter.end_total()
 
         def _removal_done(self, future: Future) -> None:
             with self.mapping_lock:
@@ -1964,13 +1974,18 @@ class Rm(Ls):
 
             try:
                 future.result()
+            except FileNotPresent:
+                # We wanted to remove this file anyway.
+                pass
             except B2Error as error:
                 if self.args.failFast:
                     # This is set before releasing the semaphore.
                     # It means that when the semaphore is released,
                     # we'll already have information about requirement to fail.
                     self.fail_fast_event.set()
-                self.messages_queue.put(('error', file_version, error))
+                self.messages_queue.put((self.ERROR_TAG, file_version, error))
+            except Exception as error:
+                self.messages_queue.put((self.EXCEPTION_TAG, error))
             finally:
                 self.reporter.update_count(1)
                 self.semaphore.release()
@@ -2001,15 +2016,18 @@ class Rm(Ls):
                     break
 
                 event_type, *data = queue_entry
-                if event_type == 'error':
+                if event_type == submit_thread.ERROR_TAG:
                     file_version, error = data
                     message = f'Deletion of file "{file_version.file_name}" ' \
                               f'({file_version.id_}) failed: {str(error)}'
-                    reporter.print_completion(message)
-                    failed_on_any_file = True
+                if event_type == submit_thread.EXCEPTION_TAG:
+                    raise data[0]
 
-                    if args.failFast:
-                        break
+                reporter.print_completion(message)
+
+                failed_on_any_file = True
+                if args.failFast:
+                    break
 
             submit_thread.join()
 
