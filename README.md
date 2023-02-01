@@ -104,11 +104,6 @@ Note that using many threads could in some cases be detrimental to the other use
 
 # Contrib
 
-## bash completion
-
-You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
-script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
-
 ## detailed logs
 
 Verbose logs to stdout can be enabled with the `--verbose` flag.
