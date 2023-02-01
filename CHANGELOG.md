@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add `--incrementalMode` to `sync` and `upload-file`
+* Add `license` command for printing licenses of b2 and libraries
 * Add wildcard support for the `ls` command
 * Add `rm` command
 
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Ensured that changelog validation only happens on pull requests
 * GitHub CI uses GITHUB_OUTPUT instead of deprecated set-output
 * Releases now feature digests of each file
+* Change default Python version in CI/CD to 3.11
 
 ## [3.6.0] - 2022-09-20
 

@@ -16,12 +16,12 @@ import json
 import os
 import os.path
 import re
+import sys
 
 from pathlib import Path
 from typing import Optional, Tuple
 
 import pytest
-
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, UNKNOWN_FILE_RETENTION_SETTING, EncryptionMode, EncryptionSetting, FileRetentionSetting, LegalHold, RetentionMode, fix_windows_path_limit
 
 from b2.console_tool import current_time_millis
@@ -1449,6 +1449,77 @@ def test_sse_c(b2_tool, bucket_name):
             key=lambda r: r['file_name']
         )
     )
+
+
+@pytest.mark.skipif(
+    (sys.version_info.major, sys.version_info.minor) < (3, 8),
+    reason="License extraction doesn't work on older versions, and we're only "
+    "obliged to provide this "
+    "data in bundled and built packages."
+)
+@pytest.mark.parametrize('with_packages', [True, False])
+def test_license(b2_tool, with_packages):
+    license_text = b2_tool.should_succeed(
+        ['license'] + (['--with-packages'] if with_packages else [])
+    )
+
+    if with_packages:
+        full_license_re = re.compile(
+            r'Licenses of all modules used by b2, shipped with it in binary form:\r?\n'
+            r'\+-*\+-*\+\r?\n'
+            r'\|\s*Module name\s*\|\s*License text\s*\|\r?\n'
+            r'.*'
+            r'\+-*\+-*\+\r?\n', re.MULTILINE + re.DOTALL
+        )
+        full_license_text = next(full_license_re.finditer(license_text), None)
+        assert full_license_text
+        assert len(
+            full_license_text.group(0)
+        ) > 200_000  # we should know if the length of this block changes dramatically
+
+        license_summary_re = re.compile(
+            r'Summary of all modules used by b2, shipped with it in binary form:\r?\n'
+            r'\+-*\+-*\+-*\+-*\+-*\+\r?\n'
+            r'\|\s*Module name\s*\|\s*Version\s*\|\s*License\s*\|\s*Author\s*\|\s*URL\s*\|\r?\n'
+            r'.*'
+            r'\+-*\+-*\+-*\+-*\+-*\+\r?\n', re.MULTILINE + re.DOTALL
+        )
+        license_summary_text = next(license_summary_re.finditer(license_text), None)
+        assert license_summary_text
+        assert len(
+            license_summary_text.group(0)
+        ) > 15_000  # we should know if the length of this block changes dramatically
+
+    assert """b2 license:
+Backblaze wants developers and organization to copy and re-use our
+code examples, so we make the samples available by several different
+licenses.  One option is the MIT license (below).  Other options are
+available here:
+
+    https://www.backblaze.com/using_b2_code.html
+
+
+The MIT License (MIT)
+
+Copyright (c) 2015 Backblaze
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.""" in license_text.replace(os.linesep, '\n')
 
 
 def test_file_lock(b2_tool, application_key_id, application_key, b2_api):

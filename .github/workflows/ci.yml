@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 env:
-  PYTHON_DEFAULT_VERSION: "3.10"
+  PYTHON_DEFAULT_VERSION: "3.11"
 
 jobs:
   lint:
@@ -109,7 +109,7 @@ jobs:
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
     runs-on: ubuntu-latest
     container:
-      image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      image: "python:3.11"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
       env:
         DEBIAN_FRONTEND: noninteractive
     steps:
