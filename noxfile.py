@@ -264,10 +264,7 @@ def bundle(session: nox.Session):
     install_myself(session, ['license'])
     session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
 
-    if SYSTEM == 'darwin':
-        session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
-
-    session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec', **run_kwargs)
+    session.run('pyinstaller', *session.posargs, 'b2.spec', **run_kwargs)
 
     if SYSTEM == 'linux' and not NO_STATICX:
         session.run(
