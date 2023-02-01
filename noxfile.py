@@ -49,7 +49,7 @@ REQUIREMENTS_TEST = [
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
-    'pyinstaller==4.7.0',
+    'pyinstaller==5.6.2',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
     "staticx==0.13.5;platform_system=='Linux'",
 ]
@@ -169,7 +169,7 @@ def lint(session):
 @nox.session(python=PYTHON_VERSIONS)
 def unit(session):
     """Run unit tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run(
         'pytest',
@@ -189,12 +189,17 @@ def unit(session):
 @nox.session(python=PYTHON_VERSIONS)
 def integration(session):
     """Run integration tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
-    #session.run('pytest', '-s', '-x', '-v', '-n', '4', *session.posargs, 'test/integration')
     session.run(
-        'pytest', '-s', '-x', '-v', '-W', 'ignore::DeprecationWarning:rst2ansi.visitor:',
-        *session.posargs, 'test/integration'
+        'pytest',
+        '-s',
+        '-n',
+        'auto',
+        '-W',
+        'ignore::DeprecationWarning:rst2ansi.visitor:',
+        *session.posargs,
+        'test/integration',
     )
 
 
@@ -230,6 +235,7 @@ def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
     session.run('pip', 'install', *REQUIREMENTS_BUILD, **run_kwargs)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv', **run_kwargs)
     session.run('python', 'setup.py', 'check', '--metadata', '--strict', **run_kwargs)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
     session.run('python', 'setup.py', 'sdist', *session.posargs, **run_kwargs)
@@ -245,16 +251,20 @@ def build(session):
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def bundle(session):
+def dump_license(session: nox.Session):
+    install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump', '--with-packages')
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def bundle(session: nox.Session):
     """Bundle the distribution."""
     session.run('pip', 'install', *REQUIREMENTS_BUNDLE, **run_kwargs)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
-    install_myself(session)
+    install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
 
-    if SYSTEM == 'darwin':
-        session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
-
-    session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec', **run_kwargs)
+    session.run('pyinstaller', *session.posargs, 'b2.spec', **run_kwargs)
 
     if SYSTEM == 'linux' and not NO_STATICX:
         session.run(

@@ -15,22 +15,30 @@ import dataclasses
 import datetime
 import functools
 import getpass
+import io
 import json
 import locale
 import logging
 import logging.config
 import os
+import pathlib
 import platform
 import re
 import signal
 import sys
 import time
+import unicodedata
 from abc import ABCMeta, abstractclassmethod
+
+from contextlib import suppress
+import requests
+import rst2ansi
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
 from enum import Enum
 
+import b2sdk
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -71,6 +79,7 @@ from b2sdk.v2 import (
     SyncReport,
     UploadMode,
     current_time_millis,
+    get_included_sources,
     make_progress_listener,
     parse_sync_folder,
     ReplicationMonitor,
@@ -96,6 +105,12 @@ from b2.arg_parser import (
 )
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
+
+piplicenses = None
+prettytable = None
+with suppress(ImportError):
+    import piplicenses
+    import prettytable
 
 logger = logging.getLogger(__name__)
 
@@ -2823,6 +2838,174 @@ class Version(Command):
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
+
+
+@B2.register_subcommand
+class License(Command):  # pragma: no cover
+    """
+    Prints the license of B2 Command line tool and all libraries shipped with it.
+    """
+    LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent / 'licenses_output.txt'
+
+    REQUIRES_AUTH = False
+    IGNORE_MODULES = {'b2', 'distlib', 'patchelf-wrapper', 'platformdirs'}
+    REQUEST_TIMEOUT_S = 5
+
+    # In case of some modules, we provide manual
+    # overrides to the license text extracted by piplicenses.
+    # Thanks to this set, we make sure the module is still used
+    # PTable is used on versions below Python 3.11
+    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
+
+    LICENSES = {
+        'atomicwrites':
+            'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
+        'platformdirs':
+            'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt',
+        'PTable':
+            'https://raw.githubusercontent.com/jazzband/prettytable/master/COPYING',
+        'pipx':
+            'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
+        'userpath':
+            'https://raw.githubusercontent.com/ofek/userpath/master/LICENSE.txt',
+        'future':
+            'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
+        'pefile':
+            'https://raw.githubusercontent.com/erocarrera/pefile/master/LICENSE',
+    }
+
+    class NormalizingStringIO(io.StringIO):
+        def write(self, text, *args, **kwargs):
+            super().write(unicodedata.normalize('NFKD', text), *args, **kwargs)
+
+    def __init__(self, console_tool):
+        super().__init__(console_tool)
+        self.request_session = requests.session()
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        # these are for building, users should not call it:
+        parser.add_argument('--dump', action='store_true', default=False, help=argparse.SUPPRESS)
+        parser.add_argument(
+            '--with-packages', action='store_true', default=False, help=argparse.SUPPRESS
+        )
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        if self.LICENSE_OUTPUT_FILE.exists() and not args.dump:
+            self._print(self.LICENSE_OUTPUT_FILE.read_text())
+            return 0
+
+        if args.dump:
+            with self.LICENSE_OUTPUT_FILE.open('w', encoding='utf8') as file:
+                self._put_license_text(file, with_packages=args.with_packages)
+        else:
+            stream = self.NormalizingStringIO()
+            self._put_license_text(stream, with_packages=args.with_packages)
+            stream.seek(0)
+            self._print(stream.read())
+
+        return 0
+
+    def _put_license_text(self, stream: io.StringIO, with_packages: bool = False):
+        if with_packages:
+            self._put_license_text_for_packages(stream)
+
+        included_sources = get_included_sources()
+        if included_sources:
+            stream.write(
+                '\n\nThird party libraries modified and included in %s or %s:\n' %
+                (NAME, b2sdk.__name__)
+            )
+        for src in included_sources:
+            stream.write('\n')
+            stream.write(src.name)
+            stream.write('\n')
+            stream.write(src.comment)
+            stream.write('\n')
+            stream.write('Files included for legal compliance reasons:\n')
+            files_table = prettytable.PrettyTable(['File name', 'Content'], hrules=prettytable.ALL)
+            for file_name, file_content in src.files.items():
+                files_table.add_row([file_name, file_content])
+            stream.write(str(files_table))
+        stream.write('\n\n%s license:\n' % (NAME,))
+        b2_license_file_text = (pathlib.Path(__file__).parent / 'LICENSE').read_text()
+        stream.write(b2_license_file_text)
+
+    def _put_license_text_for_packages(self, stream: io.StringIO):
+        license_table = prettytable.PrettyTable(
+            ['Module name', 'License text'], hrules=prettytable.ALL
+        )
+        summary_table = prettytable.PrettyTable(
+            ['Module name', 'Version', 'License', 'Author', 'URL'], hrules=prettytable.ALL
+        )
+
+        licenses = self._get_licenses_dicts()
+        modules_added = set()
+        for module_info in licenses:
+            if module_info['Name'] in self.IGNORE_MODULES:
+                continue
+            summary_table.add_row(
+                [
+                    module_info['Name'],
+                    module_info['Version'],
+                    module_info['License'].replace(';', '\n'),
+                    module_info['Author'],
+                    module_info['URL'],
+                ]
+            )
+            license_table.add_row([module_info['Name'], self._get_single_license(module_info)])
+            modules_added.add(module_info['Name'])
+
+        assert not (self.MODULES_TO_OVERRIDE_LICENSE_TEXT - modules_added)
+        stream.write(
+            'Licenses of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+        )
+        stream.write(str(license_table))
+        stream.write(
+            '\n\nSummary of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+        )
+        stream.write(str(summary_table))
+
+    @classmethod
+    def _get_licenses_dicts(cls) -> List[Dict]:
+        assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
+        parser = piplicenses.create_parser()
+        args = parser.parse_args(
+            [
+                '--format',
+                'j',
+                '--with-system',
+                '--with-authors',
+                '--with-urls',
+                '--with-license-file',
+            ]
+        )
+        licenses_output = piplicenses.create_output_string(args)
+        licenses = json.loads(licenses_output)
+        return licenses
+
+    def _fetch_license_from_url(self, url: str) -> str:
+        response = self.request_session.get(url, timeout=self.REQUEST_TIMEOUT_S)
+        response.raise_for_status()
+        return response.text
+
+    def _get_single_license(self, module_dict: dict):
+        license_ = module_dict['LicenseText']
+        module_name = module_dict['Name']
+        if module_name == 'rst2ansi':
+            # this one module is problematic, we need to extract the license text from its docstring
+            assert license_ == piplicenses.LICENSE_UNKNOWN  # let's make sure they didn't fix it
+            license_ = rst2ansi.__doc__
+            assert 'MIT License' in license_  # let's make sure the license is still there
+        elif module_name == 'b2sdk':
+            license_ = (pathlib.Path(b2sdk.__file__).parent / 'LICENSE').read_text()
+        elif module_name in self.LICENSES:
+            license_ = self._fetch_license_from_url(self.LICENSES[module_name])
+
+        assert license_ != piplicenses.LICENSE_UNKNOWN, module_name
+
+        return license_
 
 
 class ConsoleTool(object):

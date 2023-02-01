@@ -110,13 +110,16 @@ setup(
     # dependencies). You can install these using the following syntax,
     # for example:
     # $ pip install -e .[dev,test]
-    extras_require={'doc': read_requirements('doc')},
+    extras_require={
+        'doc': read_requirements('doc'),
+        'license': read_requirements('license'),
+    },
     setup_requires=['setuptools_scm<6.0'],
     use_scm_version=True,
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.
-    package_data={'b2': ['requirements.txt', 'LICENSE']},
+    package_data={'b2': ['requirements.txt', 'LICENSE', 'licenses_output.txt']},
 
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
