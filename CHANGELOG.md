@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add `--incrementalMode` to `sync` and `upload-file`
 * Add `license` command for printing licenses of b2 and libraries
+* Add wildcard support for the `ls` command
+* Add `rm` command
 
 ### Fixed
 * Stop using b2sdk.v1 in arg_parser.py

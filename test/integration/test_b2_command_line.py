@@ -90,6 +90,16 @@ def test_basic(b2_tool, bucket_name):
         ]
     )
 
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm1'])
+    # with_wildcard allows us to target a single file. rm will be removed, rm1 will be left alone
+    b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm'])
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', '--withWildcard', bucket_name, 'rm*']
+    )
+    should_equal(['rm1'], [f['fileName'] for f in list_of_files])
+    b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm1'])
+
     with TempDir() as dir_path:
         b2_tool.should_succeed(
             ['download-file-by-name', '--noProgress', bucket_name, 'b/1', dir_path / 'a']
@@ -231,6 +241,8 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
 
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
+    # A single file for rm to fail on.
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, 'README.md', 'test'])
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -267,11 +279,22 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['ls', bucket_name],)
 
+    # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
+    # in ensures that there are three in total.
+    failed_bucket_err = r'Deletion of file "test" \([^\)]+\) failed: unauthorized for ' \
+                        r'application key with capabilities ' \
+                        r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
+                        r"restricted to bucket '%s' \(unauthorized\)" % bucket_name
+    b2_tool.should_fail(['rm', '--recursive', '--noProgress', bucket_name], failed_bucket_err)
+
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
+
+    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    b2_tool.should_fail(['rm', second_bucket_name], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(
@@ -2445,7 +2468,7 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, b2_api, bucket_name
         [
             'update-bucket', bucket_name, '--defaultRetentionMode', 'compliance',
             '--defaultRetentionPeriod', '7 days'
-        ], 'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
+        ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
     # enable file lock and set retention at once

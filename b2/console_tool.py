@@ -29,8 +29,9 @@ import sys
 import time
 import unicodedata
 from abc import ABCMeta, abstractclassmethod
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
+
 import requests
 import rst2ansi
 from tabulate import tabulate
@@ -89,6 +90,7 @@ from b2sdk.v2.exception import (
     B2Error,
     BadFileInfo,
     EmptyDirectory,
+    FileNotPresent,
     MissingAccountData,
     NotADirectory,
     UnableToCreateDirectory,
@@ -1725,8 +1727,42 @@ class ListUnfinishedLargeFiles(Command):
         return 0
 
 
+class AbstractLsCommand(Command, metaclass=ABCMeta):
+    """
+    The ``--versions`` option shows all versions of each file, not
+    just the most recent.
+
+    The ``--recursive`` option will descend into folders, and will show
+    only files, not folders.
+
+    The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
+    characters in ``folderName`` as a greedy wildcard, single character
+    wildcard and range of characters. It automatically assumes ``--recursive``.
+    Remember to quote ``folderName`` to avoid shell expansion.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--versions', action='store_true')
+        parser.add_argument('--recursive', action='store_true')
+        parser.add_argument('--withWildcard', action='store_true')
+        parser.add_argument('bucketName')
+        parser.add_argument('folderName', nargs='?')
+
+    def _get_ls_generator(self, args):
+        start_file_name = args.folderName or ''
+
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        return bucket.ls(
+            start_file_name,
+            latest_only=not args.versions,
+            recursive=args.recursive,
+            with_wildcard=args.withWildcard,
+        )
+
+
 @B2.register_subcommand
-class Ls(Command):
+class Ls(AbstractLsCommand):
     """
     Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
@@ -1742,13 +1778,38 @@ class Ls(Command):
     The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The ``--versions`` option shows all versions of each file, not
-    just the most recent.
-
-    The ``--recursive`` option will descend into folders, and will show
-    only files, not folders.
-
     The ``--replication`` option adds replication status
+
+    {ABSTRACTLSCOMMAND}
+
+    Examples
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    List csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    List all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    List all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
 
     Requires capability:
 
@@ -1763,26 +1824,11 @@ class Ls(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
         parser.add_argument('--json', action='store_true')
-        parser.add_argument('--versions', action='store_true')
-        parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--replication', action='store_true')
-        parser.add_argument('bucketName')
-        parser.add_argument('folderName', nargs='?')
+        super()._setup_parser(parser)
 
     def run(self, args):
-        if args.folderName is None:
-            start_file_name = ""
-        else:
-            start_file_name = args.folderName
-            if not start_file_name.endswith('/'):
-                start_file_name += '/'
-
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        generator = bucket.ls(
-            start_file_name,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-        )
+        generator = self._get_ls_generator(args)
 
         if args.json:
             self._print_json([file_version for file_version, _ in generator])
@@ -1821,6 +1867,131 @@ class Ls(Command):
             parameters.append(replication_status.value if replication_status else '-')
         parameters.append(file_version.file_name)
         return template % tuple(parameters)
+
+
+@B2.register_subcommand
+class Rm(Ls):
+    """
+    Removes a group of files.  Use with caution.
+
+    To list (but not remove) files to be deleted, use ``--dryRun``.  You can also
+    list files via ``ls`` command – the listing behaviour is exactly the same.
+
+    Users with high-performance networks or multiple files to be removed, will benefit
+    from multi-threaded capabilities.  The default number of threads is 10.
+
+    Progress is displayed on the console unless ``--noProgress`` is specified.
+
+    {ABSTRACTLSCOMMAND}
+
+    The ``--dryRun`` option prints all the files that
+    would be affected by the command, but removes nothing.
+
+    Normally, when an error happens during file removal, log is printed and the command
+    goes further. If any error should be immediately breaking the command,
+    ``--failFast`` can be passed to ensure that first error will stop the execution.
+    This could be useful to e.g. check whether provided credentials have **deleteFiles**
+    capabilities.
+
+    .. note::
+
+        Using ``--failFast`` doesn't prevent the command from trying to remove further files.
+        It just stops the progress. Since multiple files are removed in parallel, it's possible
+        that just some of them were not reported.
+
+    Command returns 0 if all files were removed successfully and
+    a value different from 0 if any file was left.
+
+    Examples.
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    .. note::
+
+        Use with caution. Running examples presented below can cause data-loss.
+
+
+    Remove all csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    Remove all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    Remove all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+    """
+
+    DEFAULT_THREADS = 10
+    PROGRESS_REPORT_CLASS = ProgressReport
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--dryRun', action='store_true')
+        parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
+        parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--failFast', action='store_true')
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        if args.dryRun:
+            return super().run(args)
+
+        failed_on_any_file = False
+
+        with ThreadPoolExecutor(max_workers=args.threads) as executor:
+            futures = {}
+            with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
+                for file_version, _ in self._get_ls_generator(args):
+                    future = executor.submit(
+                        self.api.delete_file_version,
+                        file_version.id_,
+                        file_version.file_name,
+                    )
+                    futures[future] = file_version
+                    reporter.update_total(1)
+                reporter.end_total()
+
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except FileNotPresent:
+                        # It could happen when two ``rm`` are working in parallel on the same bucket.
+                        # Since the file was to be removed, and it's not there – it's not an error.
+                        pass
+                    except B2Error as error:
+                        file_version = futures[future]
+                        message = f'Deletion of file "{file_version.file_name}" ' \
+                                  f'({file_version.id_}) failed: {str(error)}'
+                        reporter.print_completion(message)
+                        failed_on_any_file = True
+
+                        if args.failFast:
+                            break
+
+                    reporter.update_count(1)
+
+        return 1 if failed_on_any_file else 0
 
 
 @B2.register_subcommand
