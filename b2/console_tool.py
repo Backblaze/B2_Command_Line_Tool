@@ -77,6 +77,7 @@ from b2sdk.v2 import (
     SqliteAccountInfo,
     Synchronizer,
     SyncReport,
+    UploadMode,
     current_time_millis,
     get_included_sources,
     make_progress_listener,
@@ -486,6 +487,23 @@ class FileIdAndOptionalFileNameMixin(Described):
             return args.fileName
         file_info = self.api.get_file_info(args.fileId)
         return file_info.file_name
+
+
+class UploadModeMixin(Described):
+    """
+    Use --incrementalMode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
+    have been appended to since last upload.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--incrementalMode', action='store_true')
+
+    @staticmethod
+    def _get_upload_mode_from_args(args):
+        if args.incrementalMode:
+            return UploadMode.INCREMENTAL
+        return UploadMode.FULL
 
 
 class Command(Described):
@@ -1845,6 +1863,7 @@ class Sync(
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
     MaxDownloadStreamsMixin,
+    UploadModeMixin,
     Command,
 ):
     """
@@ -2000,6 +2019,7 @@ class Sync(
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
     {MAXDOWNLOADSTREAMSMIXIN}
+    {UPLOADMODEMIXIN}
 
     Requires capabilities:
 
@@ -2075,6 +2095,7 @@ class Sync(
             sync_threads,
             policies_manager,
             allow_empty_source,
+            self.api.session.account_info.get_absolute_minimum_part_size(),
         )
 
         kwargs = {}
@@ -2135,6 +2156,7 @@ class Sync(
         max_workers,
         policies_manager=DEFAULT_SCAN_MANAGER,
         allow_empty_source=False,
+        absolute_minimum_part_size=None,
     ):
         if args.replaceNewer:
             newer_file_mode = NewerFileSyncMode.REPLACE
@@ -2163,6 +2185,8 @@ class Sync(
         else:
             keep_days_or_delete = KeepOrDeleteMode.NO_DELETE
 
+        upload_mode = self._get_upload_mode_from_args(args)
+
         return Synchronizer(
             max_workers,
             policies_manager=policies_manager,
@@ -2173,6 +2197,8 @@ class Sync(
             compare_version_mode=compare_version_mode,
             compare_threshold=compare_threshold,
             keep_days=keep_days,
+            upload_mode=upload_mode,
+            absolute_minimum_part_size=absolute_minimum_part_size,
         )
 
 
@@ -2280,7 +2306,9 @@ class UpdateBucket(DefaultSseMixin, Command):
 
 
 @B2.register_subcommand
-class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, Command):
+class UploadFile(
+    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
+):
     """
     Uploads one file to the given bucket.  Uploads the contents
     of the local file, and assigns the given name to the B2 file,
@@ -2313,6 +2341,7 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
+    {UPLOADMODEMIXIN}
 
     Requires capability:
 
@@ -2361,6 +2390,7 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
             encryption=encryption_setting,
             file_retention=file_retention,
             legal_hold=legal_hold,
+            upload_mode=self._get_upload_mode_from_args(args),
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))

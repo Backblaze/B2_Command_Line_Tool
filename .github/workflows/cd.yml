@@ -29,10 +29,13 @@ jobs:
         run: python -m pip install --upgrade nox pip setuptools
       - name: Build the distribution
         id: build
-        run: nox -vs build
+        run: nox -vs build >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Read the Changelog
         id: read-changelog
-        uses: mindsers/changelog-reader-action@v1
+        uses: mindsers/changelog-reader-action@v2
         with:
           version: ${{ steps.build.outputs.version }}
       - name: Create GitHub release and upload the distribution
@@ -40,7 +43,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ steps.build.outputs.version }}
-          body: ${{ steps.read-changelog.outputs.log_entry }}
+          body: ${{ steps.read-changelog.outputs.changes }}
           draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
           prerelease: false
           files: ${{ steps.build.outputs.asset_path }}
@@ -68,10 +71,13 @@ jobs:
           python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Sign the bundle
         id: sign
-        run: nox -vs sign
+        run: nox -vs sign >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -100,7 +106,7 @@ jobs:
         run: python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Import certificate
         uses: apple-actions/import-codesign-certs@v1
         with:
@@ -108,7 +114,7 @@ jobs:
           p12-password: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
       - name: Sign the bundle
         id: sign
-        run: nox -vs sign -- '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
+        run: nox -vs sign -- '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}' >> $GITHUB_OUTPUT
       - name: Notarize the bundle
         if: ${{ env.B2_OSX_NOTARY_NAME != '' }}
         uses: devbotsxyz/xcode-notarize@v1
@@ -117,6 +123,9 @@ jobs:
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
           primary-bundle-id: com.backblaze.b2
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -142,7 +151,8 @@ jobs:
         run: python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        shell: bash
+        run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Import certificate
         id: windows_import_cert
         uses: timheuer/base64-to-file@v1
@@ -151,7 +161,11 @@ jobs:
           encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
       - name: Sign the bundle
         id: sign
-        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
+        shell: bash
+        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}' >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
         uses: softprops/action-gh-release@v1
         with:
