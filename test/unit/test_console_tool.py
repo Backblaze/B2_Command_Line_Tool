@@ -18,6 +18,7 @@ from io import StringIO
 from typing import Optional, List
 from itertools import product, chain
 
+from b2sdk.exception import B2Error
 from more_itertools import one
 
 from b2sdk import v1
@@ -2189,8 +2190,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         # Check with no files
-        with self.assertRaises(ValueError):
-            self._run_command(['ls', '--withWildcard', 'my-bucket'])
+        self._run_command(
+            ['ls', '--withWildcard', 'my-bucket'],
+            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_status=1,
+        )
 
     def test_restrictions(self):
         # Initial condition
@@ -2577,6 +2581,18 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_no_name_removes_everything(self):
+        self._run_command(['rm', '--recursive', '--noProgress', 'my-bucket'])
+
+        self._run_command(['ls', '--recursive', 'my-bucket'], '')
+
+    def test_rm_with_wildcard_without_recursive(self):
+        self._run_command(
+            ['rm', '--withWildcard', 'my-bucket'],
+            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_status=1,
+        )
 
     def test_rm_progress(self):
         expected_in_stdout = ' count: 4/4 '

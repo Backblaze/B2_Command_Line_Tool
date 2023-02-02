@@ -1755,12 +1755,19 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         start_file_name = args.folderName or ''
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        return bucket.ls(
-            start_file_name,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-            with_wildcard=args.withWildcard,
-        )
+
+        try:
+            for entry in bucket.ls(
+                start_file_name,
+                latest_only=not args.versions,
+                recursive=args.recursive,
+                with_wildcard=args.withWildcard,
+            ):
+                yield entry
+        except ValueError as error:
+            # Wrap these errors into B2Error. At the time of writing there's
+            # exactly one – `with_wildcard` being passed without `recursive` option.
+            raise B2Error(error.args[0])
 
 
 @B2.register_subcommand
