@@ -10,6 +10,7 @@
 
 import json
 import os
+import pathlib
 
 import re
 import unittest.mock as mock
@@ -1467,6 +1468,45 @@ class TestConsoleTool(BaseConsoleToolTest):
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
             )
+
+    def test_upload_incremental(self):
+        self._authorize_account()
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        min_part_size = self.account_info.get_recommended_part_size()
+        file_size = min_part_size * 2
+
+        with TempDir() as temp_dir:
+            file_path = pathlib.Path(temp_dir) / 'test.txt'
+
+            incremental_upload_params = [
+                'upload-file',
+                '--noProgress',
+                '--threads',
+                '5',
+                '--incrementalMode',
+                'my-bucket',
+                str(file_path),
+                'test.txt',
+            ]
+
+            file_path.write_bytes(b'*' * file_size)
+            self._run_command(incremental_upload_params)
+
+            with open(file_path, 'ab') as f:
+                f.write(b'*' * min_part_size)
+            self._run_command(incremental_upload_params)
+
+            downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
+            self._run_command(
+                [
+                    'download-file-by-name',
+                    '--noProgress',
+                    'my-bucket',
+                    'test.txt',
+                    str(downloaded_path),
+                ]
+            )
+            assert downloaded_path.read_bytes() == file_path.read_bytes()
 
     def test_get_account_info(self):
         self._authorize_account()
