@@ -3,6 +3,6 @@ b2sdk>=1.19.0,<2.0.0
 docutils==0.19
 idna>=2.2.0; platform_system == 'Java'
 importlib-metadata>=3.3.0; python_version < '3.8'
-phx-class-registry==3.0.5
+phx-class-registry==4.0.5
 rst2ansi==0.1.5
 tabulate==0.8.10
