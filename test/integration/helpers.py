@@ -8,9 +8,7 @@
 #
 ######################################################################
 
-import argparse
 import contextlib
-import dataclasses
 import json
 import os
 import platform
@@ -27,7 +25,7 @@ from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import List, Optional, Union
+from typing import List, NamedTuple, Optional, Union
 
 import backoff
 
@@ -238,21 +236,19 @@ class StringReader(object):
             self.string = str(e)
 
 
-# TODO: add slots=True when dropping support for Python 3.9
-@dataclasses.dataclass(frozen=True)
-class CommandResult:
+class CommandResult(NamedTuple):
     status: int
     stdout: str
     stderr: str
 
-    def should_succeed(self):
+    def should_succeed(self) -> None:
         assert self.status == 0, f'FAILED with status {self.status}, stderr={self.stderr}'
 
-    def should_fail(self):
+    def should_fail(self) -> None:
         assert self.status != 0, 'ERROR: should have failed'
 
     @property
-    def output(self):
+    def output(self) -> str:
         return self.stdout + self.stderr
 
 

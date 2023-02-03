@@ -235,7 +235,7 @@ def test_key_restrictions(b2_tool, create_test_bucket):
     second_bucket_name = create_test_bucket()
 
     # A single file for rm to fail on.
-    b2_tool.should_succeed(['upload-file', '--noProgress', second_bucket_name, 'README.md', 'test'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', first_bucket_name, 'README.md', 'test'])
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -277,9 +277,9 @@ def test_key_restrictions(b2_tool, create_test_bucket):
     failed_bucket_err = r'Deletion of file "test" \([^\)]+\) failed: unauthorized for ' \
                         r'application key with capabilities ' \
                         r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
-                        r"restricted to bucket '%s' \(unauthorized\)" % second_bucket_name
+                        r"restricted to bucket '%s' \(unauthorized\)" % first_bucket_name
     b2_tool.should_fail(
-        ['rm', '--recursive', '--noProgress', second_bucket_name],
+        ['rm', '--recursive', '--noProgress', first_bucket_name],
         failed_bucket_err,
     )
 
