@@ -10,11 +10,12 @@
 
 import json
 import os
+import pathlib
 
 import re
 import unittest.mock as mock
 from io import StringIO
-from typing import Optional
+from typing import Optional, List
 from itertools import product, chain
 
 from more_itertools import one
@@ -27,10 +28,12 @@ from b2sdk.v2 import StubAccountInfo
 from b2sdk.v2 import B2Api
 from b2sdk.v2 import B2HttpApiConfig
 from b2.console_tool import ConsoleTool, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR, \
-    B2_ENVIRONMENT_ENV_VAR
+    B2_ENVIRONMENT_ENV_VAR, Rm
 from b2sdk.v2 import RawSimulator
 from b2sdk.v2 import UploadSourceBytes
 from b2sdk.v2 import TempDir, fix_windows_path_limit
+from b2sdk.v2 import ProgressReport
+from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
 
 from .test_base import TestBase
 
@@ -163,6 +166,7 @@ class BaseConsoleToolTest(TestBase):
         remove_version=False,
         expected_json_in_stdout: Optional[dict] = None,
         expected_part_of_stdout=None,
+        unexpected_part_of_stdout=None,
     ):
         """
         Runs one command using the ConsoleTool, checking stdout, stderr, and
@@ -220,8 +224,22 @@ class BaseConsoleToolTest(TestBase):
             self.assertEqual(expected_stdout, actual_stdout, 'stdout')
         if expected_part_of_stdout is not None:
             self.assertIn(expected_part_of_stdout, actual_stdout)
+        if unexpected_part_of_stdout is not None:
+            self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
         self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
+
+    @classmethod
+    def _upload_multiple_files(cls, bucket):
+        data = UploadSourceBytes(b'test-data')
+        bucket.upload(data, 'a/test.csv')
+        bucket.upload(data, 'a/test.tsv')
+        bucket.upload(data, 'b/b/test.csv')
+        bucket.upload(data, 'b/b1/test.csv')
+        bucket.upload(data, 'b/b2/test.tsv')
+        bucket.upload(data, 'b/test.txt')
+        bucket.upload(data, 'c/test.csv')
+        bucket.upload(data, 'c/test.tsv')
 
 
 @mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
@@ -1384,9 +1402,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "src_last_modified_millis": str(mod_time_str)
-                },
+                "fileInfo":
+                    {
+                        "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
+                        "src_last_modified_millis": str(mod_time_str)
+                    },
                 "fileName": "test.txt",
                 "serverSideEncryption": {
                     "mode": "none"
@@ -1425,9 +1445,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "none",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "src_last_modified_millis": str(mod_time_str)
-                },
+                "fileInfo":
+                    {
+                        "large_file_sha1": "cc8954ec25e0c564b6a693fb22200e4f832c18e8",
+                        "src_last_modified_millis": str(mod_time_str)
+                    },
                 "fileName": "test.txt",
                 "serverSideEncryption": {
                     "algorithm": "AES256",
@@ -1446,6 +1468,45 @@ class TestConsoleTool(BaseConsoleToolTest):
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
             )
+
+    def test_upload_incremental(self):
+        self._authorize_account()
+        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        min_part_size = self.account_info.get_recommended_part_size()
+        file_size = min_part_size * 2
+
+        with TempDir() as temp_dir:
+            file_path = pathlib.Path(temp_dir) / 'test.txt'
+
+            incremental_upload_params = [
+                'upload-file',
+                '--noProgress',
+                '--threads',
+                '5',
+                '--incrementalMode',
+                'my-bucket',
+                str(file_path),
+                'test.txt',
+            ]
+
+            file_path.write_bytes(b'*' * file_size)
+            self._run_command(incremental_upload_params)
+
+            with open(file_path, 'ab') as f:
+                f.write(b'*' * min_part_size)
+            self._run_command(incremental_upload_params)
+
+            downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
+            self._run_command(
+                [
+                    'download-file-by-name',
+                    '--noProgress',
+                    'my-bucket',
+                    'test.txt',
+                    str(downloaded_path),
+                ]
+            )
+            assert downloaded_path.read_bytes() == file_path.read_bytes()
 
     def test_get_account_info(self):
         self._authorize_account()
@@ -2060,6 +2121,77 @@ class TestConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
 
+    def test_ls_wildcard(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Check with no files
+        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.txt'], '', '', 0)
+
+        # Create some files, including files in a folder
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        self._upload_multiple_files(bucket)
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '*.[tc]sv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+        a/test.tsv
+        b/b2/test.tsv
+        c/test.tsv
+        '''
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '*.tsv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+        b/b1/test.csv
+        '''
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', 'b/b?/test.csv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '?/test.?sv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+        b/b/test.csv
+        b/b1/test.csv
+        '''
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', 'my-bucket', '?/*/*.[!t]sv'],
+            expected_stdout,
+        )
+
+    def test_ls_with_wildcard_no_recursive(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Check with no files
+        with self.assertRaises(ValueError):
+            self._run_command(['ls', '--withWildcard', 'my-bucket'])
+
     def test_restrictions(self):
         # Initial condition
         self.assertEqual(None, self.account_info.get_account_auth_token())
@@ -2174,7 +2306,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
             'Using http://production.example.com\n',
-            "ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n",
+            "ERROR: unable to authorize account: Application key is restricted to a bucket that doesn't exist\n",
             1,
         )
 
@@ -2332,3 +2464,184 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         '''
 
         self._run_command(['list-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0)
+
+
+@mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
+class TestRmConsoleTool(BaseConsoleToolTest):
+    """
+    These tests replace default progress reporter of Rm class
+    to ensure that it reports everything as fast as possible.
+    """
+
+    class InstantReporter(ProgressReport):
+        UPDATE_INTERVAL = 0.0
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.original_progress_class = Rm.PROGRESS_REPORT_CLASS
+        Rm.PROGRESS_REPORT_CLASS = cls.InstantReporter
+
+    def setUp(self):
+        super().setUp()
+
+        self._authorize_account()
+        self._create_my_bucket()
+
+        self.bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        self._upload_multiple_files(self.bucket)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        Rm.PROGRESS_REPORT_CLASS = cls.original_progress_class
+
+    def test_rm_wildcard(self):
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', '--noProgress', 'my-bucket', '*.csv'],
+        )
+
+        expected_stdout = '''
+        a/test.tsv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_versions(self):
+        # Uploading content of the bucket again to create second version of each file.
+        self._upload_multiple_files(self.bucket)
+
+        self._run_command(
+            ['rm', '--versions', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],
+        )
+
+        expected_stdout = '''
+        a/test.tsv
+        a/test.tsv
+        b/b2/test.tsv
+        b/b2/test.tsv
+        b/test.txt
+        b/test.txt
+        c/test.tsv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--versions', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_no_recursive(self):
+        self._run_command(['rm', '--noProgress', 'my-bucket', 'b/'])
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_dry_run(self):
+        expected_stdout = '''
+        a/test.csv
+        b/b/test.csv
+        b/b1/test.csv
+        c/test.csv
+        '''
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', '--dryRun', 'my-bucket', '*.csv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_exact_filename(self):
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', '--noProgress', 'my-bucket', 'b/b/test.csv'],
+        )
+
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        b/b1/test.csv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_rm_progress(self):
+        expected_in_stdout = ' count: 4/4 '
+        self._run_command(
+            ['rm', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],
+            expected_part_of_stdout=expected_in_stdout,
+        )
+
+        expected_stdout = '''
+        a/test.tsv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def _run_problematic_removal(
+        self,
+        additional_parameters: Optional[List[str]] = None,
+        expected_in_stdout: Optional[str] = None,
+        unexpected_in_stdout: Optional[str] = None
+    ):
+        additional_parameters = additional_parameters or []
+
+        original_delete_file_version = self.b2_api.raw_api.delete_file_version
+
+        def mocked_delete_file_version(this, account_auth_token, file_id, file_name):
+            if file_name == 'b/b1/test.csv':
+                raise Conflict()
+            return original_delete_file_version(this, account_auth_token, file_id, file_name)
+
+        with mock.patch.object(
+            self.b2_api.raw_api,
+            'delete_file_version',
+            side_effect=mocked_delete_file_version,
+        ):
+            self._run_command(
+                [
+                    'rm',
+                    '--recursive',
+                    '--withWildcard',
+                    '--threads',
+                    '1',
+                    *additional_parameters,
+                    'my-bucket',
+                    '*',
+                ],
+                expected_status=1,
+                expected_part_of_stdout=expected_in_stdout,
+                unexpected_part_of_stdout=unexpected_in_stdout,
+            )
+
+    def test_rm_fail_fast(self):
+        # Since we already have all the jobs submitted to another thread,
+        # we can only rely on the log to tell when it stopped.
+        expected_in_stdout = '''
+        Deletion of file "b/b1/test.csv" (9996) failed: Conflict:
+         count: 3/8'''
+        unexpected_in_stdout = ' count: 4/8 '
+        self._run_problematic_removal(['--failFast'], expected_in_stdout, unexpected_in_stdout)
+
+    def test_rm_skipping_over_errors(self):
+        self._run_problematic_removal()
+
+        expected_stdout = '''
+        b/b1/test.csv
+        '''
+        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)

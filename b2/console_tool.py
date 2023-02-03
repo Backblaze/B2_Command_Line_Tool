@@ -15,22 +15,31 @@ import dataclasses
 import datetime
 import functools
 import getpass
+import io
 import json
 import locale
 import logging
 import logging.config
 import os
+import pathlib
 import platform
 import re
 import signal
 import sys
 import time
+import unicodedata
 from abc import ABCMeta, abstractclassmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import suppress
+
+import requests
+import rst2ansi
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
 from enum import Enum
 
+import b2sdk
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -69,7 +78,9 @@ from b2sdk.v2 import (
     SqliteAccountInfo,
     Synchronizer,
     SyncReport,
+    UploadMode,
     current_time_millis,
+    get_included_sources,
     make_progress_listener,
     parse_sync_folder,
     ReplicationMonitor,
@@ -79,6 +90,7 @@ from b2sdk.v2.exception import (
     B2Error,
     BadFileInfo,
     EmptyDirectory,
+    FileNotPresent,
     MissingAccountData,
     NotADirectory,
     UnableToCreateDirectory,
@@ -95,6 +107,12 @@ from b2.arg_parser import (
 )
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
+
+piplicenses = None
+prettytable = None
+with suppress(ImportError):
+    import piplicenses
+    import prettytable
 
 logger = logging.getLogger(__name__)
 
@@ -471,6 +489,23 @@ class FileIdAndOptionalFileNameMixin(Described):
             return args.fileName
         file_info = self.api.get_file_info(args.fileId)
         return file_info.file_name
+
+
+class UploadModeMixin(Described):
+    """
+    Use --incrementalMode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
+    have been appended to since last upload.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--incrementalMode', action='store_true')
+
+    @staticmethod
+    def _get_upload_mode_from_args(args):
+        if args.incrementalMode:
+            return UploadMode.INCREMENTAL
+        return UploadMode.FULL
 
 
 class Command(Described):
@@ -1692,8 +1727,42 @@ class ListUnfinishedLargeFiles(Command):
         return 0
 
 
+class AbstractLsCommand(Command, metaclass=ABCMeta):
+    """
+    The ``--versions`` option shows all versions of each file, not
+    just the most recent.
+
+    The ``--recursive`` option will descend into folders, and will show
+    only files, not folders.
+
+    The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
+    characters in ``folderName`` as a greedy wildcard, single character
+    wildcard and range of characters. It automatically assumes ``--recursive``.
+    Remember to quote ``folderName`` to avoid shell expansion.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--versions', action='store_true')
+        parser.add_argument('--recursive', action='store_true')
+        parser.add_argument('--withWildcard', action='store_true')
+        parser.add_argument('bucketName')
+        parser.add_argument('folderName', nargs='?')
+
+    def _get_ls_generator(self, args):
+        start_file_name = args.folderName or ''
+
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        return bucket.ls(
+            start_file_name,
+            latest_only=not args.versions,
+            recursive=args.recursive,
+            with_wildcard=args.withWildcard,
+        )
+
+
 @B2.register_subcommand
-class Ls(Command):
+class Ls(AbstractLsCommand):
     """
     Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
@@ -1709,13 +1778,38 @@ class Ls(Command):
     The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The ``--versions`` option shows all versions of each file, not
-    just the most recent.
-
-    The ``--recursive`` option will descend into folders, and will show
-    only files, not folders.
-
     The ``--replication`` option adds replication status
+
+    {ABSTRACTLSCOMMAND}
+
+    Examples
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    List csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    List all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    List all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
 
     Requires capability:
 
@@ -1730,26 +1824,11 @@ class Ls(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
         parser.add_argument('--json', action='store_true')
-        parser.add_argument('--versions', action='store_true')
-        parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--replication', action='store_true')
-        parser.add_argument('bucketName')
-        parser.add_argument('folderName', nargs='?')
+        super()._setup_parser(parser)
 
     def run(self, args):
-        if args.folderName is None:
-            start_file_name = ""
-        else:
-            start_file_name = args.folderName
-            if not start_file_name.endswith('/'):
-                start_file_name += '/'
-
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        generator = bucket.ls(
-            start_file_name,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-        )
+        generator = self._get_ls_generator(args)
 
         if args.json:
             self._print_json([file_version for file_version, _ in generator])
@@ -1788,6 +1867,131 @@ class Ls(Command):
             parameters.append(replication_status.value if replication_status else '-')
         parameters.append(file_version.file_name)
         return template % tuple(parameters)
+
+
+@B2.register_subcommand
+class Rm(Ls):
+    """
+    Removes a group of files.  Use with caution.
+
+    To list (but not remove) files to be deleted, use ``--dryRun``.  You can also
+    list files via ``ls`` command – the listing behaviour is exactly the same.
+
+    Users with high-performance networks or multiple files to be removed, will benefit
+    from multi-threaded capabilities.  The default number of threads is 10.
+
+    Progress is displayed on the console unless ``--noProgress`` is specified.
+
+    {ABSTRACTLSCOMMAND}
+
+    The ``--dryRun`` option prints all the files that
+    would be affected by the command, but removes nothing.
+
+    Normally, when an error happens during file removal, log is printed and the command
+    goes further. If any error should be immediately breaking the command,
+    ``--failFast`` can be passed to ensure that first error will stop the execution.
+    This could be useful to e.g. check whether provided credentials have **deleteFiles**
+    capabilities.
+
+    .. note::
+
+        Using ``--failFast`` doesn't prevent the command from trying to remove further files.
+        It just stops the progress. Since multiple files are removed in parallel, it's possible
+        that just some of them were not reported.
+
+    Command returns 0 if all files were removed successfully and
+    a value different from 0 if any file was left.
+
+    Examples.
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    .. note::
+
+        Use with caution. Running examples presented below can cause data-loss.
+
+
+    Remove all csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    Remove all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    Remove all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} rm --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+    """
+
+    DEFAULT_THREADS = 10
+    PROGRESS_REPORT_CLASS = ProgressReport
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--dryRun', action='store_true')
+        parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
+        parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--failFast', action='store_true')
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        if args.dryRun:
+            return super().run(args)
+
+        failed_on_any_file = False
+
+        with ThreadPoolExecutor(max_workers=args.threads) as executor:
+            futures = {}
+            with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
+                for file_version, _ in self._get_ls_generator(args):
+                    future = executor.submit(
+                        self.api.delete_file_version,
+                        file_version.id_,
+                        file_version.file_name,
+                    )
+                    futures[future] = file_version
+                    reporter.update_total(1)
+                reporter.end_total()
+
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except FileNotPresent:
+                        # It could happen when two ``rm`` are working in parallel on the same bucket.
+                        # Since the file was to be removed, and it's not there – it's not an error.
+                        pass
+                    except B2Error as error:
+                        file_version = futures[future]
+                        message = f'Deletion of file "{file_version.file_name}" ' \
+                                  f'({file_version.id_}) failed: {str(error)}'
+                        reporter.print_completion(message)
+                        failed_on_any_file = True
+
+                        if args.failFast:
+                            break
+
+                    reporter.update_count(1)
+
+        return 1 if failed_on_any_file else 0
 
 
 @B2.register_subcommand
@@ -1830,6 +2034,7 @@ class Sync(
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
     MaxDownloadStreamsMixin,
+    UploadModeMixin,
     Command,
 ):
     """
@@ -1985,6 +2190,7 @@ class Sync(
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
     {MAXDOWNLOADSTREAMSMIXIN}
+    {UPLOADMODEMIXIN}
 
     Requires capabilities:
 
@@ -2060,6 +2266,7 @@ class Sync(
             sync_threads,
             policies_manager,
             allow_empty_source,
+            self.api.session.account_info.get_absolute_minimum_part_size(),
         )
 
         kwargs = {}
@@ -2120,6 +2327,7 @@ class Sync(
         max_workers,
         policies_manager=DEFAULT_SCAN_MANAGER,
         allow_empty_source=False,
+        absolute_minimum_part_size=None,
     ):
         if args.replaceNewer:
             newer_file_mode = NewerFileSyncMode.REPLACE
@@ -2148,6 +2356,8 @@ class Sync(
         else:
             keep_days_or_delete = KeepOrDeleteMode.NO_DELETE
 
+        upload_mode = self._get_upload_mode_from_args(args)
+
         return Synchronizer(
             max_workers,
             policies_manager=policies_manager,
@@ -2158,6 +2368,8 @@ class Sync(
             compare_version_mode=compare_version_mode,
             compare_threshold=compare_threshold,
             keep_days=keep_days,
+            upload_mode=upload_mode,
+            absolute_minimum_part_size=absolute_minimum_part_size,
         )
 
 
@@ -2265,7 +2477,9 @@ class UpdateBucket(DefaultSseMixin, Command):
 
 
 @B2.register_subcommand
-class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, Command):
+class UploadFile(
+    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
+):
     """
     Uploads one file to the given bucket.  Uploads the contents
     of the local file, and assigns the given name to the B2 file,
@@ -2298,6 +2512,7 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
+    {UPLOADMODEMIXIN}
 
     Requires capability:
 
@@ -2346,6 +2561,7 @@ class UploadFile(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin,
             encryption=encryption_setting,
             file_retention=file_retention,
             legal_hold=legal_hold,
+            upload_mode=self._get_upload_mode_from_args(args),
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
@@ -2793,6 +3009,174 @@ class Version(Command):
     def run(self, args):
         self._print('b2 command line tool, version', VERSION)
         return 0
+
+
+@B2.register_subcommand
+class License(Command):  # pragma: no cover
+    """
+    Prints the license of B2 Command line tool and all libraries shipped with it.
+    """
+    LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent / 'licenses_output.txt'
+
+    REQUIRES_AUTH = False
+    IGNORE_MODULES = {'b2', 'distlib', 'patchelf-wrapper', 'platformdirs'}
+    REQUEST_TIMEOUT_S = 5
+
+    # In case of some modules, we provide manual
+    # overrides to the license text extracted by piplicenses.
+    # Thanks to this set, we make sure the module is still used
+    # PTable is used on versions below Python 3.11
+    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
+
+    LICENSES = {
+        'atomicwrites':
+            'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
+        'platformdirs':
+            'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt',
+        'PTable':
+            'https://raw.githubusercontent.com/jazzband/prettytable/master/COPYING',
+        'pipx':
+            'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
+        'userpath':
+            'https://raw.githubusercontent.com/ofek/userpath/master/LICENSE.txt',
+        'future':
+            'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
+        'pefile':
+            'https://raw.githubusercontent.com/erocarrera/pefile/master/LICENSE',
+    }
+
+    class NormalizingStringIO(io.StringIO):
+        def write(self, text, *args, **kwargs):
+            super().write(unicodedata.normalize('NFKD', text), *args, **kwargs)
+
+    def __init__(self, console_tool):
+        super().__init__(console_tool)
+        self.request_session = requests.session()
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        # these are for building, users should not call it:
+        parser.add_argument('--dump', action='store_true', default=False, help=argparse.SUPPRESS)
+        parser.add_argument(
+            '--with-packages', action='store_true', default=False, help=argparse.SUPPRESS
+        )
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        if self.LICENSE_OUTPUT_FILE.exists() and not args.dump:
+            self._print(self.LICENSE_OUTPUT_FILE.read_text())
+            return 0
+
+        if args.dump:
+            with self.LICENSE_OUTPUT_FILE.open('w', encoding='utf8') as file:
+                self._put_license_text(file, with_packages=args.with_packages)
+        else:
+            stream = self.NormalizingStringIO()
+            self._put_license_text(stream, with_packages=args.with_packages)
+            stream.seek(0)
+            self._print(stream.read())
+
+        return 0
+
+    def _put_license_text(self, stream: io.StringIO, with_packages: bool = False):
+        if with_packages:
+            self._put_license_text_for_packages(stream)
+
+        included_sources = get_included_sources()
+        if included_sources:
+            stream.write(
+                '\n\nThird party libraries modified and included in %s or %s:\n' %
+                (NAME, b2sdk.__name__)
+            )
+        for src in included_sources:
+            stream.write('\n')
+            stream.write(src.name)
+            stream.write('\n')
+            stream.write(src.comment)
+            stream.write('\n')
+            stream.write('Files included for legal compliance reasons:\n')
+            files_table = prettytable.PrettyTable(['File name', 'Content'], hrules=prettytable.ALL)
+            for file_name, file_content in src.files.items():
+                files_table.add_row([file_name, file_content])
+            stream.write(str(files_table))
+        stream.write('\n\n%s license:\n' % (NAME,))
+        b2_license_file_text = (pathlib.Path(__file__).parent / 'LICENSE').read_text()
+        stream.write(b2_license_file_text)
+
+    def _put_license_text_for_packages(self, stream: io.StringIO):
+        license_table = prettytable.PrettyTable(
+            ['Module name', 'License text'], hrules=prettytable.ALL
+        )
+        summary_table = prettytable.PrettyTable(
+            ['Module name', 'Version', 'License', 'Author', 'URL'], hrules=prettytable.ALL
+        )
+
+        licenses = self._get_licenses_dicts()
+        modules_added = set()
+        for module_info in licenses:
+            if module_info['Name'] in self.IGNORE_MODULES:
+                continue
+            summary_table.add_row(
+                [
+                    module_info['Name'],
+                    module_info['Version'],
+                    module_info['License'].replace(';', '\n'),
+                    module_info['Author'],
+                    module_info['URL'],
+                ]
+            )
+            license_table.add_row([module_info['Name'], self._get_single_license(module_info)])
+            modules_added.add(module_info['Name'])
+
+        assert not (self.MODULES_TO_OVERRIDE_LICENSE_TEXT - modules_added)
+        stream.write(
+            'Licenses of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+        )
+        stream.write(str(license_table))
+        stream.write(
+            '\n\nSummary of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+        )
+        stream.write(str(summary_table))
+
+    @classmethod
+    def _get_licenses_dicts(cls) -> List[Dict]:
+        assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
+        parser = piplicenses.create_parser()
+        args = parser.parse_args(
+            [
+                '--format',
+                'j',
+                '--with-system',
+                '--with-authors',
+                '--with-urls',
+                '--with-license-file',
+            ]
+        )
+        licenses_output = piplicenses.create_output_string(args)
+        licenses = json.loads(licenses_output)
+        return licenses
+
+    def _fetch_license_from_url(self, url: str) -> str:
+        response = self.request_session.get(url, timeout=self.REQUEST_TIMEOUT_S)
+        response.raise_for_status()
+        return response.text
+
+    def _get_single_license(self, module_dict: dict):
+        license_ = module_dict['LicenseText']
+        module_name = module_dict['Name']
+        if module_name == 'rst2ansi':
+            # this one module is problematic, we need to extract the license text from its docstring
+            assert license_ == piplicenses.LICENSE_UNKNOWN  # let's make sure they didn't fix it
+            license_ = rst2ansi.__doc__
+            assert 'MIT License' in license_  # let's make sure the license is still there
+        elif module_name == 'b2sdk':
+            license_ = (pathlib.Path(b2sdk.__file__).parent / 'LICENSE').read_text()
+        elif module_name in self.LICENSES:
+            license_ = self._fetch_license_from_url(self.LICENSES[module_name])
+
+        assert license_ != piplicenses.LICENSE_UNKNOWN, module_name
+
+        return license_
 
 
 class ConsoleTool(object):

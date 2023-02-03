@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 env:
-  PYTHON_DEFAULT_VERSION: "3.10"
+  PYTHON_DEFAULT_VERSION: "3.11"
 
 concurrency: continuous-integration
 
@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip setuptools
       - name: Build the distribution
-        run: nox -vs build
+        run: nox -vs build >> $GITHUB_OUTPUT
   cleanup_buckets:
     needs: lint
     env:
@@ -111,7 +111,7 @@ jobs:
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
     runs-on: ubuntu-latest
     container:
-      image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      image: "python:3.11"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
       env:
         DEBIAN_FRONTEND: noninteractive
     steps:
@@ -125,10 +125,13 @@ jobs:
           python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        run: nox -vs bundle >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2
@@ -158,10 +161,14 @@ jobs:
         run: python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        shell: bash
+        run: nox -vs bundle >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Run integration tests
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.asset_path }} --cleanup
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2

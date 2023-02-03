@@ -8,7 +8,7 @@ env:
   CD: "true"
   ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PYTHON_DEFAULT_VERSION: "3.10"
+  PYTHON_DEFAULT_VERSION: "3.11"
 
 jobs:
   deploy:
@@ -18,21 +18,24 @@ jobs:
     outputs:
       version: ${{ steps.build.outputs.version }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip setuptools
       - name: Build the distribution
         id: build
-        run: nox -vs build
+        run: nox -vs build >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Read the Changelog
         id: read-changelog
-        uses: mindsers/changelog-reader-action@v1
+        uses: mindsers/changelog-reader-action@v2
         with:
           version: ${{ steps.build.outputs.version }}
       - name: Create GitHub release and upload the distribution
@@ -40,7 +43,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ steps.build.outputs.version }}
-          body: ${{ steps.read-changelog.outputs.log_entry }}
+          body: ${{ steps.read-changelog.outputs.changes }}
           draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
           prerelease: false
           files: ${{ steps.build.outputs.asset_path }}
@@ -54,11 +57,11 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     container:
-      image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      image: "python:3.11"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
       env:
         DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Install dependencies
@@ -68,10 +71,13 @@ jobs:
           python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Sign the bundle
         id: sign
-        run: nox -vs sign
+        run: nox -vs sign >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -89,18 +95,18 @@ jobs:
       B2_OSX_NOTARY_PASSWORD: ${{ secrets.B2_OSX_NOTARY_PASSWORD }}
     runs-on: macos-10.15
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Import certificate
         uses: apple-actions/import-codesign-certs@v1
         with:
@@ -108,7 +114,7 @@ jobs:
           p12-password: ${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_PASSWORD }}
       - name: Sign the bundle
         id: sign
-        run: nox -vs sign -- '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}'
+        run: nox -vs sign -- '${{ env.B2_OSX_CODE_SIGNING_CERTIFICATE_NAME }}' >> $GITHUB_OUTPUT
       - name: Notarize the bundle
         if: ${{ env.B2_OSX_NOTARY_NAME != '' }}
         uses: devbotsxyz/xcode-notarize@v1
@@ -117,6 +123,9 @@ jobs:
           appstore-connect-username: ${{ env.B2_OSX_NOTARY_NAME }}
           appstore-connect-password: ${{ env.B2_OSX_NOTARY_PASSWORD }}
           primary-bundle-id: com.backblaze.b2
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
         uses: softprops/action-gh-release@v1
         with:
@@ -131,18 +140,19 @@ jobs:
       B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
     runs-on: windows-2019
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip setuptools
       - name: Bundle the distribution
         id: bundle
-        run: nox -vs bundle
+        shell: bash
+        run: nox -vs bundle >> $GITHUB_OUTPUT
       - name: Import certificate
         id: windows_import_cert
         uses: timheuer/base64-to-file@v1
@@ -151,7 +161,11 @@ jobs:
           encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
       - name: Sign the bundle
         id: sign
-        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
+        shell: bash
+        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}' >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
         uses: softprops/action-gh-release@v1
         with:
