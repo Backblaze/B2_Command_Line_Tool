@@ -2584,7 +2584,6 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     def test_rm_no_name_removes_everything(self):
         self._run_command(['rm', '--recursive', '--noProgress', 'my-bucket'])
-
         self._run_command(['ls', '--recursive', 'my-bucket'], '')
 
     def test_rm_with_wildcard_without_recursive(self):
@@ -2593,6 +2592,10 @@ class TestRmConsoleTool(BaseConsoleToolTest):
             expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
             expected_status=1,
         )
+
+    def test_rm_queue_size_and_number_of_threads(self):
+        self._run_command(['rm', '--recursive', '--threads', '2', '--queueSize', '4', 'my-bucket'])
+        self._run_command(['ls', '--recursive', 'my-bucket'], '')
 
     def test_rm_progress(self):
         expected_in_stdout = ' count: 4/4 '

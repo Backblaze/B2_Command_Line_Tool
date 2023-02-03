@@ -1970,7 +1970,8 @@ class Rm(Ls):
             self.args = args
             self.messages_queue = messages_queue
             self.reporter = reporter
-            self.semaphore = threading.BoundedSemaphore(value=self.args.threads)
+            removal_queue_size = self.args.queueSize or self.args.threads
+            self.semaphore = threading.BoundedSemaphore(value=removal_queue_size)
             self.fail_fast_event = threading.Event()
             self.mapping_lock = threading.Lock()
             self.futures_mapping = {}
@@ -2033,6 +2034,13 @@ class Rm(Ls):
     def _setup_parser(cls, parser):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
+        parser.add_argument(
+            '--queueSize',
+            type=int,
+            default=None,
+            help='max elements fetched at once for removal, ' \
+                 'if left unset defaults to number of threads.',
+        )
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--failFast', action='store_true')
         super()._setup_parser(parser)
