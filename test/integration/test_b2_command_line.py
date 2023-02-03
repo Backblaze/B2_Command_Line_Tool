@@ -278,7 +278,10 @@ def test_key_restrictions(b2_tool, create_test_bucket):
                         r'application key with capabilities ' \
                         r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
                         r"restricted to bucket '%s' \(unauthorized\)" % second_bucket_name
-    b2_tool.should_fail(['rm', '--recursive', '--noProgress', second_bucket_name], failed_bucket_err)
+    b2_tool.should_fail(
+        ['rm', '--recursive', '--noProgress', second_bucket_name],
+        failed_bucket_err,
+    )
 
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + first_bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
