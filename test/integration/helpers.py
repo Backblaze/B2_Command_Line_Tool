@@ -17,7 +17,6 @@ import shutil
 import string
 import subprocess
 import sys
-import time
 import threading
 
 from dataclasses import dataclass
@@ -58,12 +57,6 @@ SSE_C_AES_2 = EncryptionSetting(
     algorithm=EncryptionAlgorithm.AES256,
     key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
 )
-
-# RUNNER_NAME is the only variable exposed by the GitHub CI that was changing for each matrix entry.
-# Example values are "GitHub Actions N" (with N being a whole number, starting from 2) and "Hosted Agent".
-# Here, we're using these names as long as time as seeds to start the random number generator.
-# Name fraction is used for runners inside the same matrix, time fraction is used for runners in different runs.
-random.seed(environ.get('RUNNER_NAME', 'local') + '--' + str(time.time_ns()))
 
 
 def bucket_name_part(length: int) -> str:

@@ -25,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * GitHub CI uses GITHUB_OUTPUT instead of deprecated set-output
 * Releases now feature digests of each file
 * Change default Python version in CI/CD to 3.11
-* Random seed in tests is based on `RUNNER_NAME` environmental variable (if available)
 
 ## [3.6.0] - 2022-09-20
 
