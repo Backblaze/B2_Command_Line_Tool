@@ -3119,7 +3119,7 @@ class License(Command):  # pragma: no cover
         'platformdirs':
             'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt',
         'PTable':
-            'https://raw.githubusercontent.com/jazzband/prettytable/master/COPYING',
+            'https://raw.githubusercontent.com/jazzband/prettytable/main/LICENSE',
         'pipx':
             'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
         'userpath':
