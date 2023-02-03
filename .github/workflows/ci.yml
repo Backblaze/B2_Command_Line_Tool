@@ -78,8 +78,6 @@ jobs:
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
     runs-on: ${{ matrix.os }}
     strategy:
-      # Multiple runners use up too many buckets in parallel.
-      max-parallel: 10
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
