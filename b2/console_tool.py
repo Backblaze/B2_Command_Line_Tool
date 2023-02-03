@@ -3410,7 +3410,7 @@ class ConsoleTool(object):
             sys.version.replace('\n', ' ')
         )
         logger.debug('b2sdk version is %s', b2sdk_version)
-        logger.debug('locale is %s', locale.getdefaultlocale())
+        logger.debug('locale is %s', locale.getlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
 
 
