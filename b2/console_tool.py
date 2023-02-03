@@ -1970,12 +1970,12 @@ class Rm(Ls):
             self.args = args
             self.messages_queue = messages_queue
             self.reporter = reporter
-            removal_queue_size = self.args.queueSize or self.args.threads
+            removal_queue_size = self.args.queueSize or (2 * self.args.threads)
             self.semaphore = threading.BoundedSemaphore(value=removal_queue_size)
             self.fail_fast_event = threading.Event()
             self.mapping_lock = threading.Lock()
             self.futures_mapping = {}
-            super().__init__()
+            super().__init__(daemon=True)
 
         def run(self) -> None:
             try:
@@ -2039,7 +2039,7 @@ class Rm(Ls):
             type=int,
             default=None,
             help='max elements fetched at once for removal, ' \
-                 'if left unset defaults to number of threads.',
+                 'if left unset defaults to twice the number of threads.',
         )
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--failFast', action='store_true')
@@ -2054,6 +2054,7 @@ class Rm(Ls):
 
         with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
             submit_thread = self.SubmitThread(self, args, messages_queue, reporter)
+            # This thread is started in daemon mode, no joining needed.
             submit_thread.start()
 
             while True:
@@ -2074,8 +2075,6 @@ class Rm(Ls):
 
                 elif event_type == submit_thread.EXCEPTION_TAG:
                     raise data[0]
-
-            submit_thread.join()
 
         return 1 if failed_on_any_file else 0
 

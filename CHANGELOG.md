@@ -17,7 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix issues when running commands on Python 3.11
 * Fix tests after changes introduced in b2sdk 1.19.0
 * `rm` can handle any number of files
-* Ensured that `ls`/`rm` called `--with_wildcard` and without `--recursive` prints out a proper error, without full stack trace
 
 ### Infrastructure
 * GitHub CI got checkout action updated to v3 and setup-python to v4

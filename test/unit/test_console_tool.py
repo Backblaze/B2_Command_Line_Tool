@@ -2639,6 +2639,8 @@ class TestRmConsoleTool(BaseConsoleToolTest):
                     '--withWildcard',
                     '--threads',
                     '1',
+                    '--queueSize',
+                    '1',
                     *additional_parameters,
                     'my-bucket',
                     '*',
