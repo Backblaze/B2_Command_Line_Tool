@@ -51,7 +51,7 @@ REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
     'pyinstaller==5.6.2',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
-    "staticx==0.13.5;platform_system=='Linux'",
+    "staticx==0.13.8;platform_system=='Linux'",
 ]
 
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
