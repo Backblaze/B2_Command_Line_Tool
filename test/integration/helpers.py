@@ -21,6 +21,7 @@ import string
 import subprocess
 import sys
 import threading
+import time
 
 from datetime import datetime
 from os import environ, linesep, path
@@ -60,6 +61,12 @@ SSE_C_AES_2 = EncryptionSetting(
 
 BUCKET_NAME_PREFIX = 'clitst'
 BUCKET_NAME_PREFIX_OLD = 'test-b2-cli-'  # TODO: remove this when sure that there are no more old buckets
+
+# RUNNER_NAME is the only variable exposed by the GitHub CI that was changing for each matrix entry.
+# Example values are "GitHub Actions N" (with N being a whole number, starting from 2) and "Hosted Agent".
+# Here, we're using these names as long as time as seeds to start the random number generator.
+# Name fraction is used for runners inside the same matrix, time fraction is used for runners in different runs.
+random.seed(environ.get('RUNNER_NAME', 'local') + '--' + str(time.time_ns()))
 
 
 def generate_bucket_name():
