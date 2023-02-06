@@ -102,12 +102,14 @@ from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 
 from b2._cli.argcompleters import bucket_name_completer
+from b2._cli.autocomplete_install import autocomplete_install, SUPPORTED_SHELLS
 from b2._cli.b2api import _get_b2api_for_profile
 from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
     B2_APPLICATION_KEY_ENV_VAR, B2_USER_AGENT_APPEND_ENV_VAR, \
     B2_ENVIRONMENT_ENV_VAR, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR, \
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR, \
     CREATE_BUCKET_TYPES
+from b2._cli.shell import detect_shell
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
@@ -3294,6 +3296,38 @@ class License(Command):  # pragma: no cover
         assert license_ != piplicenses.LICENSE_UNKNOWN, module_name
 
         return license_
+
+
+@B2.register_subcommand
+class InstallAutocomplete(Command):
+    """
+    Installs autocomplete for supported shells.
+
+    Autocomplete is installed for the current user only and will become available after shell reload.
+    Any existing autocomplete configuration for same executable name will be overwritten.
+
+    --shell SHELL
+    Shell to install autocomplete for. Autodetected if not specified.
+    Manually specify "bash" to force bash autocomplete installation when running under different shell.
+    """
+
+    REQUIRES_AUTH = False
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--shell', choices=SUPPORTED_SHELLS, default=None)
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        shell = args.shell or detect_shell()
+        if shell not in SUPPORTED_SHELLS:
+            self._print_stderr(
+                f'ERROR: unsupported shell: %s. Supported shell: {SUPPORTED_SHELLS}. Use --shell to specify supported shell manually.'
+            )
+            return 1
+
+        autocomplete_install(NAME, shell=shell)
+        return 0
 
 
 class ConsoleTool(object):
