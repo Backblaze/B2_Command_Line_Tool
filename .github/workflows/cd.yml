@@ -69,6 +69,7 @@ jobs:
           apt-get -y update
           apt-get -y install patchelf
           python -m pip install --upgrade nox pip setuptools
+          git config --global --add safe.directory '*'
       - name: Bundle the distribution
         id: bundle
         run: nox -vs bundle >> $GITHUB_OUTPUT
