@@ -18,6 +18,7 @@ from io import StringIO
 from typing import Optional, List
 from itertools import product, chain
 
+from b2sdk.exception import B2Error
 from more_itertools import one
 
 from b2sdk import v1
@@ -2189,8 +2190,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         # Check with no files
-        with self.assertRaises(ValueError):
-            self._run_command(['ls', '--withWildcard', 'my-bucket'])
+        self._run_command(
+            ['ls', '--withWildcard', 'my-bucket'],
+            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_status=1,
+        )
 
     def test_restrictions(self):
         # Initial condition
@@ -2578,6 +2582,21 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
 
+    def test_rm_no_name_removes_everything(self):
+        self._run_command(['rm', '--recursive', '--noProgress', 'my-bucket'])
+        self._run_command(['ls', '--recursive', 'my-bucket'], '')
+
+    def test_rm_with_wildcard_without_recursive(self):
+        self._run_command(
+            ['rm', '--withWildcard', 'my-bucket'],
+            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_status=1,
+        )
+
+    def test_rm_queue_size_and_number_of_threads(self):
+        self._run_command(['rm', '--recursive', '--threads', '2', '--queueSize', '4', 'my-bucket'])
+        self._run_command(['ls', '--recursive', 'my-bucket'], '')
+
     def test_rm_progress(self):
         expected_in_stdout = ' count: 4/4 '
         self._run_command(
@@ -2620,6 +2639,8 @@ class TestRmConsoleTool(BaseConsoleToolTest):
                     '--withWildcard',
                     '--threads',
                     '1',
+                    '--queueSize',
+                    '1',
                     *additional_parameters,
                     'my-bucket',
                     '*',
@@ -2634,8 +2655,8 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         # we can only rely on the log to tell when it stopped.
         expected_in_stdout = '''
         Deletion of file "b/b1/test.csv" (9996) failed: Conflict:
-         count: 3/8'''
-        unexpected_in_stdout = ' count: 4/8 '
+         count: 4/4'''
+        unexpected_in_stdout = ' count: 5/5 '
         self._run_problematic_removal(['--failFast'], expected_in_stdout, unexpected_in_stdout)
 
     def test_rm_skipping_over_errors(self):
