@@ -63,7 +63,7 @@ def _autocomplete_install_bash(prog: str, shellcode: str) -> None:
 
 def _bash_complete_enabled(prog: str) -> bool:
     """Check if bash completion is enabled."""
-    return _silent_success_run(['bash', '-c', f'complete -p {quote(prog)}'])
+    return _silent_success_run(['bash', '-i', '-c', f'complete -p {quote(prog)}'])
 
 
 def _silent_success_run(cmd: List[str]) -> bool:
