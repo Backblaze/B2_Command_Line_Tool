@@ -30,9 +30,6 @@ jobs:
       - name: Build the distribution
         id: build
         run: nox -vs build >> $GITHUB_OUTPUT
-      - name: Generate hashes
-        id: hashes
-        run: nox -vs make_dist_digest
       - name: Read the Changelog
         id: read-changelog
         uses: mindsers/changelog-reader-action@v2
