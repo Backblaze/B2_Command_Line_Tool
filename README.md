@@ -47,7 +47,7 @@ Alternatively, you can install with:
     b2 list-parts [-h] largeFileId
     b2 list-unfinished-large-files [-h] bucketName
     b2 ls [-h] [--long] [--json] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
-    b2 rm [-h] [--versions] [--recursive] [--withWildcard] [--dryRun] [--threads THREADS] [--noProgress] [--failFast] bucketName [folderName]
+    b2 rm [-h] [--versions] [--recursive] [--withWildcard] [--dryRun] [--threads THREADS] [--queueSize QUEUESIZE] [--noProgress] [--failFast] bucketName [folderName/fileName]
     b2 make-url [-h] fileId
     b2 make-friendly-url [-h] bucketName fileName
     b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--threads THREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX] [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS] [--incrementalMode] source destination

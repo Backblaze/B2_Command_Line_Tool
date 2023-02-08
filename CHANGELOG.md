@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.7.0] - 2023-02-07
+
 ### Added
 * Add `--incrementalMode` to `sync` and `upload-file`
 * Add `license` command for printing licenses of b2 and libraries
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Stop using b2sdk.v1 in arg_parser.py
 * Fix issues when running commands on Python 3.11
 * Fix tests after changes introduced in b2sdk 1.19.0
+* `rm` can handle any number of files
 
 ### Infrastructure
 * GitHub CI got checkout action updated to v3 and setup-python to v4
@@ -23,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * GitHub CI uses GITHUB_OUTPUT instead of deprecated set-output
 * Releases now feature digests of each file
 * Change default Python version in CI/CD to 3.11
+* Temporary marking all directories as `safe.directory` inside CI/CD when bundling
 
 ## [3.6.0] - 2022-09-20
 
@@ -386,7 +390,8 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.6.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.7.0...HEAD
+[3.7.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.6.0...v3.7.0
 [3.6.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.3.0...v3.4.0

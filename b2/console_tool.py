@@ -23,13 +23,15 @@ import logging.config
 import os
 import pathlib
 import platform
+import queue
 import re
 import signal
 import sys
+import threading
 import time
 import unicodedata
 from abc import ABCMeta, abstractclassmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
 
 import requests
@@ -627,8 +629,8 @@ class Command(Described):
                     descriptor_encoding,
                 )
             )
-            sys.stderr.write("Trying to print: %s\n" % (repr(args),))
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
+            sys.stderr.write("Trying to print: %s\n" % args)
             descriptor.write(' '.join(args))
         descriptor.write('\n')
 
@@ -1753,12 +1755,19 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         start_file_name = args.folderName or ''
 
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        return bucket.ls(
-            start_file_name,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-            with_wildcard=args.withWildcard,
-        )
+
+        try:
+            for entry in bucket.ls(
+                start_file_name,
+                latest_only=not args.versions,
+                recursive=args.recursive,
+                with_wildcard=args.withWildcard,
+            ):
+                yield entry
+        except ValueError as error:
+            # Wrap these errors into B2Error. At the time of writing there's
+            # exactly one – `with_wildcard` being passed without `recursive` option.
+            raise B2Error(error.args[0])
 
 
 @B2.register_subcommand
@@ -1945,10 +1954,93 @@ class Rm(Ls):
     DEFAULT_THREADS = 10
     PROGRESS_REPORT_CLASS = ProgressReport
 
+    class SubmitThread(threading.Thread):
+        END_MARKER = object()
+        ERROR_TAG = 'error'
+        EXCEPTION_TAG = 'general_exception'
+
+        def __init__(
+            self,
+            runner: 'Rm',
+            args: argparse.Namespace,
+            messages_queue: queue.Queue,
+            reporter: ProgressReport,
+        ):
+            self.runner = runner
+            self.args = args
+            self.messages_queue = messages_queue
+            self.reporter = reporter
+            removal_queue_size = self.args.queueSize or (2 * self.args.threads)
+            self.semaphore = threading.BoundedSemaphore(value=removal_queue_size)
+            self.fail_fast_event = threading.Event()
+            self.mapping_lock = threading.Lock()
+            self.futures_mapping = {}
+            super().__init__(daemon=True)
+
+        def run(self) -> None:
+            try:
+                with ThreadPoolExecutor(max_workers=self.args.threads) as executor:
+                    self._run_removal(executor)
+            except Exception as error:
+                self.messages_queue.put((self.EXCEPTION_TAG, error))
+            finally:
+                self.messages_queue.put(self.END_MARKER)
+
+        def _run_removal(self, executor: Executor):
+            for file_version, _ in self.runner._get_ls_generator(self.args):
+                # Obtaining semaphore limits number of elements that we fetch from LS.
+                self.semaphore.acquire(blocking=True)
+                # This event is updated before the semaphore is released. This way,
+                # in a single threaded scenario, we get synchronous responses.
+                if self.fail_fast_event.is_set():
+                    break
+
+                future = executor.submit(
+                    self.runner.api.delete_file_version,
+                    file_version.id_,
+                    file_version.file_name,
+                )
+                with self.mapping_lock:
+                    self.futures_mapping[future] = file_version
+                # Done callback is added after, so it's "sure" that mapping is updated earlier.
+                future.add_done_callback(self._removal_done)
+
+                self.reporter.update_total(1)
+            self.reporter.end_total()
+
+        def _removal_done(self, future: Future) -> None:
+            with self.mapping_lock:
+                file_version = self.futures_mapping.pop(future)
+
+            try:
+                future.result()
+            except FileNotPresent:
+                # We wanted to remove this file anyway.
+                pass
+            except B2Error as error:
+                if self.args.failFast:
+                    # This is set before releasing the semaphore.
+                    # It means that when the semaphore is released,
+                    # we'll already have information about requirement to fail.
+                    self.fail_fast_event.set()
+                self.messages_queue.put((self.ERROR_TAG, file_version, error))
+            except Exception as error:
+                self.messages_queue.put((self.EXCEPTION_TAG, error))
+            finally:
+                self.reporter.update_count(1)
+                self.semaphore.release()
+
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
+        parser.add_argument(
+            '--queueSize',
+            type=int,
+            default=None,
+            help='max elements fetched at once for removal, ' \
+                 'if left unset defaults to twice the number of threads.',
+        )
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--failFast', action='store_true')
         super()._setup_parser(parser)
@@ -1958,38 +2050,31 @@ class Rm(Ls):
             return super().run(args)
 
         failed_on_any_file = False
+        messages_queue = queue.Queue()
 
-        with ThreadPoolExecutor(max_workers=args.threads) as executor:
-            futures = {}
-            with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
-                for file_version, _ in self._get_ls_generator(args):
-                    future = executor.submit(
-                        self.api.delete_file_version,
-                        file_version.id_,
-                        file_version.file_name,
-                    )
-                    futures[future] = file_version
-                    reporter.update_total(1)
-                reporter.end_total()
+        with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
+            submit_thread = self.SubmitThread(self, args, messages_queue, reporter)
+            # This thread is started in daemon mode, no joining needed.
+            submit_thread.start()
 
-                for future in as_completed(futures):
-                    try:
-                        future.result()
-                    except FileNotPresent:
-                        # It could happen when two ``rm`` are working in parallel on the same bucket.
-                        # Since the file was to be removed, and it's not there – it's not an error.
-                        pass
-                    except B2Error as error:
-                        file_version = futures[future]
-                        message = f'Deletion of file "{file_version.file_name}" ' \
-                                  f'({file_version.id_}) failed: {str(error)}'
-                        reporter.print_completion(message)
-                        failed_on_any_file = True
+            while True:
+                queue_entry = messages_queue.get(block=True)
+                if queue_entry is submit_thread.END_MARKER:
+                    break
 
-                        if args.failFast:
-                            break
+                event_type, *data = queue_entry
+                if event_type == submit_thread.ERROR_TAG:
+                    file_version, error = data
+                    message = f'Deletion of file "{file_version.file_name}" ' \
+                              f'({file_version.id_}) failed: {str(error)}'
+                    reporter.print_completion(message)
 
-                    reporter.update_count(1)
+                    failed_on_any_file = True
+                    if args.failFast:
+                        break
+
+                elif event_type == submit_thread.EXCEPTION_TAG:
+                    raise data[0]
 
         return 1 if failed_on_any_file else 0
 
@@ -3034,7 +3119,7 @@ class License(Command):  # pragma: no cover
         'platformdirs':
             'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt',
         'PTable':
-            'https://raw.githubusercontent.com/jazzband/prettytable/master/COPYING',
+            'https://raw.githubusercontent.com/jazzband/prettytable/main/LICENSE',
         'pipx':
             'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
         'userpath':
@@ -3325,7 +3410,7 @@ class ConsoleTool(object):
             sys.version.replace('\n', ' ')
         )
         logger.debug('b2sdk version is %s', b2sdk_version)
-        logger.debug('locale is %s', locale.getdefaultlocale())
+        logger.debug('locale is %s', locale.getlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
 
 
