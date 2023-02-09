@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * Remove unnecessary printing options from `rm`
 * Clarify that `--recursive` is required when `--withWildcard` is used
+* Adjust description of `rm`
 
 ### Infrastructure
 * Remove macos stand-alone binary from CD

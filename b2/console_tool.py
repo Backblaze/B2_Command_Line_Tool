@@ -1731,10 +1731,10 @@ class ListUnfinishedLargeFiles(Command):
 
 class AbstractLsCommand(Command, metaclass=ABCMeta):
     """
-    The ``--versions`` option shows all versions of each file, not
+    The ``--versions`` option selects all versions of each file, not
     just the most recent.
 
-    The ``--recursive`` option will descend into folders, and will show
+    The ``--recursive`` option will descend into folders, and will select
     only files, not folders.
 
     The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
@@ -1906,20 +1906,29 @@ class Ls(AbstractLsCommand):
 @B2.register_subcommand
 class Rm(AbstractLsCommand):
     """
-    Removes a group of files.  Use with caution.
+    Removes a "folder" or a set of files matching a pattern.  Use with caution.
+
+    .. note::
+
+        ``rm`` is a high-level command that under the hood utilizes multiple calls to the server,
+        which means the server cannot guarantee consistency between multiple operations. For
+        example if a file matching a pattern is uploaded during a run of ``rm`` command, it MIGHT
+        be deleted (as "latest") instead of the one present when the ``rm`` run has started.
+
+    In order to safely delete a single file version, please use ``delete-file-version``.
 
     To list (but not remove) files to be deleted, use ``--dryRun``.  You can also
-    list files via ``ls`` command – the listing behaviour is exactly the same.
+    list files via ``ls`` command - the listing behaviour is exactly the same.
 
-    Users with high-performance networks or multiple files to be removed, will benefit
-    from multi-threaded capabilities.  The default number of threads is 10.
+    Users with multiple files to be removed will benefit from multi-threaded
+    capabilities.  The default number of threads is 10.
 
     Progress is displayed on the console unless ``--noProgress`` is specified.
 
     {ABSTRACTLSCOMMAND}
 
-    The ``--dryRun`` option prints all the files that
-    would be affected by the command, but removes nothing.
+    The ``--dryRun`` option prints all the files that would be affected by
+    the command, but removes nothing.
 
     Normally, when an error happens during file removal, log is printed and the command
     goes further. If any error should be immediately breaking the command,
