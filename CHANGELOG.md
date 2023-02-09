@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * Remove unnecessary printing options from `rm`
-* Clarified that `--recursive` is required when `--withWildcard` is used
+* Clarify that `--recursive` is required when `--withWildcard` is used
 
 ## [3.7.0] - 2023-02-07
 
