@@ -14,13 +14,25 @@ The latest documentation is available on [Read the Docs](https://b2-command-line
 
 # Installation
 
-Stand-alone binaries are available for Linux, MacOS and Windows - this is the most straightforward way to use the 
-command-line tool and is sufficient in most use cases. The latest versions are available for download from the 
-[Releases page](https://github.com/Backblaze/B2_Command_Line_Tool/releases).
+Detailed instructions on how to install the command line tool can be found [here](https://www.backblaze.com/b2/docs/quick_command_line.html)
 
-Alternatively, you can install with:
+## Binaries
+
+Stand-alone binaries are available for Linux and Windows - this is the most straightforward way to use the command-line tool and is sufficient in most use cases. The latest versions are available for download from the [Releases page](https://github.com/Backblaze/B2_Command_Line_Tool/releases).
+
+## Python Package Index
+
+You can also install it in your python environment ([virtualenv](https://pypi.org/project/virtualenv/) is recommended) from PyPI with:
 
     pip install b2
+
+## Installing from source
+
+If installing from the repository is needed in order to, for example, check if a pre-release version resolves a bug effectively, it can be installed with:
+
+    python3 setup.py install
+
+In this case of installing a pre-release, [virtualenv](https://pypi.org/project/virtualenv/) is strongly recommended.
 
 # Usage
 
