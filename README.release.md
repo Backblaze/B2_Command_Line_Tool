@@ -1,21 +1,14 @@
 # Release Process
 
-- Get the Nox:
-  - `pip install -U nox`
 - Update the release history in `CHANGELOG.md`:
   - Change "Unreleased" to the current release version and date.
   - Create empty "Unreleased" section.
   - Add proper link to the new release (at the bottom of the file). Use GitHub [compare feature](https://docs.github.com/en/free-pro-team@latest/github/committing-changes-to-your-project/comparing-commits#comparing-tags) between two tags.
   - Update "Unreleased" link (at the bottom of the file).
 - Copy the main usage string (from `b2 --help`) to `README.md`.
-- Run linters and tests:
-  - `export B2_TEST_APPLICATION_KEY=your_app_key`
-  - `export B2_TEST_APPLICATION_KEY_ID=your_app_key_id`
-  - `nox -x`
-- Build docs locally:
-  - `nox --non-interactive -xs doc`
-- Commit and push to GitHub, then wait for CI workflow to complete successfully.
-  - No need to make a branch. Push straight to `master`.
+- Commit and push to a GitHub branch, then wait for CI workflow to complete successfully.
+- Merge the PR
+- Pull from GitHub
 - Tag in git and push tag to `origin`.  (Version tags look like `v0.4.6`.)
   - `git tag vx.x.x`
   - `git push origin vx.x.x`
@@ -24,4 +17,4 @@
   - Verify that the release has been uploaded to the PyPI
 - Install using `pip` and verify that it gets the correct version:
   - `pip install -U b2`
-- Update https://www.backblaze.com/b2/docs/quick_command_line.html
+- Update https://www.backblaze.com/b2/docs/quick_command_line.html if needed
