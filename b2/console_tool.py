@@ -1739,7 +1739,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
 
     The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
-    wildcard and range of characters. It automatically assumes ``--recursive``.
+    wildcard and range of characters. It requires the ``--recursive`` option.
     Remember to quote ``folderName`` to avoid shell expansion.
     """
 
@@ -1750,6 +1750,22 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--withWildcard', action='store_true')
         parser.add_argument('bucketName')
         parser.add_argument('folderName', nargs='?')
+
+    def run(self, args):
+        generator = self._get_ls_generator(args)
+
+        for file_version, folder_name in generator:
+            self._print_file_version(args, file_version, folder_name)
+
+        return 0
+
+    def _print_file_version(
+        self,
+        args,
+        file_version: FileVersion,
+        folder_name: Optional[str],
+    ) -> None:
+        self._print(folder_name or file_version.file_name)
 
     def _get_ls_generator(self, args):
         start_file_name = args.folderName or ''
@@ -1837,21 +1853,30 @@ class Ls(AbstractLsCommand):
         super()._setup_parser(parser)
 
     def run(self, args):
-        generator = self._get_ls_generator(args)
-
         if args.json:
-            self._print_json([file_version for file_version, _ in generator])
+            # TODO: Make this work for an infinite generation.
+            #   Use `_print_file_version` to print a single `file_version` and manage the external JSON list
+            #   e.g. manually. However, to do it right, some sort of state needs to be kept e.g. info whether
+            #   at least one element was written to the stream, so we can add a `,` on the start of another.
+            #   That would sadly lead to an ugly formatting, so `_print` needs to be expanded with an ability
+            #   to not print end-line character(s).
+            self._print_json([file_version for file_version, _ in self._get_ls_generator(args)])
             return 0
 
-        for file_version, folder_name in generator:
-            if not args.long:
-                self._print(folder_name or file_version.file_name)
-            elif folder_name is not None:
-                self._print(self.format_folder_ls_entry(folder_name, args.replication))
-            else:
-                self._print(self.format_ls_entry(file_version, args.replication))
+        return super().run(args)
 
-        return 0
+    def _print_file_version(
+        self,
+        args,
+        file_version: FileVersion,
+        folder_name: Optional[str],
+    ) -> None:
+        if not args.long:
+            super()._print_file_version(args, file_version, folder_name)
+        elif folder_name is not None:
+            self._print(self.format_folder_ls_entry(folder_name, args.replication))
+        else:
+            self._print(self.format_ls_entry(file_version, args.replication))
 
     def format_folder_ls_entry(self, name, replication: bool):
         if replication:
@@ -1879,7 +1904,7 @@ class Ls(AbstractLsCommand):
 
 
 @B2.register_subcommand
-class Rm(Ls):
+class Rm(AbstractLsCommand):
     """
     Removes a group of files.  Use with caution.
 
