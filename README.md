@@ -16,6 +16,13 @@ The latest documentation is available on [Read the Docs](https://b2-command-line
 
 Detailed instructions on how to install the command line tool can be found [here](https://www.backblaze.com/b2/docs/quick_command_line.html)
 
+## Homebrew
+
+[Homebrew](https://brew.sh/) is widely used in the Mac community, particularly amongst developers. We recommend using the [B2 CLI Homebrew](https://formulae.brew.sh/formula/b2-tools) formula as the quickest setup method for Mac users:
+```
+brew install b2-tools
+```
+
 ## Binaries
 
 Stand-alone binaries are available for Linux and Windows - this is the most straightforward way to use the command-line tool and is sufficient in most use cases. The latest versions are available for download from the [Releases page](https://github.com/Backblaze/B2_Command_Line_Tool/releases).
