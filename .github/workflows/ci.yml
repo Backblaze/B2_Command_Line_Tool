@@ -138,7 +138,7 @@ jobs:
           path: ${{ steps.bundle.outputs.asset_path }}
           if-no-files-found: warn
           retention-days: 7
-  test-macos-and-windows-bundle:
+  test-windows-bundle:
     needs: cleanup_buckets
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
@@ -147,7 +147,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-11, windows-2019]
+        os: [windows-2019, windows-latest]
     steps:
       - uses: actions/checkout@v3
         with:

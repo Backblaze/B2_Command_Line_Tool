@@ -54,9 +54,6 @@ REQUIREMENTS_BUNDLE = [
     "staticx==0.13.5;platform_system=='Linux'",
 ]
 
-OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
-OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
-
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
@@ -287,28 +284,6 @@ def bundle(session: nox.Session):
 def sign(session):
     """Sign the bundled distribution (macOS and Windows only)."""
 
-    def sign_darwin(cert_name):
-        session.run('security', 'find-identity', external=True, **run_kwargs)
-        session.run(
-            'codesign',
-            '--deep',
-            '--force',
-            '--verbose',
-            '--timestamp',
-            '--identifier',
-            OSX_BUNDLE_IDENTIFIER,
-            '--entitlements',
-            OSX_BUNDLE_ENTITLEMENTS,
-            '--options',
-            'runtime',
-            '--sign',
-            cert_name,
-            'dist/b2',
-            external=True,
-            **run_kwargs
-        )
-        session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True, **run_kwargs)
-
     def sign_windows(cert_file, cert_password):
         session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file, **run_kwargs)
         session.run(
@@ -338,15 +313,7 @@ def sign(session):
             **run_kwargs
         )
 
-    if SYSTEM == 'darwin':
-        try:
-            certificate_name, = session.posargs
-        except ValueError:
-            session.error('pass the certificate name as a positional argument')
-            return
-
-        sign_darwin(certificate_name)
-    elif SYSTEM == 'windows':
+    if SYSTEM == 'windows':
         try:
             certificate_file, certificate_password = session.posargs
         except ValueError:

@@ -14,13 +14,32 @@ The latest documentation is available on [Read the Docs](https://b2-command-line
 
 # Installation
 
-Stand-alone binaries are available for Linux, MacOS and Windows - this is the most straightforward way to use the 
-command-line tool and is sufficient in most use cases. The latest versions are available for download from the 
-[Releases page](https://github.com/Backblaze/B2_Command_Line_Tool/releases).
+Detailed instructions on how to install the command line tool can be found [here](https://www.backblaze.com/b2/docs/quick_command_line.html)
 
-Alternatively, you can install with:
+## Homebrew
+
+[Homebrew](https://brew.sh/) is widely used in the Mac community, particularly amongst developers. We recommend using the [B2 CLI Homebrew](https://formulae.brew.sh/formula/b2-tools) formula as the quickest setup method for Mac users:
+```
+brew install b2-tools
+```
+
+## Binaries
+
+Stand-alone binaries are available for Linux and Windows - this is the most straightforward way to use the command-line tool and is sufficient in most use cases. The latest versions are available for download from the [Releases page](https://github.com/Backblaze/B2_Command_Line_Tool/releases).
+
+## Python Package Index
+
+You can also install it in your python environment ([virtualenv](https://pypi.org/project/virtualenv/) is recommended) from PyPI with:
 
     pip install b2
+
+## Installing from source
+
+If installing from the repository is needed in order to, for example, check if a pre-release version resolves a bug effectively, it can be installed with:
+
+    python3 setup.py install
+
+In this case of installing a pre-release, [virtualenv](https://pypi.org/project/virtualenv/) is strongly recommended.
 
 # Usage
 
@@ -29,13 +48,13 @@ Alternatively, you can install with:
     b2 cancel-large-file [-h] fileId
     b2 clear-account [-h]
     b2 copy-file-by-id [-h] [--fetchMetadata] [--contentType CONTENTTYPE] [--range RANGE] [--info INFO | --noInfo] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--legalHold {on,off}] sourceFileId destinationBucketName b2FileName
-    b2 create-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--fileLockEnabled] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName bucketType
+    b2 create-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--fileLockEnabled] [--replication REPLICATION] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName bucketType
     b2 create-key [-h] [--bucket BUCKET] [--namePrefix NAMEPREFIX] [--duration DURATION] [--allCapabilities] keyName [capabilities]
     b2 delete-bucket [-h] bucketName
     b2 delete-file-version [-h] [fileName] fileId
     b2 delete-key [-h] applicationKeyId
-    b2 download-file-by-id [-h] [--noProgress] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] fileId localFileName
-    b2 download-file-by-name [-h] [--noProgress] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] bucketName b2FileName localFileName
+    b2 download-file-by-id [-h] [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] fileId localFileName
+    b2 download-file-by-name [-h] [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] bucketName b2FileName localFileName
     b2 get-account-info [-h]
     b2 get-bucket [-h] [--showSize] bucketName
     b2 get-file-info [-h] fileId
@@ -46,16 +65,22 @@ Alternatively, you can install with:
     b2 list-keys [-h] [--long]
     b2 list-parts [-h] largeFileId
     b2 list-unfinished-large-files [-h] bucketName
-    b2 ls [-h] [--long] [--json] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
-    b2 rm [-h] [--versions] [--recursive] [--withWildcard] [--dryRun] [--threads THREADS] [--queueSize QUEUESIZE] [--noProgress] [--failFast] bucketName [folderName/fileName]
+    b2 ls [-h] [--long] [--json] [--replication] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
+    b2 rm [-h] [--dryRun] [--threads THREADS] [--queueSize QUEUESIZE] [--noProgress] [--failFast] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
     b2 make-url [-h] fileId
     b2 make-friendly-url [-h] bucketName fileName
-    b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--threads THREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX] [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS] [--incrementalMode] source destination
-    b2 update-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--defaultRetentionMode {compliance,governance,none}] [--defaultRetentionPeriod period] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName bucketType
+    b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--threads THREADS] [--syncThreads SYNCTHREADS] [--downloadThreads DOWNLOADTHREADS] [--uploadThreads UPLOADTHREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX] [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--incrementalMode] [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS] source destination
+    b2 update-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--defaultRetentionMode {compliance,governance,none}] [--defaultRetentionPeriod period] [--replication REPLICATION] [--fileLockEnabled] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName [bucketType]
     b2 upload-file [-h] [--noProgress] [--quiet] [--contentType CONTENTTYPE] [--minPartSize MINPARTSIZE] [--sha1 SHA1] [--threads THREADS] [--info INFO] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--legalHold {on,off}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--incrementalMode] bucketName localFilePath b2FileName
     b2 update-file-legal-hold [-h] [fileName] fileId {on,off}
     b2 update-file-retention [-h] [--retainUntil TIMESTAMP] [--bypassGovernance] [fileName] fileId {governance,compliance,none}
+    b2 replication-setup [-h] [--destination-profile DESTINATION_PROFILE] [--name NAME] [--priority PRIORITY] [--file-name-prefix PREFIX] [--include-existing-files] SOURCE_BUCKET_NAME DESTINATION_BUCKET_NAME
+    b2 replication-delete [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+    b2 replication-pause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+    b2 replication-unpause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+    b2 replication-status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--noProgress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
     b2 version [-h]
+    b2 license [-h]
 
 
 The environment variable `B2_ACCOUNT_INFO` specifies the sqlite
@@ -73,11 +98,9 @@ that command.
 
 ## Parallelism and the --threads parameter
 
-Users with high performance networks, or file sets with very small files, may benefit from
-increased parallelism. Experiment with using the `--threads` parameter with small values to
-determine if there are benefits.
+Users with high performance networks, file sets with very small files or high network latency, will usually benefit from increased parallelism. Experiment with using the `--threads` parameter to increase performance.
 
-Note that using multiple threads will usually be detrimental to the other users on your network.
+Note that using many threads could in some cases be detrimental to the other users on your network.
 
 # Contrib
 
