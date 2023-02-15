@@ -101,7 +101,7 @@ from b2sdk.v2.exception import (
 from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 
-from b2._cli.argcompleters import bucket_name_completer
+from b2._cli.argcompleters import bucket_name_completer, file_name_completer
 from b2._cli.autocomplete_install import autocomplete_install, SUPPORTED_SHELLS
 from b2._cli.b2api import _get_b2api_for_profile
 from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
@@ -1343,7 +1343,7 @@ class DownloadFileByName(
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('b2FileName')
+        parser.add_argument('b2FileName').completer = file_name_completer
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
 
@@ -1528,7 +1528,7 @@ class GetDownloadUrlWithAuth(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('fileName')
+        parser.add_argument('fileName').completer = file_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1554,7 +1554,7 @@ class HideFile(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('fileName')
+        parser.add_argument('fileName').completer = file_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1749,7 +1749,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
         parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('folderName', nargs='?')
+        parser.add_argument('folderName', nargs='?').completer = file_name_completer
 
     def run(self, args):
         generator = self._get_ls_generator(args)
@@ -2139,7 +2139,7 @@ class MakeFriendlyUrl(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('fileName')
+        parser.add_argument('fileName').completer = file_name_completer
 
     def run(self, args):
         self._print(self.api.get_download_url_for_file_name(args.bucketName, args.fileName))
