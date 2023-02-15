@@ -52,11 +52,22 @@ def realm() -> str:
 
 
 @pytest.fixture(scope='function')
-def bucket_name(b2_api) -> str:
+def bucket(b2_api) -> str:
     bucket = b2_api.create_bucket()
-    yield bucket.name
+    yield bucket
     with contextlib.suppress(BucketIdNotFound):
         b2_api.clean_bucket(bucket)
+
+
+@pytest.fixture(scope='function')
+def bucket_name(bucket) -> str:
+    yield bucket.name
+
+
+@pytest.fixture(scope='function')
+def file_name(bucket) -> str:
+    file_ = bucket.upload_bytes(b'test_file', f'{bucket_name_part(8)}.txt')
+    yield file_.file_name
 
 
 @pytest.fixture(scope='function')  # , autouse=True)
