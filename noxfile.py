@@ -41,6 +41,7 @@ SYSTEM = platform.system().lower()
 REQUIREMENTS_FORMAT = ['yapf==0.27']
 REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.4.0', 'pytest==6.2.5', 'liccheck==0.6.2']
 REQUIREMENTS_TEST = [
+    "pexpect==4.8.0",
     "pytest==6.2.5",
     "pytest-cov==3.0.0",
     'pytest-xdist==2.5.0',

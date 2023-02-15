@@ -3327,6 +3327,7 @@ class InstallAutocomplete(Command):
             return 1
 
         autocomplete_install(NAME, shell=shell)
+        self._print(f'Autocomplete installed for {shell}.')
         return 0
 
 
