@@ -40,7 +40,7 @@ def autocomplete_install(prog: str, shell: str = 'bash') -> None:
 
 
 def _autocomplete_install_bash(prog: str, shellcode: str) -> None:
-    bash_completion_path = Path(f"~/.bash_completion.d/").expanduser() / prog
+    bash_completion_path = Path("~/.bash_completion.d/").expanduser() / prog
     logger.info("Installing bash completion script under %s", bash_completion_path)
     bash_completion_path.parent.mkdir(exist_ok=True)
     bash_completion_path.write_text(shellcode)
