@@ -31,9 +31,7 @@ ENTRYPOINT ["nox", "--no-venv", "--no-install", "-s"]
 
 FROM base
 
-RUN ["adduser", "--no-create-home", "--disabled-password", "--force-badname", "--quiet", "${username}"]
-RUN ["usermod", "--home", "${homedir}", "${username}"]
-RUN ["chown", "-R", "${username}", "${homedir}"]
+RUN ["useradd", "--home", "${homedir}", "--shell", "/usr/sbin/nologin", "--badnames", "${username}"]
 USER ${username}
 
 ENTRYPOINT ["b2"]
