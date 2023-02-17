@@ -1475,7 +1475,10 @@ def test_license(b2_tool, with_packages):
         assert full_license_text
         assert len(
             full_license_text.group(0)
-        ) > 200_000  # we should know if the length of this block changes dramatically
+        ) > 140_000  # we should know if the length of this block changes dramatically
+        # Note that GitHub CI adds additional packages:
+        # 'colorlog', 'virtualenv', 'nox', 'packaging', 'argcomplete', 'filelock'
+        # that sum up to around 50k characters. Tests ran from docker image are unaffected.
 
         license_summary_re = re.compile(
             r'Summary of all modules used by b2, shipped with it in binary form:\r?\n'
