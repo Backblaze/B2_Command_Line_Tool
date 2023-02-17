@@ -59,13 +59,10 @@ REQUIREMENTS_TEST = [
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
-    'pyinstaller==4.7.0',
+    'pyinstaller==5.6.2',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
     "staticx==0.13.5;platform_system=='Linux'",
 ]
-
-OSX_BUNDLE_IDENTIFIER = 'com.backblaze.b2'
-OSX_BUNDLE_ENTITLEMENTS = 'contrib/macos/entitlements.plist'
 
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
@@ -184,7 +181,7 @@ def lint(session):
 @nox.session(python=PYTHON_VERSIONS)
 def unit(session):
     """Run unit tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run(
         'pytest',
@@ -204,12 +201,17 @@ def unit(session):
 @nox.session(python=PYTHON_VERSIONS)
 def integration(session):
     """Run integration tests."""
-    install_myself(session)
+    install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
-    #session.run('pytest', '-s', '-x', '-v', '-n', '4', *session.posargs, 'test/integration')
     session.run(
-        'pytest', '-s', '-x', '-v', '-W', 'ignore::DeprecationWarning:rst2ansi.visitor:',
-        *session.posargs, 'test/integration'
+        'pytest',
+        '-s',
+        '-n',
+        'auto',
+        '-W',
+        'ignore::DeprecationWarning:rst2ansi.visitor:',
+        *session.posargs,
+        'test/integration',
     )
 
 
@@ -245,6 +247,7 @@ def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
     session.run('pip', 'install', *REQUIREMENTS_BUILD, **run_kwargs)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv', **run_kwargs)
     session.run('python', 'setup.py', 'check', '--metadata', '--strict', **run_kwargs)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
     session.run('python', 'setup.py', 'sdist', *session.posargs, **run_kwargs)
@@ -260,16 +263,20 @@ def build(session):
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def bundle(session):
+def dump_license(session: nox.Session):
+    install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump', '--with-packages')
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def bundle(session: nox.Session):
     """Bundle the distribution."""
     session.run('pip', 'install', *REQUIREMENTS_BUNDLE, **run_kwargs)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
-    install_myself(session)
+    install_myself(session, ['license'])
+    session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
 
-    if SYSTEM == 'darwin':
-        session.posargs.extend(['--osx-bundle-identifier', OSX_BUNDLE_IDENTIFIER])
-
-    session.run('pyinstaller', '--onefile', *session.posargs, 'b2.spec', **run_kwargs)
+    session.run('pyinstaller', *session.posargs, 'b2.spec', **run_kwargs)
 
     if SYSTEM == 'linux' and not NO_STATICX:
         session.run(
@@ -291,28 +298,6 @@ def bundle(session):
 @nox.session(python=False)
 def sign(session):
     """Sign the bundled distribution (macOS and Windows only)."""
-
-    def sign_darwin(cert_name):
-        session.run('security', 'find-identity', external=True, **run_kwargs)
-        session.run(
-            'codesign',
-            '--deep',
-            '--force',
-            '--verbose',
-            '--timestamp',
-            '--identifier',
-            OSX_BUNDLE_IDENTIFIER,
-            '--entitlements',
-            OSX_BUNDLE_ENTITLEMENTS,
-            '--options',
-            'runtime',
-            '--sign',
-            cert_name,
-            'dist/b2',
-            external=True,
-            **run_kwargs
-        )
-        session.run('codesign', '--verify', '--verbose', 'dist/b2', external=True, **run_kwargs)
 
     def sign_windows(cert_file, cert_password):
         session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file, **run_kwargs)
@@ -343,15 +328,7 @@ def sign(session):
             **run_kwargs
         )
 
-    if SYSTEM == 'darwin':
-        try:
-            certificate_name, = session.posargs
-        except ValueError:
-            session.error('pass the certificate name as a positional argument')
-            return
-
-        sign_darwin(certificate_name)
-    elif SYSTEM == 'windows':
+    if SYSTEM == 'windows':
         try:
             certificate_file, certificate_password = session.posargs
         except ValueError:
