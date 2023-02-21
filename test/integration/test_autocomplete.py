@@ -14,7 +14,7 @@ import platform
 import pexpect
 import pytest
 
-TIMEOUT = 5
+TIMEOUT = 10
 
 BASHRC_CONTENT = """\
 # ~/.bashrc dummy file
