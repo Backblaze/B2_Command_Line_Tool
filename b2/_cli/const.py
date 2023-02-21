@@ -21,3 +21,4 @@ B2_SOURCE_SSE_C_KEY_B64_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_B64'
 
 # Constants used in the B2 API
 CREATE_BUCKET_TYPES = ('allPublic', 'allPrivate')
+LIST_FILE_NAMES_MAX_LIMIT = 10000  # https://www.backblaze.com/b2/docs/b2_list_file_names.html
