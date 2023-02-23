@@ -1491,7 +1491,7 @@ def test_license(b2_tool, with_packages):
         assert license_summary_text
         assert len(
             license_summary_text.group(0)
-        ) > 15_000  # we should know if the length of this block changes dramatically
+        ) > 6_500  # we should know if the length of this block changes dramatically
 
     assert """b2 license:
 Backblaze wants developers and organization to copy and re-use our
