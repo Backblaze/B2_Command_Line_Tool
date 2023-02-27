@@ -7,14 +7,21 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import datetime
+
+import io
 
 import hashlib
 import os
 import pathlib
+
+import pkg_resources
+import pathlib
 import platform
+import string
 import subprocess
 from glob import glob
-from typing import List
+from typing import Tuple, List
 
 import nox
 import pkg_resources
@@ -35,6 +42,9 @@ PYTHON_VERSIONS = [
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
+
+DOCKER_TEMPLATE = pathlib.Path('./Dockerfile.template')
+FILES_USED_IN_TESTS = ['README.md', 'CHANGELOG.md']
 
 SYSTEM = platform.system().lower()
 
@@ -84,7 +94,12 @@ def install_myself(session, extras=None):
     if extras:
         arg += '[%s]' % ','.join(extras)
 
-    session.run('pip', 'install', '-e', arg, **run_kwargs)
+    # `--no-install` works only on `run_always` in case where there is a virtualenv available.
+    # This is to be used also on the docker image during tests, where we have no venv, thus
+    # we're ensuring that `--no-install` doesn't work on this installation.
+    # Internal member is used, as there is no public interface for fetching options.
+    if not session._runner.global_config.no_install:  # noqa
+        session.run('pip', 'install', '-e', arg, **run_kwargs)
 
     if INSTALL_SDK_FROM:
         cwd = os.getcwd()
@@ -431,3 +446,118 @@ def doc_cover(session):
         # If there is no undocumented files, the report should have only 2 lines (header)
         if sum(1 for _ in fd) != 2:
             session.error('sphinx coverage has failed')
+
+
+def _read_readme_name_and_description() -> Tuple[str, str]:
+    """
+    Get name and the description from the readme. First line is assumed to be the project name,
+    second contains list of all different checks. Third one and the following contains some description.
+    We assume that description can be multiline, and it ends with an empty line.
+
+    An example of the content from README.md can look like this:
+
+    ..note:
+        # B2 Command Line Tool
+        &nbsp;[![Continuous Integration](https://github.com/Backblaze/B2_Command_Line_Tool/ ... (a very long line)
+
+        (a few empty lines)
+
+        The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
+
+        This program provides command-line access to the B2 service.
+
+    From this we should parse the following:
+    "B2 Command Line Tool" as the name and
+    "The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage." as the description.
+    """
+    with open('README.md', 'r') as f:
+        non_empty_lines = 0
+        full_name = None
+        description_parts = []
+
+        for line_with_ends in f.readlines():
+            line = line_with_ends.strip()
+            if len(line) == 0:
+                # If we found an empty line after we got anything for our description – finish.
+                if len(description_parts) > 0:
+                    break
+                continue
+
+            non_empty_lines += 1
+
+            if non_empty_lines == 1:
+                # Markdown header starts with some "# ", we strip everything up to first space.
+                full_name = line.split(' ', maxsplit=1)[1]
+
+            if non_empty_lines < 3:
+                continue
+
+            description_parts.append(line)
+
+    return full_name, ' '.join(description_parts)
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def docker(session):
+    """Build the docker image."""
+    build(session)
+
+    install_myself(session)
+    # This string is like `b2 command line tool, version <sem-ver-string>`
+    version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
+
+    dist_path = 'dist'
+    tests_image_dir = '/test'
+    tests_path = 'test/'
+
+    full_name, description = _read_readme_name_and_description()
+    vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
+    built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
+    username = 'b2'
+
+    template_mapping = dict(
+        username='b2',
+        homedir=f'/{username}',
+        python_version=session.python,
+        vendor='Backblaze',
+        name=full_name,
+        description=description,
+        version=version,
+        url='https://www.backblaze.com',
+        # TODO: consider fetching it from `git ls-remote --get-url origin`
+        vcs_url='https://github.com/Backblaze/B2_Command_Line_Tool',
+        vcs_ref=vcs_ref,
+        build_date=datetime.datetime.utcnow().isoformat(),
+        tests_image_dir=tests_image_dir,
+        tests_path=tests_path,
+        tar_path=dist_path,
+        tar_name=built_distribution.name,
+        files_used_by_tests='\n'.join([f'COPY {filename} .' for filename in FILES_USED_IN_TESTS])
+    )
+
+    template_file = DOCKER_TEMPLATE.read_text()
+    template = string.Template(template_file)
+    dockerfile = template.substitute(template_mapping)
+    pathlib.Path('./Dockerfile').write_text(dockerfile)
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def docker_test(session):
+    """Run unittests against the docker image."""
+    docker(session)
+
+    image_tag = 'b2:test'
+
+    session.run('docker', 'build', '-t', image_tag, '--target', 'test', '.', external=True)
+    docker_test_run = [
+        'docker',
+        'run',
+        '--rm',
+        '-e',
+        'B2_TEST_APPLICATION_KEY',
+        '-e',
+        'B2_TEST_APPLICATION_KEY_ID',
+        image_tag,
+    ]
+    session.run(*docker_test_run, 'unit', external=True)
+    session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)
