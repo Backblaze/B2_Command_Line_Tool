@@ -7,67 +7,105 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-
 import logging
 import re
+import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from shlex import quote
 from typing import List
 
 import argcomplete
+from class_registry import ClassRegistry
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_SHELLS = ('bash',)
+SHELL_REGISTRY = ClassRegistry()
 
 
 def autocomplete_install(prog: str, shell: str = 'bash') -> None:
     """Install autocomplete for the given program."""
-    shellcode = argcomplete.shellcode([prog], shell=shell)
-    assert shell in SUPPORTED_SHELLS
-
-    if not _silent_success_run([shell, '-c', quote(prog)]):
-        logger.warning(
-            "%s is not in PATH of new %s shell. This will prevent autocomplete from working properly.",
-            prog, shell
-        )
-
-    _autocomplete_install_bash(prog, shellcode)
-    logger.info(
-        "Autocomplete for %s has been enabled. Restart your %s shell to use it.", prog, shell
-    )
+    try:
+        shell_cls = SHELL_REGISTRY[shell]
+    except KeyError:
+        raise AutocompleteInstallError(f"Unsupported shell: {shell}")
+    shell_cls.autocomplete_install(prog)
+    logger.info("Autocomplete for %s has been enabled.", prog)
 
 
-def _autocomplete_install_bash(prog: str, shellcode: str) -> None:
-    bash_completion_path = Path("~/.bash_completion.d/").expanduser() / prog
-    logger.info("Installing bash completion script under %s", bash_completion_path)
-    bash_completion_path.parent.mkdir(exist_ok=True)
-    bash_completion_path.write_text(shellcode)
+class Shell:
+    shell_exec: str
 
-    if not _bash_complete_enabled(prog):
+    @classmethod
+    def autocomplete_install(cls, prog: str) -> None:
+        """Install autocomplete for the given program."""
+        script_path = cls.create_autocomplete_for_program(prog)
+        if not cls.autocomplete_enabled(prog):
+            cls.enable_autocomplete_for_program(prog, script_path)
+        if not cls.autocomplete_enabled(prog):
+            logger.error("Autocomplete is still not enabled.")
+            raise AutocompleteInstallError(f"Autocomplete for {prog} install failed.")
+
+    @classmethod
+    def create_autocomplete_for_program(cls, prog: str) -> Path:
+        """Create autocomplete for the given program."""
+        shellcode = cls.get_shellcode(prog)
+
+        bash_completion_path = Path("~/.bash_completion.d/").expanduser() / prog
+        logger.info("Creating bash completion script under %s", bash_completion_path)
+        bash_completion_path.parent.mkdir(exist_ok=True)
+        bash_completion_path.write_text(shellcode)
+        return bash_completion_path
+
+    @classmethod
+    def enable_autocomplete_for_program(cls, prog: str, completion_script: Path) -> None:
+        """Enable autocomplete for the given program."""
         logger.info(
-            "Bash completion doesn't seem to be autoloaded from %s. Possible reason: missing bash_completion.",
-            bash_completion_path.parent
+            "Bash completion doesn't seem to be autoloaded from %s. Most likely `bash-completion` is not installed.",
+            completion_script.parent
         )
-        logger.warning("Explicitly adding %s to ~/.bashrc", bash_completion_path)
         bashrc_path = Path("~/.bashrc").expanduser()
+        bck_path = bashrc_path.with_suffix(f".{datetime.now():%Y-%m-%dT%H-%M-%S}.bck")
+        logger.warning("Backing up %s to %s", bashrc_path, bck_path)
+        try:
+            shutil.copyfile(bashrc_path, bck_path)
+        except OSError as e:
+            raise AutocompleteInstallError(
+                f"Failed to backup {bashrc_path} under {bck_path}"
+            ) from e
+        logger.warning("Explicitly adding %s to %s", completion_script, bashrc_path)
         add_or_update_shell_section(
-            bashrc_path, f"{prog} autocomplete", prog, f"source {bash_completion_path}"
+            bashrc_path, f"{prog} autocomplete", prog, f"source {completion_script}"
         )
 
-    if not _bash_complete_enabled(prog):
-        logger.error("Bash completion is still not enabled.")
-        raise AutocompleteInstallError(f"Bash completion for {prog} install failed.")
+    @classmethod
+    def get_shellcode(cls, prog: str) -> str:
+        """Get autocomplete shellcode for the given program."""
+        return argcomplete.shellcode([prog], shell=cls.shell_exec)
+
+    @classmethod
+    def program_in_path(cls, prog: str) -> bool:
+        """Check if the given program is in PATH."""
+        return _silent_success_run([cls.shell_exec, '-c', quote(prog)])
+
+    @classmethod
+    def autocomplete_enabled(cls, prog: str) -> bool:
+        """Check if bash completion is enabled."""
+        return _silent_success_run([cls.shell_exec, '-i', '-c', f'complete -p {quote(prog)}'])
 
 
-def _bash_complete_enabled(prog: str) -> bool:
-    """Check if bash completion is enabled."""
-    return _silent_success_run(['bash', '-i', '-c', f'complete -p {quote(prog)}'])
+@SHELL_REGISTRY.register('bash')
+class Bash(Shell):
+    shell_exec = 'bash'
 
 
 def _silent_success_run(cmd: List[str]) -> bool:
     return subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+def _path_with_suffix(path: Path, suffix: str) -> Path:
+    return path.parent / (path.name + suffix)
 
 
 def add_or_update_shell_section(
@@ -101,3 +139,6 @@ def add_or_update_shell_section(
 
 class AutocompleteInstallError(Exception):
     """Exception raised when autocomplete installation fails."""
+
+
+SUPPORTED_SHELLS = sorted(SHELL_REGISTRY.keys())

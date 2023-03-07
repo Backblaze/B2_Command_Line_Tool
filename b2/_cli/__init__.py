@@ -7,3 +7,8 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+"""
+_cli package contains internals of the command-line interface to the B2.
+
+It is not intended to be used as a library.
+"""

@@ -17,6 +17,8 @@ from b2._cli.const import LIST_FILE_NAMES_MAX_LIMIT
 
 
 def _with_api(func):
+    """Decorator to inject B2Api instance into argcompleter function."""
+
     @wraps(func)
     def wrapper(prefix, parsed_args, **kwargs):
         api = _get_b2api_for_profile(parsed_args.profile)
