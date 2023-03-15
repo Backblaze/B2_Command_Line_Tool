@@ -41,7 +41,10 @@ def file_name_completer(api: B2Api, parsed_args, **kwargs):
     """
     bucket = api.get_bucket_by_name(parsed_args.bucketName)
     file_versions = bucket.ls(
-        getattr(parsed_args, 'folderName', None) or '', latest_only=True, recursive=False
+        getattr(parsed_args, 'folderName', None) or '',
+        latest_only=True,
+        recursive=False,
+        fetch_count=LIST_FILE_NAMES_MAX_LIMIT,
     )
     return [
         folder_name or file_version.file_name
