@@ -3311,7 +3311,7 @@ class InstallAutocomplete(Command):
     Shell to install autocomplete for. Autodetected if not specified.
     Manually specify "bash" to force bash autocomplete installation when running under different shell.
 
-    .. warning::
+    .. note::
 
         Please note this command WILL modify your shell configuration file (e.g. ~/.bashrc).
     """
