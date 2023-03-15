@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add `install-autocomplete` command for installing shell autocompletion
 
+### Infrastructure
+* GitHub CD builds and uploads an official B2 CLI image to docker hub
+
 ## [3.7.1] - 2023-02-08
 
 ### Fixed

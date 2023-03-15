@@ -102,6 +102,25 @@ Users with high performance networks, file sets with very small files or high ne
 
 Note that using many threads could in some cases be detrimental to the other users on your network.
 
+## Docker image
+
+An official docker image is provided for these who want to use B2 Command Line Tool in a docker environment.
+An example workflow could be (with passing environmental variables):
+
+    B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID b2:latest authorize-account
+    B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID b2:latest create-bucket test-bucket allPrivate
+    B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID -v <absolute-local-path-to-data>:/data b2:latest upload-file test-bucket /data/local-file remote-file
+    B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID -v <absolute-local-path-to-data>:/data b2:latest ls test-bucket
+    B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID -v <absolute-local-path-to-data>:/data b2:latest download-file-by-name test-bucket remote-file /data/local-file-2
+
+or mapping to a directory where account info will be kept:
+
+    docker run --rm -it -v <absolute-local-path-to-account-info>:/b2 b2:latest authorize-account
+    docker run --rm -v <absolute-local-path-to-account-info>:/b2 b2:latest create-bucket test-bucket allPrivate
+    docker run --rm -v <absolute-local-path-to-account-info>:/b2 -v <absolute-local-path-to-data>:/data b2:latest upload-file test-bucket /data/local-file remote-file
+    docker run --rm -v <absolute-local-path-to-account-info>:/b2 -v <absolute-local-path-to-data>:/data b2:latest ls test-bucket
+    docker run --rm -v <absolute-local-path-to-account-info>:/b2 -v <absolute-local-path-to-data>:/data b2:latest download-file-by-name test-bucket remote-file /data/local-file-2
+
 # Contrib
 
 ## detailed logs
