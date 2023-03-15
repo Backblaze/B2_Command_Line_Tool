@@ -102,7 +102,7 @@ class BashAutocompleteInstaller(ShellAutocompleteInstaller):
         )
         bashrc_path = Path("~/.bashrc").expanduser()
         if bashrc_path.exists():
-            bck_path = bashrc_path.with_suffix(f".{datetime.now():%Y-%m-%dT%H-%M-%S}.bck")
+            bck_path = bashrc_path.with_suffix(f".{datetime.now():%Y-%m-%dT%H-%M-%S}.bak")
             logger.warning("Backing up %s to %s", bashrc_path, bck_path)
             try:
                 shutil.copyfile(bashrc_path, bck_path)
