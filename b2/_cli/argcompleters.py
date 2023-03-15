@@ -7,7 +7,6 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-import inspect
 from functools import wraps
 from itertools import islice
 
@@ -30,9 +29,7 @@ def _with_api(func):
 
 @_with_api
 def bucket_name_completer(api: B2Api, **kwargs):
-    supports_cache = "cache" in inspect.signature(api.list_buckets).parameters
-    list_kwargs = {"cache": True} if supports_cache else {}
-    return [bucket.name for bucket in api.list_buckets(**list_kwargs)]
+    return [bucket.name for bucket in api.list_buckets(use_cache=True)]
 
 
 @_with_api
