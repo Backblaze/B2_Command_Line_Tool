@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `install-autocomplete` command for installing shell autocompletion
+
 ## [3.7.1] - 2023-02-08
 
 ### Fixed
