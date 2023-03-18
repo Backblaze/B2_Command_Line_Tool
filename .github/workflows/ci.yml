@@ -29,7 +29,7 @@ jobs:
         run: nox -vs lint
       - name: Validate changelog
         # Library was designed to be used with pull requests only.
-        if: ${{ github.event_name == 'pull_request' && ! startsWith(github.ref, 'refs/heads/dependabot/') }}
+        if: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
         uses: zattoo/changelog@v1
         with:
           token: ${{ github.token }}
