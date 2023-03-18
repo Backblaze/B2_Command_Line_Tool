@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 * GitHub CD builds and uploads an official B2 CLI image to docker hub
+* Disable changelog verification for dependabot PRs
 
 ## [3.7.1] - 2023-02-08
 
