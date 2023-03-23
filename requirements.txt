@@ -1,4 +1,4 @@
-argcomplete>=2,<3
+argcomplete>=2,<4
 arrow>=1.0.2,<2.0.0
 b2sdk>=1.20.0,<2.0.0
 docutils==0.19
