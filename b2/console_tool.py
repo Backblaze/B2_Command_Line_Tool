@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 ######################################################################
 #
 # File: b2/console_tool.py
@@ -36,6 +38,8 @@ from contextlib import suppress
 
 import requests
 import rst2ansi
+
+import argcomplete
 from tabulate import tabulate
 
 from typing import Optional, Tuple, List, Any, Dict
@@ -55,9 +59,7 @@ from b2sdk.v2 import (
     UNKNOWN_KEY_ID,
     XDG_CONFIG_HOME_ENV_VAR,
     ApplicationKey,
-    AuthInfoCache,
     B2Api,
-    B2HttpApiConfig,
     BasicSyncEncryptionSettingsProvider,
     Bucket,
     BucketRetentionSetting,
@@ -77,7 +79,6 @@ from b2sdk.v2 import (
     ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
-    SqliteAccountInfo,
     Synchronizer,
     SyncReport,
     UploadMode,
@@ -100,6 +101,16 @@ from b2sdk.v2.exception import (
 from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 
+from b2._cli.argcompleters import bucket_name_completer, file_name_completer
+from b2._cli.autocomplete_install import autocomplete_install, \
+    SUPPORTED_SHELLS, AutocompleteInstallError
+from b2._cli.b2api import _get_b2api_for_profile
+from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
+    B2_APPLICATION_KEY_ENV_VAR, B2_USER_AGENT_APPEND_ENV_VAR, \
+    B2_ENVIRONMENT_ENV_VAR, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR, \
+    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR, \
+    CREATE_BUCKET_TYPES
+from b2._cli.shell import detect_shell
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
@@ -119,16 +130,6 @@ with suppress(ImportError):
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
-
-# Optional Env variable to use for getting account info while authorizing
-B2_APPLICATION_KEY_ID_ENV_VAR = 'B2_APPLICATION_KEY_ID'
-B2_APPLICATION_KEY_ENV_VAR = 'B2_APPLICATION_KEY'
-# Optional Env variable to use for adding custom string to the User Agent
-B2_USER_AGENT_APPEND_ENV_VAR = 'B2_USER_AGENT_APPEND'
-B2_ENVIRONMENT_ENV_VAR = 'B2_ENVIRONMENT'
-B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_B64'
-B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_ID'
-B2_SOURCE_SSE_C_KEY_B64_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_B64'
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -828,7 +829,7 @@ class CancelAllUnfinishedLargeFiles(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1049,7 +1050,7 @@ class CreateBucket(DefaultSseMixin, Command):
         )
         parser.add_argument('--replication', type=json.loads)
         parser.add_argument('bucketName')
-        parser.add_argument('bucketType')
+        parser.add_argument('bucketType', choices=CREATE_BUCKET_TYPES)
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
@@ -1141,7 +1142,7 @@ class DeleteBucket(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1342,8 +1343,8 @@ class DownloadFileByName(
     def _setup_parser(cls, parser):
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--threads', type=int, default=10)
-        parser.add_argument('bucketName')
-        parser.add_argument('b2FileName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('b2FileName').completer = file_name_completer
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
 
@@ -1421,7 +1422,7 @@ class GetBucket(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         # This always wants up-to-date info, so it does not use
@@ -1494,7 +1495,7 @@ class GetDownloadAuth(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1527,8 +1528,8 @@ class GetDownloadUrlWithAuth(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
-        parser.add_argument('bucketName')
-        parser.add_argument('fileName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('fileName').completer = file_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1553,8 +1554,8 @@ class HideFile(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
-        parser.add_argument('fileName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('fileName').completer = file_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1714,7 +1715,7 @@ class ListUnfinishedLargeFiles(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
 
     def run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -1748,8 +1749,8 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
-        parser.add_argument('bucketName')
-        parser.add_argument('folderName', nargs='?')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('folderName', nargs='?').completer = file_name_completer
 
     def run(self, args):
         generator = self._get_ls_generator(args)
@@ -2138,8 +2139,8 @@ class MakeFriendlyUrl(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
-        parser.add_argument('fileName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('fileName').completer = file_name_completer
 
     def run(self, args):
         self._print(self.api.get_download_url_for_file_name(args.bucketName, args.fileName))
@@ -2560,8 +2561,8 @@ class UpdateBucket(DefaultSseMixin, Command):
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed back."
         )
-        parser.add_argument('bucketName')
-        parser.add_argument('bucketType', nargs='?')
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('bucketType', nargs='?', choices=CREATE_BUCKET_TYPES)
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
@@ -2647,7 +2648,7 @@ class UploadFile(
         parser.add_argument('--sha1')
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('--info', action='append', default=[])
-        parser.add_argument('bucketName')
+        parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
 
@@ -3298,6 +3299,46 @@ class License(Command):  # pragma: no cover
         return license_
 
 
+@B2.register_subcommand
+class InstallAutocomplete(Command):
+    """
+    Installs autocomplete for supported shells.
+
+    Autocomplete is installed for the current user only and will become available after shell reload.
+    Any existing autocomplete configuration for same executable name will be overwritten.
+
+    --shell SHELL
+    Shell to install autocomplete for. Autodetected if not specified.
+    Manually specify "bash" to force bash autocomplete installation when running under different shell.
+
+    .. note::
+
+        Please note this command WILL modify your shell configuration file (e.g. ~/.bashrc).
+    """
+
+    REQUIRES_AUTH = False
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--shell', choices=SUPPORTED_SHELLS, default=None)
+        super()._setup_parser(parser)
+
+    def run(self, args):
+        shell = args.shell or detect_shell()
+        if shell not in SUPPORTED_SHELLS:
+            self._print_stderr(
+                f'ERROR: unsupported shell: %s. Supported shells: {SUPPORTED_SHELLS}. Use --shell to specify a target shell manually.'
+            )
+            return 1
+
+        try:
+            autocomplete_install(NAME, shell=shell)
+        except AutocompleteInstallError as e:
+            raise CommandError(str(e)) from e
+        self._print(f'Autocomplete installed for {shell}.')
+        return 0
+
+
 class ConsoleTool(object):
     """
     Implements the commands available in the B2 command-line tool
@@ -3313,7 +3354,9 @@ class ConsoleTool(object):
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        args = B2.get_parser().parse_args(argv[1:])
+        parser = B2.get_parser()
+        argcomplete.autocomplete(parser)
+        args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 
         if self.api:
@@ -3469,20 +3512,6 @@ class InvalidArgument(B2Error):
 
     def __str__(self):
         return "%s %s" % (self.parameter_name, self.message)
-
-
-def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs):
-    account_info = SqliteAccountInfo(profile=profile)
-    return B2Api(
-        api_config=_get_b2httpapiconfig(),
-        account_info=account_info,
-        cache=AuthInfoCache(account_info),
-        **kwargs,
-    )
-
-
-def _get_b2httpapiconfig():
-    return B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR),)
 
 
 def main():

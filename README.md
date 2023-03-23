@@ -123,11 +123,6 @@ or mapping to a directory where account info will be kept:
 
 # Contrib
 
-## bash completion
-
-You can find a [bash completion](https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html#Programmable-Completion)
-script in the `contrib` directory. See [this](doc/bash_completion.md) for installation instructions.
-
 ## detailed logs
 
 Verbose logs to stdout can be enabled with the `--verbose` flag.
