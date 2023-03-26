@@ -48,6 +48,7 @@ def bashrc(homedir):
 @pytest.fixture(scope="module")
 def env(homedir, monkey_patch):
     monkey_patch.setenv('HOME', str(homedir))
+    monkey_patch.setenv('SHELL', "/bin/bash")  # fix for running under github actions
     yield os.environ
 
 
