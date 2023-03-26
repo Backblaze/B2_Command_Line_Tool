@@ -24,9 +24,11 @@ from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Iterable, Tuple
 
 import backoff
+import pkg_resources
+import pytest
 
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
 from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
@@ -483,3 +485,37 @@ def set_file_mod_time_millis(path: Union[str, Path], time):
 
 def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for _ in range(length))
+
+
+def skip_on_windows(*args, **kwargs):
+    return pytest.mark.skipif(
+        platform.system() == 'Windows',
+        reason='Autocomplete is not supported on Windows',
+    )(*args, **kwargs)
+
+
+def get_supported_python_versions(package_name: str) -> List[Tuple[int, int]]:
+    """Return sorted list of supported python versions"""
+    dist = pkg_resources.get_distribution(package_name)
+    classifiers = dist.get_metadata('PKG-INFO')
+    return sorted(
+        tuple(int(n) for n in match.group(1).split('.'))
+        for match in re.finditer(r'Programming Language :: Python :: (\d+.\d+)', classifiers)
+    )
+
+
+_B2_SUPPORTED_PYTHON_VERSIONS = get_supported_python_versions('b2')
+
+
+def dont_run_on_all_python_versions(*args, **kwargs):
+    """
+    Don't run test on all python versions.
+
+    For now this only limits tests to oldest and newest python version supported by b2.
+    """
+    is_middle_version = _B2_SUPPORTED_PYTHON_VERSIONS[
+        0] < sys.version_info[:2] < _B2_SUPPORTED_PYTHON_VERSIONS[-1]
+    return pytest.mark.skipif(
+        is_middle_version,
+        reason='This test is only run on some Python version',
+    )(*args, **kwargs)

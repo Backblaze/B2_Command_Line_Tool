@@ -9,10 +9,17 @@
 ######################################################################
 
 import os
-import platform
 
 import pexpect
 import pytest
+
+from test.integration.helpers import dont_run_on_all_python_versions, \
+    skip_on_windows
+
+# Autocomplete tests are non-critical, so we don't run them on all python versions
+dont_run_on_all_python_versions(allow_module_level=True)
+# pexpect used for tests won't work on Windows
+skip_on_windows(allow_module_level=True)
 
 TIMEOUT = 10
 
@@ -24,13 +31,6 @@ echo "Just testing if we don't replace existing script" > /dev/null
 # regardless what is in there already
 # <<< just a test section <<<
 """
-
-
-def skip_on_windows(f):
-    return pytest.mark.skipif(
-        platform.system() == 'Windows',
-        reason='Autocomplete is not supported on Windows',
-    )(f)
 
 
 @pytest.fixture(scope="session")
@@ -71,13 +71,11 @@ def shell(env):
     shell.close()
 
 
-@skip_on_windows
 def test_autocomplete_b2_commands(autocomplete_installed, shell):
     shell.send('b2 \t\t')
     shell.expect_exact(["authorize-account", "download-file-by-id", "get-bucket"], timeout=TIMEOUT)
 
 
-@skip_on_windows
 def test_autocomplete_b2_only_matching_commands(autocomplete_installed, shell):
     shell.send('b2 download-\t\t')
 
@@ -88,7 +86,6 @@ def test_autocomplete_b2_only_matching_commands(autocomplete_installed, shell):
         shell.expect_exact("get-bucket", timeout=0.5)
 
 
-@skip_on_windows
 def test_autocomplete_b2_bucket_n_file_name(
     autocomplete_installed, shell, b2_tool, bucket_name, file_name
 ):
