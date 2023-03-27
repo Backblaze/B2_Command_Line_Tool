@@ -24,7 +24,7 @@ from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import List, Optional, Union, Iterable, Tuple
+from typing import List, Optional, Union, Tuple
 
 import backoff
 import pkg_resources
@@ -494,14 +494,30 @@ def skip_on_windows(*args, **kwargs):
     )(*args, **kwargs)
 
 
-def get_supported_python_versions(package_name: str) -> List[Tuple[int, int]]:
+def get_supported_python_versions(package_name: str) -> List[Tuple[int, ...]]:
     """Return sorted list of supported python versions"""
     dist = pkg_resources.get_distribution(package_name)
-    classifiers = dist.get_metadata('PKG-INFO')
-    return sorted(
+    metadata = ''
+    for filename in ('PKG-INFO', 'METADATA'):
+        try:
+            metadata = dist.get_metadata(filename)
+            break
+        except FileNotFoundError:
+            pass
+    supported_versions = sorted(
         tuple(int(n) for n in match.group(1).split('.'))
-        for match in re.finditer(r'Programming Language :: Python :: (\d+.\d+)', classifiers)
+        for match in re.finditer(r'Programming Language :: Python :: (\d+.\d+)', metadata)
     )
+    if not supported_versions:
+        raise PkgMetadataException(
+            f'Could not find supported python versions for {package_name}. '
+            f'This can happen if package is not installed.'
+        )
+    return supported_versions
+
+
+class PkgMetadataException(Exception):
+    pass
 
 
 _B2_SUPPORTED_PYTHON_VERSIONS = get_supported_python_versions('b2')
