@@ -127,7 +127,7 @@ def b2_api(application_key_id, application_key, realm, this_run_bucket_name_pref
 
 
 @pytest.fixture(scope='module')
-def b2_tool(
+def global_b2_tool(
     request, application_key_id, application_key, realm, this_run_bucket_name_prefix
 ) -> CommandLine:
     tool = CommandLine(
@@ -141,7 +141,20 @@ def b2_tool(
     return tool
 
 
-@pytest.fixture(scope='function', autouse=True)
-def auto_reauthorize(request, b2_tool):
-    """ Automatically reauthorize for each test (without check) """
-    b2_tool.reauthorize(check_key_capabilities=False)
+@pytest.fixture(scope='function')
+def b2_tool(global_b2_tool):
+    """Automatically reauthorized b2_tool for each test (without check)"""
+    global_b2_tool.reauthorize(check_key_capabilities=False)
+    return global_b2_tool
+
+
+SECRET_FIXTURES = {'application_key', 'application_key_id'}
+
+
+def pytest_collection_modifyitems(items):
+    """
+    Add 'require_secrets' marker to all tests that use secrets.
+    """
+    for item in items:
+        if SECRET_FIXTURES & set(getattr(item, 'fixturenames', ())):
+            item.add_marker('require_secrets')
