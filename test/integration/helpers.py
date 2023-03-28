@@ -487,10 +487,10 @@ def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for _ in range(length))
 
 
-def skip_on_windows(*args, **kwargs):
+def skip_on_windows(*args, reason='Not supported on Windows', **kwargs):
     return pytest.mark.skipif(
         platform.system() == 'Windows',
-        reason='Autocomplete is not supported on Windows',
+        reason=reason,
     )(*args, **kwargs)
 
 
