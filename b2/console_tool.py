@@ -3335,7 +3335,10 @@ class InstallAutocomplete(Command):
             autocomplete_install(NAME, shell=shell)
         except AutocompleteInstallError as e:
             raise CommandError(str(e)) from e
-        self._print(f'Autocomplete installed for {shell}.')
+        self._print(f'Autocomplete successfully installed for {shell}.')
+        self._print(
+            f'Spawn a new shell instance to use it (log in again or just type `{shell}` in your current shell to start a new session inside of the existing session).'
+        )
         return 0
 
 

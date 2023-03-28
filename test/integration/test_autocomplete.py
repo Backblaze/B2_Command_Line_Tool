@@ -51,7 +51,7 @@ def env(homedir, monkey_patch):
 def autocomplete_installed(env, homedir, bashrc):
     shell = pexpect.spawn('bash -i -c "b2 install-autocomplete"', env=env)
     try:
-        shell.expect_exact('Autocomplete installed for bash', timeout=TIMEOUT)
+        shell.expect_exact('Autocomplete successfully installed for bash', timeout=TIMEOUT)
     finally:
         shell.close()
     shell.wait()
