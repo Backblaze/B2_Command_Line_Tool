@@ -24,10 +24,9 @@ from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union
 
 import backoff
-import pkg_resources
 import pytest
 
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
@@ -491,47 +490,4 @@ def skip_on_windows(*args, reason='Not supported on Windows', **kwargs):
     return pytest.mark.skipif(
         platform.system() == 'Windows',
         reason=reason,
-    )(*args, **kwargs)
-
-
-def get_supported_python_versions(package_name: str) -> List[Tuple[int, ...]]:
-    """Return sorted list of supported python versions"""
-    dist = pkg_resources.get_distribution(package_name)
-    metadata = ''
-    for filename in ('PKG-INFO', 'METADATA'):
-        try:
-            metadata = dist.get_metadata(filename)
-            break
-        except FileNotFoundError:
-            pass
-    supported_versions = sorted(
-        tuple(int(n) for n in match.group(1).split('.'))
-        for match in re.finditer(r'Programming Language :: Python :: (\d+.\d+)', metadata)
-    )
-    if not supported_versions:
-        raise PkgMetadataException(
-            f'Could not find supported python versions for {package_name}. '
-            f'This can happen if package is not installed.'
-        )
-    return supported_versions
-
-
-class PkgMetadataException(Exception):
-    pass
-
-
-_B2_SUPPORTED_PYTHON_VERSIONS = get_supported_python_versions('b2')
-
-
-def dont_run_on_all_python_versions(*args, **kwargs):
-    """
-    Don't run test on all python versions.
-
-    For now this only limits tests to oldest and newest python version supported by b2.
-    """
-    is_middle_version = _B2_SUPPORTED_PYTHON_VERSIONS[
-        0] < sys.version_info[:2] < _B2_SUPPORTED_PYTHON_VERSIONS[-1]
-    return pytest.mark.skipif(
-        is_middle_version,
-        reason='This test is only run on some Python version',
     )(*args, **kwargs)

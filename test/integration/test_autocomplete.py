@@ -13,8 +13,7 @@ import os
 import pexpect
 import pytest
 
-from test.integration.helpers import dont_run_on_all_python_versions, \
-    skip_on_windows
+from test.integration.helpers import skip_on_windows
 
 TIMEOUT = 10
 
@@ -67,14 +66,12 @@ def shell(env):
     shell.close()
 
 
-@dont_run_on_all_python_versions
 @skip_on_windows
 def test_autocomplete_b2_commands(autocomplete_installed, shell):
     shell.send('b2 \t\t')
     shell.expect_exact(["authorize-account", "download-file-by-id", "get-bucket"], timeout=TIMEOUT)
 
 
-@dont_run_on_all_python_versions
 @skip_on_windows
 def test_autocomplete_b2_only_matching_commands(autocomplete_installed, shell):
     shell.send('b2 download-\t\t')
@@ -86,7 +83,6 @@ def test_autocomplete_b2_only_matching_commands(autocomplete_installed, shell):
         shell.expect_exact("get-bucket", timeout=0.5)
 
 
-@dont_run_on_all_python_versions
 @skip_on_windows
 def test_autocomplete_b2_bucket_n_file_name(
     autocomplete_installed, shell, b2_tool, bucket_name, file_name
