@@ -150,9 +150,11 @@ jobs:
       - name: Generate hashes
         id: hashes
         run: nox -vs make_dist_digest
-      - name: Run integration tests
+      - name: Run integration tests (without secrets)
+        run: nox -vs integration -- -m "not require_secrets"
+      - name: Run integration tests (with secrets)
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} --cleanup
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2
@@ -187,9 +189,11 @@ jobs:
       - name: Generate hashes
         id: hashes
         run: nox -vs make_dist_digest
-      - name: Run integration tests
+      - name: Run integration tests (without secrets)
+        run: nox -vs integration -- -m "not require_secrets"
+      - name: Run integration tests (with secrets)
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} --cleanup
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2
