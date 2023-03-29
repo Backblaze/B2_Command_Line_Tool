@@ -3327,7 +3327,7 @@ class InstallAutocomplete(Command):
         shell = args.shell or detect_shell()
         if shell not in SUPPORTED_SHELLS:
             self._print_stderr(
-                f'ERROR: unsupported shell: %s. Supported shells: {SUPPORTED_SHELLS}. Use --shell to specify a target shell manually.'
+                f'ERROR: unsupported shell: {shell}. Supported shells: {SUPPORTED_SHELLS}. Use --shell to specify a target shell manually.'
             )
             return 1
 
@@ -3335,7 +3335,10 @@ class InstallAutocomplete(Command):
             autocomplete_install(NAME, shell=shell)
         except AutocompleteInstallError as e:
             raise CommandError(str(e)) from e
-        self._print(f'Autocomplete installed for {shell}.')
+        self._print(f'Autocomplete successfully installed for {shell}.')
+        self._print(
+            f'Spawn a new shell instance to use it (log in again or just type `{shell}` in your current shell to start a new session inside of the existing session).'
+        )
         return 0
 
 

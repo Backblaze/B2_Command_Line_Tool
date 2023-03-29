@@ -9,10 +9,11 @@
 ######################################################################
 
 import os
-import platform
 
 import pexpect
 import pytest
+
+from test.integration.helpers import skip_on_windows
 
 TIMEOUT = 10
 
@@ -24,13 +25,6 @@ echo "Just testing if we don't replace existing script" > /dev/null
 # regardless what is in there already
 # <<< just a test section <<<
 """
-
-
-def skip_on_windows(f):
-    return pytest.mark.skipif(
-        platform.system() == 'Windows',
-        reason='Autocomplete is not supported on Windows',
-    )(f)
 
 
 @pytest.fixture(scope="session")
@@ -48,6 +42,7 @@ def bashrc(homedir):
 @pytest.fixture(scope="module")
 def env(homedir, monkey_patch):
     monkey_patch.setenv('HOME', str(homedir))
+    monkey_patch.setenv('SHELL', "/bin/bash")  # fix for running under github actions
     yield os.environ
 
 
@@ -55,7 +50,7 @@ def env(homedir, monkey_patch):
 def autocomplete_installed(env, homedir, bashrc):
     shell = pexpect.spawn('bash -i -c "b2 install-autocomplete"', env=env)
     try:
-        shell.expect_exact('Autocomplete installed for bash', timeout=TIMEOUT)
+        shell.expect_exact('Autocomplete successfully installed for bash', timeout=TIMEOUT)
     finally:
         shell.close()
     shell.wait()

@@ -6,10 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Infrastructure
+* Limit GitHub CI workload by running most integration tests only against edge versions of supported Python versions
+
 ## [3.8.0] - 2023-03-23
 
 ### Added
-* Add `install-autocomplete` command for installing shell autocompletion
+* Add `install-autocomplete` command for installing shell autocompletion (currently only `bash` is supported)
 
 ### Fixed
 * Hitting the download endpoint twice in some cases
