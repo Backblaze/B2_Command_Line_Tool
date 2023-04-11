@@ -2512,3 +2512,30 @@ def _assert_file_lock_configuration(
         else:
             actual_legal_hold = LegalHold.from_string_or_none(file_version['legalHold'])
         assert legal_hold == actual_legal_hold
+
+
+def test_cut(b2_tool, bucket_name):
+    file_to_upload = 'README.md'
+    file_data = read_file(file_to_upload)
+    cut = 12345
+    cut_printable = '1970-01-01  00:00:12'
+    b2_tool.should_succeed(
+        [
+            'upload-file', '--noProgress', '--custom-upload-time',
+            str(cut), '--quiet', bucket_name, file_to_upload, 'a'
+        ]
+    )
+    # file_id, action, date, time, size(, replication), name
+    b2_tool.should_succeed(
+        ['ls', '--long', bucket_name], '^4_z.*  upload  %s +%s  a' % (
+            cut_printable,
+            len(file_data),
+        )
+    )
+    # file_id, action, date, time, size(, replication), name
+    b2_tool.should_succeed(
+        ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  %s +%s  -  a' % (
+            cut_printable,
+            len(file_data),
+        )
+    )

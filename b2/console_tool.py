@@ -2634,6 +2634,12 @@ class UploadFile(
     {LEGALHOLDMIXIN}
     {UPLOADMODEMIXIN}
 
+    The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
+    to artificially change the upload timestamp of the file for the purpose
+    of preserving retention policies after migration of data from other storage.
+    The access to this feature is restricted - if you really need it, you'll
+    need to contact customer support to enable it temporarily for your account.
+
     Requires capability:
 
     - **writeFiles**
@@ -2648,6 +2654,7 @@ class UploadFile(
         parser.add_argument('--sha1')
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('--info', action='append', default=[])
+        parser.add_argument('--custom-upload-timestamp', type=int)
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
@@ -2682,6 +2689,7 @@ class UploadFile(
             file_retention=file_retention,
             legal_hold=legal_hold,
             upload_mode=self._get_upload_mode_from_args(args),
+            custom_upload_timestamp=args.custom_upload_timestamp,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
