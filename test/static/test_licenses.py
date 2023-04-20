@@ -16,6 +16,9 @@ import pytest
 
 def test_files_headers():
     for file in glob('**/*.py', recursive=True):
+        if file.startswith('build/'):
+            # built files naturally have a different file path than source files
+            continue
         with open(file) as fd:
             file = file.replace(
                 '\\', '/'
