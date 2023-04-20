@@ -1465,7 +1465,7 @@ def test_license(b2_tool, with_packages):
 
     if with_packages:
         full_license_re = re.compile(
-            r'Licenses of all modules used by b2, shipped with it in binary form:\r?\n'
+            r'Licenses of all modules used by b2(\.EXE)?, shipped with it in binary form:\r?\n'
             r'\+-*\+-*\+\r?\n'
             r'\|\s*Module name\s*\|\s*License text\s*\|\r?\n'
             r'.*'
@@ -1481,7 +1481,7 @@ def test_license(b2_tool, with_packages):
         # that sum up to around 50k characters. Tests ran from docker image are unaffected.
 
         license_summary_re = re.compile(
-            r'Summary of all modules used by b2, shipped with it in binary form:\r?\n'
+            r'Summary of all modules used by b2(\.EXE)?, shipped with it in binary form:\r?\n'
             r'\+-*\+-*\+-*\+-*\+-*\+\r?\n'
             r'\|\s*Module name\s*\|\s*Version\s*\|\s*License\s*\|\s*Author\s*\|\s*URL\s*\|\r?\n'
             r'.*'
@@ -1493,7 +1493,7 @@ def test_license(b2_tool, with_packages):
             license_summary_text.group(0)
         ) > 6_500  # we should know if the length of this block changes dramatically
 
-    assert """b2 license:
+    assert """ license:
 Backblaze wants developers and organization to copy and re-use our
 code examples, so we make the samples available by several different
 licenses.  One option is the MIT license (below).  Other options are
