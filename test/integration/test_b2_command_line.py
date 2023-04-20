@@ -1472,7 +1472,7 @@ def test_license(b2_tool, with_packages):
             r'\+-*\+-*\+\r?\n', re.MULTILINE + re.DOTALL
         )
         full_license_text = next(full_license_re.finditer(license_text), None)
-        assert full_license_text
+        assert full_license_text, license_text
         assert len(
             full_license_text.group(0)
         ) > 140_000  # we should know if the length of this block changes dramatically
@@ -1488,7 +1488,7 @@ def test_license(b2_tool, with_packages):
             r'\+-*\+-*\+-*\+-*\+-*\+\r?\n', re.MULTILINE + re.DOTALL
         )
         license_summary_text = next(license_summary_re.finditer(license_text), None)
-        assert license_summary_text
+        assert license_summary_text, license_text
         assert len(
             license_summary_text.group(0)
         ) > 6_500  # we should know if the length of this block changes dramatically
