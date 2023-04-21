@@ -21,12 +21,23 @@ from b2._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
 
 def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs) -> B2Api:
     account_info = SqliteAccountInfo(profile=profile)
-    return B2Api(
+    b2api = B2Api(
         api_config=_get_b2httpapiconfig(),
         account_info=account_info,
         cache=AuthInfoCache(account_info),
         **kwargs,
     )
+
+    b2http = b2api.session.raw_api.b2_http
+    b2http.CONNECTION_TIMEOUT = 3 + 6 + 1
+    b2http.TIMEOUT = 12
+    b2http.TIMEOUT_FOR_COPY = 24
+    b2http.TIMEOUT_FOR_UPLOAD = 24
+    b2http.TRY_COUNT_DATA = 2
+    b2http.TRY_COUNT_DOWNLOAD = 2
+    b2http.TRY_COUNT_HEAD = 2
+    b2http.TRY_COUNT_OTHER = 2
+    return b2api
 
 
 def _get_b2httpapiconfig():
