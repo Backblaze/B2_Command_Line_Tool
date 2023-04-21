@@ -2519,12 +2519,19 @@ def test_cut(b2_tool, bucket_name):
     file_data = read_file(file_to_upload)
     cut = 12345
     cut_printable = '1970-01-01  00:00:12'
-    b2_tool.should_succeed(
-        [
-            'upload-file', '--noProgress', '--custom-upload-time',
-            str(cut), '--quiet', bucket_name, file_to_upload, 'a'
-        ]
-    )
+    args = [
+        'upload-file',
+        '--noProgress',
+        '--custom-upload-time',
+        str(cut),
+        '--quiet',
+        bucket_name,
+        file_to_upload,
+        'a',
+    ]
+    succeeded, stdout = b2_tool.run_command(args)
+    if not succeeded:
+        b2_tool.should_fail(args, 'custom_timestamp_not_allowed')
     # file_id, action, date, time, size(, replication), name
     b2_tool.should_succeed(
         ['ls', '--long', bucket_name], '^4_z.*  upload  %s +%s  a' % (
