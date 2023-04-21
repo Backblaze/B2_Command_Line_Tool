@@ -2532,17 +2532,18 @@ def test_cut(b2_tool, bucket_name):
     succeeded, stdout = b2_tool.run_command(args)
     if not succeeded:
         b2_tool.should_fail(args, 'custom_timestamp_not_allowed')
-    # file_id, action, date, time, size(, replication), name
-    b2_tool.should_succeed(
-        ['ls', '--long', bucket_name], '^4_z.*  upload  %s +%s  a' % (
-            cut_printable,
-            len(file_data),
+    else:
+        # file_id, action, date, time, size(, replication), name
+        b2_tool.should_succeed(
+            ['ls', '--long', bucket_name], '^4_z.*  upload  %s +%s  a' % (
+                cut_printable,
+                len(file_data),
+            )
         )
-    )
-    # file_id, action, date, time, size(, replication), name
-    b2_tool.should_succeed(
-        ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  %s +%s  -  a' % (
-            cut_printable,
-            len(file_data),
+        # file_id, action, date, time, size(, replication), name
+        b2_tool.should_succeed(
+            ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  %s +%s  -  a' % (
+                cut_printable,
+                len(file_data),
+            )
         )
-    )
