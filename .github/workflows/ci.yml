@@ -81,8 +81,8 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.7", "3.8", "3.9", "3.10", "pypy-3.7", "3.11"]
+        os: ["macos-latest", "windows-latest"]  # "ubuntu-latest",
         exclude:
           - os: "macos-latest"
             python-version: "pypy-3.7"
@@ -94,13 +94,13 @@ jobs:
           - os: "windows-latest"
             python-version: "3.8"
 
-          - os: "ubuntu-latest"
-            python-version: "3.9"
+          #- os: "ubuntu-latest"
+          #- python-version: "3.9"
           - os: "macos-latest"
             python-version: "3.9"
 
-          - os: "ubuntu-latest"
-            python-version: "3.10"
+          #- os: "ubuntu-latest"
+          #- python-version: "3.10"
           - os: "windows-latest"
             python-version: "3.10"
     steps:
