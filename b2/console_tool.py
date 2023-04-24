@@ -2229,7 +2229,7 @@ class Sync(
     Multiple regex rules can be applied by supplying them as pipe
     delimited instructions. Note that the regex for this command
     is Python regex.
-    Reference: `<https://docs.python.org/2/library/re.html>`_
+    Reference: `<https://docs.python.org/3/library/re.html>`_
 
     Regular expressions are considered a match if they match a substring
     starting at the first character.  ``.*e`` will match ``hello``.  This is
