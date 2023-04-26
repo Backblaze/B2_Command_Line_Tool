@@ -17,6 +17,7 @@ import shutil
 import string
 import subprocess
 import sys
+import time
 import threading
 
 from dataclasses import dataclass
@@ -59,9 +60,24 @@ SSE_C_AES_2 = EncryptionSetting(
     key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
 )
 
+RNG = random.Random(
+    '_'.join(
+        [
+            os.getenv('GITHUB_REPOSITORY', ''),
+            os.getenv('GITHUB_SHA', ''),
+            os.getenv('GITHUB_RUN_ID', ''),
+            os.getenv('GITHUB_RUN_ATTEMPT', ''),
+            os.getenv('GITHUB_JOB', ''),
+            os.getenv('GITHUB_ACTION', ''),
+            str(os.getpid()),  # for local runs with xdist
+            str(time.time()),
+        ]
+    )
+)
+
 
 def bucket_name_part(length: int) -> str:
-    return ''.join(random.choice(BUCKET_NAME_CHARS) for _ in range(length))
+    return ''.join(RNG.choice(BUCKET_NAME_CHARS) for _ in range(length))
 
 
 @dataclass
