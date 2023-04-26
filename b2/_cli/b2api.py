@@ -21,12 +21,14 @@ from b2._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
 
 def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs) -> B2Api:
     account_info = SqliteAccountInfo(profile=profile)
-    return B2Api(
+    b2api = B2Api(
         api_config=_get_b2httpapiconfig(),
         account_info=account_info,
         cache=AuthInfoCache(account_info),
         **kwargs,
     )
+
+    return b2api
 
 
 def _get_b2httpapiconfig():
