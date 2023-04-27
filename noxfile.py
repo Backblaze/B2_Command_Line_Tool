@@ -209,6 +209,8 @@ def integration(session):
         '-s',
         '-n',
         'auto',
+        '--log-level',
+        'INFO',
         '-W',
         'ignore::DeprecationWarning:rst2ansi.visitor:',
         *session.posargs,
