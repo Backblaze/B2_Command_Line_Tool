@@ -340,19 +340,20 @@ class EnvVarTestContext:
 
     def __init__(self, account_info_file_name: str):
         self.account_info_file_name = account_info_file_name
+        self.suffix = ''.join(RNG.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(7))
 
     def __enter__(self):
         src = self.account_info_file_name
         dst = path.join(gettempdir(), 'b2_account_info')
         shutil.copyfile(src, dst)
-        shutil.move(src, src + '.bkup')
+        shutil.move(src, src + self.suffix)
         environ[self.ENV_VAR] = dst
         return dst
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         os.remove(environ.get(self.ENV_VAR))
         fname = self.account_info_file_name
-        shutil.move(fname + '.bkup', fname)
+        shutil.move(fname + self.suffix, fname)
         if environ.get(self.ENV_VAR) is not None:
             del environ[self.ENV_VAR]
 
