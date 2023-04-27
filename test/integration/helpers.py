@@ -9,6 +9,7 @@
 ######################################################################
 
 import json
+import logging
 import os
 import platform
 import random
@@ -17,8 +18,8 @@ import shutil
 import string
 import subprocess
 import sys
-import time
 import threading
+import time
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -35,6 +36,8 @@ from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket,
 from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent, TooManyRequests
 
 from b2.console_tool import Command, current_time_millis
+
+logger = logging.getLogger(__name__)
 
 BUCKET_CLEANUP_PERIOD_MILLIS = 0
 ONE_HOUR_MILLIS = 60 * 60 * 1000
@@ -60,24 +63,33 @@ SSE_C_AES_2 = EncryptionSetting(
     key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
 )
 
-RNG = random.Random(
-    '_'.join(
-        [
-            os.getenv('GITHUB_REPOSITORY', ''),
-            os.getenv('GITHUB_SHA', ''),
-            os.getenv('GITHUB_RUN_ID', ''),
-            os.getenv('GITHUB_RUN_ATTEMPT', ''),
-            os.getenv('GITHUB_JOB', ''),
-            os.getenv('GITHUB_ACTION', ''),
-            str(os.getpid()),  # for local runs with xdist
-            str(time.time()),
-        ]
-    )
+RNG_SEED = '_'.join(
+    [
+        os.getenv('GITHUB_REPOSITORY', ''),
+        os.getenv('GITHUB_SHA', ''),
+        os.getenv('GITHUB_RUN_ID', ''),
+        os.getenv('GITHUB_RUN_ATTEMPT', ''),
+        os.getenv('GITHUB_JOB', ''),
+        os.getenv('GITHUB_ACTION', ''),
+        str(os.getpid()),  # for local runs with xdist
+        str(time.time()),
+    ]
 )
+
+RNG = random.Random(RNG_SEED)
+
+RNG_COUNTER = 0
 
 
 def bucket_name_part(length: int) -> str:
-    return ''.join(RNG.choice(BUCKET_NAME_CHARS) for _ in range(length))
+    assert length >= 1
+    global RNG_COUNTER
+    RNG_COUNTER += 1
+    name_part = ''.join(RNG.choice(BUCKET_NAME_CHARS) for _ in range(length))
+    logger.info('RNG_SEED: %s', RNG_SEED)
+    logger.info('RNG_COUNTER: %i, length: %i', RNG_COUNTER, length)
+    logger.info('name_part: %s', name_part)
+    return name_part
 
 
 @dataclass
@@ -95,6 +107,9 @@ class Api:
         cache = InMemoryCache()
         self.api = B2Api(info, cache=cache)
         self.api.authorize_account(self.realm, self.account_id, self.application_key)
+        assert BUCKET_NAME_LENGTH - len(
+            self.this_run_bucket_name_prefix
+        ) > 5, self.this_run_bucket_name_prefix
 
     def create_bucket(self) -> Bucket:
         for _ in range(10):
