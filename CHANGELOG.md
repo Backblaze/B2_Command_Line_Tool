@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Infrastructure
 * Limit GitHub CI workload by running most integration tests only against edge versions of supported Python versions
+* Add a direct dependency from tqdm
 
 ## [3.8.0] - 2023-03-23
 
