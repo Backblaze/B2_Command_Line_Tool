@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import base64
 import contextlib
 import sys
 
@@ -17,7 +18,7 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
-from b2sdk.exception import BucketIdNotFound
+from b2sdk.exception import BadRequest, BucketIdNotFound
 
 from .helpers import Api, CommandLine, bucket_name_part
 
@@ -53,7 +54,14 @@ def realm() -> str:
 
 @pytest.fixture(scope='function')
 def bucket(b2_api) -> str:
-    bucket = b2_api.create_bucket()
+    try:
+        bucket = b2_api.create_bucket()
+    except BadRequest as e:
+        if e.code != 'too_many_buckets':
+            raise
+        num_buckets = b2_api.count_and_print_buckets()
+        print('current number of buckets:', num_buckets)
+        raise
     yield bucket
     with contextlib.suppress(BucketIdNotFound):
         b2_api.clean_bucket(bucket)

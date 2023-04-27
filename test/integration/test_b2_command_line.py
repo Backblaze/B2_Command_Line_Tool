@@ -1465,14 +1465,14 @@ def test_license(b2_tool, with_packages):
 
     if with_packages:
         full_license_re = re.compile(
-            r'Licenses of all modules used by b2, shipped with it in binary form:\r?\n'
+            r'Licenses of all modules used by b2(\.EXE)?, shipped with it in binary form:\r?\n'
             r'\+-*\+-*\+\r?\n'
             r'\|\s*Module name\s*\|\s*License text\s*\|\r?\n'
             r'.*'
             r'\+-*\+-*\+\r?\n', re.MULTILINE + re.DOTALL
         )
         full_license_text = next(full_license_re.finditer(license_text), None)
-        assert full_license_text
+        assert full_license_text, license_text
         assert len(
             full_license_text.group(0)
         ) > 140_000  # we should know if the length of this block changes dramatically
@@ -1481,19 +1481,19 @@ def test_license(b2_tool, with_packages):
         # that sum up to around 50k characters. Tests ran from docker image are unaffected.
 
         license_summary_re = re.compile(
-            r'Summary of all modules used by b2, shipped with it in binary form:\r?\n'
+            r'Summary of all modules used by b2(\.EXE)?, shipped with it in binary form:\r?\n'
             r'\+-*\+-*\+-*\+-*\+-*\+\r?\n'
             r'\|\s*Module name\s*\|\s*Version\s*\|\s*License\s*\|\s*Author\s*\|\s*URL\s*\|\r?\n'
             r'.*'
             r'\+-*\+-*\+-*\+-*\+-*\+\r?\n', re.MULTILINE + re.DOTALL
         )
         license_summary_text = next(license_summary_re.finditer(license_text), None)
-        assert license_summary_text
+        assert license_summary_text, license_text
         assert len(
             license_summary_text.group(0)
         ) > 6_500  # we should know if the length of this block changes dramatically
 
-    assert """b2 license:
+    assert """ license:
 Backblaze wants developers and organization to copy and re-use our
 code examples, so we make the samples available by several different
 licenses.  One option is the MIT license (below).  Other options are
@@ -1522,7 +1522,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.""" in license_text.replace(os.linesep, '\n')
+SOFTWARE.""" in license_text.replace(os.linesep, '\n'), repr(license_text[-2000:])
 
 
 def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
@@ -2512,3 +2512,38 @@ def _assert_file_lock_configuration(
         else:
             actual_legal_hold = LegalHold.from_string_or_none(file_version['legalHold'])
         assert legal_hold == actual_legal_hold
+
+
+def test_cut(b2_tool, bucket_name):
+    file_to_upload = 'README.md'
+    file_data = read_file(file_to_upload)
+    cut = 12345
+    cut_printable = '1970-01-01  00:00:12'
+    args = [
+        'upload-file',
+        '--noProgress',
+        '--custom-upload-time',
+        str(cut),
+        '--quiet',
+        bucket_name,
+        file_to_upload,
+        'a',
+    ]
+    succeeded, stdout = b2_tool.run_command(args)
+    if not succeeded:
+        b2_tool.should_fail(args, 'custom_timestamp_not_allowed')
+    else:
+        # file_id, action, date, time, size(, replication), name
+        b2_tool.should_succeed(
+            ['ls', '--long', bucket_name], '^4_z.*  upload  %s +%s  a' % (
+                cut_printable,
+                len(file_data),
+            )
+        )
+        # file_id, action, date, time, size(, replication), name
+        b2_tool.should_succeed(
+            ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  %s +%s  -  a' % (
+                cut_printable,
+                len(file_data),
+            )
+        )

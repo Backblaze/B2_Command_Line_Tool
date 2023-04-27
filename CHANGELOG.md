@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Support for custom file upload timestamp
+
 ### Infrastructure
 * Limit GitHub CI workload by running most integration tests only against edge versions of supported Python versions
 
