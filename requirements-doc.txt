@@ -1,5 +1,5 @@
 sadisplay
-sphinx<7.0
+sphinx<8.0
 sphinx-argparse
 sphinx-autobuild
 sphinx-rtd-theme
