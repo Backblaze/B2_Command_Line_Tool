@@ -207,8 +207,6 @@ def integration(session):
     session.run(
         'pytest',
         '-s',
-        '-n',
-        'auto',
         '--log-level',
         'INFO',
         '-W',
