@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Infrastructure
+* Autocomplete integration tests will now work properly even if tested package has not been installed
+
 ## [3.9.0] - 2023-04-28
 
 ### Added
