@@ -27,6 +27,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
+import datetime
 import os
 from os import path
 import re
@@ -70,8 +71,10 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'B2_Command_Line_Tool'
-copyright = u'2020, Backblaze'
+
+year = datetime.date.today().strftime("%Y")
 author = u'Backblaze'
+copyright = f'{year}, {author}'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
