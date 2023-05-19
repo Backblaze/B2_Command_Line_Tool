@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add ability to stream data from an unbound source
+
 
 ### Infrastructure
 * Autocomplete integration tests will now work properly even if tested package has not been installed

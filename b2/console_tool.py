@@ -2605,6 +2605,10 @@ class UploadFile(
     of the local file, and assigns the given name to the B2 file,
     possibly setting options like server-side encryption and retention.
 
+    On systems that support it, you can provide a file descriptor
+    instead of a regular local file. Additionally, you can replace
+    the local file name with ``-`` to read data from standard input.
+
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
     By default, upload_file will compute the sha1 checksum of the file
@@ -2677,20 +2681,51 @@ class UploadFile(
         encryption_setting = self._get_destination_sse_setting(args)
         legal_hold = self._get_legal_hold_setting(args)
         file_retention = self._get_file_retention_setting(args)
-        file_info = bucket.upload_local_file(
-            local_file=args.localFilePath,
-            file_name=args.b2FileName,
-            content_type=args.contentType,
-            file_infos=file_infos,
-            sha1_sum=args.sha1,
-            min_part_size=args.minPartSize,
-            progress_listener=make_progress_listener(args.localFilePath, args.noProgress),
-            encryption=encryption_setting,
-            file_retention=file_retention,
-            legal_hold=legal_hold,
-            upload_mode=self._get_upload_mode_from_args(args),
-            custom_upload_timestamp=args.custom_upload_timestamp,
-        )
+        progress_listener = make_progress_listener(args.localFilePath, args.noProgress)
+        forcing_stdin = args.localFilePath == "-"
+        fifos_supported = platform.system() != "Windows"
+        if forcing_stdin or (fifos_supported and not os.path.isfile(args.localFilePath)):
+
+            def upload_unbound_stream(input_stream):
+                bucket.upload_unbound_stream(
+                    read_only_object=input_stream,
+                    file_name=args.b2FileName,
+                    content_type=args.contentType,
+                    file_info=file_infos,
+                    progress_listener=progress_listener,
+                    encryption=encryption_setting,
+                    file_retention=file_retention,
+                    legal_hold=legal_hold,
+                    min_part_size=args.minPartSize,
+                    large_file_sha1=args.sha1,
+                    custom_upload_timestamp=args.custom_upload_timestamp,
+                )
+
+            if platform.system() == "Windows":
+                assert forcing_stdin
+                input_stream = sys.stdin.buffer
+                file_info = upload_unbound_stream(input_stream)
+            else:
+                file = sys.stdin.fileno() if forcing_stdin else args.localFilePath
+                with open(
+                    file, mode="rb", buffering=args.minPartSize, closefd=False
+                ) as input_stream:
+                    file_info = upload_unbound_stream(input_stream)
+        else:
+            file_info = bucket.upload_local_file(
+                local_file=args.localFilePath,
+                file_name=args.b2FileName,
+                content_type=args.contentType,
+                file_infos=file_infos,
+                sha1_sum=args.sha1,
+                min_part_size=args.minPartSize,
+                progress_listener=progress_listener,
+                encryption=encryption_setting,
+                file_retention=file_retention,
+                legal_hold=legal_hold,
+                upload_mode=self._get_upload_mode_from_args(args),
+                custom_upload_timestamp=args.custom_upload_timestamp,
+            )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
             self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
