@@ -26,7 +26,7 @@ from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import List, Optional, Union
+from typing import Collection, List, Optional, Union
 
 import backoff
 import pytest
@@ -284,11 +284,15 @@ def run_command(
     cmd: str,
     args: Optional[List[Union[str, Path, int]]] = None,
     additional_env: Optional[dict] = None,
+    stdin_data: Optional[bytes] = None,
+    pass_fds: Collection[int] = (),
 ):
     """
     :param cmd: a command to run
     :param args: command's arguments
     :param additional_env: environment variables to pass to the command, overwriting parent process ones
+    :param stdin_data: data to pass to stdin
+    :param pass_fds: file descriptors to pass to the command
     :return: (status, stdout, stderr)
     """
     # We'll run the b2 command-line by running the b2 module from
@@ -312,9 +316,13 @@ def run_command(
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        pass_fds=pass_fds,
         close_fds=platform.system() != 'Windows',
         env=env,
     )
+    assert p.stdin is not None
+    if stdin_data is not None:
+        p.stdin.write(stdin_data)
     p.stdin.close()
     reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
     reader1.start()
@@ -410,13 +418,17 @@ class CommandLine:
         args: Optional[List[str]],
         expected_pattern: Optional[str] = None,
         additional_env: Optional[dict] = None,
+        stdin_data: Optional[bytes] = None,
+        pass_fds: Collection[int] = (),
     ) -> str:
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = run_command(
+            self.command, args, additional_env, stdin_data, pass_fds
+        )
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':
