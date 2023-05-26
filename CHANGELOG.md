@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-* Add ability to stream data from an unbound source
+* Add ability to upload from an unbound source (such as standard input or a named pipe)
 
 
 ### Infrastructure
