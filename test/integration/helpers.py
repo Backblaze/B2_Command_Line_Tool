@@ -80,6 +80,8 @@ RNG = random.Random(RNG_SEED)
 
 RNG_COUNTER = 0
 
+FD_PREFIX = '/proc/self/fd/'
+
 
 def bucket_name_part(length: int) -> str:
     assert length >= 1
@@ -285,14 +287,12 @@ def run_command(
     args: Optional[List[Union[str, Path, int]]] = None,
     additional_env: Optional[dict] = None,
     stdin_data: Optional[bytes] = None,
-    pass_fds: Collection[int] = (),
 ):
     """
     :param cmd: a command to run
     :param args: command's arguments
     :param additional_env: environment variables to pass to the command, overwriting parent process ones
     :param stdin_data: data to pass to stdin
-    :param pass_fds: file descriptors to pass to the command
     :return: (status, stdout, stderr)
     """
     # We'll run the b2 command-line by running the b2 module from
@@ -300,8 +300,8 @@ def run_command(
     environ['PYTHONPATH'] = '.'
     environ['PYTHONIOENCODING'] = 'utf-8'
     command = cmd.split(' ')
-    args = [str(arg) for arg in args]
-    command.extend(args or [])
+    args: List[str] = [str(arg) for arg in args] if args is not None else []
+    command.extend(args)
 
     print('Running:', ' '.join(command))
 
@@ -316,7 +316,7 @@ def run_command(
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        pass_fds=pass_fds,
+        pass_fds=[int(arg.removeprefix(FD_PREFIX)) for arg in args if arg.startswith(FD_PREFIX)],
         close_fds=platform.system() != 'Windows',
         env=env,
     )
@@ -419,16 +419,13 @@ class CommandLine:
         expected_pattern: Optional[str] = None,
         additional_env: Optional[dict] = None,
         stdin_data: Optional[bytes] = None,
-        pass_fds: Collection[int] = (),
     ) -> str:
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(
-            self.command, args, additional_env, stdin_data, pass_fds
-        )
+        status, stdout, stderr = run_command(self.command, args, additional_env, stdin_data)
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':

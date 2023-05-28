@@ -26,7 +26,7 @@ from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, U
 
 from b2.console_tool import current_time_millis
 
-from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, skip_on_windows, write_file
+from .helpers import BUCKET_CREATED_AT_MILLIS, FD_PREFIX, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, skip_on_windows, write_file
 
 
 def get_bucketinfo() -> Tuple[str, str]:
@@ -262,11 +262,7 @@ def test_upload_from_pipe_as_file(b2_tool, bucket_name):
         f.write(file_data)
     try:
         b2_tool.should_succeed(
-            [
-                'upload-file', '--noProgress', '--quiet', bucket_name, f'/proc/self/fd/{fd_read}',
-                'a'
-            ],
-            pass_fds=[fd_read]
+            ['upload-file', '--noProgress', '--quiet', bucket_name, f"{FD_PREFIX}{fd_read}", 'a']
         )
     finally:
         os.close(fd_read)
