@@ -46,6 +46,7 @@ from typing import Optional, Tuple, List, Any, Dict
 from enum import Enum
 
 import b2sdk
+from b2._filesystem import points_to_fifo
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -2601,13 +2602,12 @@ class UploadFile(
     DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
 ):
     """
-    Uploads one file to the given bucket.  Uploads the contents
-    of the local file, and assigns the given name to the B2 file,
+    Uploads one file to the given bucket.
+
+    Uploads the contents of the local file, and assigns the given name to the B2 file,
     possibly setting options like server-side encryption and retention.
 
-    On systems that support it, you can provide a file descriptor
-    instead of a regular local file. Additionally, you can replace
-    the local file name with ``-`` to read data from standard input.
+    Instead of normal file a FIFO file (such as named pipe) can be given.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
@@ -2659,6 +2659,7 @@ class UploadFile(
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('--info', action='append', default=[])
         parser.add_argument('--custom-upload-timestamp', type=int)
+        parser.add_argument('--stdinAlias', action="store_true")
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('localFilePath')
         parser.add_argument('b2FileName')
@@ -2668,7 +2669,7 @@ class UploadFile(
     def run(self, args):
         file_infos = self._parse_file_infos(args.info)
 
-        if SRC_LAST_MODIFIED_MILLIS not in file_infos:
+        if SRC_LAST_MODIFIED_MILLIS not in file_infos and os.path.exists(args.localFilePath):
             file_infos[SRC_LAST_MODIFIED_MILLIS] = str(
                 int(os.path.getmtime(args.localFilePath) * 1000)
             )
@@ -2682,12 +2683,27 @@ class UploadFile(
         legal_hold = self._get_legal_hold_setting(args)
         file_retention = self._get_file_retention_setting(args)
         progress_listener = make_progress_listener(args.localFilePath, args.noProgress)
-        forcing_stdin = args.localFilePath == "-"
-        fifos_supported = platform.system() != "Windows"
-        if forcing_stdin or (fifos_supported and not os.path.isfile(args.localFilePath)):
 
-            def upload_unbound_stream(input_stream):
-                bucket.upload_unbound_stream(
+        input_stream = None
+        if args.localFilePath == "-":
+            if os.path.exists('-'):
+                self._print_stderr(
+                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
+                )
+            else:
+                input_stream = sys.stdin.buffer if platform.system(
+                ) == "Windows" else sys.stdin.fileno()
+        elif points_to_fifo(args.localFilePath):
+            input_stream = args.localFilePath
+
+        if input_stream is not None:
+            if isinstance(input_stream, (str, int)):
+                input_stream = open(
+                    input_stream, mode="rb", closefd=not isinstance(input_stream, int)
+                )
+
+            with input_stream:
+                file_info = bucket.upload_unbound_stream(
                     read_only_object=input_stream,
                     file_name=args.b2FileName,
                     content_type=args.contentType,
@@ -2700,17 +2716,6 @@ class UploadFile(
                     large_file_sha1=args.sha1,
                     custom_upload_timestamp=args.custom_upload_timestamp,
                 )
-
-            if platform.system() == "Windows":
-                assert forcing_stdin
-                input_stream = sys.stdin.buffer
-                file_info = upload_unbound_stream(input_stream)
-            else:
-                file = sys.stdin.fileno() if forcing_stdin else args.localFilePath
-                with open(
-                    file, mode="rb", buffering=args.minPartSize, closefd=False
-                ) as input_stream:
-                    file_info = upload_unbound_stream(input_stream)
         else:
             file_info = bucket.upload_local_file(
                 local_file=args.localFilePath,
@@ -2725,6 +2730,129 @@ class UploadFile(
                 legal_hold=legal_hold,
                 upload_mode=self._get_upload_mode_from_args(args),
                 custom_upload_timestamp=args.custom_upload_timestamp,
+            )
+        if not args.quiet:
+            self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
+            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
+        self._print_json(file_info)
+        return 0
+
+
+@B2.register_subcommand
+class UploadUnboundStream(
+    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
+):
+    """
+    Uploads an unbound stream to the given bucket.
+
+    Uploads the contents of the unbound stream such as stdin or named pipe,
+    and assigns the given name to the resulting B2 file.
+    Allows for setting options like server-side encryption and retention.
+
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
+
+    Content type is optional.
+    If not set, it will be set based on the file extension.
+
+    Unbound stream is uploaded by part by part.
+    The minimum part size allowed by B2 is 100MB.
+    Setting ``--minPartSize`` to a larger value will reduce the number of parts uploaded.
+
+    You may use `readBufferSize` parameter to control the size of the lowest level buffer used to read from the stream.
+    This may be useful if you are uploading from a slow source and want to reduce the number of read operations
+    at the cost of using more memory.
+
+    The maximum number of upload threads to use to upload parts of a large file is specified by ``--threads``.
+    It has no effect on small files (under 200MB).
+    Default is 10.
+
+    If the ``tqdm`` library is installed, progress bar is displayed
+    on stderr.  Without it, simple text progress is printed.
+    Use ``--noProgress`` to disable progress reporting.
+
+    Each fileInfo is of the form ``a=b``.
+
+    {DESTINATIONSSEMIXIN}
+    {FILERETENTIONSETTINGMIXIN}
+    {LEGALHOLDMIXIN}
+    {UPLOADMODEMIXIN}
+
+    The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
+    to artificially change the upload timestamp of the file for the purpose
+    of preserving retention policies after migration of data from other storage.
+    The access to this feature is restricted - if you really need it, you'll
+    need to contact customer support to enable it temporarily for your account.
+
+    Requires capability:
+
+    - **writeFiles**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--noProgress', action='store_true')
+        parser.add_argument('--quiet', action='store_true')
+        parser.add_argument('--contentType')
+        parser.add_argument('--minPartSize', type=int)
+        parser.add_argument('--sha1')
+        parser.add_argument('--threads', type=int, default=10)
+        parser.add_argument('--info', action='append', default=[])
+        parser.add_argument('--custom-upload-timestamp', type=int)
+        parser.add_argument('--buffersCount', type=int, default=2)
+        parser.add_argument('--bufferSize', type=int)
+        parser.add_argument('--readBufferSize', type=int, default=2 * 1024 * 1024)
+        parser.add_argument('--readSize', type=int, default=8192)
+        parser.add_argument('--unusedBufferTimeoutSeconds', type=float, default=3600.0)
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('localFilePath')
+        parser.add_argument('b2FileName')
+
+        super()._setup_parser(parser)  # add parameters from the mixins
+
+    def run(self, args):
+        file_infos = self._parse_file_infos(args.info)
+
+        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        #        There is `max_upload_workers` param in B2Api constructor for this.
+        self.api.services.upload_manager.set_thread_pool_size(args.threads)
+
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        encryption_setting = self._get_destination_sse_setting(args)
+        legal_hold = self._get_legal_hold_setting(args)
+        file_retention = self._get_file_retention_setting(args)
+        progress_listener = make_progress_listener(args.localFilePath, args.noProgress)
+
+        input_stream = args.localFilePath
+        if input_stream == "-":
+            input_stream = sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno(
+            )
+
+        if isinstance(input_stream, (str, int)):
+            fs_buffer_size = args.readBufferSize or args.readSize
+            input_stream = open(
+                input_stream,
+                mode="rb",
+                buffering=fs_buffer_size,
+                closefd=not isinstance(input_stream, int)
+            )
+
+        with input_stream:
+            file_info = bucket.upload_unbound_stream(
+                read_only_object=input_stream,
+                file_name=args.b2FileName,
+                content_type=args.contentType,
+                file_info=file_infos,
+                progress_listener=progress_listener,
+                encryption=encryption_setting,
+                file_retention=file_retention,
+                legal_hold=legal_hold,
+                min_part_size=args.minPartSize,
+                large_file_sha1=args.sha1,
+                custom_upload_timestamp=args.custom_upload_timestamp,
+                buffer_size=args.bufferSize,
+                buffers_count=args.buffersCount,
+                read_size=args.readSize,
+                unused_buffer_timeout_seconds=args.unusedBufferTimeoutSeconds,
             )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
