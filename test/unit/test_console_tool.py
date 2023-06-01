@@ -24,7 +24,6 @@ from more_itertools import one
 from b2sdk import v1
 
 from b2sdk.v2 import ALL_CAPABILITIES
-from b2sdk.v2 import REALM_URLS
 from b2sdk.v2 import StubAccountInfo
 from b2sdk.v2 import B2Api
 from b2sdk.v2 import B2HttpApiConfig
@@ -244,7 +243,6 @@ class BaseConsoleToolTest(TestBase):
         bucket.upload(data, 'c/test.tsv')
 
 
-@mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
 class TestConsoleTool(BaseConsoleToolTest):
     def test_authorize_with_bad_key(self):
         expected_stdout = '''
@@ -2395,7 +2393,6 @@ class TestConsoleTool(BaseConsoleToolTest):
             assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
 
 
-@mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
 class TestConsoleToolWithV1(BaseConsoleToolTest):
     """These tests use v1 interface to perform various setups before running CLI commands"""
 
@@ -2471,7 +2468,6 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         self._run_command(['list-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0)
 
 
-@mock.patch.dict(REALM_URLS, {'production': 'http://production.example.com'})
 class TestRmConsoleTool(BaseConsoleToolTest):
     """
     These tests replace default progress reporter of Rm class
