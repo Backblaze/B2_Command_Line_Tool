@@ -26,7 +26,7 @@ from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
-from typing import Collection, List, Optional, Union
+from typing import List, Optional, Union
 
 import backoff
 import pytest
@@ -79,8 +79,6 @@ RNG_SEED = '_'.join(
 RNG = random.Random(RNG_SEED)
 
 RNG_COUNTER = 0
-
-FD_PREFIX = '/proc/self/fd/'
 
 
 def bucket_name_part(length: int) -> str:
@@ -286,13 +284,11 @@ def run_command(
     cmd: str,
     args: Optional[List[Union[str, Path, int]]] = None,
     additional_env: Optional[dict] = None,
-    stdin_data: Optional[bytes] = None,
 ):
     """
     :param cmd: a command to run
     :param args: command's arguments
     :param additional_env: environment variables to pass to the command, overwriting parent process ones
-    :param stdin_data: data to pass to stdin
     :return: (status, stdout, stderr)
     """
     # We'll run the b2 command-line by running the b2 module from
@@ -300,8 +296,8 @@ def run_command(
     environ['PYTHONPATH'] = '.'
     environ['PYTHONIOENCODING'] = 'utf-8'
     command = cmd.split(' ')
-    args: List[str] = [str(arg) for arg in args] if args is not None else []
-    command.extend(args)
+    args = [str(arg) for arg in args]
+    command.extend(args or [])
 
     print('Running:', ' '.join(command))
 
@@ -316,13 +312,9 @@ def run_command(
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        pass_fds=[int(arg.removeprefix(FD_PREFIX)) for arg in args if arg.startswith(FD_PREFIX)],
         close_fds=platform.system() != 'Windows',
         env=env,
     )
-    assert p.stdin is not None
-    if stdin_data is not None:
-        p.stdin.write(stdin_data)
     p.stdin.close()
     reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
     reader1.start()
@@ -418,14 +410,13 @@ class CommandLine:
         args: Optional[List[str]],
         expected_pattern: Optional[str] = None,
         additional_env: Optional[dict] = None,
-        stdin_data: Optional[bytes] = None,
     ) -> str:
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env, stdin_data)
+        status, stdout, stderr = run_command(self.command, args, additional_env)
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':

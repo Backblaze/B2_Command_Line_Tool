@@ -26,7 +26,7 @@ from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, U
 
 from b2.console_tool import current_time_millis
 
-from .helpers import BUCKET_CREATED_AT_MILLIS, FD_PREFIX, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, skip_on_windows, write_file
+from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, write_file
 
 
 def get_bucketinfo() -> Tuple[str, str]:
@@ -51,14 +51,12 @@ def test_download(b2_tool, bucket_name):
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
 
 
-def run_basic_tests(
-    b2_tool,
-    bucket_name,
-    file_to_specify: str,
-    file_data: bytes,
-    file_mod_time_str: Optional[str] = None,
-    stdin_data: Optional[bytes] = None
-):
+def test_basic(b2_tool, bucket_name):
+
+    file_to_upload = 'README.md'
+    file_mod_time_str = str(file_mod_time_millis(file_to_upload))
+
+    file_data = read_file(file_to_upload)
     hex_sha1 = hashlib.sha1(file_data).hexdigest()
 
     list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
@@ -67,47 +65,33 @@ def run_basic_tests(
     )
 
     b2_tool.should_succeed(
-        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_specify, 'a'],
-        stdin_data=stdin_data
+        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
     )
     b2_tool.should_succeed(['ls', '--long', '--replication', bucket_name])
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_specify, 'a'], stdin_data=stdin_data
-    )
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_specify, 'b/1'], stdin_data=stdin_data
-    )
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_specify, 'b/2'], stdin_data=stdin_data
-    )
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
     b2_tool.should_succeed(
         [
             'upload-file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info',
-            'color=blue', bucket_name, file_to_specify, 'c'
+            'color=blue', bucket_name, file_to_upload, 'c'
         ]
     )
     b2_tool.should_fail(
         [
             'upload-file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo-bar', '--info',
-            'color=blue', bucket_name, file_to_specify, 'c'
-        ],
-        r'ERROR: Bad file info: foo-bar',
-        stdin_data=stdin_data
+            'color=blue', bucket_name, file_to_upload, 'c'
+        ], r'ERROR: Bad file info: foo-bar'
     )
     b2_tool.should_succeed(
         [
             'upload-file', '--noProgress', '--contentType', 'text/plain', bucket_name,
-            file_to_specify, 'd'
-        ],
-        stdin_data=stdin_data
+            file_to_upload, 'd'
+        ]
     )
 
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_specify, 'rm'], stdin_data=stdin_data
-    )
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, file_to_specify, 'rm1'], stdin_data=stdin_data
-    )
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm1'])
     # with_wildcard allows us to target a single file. rm will be removed, rm1 will be left alone
     b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm'])
     list_of_files = b2_tool.should_succeed_json(
@@ -180,8 +164,11 @@ def run_basic_tests(
     b2_tool.should_succeed(['make-url', second_c_version['fileId']])
 
     b2_tool.should_succeed(
-        ['make-friendly-url', bucket_name, 'some-file-name'],
-        '^https://.*/file/%s/some-file-name\r?$' % (bucket_name,),
+        ['make-friendly-url', bucket_name, file_to_upload],
+        '^https://.*/file/%s/%s\r?$' % (
+            bucket_name,
+            file_to_upload,
+        ),
     )  # \r? is for Windows, as $ doesn't match \r\n
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
@@ -230,47 +217,6 @@ def run_basic_tests(
     with open('b2_cli.log', 'r') as logfile:
         log = logfile.read()
         assert re.search(log_file_regex, log), log
-
-
-def test_basic_with_upload_from_file(b2_tool, bucket_name):
-    file_to_upload = 'README.md'
-    file_mod_time_str = str(file_mod_time_millis(file_to_upload))
-    file_data = read_file(file_to_upload)
-    run_basic_tests(
-        b2_tool,
-        bucket_name,
-        file_to_specify=file_to_upload,
-        file_data=file_data,
-        file_mod_time_str=file_mod_time_str
-    )
-
-
-def test_upload_from_stdin(b2_tool, bucket_name):
-    file_to_upload = 'README.md'
-    file_data = read_file(file_to_upload)
-    run_basic_tests(
-        b2_tool, bucket_name, file_to_specify="-", file_data=file_data, stdin_data=file_data
-    )
-
-
-@skip_on_windows
-def test_upload_from_pipe_as_file(b2_tool, bucket_name):
-    file_to_upload = 'README.md'
-    file_data = read_file(file_to_upload)
-    fd_read, fd_write = os.pipe()
-    with open(fd_write, mode='wb') as f:
-        f.write(file_data)
-    try:
-        b2_tool.should_succeed(
-            ['upload-file', '--noProgress', '--quiet', bucket_name, f"{FD_PREFIX}{fd_read}", 'a']
-        )
-    finally:
-        os.close(fd_read)
-    # file_id, action, date, time, size(, replication), name
-    b2_tool.should_succeed(
-        ['ls', '--long', bucket_name],
-        '^4_z.* upload .* {1}  a{0}'.format(os.linesep, len(file_data))
-    )
 
 
 def test_bucket(b2_tool, bucket_name):
