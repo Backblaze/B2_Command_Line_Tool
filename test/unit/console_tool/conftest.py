@@ -52,4 +52,3 @@ def mock_stdin(monkeypatch):
     in_f = open(in_, 'w')
     yield in_f
     in_f.close()
-    os.close(out_)

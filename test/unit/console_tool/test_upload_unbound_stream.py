@@ -8,9 +8,12 @@
 #
 ######################################################################
 import os
+
+from test.helpers import skip_on_windows
 from test.unit.helpers import run_in_background
 
 
+@skip_on_windows
 def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir):
     """Test upload_unbound_stream supports named pipes"""
     filename = 'named_pipe.txt'

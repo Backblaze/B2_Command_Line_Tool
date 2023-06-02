@@ -29,7 +29,6 @@ from tempfile import gettempdir, mkdtemp
 from typing import List, Optional, Union
 
 import backoff
-import pytest
 
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
 from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
@@ -516,10 +515,3 @@ def set_file_mod_time_millis(path: Union[str, Path], time):
 
 def random_hex(length):
     return ''.join(random.choice('0123456789abcdef') for _ in range(length))
-
-
-def skip_on_windows(*args, reason='Not supported on Windows', **kwargs):
-    return pytest.mark.skipif(
-        platform.system() == 'Windows',
-        reason=reason,
-    )(*args, **kwargs)

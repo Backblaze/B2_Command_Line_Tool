@@ -10,6 +10,7 @@
 import os
 
 import b2
+from test.helpers import skip_on_windows
 from test.unit.helpers import run_in_background
 
 
@@ -39,6 +40,7 @@ def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir)
     )
 
 
+@skip_on_windows
 def test_upload_file__named_pipe(b2_cli, bucket, tmpdir):
     """Test upload_file supports named pipes"""
     filename = 'named_pipe.txt'

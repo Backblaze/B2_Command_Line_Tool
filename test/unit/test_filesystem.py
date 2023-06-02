@@ -10,6 +10,7 @@
 import os
 
 from b2._filesystem import points_to_fifo
+from test.helpers import skip_on_windows
 
 
 def test_points_to_fifo__doesnt_exist(tmpdir):
@@ -18,6 +19,7 @@ def test_points_to_fifo__doesnt_exist(tmpdir):
     assert not points_to_fifo(str(non_existent))
 
 
+@skip_on_windows
 def test_points_to_fifo__named_pipe(tmpdir):
     named_pipe = tmpdir.join('fifo')
     os.mkfifo(str(named_pipe))
