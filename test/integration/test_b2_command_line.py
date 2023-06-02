@@ -16,6 +16,7 @@ import json
 import os
 import os.path
 import re
+import subprocess
 import sys
 
 from pathlib import Path
@@ -26,7 +27,7 @@ from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, U
 
 from b2.console_tool import current_time_millis
 
-from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, write_file
+from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, skip_on_windows, write_file
 
 
 def get_bucketinfo() -> Tuple[str, str]:
@@ -2547,3 +2548,23 @@ def test_cut(b2_tool, bucket_name):
                 len(file_data),
             )
         )
+
+
+@skip_on_windows
+def test_upload_file__stdin_pipe_operator(bash_runner, b2_tool, bucket_name, request):
+    """Test upload-file from stdin using pipe operator."""
+    content = request.node.name
+    run = bash_runner(
+        f'echo -n {content!r} | b2 upload-file {bucket_name} - {request.node.name}.txt'
+    )
+    assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
+
+
+@skip_on_windows
+def test_upload_unbound_stream__redirect_operator(bash_runner, b2_tool, bucket_name, request):
+    """Test upload-unbound-stream from stdin using redirect operator."""
+    content = request.node.name
+    run = bash_runner(
+        f'b2 upload-unbound-stream {bucket_name} <(echo -n {content}) {request.node.name}.txt'
+    )
+    assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
