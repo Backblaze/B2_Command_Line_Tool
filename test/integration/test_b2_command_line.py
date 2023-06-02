@@ -1944,7 +1944,7 @@ def file_lock_without_perms_test(
 
 def test_profile_switch(b2_tool):
     # this test could be unit, but it adds a lot of complexity because of
-    # necessarity to pass mocked B2Api to ConsoleTool; it's much easier to
+    # necessity to pass mocked B2Api to ConsoleTool; it's much easier to
     # just have an integration test instead
 
     MISSING_ACCOUNT_PATTERN = 'Missing account data'

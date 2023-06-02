@@ -14,7 +14,7 @@ from test.unit.helpers import run_in_background
 
 
 def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir):
-    """Test upload_file supports manually specifing file info src_last_modified_millis"""
+    """Test upload_file supports manually specifying file info src_last_modified_millis"""
     filename = 'file1.txt'
     content = 'hello world'
     local_file1 = tmpdir.join('file1.txt')
