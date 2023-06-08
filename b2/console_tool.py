@@ -512,6 +512,20 @@ class UploadModeMixin(Described):
         return UploadMode.FULL
 
 
+class ProgressMixin(Described):
+    """
+    If the ``tqdm`` library is installed, progress bar is displayed
+    on stderr.  Without it, simple text progress is printed.
+    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--noProgress', action='store_true', help="progress will not be reported"
+        )
+
+
 class Command(Described):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
@@ -1271,16 +1285,13 @@ class DownloadCommand(Command):
 
 @B2.register_subcommand
 class DownloadFileById(
-    SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, MaxDownloadStreamsMixin,
-    DownloadCommand
+    ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin, DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.
 
-    If the ``tqdm`` library is installed, progress bar is displayed
-    on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
-
+    {PROGRESSMIXIN}
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
@@ -1293,7 +1304,6 @@ class DownloadFileById(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
@@ -1317,6 +1327,7 @@ class DownloadFileById(
 
 @B2.register_subcommand
 class DownloadFileByName(
+    ProgressMixin,
     SourceSseMixin,
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
@@ -1326,10 +1337,7 @@ class DownloadFileByName(
     """
     Downloads the given file, and stores it in the given local file.
 
-    If the ``tqdm`` library is installed, progress bar is displayed
-    on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
-
+    {PROGRESSMIXIN}
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
@@ -1342,7 +1350,6 @@ class DownloadFileByName(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('b2FileName').completer = file_name_completer
@@ -2597,12 +2604,22 @@ class UpdateBucket(DefaultSseMixin, Command):
         return 0
 
 
-class UploadFileMixin(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin):
+class UploadFileMixin(
+    ProgressMixin, DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin
+):
+    """
+    Content type is optional.
+    If not set, it will be guessed.
+
+    The maximum number of upload threads to use to upload parts of a large file is specified by ``--threads``.
+    It has no effect on "small" files (under 200MB as of writing this).
+    Default is 10.
+
+    Each fileInfo is of the form ``a=b``.
+    """
+
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--noProgress', action='store_true', help="progress will not be reported"
-        )
         parser.add_argument(
             '--quiet', action='store_true', help="prevents printing any information to stdout"
         )
@@ -2712,25 +2729,13 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
     to be uploaded.  But, if you already have it, you can provide it
     on the command line to save a little time.
 
-    Content type is optional.  If not set, it will be set based on the
-    file extension.
-
     By default, the file is broken into as many parts as possible to
     maximize upload parallelism and increase speed.  The minimum that
     B2 allows is 100MB.  Setting ``--minPartSize`` to a larger value will
     reduce the number of parts uploaded when uploading a large file.
 
-    The maximum number of upload threads to use to upload parts of a large file
-    is specified by ``--threads``.
-    It has no effect on "small" files (under 200MB as of writing this).
-    Default is 10.
-
-    If the ``tqdm`` library is installed, progress bar is displayed
-    on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
-
-    Each fileInfo is of the form ``a=b``.
-
+    {UPLOADFILEMIXIN}
+    {PROGRESSMIXIN}
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
@@ -2793,12 +2798,8 @@ class UploadUnboundStream(UploadFileMixin, Command):
 
     Uploads the contents of the unbound stream such as stdin or named pipe,
     and assigns the given name to the resulting B2 file.
-    Allows for setting options like server-side encryption and retention.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
-
-    Content type is optional.
-    If not set, it will be set based on the file extension.
 
     Unbound stream is uploaded by part by part.
     The minimum part size allowed by B2 is 100MB.
@@ -2808,16 +2809,8 @@ class UploadUnboundStream(UploadFileMixin, Command):
     This may be useful if you are uploading from a slow source and want to reduce the number of read operations
     at the cost of using more memory.
 
-    The maximum number of upload threads to use to upload parts of a large file is specified by ``--threads``.
-    It has no effect on "small" files (under 200MB as of writing this).
-    Default is 10.
-
-    If the ``tqdm`` library is installed, progress bar is displayed
-    on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
-
-    Each fileInfo is of the form ``a=b``.
-
+    {UPLOADFILEMIXIN}
+    {PROGRESSMIXIN}
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
