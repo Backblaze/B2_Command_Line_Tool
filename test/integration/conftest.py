@@ -185,7 +185,7 @@ def b2_in_path(tmp_path_factory):
             "main()\n"
         )
 
-    temp_executable.chmod(0o755)
+    temp_executable.chmod(0o700)
 
     original_path = os.environ["PATH"]
     new_path = f"{tempdir}:{original_path}"
