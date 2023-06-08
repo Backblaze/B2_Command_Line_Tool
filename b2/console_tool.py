@@ -504,6 +504,7 @@ class UploadModeMixin(Described):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--incrementalMode', action='store_true')
+        super()._setup_parser(parser)  # noqa
 
     @staticmethod
     def _get_upload_mode_from_args(args):
@@ -524,6 +525,7 @@ class ProgressMixin(Described):
         parser.add_argument(
             '--noProgress', action='store_true', help="progress will not be reported"
         )
+        super()._setup_parser(parser)  # noqa
 
 
 class Command(Described):
