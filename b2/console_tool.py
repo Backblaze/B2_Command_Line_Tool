@@ -2597,10 +2597,107 @@ class UpdateBucket(DefaultSseMixin, Command):
         return 0
 
 
+class UploadFileMixin(DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin):
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--noProgress', action='store_true', help="progress will not be reported"
+        )
+        parser.add_argument(
+            '--quiet', action='store_true', help="prevents printing any information to stdout"
+        )
+        parser.add_argument(
+            '--contentType',
+            help="MIME type of the file being uploaded. If not set it will be guessed."
+        )
+        parser.add_argument(
+            '--minPartSize', type=int, help="minimum size of a part for multipart uploads"
+        )
+        parser.add_argument(
+            '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
+        )
+        parser.add_argument(
+            '--threads', type=int, default=10, help="number of threads used for the operation"
+        )
+        parser.add_argument(
+            '--info',
+            action='append',
+            default=[],
+            help=
+            "additional file info to be stored with the file. Can be used multiple times for different information."
+        )
+        parser.add_argument(
+            '--custom-upload-timestamp',
+            type=int,
+            help="overrides object creation date. Expressed as a number of milliseconds since epoch."
+        )
+        parser.add_argument(
+            'bucketName', help="name of the bucket where the file will be stored"
+        ).completer = bucket_name_completer
+        parser.add_argument('localFilePath', help="path of the local file or stream to be uploaded")
+        parser.add_argument('b2FileName', help="name file will be given when stored in B2")
+
+        super()._setup_parser(parser)  # add parameters from the mixins
+
+    def run(self, args):
+
+        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
+        #        There is `max_upload_workers` param in B2Api constructor for this.
+        self.api.services.upload_manager.set_thread_pool_size(args.threads)
+
+        upload_kwargs = self.get_execute_kwargs(args)
+        file_info = self.execute_operation(**upload_kwargs)
+        if not args.quiet:
+            bucket = upload_kwargs["bucket"]
+            self._print("URL by file name: " + bucket.get_download_url(file_info.file_name))
+            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
+        self._print_json(file_info)
+        return 0
+
+    def get_execute_kwargs(self, args) -> dict:
+        file_infos = self._parse_file_infos(args.info)
+
+        if SRC_LAST_MODIFIED_MILLIS not in file_infos and os.path.exists(args.localFilePath):
+            try:
+                mtime = os.path.getmtime(args.localFilePath)
+            except OSError:
+                if not points_to_fifo(pathlib.Path(args.localFilePath)):
+                    self._print_stderr(
+                        "WARNING: Unable to determine file modification timestamp. "
+                        f"{SRC_LAST_MODIFIED_MILLIS!r} file info won't be set."
+                    )
+            else:
+                file_infos[SRC_LAST_MODIFIED_MILLIS] = str(int(mtime * 1000))
+
+        return {
+            "bucket": self.api.get_bucket_by_name(args.bucketName),
+            "content_type": args.contentType,
+            "custom_upload_timestamp": args.custom_upload_timestamp,
+            "encryption": self._get_destination_sse_setting(args),
+            "file_infos": file_infos,
+            "file_name": args.b2FileName,
+            "file_retention": self._get_file_retention_setting(args),
+            "legal_hold": self._get_legal_hold_setting(args),
+            "local_file": args.localFilePath,
+            "min_part_size": args.minPartSize,
+            "progress_listener": make_progress_listener(args.localFilePath, args.noProgress),
+            "sha1_sum": args.sha1,
+        }
+
+    def execute_operation(self, **kwargs) -> 'b2sdk.file_version.FileVersion':
+        raise NotImplementedError
+
+    def upload_file_kwargs_to_unbound_upload(self, **kwargs):
+        """
+        Workaround for inconsistent naming in SDK
+        """
+        kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
+        kwargs["file_info"] = kwargs.pop("file_infos", None)  # inconsistency in SDK
+        return kwargs
+
+
 @B2.register_subcommand
-class UploadFile(
-    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
-):
+class UploadFile(UploadFileMixin, UploadModeMixin, Command):
     """
     Uploads one file to the given bucket.
 
@@ -2650,43 +2747,14 @@ class UploadFile(
     - **writeFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('--noProgress', action='store_true')
-        parser.add_argument('--quiet', action='store_true')
-        parser.add_argument('--contentType')
-        parser.add_argument('--minPartSize', type=int)
-        parser.add_argument('--sha1')
-        parser.add_argument('--threads', type=int, default=10)
-        parser.add_argument('--info', action='append', default=[])
-        parser.add_argument('--custom-upload-timestamp', type=int)
-        parser.add_argument('--stdinAlias', action="store_true")
-        parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('localFilePath')
-        parser.add_argument('b2FileName')
+    def get_execute_kwargs(self, args) -> dict:
+        kwargs = super().get_execute_kwargs(args)
+        kwargs["upload_mode"] = self._get_upload_mode_from_args(args)
+        return kwargs
 
-        super()._setup_parser(parser)  # add parameters from the mixins
-
-    def run(self, args):
-        file_infos = self._parse_file_infos(args.info)
-
-        if SRC_LAST_MODIFIED_MILLIS not in file_infos and os.path.exists(args.localFilePath):
-            file_infos[SRC_LAST_MODIFIED_MILLIS] = str(
-                int(os.path.getmtime(args.localFilePath) * 1000)
-            )
-
-        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
-        #        There is `max_upload_workers` param in B2Api constructor for this.
-        self.api.services.upload_manager.set_thread_pool_size(args.threads)
-
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        encryption_setting = self._get_destination_sse_setting(args)
-        legal_hold = self._get_legal_hold_setting(args)
-        file_retention = self._get_file_retention_setting(args)
-        progress_listener = make_progress_listener(args.localFilePath, args.noProgress)
-
+    def execute_operation(self, local_file, bucket, **kwargs):
         input_stream = None
-        if args.localFilePath == "-":
+        if local_file == "-":
             if os.path.exists('-'):
                 self._print_stderr(
                     "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
@@ -2694,8 +2762,8 @@ class UploadFile(
             else:
                 input_stream = sys.stdin.buffer if platform.system(
                 ) == "Windows" else sys.stdin.fileno()
-        elif points_to_fifo(pathlib.Path(args.localFilePath)):
-            input_stream = args.localFilePath
+        elif points_to_fifo(pathlib.Path(local_file)):
+            input_stream = local_file
 
         if input_stream is not None:
             if isinstance(input_stream, (str, int)):
@@ -2706,46 +2774,20 @@ class UploadFile(
                     buffering=RECOMMENDED_READ_BUF_SIZE,
                 )
 
-            with input_stream:
-                file_info = bucket.upload_unbound_stream(
-                    read_only_object=input_stream,
-                    file_name=args.b2FileName,
-                    content_type=args.contentType,
-                    file_info=file_infos,
-                    progress_listener=progress_listener,
-                    encryption=encryption_setting,
-                    file_retention=file_retention,
-                    legal_hold=legal_hold,
-                    min_part_size=args.minPartSize,
-                    large_file_sha1=args.sha1,
-                    custom_upload_timestamp=args.custom_upload_timestamp,
+            if kwargs.pop("upload_mode", None) != UploadMode.FULL:
+                self._print_stderr(
+                    "WARNING: Ignoring upload mode setting as we are uploading a stream."
                 )
+            kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
+            with input_stream:
+                file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
         else:
-            file_info = bucket.upload_local_file(
-                local_file=args.localFilePath,
-                file_name=args.b2FileName,
-                content_type=args.contentType,
-                file_infos=file_infos,
-                sha1_sum=args.sha1,
-                min_part_size=args.minPartSize,
-                progress_listener=progress_listener,
-                encryption=encryption_setting,
-                file_retention=file_retention,
-                legal_hold=legal_hold,
-                upload_mode=self._get_upload_mode_from_args(args),
-                custom_upload_timestamp=args.custom_upload_timestamp,
-            )
-        if not args.quiet:
-            self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
-            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
-        self._print_json(file_info)
-        return 0
+            file_version = bucket.upload_local_file(local_file=local_file, **kwargs)
+        return file_version
 
 
 @B2.register_subcommand
-class UploadUnboundStream(
-    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
-):
+class UploadUnboundStream(UploadFileMixin, Command):
     """
     Uploads an unbound stream to the given bucket.
 
@@ -2779,7 +2821,6 @@ class UploadUnboundStream(
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
-    {UPLOADMODEMIXIN}
 
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
@@ -2794,37 +2835,6 @@ class UploadUnboundStream(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--noProgress', action='store_true', help="progress will not be reported"
-        )
-        parser.add_argument(
-            '--quiet', action='store_true', help="prevents printing any information to stdout"
-        )
-        parser.add_argument(
-            '--contentType',
-            help="MIME type of the file being uploaded. If not set it will be guessed."
-        )
-        parser.add_argument(
-            '--minPartSize', type=int, help="minimum size of a part for multipart uploads"
-        )
-        parser.add_argument(
-            '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
-        )
-        parser.add_argument(
-            '--threads', type=int, default=10, help="number of threads used for the operation"
-        )
-        parser.add_argument(
-            '--info',
-            action='append',
-            default=[],
-            help=
-            "additional file info to be stored with the file. Can be used multiple times for different information."
-        )
-        parser.add_argument(
-            '--custom-upload-timestamp',
-            type=int,
-            help="overrides object creation date. Expressed as a number of milliseconds since epoch."
-        )
         parser.add_argument(
             '--buffersCount',
             type=int,
@@ -2850,28 +2860,20 @@ class UploadUnboundStream(
             default=3600.0,
             help="amount of time that a buffer can be idle before an error is returned"
         )
-        parser.add_argument(
-            'bucketName', help="name of the bucket where the file will be stored"
-        ).completer = bucket_name_completer
-        parser.add_argument('localFilePath', help="path of the local file or stream to be uploaded")
-        parser.add_argument('b2FileName', help="name file will be given when stored in B2")
+        super()._setup_parser(parser)
 
-        super()._setup_parser(parser)  # add parameters from the mixins
+    def get_execute_kwargs(self, args) -> dict:
+        kwargs = super().get_execute_kwargs(args)
+        kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
+        kwargs["buffer_size"] = args.bufferSize
+        kwargs["buffers_count"] = args.buffersCount
+        kwargs["read_buffer_size"] = args.readBufferSize
+        kwargs["read_size"] = args.readSize
+        kwargs["unused_buffer_timeout_seconds"] = args.unusedBufferTimeoutSeconds
+        return kwargs
 
-    def run(self, args):
-        file_infos = self._parse_file_infos(args.info)
-
-        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
-        #        There is `max_upload_workers` param in B2Api constructor for this.
-        self.api.services.upload_manager.set_thread_pool_size(args.threads)
-
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        encryption_setting = self._get_destination_sse_setting(args)
-        legal_hold = self._get_legal_hold_setting(args)
-        file_retention = self._get_file_retention_setting(args)
-        progress_listener = make_progress_listener(args.localFilePath, args.noProgress)
-
-        input_stream = args.localFilePath
+    def execute_operation(self, local_file, bucket, read_buffer_size, **kwargs):
+        input_stream = local_file
         if input_stream == "-":
             if os.path.exists('-'):
                 self._print_stderr(
@@ -2885,33 +2887,13 @@ class UploadUnboundStream(
             input_stream = open(
                 input_stream,
                 mode="rb",
-                buffering=args.readBufferSize,
+                buffering=read_buffer_size,
                 closefd=not isinstance(input_stream, int)
             )
 
         with input_stream:
-            file_info = bucket.upload_unbound_stream(
-                read_only_object=input_stream,
-                file_name=args.b2FileName,
-                content_type=args.contentType,
-                file_info=file_infos,
-                progress_listener=progress_listener,
-                encryption=encryption_setting,
-                file_retention=file_retention,
-                legal_hold=legal_hold,
-                min_part_size=args.minPartSize,
-                large_file_sha1=args.sha1,
-                custom_upload_timestamp=args.custom_upload_timestamp,
-                buffer_size=args.bufferSize,
-                buffers_count=args.buffersCount,
-                read_size=args.readSize,
-                unused_buffer_timeout_seconds=args.unusedBufferTimeoutSeconds,
-            )
-        if not args.quiet:
-            self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
-            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
-        self._print_json(file_info)
-        return 0
+            file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
+        return file_version
 
 
 @B2.register_subcommand
