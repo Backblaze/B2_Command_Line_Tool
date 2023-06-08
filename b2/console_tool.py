@@ -2873,8 +2873,13 @@ class UploadUnboundStream(
 
         input_stream = args.localFilePath
         if input_stream == "-":
-            input_stream = sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno(
-            )
+            if os.path.exists('-'):
+                self._print_stderr(
+                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
+                )
+            else:
+                input_stream = sys.stdin.buffer if platform.system(
+                ) == "Windows" else sys.stdin.fileno()
 
         if isinstance(input_stream, (str, int)):
             input_stream = open(
