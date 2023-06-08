@@ -2607,7 +2607,7 @@ class UploadFile(
     Uploads the contents of the local file, and assigns the given name to the B2 file,
     possibly setting options like server-side encryption and retention.
 
-    Instead of normal file a FIFO file (such as named pipe) can be given.
+    A FIFO file (such as named pipe) can be given instead of regular file.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
@@ -2624,7 +2624,8 @@ class UploadFile(
     reduce the number of parts uploaded when uploading a large file.
 
     The maximum number of upload threads to use to upload parts of a large file
-    is specified by ``--threads``.  It has no effect on small files (under 200MB).
+    is specified by ``--threads``.
+    It has no effect on "small" files (under 200MB as of writing this).
     Default is 10.
 
     If the ``tqdm`` library is installed, progress bar is displayed
@@ -2766,7 +2767,7 @@ class UploadUnboundStream(
     at the cost of using more memory.
 
     The maximum number of upload threads to use to upload parts of a large file is specified by ``--threads``.
-    It has no effect on small files (under 200MB).
+    It has no effect on "small" files (under 200MB as of writing this).
     Default is 10.
 
     If the ``tqdm`` library is installed, progress bar is displayed
