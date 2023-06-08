@@ -295,8 +295,8 @@ def run_command(
     environ['PYTHONPATH'] = '.'
     environ['PYTHONIOENCODING'] = 'utf-8'
     command = cmd.split(' ')
-    args = [str(arg) for arg in args]
-    command.extend(args or [])
+    args: List[str] = [str(arg) for arg in args] if args else []
+    command.extend(args)
 
     print('Running:', ' '.join(command))
 
