@@ -46,7 +46,7 @@ from typing import Optional, Tuple, List, Any, Dict
 from enum import Enum
 
 import b2sdk
-from b2._filesystem import points_to_fifo
+from b2._utils.filesystem import RECOMMENDED_READ_BUF_SIZE, points_to_fifo
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -1279,7 +1279,7 @@ class DownloadFileById(
 
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
 
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
@@ -1303,7 +1303,7 @@ class DownloadFileById(
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
         if args.threads:
-            # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+            # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
             #        There is `max_download_workers` param in B2Api constructor for this.
             self.api.services.download_manager.set_thread_pool_size(args.threads)
         downloaded_file = self.api.download_file_by_id(
@@ -1328,7 +1328,7 @@ class DownloadFileByName(
 
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
 
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
@@ -1351,7 +1351,7 @@ class DownloadFileByName(
 
     def run(self, args):
         if args.threads:
-            # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+            # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
             #        There is `max_download_workers` param in B2Api constructor for this.
             self.api.services.download_manager.set_thread_pool_size(args.threads)
         bucket = self.api.get_bucket_by_name(args.bucketName)
@@ -2373,7 +2373,7 @@ class Sync(
             upload_threads = args.uploadThreads
             download_threads = args.downloadThreads
 
-        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
         #        There are `max_X_workers` params in B2Api constructor for this.
         self.api.services.upload_manager.set_thread_pool_size(upload_threads)
         self.api.services.download_manager.set_thread_pool_size(download_threads)
@@ -2629,7 +2629,7 @@ class UploadFile(
 
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
 
     Each fileInfo is of the form ``a=b``.
 
@@ -2674,7 +2674,7 @@ class UploadFile(
                 int(os.path.getmtime(args.localFilePath) * 1000)
             )
 
-        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
         #        There is `max_upload_workers` param in B2Api constructor for this.
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
@@ -2693,13 +2693,16 @@ class UploadFile(
             else:
                 input_stream = sys.stdin.buffer if platform.system(
                 ) == "Windows" else sys.stdin.fileno()
-        elif points_to_fifo(args.localFilePath):
+        elif points_to_fifo(pathlib.Path(args.localFilePath)):
             input_stream = args.localFilePath
 
         if input_stream is not None:
             if isinstance(input_stream, (str, int)):
                 input_stream = open(
-                    input_stream, mode="rb", closefd=not isinstance(input_stream, int)
+                    input_stream,
+                    mode="rb",
+                    closefd=not isinstance(input_stream, int),
+                    buffering=RECOMMENDED_READ_BUF_SIZE,
                 )
 
             with input_stream:
@@ -2768,7 +2771,7 @@ class UploadUnboundStream(
 
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting.
+    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
 
     Each fileInfo is of the form ``a=b``.
 
@@ -2790,29 +2793,74 @@ class UploadUnboundStream(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--noProgress', action='store_true')
-        parser.add_argument('--quiet', action='store_true')
-        parser.add_argument('--contentType')
-        parser.add_argument('--minPartSize', type=int)
-        parser.add_argument('--sha1')
-        parser.add_argument('--threads', type=int, default=10)
-        parser.add_argument('--info', action='append', default=[])
-        parser.add_argument('--custom-upload-timestamp', type=int)
-        parser.add_argument('--buffersCount', type=int, default=2)
-        parser.add_argument('--bufferSize', type=int)
-        parser.add_argument('--readBufferSize', type=int, default=2 * 1024 * 1024)
-        parser.add_argument('--readSize', type=int, default=8192)
-        parser.add_argument('--unusedBufferTimeoutSeconds', type=float, default=3600.0)
-        parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('localFilePath')
-        parser.add_argument('b2FileName')
+        parser.add_argument(
+            '--noProgress', action='store_true', help="progress will not be reported"
+        )
+        parser.add_argument(
+            '--quiet', action='store_true', help="prevents printing any information to stdout"
+        )
+        parser.add_argument(
+            '--contentType',
+            help="MIME type of the file being uploaded. If not set it will be guessed."
+        )
+        parser.add_argument(
+            '--minPartSize', type=int, help="minimum size of a part for multipart uploads"
+        )
+        parser.add_argument(
+            '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
+        )
+        parser.add_argument(
+            '--threads', type=int, default=10, help="number of threads used for the operation"
+        )
+        parser.add_argument(
+            '--info',
+            action='append',
+            default=[],
+            help=
+            "additional file info to be stored with the file. Can be used multiple times for different information."
+        )
+        parser.add_argument(
+            '--custom-upload-timestamp',
+            type=int,
+            help="overrides object creation date. Expressed as a number of milliseconds since epoch."
+        )
+        parser.add_argument(
+            '--buffersCount',
+            type=int,
+            default=2,
+            help="number of buffers allocated for the operation. Cannot be less than 2."
+        )
+        parser.add_argument('--bufferSize', type=int, help="size of a single buffer for data")
+        parser.add_argument(
+            '--readBufferSize',
+            type=int,
+            default=RECOMMENDED_READ_BUF_SIZE,
+            help="size of a single read buffer for data"
+        )
+        parser.add_argument(
+            '--readSize',
+            type=int,
+            default=RECOMMENDED_READ_BUF_SIZE,
+            help="size of a single read operation performed on the input file"
+        )
+        parser.add_argument(
+            '--unusedBufferTimeoutSeconds',
+            type=float,
+            default=3600.0,
+            help="amount of time that a buffer can be idle before an error is returned"
+        )
+        parser.add_argument(
+            'bucketName', help="name of the bucket where the file will be stored"
+        ).completer = bucket_name_completer
+        parser.add_argument('localFilePath', help="path of the local file or stream to be uploaded")
+        parser.add_argument('b2FileName', help="name file will be given when stored in B2")
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
         file_infos = self._parse_file_infos(args.info)
 
-        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
         #        There is `max_upload_workers` param in B2Api constructor for this.
         self.api.services.upload_manager.set_thread_pool_size(args.threads)
 
@@ -2828,11 +2876,10 @@ class UploadUnboundStream(
             )
 
         if isinstance(input_stream, (str, int)):
-            fs_buffer_size = args.readBufferSize or args.readSize
             input_stream = open(
                 input_stream,
                 mode="rb",
-                buffering=fs_buffer_size,
+                buffering=args.readBufferSize,
                 closefd=not isinstance(input_stream, int)
             )
 
