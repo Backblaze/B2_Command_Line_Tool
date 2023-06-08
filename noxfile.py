@@ -60,7 +60,7 @@ REQUIREMENTS_TEST = [
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
-    'pyinstaller==5.11.0',
+    'pyinstaller==5.12.0',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
     "staticx==0.13.9;platform_system=='Linux'",
 ]
