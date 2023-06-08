@@ -62,3 +62,27 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
     )
+
+
+def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):
+    """Test upload_unbound_stream regular file support"""
+    content = "stdin input"
+    filename = 'file.txt'
+    filepath = tmpdir.join(filename)
+    filepath.write(content)
+
+    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_json = {
+        "action": "upload",
+        "contentSha1": "2ce72aa159d1f190fddf295cc883f20c4787a751",
+        "fileName": filename,
+        "size": len(content),
+    }
+
+    b2_cli.run(
+        ['upload-unbound-stream', '--noProgress', 'my-bucket',
+         str(filepath), filename],
+        expected_json_in_stdout=expected_json,
+        remove_version=True,
+        expected_part_of_stdout=expected_stdout,
+    )
