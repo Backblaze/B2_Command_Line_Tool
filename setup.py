@@ -14,12 +14,10 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-import platform
 import sys
 
 # To use a consistent encoding
 from codecs import open
-from importlib import import_module
 
 # Always prefer setuptools over distutils
 from setuptools import __version__ as setuptoolsversion

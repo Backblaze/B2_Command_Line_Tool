@@ -18,7 +18,6 @@ from io import StringIO
 from typing import Optional, List
 from itertools import product, chain
 
-from b2sdk.exception import B2Error
 from more_itertools import one
 
 from b2sdk import v1
@@ -2023,7 +2022,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         with TempDir() as temp_dir:
-            local_file = self._make_local_file(temp_dir, 'file.txt')
+            self._make_local_file(temp_dir, 'file.txt')
             command = ['sync', '--noProgress']
             if threads is not None:
                 command += ['--threads', str(threads)]

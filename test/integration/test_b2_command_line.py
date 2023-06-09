@@ -2309,7 +2309,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     uploaded_a = b2_tool.should_succeed_json(
         ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'CHANGELOG.md', 'one/a']
     )
-    uploaded_b = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         [
             'upload-file',
             '--noProgress',
@@ -2326,7 +2326,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     # SSE-B2
     upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-B2']
     upload_additional_env = {}
-    uploaded_c = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/c'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
@@ -2338,14 +2338,14 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(SSE_C_AES.key.secret).decode(),
         'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
     }
-    uploaded_d = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/d'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
     )
 
     # encryption + legal hold
-    uploaded_e = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         [
             'upload-file',
             '--noProgress',
