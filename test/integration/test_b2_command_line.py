@@ -867,9 +867,9 @@ def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
     run_sync_copy_with_basic_checks(
         b2_tool=b2_tool,
         b2_file_prefix='first_folder/',
-        b2_sync_point='b2:{}/{}'.format(bucket_name, 'first_folder'),
+        b2_sync_point=f'b2:{bucket_name}/first_folder',
         bucket_name=bucket_name,
-        other_b2_sync_point='b2:{}/{}'.format(bucket_name, 'second_folder'),
+        other_b2_sync_point=f'b2:{bucket_name}/second_folder',
         destination_encryption=SSE_C_AES_2,
         source_encryption=SSE_C_AES,
     )

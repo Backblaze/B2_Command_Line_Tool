@@ -332,8 +332,8 @@ class DestinationSseMixin(Described):
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
                     self._print_stderr(
-                        'Encrypting file(s) with SSE-C without providing key id. Set {} to allow key '
-                        'identification'.format(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
+                        f'Encrypting file(s) with SSE-C without providing key id. '
+                        f'Set {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} to allow key identification.'
                     )
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
             else:

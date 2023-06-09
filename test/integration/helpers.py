@@ -479,9 +479,7 @@ class CommandLine:
             missing_capabilities = set(ALL_CAPABILITIES) - {
                 'readBuckets', 'listAllBucketNames'
             } - set(auth_dict['allowed']['capabilities'])
-            assert not missing_capabilities, 'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {}'.format(
-                missing_capabilities,
-            )
+            assert not missing_capabilities, f'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {missing_capabilities}'
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])

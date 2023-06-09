@@ -86,8 +86,7 @@ class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         self.print_help()
 
-        args = {'prog': self.prog, 'message': message}
-        self.exit(2, '\n{prog}: error: {message}\n'.format(**args))
+        self.exit(2, f'\n{self.prog}: error: {message}\n')
 
     @classmethod
     def _get_encoding(cls):
