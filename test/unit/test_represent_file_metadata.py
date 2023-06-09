@@ -9,13 +9,24 @@
 ######################################################################
 
 from io import StringIO
-from b2sdk.v2 import B2Api
-from b2sdk.v2 import B2HttpApiConfig
-from b2sdk.v2 import StubAccountInfo
+
+from b2sdk.v2 import (
+    SSE_B2_AES,
+    B2Api,
+    B2HttpApiConfig,
+    EncryptionAlgorithm,
+    EncryptionKey,
+    EncryptionMode,
+    EncryptionSetting,
+    FileRetentionSetting,
+    LegalHold,
+    RawSimulator,
+    RetentionMode,
+    StubAccountInfo,
+)
+
 from b2.console_tool import ConsoleTool, DownloadCommand
-from b2sdk.v2 import FileRetentionSetting, RetentionMode, LegalHold
-from b2sdk.v2 import EncryptionSetting, EncryptionMode, EncryptionKey, EncryptionAlgorithm, SSE_B2_AES
-from b2sdk.v2 import RawSimulator
+
 from .test_base import TestBase
 
 

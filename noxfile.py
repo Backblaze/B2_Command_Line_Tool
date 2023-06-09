@@ -15,7 +15,7 @@ import platform
 import string
 import subprocess
 from glob import glob
-from typing import Tuple, List
+from typing import List, Tuple
 
 import nox
 import pkg_resources
@@ -148,7 +148,7 @@ def lint(session):
     # Before checking licenses, create an updated requirements.txt file, which accepts any b2sdk version.  This way
     # the tool will still work if the SDK was installed from the master branch or a different directory.
     updated_requirements = os.path.join(session.create_tmp(), 'requirements.txt')
-    with open('requirements.txt', 'r') as orig_req_file, \
+    with open('requirements.txt') as orig_req_file, \
             open(updated_requirements, 'w') as updated_req_file:
         requirements = pkg_resources.parse_requirements(orig_req_file)
         for requirement in requirements:
@@ -203,8 +203,8 @@ def integration(session):
 def test(session):
     """Run all tests."""
     if session.python:
-        session.notify('unit-{}'.format(session.python))
-        session.notify('integration-{}'.format(session.python))
+        session.notify(f'unit-{session.python}')
+        session.notify(f'integration-{session.python}')
     else:
         session.notify('unit')
         session.notify('integration')
@@ -323,12 +323,12 @@ def sign(session):
     elif SYSTEM == 'linux':
         session.log('signing is not supported for Linux')
     else:
-        session.error('unrecognized platform: {}'.format(SYSTEM))
+        session.error(f'unrecognized platform: {SYSTEM}')
 
     # Append OS name to the binary
     asset_old_path = glob('dist/*')[0]
     name, ext = os.path.splitext(os.path.basename(asset_old_path))
-    asset_path = 'dist/{}-{}{}'.format(name, SYSTEM, ext)
+    asset_path = f'dist/{name}-{SYSTEM}{ext}'
 
     session.run('mv', '-f', asset_old_path, asset_path, external=True, **run_kwargs)
 
@@ -454,7 +454,7 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
     "B2 Command Line Tool" as the name and
     "The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage." as the description.
     """
-    with open('README.md', 'r') as f:
+    with open('README.md') as f:
         non_empty_lines = 0
         full_name = None
         description_parts = []

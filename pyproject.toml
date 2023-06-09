@@ -2,8 +2,8 @@
 requires-python = ">=3.7"
 
 [tool.ruff]
-# TODO add D, I
-select = ["E", "F"]
+# TODO add D
+select = ["E", "F", "I", "UP"]
 # TODO: remove E501 once docstrings are formatted
 ignore = [
     "D100", "D105", "D107", "D200", "D202", "D203", "D205", "D212", "D400", "D401", "D415",
