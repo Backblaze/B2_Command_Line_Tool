@@ -2656,7 +2656,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         # we can only rely on the log to tell when it stopped.
         expected_in_stdout = '''
         Deletion of file "b/b1/test.csv" (9996) failed: Conflict:
-         count: 4/4'''
+         count: 3/4'''
         unexpected_in_stdout = ' count: 5/5 '
         self._run_problematic_removal(['--failFast'], expected_in_stdout, unexpected_in_stdout)
 

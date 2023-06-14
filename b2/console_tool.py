@@ -2030,7 +2030,7 @@ class Rm(AbstractLsCommand):
                 if self.fail_fast_event.is_set():
                     break
 
-                self .reporter.update_total(1)
+                self.reporter.update_total(1)
                 future = executor.submit(
                     self.runner.api.delete_file_version,
                     file_version.id_,
@@ -2049,6 +2049,7 @@ class Rm(AbstractLsCommand):
 
             try:
                 future.result()
+                self.reporter.update_count(1)
             except FileNotPresent:
                 # We wanted to remove this file anyway.
                 pass
@@ -2062,7 +2063,6 @@ class Rm(AbstractLsCommand):
             except Exception as error:
                 self.messages_queue.put((self.EXCEPTION_TAG, error))
             finally:
-                self.reporter.update_count(1)
                 self.semaphore.release()
 
     @classmethod
