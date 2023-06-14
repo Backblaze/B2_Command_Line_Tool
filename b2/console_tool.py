@@ -2030,6 +2030,7 @@ class Rm(AbstractLsCommand):
                 if self.fail_fast_event.is_set():
                     break
 
+                self .reporter.update_total(1)
                 future = executor.submit(
                     self.runner.api.delete_file_version,
                     file_version.id_,
@@ -2040,7 +2041,6 @@ class Rm(AbstractLsCommand):
                 # Done callback is added after, so it's "sure" that mapping is updated earlier.
                 future.add_done_callback(self._removal_done)
 
-                self.reporter.update_total(1)
             self.reporter.end_total()
 
         def _removal_done(self, future: Future) -> None:
