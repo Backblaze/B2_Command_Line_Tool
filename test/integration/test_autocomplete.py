@@ -10,11 +10,10 @@
 
 import os
 import sys
+from test.integration.helpers import skip_on_windows
 
 import pexpect
 import pytest
-
-from test.integration.helpers import skip_on_windows
 
 TIMEOUT = 40  # CI can be slow at times
 

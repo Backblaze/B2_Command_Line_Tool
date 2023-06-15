@@ -11,31 +11,34 @@
 import json
 import os
 import pathlib
-
 import re
 import unittest.mock as mock
 from io import StringIO
-from typing import Optional, List
-from itertools import product, chain
-
-from b2sdk.exception import B2Error
-from more_itertools import one
+from itertools import chain, product
+from typing import List, Optional
 
 from b2sdk import v1
-
-from b2sdk.v2 import ALL_CAPABILITIES
-from b2sdk.v2 import REALM_URLS
-from b2sdk.v2 import StubAccountInfo
-from b2sdk.v2 import B2Api
-from b2sdk.v2 import B2HttpApiConfig
-from b2.console_tool import ConsoleTool, Rm
-from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
-    B2_APPLICATION_KEY_ENV_VAR, B2_ENVIRONMENT_ENV_VAR
-from b2sdk.v2 import RawSimulator
-from b2sdk.v2 import UploadSourceBytes
-from b2sdk.v2 import TempDir, fix_windows_path_limit
-from b2sdk.v2 import ProgressReport
+from b2sdk.v2 import (
+    ALL_CAPABILITIES,
+    REALM_URLS,
+    B2Api,
+    B2HttpApiConfig,
+    ProgressReport,
+    RawSimulator,
+    StubAccountInfo,
+    TempDir,
+    UploadSourceBytes,
+    fix_windows_path_limit,
+)
 from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
+from more_itertools import one
+
+from b2._cli.const import (
+    B2_APPLICATION_KEY_ENV_VAR,
+    B2_APPLICATION_KEY_ID_ENV_VAR,
+    B2_ENVIRONMENT_ENV_VAR,
+)
+from b2.console_tool import ConsoleTool, Rm
 
 from .test_base import TestBase
 
@@ -671,9 +674,9 @@ class TestConsoleTool(BaseConsoleToolTest):
         expected_list_keys_out_long = """
             appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
             appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
-            appKeyId3   goodKeyName-Four       -                      -            -          ''   %s
+            appKeyId3   goodKeyName-Four       -                      -            -          ''   {}
             appKeyId4   goodKeyName-Five       id=bucket_1            -            -          ''   readFiles,listBuckets
-            """ % (','.join(ALL_CAPABILITIES),)
+            """.format(','.join(ALL_CAPABILITIES))
 
         self._run_command(['list-keys'], expected_list_keys_out, '', 0)
         self._run_command(['list-keys', '--long'], expected_list_keys_out_long, '', 0)
@@ -1374,8 +1377,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(
-            ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', u'\u81ea'],
-            u'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
+            ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', '\u81ea'],
+            'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
             '', 0
         )
 
@@ -1867,7 +1870,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         with TempDir() as temp_dir:
             file_path = os.path.join(temp_dir, 'test.txt')
             with open(file_path, 'wb') as f:
-                f.write('hello world'.encode('utf-8'))
+                f.write(b'hello world')
             expected_stdout = '''
             upload test.txt
             '''
@@ -2023,7 +2026,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         with TempDir() as temp_dir:
-            local_file = self._make_local_file(temp_dir, 'file.txt')
+            self._make_local_file(temp_dir, 'file.txt')
             command = ['sync', '--noProgress']
             if threads is not None:
                 command += ['--threads', str(threads)]
@@ -2344,7 +2347,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         stdout = mock.MagicMock()
         stdout.write = mock.MagicMock(
             side_effect=[
-                UnicodeEncodeError('codec', u'foo', 100, 105, 'artificial UnicodeEncodeError')
+                UnicodeEncodeError('codec', 'foo', 100, 105, 'artificial UnicodeEncodeError')
             ] + list(range(25))
         )
         stderr = mock.MagicMock()

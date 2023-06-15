@@ -17,16 +17,40 @@ import os
 import os.path
 import re
 import sys
-
 from pathlib import Path
 from typing import Optional, Tuple
 
 import pytest
-from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, SSE_C_KEY_ID_FILE_INFO_KEY_NAME, UNKNOWN_FILE_RETENTION_SETTING, EncryptionMode, EncryptionSetting, FileRetentionSetting, LegalHold, RetentionMode, fix_windows_path_limit
+from b2sdk.v2 import (
+    B2_ACCOUNT_INFO_ENV_VAR,
+    SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    UNKNOWN_FILE_RETENTION_SETTING,
+    EncryptionMode,
+    EncryptionSetting,
+    FileRetentionSetting,
+    LegalHold,
+    RetentionMode,
+    fix_windows_path_limit,
+)
 
 from b2.console_tool import current_time_millis
 
-from .helpers import BUCKET_CREATED_AT_MILLIS, ONE_DAY_MILLIS, ONE_HOUR_MILLIS, SSE_B2_AES, SSE_C_AES, SSE_C_AES_2, SSE_NONE, TempDir, file_mod_time_millis, random_hex, read_file, set_file_mod_time_millis, should_equal, write_file
+from .helpers import (
+    BUCKET_CREATED_AT_MILLIS,
+    ONE_DAY_MILLIS,
+    ONE_HOUR_MILLIS,
+    SSE_B2_AES,
+    SSE_C_AES,
+    SSE_C_AES_2,
+    SSE_NONE,
+    TempDir,
+    file_mod_time_millis,
+    random_hex,
+    read_file,
+    set_file_mod_time_millis,
+    should_equal,
+    write_file,
+)
 
 
 def get_bucketinfo() -> Tuple[str, str]:
@@ -165,7 +189,7 @@ def test_basic(b2_tool, bucket_name):
 
     b2_tool.should_succeed(
         ['make-friendly-url', bucket_name, file_to_upload],
-        '^https://.*/file/%s/%s\r?$' % (
+        '^https://.*/file/{}/{}\r?$'.format(
             bucket_name,
             file_to_upload,
         ),
@@ -203,7 +227,7 @@ def test_basic(b2_tool, bucket_name):
         r'.*' + stack_trace_in_log,
         re.DOTALL,
     )
-    with open('b2_cli.log', 'r') as logfile:
+    with open('b2_cli.log') as logfile:
         log = logfile.read()
         assert re.search(log_file_regex, log), log
     os.remove('b2_cli.log')
@@ -214,7 +238,7 @@ def test_basic(b2_tool, bucket_name):
     b2_tool.should_fail(
         ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stderr_regex
     )
-    with open('b2_cli.log', 'r') as logfile:
+    with open('b2_cli.log') as logfile:
         log = logfile.read()
         assert re.search(log_file_regex, log), log
 
@@ -418,7 +442,7 @@ def find_file_id(list_of_files, file_name):
     for file in list_of_files:
         if file['fileName'] == file_name:
             return file['fileId']
-    assert False, 'file not found: %s' % (file_name,)
+    assert False, f'file not found: {file_name}'
 
 
 def encryption_summary(sse_dict, file_info):
@@ -433,7 +457,7 @@ def encryption_summary(sse_dict, file_info):
         encryption += ':' + algorithm
     if sse_dict['mode'] == 'SSE-C':
         sse_c_key_id = file_info.get(SSE_C_KEY_ID_FILE_INFO_KEY_NAME)
-        encryption += '?%s=%s' % (SSE_C_KEY_ID_FILE_INFO_KEY_NAME, sse_c_key_id)
+        encryption += f'?{SSE_C_KEY_ID_FILE_INFO_KEY_NAME}={sse_c_key_id}'
 
     return encryption
 
@@ -843,9 +867,9 @@ def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
     run_sync_copy_with_basic_checks(
         b2_tool=b2_tool,
         b2_file_prefix='first_folder/',
-        b2_sync_point='b2:%s/%s' % (bucket_name, 'first_folder'),
+        b2_sync_point=f'b2:{bucket_name}/first_folder',
         bucket_name=bucket_name,
-        other_b2_sync_point='b2:%s/%s' % (bucket_name, 'second_folder'),
+        other_b2_sync_point=f'b2:{bucket_name}/second_folder',
         destination_encryption=SSE_C_AES_2,
         source_encryption=SSE_C_AES,
     )
@@ -2309,7 +2333,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     uploaded_a = b2_tool.should_succeed_json(
         ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'CHANGELOG.md', 'one/a']
     )
-    uploaded_b = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         [
             'upload-file',
             '--noProgress',
@@ -2326,7 +2350,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     # SSE-B2
     upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-B2']
     upload_additional_env = {}
-    uploaded_c = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/c'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
@@ -2338,14 +2362,14 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(SSE_C_AES.key.secret).decode(),
         'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
     }
-    uploaded_d = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/d'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
     )
 
     # encryption + legal hold
-    uploaded_e = b2_tool.should_succeed_json(
+    b2_tool.should_succeed_json(
         [
             'upload-file',
             '--noProgress',
@@ -2535,14 +2559,14 @@ def test_cut(b2_tool, bucket_name):
     else:
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
-            ['ls', '--long', bucket_name], '^4_z.*  upload  %s +%s  a' % (
+            ['ls', '--long', bucket_name], '^4_z.*  upload  {} +{}  a'.format(
                 cut_printable,
                 len(file_data),
             )
         )
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
-            ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  %s +%s  -  a' % (
+            ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  {} +{}  -  a'.format(
                 cut_printable,
                 len(file_data),
             )

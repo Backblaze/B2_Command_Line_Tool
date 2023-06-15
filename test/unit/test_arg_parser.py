@@ -10,8 +10,7 @@
 
 import argparse
 
-from b2.arg_parser import parse_comma_separated_list, parse_millis_from_float_timestamp, \
-    parse_range
+from b2.arg_parser import parse_comma_separated_list, parse_millis_from_float_timestamp, parse_range
 
 from .test_base import TestBase
 

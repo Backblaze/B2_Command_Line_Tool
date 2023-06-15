@@ -35,22 +35,18 @@ import unicodedata
 from abc import ABCMeta, abstractclassmethod
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
-
-import requests
-import rst2ansi
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 import argcomplete
-from tabulate import tabulate
-
-from typing import Optional, Tuple, List, Any, Dict
-from enum import Enum
-
 import b2sdk
+import requests
+import rst2ansi
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
-    B2_ACCOUNT_INFO_PROFILE_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
+    B2_ACCOUNT_INFO_PROFILE_FILE,
     DEFAULT_SCAN_MANAGER,
     NO_RETENTION_BUCKET_SETTING,
     REALM_URLS,
@@ -74,7 +70,9 @@ from b2sdk.v2 import (
     KeepOrDeleteMode,
     LegalHold,
     NewerFileSyncMode,
+    ProgressReport,
     ReplicationConfiguration,
+    ReplicationMonitor,
     ReplicationRule,
     ReplicationSetupHelper,
     RetentionMode,
@@ -86,8 +84,6 @@ from b2sdk.v2 import (
     get_included_sources,
     make_progress_listener,
     parse_sync_folder,
-    ReplicationMonitor,
-    ProgressReport,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -100,16 +96,25 @@ from b2sdk.v2.exception import (
 )
 from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
+from tabulate import tabulate
 
 from b2._cli.argcompleters import bucket_name_completer, file_name_completer
-from b2._cli.autocomplete_install import autocomplete_install, \
-    SUPPORTED_SHELLS, AutocompleteInstallError
+from b2._cli.autocomplete_install import (
+    SUPPORTED_SHELLS,
+    AutocompleteInstallError,
+    autocomplete_install,
+)
 from b2._cli.b2api import _get_b2api_for_profile
-from b2._cli.const import B2_APPLICATION_KEY_ID_ENV_VAR, \
-    B2_APPLICATION_KEY_ENV_VAR, B2_USER_AGENT_APPEND_ENV_VAR, \
-    B2_ENVIRONMENT_ENV_VAR, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR, \
-    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR, \
-    CREATE_BUCKET_TYPES
+from b2._cli.const import (
+    B2_APPLICATION_KEY_ENV_VAR,
+    B2_APPLICATION_KEY_ID_ENV_VAR,
+    B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
+    B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
+    B2_ENVIRONMENT_ENV_VAR,
+    B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
+    B2_USER_AGENT_APPEND_ENV_VAR,
+    CREATE_BUCKET_TYPES,
+)
 from b2._cli.shell import detect_shell
 from b2.arg_parser import (
     ArgumentParser,
@@ -174,7 +179,7 @@ class CommandError(B2Error):
     """
 
     def __init__(self, message):
-        super(CommandError, self).__init__()
+        super().__init__()
         self.message = message
 
     def __str__(self):
@@ -327,14 +332,12 @@ class DestinationSseMixin(Described):
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
                     self._print_stderr(
-                        'Encrypting file(s) with SSE-C without providing key id. Set %s to allow key '
-                        'identification' % (B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,)
+                        f'Encrypting file(s) with SSE-C without providing key id. '
+                        f'Set {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} to allow key identification.'
                     )
                 key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
             else:
-                raise NotImplementedError(
-                    'Unsupported encryption mode for writes: %s' % (mode.value,)
-                )
+                raise NotImplementedError(f'Unsupported encryption mode for writes: {mode.value}')
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
         return None
@@ -433,8 +436,7 @@ class SourceSseMixin(Described):
                 )
             else:
                 raise NotImplementedError(
-                    'Encryption modes other than %s are not supported in reads' %
-                    (EncryptionMode.SSE_C.value,)
+                    f'Encryption modes other than {EncryptionMode.SSE_C.value} are not supported in reads'
                 )
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
 
@@ -625,7 +627,7 @@ class Command(Described):
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
             sys.stderr.write(
-                "\nWARNING: Unable to print unicode.  Encoding for %s is: '%s'\n" % (
+                "\nWARNING: Unable to print unicode.  Encoding for {} is: '{}'\n".format(
                     descriptor_name,
                     descriptor_encoding,
                 )
@@ -636,7 +638,7 @@ class Command(Described):
         descriptor.write('\n')
 
     def __str__(self):
-        return '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
+        return f'{self.__class__.__module__}.{self.__class__.__name__}'
 
 
 class B2(Command):
@@ -791,8 +793,8 @@ class AuthorizeAccount(Command):
             if allowed['bucketId'] is not None and allowed['bucketName'] is None:
                 logger.error('ConsoleTool has bucket-restricted key and the bucket does not exist')
                 self._print_stderr(
-                    "ERROR: application key is restricted to bucket id '%s', which no longer exists"
-                    % (allowed['bucketId'],)
+                    "ERROR: application key is restricted to bucket id '{}', which no longer exists"
+                    .format(allowed['bucketId'])
                 )
                 self.api.account_info.clear()
                 return 1
@@ -1126,7 +1128,7 @@ class CreateKey(Command):
             name_prefix=args.namePrefix
         )
 
-        self._print('%s %s' % (application_key.id_, application_key.application_key))
+        self._print(f'{application_key.id_} {application_key.application_key}')
         return 0
 
 
@@ -1219,7 +1221,7 @@ class DownloadCommand(Command):
             if attr_value is not None:
                 self._print_file_attribute(label, attr_value)
         for name in sorted(download_version.file_info):
-            self._print_file_attribute('INFO %s' % (name,), download_version.file_info[name])
+            self._print_file_attribute(f'INFO {name}', download_version.file_info[name])
         if download_version.content_sha1 != 'none':
             self._print('Checksum matches')
         return 0
@@ -1229,14 +1231,14 @@ class DownloadCommand(Command):
         # TODO: refactor to use "match" syntax after dropping python 3.9 support
         if encryption.mode is EncryptionMode.NONE:
             return 'none'
-        result = 'mode=%s, algorithm=%s' % (encryption.mode.value, encryption.algorithm.value)
+        result = f'mode={encryption.mode.value}, algorithm={encryption.algorithm.value}'
         if encryption.mode is EncryptionMode.SSE_B2:
             pass
         elif encryption.mode is EncryptionMode.SSE_C:
             if encryption.key.key_id is not None:
-                result += ', key_id=%s' % (encryption.key.key_id,)
+                result += f', key_id={encryption.key.key_id}'
         else:
-            raise ValueError('Unsupported encryption mode: %s' % (encryption.mode,))
+            raise ValueError(f'Unsupported encryption mode: {encryption.mode}')
 
         return result
 
@@ -1247,12 +1249,13 @@ class DownloadCommand(Command):
         if retention.mode is RetentionMode.UNKNOWN:
             return '<unauthorized to read>'
         if retention.mode in (RetentionMode.COMPLIANCE, RetentionMode.GOVERNANCE):
-            return 'mode=%s, retainUntil=%s' % (
+            return 'mode={}, retainUntil={}'.format(
                 retention.mode.value,
-                datetime.datetime.
-                fromtimestamp(retention.retain_until / 1000, datetime.timezone.utc)
+                datetime.datetime.fromtimestamp(
+                    retention.retain_until / 1000, datetime.timezone.utc
+                )
             )
-        raise ValueError('Unsupported retention mode: %s' % (retention.mode,))
+        raise ValueError(f'Unsupported retention mode: {retention.mode}')
 
     @classmethod
     def _represent_legal_hold(cls, legal_hold: LegalHold):
@@ -1262,7 +1265,7 @@ class DownloadCommand(Command):
             return '<unauthorized to read>'
         if legal_hold is LegalHold.UNSET:
             return '<unset>'
-        raise ValueError('Unsupported legal hold: %s' % (legal_hold,))
+        raise ValueError(f'Unsupported legal hold: {legal_hold}')
 
     def _print_file_attribute(self, label, value):
         self._print((label + ':').ljust(20) + ' ' + value)
@@ -1630,7 +1633,7 @@ class ListKeys(Command):
         parser.add_argument('--long', action='store_true')
 
     def __init__(self, console_tool):
-        super(ListKeys, self).__init__(console_tool)
+        super().__init__(console_tool)
         self.bucket_id_to_bucket_name = None
 
     def run(self, args):
@@ -1721,11 +1724,10 @@ class ListUnfinishedLargeFiles(Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
             file_info_text = ' '.join(
-                '%s=%s' % (k, unfinished.file_info[k]) for k in sorted(unfinished.file_info)
+                f'{k}={unfinished.file_info[k]}' for k in sorted(unfinished.file_info)
             )
             self._print(
-                '%s %s %s %s' %
-                (unfinished.file_id, unfinished.file_name, unfinished.content_type, file_info_text)
+                f'{unfinished.file_id} {unfinished.file_name} {unfinished.content_type} {file_info_text}'
             )
         return 0
 
@@ -1774,13 +1776,12 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         bucket = self.api.get_bucket_by_name(args.bucketName)
 
         try:
-            for entry in bucket.ls(
+            yield from bucket.ls(
                 start_file_name,
                 latest_only=not args.versions,
                 recursive=args.recursive,
                 with_wildcard=args.withWildcard,
-            ):
-                yield entry
+            )
         except ValueError as error:
             # Wrap these errors into B2Error. At the time of writing there's
             # exactly one – `with_wildcard` being passed without `recursive` option.
@@ -2424,12 +2425,12 @@ class Sync(
                 )
             except EmptyDirectory as ex:
                 raise CommandError(
-                    'Directory %s is empty.  Use --allowEmptySource to sync anyway.' % (ex.path,)
+                    f'Directory {ex.path} is empty.  Use --allowEmptySource to sync anyway.'
                 )
             except NotADirectory as ex:
-                raise CommandError('%s is not a directory' % (ex.path,))
+                raise CommandError(f'{ex.path} is not a directory')
             except UnableToCreateDirectory as ex:
-                raise CommandError('unable to create directory %s' % (ex.path,))
+                raise CommandError(f'unable to create directory {ex.path}')
         return 0
 
     def get_policies_manager_from_args(self, args):
@@ -3213,8 +3214,7 @@ class License(Command):  # pragma: no cover
         included_sources = get_included_sources()
         if included_sources:
             stream.write(
-                '\n\nThird party libraries modified and included in %s or %s:\n' %
-                (NAME, b2sdk.__name__)
+                f'\n\nThird party libraries modified and included in {NAME} or {b2sdk.__name__}:\n'
             )
         for src in included_sources:
             stream.write('\n')
@@ -3227,7 +3227,7 @@ class License(Command):  # pragma: no cover
             for file_name, file_content in src.files.items():
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
-        stream.write('\n\n%s license:\n' % (NAME,))
+        stream.write(f'\n\n{NAME} license:\n')
         b2_license_file_text = (pathlib.Path(__file__).parent / 'LICENSE').read_text()
         stream.write(b2_license_file_text)
 
@@ -3257,12 +3257,10 @@ class License(Command):  # pragma: no cover
             modules_added.add(module_info['Name'])
 
         assert not (self.MODULES_TO_OVERRIDE_LICENSE_TEXT - modules_added)
-        stream.write(
-            'Licenses of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
-        )
+        stream.write(f'Licenses of all modules used by {NAME}, shipped with it in binary form:\n')
         stream.write(str(license_table))
         stream.write(
-            '\n\nSummary of all modules used by %s, shipped with it in binary form:\n' % (NAME,)
+            f'\n\nSummary of all modules used by {NAME}, shipped with it in binary form:\n'
         )
         stream.write(str(summary_table))
 
@@ -3350,7 +3348,7 @@ class InstallAutocomplete(Command):
         return 0
 
 
-class ConsoleTool(object):
+class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
@@ -3414,14 +3412,15 @@ class ConsoleTool(object):
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                'ERROR: %s  Use: %s authorize-account or provide auth data with "%s" and "%s"'
-                ' environment variables' %
-                (str(e), NAME, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR)
+                'ERROR: {}  Use: {} authorize-account or provide auth data with "{}" and "{}"'
+                ' environment variables'.format(
+                    str(e), NAME, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
+                )
             )
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
-            self._print_stderr('ERROR: %s' % (str(e),))
+            self._print_stderr(f'ERROR: {str(e)}')
             return 1
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')
@@ -3443,8 +3442,7 @@ class ConsoleTool(object):
 
         if (key_id is None) or (key is None):
             self._print_stderr(
-                'Please provide both "%s" and "%s" environment variables or none of them' %
-                (B2_APPLICATION_KEY_ENV_VAR, B2_APPLICATION_KEY_ID_ENV_VAR)
+                f'Please provide both "{B2_APPLICATION_KEY_ENV_VAR}" and "{B2_APPLICATION_KEY_ID_ENV_VAR}" environment variables or none of them'
             )
             return 1
         realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
@@ -3517,12 +3515,12 @@ class InvalidArgument(B2Error):
         :param parameter_name: name of the function argument
         :param message: brief explanation of misconfiguration
         """
-        super(InvalidArgument, self).__init__()
+        super().__init__()
         self.parameter_name = parameter_name
         self.message = message
 
     def __str__(self):
-        return "%s %s" % (self.parameter_name, self.message)
+        return f"{self.parameter_name} {self.message}"
 
 
 def main():

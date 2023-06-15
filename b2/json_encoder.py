@@ -9,7 +9,6 @@
 ######################################################################
 
 import json
-
 from enum import Enum
 
 from b2sdk.v2 import Bucket, FileIdAndName, FileVersion

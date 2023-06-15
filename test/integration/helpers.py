@@ -20,7 +20,6 @@ import subprocess
 import sys
 import threading
 import time
-
 from dataclasses import dataclass
 from datetime import datetime
 from os import environ, linesep, path
@@ -30,10 +29,29 @@ from typing import List, Optional, Union
 
 import backoff
 import pytest
-
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
-from b2sdk.v2 import ALL_CAPABILITIES, NO_RETENTION_FILE_SETTING, B2Api, Bucket, EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting, InMemoryAccountInfo, InMemoryCache, LegalHold, RetentionMode, SqliteAccountInfo, fix_windows_path_limit
-from b2sdk.v2.exception import BucketIdNotFound, DuplicateBucketName, FileNotPresent, TooManyRequests
+from b2sdk.v2 import (
+    ALL_CAPABILITIES,
+    NO_RETENTION_FILE_SETTING,
+    B2Api,
+    Bucket,
+    EncryptionAlgorithm,
+    EncryptionKey,
+    EncryptionMode,
+    EncryptionSetting,
+    InMemoryAccountInfo,
+    InMemoryCache,
+    LegalHold,
+    RetentionMode,
+    SqliteAccountInfo,
+    fix_windows_path_limit,
+)
+from b2sdk.v2.exception import (
+    BucketIdNotFound,
+    DuplicateBucketName,
+    FileNotPresent,
+    TooManyRequests,
+)
 
 from b2.console_tool import Command, current_time_millis
 
@@ -156,7 +174,7 @@ class Api:
             try:
                 self.clean_bucket(bucket)
             except (BucketIdNotFound, v3BucketIdNotFound):
-                print('It seems that bucket %s has already been removed' % (bucket.name,))
+                print(f'It seems that bucket {bucket.name} has already been removed')
         buckets = self.api.list_buckets()
         print('Total bucket count after cleanup:', len(buckets))
         for bucket in buckets:
@@ -185,8 +203,7 @@ class Api:
                 elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
                     if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
                         print(
-                            'File version: %s cannot be removed due to compliance mode retention' %
-                            (file_version_info.id_,)
+                            f'File version: {file_version_info.id_} cannot be removed due to compliance mode retention'
                         )
                         files_leftover = True
                         continue
@@ -194,7 +211,7 @@ class Api:
                     pass
                 else:
                     raise ValueError(
-                        'Unknown retention mode: %s' % (file_version_info.file_retention.mode,)
+                        f'Unknown retention mode: {file_version_info.file_retention.mode}'
                     )
             if file_version_info.legal_hold.is_on():
                 print('Removing legal hold from file version:', file_version_info.id_)
@@ -206,8 +223,7 @@ class Api:
                 self.api.delete_file_version(file_version_info.id_, file_version_info.file_name)
             except FileNotPresent:
                 print(
-                    'It seems that file version %s has already been removed' %
-                    (file_version_info.id_,)
+                    f'It seems that file version {file_version_info.id_} has already been removed'
                 )
 
         if files_leftover:
@@ -217,7 +233,7 @@ class Api:
             try:
                 self.api.delete_bucket(bucket)
             except BucketIdNotFound:
-                print('It seems that bucket %s has already been removed' % (bucket.name,))
+                print(f'It seems that bucket {bucket.name} has already been removed')
         print()
 
     def count_and_print_buckets(self) -> int:
@@ -265,7 +281,7 @@ def remove_warnings(text):
     return linesep.join(line for line in text.split(linesep) if 'DeprecationWarning' not in line)
 
 
-class StringReader(object):
+class StringReader:
     def __init__(self):
         self.string = None
 
@@ -463,15 +479,13 @@ class CommandLine:
             missing_capabilities = set(ALL_CAPABILITIES) - {
                 'readBuckets', 'listAllBucketNames'
             } - set(auth_dict['allowed']['capabilities'])
-            assert not missing_capabilities, 'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: %s' % (
-                missing_capabilities,
-            )
+            assert not missing_capabilities, f'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {missing_capabilities}'
 
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
 
 
-class TempDir(object):
+class TempDir:
     def __init__(self):
         self.dirpath = None
 

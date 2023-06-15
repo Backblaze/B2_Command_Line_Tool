@@ -8,20 +8,14 @@
 #
 ######################################################################
 import datetime
-
-import io
-
 import hashlib
 import os
-import pathlib
-
-import pkg_resources
 import pathlib
 import platform
 import string
 import subprocess
 from glob import glob
-from typing import Tuple, List
+from typing import List, Tuple
 
 import nox
 import pkg_resources
@@ -48,8 +42,8 @@ FILES_USED_IN_TESTS = ['README.md', 'CHANGELOG.md']
 
 SYSTEM = platform.system().lower()
 
-REQUIREMENTS_FORMAT = ['yapf==0.27']
-REQUIREMENTS_LINT = ['yapf==0.27', 'pyflakes==2.4.0', 'pytest==6.2.5', 'liccheck==0.6.2']
+REQUIREMENTS_FORMAT = ['yapf==0.27', 'ruff==0.0.272']
+REQUIREMENTS_LINT = REQUIREMENTS_FORMAT + ['pytest==6.2.5', 'liccheck==0.6.2']
 REQUIREMENTS_TEST = [
     "pexpect==4.8.0",
     "pytest==6.2.5",
@@ -118,12 +112,11 @@ def install_myself(session, extras=None):
 
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
 def format_(session):
-    """Format the code."""
+    """Lint the code and apply fixes in-place whenever possible."""
     session.run('pip', 'install', *REQUIREMENTS_FORMAT)
     # TODO: incremental mode for yapf
     session.run('yapf', '--in-place', '--parallel', '--recursive', *PY_PATHS)
-    # TODO: uncomment if we want to use isort and docformatter
-    # session.run('isort', *PY_PATHS)
+    session.run('ruff', 'check', '--fix', *PY_PATHS)
     # session.run(
     #     'docformatter',
     #     '--in-place',
@@ -136,13 +129,11 @@ def format_(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def lint(session):
-    """Run linters."""
+    """Run linters in readonly mode."""
     install_myself(session)
     session.run('pip', 'install', *REQUIREMENTS_LINT)
-
     session.run('yapf', '--diff', '--parallel', '--recursive', *PY_PATHS)
-    # TODO: uncomment if we want to use isort and docformatter
-    # session.run('isort', '--check', *PY_PATHS)
+    session.run('ruff', 'check', *PY_PATHS)
     # session.run(
     #     'docformatter',
     #     '--check',
@@ -152,22 +143,12 @@ def lint(session):
     #     *PY_PATHS,
     # )
 
-    # TODO: use flake8 instead of pyflakes
-    session.log('pyflakes b2')
-    output = subprocess.run('pyflakes b2', shell=True, check=False,
-                            stdout=subprocess.PIPE).stdout.decode().strip()
-    excludes = ['__init__.py']
-    output = [l for l in output.splitlines() if all(x not in l for x in excludes)]
-    if output:
-        print('\n'.join(output))
-        session.error('pyflakes has failed')
-    # session.run('flake8', *PY_PATHS)
     session.run('pytest', 'test/static')
 
     # Before checking licenses, create an updated requirements.txt file, which accepts any b2sdk version.  This way
     # the tool will still work if the SDK was installed from the master branch or a different directory.
     updated_requirements = os.path.join(session.create_tmp(), 'requirements.txt')
-    with open('requirements.txt', 'r') as orig_req_file, \
+    with open('requirements.txt') as orig_req_file, \
             open(updated_requirements, 'w') as updated_req_file:
         requirements = pkg_resources.parse_requirements(orig_req_file)
         for requirement in requirements:
@@ -222,8 +203,8 @@ def integration(session):
 def test(session):
     """Run all tests."""
     if session.python:
-        session.notify('unit-{}'.format(session.python))
-        session.notify('integration-{}'.format(session.python))
+        session.notify(f'unit-{session.python}')
+        session.notify(f'integration-{session.python}')
     else:
         session.notify('unit')
         session.notify('integration')
@@ -342,12 +323,12 @@ def sign(session):
     elif SYSTEM == 'linux':
         session.log('signing is not supported for Linux')
     else:
-        session.error('unrecognized platform: {}'.format(SYSTEM))
+        session.error(f'unrecognized platform: {SYSTEM}')
 
     # Append OS name to the binary
     asset_old_path = glob('dist/*')[0]
     name, ext = os.path.splitext(os.path.basename(asset_old_path))
-    asset_path = 'dist/{}-{}{}'.format(name, SYSTEM, ext)
+    asset_path = f'dist/{name}-{SYSTEM}{ext}'
 
     session.run('mv', '-f', asset_old_path, asset_path, external=True, **run_kwargs)
 
@@ -473,7 +454,7 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
     "B2 Command Line Tool" as the name and
     "The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage." as the description.
     """
-    with open('README.md', 'r') as f:
+    with open('README.md') as f:
         non_empty_lines = 0
         full_name = None
         description_parts = []
