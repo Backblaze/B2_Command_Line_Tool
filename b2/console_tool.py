@@ -2052,7 +2052,7 @@ class Rm(AbstractLsCommand):
                 self.reporter.update_count(1)
             except FileNotPresent:
                 # We wanted to remove this file anyway.
-                pass
+                self.reporter.update_count(1)
             except B2Error as error:
                 if self.args.failFast:
                     # This is set before releasing the semaphore.
