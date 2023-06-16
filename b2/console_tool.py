@@ -2694,7 +2694,7 @@ class UploadFileMixin(
             "content_type": args.contentType,
             "custom_upload_timestamp": args.custom_upload_timestamp,
             "encryption": self._get_destination_sse_setting(args),
-            "file_infos": file_infos,
+            "file_info": file_infos,
             "file_name": args.b2FileName,
             "file_retention": self._get_file_retention_setting(args),
             "legal_hold": self._get_legal_hold_setting(args),
@@ -2709,10 +2709,9 @@ class UploadFileMixin(
 
     def upload_file_kwargs_to_unbound_upload(self, **kwargs):
         """
-        Workaround for inconsistent naming in SDK
+        Translate upload_file kwargs to unbound_upload equivalents
         """
         kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
-        kwargs["file_info"] = kwargs.pop("file_infos", None)  # inconsistency in SDK
         return kwargs
 
 
