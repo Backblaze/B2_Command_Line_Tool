@@ -8,19 +8,16 @@
 #
 ######################################################################
 
-import base64
 import contextlib
 import os
-import shlex
 import subprocess
 import sys
 from os import environ, path
 from tempfile import TemporaryDirectory
 
 import pytest
-
-from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
 from b2sdk.exception import BadRequest, BucketIdNotFound
+from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
 
 from .helpers import Api, CommandLine, bucket_name_part
 

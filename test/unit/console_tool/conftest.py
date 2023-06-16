@@ -9,11 +9,9 @@
 ######################################################################
 import os
 import sys
-import tempfile
+from test.unit.test_console_tool import BaseConsoleToolTest
 
 import pytest
-
-from test.unit.test_console_tool import BaseConsoleToolTest
 
 
 class ConsoleToolTester(BaseConsoleToolTest):

@@ -9,13 +9,12 @@
 ######################################################################
 
 import sys
+from test.helpers import skip_on_windows
 
 import pexpect
 import pytest
 
-from test.helpers import skip_on_windows
-
-TIMEOUT = 20  # CI can be slow at times
+TIMEOUT = 40  # CI can be slow at times
 
 BASHRC_CONTENT = """\
 # ~/.bashrc dummy file

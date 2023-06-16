@@ -8,7 +8,6 @@
 #
 ######################################################################
 import os
-
 from test.helpers import skip_on_windows
 from test.unit.helpers import run_in_background
 

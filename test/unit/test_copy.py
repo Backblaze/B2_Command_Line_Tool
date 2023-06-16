@@ -10,8 +10,17 @@
 
 from unittest import mock
 
+from b2sdk.v2 import (
+    SSE_B2_AES,
+    UNKNOWN_KEY_ID,
+    EncryptionAlgorithm,
+    EncryptionKey,
+    EncryptionMode,
+    EncryptionSetting,
+)
+
 from b2.console_tool import CopyFileById
-from b2sdk.v2 import EncryptionSetting, EncryptionMode, EncryptionKey, EncryptionAlgorithm, SSE_B2_AES, UNKNOWN_KEY_ID
+
 from .test_base import TestBase
 
 

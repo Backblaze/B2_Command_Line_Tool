@@ -10,7 +10,6 @@
 from unittest import mock
 
 import pytest
-
 from b2sdk.raw_api import REALM_URLS
 
 

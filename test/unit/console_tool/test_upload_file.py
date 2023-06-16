@@ -8,10 +8,10 @@
 #
 ######################################################################
 import os
-
-import b2
 from test.helpers import skip_on_windows
 from test.unit.helpers import run_in_background
+
+import b2
 
 
 def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir):

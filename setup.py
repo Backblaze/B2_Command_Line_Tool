@@ -14,16 +14,14 @@ https://packaging.python.org/en/latest/distributing.html
 https://github.com/pypa/sampleproject
 """
 
-import platform
 import sys
 
 # To use a consistent encoding
 from codecs import open
-from importlib import import_module
 
 # Always prefer setuptools over distutils
 from setuptools import __version__ as setuptoolsversion
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 #require at least setuptools 20.2 for PEP 508 conditional dependency support
 MIN_SETUPTOOLS_VERSION = (20, 2)
@@ -40,7 +38,7 @@ with open('README.md', encoding='utf-8') as f:
 
 def read_requirements(extra=None):
     if extra is not None:
-        file = 'requirements-{}.txt'.format(extra)
+        file = f'requirements-{extra}.txt'
     else:
         file = 'requirements.txt'
 

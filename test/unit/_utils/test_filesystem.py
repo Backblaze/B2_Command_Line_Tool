@@ -8,9 +8,9 @@
 #
 ######################################################################
 import os
+from test.helpers import skip_on_windows
 
 from b2._utils.filesystem import points_to_fifo
-from test.helpers import skip_on_windows
 
 
 def test_points_to_fifo__doesnt_exist(tmp_path):

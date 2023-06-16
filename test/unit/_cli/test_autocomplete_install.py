@@ -22,7 +22,7 @@ def test_file(tmp_path):
 
 
 def test_add_or_update_shell_section_new_section(test_file):
-    test_file.write_text(f"""# preexisting content\n\n""")
+    test_file.write_text("# preexisting content\n\n")
 
     add_or_update_shell_section(test_file, section, managed_by, content)
 

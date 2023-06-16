@@ -8,9 +8,9 @@
 #
 ######################################################################
 
-from contextlib import contextmanager
 import re
 import unittest
+from contextlib import contextmanager
 
 
 class TestBase(unittest.TestCase):
@@ -21,9 +21,9 @@ class TestBase(unittest.TestCase):
         except exc as e:
             if msg is not None:
                 if msg != str(e):
-                    assert False, "expected message '%s', but got '%s'" % (msg, str(e))
+                    assert False, f"expected message '{msg}', but got '{str(e)}'"
         else:
-            assert False, 'should have thrown %s' % (exc,)
+            assert False, f'should have thrown {exc}'
 
     @contextmanager
     def assertRaisesRegexp(self, expected_exception, expected_regexp):
@@ -31,6 +31,6 @@ class TestBase(unittest.TestCase):
             yield
         except expected_exception as e:
             if not re.search(expected_regexp, str(e)):
-                assert False, "expected message '%s', but got '%s'" % (expected_regexp, str(e))
+                assert False, f"expected message '{expected_regexp}', but got '{str(e)}'"
         else:
-            assert False, 'should have thrown %s' % (expected_exception,)
+            assert False, f'should have thrown {expected_exception}'

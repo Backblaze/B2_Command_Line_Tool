@@ -15,8 +15,8 @@ import sys
 import textwrap
 
 import arrow
-from rst2ansi import rst2ansi
 from b2sdk.v2 import RetentionPeriod
+from rst2ansi import rst2ansi
 
 _arrow_version = tuple(int(p) for p in arrow.__version__.split("."))
 
@@ -31,7 +31,7 @@ class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     def add_usage(self, usage, actions, groups, prefix=None):
         if prefix is None:
             prefix = ''
-        super(RawTextHelpFormatter, self).add_usage(usage, actions, groups, prefix)
+        super().add_usage(usage, actions, groups, prefix)
 
     def add_argument(self, action):
         if isinstance(action, argparse._SubParsersAction) and action.help is not argparse.SUPPRESS:
@@ -40,7 +40,7 @@ class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
                 usages.append(choice.format_usage())
             self.add_text(''.join(usages))
         else:
-            super(RawTextHelpFormatter, self).add_argument(action)
+            super().add_argument(action)
 
     @classmethod
     def _unique_choice_values(cls, action):
@@ -64,7 +64,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self._description = None
         self._for_docs = for_docs
         kwargs.setdefault('formatter_class', RawTextHelpFormatter)
-        super(ArgumentParser, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @property
     def description(self):
@@ -86,8 +86,7 @@ class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         self.print_help()
 
-        args = {'prog': self.prog, 'message': message}
-        self.exit(2, '\n%(prog)s: error: %(message)s\n' % args)
+        self.exit(2, f'\n{self.prog}: error: {message}\n')
 
     @classmethod
     def _get_encoding(cls):
