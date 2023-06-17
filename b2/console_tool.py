@@ -36,7 +36,7 @@ from abc import ABCMeta, abstractclassmethod
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple
 
 import argcomplete
 import b2sdk
@@ -2714,6 +2714,33 @@ class UploadFileMixin(
         kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
         return kwargs
 
+    def get_input_stream(self, filename: str) -> 'str | int | io.BinaryIO':
+        """Get input stream IF filename points to a FIFO or stdin."""
+        if filename == "-":
+            if os.path.exists('-'):
+                self._print_stderr(
+                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
+                )
+            else:
+                return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
+        elif points_to_fifo(pathlib.Path(filename)):
+            return filename
+
+        raise self.NotAInputStream()
+
+    def file_identifier_to_read_stream(self, file_id: 'str | int | BinaryIO', **kwargs) -> BinaryIO:
+        if isinstance(file_id, (str, int)):
+            return open(
+                file_id,
+                mode="rb",
+                closefd=not isinstance(file_id, int),
+                buffering=kwargs.get('buffering', RECOMMENDED_READ_BUF_SIZE),
+            )
+        return file_id
+
+    class NotAInputStream(Exception):
+        pass
+
 
 @B2.register_subcommand
 class UploadFile(UploadFileMixin, UploadModeMixin, Command):
@@ -2760,36 +2787,19 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
         return kwargs
 
     def execute_operation(self, local_file, bucket, **kwargs):
-        input_stream = None
-        if local_file == "-":
-            if os.path.exists('-'):
-                self._print_stderr(
-                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
-                )
-            else:
-                input_stream = sys.stdin.buffer if platform.system(
-                ) == "Windows" else sys.stdin.fileno()
-        elif points_to_fifo(pathlib.Path(local_file)):
-            input_stream = local_file
-
-        if input_stream is not None:
-            if isinstance(input_stream, (str, int)):
-                input_stream = open(
-                    input_stream,
-                    mode="rb",
-                    closefd=not isinstance(input_stream, int),
-                    buffering=RECOMMENDED_READ_BUF_SIZE,
-                )
-
+        try:
+            input_stream = self.get_input_stream(local_file)
+        except self.NotAInputStream:  # it is a regular file
+            file_version = bucket.upload_local_file(local_file=local_file, **kwargs)
+        else:
             if kwargs.pop("upload_mode", None) != UploadMode.FULL:
                 self._print_stderr(
                     "WARNING: Ignoring upload mode setting as we are uploading a stream."
                 )
             kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
+            input_stream = self.file_identifier_to_read_stream(input_stream)
             with input_stream:
                 file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
-        else:
-            file_version = bucket.upload_local_file(local_file=local_file, **kwargs)
         return file_version
 
 
@@ -2868,24 +2878,17 @@ class UploadUnboundStream(UploadFileMixin, Command):
         return kwargs
 
     def execute_operation(self, local_file, bucket, read_buffer_size, **kwargs):
-        input_stream = local_file
-        if input_stream == "-":
-            if os.path.exists('-'):
-                self._print_stderr(
-                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
-                )
-            else:
-                input_stream = sys.stdin.buffer if platform.system(
-                ) == "Windows" else sys.stdin.fileno()
-
-        if isinstance(input_stream, (str, int)):
-            input_stream = open(
-                input_stream,
-                mode="rb",
-                buffering=read_buffer_size,
-                closefd=not isinstance(input_stream, int)
+        try:
+            input_stream = self.get_input_stream(local_file)
+        except self.NotAInputStream:  # it is a regular file
+            self._print_stderr(
+                "WARNING: You are using a stream upload command to upload a regular file. "
+                "While it will work, it is inefficient. "
+                "Use of upload-file command is recommended."
             )
+            input_stream = local_file
 
+        input_stream = self.file_identifier_to_read_stream(input_stream)
         with input_stream:
             file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
         return file_version
