@@ -91,8 +91,15 @@ class ArgumentParser(argparse.ArgumentParser):
     @classmethod
     def _get_encoding(cls):
         _, locale_encoding = locale.getdefaultlocale()
-        if locale_encoding is not None:
-            return sys.getdefaultencoding()
+
+        # Check if the stdout is properly set
+        if sys.stdout.encoding is not None:
+            # Use the stdout encoding
+            return sys.stdout.encoding
+
+        # Fall back to the locale_encoding if stdout encoding is not set
+        elif locale_encoding is not None:
+            return locale_encoding
 
         # locales are improperly configured
         return 'ascii'
