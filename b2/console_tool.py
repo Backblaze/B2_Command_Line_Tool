@@ -2031,6 +2031,7 @@ class Rm(AbstractLsCommand):
                 if self.fail_fast_event.is_set():
                     break
 
+                self.reporter.update_total(1)
                 future = executor.submit(
                     self.runner.api.delete_file_version,
                     file_version.id_,
@@ -2041,7 +2042,6 @@ class Rm(AbstractLsCommand):
                 # Done callback is added after, so it's "sure" that mapping is updated earlier.
                 future.add_done_callback(self._removal_done)
 
-                self.reporter.update_total(1)
             self.reporter.end_total()
 
         def _removal_done(self, future: Future) -> None:
@@ -2050,9 +2050,10 @@ class Rm(AbstractLsCommand):
 
             try:
                 future.result()
+                self.reporter.update_count(1)
             except FileNotPresent:
                 # We wanted to remove this file anyway.
-                pass
+                self.reporter.update_count(1)
             except B2Error as error:
                 if self.args.failFast:
                     # This is set before releasing the semaphore.
@@ -2063,7 +2064,6 @@ class Rm(AbstractLsCommand):
             except Exception as error:
                 self.messages_queue.put((self.EXCEPTION_TAG, error))
             finally:
-                self.reporter.update_count(1)
                 self.semaphore.release()
 
     @classmethod
