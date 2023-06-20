@@ -88,4 +88,3 @@ class TestNonUTF8TerminalSupport(TestBase):
         for command_name, command_class in command_classes.items():
             with self.subTest(command_class=command_class, command_name=command_name):
                 self.check_help_string(command_class, command_name)
-
