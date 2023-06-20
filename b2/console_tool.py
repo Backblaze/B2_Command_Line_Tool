@@ -2726,7 +2726,7 @@ class UploadFileMixin(
         elif points_to_fifo(pathlib.Path(filename)):
             return filename
 
-        raise self.NotAInputStream()
+        raise self.NotAnInputStream()
 
     def file_identifier_to_read_stream(self, file_id: 'str | int | BinaryIO', **kwargs) -> BinaryIO:
         if isinstance(file_id, (str, int)):
@@ -2738,7 +2738,7 @@ class UploadFileMixin(
             )
         return file_id
 
-    class NotAInputStream(Exception):
+    class NotAnInputStream(Exception):
         pass
 
 
@@ -2789,7 +2789,7 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
     def execute_operation(self, local_file, bucket, **kwargs):
         try:
             input_stream = self.get_input_stream(local_file)
-        except self.NotAInputStream:  # it is a regular file
+        except self.NotAnInputStream:  # it is a regular file
             file_version = bucket.upload_local_file(local_file=local_file, **kwargs)
         else:
             if kwargs.pop("upload_mode", None) != UploadMode.FULL:
@@ -2880,7 +2880,7 @@ class UploadUnboundStream(UploadFileMixin, Command):
     def execute_operation(self, local_file, bucket, read_buffer_size, **kwargs):
         try:
             input_stream = self.get_input_stream(local_file)
-        except self.NotAInputStream:  # it is a regular file
+        except self.NotAnInputStream:  # it is a regular file
             self._print_stderr(
                 "WARNING: You are using a stream upload command to upload a regular file. "
                 "While it will work, it is inefficient. "
