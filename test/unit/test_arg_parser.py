@@ -86,7 +86,6 @@ class TestNonUTF8TerminalSupport(TestBase):
         command_classes = B2.subcommands_registry.get_all()
         command_classes.append(B2)
 
-
         for command_class in command_classes:
             with self.subTest(command_class=command_class):
                 self.check_help_string(command_class)
