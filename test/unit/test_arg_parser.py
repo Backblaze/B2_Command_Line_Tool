@@ -17,45 +17,7 @@ from b2.arg_parser import (
     parse_millis_from_float_timestamp,
     parse_range,
 )
-from b2.console_tool import (
-    B2,
-    AuthorizeAccount,
-    CancelAllUnfinishedLargeFiles,
-    CancelLargeFile,
-    ClearAccount,
-    CopyFileById,
-    CreateBucket,
-    CreateKey,
-    DeleteBucket,
-    DeleteFileVersion,
-    DeleteKey,
-    DownloadFileById,
-    DownloadFileByName,
-    GetAccountInfo,
-    GetBucket,
-    GetDownloadAuth,
-    GetDownloadUrlWithAuth,
-    HideFile,
-    InstallAutocomplete,
-    License,
-    ListBuckets,
-    ListKeys,
-    ListParts,
-    ListUnfinishedLargeFiles,
-    Ls,
-    MakeUrl,
-    ReplicationDelete,
-    ReplicationPause,
-    ReplicationSetup,
-    ReplicationStatus,
-    ReplicationUnpause,
-    Rm,
-    Sync,
-    UpdateBucket,
-    UpdateFileLegalHold,
-    UpdateFileRetention,
-    UploadFile,
-)
+from b2.console_tool import B2
 
 from .test_base import TestBase
 
@@ -121,45 +83,9 @@ class TestNonUTF8TerminalSupport(TestBase):
             sys.stderr = old_stderr
 
     def test_help_in_non_utf8_terminal(self):
-        command_classes = [
-            AuthorizeAccount,
-            CancelAllUnfinishedLargeFiles,
-            CancelLargeFile,
-            ClearAccount,
-            CopyFileById,
-            CreateBucket,
-            DeleteBucket,
-            DeleteFileVersion,
-            DeleteKey,
-            DownloadFileById,
-            DownloadFileByName,
-            GetBucket,
-            GetDownloadAuth,
-            GetDownloadUrlWithAuth,
-            HideFile,
-            ListBuckets,
-            ListKeys,
-            ListParts,
-            ListUnfinishedLargeFiles,
-            Ls,
-            Rm,
-            MakeUrl,
-            Sync,
-            UpdateBucket,
-            UploadFile,
-            UpdateFileLegalHold,
-            UpdateFileRetention,
-            ReplicationSetup,
-            ReplicationDelete,
-            ReplicationPause,
-            ReplicationUnpause,
-            ReplicationStatus,
-            License,
-            InstallAutocomplete,
-            CreateKey,
-            GetAccountInfo,
-            B2,
-        ]
+        command_classes = B2.subcommands_registry.get_all()
+        command_classes.append(B2)
+
 
         for command_class in command_classes:
             with self.subTest(command_class=command_class):
