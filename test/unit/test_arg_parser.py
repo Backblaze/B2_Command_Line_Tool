@@ -57,9 +57,8 @@ class TestNonUTF8TerminalSupport(TestBase):
         def flush(self):
             self.original_stream.flush()
 
-    def check_help_string(self, command_class):
+    def check_help_string(self, command_class, command_name):
         help_string = command_class.__doc__
-        command_name = command_class.__name__.lower()
 
         # create a parser with a help message that is based on the command_class.__doc__ string
         parser = ArgumentParser(description=help_string)
@@ -83,9 +82,10 @@ class TestNonUTF8TerminalSupport(TestBase):
             sys.stderr = old_stderr
 
     def test_help_in_non_utf8_terminal(self):
-        command_classes = B2.subcommands_registry.get_all()
-        command_classes.append(B2)
+        command_classes = dict(B2.subcommands_registry.items())
+        command_classes['b2'] = B2
 
-        for command_class in command_classes:
-            with self.subTest(command_class=command_class):
-                self.check_help_string(command_class)
+        for command_name, command_class in command_classes.items():
+            with self.subTest(command_class=command_class, command_name=command_name):
+                self.check_help_string(command_class, command_name)
+
