@@ -6,13 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-
 ### Infrastructure
 * Autocomplete integration tests will now work properly even if tested package has not been installed
 * Automatically set copyright date when generating the docs
 * Increase timeout time in autocomplete tests to accommodate slower CI environments
 * Update pyinstaller to fix Linux Bundle build
 * Replace `pyflakes` with `ruff` for linting
+* Make dependency version pinning less restrictive
 
 ### Fixed
 * Fast rm sometimes failing due to a rare race condition
