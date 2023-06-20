@@ -1,5 +1,7 @@
 [project]
 requires-python = ">=3.7"
+name = "b2"
+version = "0.0.0"  # this is wrong, but setuptools>61 insists its here
 
 [tool.ruff]
 # TODO add D

@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Update pyinstaller to fix Linux Bundle build
 * Replace `pyflakes` with `ruff` for linting
 
+### Fixed
+* Fast rm sometimes failing due to a rare race condition
+
 ## [3.9.0] - 2023-04-28
 
 ### Added

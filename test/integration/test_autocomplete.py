@@ -14,7 +14,7 @@ from test.helpers import skip_on_windows
 import pexpect
 import pytest
 
-TIMEOUT = 40  # CI can be slow at times
+TIMEOUT = 120  # CI can be slow at times when parallelization is extreme
 
 BASHRC_CONTENT = """\
 # ~/.bashrc dummy file
