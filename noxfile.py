@@ -32,6 +32,7 @@ PYTHON_VERSIONS = [
     '3.9',
     '3.10',
     '3.11',
+    '3.12',
 ] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
