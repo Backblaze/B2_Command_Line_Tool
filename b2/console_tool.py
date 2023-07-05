@@ -70,6 +70,7 @@ from b2sdk.v2 import (
     FileVersion,
     KeepOrDeleteMode,
     LegalHold,
+    LifecycleRule,
     NewerFileSyncMode,
     ProgressReport,
     ReplicationConfiguration,
@@ -117,6 +118,7 @@ from b2._cli.const import (
     CREATE_BUCKET_TYPES,
     DEFAULT_MIN_PART_SIZE,
 )
+from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
 from b2._utils.filesystem import points_to_fifo
 from b2.arg_parser import (
@@ -529,6 +531,34 @@ class ProgressMixin(Described):
         parser.add_argument(
             '--noProgress', action='store_true', help="progress will not be reported"
         )
+        super()._setup_parser(parser)  # noqa
+
+
+class LifecycleRulesMixin(Described):
+    """
+    Use `--lifecycleRule` to set lifecycle rule for the bucket.
+    Multiple rules can be specified by repeating the option.
+
+    `--lifecycleRules` option is deprecated and cannot be used together with --lifecycleRule.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        lifecycle_group = parser.add_mutually_exclusive_group()
+        lifecycle_group.add_argument(
+            '--lifecycleRule',
+            action='append',
+            default=[],
+            type=functools.partial(validated_loads, expected_type=LifecycleRule),
+            dest='lifecycleRules',
+            help="Lifecycle rule in JSON format. Can be supplied multiple times.",
+        )
+        lifecycle_group.add_argument(
+            '--lifecycleRules',
+            type=functools.partial(validated_loads, expected_type=List[LifecycleRule]),
+            help="(deprecated; use --lifecycleRule instead) List of lifecycle rules in JSON format.",
+        )
+
         super()._setup_parser(parser)  # noqa
 
 
@@ -1041,7 +1071,7 @@ class CopyFileById(
 
 
 @B2.register_subcommand
-class CreateBucket(DefaultSseMixin, Command):
+class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
 
@@ -1049,6 +1079,7 @@ class CreateBucket(DefaultSseMixin, Command):
     These can be given as JSON on the command line.
 
     {DEFAULTSSEMIXIN}
+    {LIFECYCLERULESMIXIN}
 
     Requires capability:
 
@@ -1060,21 +1091,20 @@ class CreateBucket(DefaultSseMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucketInfo', type=json.loads)
+        parser.add_argument('--bucketInfo', type=validated_loads)
         parser.add_argument(
             '--corsRules',
-            type=json.loads,
+            type=validated_loads,
             help=
             "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
         )
-        parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
             '--fileLockEnabled',
             action='store_true',
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
         )
-        parser.add_argument('--replication', type=json.loads)
+        parser.add_argument('--replication', type=validated_loads)
         parser.add_argument('bucketName')
         parser.add_argument('bucketType', choices=CREATE_BUCKET_TYPES)
 
@@ -2512,7 +2542,7 @@ class Sync(
 
 
 @B2.register_subcommand
-class UpdateBucket(DefaultSseMixin, Command):
+class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
@@ -2521,6 +2551,7 @@ class UpdateBucket(DefaultSseMixin, Command):
     These can be given as JSON on the command line.
 
     {DEFAULTSSEMIXIN}
+    {LIFECYCLERULESMIXIN}
 
     To set a default retention for files in the bucket ``--defaultRetentionMode`` and
     ``--defaultRetentionPeriod`` have to be specified. The latter one is of the form "X days|years".
@@ -2554,14 +2585,13 @@ class UpdateBucket(DefaultSseMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucketInfo', type=json.loads)
+        parser.add_argument('--bucketInfo', type=validated_loads)
         parser.add_argument(
             '--corsRules',
-            type=json.loads,
+            type=validated_loads,
             help=
             "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
         )
-        parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
             '--defaultRetentionMode',
             choices=(
@@ -2576,7 +2606,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
-        parser.add_argument('--replication', type=json.loads)
+        parser.add_argument('--replication', type=validated_loads)
         parser.add_argument(
             '--fileLockEnabled',
             action='store_true',
@@ -3517,7 +3547,7 @@ class License(Command):  # pragma: no cover
             ]
         )
         licenses_output = piplicenses.create_output_string(args)
-        licenses = json.loads(licenses_output)
+        licenses = validated_loads(licenses_output)
         return licenses
 
     def _fetch_license_from_url(self, url: str) -> str:
@@ -3602,7 +3632,7 @@ class ConsoleTool:
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
         parser = B2.get_parser()
-        argcomplete.autocomplete(parser)
+        argcomplete.autocomplete(parser, default_completer=None)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 

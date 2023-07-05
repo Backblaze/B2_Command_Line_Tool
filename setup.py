@@ -111,6 +111,7 @@ setup(
     # for example:
     # $ pip install -e .[dev,test]
     extras_require={
+        'full': read_requirements('full'),
         'doc': read_requirements('doc'),
         'license': read_requirements('license'),
     },
