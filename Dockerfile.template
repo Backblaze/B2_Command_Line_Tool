@@ -12,7 +12,7 @@ LABEL build-date-iso8601="${build_date}"
 WORKDIR ${homedir}
 
 COPY ${tar_path}/${tar_name} .
-RUN ["pip", "install", "${tar_name}"]
+RUN ["pip", "install", "${tar_name}[full]"]
 ENV PATH=${homedir}/.local/bin:$$PATH
 
 

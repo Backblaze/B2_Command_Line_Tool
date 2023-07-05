@@ -31,7 +31,14 @@ Stand-alone binaries are available for Linux and Windows; this is the most strai
 You can also install it in your Python environment ([virtualenv](https://pypi.org/project/virtualenv/) is recommended) from PyPI with:
 
 ```bash
-pip install b2
+pip install b2[full]
+```
+
+The extra dependencies improve debugging experience and, potentially, performance of `b2` CLI, but are not strictly required.
+You can install the `b2` without them:
+
+```bash
+    pip install b2
 ```
 
 ### Installing from source

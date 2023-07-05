@@ -187,7 +187,10 @@ class BaseConsoleToolTest(TestBase):
         expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
         stdout, stderr = self._get_stdouterr()
         console_tool = ConsoleTool(self.b2_api, stdout, stderr)
-        actual_status = console_tool.run_command(['b2'] + argv)
+        try:
+            actual_status = console_tool.run_command(['b2'] + argv)
+        except SystemExit as e:
+            actual_status = e.code
 
         actual_stdout = self._trim_trailing_spaces(stdout.getvalue())
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
@@ -444,6 +447,58 @@ class TestConsoleTool(BaseConsoleToolTest):
             'Using http://production.example.com\n',
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
+        )
+
+    def test_create_bucket__with_lifecycle_rule(self):
+        self._authorize_account()
+
+        rule = json.dumps(
+            {
+                "daysFromHidingToDeleting": 1,
+                "daysFromUploadingToHiding": None,
+                "fileNamePrefix": ""
+            }
+        )
+
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycleRule', rule], 'bucket_0\n', '',
+            0
+        )
+
+    def test_create_bucket__with_lifecycle_rules(self):
+        self._authorize_account()
+
+        rules = json.dumps(
+            [
+                {
+                    "daysFromHidingToDeleting": 1,
+                    "daysFromUploadingToHiding": None,
+                    "fileNamePrefix": ""
+                }
+            ]
+        )
+
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycleRules', rules], 'bucket_0\n',
+            '', 0
+        )
+
+    def test_create_bucket__mutually_exclusive_lifecycle_rules_options(self):
+        self._authorize_account()
+
+        rule = json.dumps(
+            {
+                "daysFromHidingToDeleting": 1,
+                "daysFromUploadingToHiding": None,
+                "fileNamePrefix": ""
+            }
+        )
+
+        self._run_command(
+            [
+                'create-bucket', 'my-bucket', 'allPrivate', '--lifecycleRule', rule,
+                '--lifecycleRules', f"[{rule}]"
+            ], '', '', 2
         )
 
     def test_create_bucket_key_and_authorize_with_it(self):

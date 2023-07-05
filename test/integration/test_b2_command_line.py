@@ -245,13 +245,13 @@ def test_basic(b2_tool, bucket_name):
 
 
 def test_bucket(b2_tool, bucket_name):
-    rules = """[{
+    rule = """{
         "daysFromHidingToDeleting": 1,
         "daysFromUploadingToHiding": null,
         "fileNamePrefix": ""
-    }]"""
+    }"""
     output = b2_tool.should_succeed_json(
-        ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *get_bucketinfo()],
+        ['update-bucket', '--lifecycleRule', rule, bucket_name, 'allPublic', *get_bucketinfo()],
     )
 
     ########## // doesn't happen on production, but messes up some tests \\ ##########
