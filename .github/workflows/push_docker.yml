@@ -5,7 +5,6 @@ on:
 
 jobs:
   deploy-docker:
-    needs: deploy
     runs-on: ubuntu-latest
     container:
       image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
