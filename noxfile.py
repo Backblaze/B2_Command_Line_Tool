@@ -182,13 +182,13 @@ def unit(session):
         session.notify('cover')
 
 
-@nox.session(python=PYTHON_VERSIONS)
-def integration(session):
+def run_integration_test(session, pytest_posargs):
     """Run integration tests."""
     install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run(
         'pytest',
+        'test/integration',
         '-s',
         '-n',
         'auto',
@@ -196,9 +196,14 @@ def integration(session):
         'INFO',
         '-W',
         'ignore::DeprecationWarning:rst2ansi.visitor:',
-        *session.posargs,
-        'test/integration',
+        *pytest_posargs,
     )
+
+
+@nox.session(python=PYTHON_VERSIONS)
+def integration(session):
+    """Run integration tests."""
+    run_integration_test(session, session.posargs)
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -482,8 +487,8 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def docker(session):
-    """Build the docker image."""
+def generate_dockerfile(session):
+    """Generate Dockerfile from Dockerfile.template"""
     build(session)
 
     install_myself(session)
@@ -491,18 +496,13 @@ def docker(session):
     version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
 
     dist_path = 'dist'
-    tests_image_dir = '/test'
-    tests_path = 'test/'
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
-    username = 'b2'
 
     template_mapping = dict(
-        username='b2',
-        homedir=f'/{username}',
-        python_version=session.python,
+        python_version=PYTHON_DEFAULT_VERSION,
         vendor='Backblaze',
         name=full_name,
         description=description,
@@ -512,11 +512,8 @@ def docker(session):
         vcs_url='https://github.com/Backblaze/B2_Command_Line_Tool',
         vcs_ref=vcs_ref,
         build_date=datetime.datetime.utcnow().isoformat(),
-        tests_image_dir=tests_image_dir,
-        tests_path=tests_path,
         tar_path=dist_path,
         tar_name=built_distribution.name,
-        files_used_by_tests='\n'.join([f'COPY {filename} .' for filename in FILES_USED_IN_TESTS])
     )
 
     template_file = DOCKER_TEMPLATE.read_text()
@@ -525,23 +522,35 @@ def docker(session):
     pathlib.Path('./Dockerfile').write_text(dockerfile)
 
 
+def run_docker_tests(session, image_tag):
+    """Run unittests against a docker image."""
+    run_integration_test(
+        session, [
+            "--sut",
+            f"docker run -i -v b2:/root -v /tmp:/tmp:rw "
+            f"--env-file ENVFILE {image_tag}",
+            "--env-file-cmd-placeholder",
+            "ENVFILE",
+        ]
+    )
+
+
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker_test(session):
-    """Run unittests against the docker image."""
-    docker(session)
+    """Run unittests against a docker image."""
+    if session.posargs:
+        image_tag = session.posargs[0]
+    else:
+        raise ValueError('Provide -- {docker_image_tag}')
+    run_docker_tests(session, image_tag)
 
-    image_tag = 'b2:test'
 
-    session.run('docker', 'build', '-t', image_tag, '--target', 'test', '.', external=True)
-    docker_test_run = [
-        'docker',
-        'run',
-        '--rm',
-        '-e',
-        'B2_TEST_APPLICATION_KEY',
-        '-e',
-        'B2_TEST_APPLICATION_KEY_ID',
-        image_tag,
-    ]
-    session.run(*docker_test_run, 'unit', external=True)
-    session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def build_and_test_docker(session):
+    """
+    For running locally, CI uses a different set of sessions
+    """
+    test_image_tag = 'b2:test'
+    generate_dockerfile(session)
+    session.run('docker', 'build', '-t', test_image_tag, '.', external=True)
+    run_docker_tests(session, test_image_tag)

@@ -15,7 +15,9 @@ import itertools
 import json
 import os
 import os.path
+import pathlib
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -37,6 +39,7 @@ from b2sdk.v2 import (
 from b2.console_tool import current_time_millis
 
 from ..helpers import skip_on_windows
+from .conftest import TEMPDIR
 from .helpers import (
     BUCKET_CREATED_AT_MILLIS,
     ONE_DAY_MILLIS,
@@ -61,7 +64,7 @@ def get_bucketinfo() -> Tuple[str, str]:
 
 def test_download(b2_tool, bucket_name):
 
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
 
     uploaded_a = b2_tool.should_succeed_json(
         ['upload-file', '--quiet', bucket_name, file_to_upload, 'a']
@@ -77,9 +80,9 @@ def test_download(b2_tool, bucket_name):
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
 
 
-def test_basic(b2_tool, bucket_name):
+def test_basic(b2_tool, bucket_name, is_running_on_docker):
 
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
     file_mod_time_str = str(file_mod_time_millis(file_to_upload))
 
     file_data = read_file(file_to_upload)
@@ -212,38 +215,39 @@ def test_basic(b2_tool, bucket_name):
         re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
     # Check logging settings
-    b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name, '--debugLogs'],
-        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
-    )
-    stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
+    if not is_running_on_docker:  # It's difficult to read the log in docker in CI
+        b2_tool.should_fail(
+            ['delete-bucket', to_be_removed_bucket_name, '--debugLogs'],
+            re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+        )
+        stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
 
-    # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
-    # check global logging settings
-    stderr_regex = re.compile(
-        r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v2/b2_delete_bucket HTTP'
-        r'.*' + stack_trace_in_log,
-        re.DOTALL,
-    )
-    log_file_regex = re.compile(
-        r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v2/b2_delete_bucket HTTP'
-        r'.*' + stack_trace_in_log,
-        re.DOTALL,
-    )
-    with open('b2_cli.log') as logfile:
-        log = logfile.read()
-        assert re.search(log_file_regex, log), log
-    os.remove('b2_cli.log')
+        # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
+        # check global logging settings
+        stderr_regex = re.compile(
+            r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v2/b2_delete_bucket HTTP'
+            r'.*' + stack_trace_in_log,
+            re.DOTALL,
+        )
+        log_file_regex = re.compile(
+            r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v2/b2_delete_bucket HTTP'
+            r'.*' + stack_trace_in_log,
+            re.DOTALL,
+        )
+        with open('b2_cli.log') as logfile:
+            log = logfile.read()
+            assert re.search(log_file_regex, log), log
+        os.remove('b2_cli.log')
 
-    b2_tool.should_fail(['delete-bucket', to_be_removed_bucket_name, '--verbose'], stderr_regex)
-    assert not os.path.exists('b2_cli.log')
+        b2_tool.should_fail(['delete-bucket', to_be_removed_bucket_name, '--verbose'], stderr_regex)
+        assert not os.path.exists('b2_cli.log')
 
-    b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stderr_regex
-    )
-    with open('b2_cli.log') as logfile:
-        log = logfile.read()
-        assert re.search(log_file_regex, log), log
+        b2_tool.should_fail(
+            ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debugLogs'], stderr_regex
+        )
+        with open('b2_cli.log') as logfile:
+            log = logfile.read()
+            assert re.search(log_file_regex, log), log
 
 
 def test_bucket(b2_tool, bucket_name):
@@ -277,7 +281,9 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name):
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
     # A single file for rm to fail on.
-    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, 'README.md', 'test'])
+    b2_tool.should_succeed(
+        ['upload-file', '--noProgress', bucket_name, f'{TEMPDIR}/README.md', 'test']
+    )
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -742,7 +748,7 @@ def test_sync_down_sse_c_no_prefix(b2_tool, bucket_name):
 
 def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
 
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
 
     b2_sync_point = 'b2:%s' % bucket_name
     if folder_in_bucket:
@@ -971,7 +977,7 @@ def run_sync_copy_with_basic_checks(
     destination_encryption,
     source_encryption,
 ):
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
 
     # Put a couple files in B2
     if source_encryption is None or source_encryption.mode in (
@@ -1121,7 +1127,7 @@ def test_default_sse_b2(b2_api, b2_tool, bucket_name):
 
 
 def test_sse_b2(b2_tool, bucket_name):
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
 
     b2_tool.should_succeed(
         [
@@ -1189,9 +1195,14 @@ def test_sse_b2(b2_tool, bucket_name):
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
 
-def test_sse_c(b2_tool, bucket_name):
+def test_sse_c(b2_tool, bucket_name, is_running_on_docker):
 
-    file_to_upload = 'README.md'
+    sse_c_key_id = 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü'
+    if is_running_on_docker:
+        # TODO: fix this once we figure out how to pass env vars with \n in them to docker, docker-compose should work
+        sse_c_key_id = sse_c_key_id.replace('\n', '')
+
+    file_to_upload = f'{TEMPDIR}/README.md'
     secret = os.urandom(32)
 
     b2_tool.should_fail(
@@ -1208,7 +1219,7 @@ def test_sse_c(b2_tool, bucket_name):
         ],
         additional_env={
             'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
-            'B2_DESTINATION_SSE_C_KEY_ID': 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',
+            'B2_DESTINATION_SSE_C_KEY_ID': sse_c_key_id,
         }
     )
     should_equal(
@@ -1219,10 +1230,7 @@ def test_sse_c(b2_tool, bucket_name):
             "mode": "SSE-C"
         }, file_version_info['serverSideEncryption']
     )
-    should_equal(
-        'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',
-        file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME]
-    )
+    should_equal(sse_c_key_id, file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME])
 
     b2_tool.should_fail(
         [
@@ -1457,7 +1465,7 @@ def test_sse_c(b2_tool, bucket_name):
             },
             {
                 'file_name': 'uploaded_encrypted',
-                'sse_c_key_id': 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü',
+                'sse_c_key_id': sse_c_key_id,
                 'serverSideEncryption':
                     {
                         "algorithm": "AES256",
@@ -1568,7 +1576,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
         ],
     )
 
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
     now_millis = current_time_millis()
 
     not_lockable_file = b2_tool.should_succeed_json(  # file in a lock disabled bucket
@@ -1924,7 +1932,7 @@ def file_lock_without_perms_test(
             '--noProgress',
             '--quiet',
             lock_enabled_bucket_name,
-            'README.md',
+            f'{TEMPDIR}/README.md',
             'bound_to_fail_anyway',
             '--fileRetentionMode',
             'governance',
@@ -1942,7 +1950,7 @@ def file_lock_without_perms_test(
             '--noProgress',
             '--quiet',
             lock_disabled_bucket_name,
-            'README.md',
+            f'{TEMPDIR}/README.md',
             'bound_to_fail_anyway',
             '--fileRetentionMode',
             'governance',
@@ -1998,7 +2006,7 @@ def upload_locked_file(b2_tool, bucket_name):
             '--retainUntil',
             str(int(time.time()) + 1000),
             bucket_name,
-            'README.md',
+            f'{TEMPDIR}/README.md',
             'a-locked',
         ]
     )
@@ -2337,7 +2345,10 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     # ---------------- add test data ----------------
     destination_bucket_name = bucket_name
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', destination_bucket_name, 'README.md', 'one/a']
+        [
+            'upload-file', '--quiet', destination_bucket_name,
+            f'{TEMPDIR}/README.md', 'one/a'
+        ]
     )
 
     # ---------------- set up replication destination ----------------
@@ -2404,8 +2415,14 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     )
 
     # make test data
+    shutil.copyfile(
+        pathlib.Path(__file__).parent.parent.parent / 'CHANGELOG.md', f'{TEMPDIR}/CHANGELOG.md'
+    )
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', source_bucket_name, 'CHANGELOG.md', 'one/a']
+        [
+            'upload-file', '--quiet', source_bucket_name, f'{TEMPDIR}/CHANGELOG.md',
+            'one/a'
+        ]
     )
     b2_tool.should_succeed_json(
         [
@@ -2414,7 +2431,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
             source_bucket_name,
             '--legalHold',
             'on',
-            'README.md',
+            f'{TEMPDIR}/README.md',
             'two/b',
         ]
     )
@@ -2424,8 +2441,10 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-B2']
     upload_additional_env = {}
     b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', source_bucket_name, 'README.md', 'two/c'] +
-        upload_encryption_args,
+        [
+            'upload-file', '--quiet', source_bucket_name, f'{TEMPDIR}/README.md',
+            'two/c'
+        ] + upload_encryption_args,
         additional_env=upload_additional_env,
     )
 
@@ -2436,8 +2455,10 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
     }
     b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', source_bucket_name, 'README.md', 'two/d'] +
-        upload_encryption_args,
+        [
+            'upload-file', '--quiet', source_bucket_name, f'{TEMPDIR}/README.md',
+            'two/d'
+        ] + upload_encryption_args,
         additional_env=upload_additional_env,
     )
 
@@ -2447,7 +2468,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
             'upload-file',
             '--quiet',
             source_bucket_name,
-            'README.md',
+            f'{TEMPDIR}/README.md',
             'two/e',
             '--legalHold',
             'on',
@@ -2611,7 +2632,7 @@ def _assert_file_lock_configuration(
 
 
 def test_cut(b2_tool, bucket_name):
-    file_to_upload = 'README.md'
+    file_to_upload = f'{TEMPDIR}/README.md'
     file_data = read_file(file_to_upload)
     cut = 12345
     cut_printable = '1970-01-01  00:00:12'
@@ -2646,18 +2667,24 @@ def test_cut(b2_tool, bucket_name):
 
 
 @skip_on_windows
-def test_upload_file__stdin_pipe_operator(bash_runner, b2_tool, bucket_name, request):
+def test_upload_file__stdin_pipe_operator(request, bash_runner, b2_tool, bucket_name):
     """Test upload-file from stdin using pipe operator."""
     content = request.node.name
     run = bash_runner(
-        f'echo -n {content!r} | b2 upload-file {bucket_name} - {request.node.name}.txt'
+        f'echo -n {content!r} '
+        f'| '
+        f'{" ".join(b2_tool.parse_command(b2_tool.prepare_env()))} upload-file {bucket_name} - {request.node.name}.txt'
     )
     assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
 
 
 @skip_on_windows
-def test_upload_unbound_stream__redirect_operator(bash_runner, b2_tool, bucket_name, request):
+def test_upload_unbound_stream__redirect_operator(
+    request, bash_runner, b2_tool, bucket_name, is_running_on_docker
+):
     """Test upload-unbound-stream from stdin using redirect operator."""
+    if is_running_on_docker:
+        pytest.skip('Not supported on Docker')
     content = request.node.name
     run = bash_runner(
         f'b2 upload-unbound-stream {bucket_name} <(echo -n {content}) {request.node.name}.txt'
