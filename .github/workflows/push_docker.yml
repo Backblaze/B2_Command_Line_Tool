@@ -1,0 +1,42 @@
+name: Deploy docker
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-docker:
+    needs: deploy
+    runs-on: ubuntu-latest
+    container:
+      image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      env:
+        DEBIAN_FRONTEND: noninteractive
+        DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
+        DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pip setuptools
+      - name: Build Dockerfile
+        id: build-dockerfile
+        run: nox -vs docker
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}  # TODO: skip whole job without marking it as an error
+        uses: docker/login-action@v2
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}  # TODO: skip whole job without marking it as an error
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: backblaze/b2:${{ steps.build.outputs.version }}
+
