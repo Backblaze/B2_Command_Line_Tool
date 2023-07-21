@@ -31,7 +31,7 @@ ENTRYPOINT ["nox", "--no-venv", "--no-install", "-s"]
 
 FROM base
 
-RUN ["useradd", "--home", "${homedir}", "--shell", "/usr/sbin/nologin", "--badnames", "${username}"]
+RUN ["useradd", "--home", "${homedir}", "--shell", "/usr/sbin/nologin", "${username}"]
 USER ${username}
 
 ENTRYPOINT ["b2"]
