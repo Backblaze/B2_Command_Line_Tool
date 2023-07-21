@@ -6,12 +6,10 @@ on:
 jobs:
   deploy-docker:
     runs-on: ubuntu-latest
-    container:
-      image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
-      env:
-        DEBIAN_FRONTEND: noninteractive
-        DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
-        DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
+      DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
     steps:
       - uses: actions/checkout@v3
         with:
