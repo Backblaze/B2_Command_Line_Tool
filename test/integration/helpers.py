@@ -7,10 +7,10 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-
 import json
 import logging
 import os
+import pathlib
 import platform
 import random
 import re
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
-from tempfile import gettempdir, mkdtemp
+from tempfile import gettempdir, mkdtemp, mktemp
 from typing import List, Optional, Union
 from unittest.mock import MagicMock
 
@@ -298,57 +298,6 @@ class StringReader:
             self.string = str(e)
 
 
-def run_command(
-    cmd: str,
-    args: Optional[List[Union[str, Path, int]]] = None,
-    additional_env: Optional[dict] = None,
-):
-    """
-    :param cmd: a command to run
-    :param args: command's arguments
-    :param additional_env: environment variables to pass to the command, overwriting parent process ones
-    :return: (status, stdout, stderr)
-    """
-    # We'll run the b2 command-line by running the b2 module from
-    # the current directory or provided as parameter
-    environ['PYTHONPATH'] = '.'
-    environ['PYTHONIOENCODING'] = 'utf-8'
-    command = cmd.split(' ')
-    args: List[str] = [str(arg) for arg in args] if args else []
-    command.extend(args)
-
-    print('Running:', ' '.join(command))
-
-    stdout = StringReader()
-    stderr = StringReader()
-
-    env = environ.copy()
-    env.update(additional_env or {})
-
-    p = subprocess.Popen(
-        command,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        close_fds=platform.system() != 'Windows',
-        env=env,
-    )
-    p.stdin.close()
-    reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
-    reader1.start()
-    reader2 = threading.Thread(target=stderr.read_from, args=[p.stderr])
-    reader2.start()
-    p.wait()
-    reader1.join()
-    reader2.join()
-
-    stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
-    stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
-
-    print_output(p.returncode, stdout_decoded, stderr_decoded)
-    return p.returncode, stdout_decoded, stderr_decoded
-
-
 class EnvVarTestContext:
     """
     Establish config for environment variable test.
@@ -401,12 +350,16 @@ class CommandLine:
         re.compile(r'Trying to print: .*'),
     ]
 
-    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
+    def __init__(
+        self, command, account_id, application_key, realm, bucket_name_prefix,
+        env_file_cmd_placeholder
+    ):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
+        self.env_file_cmd_placeholder = env_file_cmd_placeholder
         self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.account_info_file_name = SqliteAccountInfo().filename
 
@@ -420,7 +373,7 @@ class CommandLine:
         Runs the command with the given arguments, returns a tuple in form of
         (succeeded, stdout)
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = self.execute(args, additional_env)
         return status == 0 and stderr == '', stdout
 
     def should_succeed(
@@ -432,9 +385,9 @@ class CommandLine:
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, returns the stdout of the command
-        as as string.
+        as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = self.execute(args, additional_env)
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':
@@ -454,6 +407,78 @@ class CommandLine:
 
         return stdout
 
+    @classmethod
+    def prepare_env(self, additional_env: Optional[dict] = None):
+        environ['PYTHONPATH'] = '.'
+        environ['PYTHONIOENCODING'] = 'utf-8'
+        env = environ.copy()
+        env.update(additional_env or {})
+        return env
+
+    def parse_command(self, env):
+        """
+        Split `self.command` into a list of strings. If necessary, dump the env vars to a tmp file and substitute
+        one the command's argument with that file's path.
+        """
+        command = self.command.split(' ')
+        if self.env_file_cmd_placeholder:
+            env_file_path = mktemp()
+            pathlib.Path(env_file_path).write_text('\n'.join(f'{k}={v}' for k, v in env.items()))
+            command = [
+                (c if c != self.env_file_cmd_placeholder else env_file_path) for c in command
+            ]
+        return command
+
+    def execute(
+        self,
+        args: Optional[List[Union[str, Path, int]]] = None,
+        additional_env: Optional[dict] = None,
+    ):
+        """
+        :param cmd: a command to run
+        :param args: command's arguments
+        :param additional_env: environment variables to pass to the command, overwriting parent process ones
+        :param env_file_cmd_placeholder: If specified, all occurrences of this string in `args` will be substituted with a
+                                         path to a tmp file containing env vars to be used when running this command. Useful
+                                         for docker.
+        :return: (status, stdout, stderr)
+        """
+        # We'll run the b2 command-line by running the b2 module from
+        # the current directory or provided as parameter
+        env = self.prepare_env(additional_env)
+        command = self.parse_command(env)
+
+        args: List[str] = [str(arg) for arg in args] if args else []
+        command.extend(args)
+
+        print('Running:', ' '.join(command))
+
+        stdout = StringReader()
+        stderr = StringReader()
+
+        p = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            close_fds=platform.system() != 'Windows',
+            env=env,
+        )
+        p.stdin.close()
+        reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
+        reader1.start()
+        reader2 = threading.Thread(target=stderr.read_from, args=[p.stderr])
+        reader2.start()
+        p.wait()
+        reader1.join()
+        reader2.join()
+
+        stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
+        stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
+
+        print_output(p.returncode, stdout_decoded, stderr_decoded)
+        return p.returncode, stdout_decoded, stderr_decoded
+
     def should_succeed_json(self, args, additional_env: Optional[dict] = None):
         """
         Runs the command-line with the given arguments.  Raises an exception
@@ -472,7 +497,7 @@ class CommandLine:
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = self.execute(args, additional_env)
         assert status != 0, 'ERROR: should have failed'
 
         if platform.python_implementation().lower() == 'pypy':

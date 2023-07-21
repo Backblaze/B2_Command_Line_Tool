@@ -1,0 +1,54 @@
+name: Deploy docker
+
+on:
+  push:
+    tags: 'v*'  # push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  deploy-docker:
+    runs-on: ubuntu-latest
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
+      DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      PYTHON_DEFAULT_VERSION: 3.11
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pip setuptools
+      - name: Build Dockerfile
+        run: nox -vs generate_dockerfile
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}  # TODO: skip whole job without marking it as an error
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: install setuptools_scm
+        run: pip install setuptools_scm
+      - name: get version
+        id: package_version
+        run: echo package_version=`python -m setuptools_scm` >> $GITHUB_OUTPUT
+      - name: echo
+        run: echo ${{ steps.package_version.outputs.package_version }}
+      - name: Build and push
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}  # TODO: skip whole job without marking it as an error
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: backblazeit/b2:latest,backblazeit/b2:${{ steps.package_version.outputs.package_version }}
+          platforms: linux/amd64
+

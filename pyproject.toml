@@ -1,8 +1,7 @@
-# Including project:version breaks `version` number generation under gha CD
-# [project]
-# requires-python = ">=3.7"
-# name = "b2"
-# version = "0.0.0"  # this is wrong, but setuptools>61 insists its here
+[project]
+requires-python = ">=3.7"
+name = "b2"
+dynamic = ["version"]
 
 [tool.ruff]
 target-version = "py37"  # to be replaced by project:requires-python when we will have that section in here

@@ -3492,9 +3492,17 @@ class Version(Command):
 
     REQUIRES_AUTH = False
 
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--short', action='store_true')
+        super()._setup_parser(parser)
+
     def run(self, args):
         super().run(args)
-        self._print('b2 command line tool, version', VERSION)
+        if args.short:
+            self._print(VERSION)
+        else:
+            self._print('b2 command line tool, version', VERSION)
         return 0
 
 

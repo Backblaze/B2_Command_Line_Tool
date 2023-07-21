@@ -38,6 +38,7 @@ from b2._cli.const import (
     B2_ENVIRONMENT_ENV_VAR,
 )
 from b2.console_tool import ConsoleTool, Rm
+from b2.version import VERSION
 
 from .test_base import TestBase
 
@@ -2737,3 +2738,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+
+    def test_version(self):
+        self._run_command(['version', '--short'], expected_stdout=f'{VERSION}\n')
+        self._run_command(['version'], expected_stdout=f'b2 command line tool, version {VERSION}\n')
