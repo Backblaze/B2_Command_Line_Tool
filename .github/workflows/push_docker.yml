@@ -18,9 +18,9 @@ jobs:
         run: which docker
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip setuptools
-#      - name: Build Dockerfile
-#        id: build-dockerfile
-#        run: nox -vs docker
+      - name: Build Dockerfile
+        id: build-dockerfile
+        run: nox -vs docker
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
@@ -37,5 +37,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: backblaze/b2:${{ steps.build.outputs.version }}
+          tags: mpnowacki/b2:teraz
 
