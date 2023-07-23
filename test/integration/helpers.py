@@ -407,7 +407,10 @@ class CommandLine:
         re.compile(r'Trying to print: .*'),
     ]
 
-    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix, env_file_cmd_placeholder):
+    def __init__(
+        self, command, account_id, application_key, realm, bucket_name_prefix,
+        env_file_cmd_placeholder
+    ):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
@@ -427,7 +430,9 @@ class CommandLine:
         Runs the command with the given arguments, returns a tuple in form of
         (succeeded, stdout)
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env, self.env_file_cmd_placeholder)
+        status, stdout, stderr = run_command(
+            self.command, args, additional_env, self.env_file_cmd_placeholder
+        )
         return status == 0 and stderr == '', stdout
 
     def should_succeed(
@@ -441,7 +446,9 @@ class CommandLine:
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env, self.env_file_cmd_placeholder)
+        status, stdout, stderr = run_command(
+            self.command, args, additional_env, self.env_file_cmd_placeholder
+        )
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':
@@ -468,7 +475,9 @@ class CommandLine:
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env, self.env_file_cmd_placeholder)
+        status, stdout, stderr = run_command(
+            self.command, args, additional_env, self.env_file_cmd_placeholder
+        )
         assert status != 0, 'ERROR: should have failed'
 
         assert re.search(expected_pattern, stdout + stderr), \

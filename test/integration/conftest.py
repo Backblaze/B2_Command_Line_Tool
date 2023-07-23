@@ -32,7 +32,9 @@ def pytest_addoption(parser):
         '--sut', default='%s -m b2' % sys.executable, help='Path to the System Under Test'
     )
     parser.addoption(
-        '--env-file-cmd-placeholder', default=None, help=(
+        '--env-file-cmd-placeholder',
+        default=None,
+        help=(
             'If specified, all occurrences of this string in `--sut` will be substituted with a'
             'path to a tmp file containing env vars to be used when running commands in tests. Useful'
             'for docker.'
@@ -168,7 +170,9 @@ def b2_tool(global_b2_tool):
 @pytest.fixture(autouse=True)
 def copy_readme_for_tests():
     """Copy the README.md file to /tmp so that docker tests can access it"""
-    pathlib.Path('/tmp/README.md').write_text((pathlib.Path(__file__).parent.parent.parent / 'README.md').read_text())
+    pathlib.Path('/tmp/README.md').write_text(
+        (pathlib.Path(__file__).parent.parent.parent / 'README.md').read_text()
+    )
 
 
 @pytest.fixture()
@@ -190,7 +194,6 @@ def log_file():
         shutil.rmtree(path_)
     path_.touch()
     return path_
-
 
 
 SECRET_FIXTURES = {'application_key', 'application_key_id'}

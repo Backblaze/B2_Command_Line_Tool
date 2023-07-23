@@ -64,7 +64,9 @@ def test_autocomplete_b2_commands(autocomplete_installed, is_running_on_docker, 
 
 
 @skip_on_windows
-def test_autocomplete_b2_only_matching_commands(autocomplete_installed, is_running_on_docker, shell):
+def test_autocomplete_b2_only_matching_commands(
+    autocomplete_installed, is_running_on_docker, shell
+):
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
     shell.send('b2 download-\t\t')

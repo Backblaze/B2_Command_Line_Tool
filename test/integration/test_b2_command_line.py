@@ -1228,10 +1228,7 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker):
             "mode": "SSE-C"
         }, file_version_info['serverSideEncryption']
     )
-    should_equal(
-        sse_c_key_id,
-        file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME]
-    )
+    should_equal(sse_c_key_id, file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME])
 
     b2_tool.should_fail(
         [
@@ -2345,7 +2342,10 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     # ---------------- add test data ----------------
     destination_bucket_name = bucket_name
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', destination_bucket_name, '/tmp/README.md', 'one/a']
+        [
+            'upload-file', '--noProgress', '--quiet', destination_bucket_name, '/tmp/README.md',
+            'one/a'
+        ]
     )
 
     # ---------------- set up replication destination ----------------
@@ -2412,9 +2412,14 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     )
 
     # make test data
-    shutil.copyfile(pathlib.Path(__file__).parent.parent.parent / 'CHANGELOG.md', '/tmp/CHANGELOG.md')
+    shutil.copyfile(
+        pathlib.Path(__file__).parent.parent.parent / 'CHANGELOG.md', '/tmp/CHANGELOG.md'
+    )
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', source_bucket_name, '/tmp/CHANGELOG.md', 'one/a']
+        [
+            'upload-file', '--noProgress', '--quiet', source_bucket_name, '/tmp/CHANGELOG.md',
+            'one/a'
+        ]
     )
     b2_tool.should_succeed_json(
         [
