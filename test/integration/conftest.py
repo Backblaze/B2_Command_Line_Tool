@@ -11,6 +11,8 @@
 import contextlib
 import os
 import subprocess
+import pathlib
+import shutil
 import sys
 from os import environ, path
 from tempfile import TemporaryDirectory
@@ -28,6 +30,13 @@ GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 def pytest_addoption(parser):
     parser.addoption(
         '--sut', default='%s -m b2' % sys.executable, help='Path to the System Under Test'
+    )
+    parser.addoption(
+        '--env-file-cmd-placeholder', default=None, help=(
+            'If specified, all occurrences of this string in `--sut` will be substituted with a'
+            'path to a tmp file containing env vars to be used when running commands in tests. Useful'
+            'for docker.'
+        )
     )
     parser.addoption('--cleanup', action='store_true', help='Perform full cleanup at exit')
 
@@ -143,6 +152,7 @@ def global_b2_tool(
         application_key,
         realm,
         this_run_bucket_name_prefix,
+        request.config.getoption('--env-file-cmd-placeholder'),
     )
     tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
     return tool
@@ -153,6 +163,34 @@ def b2_tool(global_b2_tool):
     """Automatically reauthorized b2_tool for each test (without check)"""
     global_b2_tool.reauthorize(check_key_capabilities=False)
     return global_b2_tool
+
+
+@pytest.fixture(autouse=True)
+def copy_readme_for_tests():
+    """Copy the README.md file to /tmp so that docker tests can access it"""
+    pathlib.Path('/tmp/README.md').write_text((pathlib.Path(__file__).parent.parent.parent / 'README.md').read_text())
+
+
+@pytest.fixture()
+def is_running_on_docker(request):
+    return request.config.getoption('--sut').startswith('docker')
+
+
+@pytest.fixture()
+def log_file():
+    """
+    Make sure to clear and initiate b2_cli.log - otherwise running b2 in docker might create a b2_cli.log directory
+    """
+    path_ = pathlib.Path('b2_cli.log')
+    if not path_.exists():
+        pass
+    elif path_.is_file():
+        path_.unlink()
+    elif path_.is_dir():
+        shutil.rmtree(path_)
+    path_.touch()
+    return path_
+
 
 
 SECRET_FIXTURES = {'application_key', 'application_key_id'}

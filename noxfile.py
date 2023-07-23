@@ -491,18 +491,13 @@ def docker(session):
     version = session.run('b2', 'version', silent=True).split(' ')[-1].strip()
 
     dist_path = 'dist'
-    tests_image_dir = '/test'
-    tests_path = 'test/'
 
     full_name, description = _read_readme_name_and_description()
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
-    username = 'b2'
 
     template_mapping = dict(
-        username='b2',
-        homedir=f'/{username}',
-        python_version=session.python,
+        python_version=PYTHON_DEFAULT_VERSION,
         vendor='Backblaze',
         name=full_name,
         description=description,
@@ -512,11 +507,8 @@ def docker(session):
         vcs_url='https://github.com/Backblaze/B2_Command_Line_Tool',
         vcs_ref=vcs_ref,
         build_date=datetime.datetime.utcnow().isoformat(),
-        tests_image_dir=tests_image_dir,
-        tests_path=tests_path,
         tar_path=dist_path,
         tar_name=built_distribution.name,
-        files_used_by_tests='\n'.join([f'COPY {filename} .' for filename in FILES_USED_IN_TESTS])
     )
 
     template_file = DOCKER_TEMPLATE.read_text()

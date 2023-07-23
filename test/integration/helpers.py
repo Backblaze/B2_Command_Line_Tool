@@ -7,10 +7,10 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-
 import json
 import logging
 import os
+import pathlib
 import platform
 import random
 import re
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from os import environ, linesep, path
 from pathlib import Path
-from tempfile import gettempdir, mkdtemp
+from tempfile import gettempdir, mkdtemp, mktemp
 from typing import List, Optional, Union
 
 import backoff
@@ -299,11 +299,15 @@ def run_command(
     cmd: str,
     args: Optional[List[Union[str, Path, int]]] = None,
     additional_env: Optional[dict] = None,
+    env_file_cmd_placeholder: Optional[str] = None,
 ):
     """
     :param cmd: a command to run
     :param args: command's arguments
     :param additional_env: environment variables to pass to the command, overwriting parent process ones
+    :param env_file_cmd_placeholder: If specified, all occurrences of this string in `args` will be substituted with a
+                                     path to a tmp file containing env vars to be used when running this command. Useful
+                                     for docker.
     :return: (status, stdout, stderr)
     """
     # We'll run the b2 command-line by running the b2 module from
@@ -321,6 +325,11 @@ def run_command(
 
     env = environ.copy()
     env.update(additional_env or {})
+
+    if env_file_cmd_placeholder:
+        env_file_path = mktemp()
+        pathlib.Path(env_file_path).write_text('\n'.join(f'{k}={v}' for k, v in env.items()))
+        command = [(c if c != env_file_cmd_placeholder else env_file_path) for c in command]
 
     p = subprocess.Popen(
         command,
@@ -398,12 +407,13 @@ class CommandLine:
         re.compile(r'Trying to print: .*'),
     ]
 
-    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix):
+    def __init__(self, command, account_id, application_key, realm, bucket_name_prefix, env_file_cmd_placeholder):
         self.command = command
         self.account_id = account_id
         self.application_key = application_key
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
+        self.env_file_cmd_placeholder = env_file_cmd_placeholder
         self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.account_info_file_name = SqliteAccountInfo().filename
 
@@ -417,7 +427,7 @@ class CommandLine:
         Runs the command with the given arguments, returns a tuple in form of
         (succeeded, stdout)
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = run_command(self.command, args, additional_env, self.env_file_cmd_placeholder)
         return status == 0 and stderr == '', stdout
 
     def should_succeed(
@@ -431,7 +441,7 @@ class CommandLine:
         if there was an error; otherwise, returns the stdout of the command
         as as string.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = run_command(self.command, args, additional_env, self.env_file_cmd_placeholder)
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if stderr != '':
@@ -458,7 +468,7 @@ class CommandLine:
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
         """
-        status, stdout, stderr = run_command(self.command, args, additional_env)
+        status, stdout, stderr = run_command(self.command, args, additional_env, self.env_file_cmd_placeholder)
         assert status != 0, 'ERROR: should have failed'
 
         assert re.search(expected_pattern, stdout + stderr), \
