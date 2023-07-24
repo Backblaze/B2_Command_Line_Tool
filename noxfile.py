@@ -519,21 +519,22 @@ def docker(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker_test(session):
-    """Run unittests against the docker image."""
-    docker(session)
-
-    image_tag = 'b2:test'
-
-    session.run('docker', 'build', '-t', image_tag, '--target', 'test', '.', external=True)
-    docker_test_run = [
-        'docker',
-        'run',
-        '--rm',
-        '-e',
-        'B2_TEST_APPLICATION_KEY',
-        '-e',
-        'B2_TEST_APPLICATION_KEY_ID',
-        image_tag,
+    """Run unittests against a docker image."""
+    if session.posargs:
+        image_tag = session.posargs[0]
+    else:
+        raise ValueError('Provide -- {docker_image_tag}')
+    session.posargs = [
+        "--sut",
+        f"docker run -v b2:/b2 -v /tmp:/tmp:rw -v {os.getcwd()}/b2_cli.log:/root/b2_cli.log:rw "
+        f"--env-file ENVFILE {image_tag}",
+        "--env-file-cmd-placeholder",
+        "ENVFILE",
     ]
-    session.run(*docker_test_run, 'unit', external=True)
-    session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)
+    integration(session)
+    """
+    --sut "docker run -v b2:/b2 -v /tmp:/tmp:rw -v `pwd`/b2_cli.log:/root/b2_cli.log:rw --env-file cycki e98351d86c3c" --verbose --env-file-cmd-placeholder cycki
+    """
+    # integration(session)
+    # session.run(*docker_test_run, 'unit', external=True)
+    # session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)

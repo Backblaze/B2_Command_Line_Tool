@@ -10,6 +10,8 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
       DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -36,7 +38,10 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          push: true
-          tags: mpnowacki/b2:teraz
-          platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6
+          push: false
+          tags: mpnowacki/b2:test
+          platforms: linux/amd64
+      - name: Run dockerized tests
+        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        run: nox -vs docker_test -- mpnowacki/b2:test
 
