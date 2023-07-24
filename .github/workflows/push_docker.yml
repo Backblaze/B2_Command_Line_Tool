@@ -12,12 +12,17 @@ jobs:
       DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      PYTHON_DEFAULT_VERSION: 3.11
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: show docker
         run: which docker
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
         run: python -m pip install --upgrade nox pip setuptools
       - name: Build Dockerfile
