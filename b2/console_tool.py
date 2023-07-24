@@ -28,6 +28,7 @@ import platform
 import queue
 import re
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -3267,6 +3268,15 @@ class License(Command):  # pragma: no cover
     @classmethod
     def _get_licenses_dicts(cls) -> List[Dict]:
         assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
+        pipdeptree_run = subprocess.run(
+            ["pipdeptree", "--json", "-p", "b2"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        pipdeptree = json.loads(pipdeptree_run.stdout)
+        used_packages = [dep["package"]['package_name'] for dep in pipdeptree]
+
         parser = piplicenses.create_parser()
         args = parser.parse_args(
             [
@@ -3276,6 +3286,8 @@ class License(Command):  # pragma: no cover
                 '--with-authors',
                 '--with-urls',
                 '--with-license-file',
+                '--packages',
+                *used_packages,
             ]
         )
         licenses_output = piplicenses.create_output_string(args)
