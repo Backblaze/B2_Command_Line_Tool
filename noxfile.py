@@ -55,7 +55,8 @@ REQUIREMENTS_TEST = [
 ]
 REQUIREMENTS_BUILD = ['setuptools>=20.2']
 REQUIREMENTS_BUNDLE = [
-    'pyinstaller~=5.12',
+    'pyinstaller~=5.13',
+    'pyinstaller-hooks-contrib>=2023.6',
     "patchelf-wrapper==1.2.0;platform_system=='Linux'",
     "staticx~=0.13.9;platform_system=='Linux'",
 ]
@@ -258,7 +259,7 @@ def bundle(session: nox.Session):
     """Bundle the distribution."""
     session.run('pip', 'install', *REQUIREMENTS_BUNDLE, **run_kwargs)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
-    install_myself(session, ['license'])
+    install_myself(session, ['license', 'full'])
     session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
 
     session.run('pyinstaller', *session.posargs, 'b2.spec', **run_kwargs)
