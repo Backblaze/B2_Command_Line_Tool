@@ -9,8 +9,15 @@
 ######################################################################
 
 import argparse
+import sys
 
-from b2.arg_parser import parse_comma_separated_list, parse_millis_from_float_timestamp, parse_range
+from b2.arg_parser import (
+    ArgumentParser,
+    parse_comma_separated_list,
+    parse_millis_from_float_timestamp,
+    parse_range,
+)
+from b2.console_tool import B2
 
 from .test_base import TestBase
 
@@ -34,3 +41,50 @@ class TestCustomArgTypes(TestBase):
             parse_range('1,2,3')
         with self.assertRaises(ValueError):
             parse_range('!@#,%^&')
+
+
+class TestNonUTF8TerminalSupport(TestBase):
+    class ASCIIEncodedStream:
+        def __init__(self, original_stream):
+            self.original_stream = original_stream
+            self.encoding = 'ascii'
+
+        def write(self, data):
+            if isinstance(data, str):
+                data = data.encode(self.encoding, 'strict')
+            self.original_stream.buffer.write(data)
+
+        def flush(self):
+            self.original_stream.flush()
+
+    def check_help_string(self, command_class, command_name):
+        help_string = command_class.__doc__
+
+        # create a parser with a help message that is based on the command_class.__doc__ string
+        parser = ArgumentParser(description=help_string)
+
+        try:
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            sys.stdout = TestNonUTF8TerminalSupport.ASCIIEncodedStream(sys.stdout)
+            sys.stderr = TestNonUTF8TerminalSupport.ASCIIEncodedStream(sys.stderr)
+
+            parser.print_help()
+
+        except UnicodeEncodeError as e:
+            self.fail(
+                f'Failed to encode help message for command "{command_name}" on a non-UTF-8 terminal: {e}'
+            )
+
+        finally:
+            # Restore original stdout and stderr
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
+    def test_help_in_non_utf8_terminal(self):
+        command_classes = dict(B2.subcommands_registry.items())
+        command_classes['b2'] = B2
+
+        for command_name, command_class in command_classes.items():
+            with self.subTest(command_class=command_class, command_name=command_name):
+                self.check_help_string(command_class, command_name)

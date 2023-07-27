@@ -11,16 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Deprecated
 * Support of `-` as a valid filename in `upload-file` command. In future `-` will be an alias for standard input.
+* Declare official support of Python 3.12
 
 ### Infrastructure
+* Remove unsupported PyPy 3.7 from tests matrix and add PyPy 3.10 instead
 * Autocomplete integration tests will now work properly even if tested package has not been installed
 * Automatically set copyright date when generating the docs
 * Increase timeout time in autocomplete tests to accommodate slower CI environments
 * Update pyinstaller to fix Linux Bundle build
 * Replace `pyflakes` with `ruff` for linting
+* Make dependency version pinning less restrictive
 
 ### Fixed
 * Fast rm sometimes failing due to a rare race condition
+* Fix UnicodeEncodeError in non-Unicode terminals by prioritizing stdout encoding
+* When listing licenses in `license` command only show licenses of `b2` and its dependencies
 
 ## [3.9.0] - 2023-04-28
 
