@@ -13,7 +13,7 @@ We encourage outside contributors to perform changes to our codebase. Many such 
 * maintain Continuous Integration (by using GitHub Actions) that:
   * runs all sorts of linters
   * checks if the Python distribution can be built
-  * runs all tests on a matrix of 6 versions of Python (including PyPy) and 3 operating systems (Linux, Mac OS X, and Windows)
+  * runs all tests on a matrix of supported versions of Python (including PyPy) and 3 operating systems (Linux, Mac OS X, and Windows)
   * checks if the documentation can be built properly
 * maintain other Continuous Integration tools (coverage tracker)
 
