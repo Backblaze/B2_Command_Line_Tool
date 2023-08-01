@@ -2655,6 +2655,7 @@ class UploadFile(
         parser.add_argument('--minPartSize', type=int)
         parser.add_argument('--sha1')
         parser.add_argument('--threads', type=int, default=10)
+        parser.add_argument('--cache-control', default=None)
         parser.add_argument('--info', action='append', default=[])
         parser.add_argument('--custom-upload-timestamp', type=int)
         parser.add_argument('bucketName').completer = bucket_name_completer
@@ -2692,6 +2693,7 @@ class UploadFile(
             legal_hold=legal_hold,
             upload_mode=self._get_upload_mode_from_args(args),
             custom_upload_timestamp=args.custom_upload_timestamp,
+            cache_control=args.cache_control,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
