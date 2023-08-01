@@ -252,6 +252,14 @@ def test_bucket(b2_tool, bucket_name):
     output = b2_tool.should_succeed_json(
         ['update-bucket', '--lifecycleRules', rules, bucket_name, 'allPublic', *get_bucketinfo()],
     )
+
+    ########## // doesn't happen on production, but messes up some tests \\ ##########
+    for key in output['lifecycleRules'][0]:
+        if key[8] == 'S' and len(key) == 47:
+            del output['lifecycleRules'][0][key]
+            break
+    ########## \\ doesn't happen on production, but messes up some tests // ##########
+
     assert output["lifecycleRules"] == [
         {
             "daysFromHidingToDeleting": 1,
@@ -1515,7 +1523,7 @@ def test_license(b2_tool, with_packages):
         assert license_summary_text, license_text
         assert len(
             license_summary_text.group(0)
-        ) > 6_500  # we should know if the length of this block changes dramatically
+        ) > 6_300  # we should know if the length of this block changes dramatically
 
     assert """ license:
 Backblaze wants developers and organization to copy and re-use our

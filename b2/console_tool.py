@@ -3159,6 +3159,8 @@ class License(Command):  # pragma: no cover
     MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
 
     LICENSES = {
+        'argcomplete':
+            'https://raw.githubusercontent.com/kislyuk/argcomplete/develop/LICENSE.rst',
         'atomicwrites':
             'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
         'platformdirs':
