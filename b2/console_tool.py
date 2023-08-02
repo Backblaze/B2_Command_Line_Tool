@@ -506,12 +506,25 @@ class UploadModeMixin(Described):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--incrementalMode', action='store_true')
+        super()._setup_parser(parser)  # noqa
 
     @staticmethod
     def _get_upload_mode_from_args(args):
         if args.incrementalMode:
             return UploadMode.INCREMENTAL
         return UploadMode.FULL
+
+
+class RetryMixin(Described):
+    """
+    Use --retry-for to set the maximum time period, in minutes, for which to retry when an upload or download fails.
+    Default retry time is 5 minutes.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--retry-for', metavar='MINUTES', type=int)
+        super()._setup_parser(parser)  # noqa
 
 
 class Command(Described):
@@ -1275,7 +1288,7 @@ class DownloadCommand(Command):
 @B2.register_subcommand
 class DownloadFileById(
     SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, MaxDownloadStreamsMixin,
-    DownloadCommand
+    RetryMixin, DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1324,6 +1337,7 @@ class DownloadFileByName(
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
     MaxDownloadStreamsMixin,
+    RetryMixin,
     DownloadCommand,
 ):
     """
@@ -2157,6 +2171,7 @@ class Sync(
     SkipHashVerificationMixin,
     MaxDownloadStreamsMixin,
     UploadModeMixin,
+    RetryMixin,
     Command,
 ):
     """
@@ -2600,7 +2615,8 @@ class UpdateBucket(DefaultSseMixin, Command):
 
 @B2.register_subcommand
 class UploadFile(
-    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, Command
+    DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin, UploadModeMixin, RetryMixin,
+    Command
 ):
     """
     Uploads one file to the given bucket.  Uploads the contents
@@ -2655,7 +2671,6 @@ class UploadFile(
         parser.add_argument('--minPartSize', type=int)
         parser.add_argument('--sha1')
         parser.add_argument('--threads', type=int, default=10)
-        parser.add_argument('--cache-control', default=None)
         parser.add_argument('--info', action='append', default=[])
         parser.add_argument('--custom-upload-timestamp', type=int)
         parser.add_argument('bucketName').completer = bucket_name_completer
@@ -2693,7 +2708,6 @@ class UploadFile(
             legal_hold=legal_hold,
             upload_mode=self._get_upload_mode_from_args(args),
             custom_upload_timestamp=args.custom_upload_timestamp,
-            cache_control=args.cache_control,
         )
         if not args.quiet:
             self._print("URL by file name: " + bucket.get_download_url(args.b2FileName))
@@ -3161,8 +3175,6 @@ class License(Command):  # pragma: no cover
     MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
 
     LICENSES = {
-        'argcomplete':
-            'https://raw.githubusercontent.com/kislyuk/argcomplete/develop/LICENSE.rst',
         'atomicwrites':
             'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
         'platformdirs':
@@ -3408,6 +3420,9 @@ class ConsoleTool:
 
             if 'max_download_streams_per_file' in args:
                 kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
+
+            if 'retry-for' in args:
+                kwargs['retry_time'] = args.retry_for
 
             self.api = _get_b2api_for_profile(**kwargs)
 
