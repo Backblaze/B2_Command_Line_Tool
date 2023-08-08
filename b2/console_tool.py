@@ -2640,6 +2640,7 @@ class UploadFileMixin(
         parser.add_argument(
             '--threads', type=int, default=10, help="number of threads used for the operation"
         )
+        parser.add_argument('--cache-control', default=None)
         parser.add_argument(
             '--info',
             action='append',
@@ -2692,6 +2693,7 @@ class UploadFileMixin(
 
         return {
             "bucket": self.api.get_bucket_by_name(args.bucketName),
+            "cache_control": args.cache_control,
             "content_type": args.contentType,
             "custom_upload_timestamp": args.custom_upload_timestamp,
             "encryption": self._get_destination_sse_setting(args),
@@ -3354,6 +3356,8 @@ class License(Command):  # pragma: no cover
     MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
 
     LICENSES = {
+        'argcomplete':
+            'https://raw.githubusercontent.com/kislyuk/argcomplete/develop/LICENSE.rst',
         'atomicwrites':
             'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
         'platformdirs':

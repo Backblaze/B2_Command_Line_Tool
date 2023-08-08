@@ -791,9 +791,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "src_last_modified_millis": "1500111222000"
-                },
+                "fileInfo":
+                    {
+                        "src_last_modified_millis": "1500111222000",
+                        "b2-cache-control": "private, max-age=3600"
+                    },
                 "fileName": "file1.txt",
                 "serverSideEncryption": {
                     "mode": "none"
@@ -803,7 +805,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                [
+                    'upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt',
+                    '--cache-control=private, max-age=3600'
+                ],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -819,9 +824,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                 "contentType": "b2/x-auto",
                 "fileId": "9999",
-                "fileInfo": {
-                    "src_last_modified_millis": "1500111222000"
-                },
+                "fileInfo":
+                    {
+                        "src_last_modified_millis": "1500111222000",
+                        "b2-cache-control": "private, max-age=3600"
+                    },
                 "fileName": "file1.txt",
                 "serverSideEncryption": {
                     "mode": "none"
@@ -904,9 +911,11 @@ class TestConsoleTool(BaseConsoleToolTest):
                     "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
                     "contentType": "b2/x-auto",
                     "fileId": "9999",
-                    "fileInfo": {
-                        "src_last_modified_millis": str(mod_time_str)
-                    },
+                    "fileInfo":
+                        {
+                            "src_last_modified_millis": str(mod_time_str),
+                            "b2-cache-control": "private, max-age=3600"
+                        },
                     "fileName": "file1.txt",
                     "serverSideEncryption": {
                         "mode": "none"
