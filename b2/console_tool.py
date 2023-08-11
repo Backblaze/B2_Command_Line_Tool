@@ -2548,7 +2548,7 @@ class UpdateBucket(DefaultSseMixin, Command):
             '--corsRules',
             type=json.loads
             help=
-            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON formatted string."
+            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
         )
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
