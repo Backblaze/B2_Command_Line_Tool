@@ -1043,7 +1043,12 @@ class CreateBucket(DefaultSseMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
-        parser.add_argument('--corsRules', type=json.loads)
+        parser.add_argument(
+            '--corsRules',
+            type=json.loads
+            help=
+            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON formatted string."
+        )
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
             '--fileLockEnabled',
@@ -2539,7 +2544,12 @@ class UpdateBucket(DefaultSseMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
-        parser.add_argument('--corsRules', type=json.loads)
+        parser.add_argument(
+            '--corsRules',
+            type=json.loads
+            help=
+            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON formatted string."
+        )
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
             '--defaultRetentionMode',
