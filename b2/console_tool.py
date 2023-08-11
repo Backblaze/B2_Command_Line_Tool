@@ -33,7 +33,7 @@ import sys
 import threading
 import time
 import unicodedata
-from abc import ABCMeta, abstractclassmethod
+from abc import ABCMeta, abstractmethod
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
 from enum import Enum
@@ -115,9 +115,10 @@ from b2._cli.const import (
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR,
     CREATE_BUCKET_TYPES,
+    DEFAULT_MIN_PART_SIZE,
 )
 from b2._cli.shell import detect_shell
-from b2._utils.filesystem import RECOMMENDED_READ_BUF_SIZE, points_to_fifo
+from b2._utils.filesystem import points_to_fifo
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
@@ -951,7 +952,7 @@ class CopyFileById(
 
         info_group = parser.add_mutually_exclusive_group()
 
-        info_group.add_argument('--info', action='append', default=[])
+        info_group.add_argument('--info', action='append')
         info_group.add_argument('--noInfo', action='store_true', default=False)
 
         parser.add_argument('sourceFileId')
@@ -2608,8 +2609,32 @@ class UpdateBucket(DefaultSseMixin, Command):
         return 0
 
 
+class MinPartSizeMixin(Described):
+    """
+    By default, the file is broken into many parts to maximize upload parallelism and increase speed.
+    Setting ``--minPartSize`` controls the minimal upload file part size.
+    Part size must be in 5MB to 5GB range.
+    Reference: `<https://www.backblaze.com/docs/cloud-storage-create-large-files-with-the-native-api>`_
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--minPartSize',
+            type=int,
+            help="minimum part size in bytes",
+            default=None,
+        )
+        super()._setup_parser(parser)  # noqa
+
+
 class UploadFileMixin(
-    ProgressMixin, DestinationSseMixin, LegalHoldMixin, FileRetentionSettingMixin
+    MinPartSizeMixin,
+    ProgressMixin,
+    DestinationSseMixin,
+    LegalHoldMixin,
+    FileRetentionSettingMixin,
+    metaclass=ABCMeta
 ):
     """
     Content type is optional.
@@ -2630,9 +2655,6 @@ class UploadFileMixin(
         parser.add_argument(
             '--contentType',
             help="MIME type of the file being uploaded. If not set it will be guessed."
-        )
-        parser.add_argument(
-            '--minPartSize', type=int, help="minimum size of a part for multipart uploads"
         )
         parser.add_argument(
             '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
@@ -2705,8 +2727,10 @@ class UploadFileMixin(
             "min_part_size": args.minPartSize,
             "progress_listener": make_progress_listener(args.localFilePath, args.noProgress),
             "sha1_sum": args.sha1,
+            "threads": args.threads,
         }
 
+    @abstractmethod
     def execute_operation(self, **kwargs) -> 'b2sdk.file_version.FileVersion':
         raise NotImplementedError
 
@@ -2715,6 +2739,8 @@ class UploadFileMixin(
         Translate upload_file kwargs to unbound_upload equivalents
         """
         kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
+        kwargs["buffers_count"] = kwargs["threads"] + 1
+        kwargs["read_size"] = kwargs["min_part_size"] or DEFAULT_MIN_PART_SIZE
         return kwargs
 
     def get_input_stream(self, filename: str) -> 'str | int | io.BinaryIO':
@@ -2731,13 +2757,15 @@ class UploadFileMixin(
 
         raise self.NotAnInputStream()
 
-    def file_identifier_to_read_stream(self, file_id: 'str | int | BinaryIO', **kwargs) -> BinaryIO:
+    def file_identifier_to_read_stream(
+        self, file_id: 'str | int | BinaryIO', buffering
+    ) -> BinaryIO:
         if isinstance(file_id, (str, int)):
             return open(
                 file_id,
                 mode="rb",
                 closefd=not isinstance(file_id, int),
-                buffering=kwargs.get('buffering', RECOMMENDED_READ_BUF_SIZE),
+                buffering=buffering,
             )
         return file_id
 
@@ -2755,18 +2783,13 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
 
     A FIFO file (such as named pipe) can be given instead of regular file.
 
-    {FILE_RETENTION_COMPATIBILITY_WARNING}
-
     By default, upload_file will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
     on the command line to save a little time.
 
-    By default, the file is broken into as many parts as possible to
-    maximize upload parallelism and increase speed.  The minimum that
-    B2 allows is 100MB.  Setting ``--minPartSize`` to a larger value will
-    reduce the number of parts uploaded when uploading a large file.
-
+    {FILE_RETENTION_COMPATIBILITY_WARNING}
     {UPLOADFILEMIXIN}
+    {MINPARTSIZEMIXIN}
     {PROGRESSMIXIN}
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
@@ -2789,7 +2812,7 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
         kwargs["upload_mode"] = self._get_upload_mode_from_args(args)
         return kwargs
 
-    def execute_operation(self, local_file, bucket, **kwargs):
+    def execute_operation(self, local_file, bucket, threads, **kwargs):
         try:
             input_stream = self.get_input_stream(local_file)
         except self.NotAnInputStream:  # it is a regular file
@@ -2799,8 +2822,11 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
                 self._print_stderr(
                     "WARNING: Ignoring upload mode setting as we are uploading a stream."
                 )
-            kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
-            input_stream = self.file_identifier_to_read_stream(input_stream)
+            kwargs = self.upload_file_kwargs_to_unbound_upload(threads=threads, **kwargs)
+            del kwargs["threads"]
+            input_stream = self.file_identifier_to_read_stream(
+                input_stream, kwargs["min_part_size"] or DEFAULT_MIN_PART_SIZE
+            )
             with input_stream:
                 file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
         return file_version
@@ -2815,16 +2841,16 @@ class UploadUnboundStream(UploadFileMixin, Command):
     and assigns the given name to the resulting B2 file.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
-
-    Unbound stream is uploaded by part by part.
-    The minimum part size allowed by B2 is 100MB.
-    Setting ``--minPartSize`` to a larger value will reduce the number of parts uploaded.
-
-    You may use `readBufferSize` parameter to control the size of the lowest level buffer used to read from the stream.
-    This may be useful if you are uploading from a slow source and want to reduce the number of read operations
-    at the cost of using more memory.
-
     {UPLOADFILEMIXIN}
+    {MINPARTSIZEMIXIN}
+
+    As opposed to ``b2 upload-file``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
+    So on memory constrained system it is best to use ``--partSize`` option to set it manually.
+    During upload of unbound stream ``--partSize`` as well as ``--threads`` determine the amount of memory used.
+    The maximum memory use for the upload buffers can be estimated at ``partSize * threads``, that is ~1GB by default.
+    What is more, B2 Large File may consist of at most 10,000 parts, so ``minPartSize`` should be adjusted accordingly,
+    if you expect the stream to be larger than 50GB.
+
     {PROGRESSMIXIN}
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
@@ -2844,43 +2870,30 @@ class UploadUnboundStream(UploadFileMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument(
-            '--buffersCount',
+            '--partSize',
             type=int,
-            default=2,
-            help="number of buffers allocated for the operation. Cannot be less than 2."
-        )
-        parser.add_argument('--bufferSize', type=int, help="size of a single buffer for data")
-        parser.add_argument(
-            '--readBufferSize',
-            type=int,
-            default=RECOMMENDED_READ_BUF_SIZE,
-            help="size of a single read buffer for data"
-        )
-        parser.add_argument(
-            '--readSize',
-            type=int,
-            default=RECOMMENDED_READ_BUF_SIZE,
-            help="size of a single read operation performed on the input file"
+            default=None,
+            help=("part size in bytes. Must be in range of <minPartSize, 5GB>"),
         )
         parser.add_argument(
             '--unusedBufferTimeoutSeconds',
             type=float,
             default=3600.0,
-            help="amount of time that a buffer can be idle before an error is returned"
+            help=(
+                "maximum time in seconds that not a single part may sit in the queue,"
+                " waiting to be uploaded, before an error is returned"
+            ),
         )
         super()._setup_parser(parser)
 
     def get_execute_kwargs(self, args) -> dict:
         kwargs = super().get_execute_kwargs(args)
         kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
-        kwargs["buffer_size"] = args.bufferSize
-        kwargs["buffers_count"] = args.buffersCount
-        kwargs["read_buffer_size"] = args.readBufferSize
-        kwargs["read_size"] = args.readSize
+        kwargs["recommended_upload_part_size"] = args.partSize
         kwargs["unused_buffer_timeout_seconds"] = args.unusedBufferTimeoutSeconds
         return kwargs
 
-    def execute_operation(self, local_file, bucket, read_buffer_size, **kwargs):
+    def execute_operation(self, local_file, bucket, threads, **kwargs):
         try:
             input_stream = self.get_input_stream(local_file)
         except self.NotAnInputStream:  # it is a regular file
@@ -2891,7 +2904,9 @@ class UploadUnboundStream(UploadFileMixin, Command):
             )
             input_stream = local_file
 
-        input_stream = self.file_identifier_to_read_stream(input_stream)
+        input_stream = self.file_identifier_to_read_stream(
+            input_stream, kwargs["min_part_size"] or DEFAULT_MIN_PART_SIZE
+        )
         with input_stream:
             file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
         return file_version
@@ -3099,7 +3114,8 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
             )
         return found, altered
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> Optional[ReplicationRule]:
         """ return None to delete a rule """
         pass

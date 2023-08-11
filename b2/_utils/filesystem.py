@@ -10,9 +10,6 @@
 import stat
 from pathlib import Path
 
-# to be used in open(..., buffering=RECOMMENDED_READ_BUF_SIZE)
-RECOMMENDED_READ_BUF_SIZE = 1 * 1024 * 1024
-
 
 def points_to_fifo(path: Path) -> bool:
     path = path.resolve()
