@@ -1045,7 +1045,7 @@ class CreateBucket(DefaultSseMixin, Command):
         parser.add_argument('--bucketInfo', type=json.loads)
         parser.add_argument(
             '--corsRules',
-            type=json.loads
+            type=json.loads,
             help=
             "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
         )
