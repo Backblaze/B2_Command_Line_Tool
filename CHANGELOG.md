@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Declare official support of Python 3.12
 * Cache-Control option when uploading files
 
+### Changed
+* Better help text for --corsRules
+
 ### Infrastructure
 * Remove unsupported PyPy 3.7 from tests matrix and add PyPy 3.10 instead
 * Autocomplete integration tests will now work properly even if tested package has not been installed
