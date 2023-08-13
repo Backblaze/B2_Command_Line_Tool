@@ -11,17 +11,17 @@ import os
 from test.helpers import skip_on_windows
 from test.unit.helpers import run_in_background
 
+from b2._cli.const import DEFAULT_MIN_PART_SIZE
+
 
 @skip_on_windows
 def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir):
     """Test upload_unbound_stream supports named pipes"""
     filename = 'named_pipe.txt'
     content = 'hello world'
-    local_file1 = tmpdir.join('file1.txt')
-    os.mkfifo(str(local_file1))
-    writer = run_in_background(
-        local_file1.write, content
-    )  # writer will block until content is read
+    fifo_file = tmpdir.join('fifo_file.txt')
+    os.mkfifo(str(fifo_file))
+    writer = run_in_background(fifo_file.write, content)  # writer will block until content is read
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
@@ -32,7 +32,7 @@ def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir):
     }
     b2_cli.run(
         ['upload-unbound-stream', '--noProgress', 'my-bucket',
-         str(local_file1), filename],
+         str(fifo_file), filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -61,6 +61,44 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
     )
+
+
+def test_upload_unbound_stream__with_part_size_options(b2_cli, bucket, tmpdir, mock_stdin):
+    """Test upload_unbound_stream with part size options"""
+    part_size = DEFAULT_MIN_PART_SIZE
+    expected_size = part_size + 500  # has to be bigger to force multipart upload
+
+    filename = 'named_pipe.txt'
+    fifo_file = tmpdir.join('fifo_file.txt')
+    os.mkfifo(str(fifo_file))
+    writer = run_in_background(
+        fifo_file.write, "x" * expected_size
+    )  # writer will block until content is read
+
+    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_json = {
+        "action": "upload",
+        "fileName": filename,
+        "size": expected_size,
+    }
+
+    b2_cli.run(
+        [
+            'upload-unbound-stream',
+            '--minPartSize',
+            str(DEFAULT_MIN_PART_SIZE),
+            '--partSize',
+            str(part_size),
+            '--noProgress',
+            'my-bucket',
+            str(fifo_file),
+            filename,
+        ],
+        expected_json_in_stdout=expected_json,
+        remove_version=True,
+        expected_part_of_stdout=expected_stdout,
+    )
+    writer.join()
 
 
 def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):
