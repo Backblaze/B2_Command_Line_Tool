@@ -63,6 +63,7 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     )
 
 
+@skip_on_windows
 def test_upload_unbound_stream__with_part_size_options(b2_cli, bucket, tmpdir, mock_stdin):
     """Test upload_unbound_stream with part size options"""
     part_size = DEFAULT_MIN_PART_SIZE
