@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fast rm sometimes failing due to a rare race condition
 * Fix UnicodeEncodeError in non-Unicode terminals by prioritizing stdout encoding
 * When listing licenses in `license` command only show licenses of `b2` and its dependencies
+* Fix license command failing on Windows when non-UTF8 encoding is the default
 
 ## [3.9.0] - 2023-04-28
 
