@@ -117,6 +117,7 @@ from b2._cli.const import (
     B2_USER_AGENT_APPEND_ENV_VAR,
     CREATE_BUCKET_TYPES,
     DEFAULT_MIN_PART_SIZE,
+    DEFAULT_THREADS,
 )
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
@@ -560,6 +561,28 @@ class LifecycleRulesMixin(Described):
         )
 
         super()._setup_parser(parser)  # noqa
+
+
+class ThreadsMixin(Described):
+    """
+    Use --threads to manually adjust number of threads used in the operation.
+    Otherwise, the number of threads will be automatically chosen.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--threads', type=int, default=None)
+
+        super()._setup_parser(parser)  # noqa
+
+    def _get_threads_from_args(self, args) -> int:
+        return args.threads or DEFAULT_THREADS
+
+    def _set_threads_from_args(self, args):
+        threads = self._get_threads_from_args(args)
+        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
+        #        There is `max_download_workers` param in B2Api constructor for this.
+        self.api.services.download_manager.set_thread_pool_size(threads)
 
 
 class Command(Described):
@@ -1327,13 +1350,15 @@ class DownloadCommand(Command):
 
 @B2.register_subcommand
 class DownloadFileById(
-    ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
+    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
     MaxDownloadStreamsMixin, DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.
 
     {PROGRESSMIXIN}
+    {THREADSMIXIN}
+    {THREADSMIXIN}
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
@@ -1346,7 +1371,6 @@ class DownloadFileById(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('fileId')
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
@@ -1354,10 +1378,7 @@ class DownloadFileById(
     def run(self, args):
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
-        if args.threads:
-            # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
-            #        There is `max_download_workers` param in B2Api constructor for this.
-            self.api.services.download_manager.set_thread_pool_size(args.threads)
+        self._set_threads_from_args(args)
         downloaded_file = self.api.download_file_by_id(
             args.fileId, progress_listener, encryption=encryption_setting
         )
@@ -1370,6 +1391,7 @@ class DownloadFileById(
 @B2.register_subcommand
 class DownloadFileByName(
     ProgressMixin,
+    ThreadsMixin,
     SourceSseMixin,
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
@@ -1380,6 +1402,7 @@ class DownloadFileByName(
     Downloads the given file, and stores it in the given local file.
 
     {PROGRESSMIXIN}
+    {THREADSMIXIN}
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
     {SKIPHASHVERIFICATIONMIXIN}
@@ -1392,17 +1415,13 @@ class DownloadFileByName(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--threads', type=int, default=10)
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('b2FileName').completer = file_name_completer
         parser.add_argument('localFileName')
         super()._setup_parser(parser)
 
     def run(self, args):
-        if args.threads:
-            # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
-            #        There is `max_download_workers` param in B2Api constructor for this.
-            self.api.services.download_manager.set_thread_pool_size(args.threads)
+        self._set_threads_from_args(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
@@ -1953,7 +1972,7 @@ class Ls(AbstractLsCommand):
 
 
 @B2.register_subcommand
-class Rm(AbstractLsCommand):
+class Rm(ThreadsMixin, AbstractLsCommand):
     """
     Removes a "folder" or a set of files matching a pattern.  Use with caution.
 
@@ -1969,11 +1988,8 @@ class Rm(AbstractLsCommand):
     To list (but not remove) files to be deleted, use ``--dryRun``.  You can also
     list files via ``ls`` command - the listing behaviour is exactly the same.
 
-    Users with multiple files to be removed will benefit from multi-threaded
-    capabilities.  The default number of threads is 10.
-
     Progress is displayed on the console unless ``--noProgress`` is specified.
-
+    {THREADSMIXIN}
     {ABSTRACTLSCOMMAND}
 
     The ``--dryRun`` option prints all the files that would be affected by
@@ -2034,7 +2050,6 @@ class Rm(AbstractLsCommand):
     - **deleteFiles**
     """
 
-    DEFAULT_THREADS = 10
     PROGRESS_REPORT_CLASS = ProgressReport
 
     class SubmitThread(threading.Thread):
@@ -2048,12 +2063,14 @@ class Rm(AbstractLsCommand):
             args: argparse.Namespace,
             messages_queue: queue.Queue,
             reporter: ProgressReport,
+            threads: int,
         ):
             self.runner = runner
             self.args = args
             self.messages_queue = messages_queue
             self.reporter = reporter
-            removal_queue_size = self.args.queueSize or (2 * self.args.threads)
+            self.threads = threads
+            removal_queue_size = self.args.queueSize or (2 * self.threads)
             self.semaphore = threading.BoundedSemaphore(value=removal_queue_size)
             self.fail_fast_event = threading.Event()
             self.mapping_lock = threading.Lock()
@@ -2062,7 +2079,7 @@ class Rm(AbstractLsCommand):
 
         def run(self) -> None:
             try:
-                with ThreadPoolExecutor(max_workers=self.args.threads) as executor:
+                with ThreadPoolExecutor(max_workers=self.threads) as executor:
                     self._run_removal(executor)
             except Exception as error:
                 self.messages_queue.put((self.EXCEPTION_TAG, error))
@@ -2116,7 +2133,6 @@ class Rm(AbstractLsCommand):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--dryRun', action='store_true')
-        parser.add_argument('--threads', type=int, default=cls.DEFAULT_THREADS)
         parser.add_argument(
             '--queueSize',
             type=int,
@@ -2135,8 +2151,9 @@ class Rm(AbstractLsCommand):
         failed_on_any_file = False
         messages_queue = queue.Queue()
 
+        threads = self._get_threads_from_args(args)
         with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
-            submit_thread = self.SubmitThread(self, args, messages_queue, reporter)
+            submit_thread = self.SubmitThread(self, args, messages_queue, reporter, threads=threads)
             # This thread is started in daemon mode, no joining needed.
             submit_thread.start()
 
@@ -2197,6 +2214,7 @@ class MakeFriendlyUrl(Command):
 
 @B2.register_subcommand
 class Sync(
+    ThreadsMixin,
     DestinationSseMixin,
     SourceSseMixin,
     WriteBufferSizeMixin,
@@ -2228,9 +2246,9 @@ class Sync(
     The default is to fail when the specified source directory doesn't exist
     or is empty.  (This check only applies to version 1.0 and later.)
 
-    Users with high-performance networks, or file sets with very small
-    files, will benefit from multi-threaded uploads and downloads. The default
-    number of threads for syncing, downloading, and uploading is 10.
+    {THREADSMIXIN}
+
+    You can alternatively control number of threads per each operation.
     The number of files processed in parallel is set by ``--syncThreads``,
     the number of files/file parts downloaded in parallel is set by``--downloadThreads``,
     and the number of files/file parts uploaded in parallel is set by `--uploadThreads``.
@@ -2377,7 +2395,6 @@ class Sync(
         parser.add_argument('--dryRun', action='store_true')
         parser.add_argument('--allowEmptySource', action='store_true')
         parser.add_argument('--excludeAllSymlinks', action='store_true')
-        parser.add_argument('--threads', type=int)
         parser.add_argument('--syncThreads', type=int, default=cls.DEFAULT_SYNC_THREADS)
         parser.add_argument('--downloadThreads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS)
         parser.add_argument('--uploadThreads', type=int, default=cls.DEFAULT_UPLOAD_THREADS)
@@ -2670,6 +2687,7 @@ class MinPartSizeMixin(Described):
 
 class UploadFileMixin(
     MinPartSizeMixin,
+    ThreadsMixin,
     ProgressMixin,
     DestinationSseMixin,
     LegalHoldMixin,
@@ -2699,9 +2717,6 @@ class UploadFileMixin(
         parser.add_argument(
             '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
         )
-        parser.add_argument(
-            '--threads', type=int, default=10, help="number of threads used for the operation"
-        )
         parser.add_argument('--cache-control', default=None)
         parser.add_argument(
             '--info',
@@ -2724,11 +2739,7 @@ class UploadFileMixin(
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
-
-        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
-        #        There is `max_upload_workers` param in B2Api constructor for this.
-        self.api.services.upload_manager.set_thread_pool_size(args.threads)
-
+        self._set_threads_from_args(args)
         upload_kwargs = self.get_execute_kwargs(args)
         file_info = self.execute_operation(**upload_kwargs)
         if not args.quiet:
@@ -2767,7 +2778,7 @@ class UploadFileMixin(
             "min_part_size": args.minPartSize,
             "progress_listener": make_progress_listener(args.localFilePath, args.noProgress),
             "sha1_sum": args.sha1,
-            "threads": args.threads,
+            "threads": self._get_threads_from_args(args),
         }
 
     @abstractmethod
@@ -2831,6 +2842,7 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
     {UPLOADFILEMIXIN}
     {MINPARTSIZEMIXIN}
     {PROGRESSMIXIN}
+    {THREADSMIXIN}
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
@@ -2892,6 +2904,7 @@ class UploadUnboundStream(UploadFileMixin, Command):
     if you expect the stream to be larger than 50GB.
 
     {PROGRESSMIXIN}
+    {THREADSMIXIN}
     {DESTINATIONSSEMIXIN}
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}

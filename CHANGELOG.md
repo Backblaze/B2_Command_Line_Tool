@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Better help text for --corsRules
+* if `--threads` is not explicitly set, number of threads is no longer guaranteed to be 10 
 
 ### Infrastructure
 * Remove unsupported PyPy 3.7 from tests matrix and add PyPy 3.10 instead
