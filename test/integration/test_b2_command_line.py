@@ -35,6 +35,7 @@ from b2sdk.v2 import (
 
 from b2.console_tool import current_time_millis
 
+from ..helpers import skip_on_windows
 from .helpers import (
     BUCKET_CREATED_AT_MILLIS,
     ONE_DAY_MILLIS,
@@ -1975,7 +1976,7 @@ def file_lock_without_perms_test(
 
 def test_profile_switch(b2_tool):
     # this test could be unit, but it adds a lot of complexity because of
-    # necessarity to pass mocked B2Api to ConsoleTool; it's much easier to
+    # necessity to pass mocked B2Api to ConsoleTool; it's much easier to
     # just have an integration test instead
 
     MISSING_ACCOUNT_PATTERN = 'Missing account data'
@@ -2579,3 +2580,23 @@ def test_cut(b2_tool, bucket_name):
                 len(file_data),
             )
         )
+
+
+@skip_on_windows
+def test_upload_file__stdin_pipe_operator(bash_runner, b2_tool, bucket_name, request):
+    """Test upload-file from stdin using pipe operator."""
+    content = request.node.name
+    run = bash_runner(
+        f'echo -n {content!r} | b2 upload-file {bucket_name} - {request.node.name}.txt'
+    )
+    assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
+
+
+@skip_on_windows
+def test_upload_unbound_stream__redirect_operator(bash_runner, b2_tool, bucket_name, request):
+    """Test upload-unbound-stream from stdin using redirect operator."""
+    content = request.node.name
+    run = bash_runner(
+        f'b2 upload-unbound-stream {bucket_name} <(echo -n {content}) {request.node.name}.txt'
+    )
+    assert hashlib.sha1(content.encode()).hexdigest() in run.stdout

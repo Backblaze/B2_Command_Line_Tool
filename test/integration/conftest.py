@@ -9,6 +9,8 @@
 ######################################################################
 
 import contextlib
+import os
+import subprocess
 import sys
 from os import environ, path
 from tempfile import TemporaryDirectory
@@ -154,6 +156,68 @@ def b2_tool(global_b2_tool):
 
 
 SECRET_FIXTURES = {'application_key', 'application_key_id'}
+
+
+@pytest.fixture(scope="session")
+def homedir(tmp_path_factory):
+    yield tmp_path_factory.mktemp("test_homedir")
+
+
+@pytest.fixture(scope="session")
+def b2_in_path(tmp_path_factory):
+    """
+    Create a dummy b2 executable in a temporary directory and add it to PATH.
+
+    This allows us to test the b2 command from shell level even if tested `b2` package was not installed.
+    """
+
+    tempdir = tmp_path_factory.mktemp("temp_bin")
+    temp_executable = tempdir / "b2"
+    with open(temp_executable, "w") as f:
+        f.write(
+            f"#!{sys.executable}\n"
+            "import sys\n"
+            f"sys.path.insert(0, {os.getcwd()!r})\n"  # ensure relative imports work even if command is run in different directory
+            "from b2.console_tool import main\n"
+            "main()\n"
+        )
+
+    temp_executable.chmod(0o700)
+
+    original_path = os.environ["PATH"]
+    new_path = f"{tempdir}:{original_path}"
+    yield new_path
+
+
+@pytest.fixture(scope="module")
+def env(b2_in_path, homedir, monkey_patch):
+    """Get ENV for running b2 command from shell level."""
+    monkey_patch.setenv('PATH', b2_in_path)
+    monkey_patch.setenv('HOME', str(homedir))
+    monkey_patch.setenv('SHELL', "/bin/bash")  # fix for running under github actions
+    yield os.environ
+
+
+@pytest.fixture
+def bash_runner(env):
+    """Run command in bash shell."""
+
+    def run_command(command: str):
+        try:
+            return subprocess.run(
+                ["/bin/bash", "-c", command],
+                capture_output=True,
+                check=True,
+                env=env,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Command {command!r} failed with exit code {e.returncode}")
+            print(e.stdout)
+            print(e.stderr, file=sys.stderr)
+            raise
+
+    return run_command
 
 
 def pytest_collection_modifyitems(items):

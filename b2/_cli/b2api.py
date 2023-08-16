@@ -11,10 +11,12 @@
 import os
 from typing import Optional
 
-from b2sdk.account_info.sqlite_account_info import SqliteAccountInfo
-from b2sdk.api_config import B2HttpApiConfig
-from b2sdk.cache import AuthInfoCache
-from b2sdk.v2 import B2Api
+from b2sdk.v2 import (
+    AuthInfoCache,
+    B2Api,
+    B2HttpApiConfig,
+    SqliteAccountInfo,
+)
 
 from b2._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
 

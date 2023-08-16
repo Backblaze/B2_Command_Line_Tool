@@ -20,5 +20,7 @@ B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR = 'B2_DESTINATION_SSE_C_KEY_ID'
 B2_SOURCE_SSE_C_KEY_B64_ENV_VAR = 'B2_SOURCE_SSE_C_KEY_B64'
 
 # Constants used in the B2 API
+# TODO B2-47 move API related constants to b2sdk
 CREATE_BUCKET_TYPES = ('allPublic', 'allPrivate')
+DEFAULT_MIN_PART_SIZE = 5 * 1000 * 1000  # 5MB
 LIST_FILE_NAMES_MAX_LIMIT = 10000  # https://www.backblaze.com/b2/docs/b2_list_file_names.html
