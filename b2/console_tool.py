@@ -3243,7 +3243,8 @@ class License(Command):  # pragma: no cover
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
         stream.write(f'\n\n{NAME} license:\n')
-        b2_license_file_text = (pathlib.Path(__file__).parent / 'LICENSE').read_text()
+        b2_license_file_text = (pathlib.Path(__file__).parent /
+                                'LICENSE').read_text(encoding='utf8')
         stream.write(b2_license_file_text)
 
     def _put_license_text_for_packages(self, stream: io.StringIO):
