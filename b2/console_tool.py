@@ -1061,7 +1061,12 @@ class CreateBucket(DefaultSseMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
-        parser.add_argument('--corsRules', type=json.loads)
+        parser.add_argument(
+            '--corsRules',
+            type=json.loads,
+            help=
+            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
+        )
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
             '--fileLockEnabled',
@@ -2550,7 +2555,12 @@ class UpdateBucket(DefaultSseMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--bucketInfo', type=json.loads)
-        parser.add_argument('--corsRules', type=json.loads)
+        parser.add_argument(
+            '--corsRules',
+            type=json.loads,
+            help=
+            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
+        )
         parser.add_argument('--lifecycleRules', type=json.loads)
         parser.add_argument(
             '--defaultRetentionMode',
@@ -3444,7 +3454,8 @@ class License(Command):  # pragma: no cover
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
         stream.write(f'\n\n{NAME} license:\n')
-        b2_license_file_text = (pathlib.Path(__file__).parent / 'LICENSE').read_text()
+        b2_license_file_text = (pathlib.Path(__file__).parent /
+                                'LICENSE').read_text(encoding='utf8')
         stream.write(b2_license_file_text)
 
     def _put_license_text_for_packages(self, stream: io.StringIO):
