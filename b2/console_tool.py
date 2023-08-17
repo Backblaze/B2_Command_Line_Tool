@@ -3449,7 +3449,7 @@ class License(Command):  # pragma: no cover
 
     def run(self, args):
         if self.LICENSE_OUTPUT_FILE.exists() and not args.dump:
-            self._print(self.LICENSE_OUTPUT_FILE.read_text())
+            self._print(self.LICENSE_OUTPUT_FILE.read_text(encoding='utf8'))
             return 0
 
         if args.dump:
