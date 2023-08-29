@@ -1236,16 +1236,28 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
 
     {FILEIDANDOPTIONALFILENAMEMIXIN}
 
+    If a file is in governance retention mode, and the retention period has not expired, adding ``--bypassGovernance``
+    is required.
+
     Requires capability:
 
     - **deleteFiles**
     - **readFiles** (if file name not provided)
+
+    and optionally:
+
+    - **bypassGovernance**
     """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('--bypassGovernance', action='store_true', default=False)
 
     def run(self, args):
         file_name = self._get_file_name_from_args(args)
 
-        file_info = self.api.delete_file_version(args.fileId, file_name)
+        file_info = self.api.delete_file_version(args.fileId, file_name, args.bypassGovernance)
         self._print_json(file_info)
         return 0
 

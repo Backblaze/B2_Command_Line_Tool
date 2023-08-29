@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add ability to upload from an unbound source such as standard input or a named pipe
+* --bypassGovernance option to delete_file_version
 * Declare official support of Python 3.12
 * Cache-Control option when uploading files
 * Add `--lifecycleRule` to `create-bucket` and `update-bucket` and deprecate `--lifecycleRules` argument
