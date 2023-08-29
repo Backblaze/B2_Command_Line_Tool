@@ -17,6 +17,7 @@ import os
 import os.path
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -1823,17 +1824,32 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
         retain_until=now_millis + 1.25 * ONE_HOUR_MILLIS,
         legal_hold=LegalHold.OFF
     )
+    lock_disabled_key_id, lock_disabled_key = make_lock_disabled_key(b2_tool)
+
+    b2_tool.should_succeed(
+        [
+            'authorize-account', '--environment', b2_tool.realm, lock_disabled_key_id,
+            lock_disabled_key
+        ],
+    )
 
     file_lock_without_perms_test(
         b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file['fileId'],
         not_lockable_file['fileId']
     )
 
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
+    )
+
+    deleting_locked_files(
+        b2_tool, lock_enabled_bucket_name, lock_disabled_key_id, lock_disabled_key
+    )
+
     # ---- perform test cleanup ----
     b2_tool.should_succeed(
         ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
     )
-    # b2_tool.reauthorize(check_key_capabilities=False)
     buckets = [
         bucket for bucket in b2_api.api.list_buckets()
         if bucket.name in {lock_enabled_bucket_name, lock_disabled_bucket_name}
@@ -1842,23 +1858,23 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
         b2_api.clean_bucket(bucket)
 
 
-def file_lock_without_perms_test(
-    b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
-    not_lockable_file_id
-):
+def make_lock_disabled_key(b2_tool):
     key_name = 'no-perms-for-file-lock' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
             'create-key',
             key_name,
-            'listFiles,listBuckets,readFiles,writeKeys',
+            'listFiles,listBuckets,readFiles,writeKeys,deleteFiles',
         ]
     )
-    key_one_id, key_one = created_key_stdout.split()
+    key_id, key = created_key_stdout.split()
+    return key_id, key
 
-    b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, key_one_id, key_one],
-    )
+
+def file_lock_without_perms_test(
+    b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
+    not_lockable_file_id
+):
 
     b2_tool.should_fail(
         [
@@ -1972,6 +1988,58 @@ def file_lock_without_perms_test(
         ],
         'ERROR: unauthorized for application key with capabilities',
     )
+
+
+def upload_locked_file(b2_tool, bucket_name):
+    return b2_tool.should_succeed_json(
+        [
+            'upload-file',
+            '--noProgress',
+            '--quiet',
+            '--fileRetentionMode',
+            'governance',
+            '--retainUntil',
+            str(int(time.time()) + 1000),
+            bucket_name,
+            'README.md',
+            'a-locked',
+        ]
+    )
+
+
+def deleting_locked_files(
+    b2_tool, lock_enabled_bucket_name, lock_disabled_key_id, lock_disabled_key
+):
+    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name)
+    b2_tool.should_fail(
+        [  # master key
+            'delete-file-version',
+            locked_file['fileName'],
+            locked_file['fileId'],
+        ],
+        "ERROR: Access Denied for application key "
+    )
+    b2_tool.should_succeed([  # master key
+        'delete-file-version',
+        locked_file['fileName'],
+        locked_file['fileId'],
+        '--bypassGovernance'
+    ])
+
+    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name)
+
+    b2_tool.should_succeed(
+        [
+            'authorize-account', '--environment', b2_tool.realm, lock_disabled_key_id,
+            lock_disabled_key
+        ],
+    )
+    b2_tool.should_fail([  # lock disabled key
+        'delete-file-version',
+        locked_file['fileName'],
+        locked_file['fileId'],
+        '--bypassGovernance',
+    ], "ERROR: unauthorized for application key with capabilities '")
 
 
 def test_profile_switch(b2_tool):
