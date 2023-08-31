@@ -8,13 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add ability to upload from an unbound source such as standard input or a named pipe
-
-### Deprecated
-* Support of `-` as a valid filename in `upload-file` command. In future `-` will be an alias for standard input.
 * Declare official support of Python 3.12
 * Cache-Control option when uploading files
 * Add `--lifecycleRule` to `create-bucket` and `update-bucket` and deprecate `--lifecycleRules` argument
 * Add extra dependencies for better UX, installable with `pip install b2[full]`
+
+### Deprecated
+* Support of `-` as a valid filename in `upload-file` command. In future `-` will be an alias for standard input.
 
 ### Changed
 * Better help text for --corsRules
