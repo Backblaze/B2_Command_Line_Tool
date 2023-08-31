@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 * Add ability to upload from an unbound source such as standard input or a named pipe
+* Add s3 endpoint to `get-account-info`
 
 ### Deprecated
 * Support of `-` as a valid filename in `upload-file` command. In future `-` will be an alias for standard input.
