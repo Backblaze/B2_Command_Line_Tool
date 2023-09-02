@@ -1469,6 +1469,7 @@ class GetAccountInfo(Command):
             accountAuthToken=account_info.get_account_auth_token(),
             apiUrl=account_info.get_api_url(),
             downloadUrl=account_info.get_download_url(),
+            s3endpoint=account_info.get_s3_api_url(),
         )
         self._print_json(data)
         return 0

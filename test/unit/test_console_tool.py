@@ -141,6 +141,7 @@ class BaseConsoleToolTest(TestBase):
     def assertDictIsContained(self, subset, superset):
         """Asserts that all keys in `subset` are present is `superset` and their corresponding values are the same"""
         truncated_superset = {k: v for k, v in superset.items() if k in subset}
+        self.maxDiff = None
         self.assertEqual(subset, truncated_superset)
 
     def assertListOfDictsIsContained(self, list_of_subsets, list_of_supersets):
@@ -1591,7 +1592,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 },
             "apiUrl": "http://api.example.com",
             "applicationKey": self.master_key,
-            "downloadUrl": "http://download.example.com"
+            "downloadUrl": "http://download.example.com",
+            "s3endpoint": "http://s3.api.example.com",
         }
         self._run_command(
             ['get-account-info'],
