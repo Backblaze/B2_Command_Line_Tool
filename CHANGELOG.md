@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Replace `pyflakes` with `ruff` for linting
 * Make dependency version pinning less restrictive
 * Fix tests by making mocks compatible with latest `b2sdk` version
+* Fix readthedocs build
 
 ### Fixed
 * Fast rm sometimes failing due to a rare race condition
