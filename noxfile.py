@@ -410,7 +410,7 @@ def doc(session):
 
     if not session.interactive:
         session.run('sphinx-build', *sphinx_args)
-        session.notify('doc_cover')
+        # session.notify('doc_cover')  #  disabled due to https://github.com/sphinx-doc/sphinx/issues/11678
     else:
         sphinx_args[-2:-2] = [
             '-E', '--open-browser', '--watch', '../b2', '--ignore', '*.pyc', '--ignore', '*~'
@@ -420,18 +420,16 @@ def doc(session):
 
 @nox.session
 def doc_cover(session):
-    """Perform coverage analysis for the documentation."""
+    """
+    Perform coverage analysis for the documentation.
+
+    At the time of writing B2 CLI does not have object documentation, hence this always returns 0 out 0 objects.
+    Which errors out in Sphinx 7.2 (https://github.com/sphinx-doc/sphinx/issues/11678).
+    """
     install_myself(session, extras=['doc'])
     session.cd('doc')
     sphinx_args = ['-b', 'coverage', '-T', '-W', 'source', 'build/coverage']
-    report_file = 'build/coverage/python.txt'
     session.run('sphinx-build', *sphinx_args)
-    session.run('cat', report_file, external=True)
-
-    with open('build/coverage/python.txt') as fd:
-        # If there is no undocumented files, the report should have only 2 lines (header)
-        if sum(1 for _ in fd) != 2:
-            session.error('sphinx coverage has failed')
 
 
 def _read_readme_name_and_description() -> Tuple[str, str]:
