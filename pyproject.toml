@@ -1,0 +1,19 @@
+[project]
+requires-python = ">=3.7"
+name = "b2"
+version = "0.0.0"  # this is wrong, but setuptools>61 insists its here
+
+[tool.ruff]
+# TODO add D
+select = ["E", "F", "I", "UP"]
+# TODO: remove E501 once docstrings are formatted
+ignore = [
+    "D100", "D105", "D107", "D200", "D202", "D203", "D205", "D212", "D400", "D401", "D415",
+    "D101", "D102","D103", "D104", # TODO remove once we have docstring for all public methods
+    "E501", # TODO: remove E501 once docstrings are formatted
+]
+line-length = 100
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"test/**" = ["D", "F403", "F405"]
