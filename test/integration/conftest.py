@@ -167,12 +167,14 @@ def b2_tool(global_b2_tool):
     return global_b2_tool
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope='session')
 def copy_readme_for_tests():
     """Copy the README.md file to /tmp so that docker tests can access it"""
-    pathlib.Path('/tmp/README.md').write_text(
-        (pathlib.Path(__file__).parent.parent.parent / 'README.md').read_text()
-    )
+    tmp_readme = pathlib.Path('/tmp/README.md')
+    if not tmp_readme.exists():
+        tmp_readme.write_text(
+            (pathlib.Path(__file__).parent.parent.parent / 'README.md').read_text()
+        )
 
 
 @pytest.fixture()

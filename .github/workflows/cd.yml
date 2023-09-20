@@ -1,0 +1,160 @@
+name: Continuous Delivery
+
+on:
+  push:
+    tags: 'v*'  # push events to matching v*, i.e. v1.0, v20.15.10
+
+env:
+  CD: "true"
+  ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PYTHON_DEFAULT_VERSION: "3.11"
+
+jobs:
+  deploy:
+    env:
+      B2_PYPI_PASSWORD: ${{ secrets.B2_PYPI_PASSWORD }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pip setuptools
+      - name: Build the distribution
+        id: build
+        run: nox -vs build >> $GITHUB_OUTPUT
+      - name: Read the Changelog
+        id: read-changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          version: ${{ steps.build.outputs.version }}
+      - name: Create GitHub release and upload the distribution
+        id: create-release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.build.outputs.version }}
+          body: ${{ steps.read-changelog.outputs.changes }}
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          prerelease: false
+          files: ${{ steps.build.outputs.asset_path }}
+      - name: Upload the distribution to PyPI
+        if: ${{ env.B2_PYPI_PASSWORD != '' }}
+        uses: pypa/gh-action-pypi-publish@v1.3.1
+        with:
+          user: __token__
+          password: ${{ env.B2_PYPI_PASSWORD }}
+  deploy-linux-bundle:
+    needs: deploy
+    runs-on: ubuntu-latest
+    container:
+      image: "python:3.11"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: |
+          apt-get -y update
+          apt-get -y install patchelf
+          python -m pip install --upgrade nox pip setuptools
+          git config --global --add safe.directory '*'
+      - name: Bundle the distribution
+        id: bundle
+        run: nox -vs bundle >> $GITHUB_OUTPUT
+      - name: Sign the bundle
+        id: sign
+        run: nox -vs sign >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
+      - name: Upload the bundle to the GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.deploy.outputs.version }}
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          prerelease: false
+          files: ${{ steps.sign.outputs.asset_path }}
+  deploy-windows-bundle:
+    needs: deploy
+    env:
+      B2_WINDOWS_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
+      B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
+    runs-on: windows-2019
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pip setuptools
+      - name: Bundle the distribution
+        id: bundle
+        shell: bash
+        run: nox -vs bundle >> $GITHUB_OUTPUT
+      - name: Import certificate
+        id: windows_import_cert
+        uses: timheuer/base64-to-file@v1
+        with:
+          fileName: 'cert.pfx'
+          encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
+      - name: Sign the bundle
+        id: sign
+        shell: bash
+        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}' >> $GITHUB_OUTPUT
+      - name: Generate hashes
+        id: hashes
+        run: nox -vs make_dist_digest
+      - name: Upload the bundle to the GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.deploy.outputs.version }}
+          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          prerelease: false
+          files: ${{ steps.sign.outputs.asset_path }}
+  deploy-docker:
+    needs: deploy
+    runs-on: ubuntu-latest
+    container:
+      image: "python:3.10"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      env:
+        DEBIAN_FRONTEND: noninteractive
+        DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
+        DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pip setuptools
+      - name: Build Dockerfile
+        id: build-dockerfile
+        run: nox -vs docker
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}  # TODO: skip whole job without marking it as an error
+        uses: docker/login-action@v2
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}  # TODO: skip whole job without marking it as an error
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: backblaze/b2:${{ steps.build.outputs.version }}

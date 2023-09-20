@@ -182,13 +182,13 @@ def unit(session):
         session.notify('cover')
 
 
-@nox.session(python=PYTHON_VERSIONS)
-def integration(session):
+def run_integration_test(session, pytest_posargs):
     """Run integration tests."""
     install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
     session.run(
         'pytest',
+        'test/integration',
         '-s',
         '-n',
         'auto',
@@ -196,9 +196,14 @@ def integration(session):
         'INFO',
         '-W',
         'ignore::DeprecationWarning:rst2ansi.visitor:',
-        *session.posargs,
-        'test/integration',
+        *pytest_posargs,
     )
+
+
+@nox.session(python=PYTHON_VERSIONS)
+def integration(session):
+    """Run integration tests."""
+    run_integration_test(session, session.posargs)
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -482,8 +487,8 @@ def _read_readme_name_and_description() -> Tuple[str, str]:
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def docker(session):
-    """Build the docker image."""
+def generate_dockerfile(session):
+    """Generate Dockerfile from Dockerfile.template"""
     build(session)
 
     install_myself(session)
@@ -517,6 +522,17 @@ def docker(session):
     pathlib.Path('./Dockerfile').write_text(dockerfile)
 
 
+
+def run_docker_tests(session, image_tag):
+    """Run unittests against a docker image."""
+    run_integration_test(session, [
+        "--sut",
+        f"docker run -v b2:/b2 -v /tmp:/tmp:rw -v {os.getcwd()}/b2_cli.log:/root/b2_cli.log:rw "
+        f"--env-file ENVFILE {image_tag}",
+        "--env-file-cmd-placeholder",
+        "ENVFILE",
+    ])
+
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker_test(session):
     """Run unittests against a docker image."""
@@ -524,17 +540,15 @@ def docker_test(session):
         image_tag = session.posargs[0]
     else:
         raise ValueError('Provide -- {docker_image_tag}')
-    session.posargs = [
-        "--sut",
-        f"docker run -v b2:/b2 -v /tmp:/tmp:rw -v {os.getcwd()}/b2_cli.log:/root/b2_cli.log:rw "
-        f"--env-file ENVFILE {image_tag}",
-        "--env-file-cmd-placeholder",
-        "ENVFILE",
-    ]
-    integration(session)
+    run_docker_tests(session, image_tag)
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def build_and_test_docker(session):
     """
-    --sut "docker run -v b2:/b2 -v /tmp:/tmp:rw -v `pwd`/b2_cli.log:/root/b2_cli.log:rw --env-file cycki e98351d86c3c" --verbose --env-file-cmd-placeholder cycki
+    For running locally, CI uses a different set of sessions
     """
-    # integration(session)
-    # session.run(*docker_test_run, 'unit', external=True)
-    # session.run(*docker_test_run, 'integration', '--', '--cleanup', external=True)
+    test_image_tag = 'b2:test'
+    generate_dockerfile(session)
+    session.run('docker', 'build', '-t', test_image_tag, '.', external=True)
+    run_docker_tests(session, test_image_tag)

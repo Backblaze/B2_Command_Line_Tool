@@ -2003,7 +2003,7 @@ def upload_locked_file(b2_tool, bucket_name):
             '--retainUntil',
             str(int(time.time()) + 1000),
             bucket_name,
-            'README.md',
+            '/tmp/README.md',
             'a-locked',
         ]
     )
