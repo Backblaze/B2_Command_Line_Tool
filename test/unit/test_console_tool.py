@@ -964,6 +964,27 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
+            # Download by name, quietly; same as above, but without the output
+            local_download1 = os.path.join(temp_dir, 'download1.txt')
+            expected_stdout = ''
+
+            self._run_command(
+                [
+                    'download-file-by-name', '--quiet', '--noProgress', 'my-bucket', 'file1.txt',
+                    local_download1
+                ], expected_stdout, '', 0
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download1))
+            self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
+
+            # Download file by ID; same as above, but without the output
+            local_download2 = os.path.join(temp_dir, 'download2.txt')
+            self._run_command(
+                ['download-file-by-id', '--quiet', '--noProgress', '9999', local_download2],
+                expected_stdout, '', 0
+            )
+            self.assertEqual(b'hello world', self._read_file(local_download2))
+
             # Hide the file
             expected_json = {
                 "action": "hide",

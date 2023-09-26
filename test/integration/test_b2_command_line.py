@@ -68,11 +68,14 @@ def test_download(b2_tool, bucket_name):
     )
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            ['download-file-by-name', '--noProgress', bucket_name, 'a', dir_path / 'a']
+            ['download-file-by-name', '--noProgress', '--quiet', bucket_name, 'a', dir_path / 'a']
         )
         assert read_file(dir_path / 'a') == read_file(file_to_upload)
         b2_tool.should_succeed(
-            ['download-file-by-id', '--noProgress', uploaded_a['fileId'], dir_path / 'b']
+            [
+                'download-file-by-id', '--noProgress', '--quiet', uploaded_a['fileId'],
+                dir_path / 'b'
+            ]
         )
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
 
@@ -128,7 +131,10 @@ def test_basic(b2_tool, bucket_name):
 
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            ['download-file-by-name', '--noProgress', bucket_name, 'b/1', dir_path / 'a']
+            [
+                'download-file-by-name', '--noProgress', '--quiet', bucket_name, 'b/1',
+                dir_path / 'a'
+            ]
         )
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
@@ -1134,13 +1140,13 @@ def test_sse_b2(b2_tool, bucket_name):
     with TempDir() as dir_path:
         b2_tool.should_succeed(
             [
-                'download-file-by-name', '--noProgress', bucket_name, 'encrypted',
+                'download-file-by-name', '--noProgress', '--quiet', bucket_name, 'encrypted',
                 dir_path / 'encrypted'
             ]
         )
         b2_tool.should_succeed(
             [
-                'download-file-by-name', '--noProgress', bucket_name, 'not_encrypted',
+                'download-file-by-name', '--noProgress', '--quiet', bucket_name, 'not_encrypted',
                 dir_path / 'not_encypted'
             ]
         )
@@ -1230,7 +1236,7 @@ def test_sse_c(b2_tool, bucket_name):
 
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--noProgress', bucket_name, 'uploaded_encrypted',
+            'download-file-by-name', '--noProgress', '--quiet', bucket_name, 'uploaded_encrypted',
             'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
@@ -1238,16 +1244,16 @@ def test_sse_c(b2_tool, bucket_name):
     )
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
-            bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
+            'download-file-by-name', '--noProgress', '--quiet', '--sourceServerSideEncryption',
+            'SSE-C', bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var'
     )
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
-            bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
+            'download-file-by-name', '--noProgress', '--quiet', '--sourceServerSideEncryption',
+            'SSE-C', bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: Wrong or no SSE-C key provided when reading a file.',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode()}
@@ -1257,6 +1263,7 @@ def test_sse_c(b2_tool, bucket_name):
             [
                 'download-file-by-name',
                 '--noProgress',
+                '--quiet',
                 '--sourceServerSideEncryption',
                 'SSE-C',
                 bucket_name,
@@ -1270,6 +1277,7 @@ def test_sse_c(b2_tool, bucket_name):
             [
                 'download-file-by-id',
                 '--noProgress',
+                '--quiet',
                 '--sourceServerSideEncryption',
                 'SSE-C',
                 file_version_info['fileId'],

@@ -471,6 +471,17 @@ class SkipHashVerificationMixin(Described):
         super()._setup_parser(parser)  # noqa
 
 
+class QuietMixin(Described):
+    """
+    Use --quiet to disable printing any information to stdout on downloaded files.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--quiet', action='store_true', default=False)
+        super()._setup_parser(parser)  # noqa
+
+
 class MaxDownloadStreamsMixin(Described):
     """
     Use --max-download-streams-per-file to set max num of streams for parallel downloader.
@@ -1362,12 +1373,13 @@ class DownloadCommand(Command):
 
 @B2.register_subcommand
 class DownloadFileById(
-    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
-    MaxDownloadStreamsMixin, DownloadCommand
+    ThreadsMixin, QuietMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin,
+    SkipHashVerificationMixin, MaxDownloadStreamsMixin, DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.
 
+    {QUIETMIXIN}
     {PROGRESSMIXIN}
     {THREADSMIXIN}
     {THREADSMIXIN}
@@ -1388,20 +1400,28 @@ class DownloadFileById(
         super()._setup_parser(parser)
 
     def run(self, args):
+        quiet = args.quiet
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
         downloaded_file = self.api.download_file_by_id(
             args.fileId, progress_listener, encryption=encryption_setting
         )
-        self._print_download_info(downloaded_file)
+
+        if not quiet:
+            self._print_download_info(downloaded_file)
+
         downloaded_file.save_to(args.localFileName)
-        self._print('Download finished')
+
+        if not quiet:
+            self._print('Download finished')
+
         return 0
 
 
 @B2.register_subcommand
 class DownloadFileByName(
+    QuietMixin,
     ProgressMixin,
     ThreadsMixin,
     SourceSseMixin,
@@ -1413,6 +1433,7 @@ class DownloadFileByName(
     """
     Downloads the given file, and stores it in the given local file.
 
+    {QUIETMIXIN}
     {PROGRESSMIXIN}
     {THREADSMIXIN}
     {SOURCESSEMIXIN}
@@ -1435,14 +1456,21 @@ class DownloadFileByName(
     def run(self, args):
         self._set_threads_from_args(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
+        quiet = args.quiet
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
         )
-        self._print_download_info(downloaded_file)
+
+        if not quiet:
+            self._print_download_info(downloaded_file)
+
         downloaded_file.save_to(args.localFileName)
-        self._print('Download finished')
+
+        if not quiet:
+            self._print('Download finished')
+
         return 0
 
 
