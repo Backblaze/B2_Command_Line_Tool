@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-* Fix lifecycle rules being cleared after using `update-bucket` command if not explictly set again.
+* Fix lifecycle rules being cleared after using `update-bucket` command if not explicitly set again.
 
 ## [3.10.0] - 2023-09-10
 
