@@ -523,6 +523,40 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+    def test_update_bucket_without_lifecycle(self):
+        # Start with authorizing with the master key
+        self._authorize_account()
+
+        bucket_name = 'my-bucket-liferules'
+        # Create a bucket with lifecycleRule
+        self._run_command(
+            [
+                'create-bucket', '--lifecycleRule',
+                '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}', bucket_name,
+                'allPrivate'
+            ], 'bucket_0\n', '', 0
+        )
+
+        expected_stdout_dict = {
+            "accountId": self.account_id,
+            "bucketId": "bucket_0",
+            "bucketInfo": {
+                "xxx": "123"
+            },
+            "bucketName": "my-bucket-liferules",
+            "bucketType": "allPrivate",
+            "lifecycleRules": [{
+                "daysFromHidingToDeleting": 2,
+                "fileNamePrefix": "foo"
+            }],
+        }
+
+        # Update some other attribute than lifecycleRule, which should remain intact
+        self._run_command(
+            ['update-bucket', bucket_name, '--bucketInfo', '{"xxx": "123"}'],
+            expected_json_in_stdout=expected_stdout_dict,
+        )
+
     def test_clear_account(self):
         # Initial condition
         self._authorize_account()
