@@ -529,13 +529,13 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         bucket_name = 'my-bucket-liferules'
         # Create a bucket with lifecycleRule
-        self._run_command([
-            'create-bucket',
-            '--lifecycleRule',
-            '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}',
-            bucket_name,
-            'allPrivate'],
-            'bucket_0\n', '', 0)
+        self._run_command(
+            [
+                'create-bucket', '--lifecycleRule',
+                '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}', bucket_name,
+                'allPrivate'
+            ], 'bucket_0\n', '', 0
+        )
 
         expected_stdout_dict = {
             "accountId": self.account_id,
@@ -545,12 +545,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             },
             "bucketName": "my-bucket-liferules",
             "bucketType": "allPrivate",
-            "lifecycleRules": [
-                {
-                    "daysFromHidingToDeleting": 2,
-                    "fileNamePrefix": "foo"
-                }
-            ],
+            "lifecycleRules": [{
+                "daysFromHidingToDeleting": 2,
+                "fileNamePrefix": "foo"
+            }],
         }
 
         # Update some other attribute than lifecycleRule, which should remain intact
