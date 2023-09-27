@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Fix lifecycle rules being cleared after using `update-bucket` command if not explicitly set again.
 * Fix missing key ID for large file encrypted with SSE-C (fixed by `b2sdk` update)
 
+### Infrastructure
+* Fix bad version number generation in CD
+
 ## [3.10.0] - 2023-09-10
 
 ### Added

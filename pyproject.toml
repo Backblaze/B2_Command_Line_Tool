@@ -1,9 +1,12 @@
-[project]
-requires-python = ">=3.7"
-name = "b2"
-version = "0.0.0"  # this is wrong, but setuptools>61 insists its here
+# Including project:version breaks `version` number generation under gha CD
+# [project]
+# requires-python = ">=3.7"
+# name = "b2"
+# version = "0.0.0"  # this is wrong, but setuptools>61 insists its here
 
 [tool.ruff]
+target-version = "py37"  # to be replaced by project:requires-python when we will have that section in here
+
 # TODO add D
 select = ["E", "F", "I", "UP"]
 # TODO: remove E501 once docstrings are formatted
