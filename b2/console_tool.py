@@ -549,7 +549,7 @@ class LifecycleRulesMixin(Described):
         lifecycle_group.add_argument(
             '--lifecycleRule',
             action='append',
-            default=[],
+            default=None,
             type=functools.partial(validated_loads, expected_type=LifecycleRule),
             dest='lifecycleRules',
             help="Lifecycle rule in JSON format. Can be supplied multiple times.",
