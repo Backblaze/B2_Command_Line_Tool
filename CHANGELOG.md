@@ -6,8 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.10.1] - 2023-09-27
+
 ### Fixed
 * Fix lifecycle rules being cleared after using `update-bucket` command if not explicitly set again.
+* Fix missing key ID for large file encrypted with SSE-C (fixed by `b2sdk` update)
 
 ## [3.10.0] - 2023-09-10
 
@@ -459,7 +462,8 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.1...HEAD
+[3.10.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.0...v3.10.1
 [3.10.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.9.0...v3.10.0
 [3.9.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.8.0...v3.9.0
 [3.8.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.7.1...v3.8.0
