@@ -68,7 +68,7 @@ b2 create-key [--bucket BUCKET] [--namePrefix NAMEPREFIX] [--duration DURATION] 
 b2 delete-bucket bucketName
 b2 delete-file-version [fileName] fileId
 b2 delete-key applicationKeyId
-b2 download-file-by-id [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {WAES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] fileId localFileName
+b2 download-file-by-id [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] fileId localFileName
 b2 download-file-by-name [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] bucketName b2FileName localFileName
 b2 get-account-info
 b2 get-bucket [--showSize] bucketName
