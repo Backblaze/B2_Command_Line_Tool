@@ -53,46 +53,50 @@ In this case of installing a pre-release, [virtualenv](https://pypi.org/project/
 
 ## Usage
 
+All commands support the following flags:
+- `[-h]` : Display help for the command.
+- `[--quiet]` : Run the command quietly.
+
 ```bash
-b2 authorize-account [-h] [--quiet] [applicationKeyId] [applicationKey]
-b2 cancel-all-unfinished-large-files [-h] [--quiet] bucketName
-b2 cancel-large-file [-h] [--quiet] fileId
-b2 clear-account [-h] [--quiet]
-b2 copy-file-by-id [-h] [--quiet] [--fetchMetadata] [--contentType CONTENTTYPE] [--range RANGE] [--info INFO | --noInfo] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--legalHold {on,off}] sourceFileId destinationBucketName b2FileName
-b2 create-bucket [-h] [--quiet] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--fileLockEnabled] [--replication REPLICATION] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName {allPublic,allPrivate}
-b2 create-key [-h] [--quiet] [--bucket BUCKET] [--namePrefix NAMEPREFIX] [--duration DURATION] [--allCapabilities] keyName [capabilities]
-b2 delete-bucket [-h] [--quiet] bucketName
-b2 delete-file-version [-h] [--quiet] [fileName] fileId
-b2 delete-key [-h] [--quiet] applicationKeyId
-b2 download-file-by-id [-h] [--quiet] [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {WAES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] fileId localFileName
-b2 download-file-by-name [-h] [--quiet] [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] bucketName b2FileName localFileName
-b2 get-account-info [-h] [--quiet]
-b2 get-bucket [-h] [--quiet] [--showSize] bucketName
-b2 get-file-info [-h] fileId
-b2 get-download-auth [-h] [--quiet] [--prefix PREFIX] [--duration DURATION] bucketName
-b2 get-download-url-with-auth [-h] [--quiet] [--duration DURATION] bucketName fileName
-b2 hide-file [-h] [--quiet] bucketName fileName
-b2 list-buckets [-h] [--quiet] [--json]
-b2 list-keys [-h] [--quiet] [--long]
-b2 list-parts [-h] [--quiet] largeFileId
-b2 list-unfinished-large-files [-h] [--quiet] bucketName
-b2 ls [-h] [--long] [--json] [--replication] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
-b2 rm [-h] [--quiet] [--dryRun] [--threads THREADS] [--queueSize QUEUESIZE] [--noProgress] [--failFast] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
-b2 make-url [-h] [--quiet] fileId
-b2 make-friendly-url [-h] [--quiet] bucketName fileName
-b2 sync [-h] [--quiet] [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--threads THREADS] [--syncThreads SYNCTHREADS] [--downloadThreads DOWNLOADTHREADS] [--uploadThreads UPLOADTHREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX] [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--incrementalMode] [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS] source destination
-b2 update-bucket [-h] [--quiet] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--defaultRetentionMode {compliance,governance,none}] [--defaultRetentionPeriod period] [--replication REPLICATION] [--fileLockEnabled] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName [{allPublic,allPrivate}]
-b2 upload-file [-h] [--quiet] [--noProgress] [--contentType CONTENTTYPE] [--minPartSize MINPARTSIZE] [--sha1 SHA1] [--threads THREADS] [--info INFO] [--custom-upload-timestamp CUSTOM_UPLOAD_TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--legalHold {on,off}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--incrementalMode] bucketName localFilePath b2FileName
-b2 update-file-legal-hold [-h] [--quiet] [fileName] fileId {on,off}
-b2 update-file-retention [-h] [--quiet] [--retainUntil TIMESTAMP] [--bypassGovernance] [fileName] fileId {governance,compliance,none}
-b2 replication-setup [-h] [--quiet] [--destination-profile DESTINATION_PROFILE] [--name NAME] [--priority PRIORITY] [--file-name-prefix PREFIX] [--include-existing-files] SOURCE_BUCKET_NAME DESTINATION_BUCKET_NAME
-b2 replication-delete [-h] [--quiet] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication-pause [-h] [--quiet] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication-unpause [-h] [--quiet] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication-status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--noProgress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
-b2 version [-h]
-b2 license [-h]
-b2 install-autocomplete [-h] [--quiet] [--shell {bash}]
+b2 authorize-account [applicationKeyId] [applicationKey]
+b2 cancel-all-unfinished-large-files bucketName
+b2 cancel-large-file fileId
+b2 clear-account
+b2 copy-file-by-id [--fetchMetadata] [--contentType CONTENTTYPE] [--range RANGE] [--info INFO | --noInfo] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--legalHold {on,off}] sourceFileId destinationBucketName b2FileName
+b2 create-bucket [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--fileLockEnabled] [--replication REPLICATION] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName {allPublic,allPrivate}
+b2 create-key [--bucket BUCKET] [--namePrefix NAMEPREFIX] [--duration DURATION] [--allCapabilities] keyName [capabilities]
+b2 delete-bucket bucketName
+b2 delete-file-version [fileName] fileId
+b2 delete-key applicationKeyId
+b2 download-file-by-id [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {WAES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] fileId localFileName
+b2 download-file-by-name [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] bucketName b2FileName localFileName
+b2 get-account-info
+b2 get-bucket [--showSize] bucketName
+b2 get-file-info fileId
+b2 get-download-auth [--prefix PREFIX] [--duration DURATION] bucketName
+b2 get-download-url-with-auth [--duration DURATION] bucketName fileName
+b2 hide-file bucketName fileName
+b2 list-buckets [--json]
+b2 list-keys [--long]
+b2 list-parts largeFileId
+b2 list-unfinished-large-files bucketName
+b2 ls [--long] [--json] [--replication] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
+b2 rm [--dryRun] [--threads THREADS] [--queueSize QUEUESIZE] [--noProgress] [--failFast] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
+b2 make-url fileId
+b2 make-friendly-url bucketName fileName
+b2 sync [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--threads THREADS] [--syncThreads SYNCTHREADS] [--downloadThreads DOWNLOADTHREADS] [--uploadThreads UPLOADTHREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX] [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--incrementalMode] [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS] source destination
+b2 update-bucket [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--lifecycleRules LIFECYCLERULES] [--defaultRetentionMode {compliance,governance,none}] [--defaultRetentionPeriod period] [--replication REPLICATION] [--fileLockEnabled] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] bucketName [{allPublic,allPrivate}]
+b2 upload-file [--noProgress] [--contentType CONTENTTYPE] [--minPartSize MINPARTSIZE] [--sha1 SHA1] [--threads THREADS] [--info INFO] [--custom-upload-timestamp CUSTOM_UPLOAD_TIMESTAMP] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--legalHold {on,off}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--incrementalMode] bucketName localFilePath b2FileName
+b2 update-file-legal-hold [fileName] fileId {on,off}
+b2 update-file-retention [--retainUntil TIMESTAMP] [--bypassGovernance] [fileName] fileId {governance,compliance,none}
+b2 replication-setup [--destination-profile DESTINATION_PROFILE] [--name NAME] [--priority PRIORITY] [--file-name-prefix PREFIX] [--include-existing-files] SOURCE_BUCKET_NAME DESTINATION_BUCKET_NAME
+b2 replication-delete SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+b2 replication-pause SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+b2 replication-unpause SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+b2 replication-status [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--noProgress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
+b2 version
+b2 license
+b2 install-autocomplete [--shell {bash}]
 ```
 
 The environment variable `B2_ACCOUNT_INFO` specifies the SQLite
