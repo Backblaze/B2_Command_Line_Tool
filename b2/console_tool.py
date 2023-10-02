@@ -471,17 +471,6 @@ class SkipHashVerificationMixin(Described):
         super()._setup_parser(parser)  # noqa
 
 
-class QuietMixin(Described):
-    """
-    Use --quiet to disable printing any information to stdout on downloaded files.
-    """
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('--quiet', action='store_true', default=False)
-        super()._setup_parser(parser)  # noqa
-
-
 class MaxDownloadStreamsMixin(Described):
     """
     Use --max-download-streams-per-file to set max num of streams for parallel downloader.
@@ -505,6 +494,7 @@ class FileIdAndOptionalFileNameMixin(Described):
     def _setup_parser(cls, parser):
         parser.add_argument('fileName', nargs='?')
         parser.add_argument('fileId')
+        super()._setup_parser(parser)  # noqa
 
     def _get_file_name_from_args(self, args):
         if args.fileName is not None:
@@ -583,7 +573,6 @@ class ThreadsMixin(Described):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--threads', type=int, default=None)
-
         super()._setup_parser(parser)  # noqa
 
     def _get_threads_from_args(self, args) -> int:
@@ -611,6 +600,7 @@ class Command(Described):
         self.api = console_tool.api
         self.stdout = console_tool.stdout
         self.stderr = console_tool.stderr
+        self.quiet = False
 
     @classmethod
     def name_and_alias(cls):
@@ -665,6 +655,7 @@ class Command(Described):
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
                 common_parser.add_argument('--profile', default=None)
+                common_parser.add_argument('--quiet', action='store_true', default=False)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
@@ -675,7 +666,8 @@ class Command(Described):
         return parser
 
     def run(self, args):
-        pass
+        self.quiet = args.quiet
+        return 0
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -692,17 +684,17 @@ class Command(Described):
         return file_infos
 
     def _print_json(self, data):
-        self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder))
+        self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True)
 
-    def _print(self, *args):
-        self._print_standard_descriptor(self.stdout, 'stdout', *args)
+    def _print(self, *args, enforce_output=False):
+        self._print_standard_descriptor(self.stdout, 'stdout', *args, enforce_output=enforce_output)
 
     def _print_stderr(self, *args, **kwargs):
-        self._print_standard_descriptor(self.stderr, 'stderr', *args)
+        self._print_standard_descriptor(self.stderr, 'stderr', *args, enforce_output=True)
 
-    @classmethod
-    def _print_standard_descriptor(cls, descriptor, descriptor_name, *args):
-        cls._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
+    def _print_standard_descriptor(self, descriptor, descriptor_name, *args, enforce_output=False):
+        if not self.quiet or enforce_output:
+            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
 
     @classmethod
     def _print_helper(cls, descriptor, descriptor_encoding, descriptor_name, *args):
@@ -777,6 +769,7 @@ class B2(Command):
         return NAME, None
 
     def run(self, args):
+        super().run(args)
         # Commands could be named via name or alias, so we fetch
         # the command from args assigned during parser preparation.
         return args.command_class
@@ -829,8 +822,10 @@ class AuthorizeAccount(Command):
 
         parser.add_argument('applicationKeyId', nargs='?')
         parser.add_argument('applicationKey', nargs='?')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         # Handle internal options for testing inside Backblaze.
         # These are not documented in the usage string.
         realm = self._get_realm(args)
@@ -915,8 +910,10 @@ class CancelAllUnfinishedLargeFiles(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for file_version in bucket.list_unfinished_large_files():
             bucket.cancel_large_file(file_version.file_id)
@@ -940,8 +937,10 @@ class CancelLargeFile(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         self.api.cancel_large_file(args.fileId)
         self._print(args.fileId, 'canceled')
         return 0
@@ -964,6 +963,7 @@ class ClearAccount(Command):
     REQUIRES_AUTH = False
 
     def run(self, args):
+        super().run(args)
         self.api.account_info.clear()
         return 0
 
@@ -1026,6 +1026,7 @@ class CopyFileById(
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
+        super().run(args)
         file_infos = None
         if args.info:
             file_infos = self._parse_file_infos(args.info)
@@ -1145,6 +1146,7 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
+        super().run(args)
         encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.create_bucket(
             args.bucketName,
@@ -1197,8 +1199,10 @@ class CreateKey(Command):
         capabilities = parser.add_mutually_exclusive_group(required=True)
         capabilities.add_argument('capabilities', type=parse_comma_separated_list, nargs='?')
         capabilities.add_argument('--allCapabilities', action='store_true')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         # Translate the bucket name into a bucketId
         if args.bucket is None:
             bucket_id_or_none = None
@@ -1233,8 +1237,10 @@ class DeleteBucket(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         self.api.delete_bucket(bucket)
         return 0
@@ -1266,8 +1272,8 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
         parser.add_argument('--bypassGovernance', action='store_true', default=False)
 
     def run(self, args):
+        super().run(args)
         file_name = self._get_file_name_from_args(args)
-
         file_info = self.api.delete_file_version(args.fileId, file_name, args.bypassGovernance)
         self._print_json(file_info)
         return 0
@@ -1286,8 +1292,10 @@ class DeleteKey(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('applicationKeyId')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         application_key = self.api.delete_key_by_id(application_key_id=args.applicationKeyId)
         self._print(application_key.id_)
         return 0
@@ -1373,13 +1381,12 @@ class DownloadCommand(Command):
 
 @B2.register_subcommand
 class DownloadFileById(
-    ThreadsMixin, QuietMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin,
+    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin,
     SkipHashVerificationMixin, MaxDownloadStreamsMixin, DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.
 
-    {QUIETMIXIN}
     {PROGRESSMIXIN}
     {THREADSMIXIN}
     {THREADSMIXIN}
@@ -1400,7 +1407,7 @@ class DownloadFileById(
         super()._setup_parser(parser)
 
     def run(self, args):
-        quiet = args.quiet
+        super().run(args)
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
@@ -1408,20 +1415,15 @@ class DownloadFileById(
             args.fileId, progress_listener, encryption=encryption_setting
         )
 
-        if not quiet:
-            self._print_download_info(downloaded_file)
-
+        self._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
-
-        if not quiet:
-            self._print('Download finished')
+        self._print('Download finished')
 
         return 0
 
 
 @B2.register_subcommand
 class DownloadFileByName(
-    QuietMixin,
     ProgressMixin,
     ThreadsMixin,
     SourceSseMixin,
@@ -1433,7 +1435,6 @@ class DownloadFileByName(
     """
     Downloads the given file, and stores it in the given local file.
 
-    {QUIETMIXIN}
     {PROGRESSMIXIN}
     {THREADSMIXIN}
     {SOURCESSEMIXIN}
@@ -1454,22 +1455,18 @@ class DownloadFileByName(
         super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         self._set_threads_from_args(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        quiet = args.quiet
         progress_listener = make_progress_listener(args.localFileName, args.noProgress)
         encryption_setting = self._get_source_sse_setting(args)
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
         )
 
-        if not quiet:
-            self._print_download_info(downloaded_file)
-
+        self._print_download_info(downloaded_file)
         downloaded_file.save_to(args.localFileName)
-
-        if not quiet:
-            self._print('Download finished')
+        self._print('Download finished')
 
         return 0
 
@@ -1482,6 +1479,7 @@ class GetAccountInfo(Command):
     """
 
     def run(self, args):
+        super().run(args)
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
@@ -1533,8 +1531,10 @@ class GetBucket(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--showSize', action='store_true')
         parser.add_argument('bucketName').completer = bucket_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
         for b in self.api.list_buckets(args.bucketName):
@@ -1576,8 +1576,10 @@ class GetFileInfo(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         file_version = self.api.get_file_info(args.fileId)
         self._print_json(file_version)
         return 0
@@ -1606,8 +1608,10 @@ class GetDownloadAuth(Command):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName').completer = bucket_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         auth_token = bucket.get_download_authorization(
             file_name_prefix=args.prefix, valid_duration_in_seconds=args.duration
@@ -1640,8 +1644,10 @@ class GetDownloadUrlWithAuth(Command):
         parser.add_argument('--duration', type=int, default=86400)
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('fileName').completer = file_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         auth_token = bucket.get_download_authorization(
             file_name_prefix=args.fileName, valid_duration_in_seconds=args.duration
@@ -1666,8 +1672,10 @@ class HideFile(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('fileName').completer = file_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
         self._print_json(file_info)
@@ -1697,8 +1705,10 @@ class ListBuckets(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--json', action='store_true')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         buckets = self.api.list_buckets()
         if args.json:
             self._print_json(list(buckets))
@@ -1738,12 +1748,14 @@ class ListKeys(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--long', action='store_true')
+        super()._setup_parser(parser)
 
     def __init__(self, console_tool):
         super().__init__(console_tool)
         self.bucket_id_to_bucket_name = None
 
     def run(self, args):
+        super().run(args)
         for key in self.api.list_keys():
             self.print_key(key, args.long)
 
@@ -1805,8 +1817,10 @@ class ListParts(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('largeFileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         for part in self.api.list_parts(args.largeFileId):
             self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
         return 0
@@ -1826,8 +1840,10 @@ class ListUnfinishedLargeFiles(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
             file_info_text = ' '.join(
@@ -1860,8 +1876,10 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--withWildcard', action='store_true')
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('folderName', nargs='?').completer = file_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         generator = self._get_ls_generator(args)
 
         for file_version, folder_name in generator:
@@ -2188,7 +2206,7 @@ class Rm(ThreadsMixin, AbstractLsCommand):
     def run(self, args):
         if args.dryRun:
             return super().run(args)
-
+        super().run(args)
         failed_on_any_file = False
         messages_queue = queue.Queue()
 
@@ -2230,8 +2248,10 @@ class MakeUrl(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('fileId')
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         self._print(self.api.get_download_url_for_fileid(args.fileId))
         return 0
 
@@ -2247,8 +2267,10 @@ class MakeFriendlyUrl(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('fileName').completer = file_name_completer
+        super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         self._print(self.api.get_download_url_for_file_name(args.bucketName, args.fileName))
         return 0
 
@@ -2452,7 +2474,7 @@ class Sync(
             default=None,
             metavar='TIMESTAMP'
         )
-        super()._setup_parser(parser)  # add parameters from the mixins
+        super()._setup_parser(parser)  # add parameters from the mixins, and the parent class
         parser.add_argument('source')
         parser.add_argument('destination')
 
@@ -2465,6 +2487,7 @@ class Sync(
         del_keep_group.add_argument('--keepDays', type=float, metavar='DAYS')
 
     def run(self, args):
+        super().run(args)
         policies_manager = self.get_policies_manager_from_args(args)
 
         if args.threads is not None:
@@ -2675,9 +2698,10 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('bucketType', nargs='?', choices=CREATE_BUCKET_TYPES)
 
-        super()._setup_parser(parser)  # add parameters from the mixins
+        super()._setup_parser(parser)  # add parameters from the mixins and the parent class
 
     def run(self, args):
+        super().run(args)
         if args.defaultRetentionMode is not None:
             if args.defaultRetentionMode == 'none':
                 default_retention = NO_RETENTION_BUCKET_SETTING
@@ -2749,9 +2773,6 @@ class UploadFileMixin(
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument(
-            '--quiet', action='store_true', help="prevents printing any information to stdout"
-        )
-        parser.add_argument(
             '--contentType',
             help="MIME type of the file being uploaded. If not set it will be guessed."
         )
@@ -2780,13 +2801,13 @@ class UploadFileMixin(
         super()._setup_parser(parser)  # add parameters from the mixins
 
     def run(self, args):
+        super().run(args)
         self._set_threads_from_args(args)
         upload_kwargs = self.get_execute_kwargs(args)
         file_info = self.execute_operation(**upload_kwargs)
-        if not args.quiet:
-            bucket = upload_kwargs["bucket"]
-            self._print("URL by file name: " + bucket.get_download_url(file_info.file_name))
-            self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
+        bucket = upload_kwargs["bucket"]
+        self._print("URL by file name: " + bucket.get_download_url(file_info.file_name))
+        self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
         self._print_json(file_info)
         return 0
 
@@ -3026,10 +3047,9 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
         parser.add_argument('legalHold', choices=(LegalHold.ON.value, LegalHold.OFF.value))
 
     def run(self, args):
+        super().run(args)
         file_name = self._get_file_name_from_args(args)
-
         legal_hold = LegalHold(args.legalHold)
-
         self.api.update_file_legal_hold(args.fileId, file_name, legal_hold)
         return 0
 
@@ -3078,6 +3098,7 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
         parser.add_argument('--bypassGovernance', action='store_true', default=False)
 
     def run(self, args):
+        super().run(args)
         file_name = self._get_file_name_from_args(args)
 
         if args.retentionMode == 'none':
@@ -3136,6 +3157,7 @@ class ReplicationSetup(Command):
         )
 
     def run(self, args):
+        super().run(args)
         if args.destination_profile is None:
             destination_api = self.api
         else:
@@ -3162,6 +3184,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
         parser.add_argument('rule_name', metavar='REPLICATION_RULE_NAME')
 
     def run(self, args):
+        super().run(args)
         bucket = self.api.get_bucket_by_name(args.source).get_fresh_state()
         found, altered = self.alter_rule_by_name(bucket, args.rule_name)
         if not found:
@@ -3308,6 +3331,7 @@ class ReplicationStatus(Command):
         )
 
     def run(self, args):
+        super().run(args)
         destination_api = args.destination_profile and _get_b2api_for_profile(
             args.destination_profile
         )
@@ -3444,6 +3468,7 @@ class Version(Command):
     REQUIRES_AUTH = False
 
     def run(self, args):
+        super().run(args)
         self._print('b2 command line tool, version', VERSION)
         return 0
 
@@ -3504,6 +3529,7 @@ class License(Command):  # pragma: no cover
         super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         if self.LICENSE_OUTPUT_FILE.exists() and not args.dump:
             self._print(self.LICENSE_OUTPUT_FILE.read_text(encoding='utf8'))
             return 0
@@ -3658,6 +3684,7 @@ class InstallAutocomplete(Command):
         super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         shell = args.shell or detect_shell()
         if shell not in SUPPORTED_SHELLS:
             self._print_stderr(

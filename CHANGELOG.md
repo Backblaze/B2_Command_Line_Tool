@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-* Add `--quiet` to `download-file-by-name` and `download-file-by-id`
+* Add `--quiet` to all commands
 
 ### Infrastructure
 * Fix gathering licenses of typeshed libraries
