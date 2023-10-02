@@ -684,7 +684,9 @@ class Command(Described):
         return file_infos
 
     def _print_json(self, data):
-        self._print(json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True)
+        self._print(
+            json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True
+        )
 
     def _print(self, *args, enforce_output=False):
         self._print_standard_descriptor(self.stdout, 'stdout', *args, enforce_output=enforce_output)
@@ -1381,8 +1383,8 @@ class DownloadCommand(Command):
 
 @B2.register_subcommand
 class DownloadFileById(
-    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin,
-    SkipHashVerificationMixin, MaxDownloadStreamsMixin, DownloadCommand
+    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin, DownloadCommand
 ):
     """
     Downloads the given file, and stores it in the given local file.

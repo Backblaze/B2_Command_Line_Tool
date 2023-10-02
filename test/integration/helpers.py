@@ -28,7 +28,6 @@ from tempfile import gettempdir, mkdtemp
 from typing import List, Optional, Union
 from unittest.mock import MagicMock
 
-
 import backoff
 from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
 from b2sdk.v2 import (
