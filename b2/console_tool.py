@@ -3454,6 +3454,8 @@ class License(Command):  # pragma: no cover
             'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
         'pefile':
             'https://raw.githubusercontent.com/erocarrera/pefile/master/LICENSE',
+        'https://github.com/python/typeshed':
+            'https://raw.githubusercontent.com/python/typeshed/main/LICENSE',
     }
 
     class NormalizingStringIO(io.StringIO):
@@ -3591,8 +3593,12 @@ class License(Command):  # pragma: no cover
             assert 'MIT License' in license_  # let's make sure the license is still there
         elif module_name == 'b2sdk':
             license_ = (pathlib.Path(b2sdk.__file__).parent / 'LICENSE').read_text()
-        elif module_name in self.LICENSES:
-            license_ = self._fetch_license_from_url(self.LICENSES[module_name])
+        else:
+            license_url = self.LICENSES.get(module_name) or self.LICENSES.get(
+                module_dict.get('URL')
+            )
+            if license_url:
+                license_ = self._fetch_license_from_url(license_url)
 
         assert license_ != piplicenses.LICENSE_UNKNOWN, module_name
 
