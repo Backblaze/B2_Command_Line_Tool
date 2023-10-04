@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `--quiet` to all commands
+
 ### Infrastructure
 * Fix gathering licenses of typeshed libraries
 * Fix spellcheck erroring out on LICENSE file

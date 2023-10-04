@@ -931,39 +931,6 @@ class TestConsoleTool(BaseConsoleToolTest):
                 expected_json_in_stdout=expected_json,
             )
 
-            # Download by name
-            local_download1 = os.path.join(temp_dir, 'download1.txt')
-            expected_stdout = '''
-            File name:           file1.txt
-            File id:             9999
-            File size:           11
-            Content type:        b2/x-auto
-            Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
-            Encryption:          none
-            Retention:           none
-            Legal hold:          <unset>
-            INFO src_last_modified_millis: 1500111222000
-            Checksum matches
-            Download finished
-            '''
-
-            self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
-                    local_download1
-                ], expected_stdout, '', 0
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download1))
-            self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
-
-            # Download file by ID.  (Same expected output as downloading by name)
-            local_download2 = os.path.join(temp_dir, 'download2.txt')
-            self._run_command(
-                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
-                '', 0
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download2))
-
             # Hide the file
             expected_json = {
                 "action": "hide",

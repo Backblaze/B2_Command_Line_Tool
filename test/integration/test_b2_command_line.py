@@ -64,15 +64,15 @@ def test_download(b2_tool, bucket_name):
     file_to_upload = 'README.md'
 
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
+        ['upload-file', '--quiet', bucket_name, file_to_upload, 'a']
     )
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            ['download-file-by-name', '--noProgress', bucket_name, 'a', dir_path / 'a']
+            ['download-file-by-name', '--quiet', bucket_name, 'a', dir_path / 'a']
         )
         assert read_file(dir_path / 'a') == read_file(file_to_upload)
         b2_tool.should_succeed(
-            ['download-file-by-id', '--noProgress', uploaded_a['fileId'], dir_path / 'b']
+            ['download-file-by-id', '--quiet', uploaded_a['fileId'], dir_path / 'b']
         )
         assert read_file(dir_path / 'b') == read_file(file_to_upload)
 
@@ -90,9 +90,7 @@ def test_basic(b2_tool, bucket_name):
         [bucket_name], [b['bucketName'] for b in list_of_buckets if b['bucketName'] == bucket_name]
     )
 
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'a']
-    )
+    b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['ls', '--long', '--replication', bucket_name])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
@@ -128,7 +126,10 @@ def test_basic(b2_tool, bucket_name):
 
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            ['download-file-by-name', '--noProgress', bucket_name, 'b/1', dir_path / 'a']
+            [
+                'download-file-by-name', '--noProgress', '--quiet', bucket_name, 'b/1',
+                dir_path / 'a'
+            ]
         )
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
@@ -1124,23 +1125,18 @@ def test_sse_b2(b2_tool, bucket_name):
 
     b2_tool.should_succeed(
         [
-            'upload-file', '--destinationServerSideEncryption=SSE-B2', '--noProgress', '--quiet',
-            bucket_name, file_to_upload, 'encrypted'
+            'upload-file', '--destinationServerSideEncryption=SSE-B2', '--quiet', bucket_name,
+            file_to_upload, 'encrypted'
         ]
     )
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', '--quiet', bucket_name, file_to_upload, 'not_encrypted']
-    )
+    b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, file_to_upload, 'not_encrypted'])
     with TempDir() as dir_path:
         b2_tool.should_succeed(
-            [
-                'download-file-by-name', '--noProgress', bucket_name, 'encrypted',
-                dir_path / 'encrypted'
-            ]
+            ['download-file-by-name', '--quiet', bucket_name, 'encrypted', dir_path / 'encrypted']
         )
         b2_tool.should_succeed(
             [
-                'download-file-by-name', '--noProgress', bucket_name, 'not_encrypted',
+                'download-file-by-name', '--quiet', bucket_name, 'not_encrypted',
                 dir_path / 'not_encypted'
             ]
         )
@@ -1230,7 +1226,7 @@ def test_sse_c(b2_tool, bucket_name):
 
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--noProgress', bucket_name, 'uploaded_encrypted',
+            'download-file-by-name', '--quiet', bucket_name, 'uploaded_encrypted',
             'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
@@ -1238,7 +1234,7 @@ def test_sse_c(b2_tool, bucket_name):
     )
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+            'download-file-by-name', '--quiet', '--sourceServerSideEncryption', 'SSE-C',
             bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
@@ -1246,7 +1242,7 @@ def test_sse_c(b2_tool, bucket_name):
     )
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--noProgress', '--sourceServerSideEncryption', 'SSE-C',
+            'download-file-by-name', '--quiet', '--sourceServerSideEncryption', 'SSE-C',
             bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: Wrong or no SSE-C key provided when reading a file.',
@@ -1257,6 +1253,7 @@ def test_sse_c(b2_tool, bucket_name):
             [
                 'download-file-by-name',
                 '--noProgress',
+                '--quiet',
                 '--sourceServerSideEncryption',
                 'SSE-C',
                 bucket_name,
@@ -1270,6 +1267,7 @@ def test_sse_c(b2_tool, bucket_name):
             [
                 'download-file-by-id',
                 '--noProgress',
+                '--quiet',
                 '--sourceServerSideEncryption',
                 'SSE-C',
                 file_version_info['fileId'],
@@ -1574,7 +1572,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
     now_millis = current_time_millis()
 
     not_lockable_file = b2_tool.should_succeed_json(  # file in a lock disabled bucket
-        ['upload-file', '--noProgress', '--quiet', lock_disabled_bucket_name, file_to_upload, 'a']
+        ['upload-file', '--quiet', lock_disabled_bucket_name, file_to_upload, 'a']
     )
 
     _assert_file_lock_configuration(
@@ -1587,7 +1585,6 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
     b2_tool.should_fail(
         [
             'upload-file',
-            '--noProgress',
             '--quiet',
             lock_disabled_bucket_name,
             file_to_upload,
@@ -2340,7 +2337,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     # ---------------- add test data ----------------
     destination_bucket_name = bucket_name
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', destination_bucket_name, 'README.md', 'one/a']
+        ['upload-file', '--quiet', destination_bucket_name, 'README.md', 'one/a']
     )
 
     # ---------------- set up replication destination ----------------
@@ -2408,12 +2405,11 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
 
     # make test data
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'CHANGELOG.md', 'one/a']
+        ['upload-file', '--quiet', source_bucket_name, 'CHANGELOG.md', 'one/a']
     )
     b2_tool.should_succeed_json(
         [
             'upload-file',
-            '--noProgress',
             '--quiet',
             source_bucket_name,
             '--legalHold',
@@ -2428,7 +2424,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-B2']
     upload_additional_env = {}
     b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/c'] +
+        ['upload-file', '--quiet', source_bucket_name, 'README.md', 'two/c'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
     )
@@ -2440,7 +2436,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
     }
     b2_tool.should_succeed_json(
-        ['upload-file', '--noProgress', '--quiet', source_bucket_name, 'README.md', 'two/d'] +
+        ['upload-file', '--quiet', source_bucket_name, 'README.md', 'two/d'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
     )
@@ -2449,7 +2445,6 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     b2_tool.should_succeed_json(
         [
             'upload-file',
-            '--noProgress',
             '--quiet',
             source_bucket_name,
             'README.md',
