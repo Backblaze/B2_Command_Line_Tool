@@ -5,7 +5,7 @@
   - Create empty "Unreleased" section.
   - Add proper link to the new release (at the bottom of the file). Use GitHub [compare feature](https://docs.github.com/en/free-pro-team@latest/github/committing-changes-to-your-project/comparing-commits#comparing-tags) between two tags.
   - Update "Unreleased" link (at the bottom of the file).
-- Copy the main usage string (from `b2 --help`) to `README.md`.
+- Copy the main usage string (from `b2 --help`) to `README.md`. Handy command for consistent format: `COLUMNS=4000 b2 --help | awk '/^usages:/ {p=1; next} p {sub(/^ */, "", $0); print}'`
 - Commit and push to a GitHub branch, then wait for CI workflow to complete successfully.
 - Merge the PR
 - Pull from GitHub
