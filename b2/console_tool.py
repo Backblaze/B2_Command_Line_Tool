@@ -655,7 +655,9 @@ class Command(Described):
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
                 common_parser.add_argument('--profile', default=None)
-                common_parser.add_argument('--quiet', action='store_true', default=False, help=argparse.SUPPRESS)
+                common_parser.add_argument(
+                    '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
+                )
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
