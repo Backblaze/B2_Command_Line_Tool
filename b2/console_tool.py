@@ -654,7 +654,7 @@ class Command(Described):
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
-                common_parser.add_argument('--profile', default=None)
+                common_parser.add_argument('--profile', default=None, help=argparse.SUPPRESS)
                 common_parser.add_argument(
                     '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
                 )
@@ -733,7 +733,7 @@ class B2(Command):
     This program caches authentication-related and other data in a local SQLite database.
     The location of this database is determined in the following way:
 
-    If ``profile`` arg is provided:
+    If ``--profile`` arg is provided:
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/db-<profile>.sqlite``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
     * ``{B2_ACCOUNT_INFO_PROFILE_FILE}``
 
@@ -746,6 +746,8 @@ class B2(Command):
     If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
     Please note that the above rules may be changed in next versions of b2sdk, and in order to get
     reliable authentication file location you should use ``b2 get-account-info``.
+
+    You can suppress command stdout & stderr output by using ``--quiet`` option.
 
     For more details on one command:
 

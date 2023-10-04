@@ -6,8 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.11.0] - 2023-10-04
+
 ### Added
-* Add `--quiet` to all commands
+* Add `--quiet` option to all commands to suppress all messages printed to stdout & stderr
+
+### Changed
+* Improve `--quiet` and `--profile` options documentation mentions, while suppressing them in `--help` output
 
 ### Infrastructure
 * Fix gathering licenses of typeshed libraries
@@ -472,7 +477,8 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.1...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.11.0...HEAD
+[3.11.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.1...v3.11.0
 [3.10.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.0...v3.10.1
 [3.10.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.9.0...v3.10.0
 [3.9.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.8.0...v3.9.0
