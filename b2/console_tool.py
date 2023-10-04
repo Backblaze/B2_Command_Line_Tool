@@ -748,6 +748,7 @@ class B2(Command):
     reliable authentication file location you should use ``b2 get-account-info``.
 
     You can suppress command stdout & stderr output by using ``--quiet`` option.
+    To supress only progress bar, use ``--noProgress`` option.
 
     For more details on one command:
 
@@ -1414,7 +1415,9 @@ class DownloadFileById(
 
     def run(self, args):
         super().run(args)
-        progress_listener = make_progress_listener(args.localFileName, args.noProgress)
+        progress_listener = make_progress_listener(
+            args.localFileName, args.noProgress or args.quiet
+        )
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
         downloaded_file = self.api.download_file_by_id(
@@ -1464,7 +1467,9 @@ class DownloadFileByName(
         super().run(args)
         self._set_threads_from_args(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        progress_listener = make_progress_listener(args.localFileName, args.noProgress)
+        progress_listener = make_progress_listener(
+            args.localFileName, args.noProgress or args.quiet
+        )
         encryption_setting = self._get_source_sse_setting(args)
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
@@ -2217,7 +2222,7 @@ class Rm(ThreadsMixin, AbstractLsCommand):
         messages_queue = queue.Queue()
 
         threads = self._get_threads_from_args(args)
-        with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress) as reporter:
+        with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress or args.quiet) as reporter:
             submit_thread = self.SubmitThread(self, args, messages_queue, reporter, threads=threads)
             # This thread is started in daemon mode, no joining needed.
             submit_thread.start()
@@ -2548,7 +2553,7 @@ class Sync(
                 write_bucket_settings=write_encryption_settings,
             )
 
-        with SyncReport(self.stdout, args.noProgress) as reporter:
+        with SyncReport(self.stdout, args.noProgress or args.quiet) as reporter:
             try:
                 synchronizer.sync_folders(
                     source_folder=source,
@@ -2833,20 +2838,34 @@ class UploadFileMixin(
                 file_infos[SRC_LAST_MODIFIED_MILLIS] = str(int(mtime * 1000))
 
         return {
-            "bucket": self.api.get_bucket_by_name(args.bucketName),
-            "cache_control": args.cache_control,
-            "content_type": args.contentType,
-            "custom_upload_timestamp": args.custom_upload_timestamp,
-            "encryption": self._get_destination_sse_setting(args),
-            "file_info": file_infos,
-            "file_name": args.b2FileName,
-            "file_retention": self._get_file_retention_setting(args),
-            "legal_hold": self._get_legal_hold_setting(args),
-            "local_file": args.localFilePath,
-            "min_part_size": args.minPartSize,
-            "progress_listener": make_progress_listener(args.localFilePath, args.noProgress),
-            "sha1_sum": args.sha1,
-            "threads": self._get_threads_from_args(args),
+            "bucket":
+                self.api.get_bucket_by_name(args.bucketName),
+            "cache_control":
+                args.cache_control,
+            "content_type":
+                args.contentType,
+            "custom_upload_timestamp":
+                args.custom_upload_timestamp,
+            "encryption":
+                self._get_destination_sse_setting(args),
+            "file_info":
+                file_infos,
+            "file_name":
+                args.b2FileName,
+            "file_retention":
+                self._get_file_retention_setting(args),
+            "legal_hold":
+                self._get_legal_hold_setting(args),
+            "local_file":
+                args.localFilePath,
+            "min_part_size":
+                args.minPartSize,
+            "progress_listener":
+                make_progress_listener(args.localFilePath, args.noProgress or args.quiet),
+            "sha1_sum":
+                args.sha1,
+            "threads":
+                self._get_threads_from_args(args),
         }
 
     @abstractmethod
@@ -3363,7 +3382,7 @@ class ReplicationStatus(Command):
                 rule=rule,
                 destination_api=destination_api,
                 scan_destination=not args.dont_scan_destination,
-                quiet=args.noProgress,
+                quiet=args.noProgress or args.quiet,
             )
             for rule in rules
         }
