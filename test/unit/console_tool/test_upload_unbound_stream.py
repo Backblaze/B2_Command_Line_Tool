@@ -9,7 +9,7 @@
 ######################################################################
 import os
 from test.helpers import skip_on_windows
-from test.unit.helpers import run_in_background
+from test.unit.helpers import RunOrDieExecutor
 
 from b2._cli.const import DEFAULT_MIN_PART_SIZE
 
@@ -21,7 +21,9 @@ def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir):
     content = 'hello world'
     fifo_file = tmpdir.join('fifo_file.txt')
     os.mkfifo(str(fifo_file))
-    writer = run_in_background(fifo_file.write, content)  # writer will block until content is read
+    writer = RunOrDieExecutor().submit(
+        fifo_file.write, content
+    )  # writer will block until content is read
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
@@ -37,7 +39,7 @@ def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir):
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
     )
-    writer.join()
+    writer.result(timeout=1)
 
 
 def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
@@ -72,8 +74,8 @@ def test_upload_unbound_stream__with_part_size_options(b2_cli, bucket, tmpdir, m
     filename = 'named_pipe.txt'
     fifo_file = tmpdir.join('fifo_file.txt')
     os.mkfifo(str(fifo_file))
-    writer = run_in_background(
-        fifo_file.write, "x" * expected_size
+    writer = RunOrDieExecutor().submit(
+        lambda: fifo_file.write("x" * expected_size)
     )  # writer will block until content is read
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
@@ -99,7 +101,7 @@ def test_upload_unbound_stream__with_part_size_options(b2_cli, bucket, tmpdir, m
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
     )
-    writer.join()
+    writer.result(timeout=1)
 
 
 def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):

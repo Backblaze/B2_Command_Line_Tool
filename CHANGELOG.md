@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 * Stream `ls --json` JSON output instead of dumping it only after all objects have been fetched
+* Alias `-` to stdout in `download-file-by-name` or `download-file-by-id` command
 
 ## [3.12.0] - 2023-10-28
 
@@ -58,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add s3 endpoint to `get-account-info`
 
 ### Deprecated
-* Support of `-` as a valid filename in `upload-file` command. In future `-` will be an alias for standard input.
+* Deprecate support of `-` as a valid filename in `upload-file` command. In the future `-` will always be interpreted as standard input
 
 ### Changed
 * Better help text for --corsRules

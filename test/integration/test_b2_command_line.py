@@ -59,20 +59,30 @@ def get_bucketinfo() -> Tuple[str, str]:
     return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
 
 
-def test_download(b2_tool, bucket_name, sample_file):
-
-    uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', bucket_name, sample_file, 'a']
+@pytest.fixture
+def uploaded_sample_file(b2_tool, bucket_name, sample_filepath):
+    return b2_tool.should_succeed_json(
+        ['upload-file', '--quiet', bucket_name,
+         str(sample_filepath), 'sample_file']
     )
-    with TempDir() as dir_path:
-        b2_tool.should_succeed(
-            ['download-file-by-name', '--quiet', bucket_name, 'a', dir_path / 'a']
-        )
-        assert read_file(dir_path / 'a') == read_file(sample_file)
-        b2_tool.should_succeed(
-            ['download-file-by-id', '--quiet', uploaded_a['fileId'], dir_path / 'b']
-        )
-        assert read_file(dir_path / 'b') == read_file(sample_file)
+
+
+def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, tmp_path):
+    output_a = tmp_path / 'a'
+    b2_tool.should_succeed(
+        [
+            'download-file-by-name', '--quiet', bucket_name, uploaded_sample_file['fileName'],
+            str(output_a)
+        ]
+    )
+    assert output_a.read_text() == sample_filepath.read_text()
+
+    output_b = tmp_path / 'b'
+    b2_tool.should_succeed(
+        ['download-file-by-id', '--quiet', uploaded_sample_file['fileId'],
+         str(output_b)]
+    )
+    assert output_b.read_text() == sample_filepath.read_text()
 
 
 def test_basic(b2_tool, bucket_name, sample_file, is_running_on_docker):
@@ -2677,3 +2687,14 @@ def test_upload_unbound_stream__redirect_operator(
         f'b2 upload-unbound-stream {bucket_name} <(echo -n {content}) {request.node.name}.txt'
     )
     assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
+
+
+def test_download_file_stdout(
+    b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file
+):
+    assert b2_tool.should_succeed(
+        ['download-file-by-name', '--quiet', bucket_name, uploaded_sample_file['fileName'], '-'],
+    ) == sample_filepath.read_text()
+    assert b2_tool.should_succeed(
+        ['download-file-by-id', '--quiet', uploaded_sample_file['fileId'], '-'],
+    ) == sample_filepath.read_text()

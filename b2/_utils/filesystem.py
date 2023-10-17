@@ -7,6 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import platform
 import stat
 from pathlib import Path
 
@@ -18,3 +19,6 @@ def points_to_fifo(path: Path) -> bool:
         return stat.S_ISFIFO(path.stat().st_mode)
     except OSError:
         return False
+
+
+STDOUT_FILE_PATH = "CON" if platform.system() == "Windows" else "/dev/stdout"
