@@ -9,7 +9,7 @@
 ######################################################################
 import os
 from test.helpers import skip_on_windows
-from test.unit.helpers import run_in_background
+from test.unit.helpers import RunOrDieExecutor
 
 import b2
 
@@ -47,7 +47,7 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir):
     content = 'hello world'
     local_file1 = tmpdir.join('file1.txt')
     os.mkfifo(str(local_file1))
-    writer = run_in_background(
+    writer = RunOrDieExecutor().submit(
         local_file1.write, content
     )  # writer will block until content is read
 
@@ -66,13 +66,13 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir):
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
     )
-    writer.join()
+    writer.result(timeout=1)
 
 
 def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monkeypatch):
     """Test upload_file will upload file named `-` instead of stdin by default"""
     # TODO remove this in v4
-    assert b2.__version__ < '4', "`-` file upload should not be supported in next major version of CLI"
+    assert b2.__version__ < '4', "`-` filename should not be supported in next major version of CLI"
     filename = 'stdin.txt'
     content = "I'm very rare creature, a file named '-'"
     monkeypatch.chdir(str(tmpdir))
@@ -92,7 +92,7 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
         expected_stderr=
-        "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias.\n",
+        "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias.\n",
     )
 
 

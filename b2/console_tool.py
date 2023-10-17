@@ -121,7 +121,7 @@ from b2._cli.const import (
 )
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
-from b2._utils.filesystem import points_to_fifo
+from b2._utils.filesystem import STDOUT_FILE_PATH, points_to_fifo
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
@@ -1413,10 +1413,24 @@ class DownloadCommand(Command):
         self._print((label + ':').ljust(20) + ' ' + value)
 
 
+class DownloadFileMixin(
+    ThreadsMixin,
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin,
+    DownloadCommand,
+):
+    def get_local_output_filename(self, filename: str) -> str:
+        if filename == '-':
+            return STDOUT_FILE_PATH
+        return filename
+
+
 @B2.register_subcommand
 class DownloadFileById(
-    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
-    MaxDownloadStreamsMixin, DownloadCommand
+    DownloadFileMixin,
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1442,9 +1456,8 @@ class DownloadFileById(
 
     def run(self, args):
         super().run(args)
-        progress_listener = make_progress_listener(
-            args.localFileName, args.noProgress or args.quiet
-        )
+        local_filename = self.get_local_output_filename(args.localFileName)
+        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
         downloaded_file = self.api.download_file_by_id(
@@ -1452,7 +1465,7 @@ class DownloadFileById(
         )
 
         self._print_download_info(downloaded_file)
-        downloaded_file.save_to(args.localFileName)
+        downloaded_file.save_to(local_filename)
         self._print('Download finished')
 
         return 0
@@ -1460,13 +1473,7 @@ class DownloadFileById(
 
 @B2.register_subcommand
 class DownloadFileByName(
-    ProgressMixin,
-    ThreadsMixin,
-    SourceSseMixin,
-    WriteBufferSizeMixin,
-    SkipHashVerificationMixin,
-    MaxDownloadStreamsMixin,
-    DownloadCommand,
+    DownloadFileMixin,
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1492,18 +1499,17 @@ class DownloadFileByName(
 
     def run(self, args):
         super().run(args)
+        local_filename = self.get_local_output_filename(args.localFileName)
         self._set_threads_from_args(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        progress_listener = make_progress_listener(
-            args.localFileName, args.noProgress or args.quiet
-        )
+        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
         encryption_setting = self._get_source_sse_setting(args)
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
         )
 
         self._print_download_info(downloaded_file)
-        downloaded_file.save_to(args.localFileName)
+        downloaded_file.save_to(local_filename)
         self._print('Download finished')
 
         return 0
@@ -2913,7 +2919,7 @@ class UploadFileMixin(
         if filename == "-":
             if os.path.exists('-'):
                 self._print_stderr(
-                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
+                    "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias."
                 )
             else:
                 return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
