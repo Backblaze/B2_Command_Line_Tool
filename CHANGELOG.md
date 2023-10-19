@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 * `--quiet` now will implicitly set `--noProgress` option as well
 
+### Infrastructure
+* Use stable Python 3.12 in CI
+
 ## [3.11.0] - 2023-10-04
 
 ### Added
@@ -20,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Infrastructure
 * Fix gathering licenses of typeshed libraries
 * Fix spellcheck erroring out on LICENSE file
-* Use stable Python 3.12 in CI
 
 ## [3.10.1] - 2023-09-27
 
