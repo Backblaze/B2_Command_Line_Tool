@@ -1053,6 +1053,21 @@ class CopyFileById(
         parser.add_argument('--metadataDirective', default=None, help=argparse.SUPPRESS)
         parser.add_argument('--contentType')
         parser.add_argument('--range', type=parse_range)
+        parser.add_argument(
+            '--cache-control', help='Add Cache-Control header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--content-disposition', help='Add Content-Disposition header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--content-language', help='Add Content-Language header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--content-encoding', help='Add Content-Encoding header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--expires', help='Add Expires header' # TODO(vbaltrusaitis-reef): better description
+        )
 
         info_group = parser.add_mutually_exclusive_group()
 
@@ -1111,6 +1126,11 @@ class CopyFileById(
             file_retention=file_retention,
             source_file_info=source_file_info,
             source_content_type=source_content_type,
+            cache_control=args.cache_control,
+            expires=args.expires,
+            content_disposition=args.content_disposition,
+            content_encoding=args.content_encoding,
+            content_language=args.content_language,
         )
         self._print_json(file_version)
         return 0
@@ -2890,6 +2910,18 @@ class UploadFileMixin(
         )
         parser.add_argument('--cache-control', default=None)
         parser.add_argument(
+            '--content-disposition', help='Add Content-Disposition header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--content-language', help='Add Content-Language header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--content-encoding', help='Add Content-Encoding header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
+            '--expires', help='Add Expires header' # TODO(vbaltrusaitis-reef): better description
+        )
+        parser.add_argument(
             '--info',
             action='append',
             default=[],
@@ -2940,12 +2972,20 @@ class UploadFileMixin(
                 self.api.get_bucket_by_name(args.bucketName),
             "cache_control":
                 args.cache_control,
+            "content_disposition":
+                args.content_disposition,
+            "content_encoding":
+                args.content_encoding,
+            "content_language":
+                args.content_language,
             "content_type":
                 args.contentType,
             "custom_upload_timestamp":
                 args.custom_upload_timestamp,
             "encryption":
                 self._get_destination_sse_setting(args),
+            "expires":
+                args.expires,
             "file_info":
                 file_infos,
             "file_name":
