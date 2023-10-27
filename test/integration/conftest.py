@@ -25,6 +25,7 @@ from .helpers import Api, CommandLine, bucket_name_part
 
 GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 TEMPDIR = tempfile.gettempdir()
+ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
 
 
 @pytest.hookimpl
@@ -169,13 +170,14 @@ def b2_tool(global_b2_tool):
 
 
 @pytest.fixture(autouse=True, scope='session')
-def copy_readme_for_tests():
+def sample_file():
     """Copy the README.md file to /tmp so that docker tests can access it"""
     tmp_readme = pathlib.Path(f'{TEMPDIR}/README.md')
     if not tmp_readme.exists():
         tmp_readme.write_text(
-            (pathlib.Path(__file__).parent.parent.parent / 'README.md').read_text()
+            (ROOT_PATH / 'README.md').read_text()
         )
+    return str(tmp_readme)
 
 
 @pytest.fixture(scope='session')

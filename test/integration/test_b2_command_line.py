@@ -62,31 +62,27 @@ def get_bucketinfo() -> Tuple[str, str]:
     return '--bucketInfo', json.dumps({BUCKET_CREATED_AT_MILLIS: str(current_time_millis())}),
 
 
-def test_download(b2_tool, bucket_name):
-
-    file_to_upload = f'{TEMPDIR}/README.md'
+def test_download(b2_tool, bucket_name, sample_file):
 
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', bucket_name, file_to_upload, 'a']
+        ['upload-file', '--quiet', bucket_name, sample_file, 'a']
     )
     with TempDir() as dir_path:
         b2_tool.should_succeed(
             ['download-file-by-name', '--quiet', bucket_name, 'a', dir_path / 'a']
         )
-        assert read_file(dir_path / 'a') == read_file(file_to_upload)
+        assert read_file(dir_path / 'a') == read_file(sample_file)
         b2_tool.should_succeed(
             ['download-file-by-id', '--quiet', uploaded_a['fileId'], dir_path / 'b']
         )
-        assert read_file(dir_path / 'b') == read_file(file_to_upload)
+        assert read_file(dir_path / 'b') == read_file(sample_file)
 
 
-def test_basic(b2_tool, bucket_name, is_running_on_docker):
+def test_basic(b2_tool, bucket_name, sample_file, is_running_on_docker):
 
-    file_to_upload = f'{TEMPDIR}/README.md'
+    file_mod_time_str = str(file_mod_time_millis(sample_file))
 
-    file_mod_time_str = str(file_mod_time_millis(file_to_upload))
-
-    file_data = read_file(file_to_upload)
+    file_data = read_file(sample_file)
     hex_sha1 = hashlib.sha1(file_data).hexdigest()
 
     list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
@@ -94,32 +90,32 @@ def test_basic(b2_tool, bucket_name, is_running_on_docker):
         [bucket_name], [b['bucketName'] for b in list_of_buckets if b['bucketName'] == bucket_name]
     )
 
-    b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, file_to_upload, 'a'])
+    b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, sample_file, 'a'])
     b2_tool.should_succeed(['ls', '--long', '--replication', bucket_name])
-    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'a'])
-    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/1'])
-    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'b/2'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'a'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'b/1'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'b/2'])
     b2_tool.should_succeed(
         [
             'upload-file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo=bar=baz', '--info',
-            'color=blue', bucket_name, file_to_upload, 'c'
+            'color=blue', bucket_name, sample_file, 'c'
         ]
     )
     b2_tool.should_fail(
         [
             'upload-file', '--noProgress', '--sha1', hex_sha1, '--info', 'foo-bar', '--info',
-            'color=blue', bucket_name, file_to_upload, 'c'
+            'color=blue', bucket_name, sample_file, 'c'
         ], r'ERROR: Bad file info: foo-bar'
     )
     b2_tool.should_succeed(
         [
             'upload-file', '--noProgress', '--contentType', 'text/plain', bucket_name,
-            file_to_upload, 'd'
+            sample_file, 'd'
         ]
     )
 
-    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm'])
-    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, file_to_upload, 'rm1'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'rm'])
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'rm1'])
     # with_wildcard allows us to target a single file. rm will be removed, rm1 will be left alone
     b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm'])
     list_of_files = b2_tool.should_succeed_json(
@@ -277,13 +273,13 @@ def test_bucket(b2_tool, bucket_name):
     ]
 
 
-def test_key_restrictions(b2_api, b2_tool, bucket_name):
+def test_key_restrictions(b2_api, b2_tool, bucket_name, sample_file):
 
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
     # A single file for rm to fail on.
     b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name, f'{TEMPDIR}/README.md', 'test']
+        ['upload-file', '--noProgress', bucket_name,sample_file, 'test']
     )
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -747,9 +743,7 @@ def test_sync_down_sse_c_no_prefix(b2_tool, bucket_name):
     sync_down_helper(b2_tool, bucket_name, '', SSE_C_AES)
 
 
-def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
-
-    file_to_upload = f'{TEMPDIR}/README.md'
+def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryption=None):
 
     b2_sync_point = 'b2:%s' % bucket_name
     if folder_in_bucket:
@@ -784,12 +778,12 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
 
         # Put a couple files in B2
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'a'] +
+            ['upload-file', '--noProgress', bucket_name, sample_file, b2_file_prefix + 'a'] +
             upload_encryption_args,
             additional_env=upload_additional_env,
         )
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b'] +
+            ['upload-file', '--noProgress', bucket_name, sample_file, b2_file_prefix + 'b'] +
             upload_encryption_args,
             additional_env=upload_additional_env,
         )
@@ -800,13 +794,13 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'c'] +
+            ['upload-file', '--noProgress', bucket_name, sample_file, b2_file_prefix + 'c'] +
             upload_encryption_args,
             additional_env=upload_additional_env,
         )
 
         # Sync the files with one file being excluded because of mtime
-        mod_time = str((file_mod_time_millis(file_to_upload) - 10) / 1000)
+        mod_time = str((file_mod_time_millis(sample_file) - 10) / 1000)
         b2_tool.should_succeed(
             [
                 'sync', '--noProgress', '--excludeIfModifiedAfter', mod_time, b2_sync_point,
@@ -837,51 +831,55 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, encryption=None):
             )
 
 
-def test_sync_copy(b2_api, b2_tool, bucket_name):
-    prepare_and_run_sync_copy_tests(b2_api, b2_tool, bucket_name, 'sync')
+def test_sync_copy(b2_api, b2_tool, bucket_name, sample_file):
+    prepare_and_run_sync_copy_tests(b2_api, b2_tool, bucket_name, 'sync', sample_file=sample_file)
 
 
-def test_sync_copy_no_prefix_default_encryption(b2_api, b2_tool, bucket_name):
+def test_sync_copy_no_prefix_default_encryption(b2_api, b2_tool, bucket_name, sample_file):
     prepare_and_run_sync_copy_tests(
-        b2_api, b2_tool, bucket_name, '', destination_encryption=None, expected_encryption=SSE_NONE
+        b2_api, b2_tool, bucket_name, '', sample_file=sample_file, destination_encryption=None,
+        expected_encryption=SSE_NONE
     )
 
 
-def test_sync_copy_no_prefix_no_encryption(b2_api, b2_tool, bucket_name):
+def test_sync_copy_no_prefix_no_encryption(b2_api, b2_tool, bucket_name, sample_file):
     prepare_and_run_sync_copy_tests(
         b2_api,
         b2_tool,
         bucket_name,
         '',
+        sample_file=sample_file,
         destination_encryption=SSE_NONE,
         expected_encryption=SSE_NONE
     )
 
 
-def test_sync_copy_no_prefix_sse_b2(b2_api, b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_b2(b2_api, b2_tool, bucket_name, sample_file):
     prepare_and_run_sync_copy_tests(
         b2_api,
         b2_tool,
         bucket_name,
         '',
+        sample_file=sample_file,
         destination_encryption=SSE_B2_AES,
         expected_encryption=SSE_B2_AES,
     )
 
 
-def test_sync_copy_no_prefix_sse_c(b2_api, b2_tool, bucket_name):
+def test_sync_copy_no_prefix_sse_c(b2_api, b2_tool, bucket_name, sample_file):
     prepare_and_run_sync_copy_tests(
         b2_api,
         b2_tool,
         bucket_name,
         '',
+        sample_file=sample_file,
         destination_encryption=SSE_C_AES,
         expected_encryption=SSE_C_AES,
         source_encryption=SSE_C_AES_2,
     )
 
 
-def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
+def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name, sample_file):
     run_sync_copy_with_basic_checks(
         b2_tool=b2_tool,
         b2_file_prefix='first_folder/',
@@ -890,6 +888,7 @@ def test_sync_copy_sse_c_single_bucket(b2_tool, bucket_name):
         other_b2_sync_point=f'b2:{bucket_name}/second_folder',
         destination_encryption=SSE_C_AES_2,
         source_encryption=SSE_C_AES,
+        sample_file=sample_file,
     )
     expected_encryption_first = encryption_summary(
         SSE_C_AES.as_dict(),
@@ -917,6 +916,7 @@ def prepare_and_run_sync_copy_tests(
     b2_tool,
     bucket_name,
     folder_in_bucket,
+    sample_file,
     destination_encryption=None,
     expected_encryption=SSE_NONE,
     source_encryption=None,
@@ -945,6 +945,7 @@ def prepare_and_run_sync_copy_tests(
         other_b2_sync_point=other_b2_sync_point,
         destination_encryption=destination_encryption,
         source_encryption=source_encryption,
+        sample_file=sample_file,
     )
 
     if destination_encryption is None or destination_encryption in (SSE_NONE, SSE_B2_AES):
@@ -977,9 +978,8 @@ def run_sync_copy_with_basic_checks(
     other_b2_sync_point,
     destination_encryption,
     source_encryption,
+    sample_file,
 ):
-    file_to_upload = f'{TEMPDIR}/README.md'
-
     # Put a couple files in B2
     if source_encryption is None or source_encryption.mode in (
         EncryptionMode.NONE, EncryptionMode.SSE_B2
@@ -987,18 +987,18 @@ def run_sync_copy_with_basic_checks(
         b2_tool.should_succeed(
             [
                 'upload-file', '--noProgress', '--destinationServerSideEncryption', 'SSE-B2',
-                bucket_name, file_to_upload, b2_file_prefix + 'a'
+                bucket_name, sample_file, b2_file_prefix + 'a'
             ]
         )
         b2_tool.should_succeed(
-            ['upload-file', '--noProgress', bucket_name, file_to_upload, b2_file_prefix + 'b']
+            ['upload-file', '--noProgress', bucket_name, sample_file, b2_file_prefix + 'b']
         )
     elif source_encryption.mode == EncryptionMode.SSE_C:
         for suffix in ['a', 'b']:
             b2_tool.should_succeed(
                 [
                     'upload-file', '--noProgress', '--destinationServerSideEncryption', 'SSE-C',
-                    bucket_name, file_to_upload, b2_file_prefix + suffix
+                    bucket_name, sample_file, b2_file_prefix + suffix
                 ],
                 additional_env={
                     'B2_DESTINATION_SSE_C_KEY_B64':
@@ -1127,16 +1127,14 @@ def test_default_sse_b2(b2_api, b2_tool, bucket_name):
     b2_api.clean_bucket(second_bucket_name)
 
 
-def test_sse_b2(b2_tool, bucket_name):
-    file_to_upload = f'{TEMPDIR}/README.md'
-
+def test_sse_b2(b2_tool, bucket_name, sample_file):
     b2_tool.should_succeed(
         [
             'upload-file', '--destinationServerSideEncryption=SSE-B2', '--quiet', bucket_name,
-            file_to_upload, 'encrypted'
+            sample_file, 'encrypted'
         ]
     )
-    b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, file_to_upload, 'not_encrypted'])
+    b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, sample_file, 'not_encrypted'])
     with TempDir() as dir_path:
         b2_tool.should_succeed(
             ['download-file-by-name', '--quiet', bucket_name, 'encrypted', dir_path / 'encrypted']
@@ -1196,27 +1194,26 @@ def test_sse_b2(b2_tool, bucket_name):
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
 
-def test_sse_c(b2_tool, bucket_name, is_running_on_docker):
+def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file):
 
     sse_c_key_id = 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü'
     if is_running_on_docker:
         # TODO: fix this once we figure out how to pass env vars with \n in them to docker, docker-compose should work
         sse_c_key_id = sse_c_key_id.replace('\n', '')
 
-    file_to_upload = f'{TEMPDIR}/README.md'
     secret = os.urandom(32)
 
     b2_tool.should_fail(
         [
             'upload-file', '--noProgress', '--quiet', '--destinationServerSideEncryption', 'SSE-C',
-            bucket_name, file_to_upload, 'gonna-fail-anyway'
+            bucket_name, sample_file, 'gonna-fail-anyway'
         ],
         'Using SSE-C requires providing an encryption key via B2_DESTINATION_SSE_C_KEY_B64 env var'
     )
     file_version_info = b2_tool.should_succeed_json(
         [
             'upload-file', '--noProgress', '--quiet', '--destinationServerSideEncryption', 'SSE-C',
-            bucket_name, file_to_upload, 'uploaded_encrypted'
+            bucket_name, sample_file, 'uploaded_encrypted'
         ],
         additional_env={
             'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
@@ -1271,7 +1268,7 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker):
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
         )
-        assert read_file(dir_path / 'a') == read_file(file_to_upload)
+        assert read_file(dir_path / 'a') == read_file(sample_file)
         b2_tool.should_succeed(
             [
                 'download-file-by-id',
@@ -1284,7 +1281,7 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker):
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
         )
-        assert read_file(dir_path / 'b') == read_file(file_to_upload)
+        assert read_file(dir_path / 'b') == read_file(sample_file)
 
     b2_tool.should_fail(
         ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
@@ -1566,7 +1563,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.""" in license_text.replace(os.linesep, '\n'), repr(license_text[-2000:])
 
 
-def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
+def test_file_lock(b2_tool, application_key_id, application_key, b2_api, sample_file):
     lock_disabled_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
@@ -1577,11 +1574,10 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
         ],
     )
 
-    file_to_upload = f'{TEMPDIR}/README.md'
     now_millis = current_time_millis()
 
     not_lockable_file = b2_tool.should_succeed_json(  # file in a lock disabled bucket
-        ['upload-file', '--quiet', lock_disabled_bucket_name, file_to_upload, 'a']
+        ['upload-file', '--quiet', lock_disabled_bucket_name, sample_file, 'a']
     )
 
     _assert_file_lock_configuration(
@@ -1596,7 +1592,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
             'upload-file',
             '--quiet',
             lock_disabled_bucket_name,
-            file_to_upload,
+            sample_file,
             'a',
             '--fileRetentionMode',
             'governance',
@@ -1649,7 +1645,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
     }
 
     lockable_file = b2_tool.should_succeed_json(  # file in a lock enabled bucket
-        ['upload-file', '--noProgress', '--quiet', lock_enabled_bucket_name, file_to_upload, 'a']
+        ['upload-file', '--noProgress', '--quiet', lock_enabled_bucket_name, sample_file, 'a']
     )
 
     b2_tool.should_fail(
@@ -1758,7 +1754,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
             '--noProgress',
             '--quiet',
             lock_enabled_bucket_name,
-            file_to_upload,
+            sample_file,
             'a',
             '--fileRetentionMode',
             'governance',
@@ -1774,7 +1770,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
             '--noProgress',
             '--quiet',
             lock_enabled_bucket_name,
-            file_to_upload,
+            sample_file,
             'a',
             '--fileRetentionMode',
             'governance',
@@ -1841,7 +1837,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
 
     file_lock_without_perms_test(
         b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file['fileId'],
-        not_lockable_file['fileId']
+        not_lockable_file['fileId'], sample_file=sample_file
     )
 
     b2_tool.should_succeed(
@@ -1849,7 +1845,7 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api):
     )
 
     deleting_locked_files(
-        b2_tool, lock_enabled_bucket_name, lock_disabled_key_id, lock_disabled_key
+        b2_tool, lock_enabled_bucket_name, lock_disabled_key_id, lock_disabled_key, sample_file
     )
 
     # ---- perform test cleanup ----
@@ -1879,7 +1875,7 @@ def make_lock_disabled_key(b2_tool):
 
 def file_lock_without_perms_test(
     b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
-    not_lockable_file_id
+    not_lockable_file_id, sample_file
 ):
 
     b2_tool.should_fail(
@@ -1933,7 +1929,7 @@ def file_lock_without_perms_test(
             '--noProgress',
             '--quiet',
             lock_enabled_bucket_name,
-            f'{TEMPDIR}/README.md',
+            sample_file,
             'bound_to_fail_anyway',
             '--fileRetentionMode',
             'governance',
@@ -1951,7 +1947,7 @@ def file_lock_without_perms_test(
             '--noProgress',
             '--quiet',
             lock_disabled_bucket_name,
-            f'{TEMPDIR}/README.md',
+            sample_file,
             'bound_to_fail_anyway',
             '--fileRetentionMode',
             'governance',
@@ -1996,7 +1992,7 @@ def file_lock_without_perms_test(
     )
 
 
-def upload_locked_file(b2_tool, bucket_name):
+def upload_locked_file(b2_tool, bucket_name, sample_file):
     return b2_tool.should_succeed_json(
         [
             'upload-file',
@@ -2007,16 +2003,16 @@ def upload_locked_file(b2_tool, bucket_name):
             '--retainUntil',
             str(int(time.time()) + 1000),
             bucket_name,
-            f'{TEMPDIR}/README.md',
+            sample_file,
             'a-locked',
         ]
     )
 
 
 def deleting_locked_files(
-    b2_tool, lock_enabled_bucket_name, lock_disabled_key_id, lock_disabled_key
+    b2_tool, lock_enabled_bucket_name, lock_disabled_key_id, lock_disabled_key, sample_file
 ):
-    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name)
+    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name, sample_file)
     b2_tool.should_fail(
         [  # master key
             'delete-file-version',
@@ -2032,7 +2028,7 @@ def deleting_locked_files(
         '--bypassGovernance'
     ])
 
-    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name)
+    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name, sample_file)
 
     b2_tool.should_succeed(
         [
@@ -2320,7 +2316,7 @@ def test_replication_setup(b2_api, b2_tool, bucket_name):
             'asReplicationDestination']['sourceToDestinationKeyMapping']
 
 
-def test_replication_monitoring(b2_tool, bucket_name, b2_api):
+def test_replication_monitoring(b2_tool, bucket_name, b2_api, sample_file):
 
     # ---------------- set up keys ----------------
     key_one_name = 'clt-testKey-01' + random_hex(6)
@@ -2346,7 +2342,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     # ---------------- add test data ----------------
     destination_bucket_name = bucket_name
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', destination_bucket_name, f'{TEMPDIR}/README.md', 'one/a']
+        ['upload-file', '--quiet', destination_bucket_name,sample_file, 'one/a']
     )
 
     # ---------------- set up replication destination ----------------
@@ -2413,11 +2409,8 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     )
 
     # make test data
-    shutil.copyfile(
-        pathlib.Path(__file__).parent.parent.parent / 'CHANGELOG.md', f'{TEMPDIR}/CHANGELOG.md'
-    )
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', source_bucket_name, f'{TEMPDIR}/CHANGELOG.md', 'one/a']
+        ['upload-file', '--quiet', source_bucket_name, sample_file, 'one/a']
     )
     b2_tool.should_succeed_json(
         [
@@ -2426,7 +2419,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
             source_bucket_name,
             '--legalHold',
             'on',
-            f'{TEMPDIR}/README.md',
+            sample_file,
             'two/b',
         ]
     )
@@ -2436,7 +2429,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
     upload_encryption_args = ['--destinationServerSideEncryption', 'SSE-B2']
     upload_additional_env = {}
     b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', source_bucket_name, f'{TEMPDIR}/README.md', 'two/c'] +
+        ['upload-file', '--quiet', source_bucket_name, sample_file, 'two/c'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
     )
@@ -2448,7 +2441,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
         'B2_DESTINATION_SSE_C_KEY_ID': SSE_C_AES.key.key_id,
     }
     b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', source_bucket_name, f'{TEMPDIR}/README.md', 'two/d'] +
+        ['upload-file', '--quiet', source_bucket_name, sample_file, 'two/d'] +
         upload_encryption_args,
         additional_env=upload_additional_env,
     )
@@ -2459,7 +2452,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api):
             'upload-file',
             '--quiet',
             source_bucket_name,
-            f'{TEMPDIR}/README.md',
+           sample_file,
             'two/e',
             '--legalHold',
             'on',
@@ -2622,9 +2615,8 @@ def _assert_file_lock_configuration(
         assert legal_hold == actual_legal_hold
 
 
-def test_cut(b2_tool, bucket_name):
-    file_to_upload = f'{TEMPDIR}/README.md'
-    file_data = read_file(file_to_upload)
+def test_cut(b2_tool, bucket_name, sample_file):
+    file_data = read_file(sample_file)
     cut = 12345
     cut_printable = '1970-01-01  00:00:12'
     args = [
@@ -2634,7 +2626,7 @@ def test_cut(b2_tool, bucket_name):
         str(cut),
         '--quiet',
         bucket_name,
-        file_to_upload,
+        sample_file,
         'a',
     ]
     succeeded, stdout = b2_tool.run_command(args)

@@ -438,9 +438,6 @@ class CommandLine:
         :param cmd: a command to run
         :param args: command's arguments
         :param additional_env: environment variables to pass to the command, overwriting parent process ones
-        :param env_file_cmd_placeholder: If specified, all occurrences of this string in `args` will be substituted with a
-                                         path to a tmp file containing env vars to be used when running this command. Useful
-                                         for docker.
         :return: (status, stdout, stderr)
         """
         # We'll run the b2 command-line by running the b2 module from
