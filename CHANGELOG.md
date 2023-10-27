@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 * `--quiet` now will implicitly set `--noProgress` option as well
+* pypy integration tests
 
 ### Infrastructure
 * Use stable Python 3.12 in CI

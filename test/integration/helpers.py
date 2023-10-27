@@ -442,6 +442,12 @@ class CommandLine:
                 assert any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS), \
                     f'Unexpected stderr line: {repr(line)}'
 
+        if platform.python_implementation().lower() == 'pypy':
+            # TODO: remove after pypy removes the leftover print and resolve
+            # https://github.com/Backblaze/B2_Command_Line_Tool/issues/936
+            while stdout.startswith('/'):
+                stdout = stdout.split('\n', 1)[-1]
+
         if expected_pattern is not None:
             assert re.search(expected_pattern, stdout), \
             f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
@@ -454,7 +460,12 @@ class CommandLine:
         if there was an error; otherwise, treats the stdout as JSON and returns
         the data in it.
         """
-        return json.loads(self.should_succeed(args, additional_env=additional_env))
+        result = self.should_succeed(args, additional_env=additional_env)
+        try:
+            loaded_result = json.loads(result)
+        except json.JSONDecodeError:
+            raise ValueError(f'{result} is not a valid json')
+        return loaded_result
 
     def should_fail(self, args, expected_pattern, additional_env: Optional[dict] = None):
         """
@@ -463,6 +474,12 @@ class CommandLine:
         """
         status, stdout, stderr = run_command(self.command, args, additional_env)
         assert status != 0, 'ERROR: should have failed'
+
+        if platform.python_implementation().lower() == 'pypy':
+            # TODO: remove after pypy removes the leftover print and resolve
+            # https://github.com/Backblaze/B2_Command_Line_Tool/issues/936
+            while stdout.startswith('/'):
+                stdout = stdout.split('\n', 1)[-1]
 
         assert re.search(expected_pattern, stdout + stderr), \
             f'did not match pattern="{expected_pattern}", stdout="{stdout}", stderr="{stderr}"'
