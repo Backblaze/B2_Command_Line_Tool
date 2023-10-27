@@ -15,9 +15,7 @@ import itertools
 import json
 import os
 import os.path
-import pathlib
 import re
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -39,7 +37,6 @@ from b2sdk.v2 import (
 from b2.console_tool import current_time_millis
 
 from ..helpers import skip_on_windows
-from .conftest import TEMPDIR
 from .helpers import (
     BUCKET_CREATED_AT_MILLIS,
     ONE_DAY_MILLIS,
@@ -109,8 +106,8 @@ def test_basic(b2_tool, bucket_name, sample_file, is_running_on_docker):
     )
     b2_tool.should_succeed(
         [
-            'upload-file', '--noProgress', '--contentType', 'text/plain', bucket_name,
-            sample_file, 'd'
+            'upload-file', '--noProgress', '--contentType', 'text/plain', bucket_name, sample_file,
+            'd'
         ]
     )
 
@@ -278,9 +275,7 @@ def test_key_restrictions(b2_api, b2_tool, bucket_name, sample_file):
     second_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(['create-bucket', second_bucket_name, 'allPublic', *get_bucketinfo()],)
     # A single file for rm to fail on.
-    b2_tool.should_succeed(
-        ['upload-file', '--noProgress', bucket_name,sample_file, 'test']
-    )
+    b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'test'])
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -837,7 +832,12 @@ def test_sync_copy(b2_api, b2_tool, bucket_name, sample_file):
 
 def test_sync_copy_no_prefix_default_encryption(b2_api, b2_tool, bucket_name, sample_file):
     prepare_and_run_sync_copy_tests(
-        b2_api, b2_tool, bucket_name, '', sample_file=sample_file, destination_encryption=None,
+        b2_api,
+        b2_tool,
+        bucket_name,
+        '',
+        sample_file=sample_file,
+        destination_encryption=None,
         expected_encryption=SSE_NONE
     )
 
@@ -1836,8 +1836,12 @@ def test_file_lock(b2_tool, application_key_id, application_key, b2_api, sample_
     )
 
     file_lock_without_perms_test(
-        b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file['fileId'],
-        not_lockable_file['fileId'], sample_file=sample_file
+        b2_tool,
+        lock_enabled_bucket_name,
+        lock_disabled_bucket_name,
+        lockable_file['fileId'],
+        not_lockable_file['fileId'],
+        sample_file=sample_file
     )
 
     b2_tool.should_succeed(
@@ -2342,7 +2346,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api, sample_file):
     # ---------------- add test data ----------------
     destination_bucket_name = bucket_name
     uploaded_a = b2_tool.should_succeed_json(
-        ['upload-file', '--quiet', destination_bucket_name,sample_file, 'one/a']
+        ['upload-file', '--quiet', destination_bucket_name, sample_file, 'one/a']
     )
 
     # ---------------- set up replication destination ----------------
@@ -2452,7 +2456,7 @@ def test_replication_monitoring(b2_tool, bucket_name, b2_api, sample_file):
             'upload-file',
             '--quiet',
             source_bucket_name,
-           sample_file,
+            sample_file,
             'two/e',
             '--legalHold',
             'on',

@@ -174,9 +174,7 @@ def sample_file():
     """Copy the README.md file to /tmp so that docker tests can access it"""
     tmp_readme = pathlib.Path(f'{TEMPDIR}/README.md')
     if not tmp_readme.exists():
-        tmp_readme.write_text(
-            (ROOT_PATH / 'README.md').read_text()
-        )
+        tmp_readme.write_text((ROOT_PATH / 'README.md').read_text())
     return str(tmp_readme)
 
 
