@@ -129,7 +129,7 @@ Note that using many threads could in some cases be detrimental to the other use
 
 #### Authorization
 
-User can either authorize on each call (`list-buckets` is just an exemplary command here)
+User can either authorize on each command (`list-buckets` is just a example here)
 
 ```bash
 B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID backblazeit/b2:latest list-buckets
