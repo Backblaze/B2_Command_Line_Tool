@@ -422,6 +422,10 @@ class CommandLine:
         """
         command = self.command.split(' ')
         if self.env_file_cmd_placeholder:
+            if any('\n' in var_value for var_value in env.values()):
+                raise ValueError(
+                    'Env vars containing new line characters will break env file format'
+                )
             env_file_path = mktemp()
             pathlib.Path(env_file_path).write_text('\n'.join(f'{k}={v}' for k, v in env.items()))
             command = [
