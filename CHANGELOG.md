@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.12.0] - 2023-10-28
+
 ### Fixed
 * `--quiet` now will implicitly set `--noProgress` option as well
 * pypy integration tests
@@ -486,7 +488,8 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 * Fix an off-by-one issue when downloading a range of a file (affects library, but not CLI).
 * Better handling of some errors from the B2 service.
 
-[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.11.0...HEAD
+[Unreleased]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.12.0...HEAD
+[3.12.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.11.0...v3.12.0
 [3.11.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.1...v3.11.0
 [3.10.1]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.10.0...v3.10.1
 [3.10.0]: https://github.com/Backblaze/B2_Command_Line_Tool/compare/v3.9.0...v3.10.0
