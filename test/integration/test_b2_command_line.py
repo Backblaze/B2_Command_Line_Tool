@@ -726,16 +726,16 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         )
 
 
-def test_sync_down(b2_tool, bucket_name):
-    sync_down_helper(b2_tool, bucket_name, 'sync')
+def test_sync_down(b2_tool, bucket_name, sample_file):
+    sync_down_helper(b2_tool, bucket_name, 'sync', sample_file)
 
 
-def test_sync_down_no_prefix(b2_tool, bucket_name):
-    sync_down_helper(b2_tool, bucket_name, '')
+def test_sync_down_no_prefix(b2_tool, bucket_name, sample_file):
+    sync_down_helper(b2_tool, bucket_name, '', sample_file)
 
 
-def test_sync_down_sse_c_no_prefix(b2_tool, bucket_name):
-    sync_down_helper(b2_tool, bucket_name, '', SSE_C_AES)
+def test_sync_down_sse_c_no_prefix(b2_tool, bucket_name, sample_file):
+    sync_down_helper(b2_tool, bucket_name, '', sample_file, SSE_C_AES)
 
 
 def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryption=None):
