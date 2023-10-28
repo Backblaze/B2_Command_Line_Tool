@@ -10,8 +10,10 @@
 
 import contextlib
 import os
+import pathlib
 import subprocess
 import sys
+import tempfile
 from os import environ, path
 from tempfile import TemporaryDirectory
 
@@ -22,12 +24,23 @@ from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
 from .helpers import Api, CommandLine, bucket_name_part
 
 GENERAL_BUCKET_NAME_PREFIX = 'clitst'
+TEMPDIR = tempfile.gettempdir()
+ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
 
 
 @pytest.hookimpl
 def pytest_addoption(parser):
     parser.addoption(
         '--sut', default='%s -m b2' % sys.executable, help='Path to the System Under Test'
+    )
+    parser.addoption(
+        '--env-file-cmd-placeholder',
+        default=None,
+        help=(
+            'If specified, all occurrences of this string in `--sut` will be substituted with a'
+            'path to a tmp file containing env vars to be used when running commands in tests. Useful'
+            'for docker.'
+        )
     )
     parser.addoption('--cleanup', action='store_true', help='Perform full cleanup at exit')
 
@@ -143,6 +156,7 @@ def global_b2_tool(
         application_key,
         realm,
         this_run_bucket_name_prefix,
+        request.config.getoption('--env-file-cmd-placeholder'),
     )
     tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
     return tool
@@ -153,6 +167,20 @@ def b2_tool(global_b2_tool):
     """Automatically reauthorized b2_tool for each test (without check)"""
     global_b2_tool.reauthorize(check_key_capabilities=False)
     return global_b2_tool
+
+
+@pytest.fixture(autouse=True, scope='session')
+def sample_file():
+    """Copy the README.md file to /tmp so that docker tests can access it"""
+    tmp_readme = pathlib.Path(f'{TEMPDIR}/README.md')
+    if not tmp_readme.exists():
+        tmp_readme.write_text((ROOT_PATH / 'README.md').read_text())
+    return str(tmp_readme)
+
+
+@pytest.fixture(scope='session')
+def is_running_on_docker(pytestconfig):
+    return pytestconfig.getoption('--sut').startswith('docker')
 
 
 SECRET_FIXTURES = {'application_key', 'application_key_id'}
@@ -190,9 +218,10 @@ def b2_in_path(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def env(b2_in_path, homedir, monkey_patch):
+def env(b2_in_path, homedir, monkey_patch, is_running_on_docker):
     """Get ENV for running b2 command from shell level."""
-    monkey_patch.setenv('PATH', b2_in_path)
+    if not is_running_on_docker:
+        monkey_patch.setenv('PATH', b2_in_path)
     monkey_patch.setenv('HOME', str(homedir))
     monkey_patch.setenv('SHELL', "/bin/bash")  # fix for running under github actions
     yield os.environ

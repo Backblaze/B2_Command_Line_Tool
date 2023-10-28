@@ -41,6 +41,16 @@ You can install the `b2` without them:
     pip install b2
 ```
 
+### Docker
+
+For a truly platform independent solution, use the official docker image: 
+
+```bash
+docker run backblazeit/b2:latest  ...
+```
+
+See examples in [Usage/Docker image](#docker-image)
+
 ### Installing from source
 
 If installing from the repository is needed in order to e.g. check if a pre-release version resolves a bug effectively, it can be installed with:
@@ -117,26 +127,33 @@ Note that using many threads could in some cases be detrimental to the other use
 
 ### Docker image
 
-An official Docker image is provided for these who want to use B2 Command Line Tool in a Docker environment.
+#### Authorization
 
-An example workflow could be (with passing environment variables):
+User can either authorize on each command (`list-buckets` is just a example here)
 
 ```bash
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID b2:latest authorize-account
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID b2:latest create-bucket test-bucket allPrivate
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID -v <absolute-local-path-to-data>:/data b2:latest upload-file test-bucket /data/local-file remote-file
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID -v <absolute-local-path-to-data>:/data b2:latest ls test-bucket
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID -v <absolute-local-path-to-data>:/data b2:latest download-file-by-name test-bucket remote-file /data/local-file-2
+B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID backblazeit/b2:latest list-buckets
 ```
 
-or mapping to a directory where account info will be kept:
+or authorize once and keep the credentials persisted:
 
 ```bash
-docker run --rm -it -v <absolute-local-path-to-account-info>:/b2 b2:latest authorize-account
-docker run --rm -v <absolute-local-path-to-account-info>:/b2 b2:latest create-bucket test-bucket allPrivate
-docker run --rm -v <absolute-local-path-to-account-info>:/b2 -v <absolute-local-path-to-data>:/data b2:latest upload-file test-bucket /data/local-file remote-file
-docker run --rm -v <absolute-local-path-to-account-info>:/b2 -v <absolute-local-path-to-data>:/data b2:latest ls test-bucket
-docker run --rm -v <absolute-local-path-to-account-info>:/b2 -v <absolute-local-path-to-data>:/data b2:latest download-file-by-name test-bucket remote-file /data/local-file-2
+docker run --rm -it -v b2:/root backblazeit/b2:latest authorize-account
+docker run --rm -v b2:/root backblazeit/b2:latest list-buckets  # remember to include `-v` - authorization details are there
+```
+
+#### Downloading and uploading
+
+When uploading a single file, data can be passed to the container via a pipe:
+
+```bash
+cat source_file.txt | docker run --rm -v b2:/root backblazeit/b2:latest upload-unbound-stream bucket_name - target_file_name
+```
+
+or by mounting local files in the docker container:
+
+```bash
+docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest upload-file bucket_name /data/source_file.txt target_file_name
 ```
 
 ## Contrib

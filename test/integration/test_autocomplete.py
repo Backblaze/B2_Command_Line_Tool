@@ -56,13 +56,19 @@ def shell(env):
 
 
 @skip_on_windows
-def test_autocomplete_b2_commands(autocomplete_installed, shell):
+def test_autocomplete_b2_commands(autocomplete_installed, is_running_on_docker, shell):
+    if is_running_on_docker:
+        pytest.skip('Not supported on Docker')
     shell.send('b2 \t\t')
     shell.expect_exact(["authorize-account", "download-file-by-id", "get-bucket"], timeout=TIMEOUT)
 
 
 @skip_on_windows
-def test_autocomplete_b2_only_matching_commands(autocomplete_installed, shell):
+def test_autocomplete_b2_only_matching_commands(
+    autocomplete_installed, is_running_on_docker, shell
+):
+    if is_running_on_docker:
+        pytest.skip('Not supported on Docker')
     shell.send('b2 download-\t\t')
 
     shell.expect_exact(
@@ -74,9 +80,11 @@ def test_autocomplete_b2_only_matching_commands(autocomplete_installed, shell):
 
 @skip_on_windows
 def test_autocomplete_b2_bucket_n_file_name(
-    autocomplete_installed, shell, b2_tool, bucket_name, file_name
+    autocomplete_installed, shell, b2_tool, bucket_name, file_name, is_running_on_docker
 ):
     """Test that autocomplete suggests bucket names and file names."""
+    if is_running_on_docker:
+        pytest.skip('Not supported on Docker')
     shell.send('b2 download_file_by_name \t\t')
     shell.expect_exact(bucket_name, timeout=TIMEOUT)
     shell.send(f'{bucket_name} \t\t')
