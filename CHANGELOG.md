@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.12.0] - 2023-10-28
 
+### Added
+* docker tests and pushing the official docker image on release
+
 ### Fixed
 * `--quiet` now will implicitly set `--noProgress` option as well
 * pypy integration tests
@@ -40,7 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.10.0] - 2023-09-10
 
 ### Added
-* docker tests and pushing the official docker image on release
 * Add ability to upload from an unbound source such as standard input or a named pipe
 * --bypassGovernance option to delete_file_version
 * Declare official support of Python 3.12
