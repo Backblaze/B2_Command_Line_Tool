@@ -685,23 +685,28 @@ class Command(Described):
             file_infos[parts[0]] = parts[1]
         return file_infos
 
-    def _print_json(self, data):
-        self._print(
-            json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True
-        )
+    def _print_json(self, data, *, raw: bool = False):
+        data = data if raw else json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder)
+        self._print(data, enforce_output=True, raw=raw)
 
-    def _print(self, *args, enforce_output=False):
-        self._print_standard_descriptor(self.stdout, 'stdout', *args, enforce_output=enforce_output)
+    def _print(self, *args, enforce_output=False, raw: bool = False):
+        self._print_standard_descriptor(
+            self.stdout, 'stdout', *args, enforce_output=enforce_output, raw=raw
+        )
 
     def _print_stderr(self, *args, **kwargs):
         self._print_standard_descriptor(self.stderr, 'stderr', *args, enforce_output=True)
 
-    def _print_standard_descriptor(self, descriptor, descriptor_name, *args, enforce_output=False):
+    def _print_standard_descriptor(
+        self, descriptor, descriptor_name, *args, enforce_output=False, raw: bool = False
+    ):
         if not self.quiet or enforce_output:
-            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
+            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args, raw=raw)
 
     @classmethod
-    def _print_helper(cls, descriptor, descriptor_encoding, descriptor_name, *args):
+    def _print_helper(
+        cls, descriptor, descriptor_encoding, descriptor_name, *args, raw: bool = False
+    ):
         try:
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
@@ -714,7 +719,8 @@ class Command(Described):
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
             sys.stderr.write("Trying to print: %s\n" % args)
             descriptor.write(' '.join(args))
-        descriptor.write('\n')
+        if not raw:
+            descriptor.write('\n')
 
     def __str__(self):
         return f'{self.__class__.__module__}.{self.__class__.__name__}'
@@ -861,7 +867,7 @@ class AuthorizeAccount(Command):
         :return: exit status
         """
         url = REALM_URLS.get(realm, realm)
-        self._print('Using %s' % url)
+        self._print_stderr(f"Using {url}")
         try:
             self.api.authorize_account(realm, application_key_id, application_key)
 
@@ -1889,14 +1895,11 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('folderName', nargs='?').completer = file_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _print_files(self, args):
         generator = self._get_ls_generator(args)
 
         for file_version, folder_name in generator:
             self._print_file_version(args, file_version, folder_name)
-
-        return 0
 
     def _print_file_version(
         self,
@@ -1982,6 +1985,7 @@ class Ls(AbstractLsCommand):
     # order is file_id, action, date, time, size(, replication), name
     LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'
     LS_ENTRY_TEMPLATE_REPLICATION = LS_ENTRY_TEMPLATE + '  %s'
+    _first_row = True
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1991,17 +1995,13 @@ class Ls(AbstractLsCommand):
         super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
+        self._print_files(args)
         if args.json:
-            # TODO: Make this work for an infinite generation.
-            #   Use `_print_file_version` to print a single `file_version` and manage the external JSON list
-            #   e.g. manually. However, to do it right, some sort of state needs to be kept e.g. info whether
-            #   at least one element was written to the stream, so we can add a `,` on the start of another.
-            #   That would sadly lead to an ugly formatting, so `_print` needs to be expanded with an ability
-            #   to not print end-line character(s).
-            self._print_json([file_version for file_version, _ in self._get_ls_generator(args)])
-            return 0
-
-        return super().run(args)
+            if self._first_row:  # no files were printed
+                self._print_json('[', raw=True)
+            self._print_json(']\n', raw=True)
+        return 0
 
     def _print_file_version(
         self,
@@ -2009,12 +2009,19 @@ class Ls(AbstractLsCommand):
         file_version: FileVersion,
         folder_name: Optional[str],
     ) -> None:
-        if not args.long:
+        if args.json:
+            if self._first_row:
+                self._print_json('[\n', raw=True)
+            else:
+                self._print_json(',', raw=True)
+            self._print_json(file_version)
+        elif not args.long:
             super()._print_file_version(args, file_version, folder_name)
         elif folder_name is not None:
             self._print(self.format_folder_ls_entry(folder_name, args.replication))
         else:
             self._print(self.format_ls_entry(file_version, args.replication))
+        self._first_row = False
 
     def format_folder_ls_entry(self, name, replication: bool):
         if replication:
@@ -2216,8 +2223,8 @@ class Rm(ThreadsMixin, AbstractLsCommand):
 
     def run(self, args):
         if args.dryRun:
-            return super().run(args)
-        super().run(args)
+            self._print_files(args)
+            return 0
         failed_on_any_file = False
         messages_queue = queue.Queue()
 
