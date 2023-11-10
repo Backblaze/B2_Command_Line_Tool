@@ -2006,7 +2006,6 @@ class Ls(AbstractLsCommand):
     # order is file_id, action, date, time, size(, replication), name
     LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'
     LS_ENTRY_TEMPLATE_REPLICATION = LS_ENTRY_TEMPLATE + '  %s'
-    _first_row = True
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -2036,19 +2035,12 @@ class Ls(AbstractLsCommand):
         file_version: FileVersion,
         folder_name: Optional[str],
     ) -> None:
-        if args.json:
-            if self._first_row:
-                self._print_json('[\n', raw=True)
-            else:
-                self._print_json(',', raw=True)
-            self._print_json(file_version)
-        elif not args.long:
+        if not args.long:
             super()._print_file_version(args, file_version, folder_name)
         elif folder_name is not None:
             self._print(self.format_folder_ls_entry(folder_name, args.replication))
         else:
             self._print(self.format_ls_entry(file_version, args.replication))
-        self._first_row = False
 
     def format_folder_ls_entry(self, name, replication: bool):
         if replication:
