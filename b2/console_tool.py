@@ -685,27 +685,49 @@ class Command(Described):
             file_infos[parts[0]] = parts[1]
         return file_infos
 
-    def _print_json(self, data, *, raw: bool = False):
-        data = data if raw else json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder)
-        self._print(data, enforce_output=True, raw=raw)
-
-    def _print(self, *args, enforce_output=False, raw: bool = False):
-        self._print_standard_descriptor(
-            self.stdout, 'stdout', *args, enforce_output=enforce_output, raw=raw
+    def _print_json(self, data) -> None:
+        return self._print(
+            json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True
         )
 
-    def _print_stderr(self, *args, **kwargs):
-        self._print_standard_descriptor(self.stderr, 'stderr', *args, enforce_output=True)
+    def _print(self, *args, enforce_output: bool = False, end: Optional[str] = None) -> None:
+        return self._print_standard_descriptor(
+            self.stdout, "stdout", *args, enforce_output=enforce_output, end=end
+        )
+
+    def _print_stderr(self, *args, end: Optional[str] = None) -> None:
+        return self._print_standard_descriptor(
+            self.stderr, "stderr", *args, enforce_output=True, end=end
+        )
 
     def _print_standard_descriptor(
-        self, descriptor, descriptor_name, *args, enforce_output=False, raw: bool = False
-    ):
+        self,
+        descriptor,
+        descriptor_name: str,
+        *args,
+        enforce_output: bool = False,
+        end: Optional[str] = None,
+    ) -> None:
+        """
+        Prints to fd, unless quiet is set.
+
+        :param descriptor: file descriptor to print to
+        :param descriptor_name: name of the descriptor, used for error reporting
+        :param args: object to be printed
+        :param enforce_output: overrides quiet setting; Should not be used for anything other than data
+        :param end: end of the line characters; None for default newline
+        """
         if not self.quiet or enforce_output:
-            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args, raw=raw)
+            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args, end=end)
 
     @classmethod
     def _print_helper(
-        cls, descriptor, descriptor_encoding, descriptor_name, *args, raw: bool = False
+        cls,
+        descriptor,
+        descriptor_encoding: str,
+        descriptor_name: str,
+        *args,
+        end: Optional[str] = None
     ):
         try:
             descriptor.write(' '.join(args))
@@ -719,8 +741,7 @@ class Command(Described):
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
             sys.stderr.write("Trying to print: %s\n" % args)
             descriptor.write(' '.join(args))
-        if not raw:
-            descriptor.write('\n')
+        descriptor.write("\n" if end is None else end)
 
     def __str__(self):
         return f'{self.__class__.__module__}.{self.__class__.__name__}'
@@ -1996,11 +2017,17 @@ class Ls(AbstractLsCommand):
 
     def run(self, args):
         super().run(args)
-        self._print_files(args)
         if args.json:
-            if self._first_row:  # no files were printed
-                self._print_json('[', raw=True)
-            self._print_json(']\n', raw=True)
+            i = -1
+            for i, (file_version, _) in enumerate(self._get_ls_generator(args)):
+                if i:
+                    self._print(',', end='')
+                else:
+                    self._print('[')
+                self._print_json(file_version)
+            self._print(']' if i >= 0 else '[]')
+        else:
+            self._print_files(args)
         return 0
 
     def _print_file_version(
@@ -2222,6 +2249,7 @@ class Rm(ThreadsMixin, AbstractLsCommand):
         super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         if args.dryRun:
             self._print_files(args)
             return 0

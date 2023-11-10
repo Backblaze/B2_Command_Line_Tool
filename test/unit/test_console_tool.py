@@ -84,9 +84,7 @@ class BaseConsoleToolTest(TestBase):
             print('ACTUAL STDERR:  ', repr(actual_stderr))
             print(actual_stderr)
 
-        assert re.match(
-            r'^(|Using https?://[\w.]+.com\n)$', actual_stderr
-        ), f"stderr: {actual_stderr!r}"
+        assert re.match(r'^(|Using https?://[\w.]+)$', actual_stderr), f"stderr: {actual_stderr!r}"
         self.assertEqual(0, actual_status, 'exit status code')
 
     def _trim_leading_spaces(self, s):
@@ -287,9 +285,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         assert self.account_info.get_account_auth_token() is None
 
         # Authorize an account with a good api key.
+        expected_stderr = """
+        Using http://production.example.com
+        """
         self._run_command(
-            ['authorize_account', self.account_id, self.master_key], '',
-            "Using http://production.example.com\n", 0
+            ['authorize_account', self.account_id, self.master_key], '', expected_stderr, 0
         )
 
         # Auth token should be in account info now
@@ -339,6 +339,9 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
 
+        expected_stderr = """
+        Using http://custom2.example.com
+        """
         # realm provided with env var
         with mock.patch.dict(
             'os.environ', {
@@ -346,8 +349,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
         ):
             self._run_command(
-                ['authorize-account', self.account_id, self.master_key], '',
-                'Using http://custom2.example.com\n', 0
+                ['authorize-account', self.account_id, self.master_key], '', expected_stderr, 0
             )
 
     def test_create_key_and_authorize_with_it(self):
