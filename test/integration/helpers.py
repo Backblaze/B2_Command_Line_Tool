@@ -337,6 +337,7 @@ def should_equal(expected, actual):
 class CommandLine:
 
     EXPECTED_STDERR_PATTERNS = [
+        re.compile(r'^Using https?://[\w.]+$'),  # account auth
         re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
         re.compile(r'^\r?$'),  # empty line
         re.compile(

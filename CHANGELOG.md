@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+* Emit `Using https://api.backblazeb2.com` message to stderr instead of stdout, therefor prevent JSON output corruption
+
+### Changed
+* Stream `ls --json` JSON output instead of dumping it only after all objects have been fetched
+
 ## [3.12.0] - 2023-10-28
 
 ### Added

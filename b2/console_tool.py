@@ -685,23 +685,50 @@ class Command(Described):
             file_infos[parts[0]] = parts[1]
         return file_infos
 
-    def _print_json(self, data):
-        self._print(
+    def _print_json(self, data) -> None:
+        return self._print(
             json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True
         )
 
-    def _print(self, *args, enforce_output=False):
-        self._print_standard_descriptor(self.stdout, 'stdout', *args, enforce_output=enforce_output)
+    def _print(self, *args, enforce_output: bool = False, end: Optional[str] = None) -> None:
+        return self._print_standard_descriptor(
+            self.stdout, "stdout", *args, enforce_output=enforce_output, end=end
+        )
 
-    def _print_stderr(self, *args, **kwargs):
-        self._print_standard_descriptor(self.stderr, 'stderr', *args, enforce_output=True)
+    def _print_stderr(self, *args, end: Optional[str] = None) -> None:
+        return self._print_standard_descriptor(
+            self.stderr, "stderr", *args, enforce_output=True, end=end
+        )
 
-    def _print_standard_descriptor(self, descriptor, descriptor_name, *args, enforce_output=False):
+    def _print_standard_descriptor(
+        self,
+        descriptor,
+        descriptor_name: str,
+        *args,
+        enforce_output: bool = False,
+        end: Optional[str] = None,
+    ) -> None:
+        """
+        Prints to fd, unless quiet is set.
+
+        :param descriptor: file descriptor to print to
+        :param descriptor_name: name of the descriptor, used for error reporting
+        :param args: object to be printed
+        :param enforce_output: overrides quiet setting; Should not be used for anything other than data
+        :param end: end of the line characters; None for default newline
+        """
         if not self.quiet or enforce_output:
-            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args)
+            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args, end=end)
 
     @classmethod
-    def _print_helper(cls, descriptor, descriptor_encoding, descriptor_name, *args):
+    def _print_helper(
+        cls,
+        descriptor,
+        descriptor_encoding: str,
+        descriptor_name: str,
+        *args,
+        end: Optional[str] = None
+    ):
         try:
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
@@ -714,7 +741,7 @@ class Command(Described):
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
             sys.stderr.write("Trying to print: %s\n" % args)
             descriptor.write(' '.join(args))
-        descriptor.write('\n')
+        descriptor.write("\n" if end is None else end)
 
     def __str__(self):
         return f'{self.__class__.__module__}.{self.__class__.__name__}'
@@ -861,7 +888,7 @@ class AuthorizeAccount(Command):
         :return: exit status
         """
         url = REALM_URLS.get(realm, realm)
-        self._print('Using %s' % url)
+        self._print_stderr(f"Using {url}")
         try:
             self.api.authorize_account(realm, application_key_id, application_key)
 
@@ -1889,14 +1916,11 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('folderName', nargs='?').completer = file_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _print_files(self, args):
         generator = self._get_ls_generator(args)
 
         for file_version, folder_name in generator:
             self._print_file_version(args, file_version, folder_name)
-
-        return 0
 
     def _print_file_version(
         self,
@@ -1991,17 +2015,19 @@ class Ls(AbstractLsCommand):
         super()._setup_parser(parser)
 
     def run(self, args):
+        super().run(args)
         if args.json:
-            # TODO: Make this work for an infinite generation.
-            #   Use `_print_file_version` to print a single `file_version` and manage the external JSON list
-            #   e.g. manually. However, to do it right, some sort of state needs to be kept e.g. info whether
-            #   at least one element was written to the stream, so we can add a `,` on the start of another.
-            #   That would sadly lead to an ugly formatting, so `_print` needs to be expanded with an ability
-            #   to not print end-line character(s).
-            self._print_json([file_version for file_version, _ in self._get_ls_generator(args)])
-            return 0
-
-        return super().run(args)
+            i = -1
+            for i, (file_version, _) in enumerate(self._get_ls_generator(args)):
+                if i:
+                    self._print(',', end='')
+                else:
+                    self._print('[')
+                self._print_json(file_version)
+            self._print(']' if i >= 0 else '[]')
+        else:
+            self._print_files(args)
+        return 0
 
     def _print_file_version(
         self,
@@ -2215,9 +2241,10 @@ class Rm(ThreadsMixin, AbstractLsCommand):
         super()._setup_parser(parser)
 
     def run(self, args):
-        if args.dryRun:
-            return super().run(args)
         super().run(args)
+        if args.dryRun:
+            self._print_files(args)
+            return 0
         failed_on_any_file = False
         messages_queue = queue.Queue()
 

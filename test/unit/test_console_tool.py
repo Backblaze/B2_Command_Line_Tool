@@ -84,7 +84,7 @@ class BaseConsoleToolTest(TestBase):
             print('ACTUAL STDERR:  ', repr(actual_stderr))
             print(actual_stderr)
 
-        self.assertEqual('', actual_stderr, 'stderr')
+        assert re.match(r'^(|Using https?://[\w.]+)$', actual_stderr), f"stderr: {actual_stderr!r}"
         self.assertEqual(0, actual_status, 'exit status code')
 
     def _trim_leading_spaces(self, s):
@@ -253,11 +253,9 @@ class BaseConsoleToolTest(TestBase):
 
 class TestConsoleTool(BaseConsoleToolTest):
     def test_authorize_with_bad_key(self):
-        expected_stdout = '''
-        Using http://production.example.com
-        '''
-
+        expected_stdout = ''
         expected_stderr = '''
+        Using http://production.example.com
         ERROR: unable to authorize account: Invalid authorization token. Server said: secret key is wrong (unauthorized)
         '''
 
@@ -271,12 +269,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         assert self.account_info.get_account_auth_token() is None
 
         # Authorize an account with a good api key.
-        expected_stdout = """
+        expected_stderr = """
         Using http://production.example.com
         """
 
         self._run_command(
-            ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
+            ['authorize-account', self.account_id, self.master_key], '', expected_stderr, 0
         )
 
         # Auth token should be in account info now
@@ -287,12 +285,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         assert self.account_info.get_account_auth_token() is None
 
         # Authorize an account with a good api key.
-        expected_stdout = """
+        expected_stderr = """
         Using http://production.example.com
         """
-
         self._run_command(
-            ['authorize_account', self.account_id, self.master_key], expected_stdout, '', 0
+            ['authorize_account', self.account_id, self.master_key], '', expected_stderr, 0
         )
 
         # Auth token should be in account info now
@@ -303,7 +300,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         assert self.account_info.get_account_auth_token() is None
 
         # Authorize an account with a good api key.
-        expected_stdout = """
+        expected_stderr = """
         Using http://production.example.com
         """
 
@@ -317,7 +314,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             assert B2_APPLICATION_KEY_ID_ENV_VAR in os.environ
             assert B2_APPLICATION_KEY_ENV_VAR in os.environ
 
-            self._run_command(['authorize-account'], expected_stdout, '', 0)
+            self._run_command(['authorize-account'], '', expected_stderr, 0)
 
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
@@ -327,7 +324,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         assert self.account_info.get_account_auth_token() is None
 
         # Authorize an account with a good api key.
-        expected_stdout = """
+        expected_stderr = """
         Using http://custom.example.com
         """
 
@@ -336,13 +333,13 @@ class TestConsoleTool(BaseConsoleToolTest):
             [
                 'authorize-account', '--environment', 'http://custom.example.com', self.account_id,
                 self.master_key
-            ], expected_stdout, '', 0
+            ], '', expected_stderr, 0
         )
 
         # Auth token should be in account info now
         assert self.account_info.get_account_auth_token() is not None
 
-        expected_stdout = """
+        expected_stderr = """
         Using http://custom2.example.com
         """
         # realm provided with env var
@@ -352,7 +349,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
         ):
             self._run_command(
-                ['authorize-account', self.account_id, self.master_key], expected_stdout, '', 0
+                ['authorize-account', self.account_id, self.master_key], '', expected_stderr, 0
             )
 
     def test_create_key_and_authorize_with_it(self):
@@ -370,8 +367,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            'Using http://production.example.com\n',
             '',
+            'Using http://production.example.com\n',
             0,
         )
 
@@ -394,9 +391,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             # The first time we're running on this cache there will be output from the implicit "authorize-account" call
             self._run_command(
                 ['create-key', 'key1', 'listBuckets,listKeys'],
-                'Using http://production.example.com\n'
                 'appKeyId0 appKey0\n',
-                '',
+                'Using http://production.example.com\n',
                 0,
             )
 
@@ -417,9 +413,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 # "authorize-account" is called when the key changes
                 self._run_command(
                     ['create-key', 'key1', 'listBuckets,listKeys'],
-                    'Using http://production.example.com\n'
                     'appKeyId2 appKey2\n',
-                    '',
+                    'Using http://production.example.com\n',
                     0,
                 )
 
@@ -431,9 +426,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ):
                     self._run_command(
                         ['create-key', 'key1', 'listBuckets,listKeys'],
-                        'Using http://custom.example.com\n'
                         'appKeyId3 appKey3\n',
-                        '',
+                        'Using http://custom.example.com\n',
                         0,
                     )
 
@@ -446,7 +440,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            'Using http://production.example.com\n',
+            '',
+            'Using http://production.example.com\n'
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
         )
@@ -519,8 +514,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            'Using http://production.example.com\n',
             '',
+            'Using http://production.example.com\n',
             0,
         )
 
@@ -772,8 +767,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # authorize and make calls using application key with no restrictions
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'], 'Using http://production.example.com\n',
-            '', 0
+            ['authorize-account', 'appKeyId0', 'appKey0'], '',
+            'Using http://production.example.com\n', 0
         )
         self._run_command(
             ['list-buckets'],
@@ -798,8 +793,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # authorize and make calls using an application key with bucket restrictions
         self._run_command(
-            ['authorize-account', 'appKeyId1', 'appKey1'], 'Using http://production.example.com\n',
-            '', 0
+            ['authorize-account', 'appKeyId1', 'appKey1'], '',
+            'Using http://production.example.com\n', 0
         )
 
         self._run_command(
@@ -2351,7 +2346,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key, which should result in an error.
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            'Using http://production.example.com\n',
+            '',
+            'Using http://production.example.com\n'
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
         )
@@ -2379,7 +2375,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         # to be able to look up the name of the bucket.
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            'Using http://production.example.com\n',
+            '',
+            "Using http://production.example.com\n"
             "ERROR: unable to authorize account: Application key is restricted to a bucket that doesn't exist\n",
             1,
         )
@@ -2739,6 +2736,8 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
 
+
+class TestVersionConsoleTool(BaseConsoleToolTest):
     def test_version(self):
         self._run_command(['version', '--short'], expected_stdout=f'{VERSION}\n')
         self._run_command(['version'], expected_stdout=f'b2 command line tool, version {VERSION}\n')
