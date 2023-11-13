@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp, mktemp
@@ -57,7 +57,7 @@ from b2.console_tool import Command, current_time_millis
 
 logger = logging.getLogger(__name__)
 
-BUCKET_CLEANUP_PERIOD_MILLIS = 0
+BUCKET_CLEANUP_PERIOD_MILLIS = timedelta(hours=6).total_seconds() * 1000
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
