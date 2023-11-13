@@ -109,7 +109,7 @@ def install_myself(session, extras=None):
         session.run('pip', 'uninstall', 'b2sdk', '-y')
         session.run('python', 'setup.py', 'develop')
         os.chdir(cwd)
-    elif CI and not CD:
+    elif CI and not CD and False:
         # In CI, install B2 SDK from the master branch
         session.run(
             'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk',
