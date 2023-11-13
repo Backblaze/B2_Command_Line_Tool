@@ -122,12 +122,14 @@ from b2._cli.const import (
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
 from b2._utils.filesystem import STDOUT_FILE_PATH, points_to_fifo
+from b2._utils.uri import B2URI, B2FileIdURI, B2URIBase, parse_b2_uri
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
     parse_default_retention_period,
     parse_millis_from_float_timestamp,
     parse_range,
+    wrap_with_argument_type_error,
 )
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
@@ -200,6 +202,9 @@ def local_path_to_b2_path(path):
     :return: A path that uses '/' as the separator.
     """
     return path.replace(os.path.sep, '/')
+
+
+B2_URI_ARG_TYPE = wrap_with_argument_type_error(parse_b2_uri)
 
 
 def keyboard_interrupt_handler(signum, frame):
@@ -1511,6 +1516,56 @@ class DownloadFileByName(
         downloaded_file.save_to(local_filename)
         self._print('Download finished')
 
+        return 0
+
+
+@B2.register_subcommand
+class Cat(
+    DownloadFileMixin,
+):
+    """
+    Download content of a file identified by B2 URI directly to stdout.
+
+    {PROGRESSMIXIN}
+    {SOURCESSEMIXIN}
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
+
+    Requires capability:
+
+    - **readFiles**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            'b2uri',
+            type=B2_URI_ARG_TYPE,
+            help=
+            "B2 URI identifying the file to print, e.g. b2://yourBucket/file.txt or b2id://fileId",
+        )
+        super()._setup_parser(parser)
+
+    def download_by_b2_uri(
+        self, b2_uri: B2URIBase, args: argparse.Namespace, local_filename
+    ) -> DownloadedFile:
+        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
+        encryption_setting = self._get_source_sse_setting(args)
+        if isinstance(b2_uri, B2FileIdURI):
+            download = functools.partial(self.api.download_file_by_id, b2_uri.file_id)
+        elif isinstance(b2_uri, B2URI):
+            bucket = self.api.get_bucket_by_name(b2_uri.bucket)
+            download = functools.partial(bucket.download_file_by_name, b2_uri.path)
+        else:  # This should never happen since there are no more subclasses of B2URIBase
+            raise ValueError(f'Unsupported B2 URI: {b2_uri!r}')
+
+        return download(progress_listener=progress_listener, encryption=encryption_setting)
+
+    def run(self, args):
+        super().run(args)
+        local_filename = self.get_local_output_filename('-')
+        downloaded_file = self.download_by_b2_uri(args.b2uri, args, local_filename)
+        downloaded_file.save_to(local_filename)
         return 0
 
 

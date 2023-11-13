@@ -134,6 +134,8 @@ class BaseConsoleToolTest(TestBase):
         return re.sub(self.RE_API_VERSION, '/vx/', s)
 
     def _normalize_expected_output(self, text, format_vars=None):
+        if text is None:
+            return None
         format_vars = format_vars or {}
         return self._trim_leading_spaces(text).format(
             account_id=self.account_id, master_key=self.master_key, **format_vars
@@ -213,7 +215,7 @@ class BaseConsoleToolTest(TestBase):
             )
             print('EXPECTED TO FIND IN STDOUT:', repr(expected_part_of_stdout))
             print('ACTUAL STDOUT:             ', repr(actual_stdout))
-        if expected_stderr != actual_stderr:
+        if expected_stderr is not None and expected_stderr != actual_stderr:
             print('EXPECTED STDERR:', repr(expected_stderr))
             print('ACTUAL STDERR:  ', repr(actual_stderr))
             print(actual_stderr)
@@ -235,8 +237,10 @@ class BaseConsoleToolTest(TestBase):
             self.assertIn(expected_part_of_stdout, actual_stdout)
         if unexpected_part_of_stdout is not None:
             self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
-        self.assertEqual(expected_stderr, actual_stderr, 'stderr')
+        if expected_stderr is not None:
+            self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
+        return actual_status, actual_stdout, actual_stderr
 
     @classmethod
     def _upload_multiple_files(cls, bucket):
