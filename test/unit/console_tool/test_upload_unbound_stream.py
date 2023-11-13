@@ -9,21 +9,18 @@
 ######################################################################
 import os
 from test.helpers import skip_on_windows
-from test.unit.helpers import RunOrDieExecutor
 
 from b2._cli.const import DEFAULT_MIN_PART_SIZE
 
 
 @skip_on_windows
-def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir):
+def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
     """Test upload_unbound_stream supports named pipes"""
     filename = 'named_pipe.txt'
     content = 'hello world'
     fifo_file = tmpdir.join('fifo_file.txt')
     os.mkfifo(str(fifo_file))
-    writer = RunOrDieExecutor().submit(
-        fifo_file.write, content
-    )  # writer will block until content is read
+    writer = bg_executor.submit(fifo_file.write, content)  # writer will block until content is read
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
@@ -66,7 +63,9 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
 
 
 @skip_on_windows
-def test_upload_unbound_stream__with_part_size_options(b2_cli, bucket, tmpdir, mock_stdin):
+def test_upload_unbound_stream__with_part_size_options(
+    b2_cli, bucket, tmpdir, mock_stdin, bg_executor
+):
     """Test upload_unbound_stream with part size options"""
     part_size = DEFAULT_MIN_PART_SIZE
     expected_size = part_size + 500  # has to be bigger to force multipart upload
@@ -74,7 +73,7 @@ def test_upload_unbound_stream__with_part_size_options(b2_cli, bucket, tmpdir, m
     filename = 'named_pipe.txt'
     fifo_file = tmpdir.join('fifo_file.txt')
     os.mkfifo(str(fifo_file))
-    writer = RunOrDieExecutor().submit(
+    writer = bg_executor.submit(
         lambda: fifo_file.write("x" * expected_size)
     )  # writer will block until content is read
 

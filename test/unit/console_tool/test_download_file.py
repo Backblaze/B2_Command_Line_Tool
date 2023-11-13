@@ -10,7 +10,6 @@
 import os
 import pathlib
 from test.helpers import skip_on_windows
-from test.unit.helpers import RunOrDieExecutor
 
 import pytest
 
@@ -101,7 +100,9 @@ def test_download_file_by_id_quietly(b2_cli, uploaded_file, tmp_path):
 
 
 @skip_on_windows(reason='os.mkfifo is not supported on Windows')
-def test_download_file_by_name__named_pipe(b2_cli, local_file, uploaded_file, tmp_path):
+def test_download_file_by_name__named_pipe(
+    b2_cli, local_file, uploaded_file, tmp_path, bg_executor
+):
     output_path = tmp_path / 'output.txt'
     os.mkfifo(output_path)
 
@@ -111,18 +112,17 @@ def test_download_file_by_name__named_pipe(b2_cli, local_file, uploaded_file, tm
         nonlocal output_string
         output_string = output_path.read_text()
 
-    with RunOrDieExecutor() as executor:
-        reader_future = executor.submit(reader)
+    reader_future = bg_executor.submit(reader)
 
-        b2_cli.run(
-            [
-                'download-file-by-name', '--noProgress', uploaded_file['bucket'],
-                uploaded_file['fileName'],
-                str(output_path)
-            ],
-            expected_stdout=EXPECTED_STDOUT_DOWNLOAD
-        )
-        reader_future.result(timeout=1)
+    b2_cli.run(
+        [
+            'download-file-by-name', '--noProgress', uploaded_file['bucket'],
+            uploaded_file['fileName'],
+            str(output_path)
+        ],
+        expected_stdout=EXPECTED_STDOUT_DOWNLOAD
+    )
+    reader_future.result(timeout=1)
     assert output_string == uploaded_file['content']
 
 

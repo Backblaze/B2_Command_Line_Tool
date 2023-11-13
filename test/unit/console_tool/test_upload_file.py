@@ -9,7 +9,6 @@
 ######################################################################
 import os
 from test.helpers import skip_on_windows
-from test.unit.helpers import RunOrDieExecutor
 
 import b2
 
@@ -41,13 +40,13 @@ def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir)
 
 
 @skip_on_windows
-def test_upload_file__named_pipe(b2_cli, bucket, tmpdir):
+def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
     """Test upload_file supports named pipes"""
     filename = 'named_pipe.txt'
     content = 'hello world'
     local_file1 = tmpdir.join('file1.txt')
     os.mkfifo(str(local_file1))
-    writer = RunOrDieExecutor().submit(
+    writer = bg_executor.submit(
         local_file1.write, content
     )  # writer will block until content is read
 
