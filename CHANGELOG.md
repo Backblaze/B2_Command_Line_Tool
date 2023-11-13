@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add `cat` command for downloading file contents directly to stdout
+
 ### Fixed
 * Emit `Using https://api.backblazeb2.com` message to stderr instead of stdout, therefor prevent JSON output corruption
 
