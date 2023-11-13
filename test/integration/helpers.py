@@ -20,6 +20,7 @@ import subprocess
 import sys
 import threading
 import time
+import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from os import environ, linesep, path
@@ -533,6 +534,11 @@ class CommandLine:
 
 class TempDir:
     def __init__(self):
+        warnings.warn(
+            'TempDir is deprecated; use pytest tmp_path fixture instead',
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.dirpath = None
 
     def get_dir(self):
@@ -549,15 +555,11 @@ class TempDir:
 
 
 def read_file(path: Union[str, Path]):
-    if isinstance(path, Path):
-        path = str(path)
     with open(path, 'rb') as f:
         return f.read()
 
 
 def write_file(path: Union[str, Path], contents: bytes):
-    if isinstance(path, Path):
-        path = str(path)
     with open(path, 'wb') as f:
         f.write(contents)
 
