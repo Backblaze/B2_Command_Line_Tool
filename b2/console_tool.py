@@ -1417,16 +1417,6 @@ class DownloadCommand(Command):
     def _print_file_attribute(self, label, value):
         self._print((label + ':').ljust(20) + ' ' + value)
 
-
-class DownloadFileMixin(
-    ThreadsMixin,
-    ProgressMixin,
-    SourceSseMixin,
-    WriteBufferSizeMixin,
-    SkipHashVerificationMixin,
-    MaxDownloadStreamsMixin,
-    DownloadCommand,
-):
     def get_local_output_filename(self, filename: str) -> str:
         if filename == '-':
             return STDOUT_FILE_PATH
@@ -1435,7 +1425,13 @@ class DownloadFileMixin(
 
 @B2.register_subcommand
 class DownloadFileById(
-    DownloadFileMixin,
+    ThreadsMixin,
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin,
+    DownloadCommand,
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1477,7 +1473,13 @@ class DownloadFileById(
 
 @B2.register_subcommand
 class DownloadFileByName(
-    DownloadFileMixin,
+    ThreadsMixin,
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin,
+    DownloadCommand,
 ):
     """
     Downloads the given file, and stores it in the given local file.
@@ -1521,7 +1523,11 @@ class DownloadFileByName(
 
 @B2.register_subcommand
 class Cat(
-    DownloadFileMixin,
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    DownloadCommand,
 ):
     """
     Download content of a file identified by B2 URI directly to stdout.
