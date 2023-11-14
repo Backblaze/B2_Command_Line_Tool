@@ -48,11 +48,13 @@ from b2sdk.v2 import (
     B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_PROFILE_FILE,
+    DEFAULT_MIN_PART_SIZE,
     DEFAULT_SCAN_MANAGER,
     NO_RETENTION_BUCKET_SETTING,
     REALM_URLS,
     SRC_LAST_MODIFIED_MILLIS,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    STDOUT_FILEPATH,
     UNKNOWN_KEY_ID,
     XDG_CONFIG_HOME_ENV_VAR,
     ApplicationKey,
@@ -86,6 +88,7 @@ from b2sdk.v2 import (
     get_included_sources,
     make_progress_listener,
     parse_sync_folder,
+    points_to_fifo,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -116,12 +119,10 @@ from b2._cli.const import (
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR,
     CREATE_BUCKET_TYPES,
-    DEFAULT_MIN_PART_SIZE,
     DEFAULT_THREADS,
 )
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
-from b2._utils.filesystem import STDOUT_FILE_PATH, points_to_fifo
 from b2._utils.uri import B2URI, B2FileIdURI, B2URIBase, parse_b2_uri
 from b2.arg_parser import (
     ArgumentParser,
@@ -1417,10 +1418,10 @@ class DownloadCommand(Command):
     def _print_file_attribute(self, label, value):
         self._print((label + ':').ljust(20) + ' ' + value)
 
-    def get_local_output_filename(self, filename: str) -> str:
+    def get_local_output_filepath(self, filename: str) -> pathlib.Path:
         if filename == '-':
-            return STDOUT_FILE_PATH
-        return filename
+            return STDOUT_FILEPATH
+        return pathlib.Path(filename)
 
 
 @B2.register_subcommand
@@ -1456,8 +1457,9 @@ class DownloadFileById(
 
     def run(self, args):
         super().run(args)
-        local_filename = self.get_local_output_filename(args.localFileName)
-        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
+        progress_listener = make_progress_listener(
+            args.localFileName, args.noProgress or args.quiet
+        )
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
         downloaded_file = self.api.download_file_by_id(
@@ -1465,7 +1467,8 @@ class DownloadFileById(
         )
 
         self._print_download_info(downloaded_file)
-        downloaded_file.save_to(local_filename)
+        output_filepath = self.get_local_output_filepath(args.localFileName)
+        downloaded_file.save_to(output_filepath)
         self._print('Download finished')
 
         return 0
@@ -1505,17 +1508,19 @@ class DownloadFileByName(
 
     def run(self, args):
         super().run(args)
-        local_filename = self.get_local_output_filename(args.localFileName)
         self._set_threads_from_args(args)
         bucket = self.api.get_bucket_by_name(args.bucketName)
-        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
+        progress_listener = make_progress_listener(
+            args.localFileName, args.noProgress or args.quiet
+        )
         encryption_setting = self._get_source_sse_setting(args)
         downloaded_file = bucket.download_file_by_name(
             args.b2FileName, progress_listener, encryption=encryption_setting
         )
 
         self._print_download_info(downloaded_file)
-        downloaded_file.save_to(local_filename)
+        output_filepath = self.get_local_output_filepath(args.localFileName)
+        downloaded_file.save_to(output_filepath)
         self._print('Download finished')
 
         return 0
@@ -1553,7 +1558,7 @@ class Cat(
         super()._setup_parser(parser)
 
     def download_by_b2_uri(
-        self, b2_uri: B2URIBase, args: argparse.Namespace, local_filename
+        self, b2_uri: B2URIBase, args: argparse.Namespace, local_filename: str
     ) -> DownloadedFile:
         progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
         encryption_setting = self._get_source_sse_setting(args)
@@ -1569,9 +1574,9 @@ class Cat(
 
     def run(self, args):
         super().run(args)
-        local_filename = self.get_local_output_filename('-')
-        downloaded_file = self.download_by_b2_uri(args.b2uri, args, local_filename)
-        downloaded_file.save_to(local_filename)
+        downloaded_file = self.download_by_b2_uri(args.b2uri, args, '-')
+        output_filepath = self.get_local_output_filepath('-')
+        downloaded_file.save_to(output_filepath)
         return 0
 
 

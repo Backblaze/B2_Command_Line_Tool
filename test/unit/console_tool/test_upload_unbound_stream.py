@@ -10,7 +10,7 @@
 import os
 from test.helpers import skip_on_windows
 
-from b2._cli.const import DEFAULT_MIN_PART_SIZE
+from b2sdk.v2 import DEFAULT_MIN_PART_SIZE
 
 
 @skip_on_windows

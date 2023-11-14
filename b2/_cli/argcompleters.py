@@ -10,10 +10,10 @@
 from functools import wraps
 from itertools import islice
 
+from b2sdk.v2 import LIST_FILE_NAMES_MAX_LIMIT
 from b2sdk.v2.api import B2Api
 
 from b2._cli.b2api import _get_b2api_for_profile
-from b2._cli.const import LIST_FILE_NAMES_MAX_LIMIT
 
 
 def _with_api(func):
