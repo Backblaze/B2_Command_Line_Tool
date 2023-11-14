@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+* Add linux/arm64 as a build platform for the official Docker image
+
 ### Fixed
 * Emit `Using https://api.backblazeb2.com` message to stderr instead of stdout, therefor prevent JSON output corruption
 
