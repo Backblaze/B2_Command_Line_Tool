@@ -397,12 +397,6 @@ class CommandLine:
                 assert any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS), \
                     f'Unexpected stderr line: {repr(line)}'
 
-        if platform.python_implementation().lower() == 'pypy':
-            # TODO: remove after pypy removes the leftover print and resolve
-            # https://github.com/Backblaze/B2_Command_Line_Tool/issues/936
-            while stdout.startswith('/'):
-                stdout = stdout.split('\n', 1)[-1]
-
         if expected_pattern is not None:
             assert re.search(expected_pattern, stdout), \
             f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
@@ -502,12 +496,6 @@ class CommandLine:
         """
         status, stdout, stderr = self.execute(args, additional_env)
         assert status != 0, 'ERROR: should have failed'
-
-        if platform.python_implementation().lower() == 'pypy':
-            # TODO: remove after pypy removes the leftover print and resolve
-            # https://github.com/Backblaze/B2_Command_Line_Tool/issues/936
-            while stdout.startswith('/'):
-                stdout = stdout.split('\n', 1)[-1]
 
         assert re.search(expected_pattern, stdout + stderr), \
             f'did not match pattern="{expected_pattern}", stdout="{stdout}", stderr="{stderr}"'
