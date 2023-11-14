@@ -7,6 +7,9 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+from __future__ import annotations
+
+import dataclasses
 import json
 import logging
 import os
@@ -14,6 +17,7 @@ import pathlib
 import platform
 import random
 import re
+import secrets
 import shutil
 import string
 import subprocess
@@ -26,13 +30,13 @@ from datetime import datetime, timedelta
 from os import environ, linesep, path
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp, mktemp
-from typing import List, Optional, Union
 from unittest.mock import MagicMock
 
 import backoff
-from b2sdk._v3.exception import BucketIdNotFound as v3BucketIdNotFound
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
+    BUCKET_NAME_CHARS_UNIQ,
+    BUCKET_NAME_LENGTH_RANGE,
     NO_RETENTION_FILE_SETTING,
     B2Api,
     Bucket,
@@ -48,63 +52,80 @@ from b2sdk.v2 import (
     fix_windows_path_limit,
 )
 from b2sdk.v2.exception import (
+    BadRequest,
     BucketIdNotFound,
-    DuplicateBucketName,
     FileNotPresent,
     TooManyRequests,
+    v3BucketIdNotFound,
 )
 
 from b2.console_tool import Command, current_time_millis
 
 logger = logging.getLogger(__name__)
 
-BUCKET_CLEANUP_PERIOD_MILLIS = timedelta(hours=6).total_seconds() * 1000
+# A large period is set here to avoid issues related to clock skew or other time-related issues under CI
+BUCKET_CLEANUP_PERIOD_MILLIS = timedelta(days=1).total_seconds() * 1000
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
-BUCKET_NAME_LENGTH = 50
-BUCKET_NAME_CHARS = string.ascii_letters + string.digits + '-'
+BUCKET_NAME_LENGTH = BUCKET_NAME_LENGTH_RANGE[1]
 BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
+
+NODE_DESCRIPTION = f"{platform.node()}: {platform.platform()}"
+
+
+def get_seed():
+    """
+    Get seed for random number generator.
+
+    GH Actions machines seem to offer a very limited entropy pool
+    """
+    return b''.join(
+        (
+            secrets.token_bytes(32),
+            str(time.time_ns()).encode(),
+            NODE_DESCRIPTION.encode(),
+            str(os.getpid()).encode(),  # needed due to pytest-xdist
+            str(environ).encode('utf8', errors='ignore'
+                               ),  # especially helpful under GitHub (and similar) CI
+        )
+    )
+
+
+RNG = random.Random(get_seed())
+RNG_SEED = RNG.randint(0, 2 << 31)
+RNG_COUNTER = 0
+
+if sys.version_info < (3, 9):
+    RNG.randbytes = lambda n: RNG.getrandbits(n * 8).to_bytes(n, 'little')
 
 SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
 SSE_B2_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_B2,
     algorithm=EncryptionAlgorithm.AES256,
 )
+_SSE_KEY = RNG.randbytes(32)
 SSE_C_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_C,
     algorithm=EncryptionAlgorithm.AES256,
-    key=EncryptionKey(secret=os.urandom(32), key_id='user-generated-key-id')
+    key=EncryptionKey(secret=_SSE_KEY, key_id='user-generated-key-id')
 )
 SSE_C_AES_2 = EncryptionSetting(
     mode=EncryptionMode.SSE_C,
     algorithm=EncryptionAlgorithm.AES256,
-    key=EncryptionKey(secret=os.urandom(32), key_id='another-user-generated-key-id')
+    key=EncryptionKey(secret=_SSE_KEY, key_id='another-user-generated-key-id')
 )
 
-RNG_SEED = '_'.join(
-    [
-        os.getenv('GITHUB_REPOSITORY', ''),
-        os.getenv('GITHUB_SHA', ''),
-        os.getenv('GITHUB_RUN_ID', ''),
-        os.getenv('GITHUB_RUN_ATTEMPT', ''),
-        os.getenv('GITHUB_JOB', ''),
-        os.getenv('GITHUB_ACTION', ''),
-        str(os.getpid()),  # for local runs with xdist
-        str(time.time()),
-    ]
-)
 
-RNG = random.Random(RNG_SEED)
-
-RNG_COUNTER = 0
+def random_token(length: int, chars=string.ascii_letters) -> str:
+    return ''.join(RNG.choice(chars) for _ in range(length))
 
 
 def bucket_name_part(length: int) -> str:
     assert length >= 1
     global RNG_COUNTER
     RNG_COUNTER += 1
-    name_part = ''.join(RNG.choice(BUCKET_NAME_CHARS) for _ in range(length))
+    name_part = random_token(length, BUCKET_NAME_CHARS_UNIQ)
     logger.info('RNG_SEED: %s', RNG_SEED)
     logger.info('RNG_COUNTER: %i, length: %i', RNG_COUNTER, length)
     logger.info('name_part: %s', name_part)
@@ -120,6 +141,7 @@ class Api:
     this_run_bucket_name_prefix: str
 
     api: B2Api = None
+    bucket_name_log: list[str] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         info = InMemoryAccountInfo()
@@ -130,55 +152,61 @@ class Api:
             self.this_run_bucket_name_prefix
         ) > 5, self.this_run_bucket_name_prefix
 
-    def create_bucket(self) -> Bucket:
-        for _ in range(10):
-            bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
-                BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
-            )
-            print('Creating bucket:', bucket_name)
-            try:
-                return self.api.create_bucket(
-                    bucket_name,
-                    'allPublic',
-                    bucket_info={BUCKET_CREATED_AT_MILLIS: str(current_time_millis())},
-                )
-            except DuplicateBucketName:
-                pass
-            print()
+    def new_bucket_name(self) -> str:
+        bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
+            BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix)
+        )
+        self.bucket_name_log.append(bucket_name)
+        return bucket_name
 
-        raise ValueError('Failed to create bucket due to name collision')
+    def new_bucket_info(self) -> dict:
+        return {
+            BUCKET_CREATED_AT_MILLIS: str(current_time_millis()),
+            "created_by": NODE_DESCRIPTION,
+        }
 
-    def _should_remove_bucket(self, bucket: Bucket):
+    def create_bucket(self, bucket_type: str = 'allPublic', **kwargs) -> Bucket:
+        bucket_name = self.new_bucket_name()
+        return self.api.create_bucket(
+            bucket_name,
+            bucket_type=bucket_type,
+            bucket_info=self.new_bucket_info(),
+            **kwargs,
+        )
+
+    def _should_remove_bucket(self, bucket: Bucket) -> tuple[bool, str]:
         if bucket.name.startswith(self.this_run_bucket_name_prefix):
             return True, 'it is a bucket for this very run'
-        OLD_PATTERN = 'test-b2-cli-'
-        if bucket.name.startswith(self.general_bucket_name_prefix) or bucket.name.startswith(OLD_PATTERN):  # yapf: disable
+        if bucket.name.startswith(self.general_bucket_name_prefix):
             if BUCKET_CREATED_AT_MILLIS in bucket.bucket_info:
                 delete_older_than = current_time_millis() - BUCKET_CLEANUP_PERIOD_MILLIS
-                this_bucket_creation_time = bucket.bucket_info[BUCKET_CREATED_AT_MILLIS]
-                if int(this_bucket_creation_time) < delete_older_than:
+                this_bucket_creation_time = int(bucket.bucket_info[BUCKET_CREATED_AT_MILLIS])
+                if this_bucket_creation_time < delete_older_than:
                     return True, f"this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}"
+                return False, f"this_bucket_creation_time={this_bucket_creation_time} >= delete_older_than={delete_older_than}"
             else:
                 return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
-        return False, ''
+        return False, f'does not start with {self.general_bucket_name_prefix!r}'
 
-    def clean_buckets(self):
-        buckets = self.api.list_buckets()
+    def clean_buckets(self, quick=False):
+        # even with use_cache=True, if cache is empty API call will be made
+        buckets = self.api.list_buckets(use_cache=quick)
         print('Total bucket count:', len(buckets))
+        remaining_buckets = []
         for bucket in buckets:
             should_remove, why = self._should_remove_bucket(bucket)
             if not should_remove:
-                print(f'Skipping bucket removal: "{bucket.name}"')
+                print(f'Skipping bucket removal {bucket.name!r} because {why}')
+                remaining_buckets.append(bucket)
                 continue
 
             print('Trying to remove bucket:', bucket.name, 'because', why)
             try:
                 self.clean_bucket(bucket)
-            except (BucketIdNotFound, v3BucketIdNotFound):
+            except BucketIdNotFound:
                 print(f'It seems that bucket {bucket.name} has already been removed')
-        buckets = self.api.list_buckets()
-        print('Total bucket count after cleanup:', len(buckets))
-        for bucket in buckets:
+        print('Total bucket count after cleanup:', len(remaining_buckets))
+        for bucket in remaining_buckets:
             print(bucket)
 
     @backoff.on_exception(
@@ -186,9 +214,17 @@ class Api:
         TooManyRequests,
         max_tries=8,
     )
-    def clean_bucket(self, bucket: Union[Bucket, str]):
+    def clean_bucket(self, bucket: Bucket | str):
         if isinstance(bucket, str):
             bucket = self.api.get_bucket_by_name(bucket)
+
+        # try optimistic bucket removal first, since it is completely free (as opposed to `ls` call)
+        try:
+            return self.api.delete_bucket(bucket)
+        except (BucketIdNotFound, v3BucketIdNotFound):
+            return  # bucket was already removed
+        except BadRequest as exc:
+            assert exc.code == 'cannot_delete_non_empty_bucket'
 
         files_leftover = False
         file_versions = bucket.ls(latest_only=False, recursive=True)
@@ -353,8 +389,14 @@ class CommandLine:
     ]
 
     def __init__(
-        self, command, account_id, application_key, realm, bucket_name_prefix,
-        env_file_cmd_placeholder
+        self,
+        command,
+        account_id,
+        application_key,
+        realm,
+        bucket_name_prefix,
+        env_file_cmd_placeholder,
+        api_wrapper: Api,
     ):
         self.command = command
         self.account_id = account_id
@@ -363,14 +405,15 @@ class CommandLine:
         self.bucket_name_prefix = bucket_name_prefix
         self.env_file_cmd_placeholder = env_file_cmd_placeholder
         self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
-        self.account_info_file_name = SqliteAccountInfo().filename
+        self.api_wrapper = api_wrapper
 
     def generate_bucket_name(self):
-        return self.bucket_name_prefix + bucket_name_part(
-            BUCKET_NAME_LENGTH - len(self.bucket_name_prefix)
-        )
+        return self.api_wrapper.new_bucket_name()
 
-    def run_command(self, args, additional_env: Optional[dict] = None):
+    def get_bucket_info_args(self) -> tuple[str, str]:
+        return '--bucketInfo', json.dumps(self.api_wrapper.new_bucket_info())
+
+    def run_command(self, args, additional_env: dict | None = None):
         """
         Runs the command with the given arguments, returns a tuple in form of
         (succeeded, stdout)
@@ -380,9 +423,9 @@ class CommandLine:
 
     def should_succeed(
         self,
-        args: Optional[List[str]],
-        expected_pattern: Optional[str] = None,
-        additional_env: Optional[dict] = None,
+        args: list[str] | None,
+        expected_pattern: str | None = None,
+        additional_env: dict | None = None,
     ) -> str:
         """
         Runs the command-line with the given arguments.  Raises an exception
@@ -404,7 +447,7 @@ class CommandLine:
         return stdout
 
     @classmethod
-    def prepare_env(self, additional_env: Optional[dict] = None):
+    def prepare_env(self, additional_env: dict | None = None):
         environ['PYTHONPATH'] = '.'
         environ['PYTHONIOENCODING'] = 'utf-8'
         env = environ.copy()
@@ -431,8 +474,8 @@ class CommandLine:
 
     def execute(
         self,
-        args: Optional[List[Union[str, Path, int]]] = None,
-        additional_env: Optional[dict] = None,
+        args: list[str | Path | int] | None = None,
+        additional_env: dict | None = None,
     ):
         """
         :param cmd: a command to run
@@ -445,7 +488,7 @@ class CommandLine:
         env = self.prepare_env(additional_env)
         command = self.parse_command(env)
 
-        args: List[str] = [str(arg) for arg in args] if args else []
+        args: list[str] = [str(arg) for arg in args] if args else []
         command.extend(args)
 
         print('Running:', ' '.join(command))
@@ -476,7 +519,7 @@ class CommandLine:
         print_output(p.returncode, stdout_decoded, stderr_decoded)
         return p.returncode, stdout_decoded, stderr_decoded
 
-    def should_succeed_json(self, args, additional_env: Optional[dict] = None):
+    def should_succeed_json(self, args, additional_env: dict | None = None):
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, treats the stdout as JSON and returns
@@ -489,7 +532,7 @@ class CommandLine:
             raise ValueError(f'{result} is not a valid json')
         return loaded_result
 
-    def should_fail(self, args, expected_pattern, additional_env: Optional[dict] = None):
+    def should_fail(self, args, expected_pattern, additional_env: dict | None = None):
         """
         Runs the command-line with the given args, expecting the given pattern
         to appear in stderr.
@@ -519,6 +562,30 @@ class CommandLine:
     def list_file_versions(self, bucket_name):
         return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
 
+    def cleanup_buckets(self, buckets: dict[str, dict | None]) -> None:
+        for bucket_name, bucket_dict in buckets.items():
+            self.cleanup_bucket(bucket_name, bucket_dict)
+
+    def cleanup_bucket(self, bucket_name: str, bucket_dict: dict | None = None) -> None:
+        """
+        Cleanup bucket
+
+        Since bucket was being handled by the tool, it is safe to assume it is cached in its cache and we don't
+        need to call C class API list_buckets endpoint to get it.
+        """
+        if not bucket_dict:
+            try:
+                bucket_dict = self.should_succeed_json(['get-bucket', bucket_name])
+            except (ValueError, AssertionError):  # bucket doesn't exist
+                return
+
+        bucket = self.api_wrapper.api.BUCKET_CLASS(
+            api=self.api_wrapper.api,
+            id_=bucket_dict['bucketId'],
+            name=bucket_name,
+        )
+        self.api_wrapper.clean_bucket(bucket)
+
 
 class TempDir:
     def __init__(self):
@@ -529,11 +596,6 @@ class TempDir:
         )
         self.dirpath = None
 
-    def get_dir(self):
-        assert self.dirpath is not None, \
-            "can't call get_dir() before entering the context manager"
-        return self.dirpath
-
     def __enter__(self):
         self.dirpath = mkdtemp()
         return Path(self.dirpath)
@@ -542,27 +604,23 @@ class TempDir:
         shutil.rmtree(fix_windows_path_limit(self.dirpath))
 
 
-def read_file(path: Union[str, Path]):
+def read_file(path: str | Path):
     with open(path, 'rb') as f:
         return f.read()
 
 
-def write_file(path: Union[str, Path], contents: bytes):
+def write_file(path: str | Path, contents: bytes):
     with open(path, 'wb') as f:
         f.write(contents)
 
 
-def file_mod_time_millis(path: Union[str, Path]):
-    if isinstance(path, Path):
-        path = str(path)
+def file_mod_time_millis(path: str | Path) -> int:
     return int(os.path.getmtime(path) * 1000)
 
 
-def set_file_mod_time_millis(path: Union[str, Path], time):
-    if isinstance(path, Path):
-        path = str(path)
+def set_file_mod_time_millis(path: str | Path, time):
     os.utime(path, (os.path.getatime(path), time / 1000))
 
 
 def random_hex(length):
-    return ''.join(random.choice('0123456789abcdef') for _ in range(length))
+    return ''.join(RNG.choice('0123456789abcdef') for _ in range(length))

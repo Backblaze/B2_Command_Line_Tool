@@ -160,9 +160,7 @@ def wrap_with_argument_type_error(func, translator=str, exc_type=ValueError):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception as e:
-            if isinstance(e, exc_type):
-                raise argparse.ArgumentTypeError(translator(e))
-            raise
+        except exc_type as e:
+            raise argparse.ArgumentTypeError(translator(e))
 
     return wrapper
