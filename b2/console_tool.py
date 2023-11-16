@@ -662,7 +662,7 @@ class Command(Described):
                 common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
                 common_parser.add_argument('--profile', default=None, help=argparse.SUPPRESS)
                 common_parser.add_argument(
-                    '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
+                    '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
                 )
                 parents = [common_parser]
 
@@ -1981,7 +1981,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--versions', action='store_true')
-        parser.add_argument('--recursive', action='store_true')
+        parser.add_argument('-r', '--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
         parser.add_argument('bucketName').completer = bucket_name_completer
         parser.add_argument('folderName', nargs='?').completer = file_name_completer

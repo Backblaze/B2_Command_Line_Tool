@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 * Add linux/arm64 platform support to the official Docker image
 * Add `cat` command for downloading file contents directly to stdout
+* Add `-r` as an alias for `--recursive` argument
+* Add `-q` as an alias for `--quiet` argument
 
 ### Fixed
 * Emit `Using https://api.backblazeb2.com` message to stderr instead of stdout, therefor prevent JSON output corruption
