@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-* Add linux/arm64 as a build platform for the official Docker image
+* Add linux/arm64 platform support to the official Docker image
+* Add `cat` command for downloading file contents directly to stdout
 
 ### Fixed
 * Emit `Using https://api.backblazeb2.com` message to stderr instead of stdout, therefor prevent JSON output corruption
 
 ### Changed
 * Stream `ls --json` JSON output instead of dumping it only after all objects have been fetched
+* Alias `-` to stdout in `download-file-by-name` or `download-file-by-id` command
 
 ## [3.12.0] - 2023-10-28
 
@@ -61,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Add s3 endpoint to `get-account-info`
 
 ### Deprecated
-* Support of `-` as a valid filename in `upload-file` command. In future `-` will be an alias for standard input.
+* Deprecate support of `-` as a valid filename in `upload-file` command. In the future `-` will always be interpreted as standard input
 
 ### Changed
 * Better help text for --corsRules

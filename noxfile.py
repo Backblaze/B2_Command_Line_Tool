@@ -196,7 +196,7 @@ def run_integration_test(session, pytest_posargs):
         'test/integration',
         '-s',
         '-n',
-        'auto',
+        '2' if CI else 'auto',
         '--log-level',
         'INFO',
         '-W',

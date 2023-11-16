@@ -48,11 +48,13 @@ from b2sdk.v2 import (
     B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_PROFILE_FILE,
+    DEFAULT_MIN_PART_SIZE,
     DEFAULT_SCAN_MANAGER,
     NO_RETENTION_BUCKET_SETTING,
     REALM_URLS,
     SRC_LAST_MODIFIED_MILLIS,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
+    STDOUT_FILEPATH,
     UNKNOWN_KEY_ID,
     XDG_CONFIG_HOME_ENV_VAR,
     ApplicationKey,
@@ -86,6 +88,7 @@ from b2sdk.v2 import (
     get_included_sources,
     make_progress_listener,
     parse_sync_folder,
+    points_to_fifo,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -116,18 +119,18 @@ from b2._cli.const import (
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR,
     CREATE_BUCKET_TYPES,
-    DEFAULT_MIN_PART_SIZE,
     DEFAULT_THREADS,
 )
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
-from b2._utils.filesystem import points_to_fifo
+from b2._utils.uri import B2URI, B2FileIdURI, B2URIBase, parse_b2_uri
 from b2.arg_parser import (
     ArgumentParser,
     parse_comma_separated_list,
     parse_default_retention_period,
     parse_millis_from_float_timestamp,
     parse_range,
+    wrap_with_argument_type_error,
 )
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
@@ -200,6 +203,9 @@ def local_path_to_b2_path(path):
     :return: A path that uses '/' as the separator.
     """
     return path.replace(os.path.sep, '/')
+
+
+B2_URI_ARG_TYPE = wrap_with_argument_type_error(parse_b2_uri)
 
 
 def keyboard_interrupt_handler(signum, frame):
@@ -1412,17 +1418,26 @@ class DownloadCommand(Command):
     def _print_file_attribute(self, label, value):
         self._print((label + ':').ljust(20) + ' ' + value)
 
+    def get_local_output_filepath(self, filename: str) -> pathlib.Path:
+        if filename == '-':
+            return STDOUT_FILEPATH
+        return pathlib.Path(filename)
+
 
 @B2.register_subcommand
 class DownloadFileById(
-    ThreadsMixin, ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin,
-    MaxDownloadStreamsMixin, DownloadCommand
+    ThreadsMixin,
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    MaxDownloadStreamsMixin,
+    DownloadCommand,
 ):
     """
     Downloads the given file, and stores it in the given local file.
 
     {PROGRESSMIXIN}
-    {THREADSMIXIN}
     {THREADSMIXIN}
     {SOURCESSEMIXIN}
     {WRITEBUFFERSIZEMIXIN}
@@ -1452,7 +1467,8 @@ class DownloadFileById(
         )
 
         self._print_download_info(downloaded_file)
-        downloaded_file.save_to(args.localFileName)
+        output_filepath = self.get_local_output_filepath(args.localFileName)
+        downloaded_file.save_to(output_filepath)
         self._print('Download finished')
 
         return 0
@@ -1460,8 +1476,8 @@ class DownloadFileById(
 
 @B2.register_subcommand
 class DownloadFileByName(
-    ProgressMixin,
     ThreadsMixin,
+    ProgressMixin,
     SourceSseMixin,
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
@@ -1503,9 +1519,64 @@ class DownloadFileByName(
         )
 
         self._print_download_info(downloaded_file)
-        downloaded_file.save_to(args.localFileName)
+        output_filepath = self.get_local_output_filepath(args.localFileName)
+        downloaded_file.save_to(output_filepath)
         self._print('Download finished')
 
+        return 0
+
+
+@B2.register_subcommand
+class Cat(
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    DownloadCommand,
+):
+    """
+    Download content of a file identified by B2 URI directly to stdout.
+
+    {PROGRESSMIXIN}
+    {SOURCESSEMIXIN}
+    {WRITEBUFFERSIZEMIXIN}
+    {SKIPHASHVERIFICATIONMIXIN}
+
+    Requires capability:
+
+    - **readFiles**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            'b2uri',
+            type=B2_URI_ARG_TYPE,
+            help=
+            "B2 URI identifying the file to print, e.g. b2://yourBucket/file.txt or b2id://fileId",
+        )
+        super()._setup_parser(parser)
+
+    def download_by_b2_uri(
+        self, b2_uri: B2URIBase, args: argparse.Namespace, local_filename: str
+    ) -> DownloadedFile:
+        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
+        encryption_setting = self._get_source_sse_setting(args)
+        if isinstance(b2_uri, B2FileIdURI):
+            download = functools.partial(self.api.download_file_by_id, b2_uri.file_id)
+        elif isinstance(b2_uri, B2URI):
+            bucket = self.api.get_bucket_by_name(b2_uri.bucket)
+            download = functools.partial(bucket.download_file_by_name, b2_uri.path)
+        else:  # This should never happen since there are no more subclasses of B2URIBase
+            raise ValueError(f'Unsupported B2 URI: {b2_uri!r}')
+
+        return download(progress_listener=progress_listener, encryption=encryption_setting)
+
+    def run(self, args):
+        super().run(args)
+        downloaded_file = self.download_by_b2_uri(args.b2uri, args, '-')
+        output_filepath = self.get_local_output_filepath('-')
+        downloaded_file.save_to(output_filepath)
         return 0
 
 
@@ -2913,7 +2984,7 @@ class UploadFileMixin(
         if filename == "-":
             if os.path.exists('-'):
                 self._print_stderr(
-                    "WARNING: Filename `-` won't be supported in the future and will be treated as stdin alias."
+                    "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias."
                 )
             else:
                 return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()

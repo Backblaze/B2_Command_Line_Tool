@@ -7,8 +7,9 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+from __future__ import annotations
 
-import contextlib
+import logging
 import os
 import pathlib
 import subprocess
@@ -18,14 +19,36 @@ from os import environ, path
 from tempfile import TemporaryDirectory
 
 import pytest
-from b2sdk.exception import BadRequest, BucketIdNotFound
-from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
+from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
 
-from .helpers import Api, CommandLine, bucket_name_part
+from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_part, random_token
+
+logger = logging.getLogger(__name__)
 
 GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 TEMPDIR = tempfile.gettempdir()
 ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
+
+
+@pytest.fixture(scope='session', autouse=True)
+def summary_notes(request, worker_id):
+    capmanager = request.config.pluginmanager.getplugin("capturemanager")
+    with capmanager.global_and_fixture_disabled():
+        log_handler = logging.StreamHandler(sys.stderr)
+    log_fmt = logging.Formatter(f'{worker_id} %(asctime)s %(levelname).1s %(message)s')
+    log_handler.setFormatter(log_fmt)
+    logger.addHandler(log_handler)
+
+    class Notes:
+        def append(self, note):
+            logger.info(note)
+
+    return Notes()
+
+
+@pytest.fixture(scope='session', autouse=True)
+def node_stats(summary_notes):
+    summary_notes.append(f"NODE={NODE_DESCRIPTION} seed={RNG_SEED}")
 
 
 @pytest.hookimpl
@@ -64,19 +87,19 @@ def realm() -> str:
     yield environ.get('B2_TEST_ENVIRONMENT', 'production')
 
 
-@pytest.fixture(scope='function')
-def bucket(b2_api) -> str:
-    try:
-        bucket = b2_api.create_bucket()
-    except BadRequest as e:
-        if e.code != 'too_many_buckets':
-            raise
-        num_buckets = b2_api.count_and_print_buckets()
-        print('current number of buckets:', num_buckets)
-        raise
-    yield bucket
-    with contextlib.suppress(BucketIdNotFound):
-        b2_api.clean_bucket(bucket)
+@pytest.fixture
+def bucket(bucket_factory) -> Bucket:
+    return bucket_factory()
+
+
+@pytest.fixture
+def bucket_factory(b2_api, schedule_bucket_cleanup):
+    def create_bucket(**kwargs):
+        new_bucket = b2_api.create_bucket(**kwargs)
+        schedule_bucket_cleanup(new_bucket.name, new_bucket.bucket_dict)
+        return new_bucket
+
+    yield create_bucket
 
 
 @pytest.fixture(scope='function')
@@ -86,7 +109,7 @@ def bucket_name(bucket) -> str:
 
 @pytest.fixture(scope='function')
 def file_name(bucket) -> str:
-    file_ = bucket.upload_bytes(b'test_file', f'{bucket_name_part(8)}.txt')
+    file_ = bucket.upload_bytes(b'test_file', f'{random_token(8)}.txt')
     yield file_.file_name
 
 
@@ -111,44 +134,55 @@ def this_run_bucket_name_prefix() -> str:
     yield GENERAL_BUCKET_NAME_PREFIX + bucket_name_part(8)
 
 
-@pytest.fixture(scope='module')
-def monkey_patch():
-    """ Module-scope monkeypatching (original `monkeypatch` is function-scope) """
-    from _pytest.monkeypatch import MonkeyPatch
-    monkey = MonkeyPatch()
-    yield monkey
-    monkey.undo()
+@pytest.fixture(scope='session')
+def monkeysession():
+    with pytest.MonkeyPatch.context() as mp:
+        yield mp
 
 
-@pytest.fixture(scope='module', autouse=True)
-def auto_change_account_info_dir(monkey_patch) -> dir:
+@pytest.fixture(scope='session', autouse=True)
+def auto_change_account_info_dir(monkeysession) -> dir:
     """
-    Automatically for the whole module testing:
+    Automatically for the whole testing:
     1) temporary remove B2_APPLICATION_KEY and B2_APPLICATION_KEY_ID from environment
     2) create a temporary directory for storing account info database
     """
 
-    monkey_patch.delenv('B2_APPLICATION_KEY_ID', raising=False)
-    monkey_patch.delenv('B2_APPLICATION_KEY', raising=False)
+    monkeysession.delenv('B2_APPLICATION_KEY_ID', raising=False)
+    monkeysession.delenv('B2_APPLICATION_KEY', raising=False)
 
     # make b2sdk use temp dir for storing default & per-profile account information
     with TemporaryDirectory() as temp_dir:
-        monkey_patch.setenv(B2_ACCOUNT_INFO_ENV_VAR, path.join(temp_dir, '.b2_account_info'))
-        monkey_patch.setenv(XDG_CONFIG_HOME_ENV_VAR, temp_dir)
+        monkeysession.setenv(B2_ACCOUNT_INFO_ENV_VAR, path.join(temp_dir, '.b2_account_info'))
+        monkeysession.setenv(XDG_CONFIG_HOME_ENV_VAR, temp_dir)
         yield temp_dir
 
 
-@pytest.fixture(scope='module')
-def b2_api(application_key_id, application_key, realm, this_run_bucket_name_prefix) -> Api:
-    yield Api(
-        application_key_id, application_key, realm, GENERAL_BUCKET_NAME_PREFIX,
-        this_run_bucket_name_prefix
+@pytest.fixture(scope='session')
+def b2_api(
+    application_key_id,
+    application_key,
+    realm,
+    this_run_bucket_name_prefix,
+    auto_change_account_info_dir,
+    summary_notes,
+) -> Api:
+    api = Api(
+        application_key_id,
+        application_key,
+        realm,
+        general_bucket_name_prefix=GENERAL_BUCKET_NAME_PREFIX,
+        this_run_bucket_name_prefix=this_run_bucket_name_prefix,
     )
+    yield api
+    api.clean_buckets()
+    summary_notes.append(f"Buckets names used during this tests: {api.bucket_name_log!r}")
 
 
 @pytest.fixture(scope='module')
 def global_b2_tool(
-    request, application_key_id, application_key, realm, this_run_bucket_name_prefix
+    request, application_key_id, application_key, realm, this_run_bucket_name_prefix, b2_api,
+    auto_change_account_info_dir
 ) -> CommandLine:
     tool = CommandLine(
         request.config.getoption('--sut'),
@@ -157,9 +191,10 @@ def global_b2_tool(
         realm,
         this_run_bucket_name_prefix,
         request.config.getoption('--env-file-cmd-placeholder'),
+        api_wrapper=b2_api,
     )
     tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
-    return tool
+    yield tool
 
 
 @pytest.fixture(scope='function')
@@ -169,13 +204,38 @@ def b2_tool(global_b2_tool):
     return global_b2_tool
 
 
+@pytest.fixture
+def schedule_bucket_cleanup(global_b2_tool):
+    """
+    Explicitly ask for buckets cleanup after the test
+
+    This should be only used when testing `create-bucket` command; otherwise use `bucket_factory` fixture.
+    """
+    buckets_to_clean = {}
+
+    def add_bucket_to_cleanup(bucket_name, bucket_dict: dict | None = None):
+        buckets_to_clean[bucket_name] = bucket_dict
+
+    yield add_bucket_to_cleanup
+    if buckets_to_clean:
+        global_b2_tool.reauthorize(
+            check_key_capabilities=False
+        )  # test may have mangled authorization
+        global_b2_tool.cleanup_buckets(buckets_to_clean)
+
+
 @pytest.fixture(autouse=True, scope='session')
-def sample_file():
+def sample_filepath():
     """Copy the README.md file to /tmp so that docker tests can access it"""
-    tmp_readme = pathlib.Path(f'{TEMPDIR}/README.md')
+    tmp_readme = pathlib.Path(TEMPDIR) / 'README.md'
     if not tmp_readme.exists():
         tmp_readme.write_text((ROOT_PATH / 'README.md').read_text())
-    return str(tmp_readme)
+    return tmp_readme
+
+
+@pytest.fixture(autouse=True, scope='session')
+def sample_file(sample_filepath):
+    return str(sample_filepath)
 
 
 @pytest.fixture(scope='session')
@@ -218,12 +278,12 @@ def b2_in_path(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def env(b2_in_path, homedir, monkey_patch, is_running_on_docker):
+def env(b2_in_path, homedir, monkeysession, is_running_on_docker):
     """Get ENV for running b2 command from shell level."""
     if not is_running_on_docker:
-        monkey_patch.setenv('PATH', b2_in_path)
-    monkey_patch.setenv('HOME', str(homedir))
-    monkey_patch.setenv('SHELL', "/bin/bash")  # fix for running under github actions
+        monkeysession.setenv('PATH', b2_in_path)
+    monkeysession.setenv('HOME', str(homedir))
+    monkeysession.setenv('SHELL', "/bin/bash")  # fix for running under github actions
     yield os.environ
 
 
