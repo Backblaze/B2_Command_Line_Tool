@@ -148,7 +148,7 @@ docker run --rm -v b2:/root backblazeit/b2:latest list-buckets  # remember to in
 When uploading a single file, data can be passed to the container via a pipe:
 
 ```bash
-cat source_file.txt | docker run --rm -v b2:/root backblazeit/b2:latest upload-unbound-stream bucket_name - target_file_name
+cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest upload-unbound-stream bucket_name - target_file_name
 ```
 
 or by mounting local files in the docker container:
