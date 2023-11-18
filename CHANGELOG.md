@@ -9,9 +9,6 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
-### Infrastructure
-* Fix `docker run` example in README.md
-
 ## [3.13.0] - 2023-11-16
 
 ### Added
