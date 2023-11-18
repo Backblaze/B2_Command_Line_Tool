@@ -29,23 +29,8 @@ title_format = "## {version} - {project_date}"
 issue_format = "[#{issue}](https://github.com/Backblaze/B2_Command_Line_Tool/issues/{issue})"
 
 [[tool.towncrier.type]]
-directory = "infrastructure"
-name = "Infrastructure"
-showcontent = true
-
-[[tool.towncrier.type]]
 directory = "removed"
 name = "Removed"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "deprecated"
-name = "Deprecated"
-showcontent = true
-
-[[tool.towncrier.type]]
-directory = "added"
-name = "Added"
 showcontent = true
 
 [[tool.towncrier.type]]
@@ -59,6 +44,21 @@ name = "Fixed"
 showcontent = true
 
 [[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
 directory = "doc"
 name = "Doc"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "infrastructure"
+name = "Infrastructure"
 showcontent = true

@@ -589,11 +589,11 @@ def make_release_commit(session):
 
     session.run('pip', 'install', *REQUIREMENTS_RELEASE)
     session.run('towncrier', 'build', '--yes', '--version', version)
-    session.run('git', 'commit', '-m', f'release {version}')
-    session.run('git', 'tag', f'{version}')
 
     session.log(
-        f'Release commit prepared successfully, to initiate the release process do\n'
+        f'CHANGELOG updated, changes ready to commit and push\n'
+        f'    git commit -m release {version}\n'
+        f'    git tag v{version}\n'
         f'    git push {{UPSTREAM_NAME}} v{version}\n'
         f'    git push {{UPSTREAM_NAME}} {current_branch}'
     )
