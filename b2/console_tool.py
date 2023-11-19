@@ -1071,7 +1071,7 @@ class CopyFileById(
         parser.add_argument(
             '--content-language',
             help=
-            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, EN_US'"
+            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
         )
         parser.add_argument(
             '--expires',
@@ -2938,7 +2938,7 @@ class UploadFileMixin(
         parser.add_argument(
             '--content-language',
             help=
-            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, EN_US'"
+            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
         )
         parser.add_argument(
             '--expires',
