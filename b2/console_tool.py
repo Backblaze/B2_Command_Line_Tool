@@ -1054,19 +1054,19 @@ class CopyFileById(
         parser.add_argument('--contentType')
         parser.add_argument('--range', type=parse_range)
         parser.add_argument(
-            '--cache-control', help='Add Cache-Control header' # TODO(vbaltrusaitis-reef): better description
+            '--cache-control', help="optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
         )
         parser.add_argument(
-            '--content-disposition', help='Add Content-Disposition header' # TODO(vbaltrusaitis-reef): better description
+            '--content-disposition', help="optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
         )
         parser.add_argument(
-            '--content-language', help='Add Content-Language header' # TODO(vbaltrusaitis-reef): better description
+            '--content-encoding', help="optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
         )
         parser.add_argument(
-            '--content-encoding', help='Add Content-Encoding header' # TODO(vbaltrusaitis-reef): better description
+            '--content-language', help="optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, EN_US'"
         )
         parser.add_argument(
-            '--expires', help='Add Expires header' # TODO(vbaltrusaitis-reef): better description
+            '--expires', help="optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
         )
 
         info_group = parser.add_mutually_exclusive_group()
@@ -1381,6 +1381,8 @@ class DownloadCommand(Command):
             'Legal hold', self._represent_legal_hold(download_version.legal_hold)
         )
         for label, attr_name in [
+            ('CacheControl', 'cache_control'),
+            ('Expires', 'expires'),
             ('ContentDisposition', 'content_disposition'),
             ('ContentLanguage', 'content_language'),
             ('ContentEncoding', 'content_encoding'),
@@ -2908,18 +2910,20 @@ class UploadFileMixin(
         parser.add_argument(
             '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
         )
-        parser.add_argument('--cache-control', default=None)
         parser.add_argument(
-            '--content-disposition', help='Add Content-Disposition header' # TODO(vbaltrusaitis-reef): better description
+            '--cache-control', help="optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
         )
         parser.add_argument(
-            '--content-language', help='Add Content-Language header' # TODO(vbaltrusaitis-reef): better description
+            '--content-disposition', help="optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
         )
         parser.add_argument(
-            '--content-encoding', help='Add Content-Encoding header' # TODO(vbaltrusaitis-reef): better description
+            '--content-encoding', help="optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
         )
         parser.add_argument(
-            '--expires', help='Add Expires header' # TODO(vbaltrusaitis-reef): better description
+            '--content-language', help="optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, EN_US'"
+        )
+        parser.add_argument(
+            '--expires', help="optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
         )
         parser.add_argument(
             '--info',

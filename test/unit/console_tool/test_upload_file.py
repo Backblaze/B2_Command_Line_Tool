@@ -13,7 +13,7 @@ from test.helpers import skip_on_windows
 import b2
 
 
-def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir):
+def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, bucket, tmpdir):
     """Test upload_file supports manually specifying file info src_last_modified_millis"""
     filename = 'file1.txt'
     content = 'hello world'
@@ -24,6 +24,11 @@ def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir)
         "action": "upload",
         "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
         "fileInfo": {
+            "b2-cache-control": "max-age=3600",
+            "b2-expires": "Thu, 01 Dec 2050 16:00:00 GMT",
+            "b2-content-language": "en",
+            "b2-content-disposition": "attachment",
+            "b2-content-encoding": "gzip",
             "src_last_modified_millis": "1"
         },
         "fileName": filename,
@@ -32,6 +37,9 @@ def test_upload_file__file_info_src_last_modified_millis(b2_cli, bucket, tmpdir)
     b2_cli.run(
         [
             'upload-file', '--noProgress', '--info=src_last_modified_millis=1', 'my-bucket',
+            '--cache-control', 'max-age=3600', '--expires', 'Thu, 01 Dec 2050 16:00:00 GMT',
+            '--content-language', 'en', '--content-disposition', 'attachment',
+            '--content-encoding', 'gzip',
             str(local_file1), 'file1.txt'
         ],
         expected_json_in_stdout=expected_json,
