@@ -2714,7 +2714,7 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
         for key, val in expected.items():
             assert file_info[key] == val
 
-    file_version = b2_tool.should_succeed_json(
+    status, stdout, stderr = b2_tool.execute(
         [
             'upload-file',
             '--quiet',
@@ -2723,9 +2723,17 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
             str(sample_filepath),
             'sample_file',
             *args,
+            '--info', 'b2-content-disposition=will-be-overwritten',
         ]
     )
+    assert status == 0
+    file_version = json.loads(stdout)
     assert_expected(file_version['fileInfo'])
+
+    # Since we used both --info and --content-disposition to set b2-content-disposition,
+    # a warning should be emitted
+    assert 'will be overwritten' in stderr and 'b2-content-disposition = attachment' in stderr
+
 
     copied_version = b2_tool.should_succeed_json(
         [

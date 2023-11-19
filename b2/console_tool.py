@@ -37,7 +37,7 @@ from abc import ABCMeta, abstractmethod
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
 from enum import Enum
-from typing import Any, BinaryIO, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
 
 import argcomplete
 import b2sdk
@@ -391,6 +391,68 @@ class FileRetentionSettingMixin(Described):
             return None
 
         return FileRetentionSetting(file_retention_mode, args.retainUntil)
+
+
+class HeaderFlagsMixin(Described):
+    @classmethod
+    def _setup_parser(cls, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            '--cache-control',
+            help=
+            "optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
+        )
+        parser.add_argument(
+            '--content-disposition',
+            help=
+            "optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
+        )
+        parser.add_argument(
+            '--content-encoding',
+            help=
+            "optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
+        )
+        parser.add_argument(
+            '--content-language',
+            help=
+            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
+        )
+        parser.add_argument(
+            '--expires',
+            help=
+            "optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
+        )
+        super()._setup_parser(parser)
+
+    def _file_info_with_header_args(self, args, file_info: dict[str, str] | None) -> dict[str, str] | None:
+        """Construct an updated file_info dictionary.
+        Print a warning if any of file_info items will be overwritten by explicit header arguments.
+        """
+        add_file_info = {}
+        overwritten = []
+        if args.cache_control is not None:
+            add_file_info['b2-cache-control'] = args.cache_control
+        if args.content_disposition is not None:
+            add_file_info['b2-content-disposition'] = args.content_disposition
+        if args.content_encoding is not None:
+            add_file_info['b2-content-encoding'] = args.content_encoding
+        if args.content_language is not None:
+            add_file_info['b2-content-language'] = args.content_language
+        if args.expires is not None:
+            add_file_info['b2-expires'] = args.expires
+
+        for key, value in add_file_info.items():
+            if file_info is not None and key in file_info and file_info[key] != value:
+                overwritten.append(key)
+
+        if overwritten:
+            self._print_stderr(
+                'The following file info items will be overwritten by explicit arguments:\n    ' +
+                '\n    '.join(f'{key} = {add_file_info[key]}' for key in overwritten)
+            )
+
+        if add_file_info:
+            return {**(file_info or {}), **add_file_info}
+        return file_info
 
 
 class LegalHoldMixin(Described):
@@ -1010,7 +1072,7 @@ class ClearAccount(Command):
 
 @B2.register_subcommand
 class CopyFileById(
-    DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin, LegalHoldMixin, Command
+    HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin, LegalHoldMixin, Command
 ):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
@@ -1053,31 +1115,6 @@ class CopyFileById(
         parser.add_argument('--metadataDirective', default=None, help=argparse.SUPPRESS)
         parser.add_argument('--contentType')
         parser.add_argument('--range', type=parse_range)
-        parser.add_argument(
-            '--cache-control',
-            help=
-            "optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
-        )
-        parser.add_argument(
-            '--content-disposition',
-            help=
-            "optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
-        )
-        parser.add_argument(
-            '--content-encoding',
-            help=
-            "optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
-        )
-        parser.add_argument(
-            '--content-language',
-            help=
-            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
-        )
-        parser.add_argument(
-            '--expires',
-            help=
-            "optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
-        )
 
         info_group = parser.add_mutually_exclusive_group()
 
@@ -1097,6 +1134,7 @@ class CopyFileById(
             file_infos = self._parse_file_infos(args.info)
         elif args.noInfo:
             file_infos = {}
+        file_infos = self._file_info_with_header_args(args, file_infos)
 
         if args.metadataDirective is not None:
             self._print_stderr(
@@ -1136,11 +1174,6 @@ class CopyFileById(
             file_retention=file_retention,
             source_file_info=source_file_info,
             source_content_type=source_content_type,
-            cache_control=args.cache_control,
-            expires=args.expires,
-            content_disposition=args.content_disposition,
-            content_encoding=args.content_encoding,
-            content_language=args.content_language,
         )
         self._print_json(file_version)
         return 0
@@ -2892,6 +2925,7 @@ class MinPartSizeMixin(Described):
 
 
 class UploadFileMixin(
+    HeaderFlagsMixin,
     MinPartSizeMixin,
     ThreadsMixin,
     ProgressMixin,
@@ -2919,31 +2953,6 @@ class UploadFileMixin(
         )
         parser.add_argument(
             '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
-        )
-        parser.add_argument(
-            '--cache-control',
-            help=
-            "optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
-        )
-        parser.add_argument(
-            '--content-disposition',
-            help=
-            "optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
-        )
-        parser.add_argument(
-            '--content-encoding',
-            help=
-            "optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
-        )
-        parser.add_argument(
-            '--content-language',
-            help=
-            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
-        )
-        parser.add_argument(
-            '--expires',
-            help=
-            "optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
         )
         parser.add_argument(
             '--info',
@@ -2991,25 +3000,17 @@ class UploadFileMixin(
             else:
                 file_infos[SRC_LAST_MODIFIED_MILLIS] = str(int(mtime * 1000))
 
+        file_infos = self._file_info_with_header_args(args, file_infos)
+
         return {
             "bucket":
                 self.api.get_bucket_by_name(args.bucketName),
-            "cache_control":
-                args.cache_control,
-            "content_disposition":
-                args.content_disposition,
-            "content_encoding":
-                args.content_encoding,
-            "content_language":
-                args.content_language,
             "content_type":
                 args.contentType,
             "custom_upload_timestamp":
                 args.custom_upload_timestamp,
             "encryption":
                 self._get_destination_sse_setting(args),
-            "expires":
-                args.expires,
             "file_info":
                 file_infos,
             "file_name":
