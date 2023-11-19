@@ -12,6 +12,7 @@ import hashlib
 import os
 import pathlib
 import platform
+import re
 import string
 import subprocess
 from glob import glob
@@ -45,6 +46,7 @@ SYSTEM = platform.system().lower()
 
 REQUIREMENTS_FORMAT = ['yapf==0.27', 'ruff==0.0.272']
 REQUIREMENTS_LINT = REQUIREMENTS_FORMAT + ['pytest==6.2.5', 'liccheck==0.6.2']
+REQUIREMENTS_RELEASE = ['towncrier==23.11.0']
 REQUIREMENTS_TEST = [
     "pexpect==4.8.0",
     "pytest==6.2.5",
@@ -559,3 +561,39 @@ def build_and_test_docker(session):
     generate_dockerfile(session)
     session.run('docker', 'build', '-t', test_image_tag, '.', external=True)
     run_docker_tests(session, test_image_tag)
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def make_release_commit(session):
+    """
+    Runs `towncrier build`, commits changes, tags, all that is left to do is pushing
+    """
+    if session.posargs:
+        version = session.posargs[0]
+    else:
+        session.error('Provide -- {release_version} (X.Y.Z - without leading "v")')
+
+    if not re.match(r'^\d+\.\d+\.\d+$', version):
+        session.error(
+            f'Provided version="{version}". Version must be of the form X.Y.Z where '
+            f'X, Y and Z are integers'
+        )
+
+    local_changes = subprocess.check_output(['git', 'diff', '--stat'])
+    if local_changes:
+        session.error('Uncommitted changes detected')
+
+    current_branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode()
+    if current_branch != 'master':
+        session.log('WARNING: releasing from a branch different than master')
+
+    session.run('pip', 'install', *REQUIREMENTS_RELEASE)
+    session.run('towncrier', 'build', '--yes', '--version', version)
+
+    session.log(
+        f'CHANGELOG updated, changes ready to commit and push\n'
+        f'    git commit -m release {version}\n'
+        f'    git tag v{version}\n'
+        f'    git push {{UPSTREAM_NAME}} v{version}\n'
+        f'    git push {{UPSTREAM_NAME}} {current_branch}'
+    )
