@@ -3061,9 +3061,7 @@ class UploadFileMixin(
 
         raise self.NotAnInputStream()
 
-    def file_identifier_to_read_stream(
-        self, file_id: str | int | BinaryIO, buffering
-    ) -> BinaryIO:
+    def file_identifier_to_read_stream(self, file_id: str | int | BinaryIO, buffering) -> BinaryIO:
         if isinstance(file_id, (str, int)):
             return open(
                 file_id,
