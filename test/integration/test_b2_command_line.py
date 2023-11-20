@@ -2723,7 +2723,8 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
             str(sample_filepath),
             'sample_file',
             *args,
-            '--info', 'b2-content-disposition=will-be-overwritten',
+            '--info',
+            'b2-content-disposition=will-be-overwritten',
         ]
     )
     assert status == 0
@@ -2733,7 +2734,6 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
     # Since we used both --info and --content-disposition to set b2-content-disposition,
     # a warning should be emitted
     assert 'will be overwritten' in stderr and 'b2-content-disposition = attachment' in stderr
-
 
     copied_version = b2_tool.should_succeed_json(
         [

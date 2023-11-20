@@ -37,7 +37,7 @@ from abc import ABCMeta, abstractmethod
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
 from enum import Enum
-from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
+from typing import Any, BinaryIO, Dict, List, Optional, Tuple
 
 import argcomplete
 import b2sdk
@@ -423,7 +423,8 @@ class HeaderFlagsMixin(Described):
         )
         super()._setup_parser(parser)
 
-    def _file_info_with_header_args(self, args, file_info: dict[str, str] | None) -> dict[str, str] | None:
+    def _file_info_with_header_args(self, args,
+                                    file_info: dict[str, str] | None) -> dict[str, str] | None:
         """Construct an updated file_info dictionary.
         Print a warning if any of file_info items will be overwritten by explicit header arguments.
         """
@@ -1072,7 +1073,8 @@ class ClearAccount(Command):
 
 @B2.register_subcommand
 class CopyFileById(
-    HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin, LegalHoldMixin, Command
+    HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin,
+    LegalHoldMixin, Command
 ):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
