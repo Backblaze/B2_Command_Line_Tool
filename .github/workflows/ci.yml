@@ -27,12 +27,11 @@ jobs:
         run: python -m pip install --upgrade nox pip setuptools
       - name: Run linters
         run: nox -vs lint
-      - name: Validate changelog
-        # Library was designed to be used with pull requests only.
-        if: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
-        uses: zattoo/changelog@v1
-        with:
-          token: ${{ github.token }}
+      - name: Validate new changelog entries
+        run: if [ -z "$(git diff --diff-filter=A --name-only origin/${{ github.event.pull_request.base.ref }} changelog.d)" ];
+          then echo no changelog item added; exit 1; fi
+
+
   build:
     needs: lint
     runs-on: ubuntu-latest
