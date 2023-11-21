@@ -9,7 +9,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
-## 3.13.0 - 2023-11-16
+## [3.13.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.13.0) - 2023-11-16
 
 ### Added
 - Add linux/arm64 platform support to the official Docker image
@@ -24,7 +24,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - Stream `ls --json` JSON output instead of dumping it only after all objects have been fetched
 - Alias `-` to stdout in `download-file-by-name` or `download-file-by-id` command
 
-## 3.12.0 - 2023-10-28
+## [3.12.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.12.0) - 2023-10-28
 
 ### Added
 - docker tests and pushing the official docker image on release
@@ -37,7 +37,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - Use stable Python 3.12 in CI
 - Fix readthedocs build by updating to v2 configuration schema
 
-## 3.11.0 - 2023-10-04
+## [3.11.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.11.0) - 2023-10-04
 
 ### Added
 - Add `--quiet` option to all commands to suppress all messages printed to stdout & stderr
@@ -49,7 +49,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - Fix gathering licenses of typeshed libraries
 - Fix spellcheck erroring out on LICENSE file
 
-## 3.10.1 - 2023-09-27
+## [3.10.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.10.1) - 2023-09-27
 
 ### Fixed
 - Fix lifecycle rules being cleared after using `update-bucket` command if not explicitly set again.
@@ -58,7 +58,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 ### Infrastructure
 - Fix bad version number generation in CD
 
-## 3.10.0 - 2023-09-10
+## [3.10.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.10.0) - 2023-09-10
 
 ### Added
 - Add ability to upload from an unbound source such as standard input or a named pipe
@@ -93,7 +93,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - When listing licenses in `license` command only show licenses of `b2` and its dependencies
 - Fix license command failing on Windows when non-UTF8 encoding is the default
 
-## 3.9.0 - 2023-04-28
+## [3.9.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.9.0) - 2023-04-28
 
 ### Added
 - Support for custom file upload timestamp
@@ -102,7 +102,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - Limit GitHub CI workload by running most integration tests only against edge versions of supported Python versions
 - Add a direct dependency from tqdm
 
-## 3.8.0 - 2023-03-23
+## [3.8.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.8.0) - 2023-03-23
 
 ### Added
 - Add `install-autocomplete` command for installing shell autocompletion (currently only `bash` is supported)
@@ -114,7 +114,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - GitHub CD builds and uploads an official B2 CLI image to docker hub
 - Disable changelog verification for dependabot PRs
 
-## 3.7.1 - 2023-02-08
+## [3.7.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.7.1) - 2023-02-08
 
 ### Fixed
 - Remove unnecessary printing options from `rm`
@@ -124,7 +124,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 ### Infrastructure
 - Remove macos stand-alone binary from CI/CD
 
-## 3.7.0 - 2023-02-07
+## [3.7.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.7.0) - 2023-02-07
 
 ### Added
 - Add `--incrementalMode` to `sync` and `upload-file`
@@ -146,7 +146,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - Change default Python version in CI/CD to 3.11
 - Temporary marking all directories as `safe.directory` inside CI/CD when bundling
 
-## 3.6.0 - 2022-09-20
+## [3.6.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.6.0) - 2022-09-20
 
 ### Added
 - Add `replication-delete` command
@@ -165,7 +165,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 - Fix `test_keys` unit test after changes in b2sdk
 - Fix running tests on the CI with the latest SDK from the master branch
 
-## 3.5.0 - 2022-07-27
+## [3.5.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.5.0) - 2022-07-27
 
 As in 3.4.0, replication support may be unstable, however no backward-incompatible
 changes are currently planned.
@@ -186,7 +186,7 @@ This version is pinned strictly to `b2-sdk-python==1.17.3` for the same reason.
 - Make integration tests remove buckets only based on name, not based on creation time
 - Add dependabot configuration
 
-## 3.4.0 - 2022-05-04
+## [3.4.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.4.0) - 2022-05-04
 
 This release contains a preview of replication support. It allows for basic usage
 of B2 replication feature (currently in closed beta). Until this notice is removed,
@@ -205,7 +205,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Made `bucketType` positional argument to `update-bucket` optional
 - Run unit tests on all CPUs
 
-## 3.3.0 - 2022-04-20
+## [3.3.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.3.0) - 2022-04-20
 
 ### Added
 - Add `--threads` parameter to `download-file-by-name` and `download-file-by-id`
@@ -224,12 +224,12 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Remove official support for python 3.5
 - Remove official support for python 3.6
 
-## 3.2.1 - 2022-02-23
+## [3.2.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.2.1) - 2022-02-23
 
 ### Fixed
 - Fix setting permissions for local sqlite database (thanks to Jan Schejbal for responsible disclosure!)
 
-## 3.2.0 - 2021-12-23
+## [3.2.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.2.0) - 2021-12-23
 
 ### Added
 - Add compatibility support for arrow >= 1.0.2 on newer Python versions while
@@ -239,7 +239,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Fallback to `ascii` decoder when printing help in case the locales are not properly set
 - Apply the value of `--threads` parameter to `sync` downloader threads
 
-## 3.1.0 - 2021-11-02
+## [3.1.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.1.0) - 2021-11-02
 
 ### Added
 - Add `--allCapabilities` to `create-key`
@@ -248,13 +248,13 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 ### Fixed
 - Fix testing bundle in CI for a new `staticx` version
 
-## 3.0.3 - 2021-09-27
+## [3.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.0.3) - 2021-09-27
 
 ### Fixed
 - Fix pypy selector in CI
 - Fix for static linking of Linux binary (CD uses python container)
 
-## 3.0.2 - 2021-09-17
+## [3.0.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.0.2) - 2021-09-17
 
 ### Added
 - Sign Windows binary
@@ -263,12 +263,12 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Download instruction in README.md (wording suggested by https://github.com/philh7456)
 - Make Linux binary statically linked
 
-## 3.0.1 - 2021-08-09
+## [3.0.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.0.1) - 2021-08-09
 
 ### Fixed
 - logs from all loggers (in dependencies too) brought back
 
-## 3.0.0 - 2021-08-07
+## [3.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.0.0) - 2021-08-07
 
 ### Added
 - Add possibility to change realm during integration tests
@@ -300,11 +300,11 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Support of `--metadataDirective` argument in `copy-file-by-id` (the `metadataDirective` sent to B2 cloud is
   detected automatically)
 
-## 2.5.1 - 2021-08-06
+## [2.5.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.5.1) - 2021-08-06
 
 - `SRC_LAST_MODIFIED_MILLIS` import fix
 
-## 2.5.0 - 2021-05-22
+## [2.5.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.5.0) - 2021-05-22
 
 ### Added
 - Add integration test for sync within one bucket with different encryption
@@ -318,7 +318,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Removing old buckets in integration tests
 - Bucket name entropy in tests increased
 
-## 2.4.0 - 2021-04-22
+## [2.4.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.4.0) - 2021-04-22
 
 ### Added
 - Sign OSX binary
@@ -327,7 +327,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 ### Fixed
 - Exclude packages inside the test package when installing
 
-## 2.3.0 - 2021-03-25
+## [2.3.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.3.0) - 2021-03-25
 
 ### Added
 - Add support for SSE-B2 server-side encryption mode
@@ -336,7 +336,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Pin `setuptools-scm<6.0` as `>=6.0` doesn't support Python 3.5
 - Fix boot speed regression caused by the `rst2ansi` invocations
 
-## 2.2.0 - 2021-03-15
+## [2.2.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.2.0) - 2021-03-15
 
 ### Added
 - Option to automatically authorize account when running commands other than `authorize-account` via
@@ -352,7 +352,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Fix for the Windows bundled version
 - Fix docs autogen
 
-## 2.1.0 - 2020-11-03
+## [2.1.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.1.0) - 2020-11-03
 
 ### Added
 - Add support for Python 3.9
@@ -370,12 +370,12 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Fix docs generation in CI
 - Correct names of the arguments in `b2 create-key` usage text
 
-## 2.0.2 - 2020-07-15
+## [2.0.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.0.2) - 2020-07-15
 
 ### Added
 - Add `--environment` internal parameter for `authorize-account`
 
-## 2.0.0 - 2020-06-25
+## [2.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v2.0.0) - 2020-06-25
 
 ### Added
 - Add official support for python 3.8
@@ -396,7 +396,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Remove `list-file-names` command. Use `ls --recursive --json` instead
 - Remove `list-file-versions` command. Use `ls --recursive --json --versions` instead
 
-## 1.4.2 - 2019-10-03
+## [1.4.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.4.2) - 2019-10-03
 
 ### Added
 - Add `prefix` parameter to `list-file-names` and `list-file-versions`
@@ -409,7 +409,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
   application key can be added using environment variables
   B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY respectively.
 
-## 1.4.0 - 2019-04-25
+## [1.4.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.4.0) - 2019-04-25
 
 ### Added
 - (b2sdk) Support for python 3.7
@@ -426,7 +426,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 ### Deprecated
 - Deprecation warning added for imports of sdk classes from cli package
 
-## 1.3.8 - 2018-12-06
+## [1.3.8](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.3.8) - 2018-12-06
 
 ### Added
 - New `--excludeAllSymlinks` option for `sync`.
@@ -435,28 +435,28 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 ### Fixed
 - Fixed doc for cancel-all-unfinished-large-files
 
-## 1.3.6 - 2018-08-21
+## [1.3.6](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.3.6) - 2018-08-21
 
 ### Fixed
 - Fix auto-reauthorize for application keys.
 - Fix problem with bash auto-completion module.
 - Fix (hopefully) markdown display in PyPI.
 
-## 1.3.4 - 2018-08-10
+## [1.3.4](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.3.4) - 2018-08-10
 
 ### Fixed
 - Better documentation for authorize-account command.
 - Fix error reporting when using application keys
 - Fix auth issues with bucket-restricted application keys.
 
-## 1.3.2 - 2018-07-28
+## [1.3.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.3.2) - 2018-07-28
 
 ### Fixed
 - Tests fixed for Python 3.7
 - Add documentation about what capabilities are required for different commands.
 - Better error messages for authorization problems with application keys.
 
-## 1.3.0 - 2018-07-20
+## [1.3.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.3.0) - 2018-07-20
 
 ### Added
 - Support for [application keys](https://www.backblaze.com/b2/docs/application_keys.html).
@@ -470,7 +470,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Fix content type so markdown displays properly in PyPI
 - The testing package is called `test`, not `tests`
 
-## 1.2.0 - 2018-07-06
+## [1.2.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.2.0) - 2018-07-06
 
 ### Added
 - New `--recursive` option for ls
@@ -485,7 +485,7 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 - Prefix Windows paths during sync to handle long paths (fixes #265)
 - Check if file to be synced is still accessible before syncing (fixes #397)
 
-## 1.1.0 - 2017-11-30
+## [1.1.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.1.0) - 2017-11-30
 
 ### Added
 - Add support for CORS rules in `create-bucket` and `update-bucket`.  `get-bucket` will display CORS rules.
@@ -493,12 +493,12 @@ This version is pinned strictly to `b2-sdk-python==1.16.0` for the same reason.
 ### Fixed
 - cleanup in integration tests works
 
-## 1.0.0 - 2017-11-09
+## [1.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v1.0.0) - 2017-11-09
 
 ### Added
 - Require `--allowEmptySource` to sync from empty directory, to help avoid accidental deletion of all files.
 
-## 0.7.4 - 2017-11-09
+## [0.7.4](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v0.7.4) - 2017-11-09
 
 ### Added
 - More efficient uploads by sending SHA1 checksum at the end.
