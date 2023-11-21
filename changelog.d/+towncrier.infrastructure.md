@@ -1,1 +1,0 @@
-Towncrier changelog generation - to avoid conflicts when simultaneously working on PRs

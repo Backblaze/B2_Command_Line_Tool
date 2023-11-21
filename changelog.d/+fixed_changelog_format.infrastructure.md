@@ -1,1 +1,0 @@
-fix towncrier generated changelog to work with mindsers/changelog-reader-action

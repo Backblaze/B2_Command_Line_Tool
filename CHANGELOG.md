@@ -9,6 +9,23 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.13.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.13.1) - 2023-11-21
+
+
+### Fixed
+
+- Fix "pip install" by making pyproject.toml viable. ([#952](https://github.com/Backblaze/B2_Command_Line_Tool/issues/952))
+
+### Doc
+
+- Fix `docker run` example in README.md
+
+### Infrastructure
+
+- Towncrier changelog generation - to avoid conflicts when simultaneously working on PRs
+- fix towncrier generated changelog to work with mindsers/changelog-reader-action
+
+
 ## [3.13.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.13.0) - 2023-11-16
 
 ### Added
