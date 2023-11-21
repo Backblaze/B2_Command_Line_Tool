@@ -55,7 +55,12 @@ REQUIREMENTS_TEST = [
     'backoff==2.1.2',
     'more_itertools==8.13.0',
 ]
-REQUIREMENTS_BUILD = ['setuptools>=20.2']
+
+# not pinned to test the latest version works
+REQUIREMENTS_BUILD = [
+    'setuptools',
+]
+
 REQUIREMENTS_BUNDLE = [
     'pyinstaller~=5.13',
     'pyinstaller-hooks-contrib>=2023.6',
@@ -244,7 +249,7 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     # TODO: consider using wheel as well
-    session.run('pip', 'install', *REQUIREMENTS_BUILD, **run_kwargs)
+    session.run('pip', 'install', '-U', *REQUIREMENTS_BUILD, **run_kwargs)
     session.run('nox', '-s', 'dump_license', '-fb', 'venv', **run_kwargs)
     session.run('python', 'setup.py', 'check', '--metadata', '--strict', **run_kwargs)
     session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
