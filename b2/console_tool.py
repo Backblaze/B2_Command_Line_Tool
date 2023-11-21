@@ -1044,7 +1044,7 @@ class AuthorizeAccount(Command):
     def _run(self, args):
         # Handle internal options for testing inside Backblaze.
         # These are not documented in the usage string.
-        realm = self._get_realm(args)
+        realm = self._get_user_requested_realm(args)
 
         if args.applicationKeyId is None:
             args.applicationKeyId = (
@@ -1060,17 +1060,21 @@ class AuthorizeAccount(Command):
 
         return self.authorize(args.applicationKeyId, args.applicationKey, realm)
 
-    def authorize(self, application_key_id, application_key, realm):
+    def authorize(self, application_key_id, application_key, realm: str | None):
         """
         Perform the authorization and capability checks, report errors.
 
         :param application_key_id: application key ID used to authenticate
         :param application_key: application key
-        :param realm: authorization realm
+        :param realm: authorization realm; if None, production is used
         :return: exit status
         """
+        verbose_realm = bool(realm)
+        realm = realm or 'production'
         url = REALM_URLS.get(realm, realm)
-        self._print_stderr(f"Using {url}")
+        logger.info(f"Using {url}")
+        if verbose_realm:
+            self._print_stderr(f'Using {url}')
         try:
             self.api.authorize_account(realm, application_key_id, application_key)
 
@@ -1099,7 +1103,10 @@ class AuthorizeAccount(Command):
             return 1
 
     @classmethod
-    def _get_realm(cls, args):
+    def _get_user_requested_realm(cls, args) -> str | None:
+        """
+        Determine the realm to use for authorization.
+        """
         if args.dev:
             return 'dev'
         if args.staging:
@@ -1107,7 +1114,7 @@ class AuthorizeAccount(Command):
         if args.environment:
             return args.environment
 
-        return os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
+        return os.environ.get(B2_ENVIRONMENT_ENV_VAR)
 
 
 @B2.register_subcommand
@@ -4032,9 +4039,9 @@ class ConsoleTool:
                 f'Please provide both "{B2_APPLICATION_KEY_ENV_VAR}" and "{B2_APPLICATION_KEY_ID_ENV_VAR}" environment variables or none of them'
             )
             return 1
-        realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
+        realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR)
 
-        if self.api.account_info.is_same_key(key_id, realm):
+        if self.api.account_info.is_same_key(key_id, realm or 'production'):
             return 0
 
         logger.info('authorize-account is being run from env variables')
