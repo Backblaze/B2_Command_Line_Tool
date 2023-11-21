@@ -60,7 +60,7 @@ directory = "changelog.d"
 filename = "CHANGELOG.md"
 start_string = "<!-- towncrier release notes start -->\n"
 underlines = ["", "", ""]
-title_format = "## {version} - {project_date}"
+title_format = "## [{version}](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v{version}) - {project_date}"
 issue_format = "[#{issue}](https://github.com/Backblaze/B2_Command_Line_Tool/issues/{issue})"
 
 [[tool.towncrier.type]]
