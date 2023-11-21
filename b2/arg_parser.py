@@ -7,6 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+from __future__ import annotations
 
 import argparse
 import functools
@@ -22,11 +23,11 @@ from rst2ansi import rst2ansi
 _arrow_version = tuple(int(p) for p in arrow.__version__.split("."))
 
 
-class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
+class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     """
     CLI custom formatter.
 
-    It removes default "usage: " text and prints usage for all subcommands.
+    It removes default "usage: " text and prints usage for all (non-hidden) subcommands.
     """
 
     def add_usage(self, usage, actions, groups, prefix=None):
@@ -38,7 +39,8 @@ class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
         if isinstance(action, argparse._SubParsersAction) and action.help is not argparse.SUPPRESS:
             usages = []
             for choice in self._unique_choice_values(action):
-                usages.append(choice.format_usage())
+                if not getattr(choice, 'hidden', False):
+                    usages.append(choice.format_usage())
             self.add_text(''.join(usages))
         else:
             super().add_argument(action)
@@ -52,7 +54,7 @@ class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
                 yield value
 
 
-class ArgumentParser(argparse.ArgumentParser):
+class B2ArgumentParser(argparse.ArgumentParser):
     """
     CLI custom parser.
 
@@ -60,11 +62,17 @@ class ArgumentParser(argparse.ArgumentParser):
     and use help message in case of error.
     """
 
-    def __init__(self, *args, for_docs=False, **kwargs):
+    def __init__(self, *args, for_docs: bool = False, hidden: bool = False, **kwargs):
+        """
+
+        :param for_docs: is this parser used for generating docs
+        :param hidden: should this parser be hidden from `--help`
+        """
         self._raw_description = None
         self._description = None
         self._for_docs = for_docs
-        kwargs.setdefault('formatter_class', RawTextHelpFormatter)
+        self.hidden = hidden
+        kwargs.setdefault('formatter_class', B2RawTextHelpFormatter)
         super().__init__(*args, **kwargs)
 
     @property

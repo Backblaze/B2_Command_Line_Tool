@@ -127,7 +127,7 @@ from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
 from b2._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
 from b2.arg_parser import (
-    ArgumentParser,
+    B2ArgumentParser,
     parse_comma_separated_list,
     parse_default_retention_period,
     parse_millis_from_float_timestamp,
@@ -687,6 +687,8 @@ class Command(Described):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
+    hide_from_help = False
+
     # The registry for the subcommands, should be reinitialized  in subclass
     subcommands_registry = None
 
@@ -716,28 +718,38 @@ class Command(Described):
         return decorator
 
     @classmethod
-    def get_parser(cls, subparsers=None, parents=None, for_docs=False):
+    def create_parser(
+        cls, subparsers: "argparse._SubParsersAction | None" = None, parents=None, for_docs=False
+    ) -> argparse.ArgumentParser:
+        """
+        Creates a parser for the command.
+
+        :param subparsers: subparsers object to which add new parser
+        :param parents: created ArgumentParser `parents`, see `argparse.ArgumentParser`
+        :param for_docs: if parser is to be used for documentation generation
+        :return: created parser
+        """
         if parents is None:
             parents = []
 
         description = cls._get_description()
 
+        name, alias = cls.name_and_alias()
+        parser_kwargs = dict(
+            prog=name,
+            description=description,
+            parents=parents,
+            for_docs=for_docs,
+            hidden=cls.hide_from_help,
+        )
+
         if subparsers is None:
-            name, _ = cls.name_and_alias()
-            parser = ArgumentParser(
-                prog=name,
-                description=description,
-                parents=parents,
-                for_docs=for_docs,
-            )
+            parser = B2ArgumentParser(**parser_kwargs,)
         else:
-            name, alias = cls.name_and_alias()
             parser = subparsers.add_parser(
-                name,
-                description=description,
-                parents=parents,
+                parser_kwargs.pop('prog'),
+                **parser_kwargs,
                 aliases=[alias] if alias is not None and not for_docs else (),
-                for_docs=for_docs,
             )
             # Register class that will handle this particular command, for both name and alias.
             parser.set_defaults(command_class=cls)
@@ -746,7 +758,7 @@ class Command(Described):
 
         if cls.subcommands_registry:
             if not parents:
-                common_parser = ArgumentParser(add_help=False)
+                common_parser = B2ArgumentParser(add_help=False)
                 common_parser.add_argument(
                     '--debugLogs', action='store_true', help=argparse.SUPPRESS
                 )
@@ -758,10 +770,15 @@ class Command(Described):
                 )
                 parents = [common_parser]
 
-            subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
+            subparsers = parser.add_subparsers(
+                prog=parser.prog,
+                title='usages',
+                dest='command',
+                parser_class=B2ArgumentParser,
+            )
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.get_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
+                subcommand.create_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
 
         return parser
 
@@ -843,6 +860,26 @@ class Command(Described):
 
     def __str__(self):
         return f'{self.__class__.__module__}.{self.__class__.__name__}'
+
+
+class CmdReplacedByMixin:
+    hide_from_help = True
+    replaced_by_cmd: "type[Command]"
+
+    def run(self, args):
+        self._print_stderr(
+            f'WARNING: {self.__class__.name_and_alias()[0]} command is deprecated. '
+            f'Use {self.replaced_by_cmd.name_and_alias()[0]} instead.'
+        )
+        return super().run(args)
+
+    @classmethod
+    def _get_description(cls):
+        return (
+            f'{super()._get_description()}\n\n'
+            f'.. warning::\n'
+            f'   This command is deprecated. Use ``{cls.replaced_by_cmd.name_and_alias()[0]}`` instead.\n'
+        )
 
 
 class B2(Command):
@@ -1577,8 +1614,9 @@ class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
 
 
 @B2.register_subcommand
-class DownloadFileById(B2URIFileIDArgMixin, DownloadFileBase):
+class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
+    replaced_by_cmd = DownloadFile
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1587,8 +1625,9 @@ class DownloadFileById(B2URIFileIDArgMixin, DownloadFileBase):
 
 
 @B2.register_subcommand
-class DownloadFileByName(B2URIBucketNFilenameArgMixin, DownloadFileBase):
+class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
+    replaced_by_cmd = DownloadFile
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1739,8 +1778,9 @@ class FileInfo(B2URIFileArgMixin, FileInfoBase):
 
 
 @B2.register_subcommand
-class GetFileInfo(B2URIFileIDArgMixin, FileInfoBase):
+class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
+    replaced_by_cmd = FileInfo
 
 
 @B2.register_subcommand
@@ -2415,13 +2455,15 @@ class GetUrl(B2URIFileArgMixin, GetUrlBase):
 
 
 @B2.register_subcommand
-class MakeUrl(B2URIFileIDArgMixin, GetUrlBase):
+class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, GetUrlBase):
     __doc__ = GetUrlBase.__doc__
+    replaced_by_cmd = GetUrl
 
 
 @B2.register_subcommand
-class MakeFriendlyUrl(B2URIBucketNFilenameArgMixin, GetUrlBase):
+class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, GetUrlBase):
     __doc__ = GetUrlBase.__doc__
+    replaced_by_cmd = GetUrl
 
 
 @B2.register_subcommand
@@ -3887,7 +3929,7 @@ class ConsoleTool:
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = B2.get_parser()
+        parser = B2.create_parser()
         argcomplete.autocomplete(parser, default_completer=None)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
@@ -4025,7 +4067,7 @@ class ConsoleTool:
 
 
 # used by Sphinx
-get_parser = functools.partial(B2.get_parser, for_docs=True)
+get_parser = functools.partial(B2.create_parser, for_docs=True)
 
 
 # TODO: import from b2sdk as soon as we rely on 1.0.0

@@ -67,7 +67,7 @@ def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, t
     output_a = tmp_path / 'a'
     b2_tool.should_succeed(
         [
-            'download-file-by-name', '--quiet', bucket_name, uploaded_sample_file['fileName'],
+            'download-file', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}",
             str(output_a)
         ]
     )
@@ -75,7 +75,7 @@ def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, t
 
     output_b = tmp_path / 'b'
     b2_tool.should_succeed(
-        ['download-file-by-id', '--quiet', uploaded_sample_file['fileId'],
+        ['download-file', '--quiet', f"b2id://{uploaded_sample_file['fileId']}",
          str(output_b)]
     )
     assert output_b.read_text() == sample_filepath.read_text()
@@ -127,9 +127,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     should_equal(['rm1'], [f['fileName'] for f in list_of_files])
     b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm1'])
 
-    b2_tool.should_succeed(
-        ['download-file-by-name', '--noProgress', '--quiet', bucket_name, 'b/1', tmp_path / 'a']
-    )
+    b2_tool.should_succeed(['download-file', '--quiet', f'b2://{bucket_name}/b/1', tmp_path / 'a'])
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
@@ -597,7 +595,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             return  # that's enough, we've checked that encryption works, no need to repeat the whole sync suite
 
         c_id = find_file_id(file_versions, prefix + 'c')
-        file_info = b2_tool.should_succeed_json(['get-file-info', c_id])['fileInfo']
+        file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{c_id}"])['fileInfo']
         should_equal(
             file_mod_time_millis(dir_path / 'c'), int(file_info['src_last_modified_millis'])
         )
@@ -1151,12 +1149,12 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
     b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, sample_file, 'not_encrypted'])
 
     b2_tool.should_succeed(
-        ['download-file-by-name', '--quiet', bucket_name, 'encrypted', tmp_path / 'encrypted']
+        ['download-file', '--quiet', f'b2://{bucket_name}/encrypted', tmp_path / 'encrypted']
     )
     b2_tool.should_succeed(
         [
-            'download-file-by-name', '--quiet', bucket_name, 'not_encrypted',
-            tmp_path / 'not_encypted'
+            'download-file', '--quiet', f'b2://{bucket_name}/not_encrypted',
+            tmp_path / 'not_encrypted'
         ]
     )
 
@@ -1171,10 +1169,12 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
     )
 
     encrypted_version = list_of_files[0]
-    file_info = b2_tool.should_succeed_json(['get-file-info', encrypted_version['fileId']])
+    file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{encrypted_version['fileId']}"])
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
     not_encrypted_version = list_of_files[1]
-    file_info = b2_tool.should_succeed_json(['get-file-info', not_encrypted_version['fileId']])
+    file_info = b2_tool.should_succeed_json(
+        ['file-info', f"b2id://{not_encrypted_version['fileId']}"]
+    )
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
     b2_tool.should_succeed(
@@ -1198,12 +1198,14 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
     )
 
     copied_encrypted_version = list_of_files[2]
-    file_info = b2_tool.should_succeed_json(['get-file-info', copied_encrypted_version['fileId']])
+    file_info = b2_tool.should_succeed_json(
+        ['file-info', f"b2id://{copied_encrypted_version['fileId']}"]
+    )
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
 
     copied_not_encrypted_version = list_of_files[3]
     file_info = b2_tool.should_succeed_json(
-        ['get-file-info', copied_not_encrypted_version['fileId']]
+        ['file-info', f"b2id://{copied_not_encrypted_version['fileId']}"]
     )
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
@@ -1245,25 +1247,22 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     should_equal(sse_c_key_id, file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME])
 
     b2_tool.should_fail(
-        [
-            'download-file-by-name', '--quiet', bucket_name, 'uploaded_encrypted',
-            'gonna_fail_anyway'
-        ],
+        ['download-file', '--quiet', f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'],
         expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
         r'correct parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--quiet', '--sourceServerSideEncryption', 'SSE-C',
-            bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
+            'download-file', '--quiet', '--sourceServerSideEncryption', 'SSE-C',
+            f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var'
     )
     b2_tool.should_fail(
         [
-            'download-file-by-name', '--quiet', '--sourceServerSideEncryption', 'SSE-C',
-            bucket_name, 'uploaded_encrypted', 'gonna_fail_anyway'
+            'download-file', '--quiet', '--sourceServerSideEncryption', 'SSE-C',
+            f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: Wrong or no SSE-C key provided when reading a file.',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode()}
@@ -1271,13 +1270,12 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     with contextlib.nullcontext(tmp_path) as dir_path:
         b2_tool.should_succeed(
             [
-                'download-file-by-name',
+                'download-file',
                 '--noProgress',
                 '--quiet',
                 '--sourceServerSideEncryption',
                 'SSE-C',
-                bucket_name,
-                'uploaded_encrypted',
+                f'b2://{bucket_name}/uploaded_encrypted',
                 dir_path / 'a',
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
@@ -1285,12 +1283,12 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
         assert read_file(dir_path / 'a') == read_file(sample_file)
         b2_tool.should_succeed(
             [
-                'download-file-by-id',
+                'download-file',
                 '--noProgress',
                 '--quiet',
                 '--sourceServerSideEncryption',
                 'SSE-C',
-                file_version_info['fileId'],
+                f"b2id://{file_version_info['fileId']}",
                 dir_path / 'b',
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
@@ -2595,7 +2593,7 @@ def _assert_file_lock_configuration(
     legal_hold: LegalHold | None = None
 ):
 
-    file_version = b2_tool.should_succeed_json(['get-file-info', file_id])
+    file_version = b2_tool.should_succeed_json(['file-info', f"b2id://{file_id}"])
     if retention_mode is not None:
         if file_version['fileRetention']['mode'] == 'unknown':
             actual_file_retention = UNKNOWN_FILE_RETENTION_SETTING
@@ -2677,10 +2675,10 @@ def test_download_file_stdout(
     b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file
 ):
     assert b2_tool.should_succeed(
-        ['download-file-by-name', '--quiet', bucket_name, uploaded_sample_file['fileName'], '-'],
+        ['download-file', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}", '-'],
     ).replace("\r", "") == sample_filepath.read_text()
     assert b2_tool.should_succeed(
-        ['download-file-by-id', '--quiet', uploaded_sample_file['fileId'], '-'],
+        ['download-file', '--quiet', f"b2id://{uploaded_sample_file['fileId']}", '-'],
     ).replace("\r", "") == sample_filepath.read_text()
 
 

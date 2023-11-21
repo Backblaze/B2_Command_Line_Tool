@@ -42,6 +42,7 @@ def test_get_file_info(b2_cli, uploaded_file_version):
     b2_cli.run(
         ["get-file-info", uploaded_file_version["fileId"]],
         expected_json_in_stdout=uploaded_file_version,
+        expected_stderr='WARNING: get-file-info command is deprecated. Use file-info instead.\n',
     )
 
 

@@ -927,7 +927,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['get-file-info', '9999'],
+                ['file-info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1074,7 +1074,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['get-file-info', '9999'],
+                ['file-info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1095,10 +1095,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
-                    local_download1
-                ], expected_stdout, '', 0
+                ['download-file', '--noProgress', 'b2://my-bucket/file1.txt', local_download1],
+                expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
             self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
@@ -1106,7 +1104,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
+                ['download-file', '--noProgress', 'b2id://9999', local_download2], expected_stdout,
                 '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
@@ -1207,7 +1205,11 @@ class TestConsoleTool(BaseConsoleToolTest):
             command += ['9999'] if download_by == 'id' else ['my-bucket', 'file.txt']
             local_download = os.path.join(temp_dir, 'download.txt')
             command += [local_download]
-            self._run_command(command)
+            self._run_command(
+                command,
+                expected_stderr=
+                f'WARNING: download-file-by-{download_by} command is deprecated. Use download-file instead.\n'
+            )
             self.assertEqual(b'hello world', self._read_file(local_download))
 
     def test_download_by_id_1_thread(self):
@@ -1309,10 +1311,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             local_download1 = os.path.join(temp_dir, 'file1_copy.txt')
             self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1_copy.txt',
-                    local_download1
-                ]
+                ['download-file', '-q', 'b2://my-bucket/file1_copy.txt', local_download1]
             )
             self.assertEqual(b'lo wo', self._read_file(local_download1))
 
@@ -1568,10 +1567,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
             self._run_command(
                 [
-                    'download-file-by-name',
-                    '--noProgress',
-                    'my-bucket',
-                    'test.txt',
+                    'download-file',
+                    '-q',
+                    'b2://my-bucket/test.txt',
                     str(downloaded_path),
                 ]
             )
