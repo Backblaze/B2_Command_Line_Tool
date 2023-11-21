@@ -89,3 +89,18 @@ def test_autocomplete_b2_bucket_n_file_name(
     shell.expect_exact(bucket_name, timeout=TIMEOUT)
     shell.send(f'{bucket_name} \t\t')
     shell.expect_exact(file_name, timeout=TIMEOUT)
+
+
+@skip_on_windows
+def test_autocomplete_b2__download_file__b2uri(
+    autocomplete_installed, shell, b2_tool, bucket_name, file_name, is_running_on_docker
+):
+    """Test that autocomplete suggests bucket names and file names."""
+    if is_running_on_docker:
+        pytest.skip('Not supported on Docker')
+    shell.send('b2 download_file \t\t')
+    shell.expect_exact("b2://", timeout=TIMEOUT)
+    shell.send('b2://\t\t')
+    shell.expect_exact(bucket_name, timeout=TIMEOUT)
+    shell.send(f'{bucket_name}/\t\t')
+    shell.expect_exact(file_name, timeout=TIMEOUT)

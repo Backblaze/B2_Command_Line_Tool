@@ -176,7 +176,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     b2_tool.should_succeed(['ls', bucket_name, 'b'], '^b/1{0}b/2{0}'.format(os.linesep))
     b2_tool.should_succeed(['ls', bucket_name, 'b/'], '^b/1{0}b/2{0}'.format(os.linesep))
 
-    file_info = b2_tool.should_succeed_json(['get-file-info', second_c_version['fileId']])
+    file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{second_c_version['fileId']}"])
     expected_info = {
         'color': 'blue',
         'foo': 'bar=baz',
@@ -187,10 +187,10 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     b2_tool.should_succeed(['delete-file-version', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
 
-    b2_tool.should_succeed(['make-url', second_c_version['fileId']])
+    b2_tool.should_succeed(['get-url', f"b2id://{second_c_version['fileId']}"])
 
     b2_tool.should_succeed(
-        ['make-friendly-url', bucket_name, 'any-file-name'],
+        ['get-url', f"b2://{bucket_name}/any-file-name"],
         '^https://.*/file/{}/{}\r?$'.format(
             bucket_name,
             'any-file-name',

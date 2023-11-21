@@ -14,6 +14,8 @@ from b2sdk.v2 import LIST_FILE_NAMES_MAX_LIMIT
 from b2sdk.v2.api import B2Api
 
 from b2._cli.b2api import _get_b2api_for_profile
+from b2._utils.python_compat import removeprefix
+from b2._utils.uri import parse_b2_uri
 
 
 def _with_api(func):
@@ -50,3 +52,37 @@ def file_name_completer(api: B2Api, parsed_args, **kwargs):
         folder_name or file_version.file_name
         for file_version, folder_name in islice(file_versions, LIST_FILE_NAMES_MAX_LIMIT)
     ]
+
+
+@_with_api
+def b2uri_file_completer(api: B2Api, prefix: str, **kwargs):
+    """
+    Completes B2 URI pointing to a file-like object in a bucket.
+    """
+    if prefix.startswith('b2://'):
+        prefix_without_scheme = removeprefix(prefix, 'b2://')
+        if '/' not in prefix_without_scheme:
+            return [f"b2://{bucket.name}/" for bucket in api.list_buckets(use_cache=True)]
+
+        b2_uri = parse_b2_uri(prefix)
+        bucket = api.get_bucket_by_name(b2_uri.bucket_name)
+        file_versions = bucket.ls(
+            f"{b2_uri.path}*",
+            latest_only=True,
+            recursive=True,
+            fetch_count=LIST_FILE_NAMES_MAX_LIMIT,
+            with_wildcard=True,
+        )
+        return [
+            f"b2://{bucket.name}/{file_version.file_name}"
+            for file_version, folder_name in islice(file_versions, LIST_FILE_NAMES_MAX_LIMIT)
+            if file_version
+        ]
+    elif prefix.startswith('b2id://'):
+        # listing all files from all buckets is unreasonably expensive
+        return ["b2id://"]
+    else:
+        return [
+            "b2://",
+            "b2id://",
+        ]
