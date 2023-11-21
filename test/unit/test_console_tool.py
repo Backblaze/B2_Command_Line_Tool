@@ -101,7 +101,7 @@ class BaseConsoleToolTest(TestBase):
             return ''
 
         # Count the leading spaces
-        space_count = min(self._leading_spaces(line) for line in lines if line != '')
+        space_count = min((self._leading_spaces(line) for line in lines if line != ''), default=0)
 
         # Remove the leading spaces from each line, based on the line
         # with the fewest leading spaces
