@@ -1,7 +1,42 @@
 [project]
 requires-python = ">=3.7"
 name = "b2"
-dynamic = ["version"]
+dynamic = ["version", 'dependencies', 'optional-dependencies']
+description = "Command Line Tool for Backblaze B2"
+keywords = ["backblaze b2 cloud storage"]
+readme = "README.md"
+authors = [
+    { name = "Backblaze, Inc.", email = "support@backblaze.com" },
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+license = { text = "MIT" }
+
+
+[tools.setuptools.dynamic.dependecies]
+file = ["requirements.txt"]
+
+[tool.setuptools.dynamic.optional-dependencies]
+doc = { file = ["requirements-doc.txt"] }
+full = { file = ["requirements-full.txt"] }
+license = { file = ["requirements-license.txt"] }
+
+[project.urls]
+Homepage = "https://github.com/Backblaze/B2_Command_Line_Tool"
+
+[project.scripts]
+b2 = "b2.console_tool:main"
 
 [tool.ruff]
 target-version = "py37"  # to be replaced by project:requires-python when we will have that section in here
@@ -11,7 +46,7 @@ select = ["E", "F", "I", "UP"]
 # TODO: remove E501 once docstrings are formatted
 ignore = [
     "D100", "D105", "D107", "D200", "D202", "D203", "D205", "D212", "D400", "D401", "D415",
-    "D101", "D102","D103", "D104", # TODO remove once we have docstring for all public methods
+    "D101", "D102", "D103", "D104", # TODO remove once we have docstring for all public methods
     "E501", # TODO: remove E501 once docstrings are formatted
 ]
 line-length = 100
@@ -25,7 +60,7 @@ directory = "changelog.d"
 filename = "CHANGELOG.md"
 start_string = "<!-- towncrier release notes start -->\n"
 underlines = ["", "", ""]
-title_format = "## {version} - {project_date}"
+title_format = "## [{version}](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v{version}) - {project_date}"
 issue_format = "[#{issue}](https://github.com/Backblaze/B2_Command_Line_Tool/issues/{issue})"
 
 [[tool.towncrier.type]]
