@@ -2690,3 +2690,64 @@ def test_cat(b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_fi
     ).replace("\r", "") == sample_filepath.read_text()
     assert b2_tool.should_succeed(['cat', f"b2id://{uploaded_sample_file['fileId']}"
                                   ],).replace("\r", "") == sample_filepath.read_text()
+
+
+def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
+    # yapf: disable
+    args = [
+        '--cache-control', 'max-age=3600',
+        '--content-disposition', 'attachment',
+        '--content-encoding', 'gzip',
+        '--content-language', 'en',
+        '--expires', 'Thu, 01 Dec 2050 16:00:00 GMT',
+    ]
+    # yapf: enable
+    expected_file_info = {
+        'b2-cache-control': 'max-age=3600',
+        'b2-content-disposition': 'attachment',
+        'b2-content-encoding': 'gzip',
+        'b2-content-language': 'en',
+        'b2-expires': 'Thu, 01 Dec 2050 16:00:00 GMT',
+    }
+
+    def assert_expected(file_info, expected=expected_file_info):
+        for key, val in expected.items():
+            assert file_info[key] == val
+
+    status, stdout, stderr = b2_tool.execute(
+        [
+            'upload-file',
+            '--quiet',
+            '--noProgress',
+            bucket_name,
+            str(sample_filepath),
+            'sample_file',
+            *args,
+            '--info',
+            'b2-content-disposition=will-be-overwritten',
+        ]
+    )
+    assert status == 0
+    file_version = json.loads(stdout)
+    assert_expected(file_version['fileInfo'])
+
+    # Since we used both --info and --content-disposition to set b2-content-disposition,
+    # a warning should be emitted
+    assert 'will be overwritten' in stderr and 'b2-content-disposition = attachment' in stderr
+
+    copied_version = b2_tool.should_succeed_json(
+        [
+            'copy-file-by-id', '--quiet', *args, '--contentType', 'text/plain',
+            file_version['fileId'], bucket_name, 'copied_file'
+        ]
+    )
+    assert_expected(copied_version['fileInfo'])
+
+    download_output = b2_tool.should_succeed(
+        ['download-file-by-id', file_version['fileId'], tmp_path / 'downloaded_file']
+    )
+    assert re.search(r'CacheControl: *max-age=3600', download_output)
+    assert re.search(r'ContentDisposition: *attachment', download_output)
+    assert re.search(r'ContentEncoding: *gzip', download_output)
+    assert re.search(r'ContentLanguage: *en', download_output)
+    assert re.search(r'Expires: *Thu, 01 Dec 2050 16:00:00 GMT', download_output)
