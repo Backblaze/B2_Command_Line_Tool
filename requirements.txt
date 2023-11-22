@@ -1,6 +1,6 @@
 argcomplete>=2,<4
 arrow>=1.0.2,<2.0.0
-b2sdk @ git+https://github.com/Backblaze/b2-sdk-python@c0507d1b54e376ad5206ab253b028963d4cc5bdc
+b2sdk>=1.26.0,<2
 docutils>=0.18.1
 idna~=3.4; platform_system == 'Java'
 importlib-metadata~=3.3; python_version < '3.8'
