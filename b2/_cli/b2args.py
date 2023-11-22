@@ -35,7 +35,7 @@ B2_URI_FILE_ARG_TYPE = wrap_with_argument_type_error(b2_file_uri)
 
 def add_b2_file_argument(parser: argparse.ArgumentParser, name="B2_URI"):
     """
-    Add an argument to the parser that must be a B2 URI pointing to a file.
+    Add a B2 URI pointing to a file as an argument to the parser.
     """
     parser.add_argument(
         name,

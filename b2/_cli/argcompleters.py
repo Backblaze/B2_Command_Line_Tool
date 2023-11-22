@@ -57,7 +57,7 @@ def file_name_completer(api: B2Api, parsed_args, **kwargs):
 @_with_api
 def b2uri_file_completer(api: B2Api, prefix: str, **kwargs):
     """
-    Completes B2 URI pointing to a file-like object in a bucket.
+    Complete B2 URI pointing to a file-like object in a bucket.
     """
     if prefix.startswith('b2://'):
         prefix_without_scheme = removeprefix(prefix, 'b2://')
