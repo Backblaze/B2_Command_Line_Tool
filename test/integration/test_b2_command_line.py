@@ -2742,7 +2742,7 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
     assert_expected(copied_version['fileInfo'])
 
     download_output = b2_tool.should_succeed(
-        ['download-file-by-id', file_version['fileId'], tmp_path / 'downloaded_file']
+        ['download-file', f"b2id://{file_version['fileId']}", tmp_path / 'downloaded_file']
     )
     assert re.search(r'CacheControl: *max-age=3600', download_output)
     assert re.search(r'ContentDisposition: *attachment', download_output)
