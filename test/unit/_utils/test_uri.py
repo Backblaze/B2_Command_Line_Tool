@@ -14,9 +14,44 @@ import pytest
 from b2._utils.uri import B2URI, B2FileIdURI, parse_uri
 
 
-def test_b2pathuri_str():
-    uri = B2URI(bucket="testbucket", path="/path/to/file")
-    assert str(uri) == "b2://testbucket/path/to/file"
+class TestB2URI:
+    def test__str__(self):
+        uri = B2URI(bucket_name="testbucket", path="/path/to/file")
+        assert str(uri) == "b2://testbucket/path/to/file"
+
+    @pytest.mark.parametrize(
+        "path, expected",
+        [
+            ("", True),
+            ("/", True),
+            ("path/", True),
+            ("path/subpath", None),
+        ],
+    )
+    def test_is_dir(self, path, expected):
+        assert B2URI("bucket", path).is_dir() is expected
+
+    def test__bucket_uris_is_normalized(self):
+        alternatives = [
+            B2URI("bucket"),
+            B2URI("bucket", ""),
+            B2URI("bucket", "/"),
+        ]
+        assert len(set(alternatives)) == 1
+        assert {str(uri) for uri in alternatives} == {"b2://bucket/"}  # normalized
+
+    @pytest.mark.parametrize(
+        "path, expected_uri_str",
+        [
+            ("", "b2://bucket/"),
+            ("/", "b2://bucket/"),
+            ("path/", "b2://bucket/path/"),
+            ("path/subpath", "b2://bucket/path/subpath"),
+        ],
+    )
+    def test__normalization(self, path, expected_uri_str):
+        assert str(B2URI("bucket", path)) == expected_uri_str
+        assert str(B2URI("bucket", path)) == str(B2URI("bucket", path))  # normalized
 
 
 def test_b2fileuri_str():
@@ -29,7 +64,7 @@ def test_b2fileuri_str():
     [
         ("some/local/path", Path("some/local/path")),
         ("./some/local/path", Path("some/local/path")),
-        ("b2://bucket/path/to/dir/", B2URI(bucket="bucket", path="path/to/dir/")),
+        ("b2://bucket/path/to/dir/", B2URI(bucket_name="bucket", path="path/to/dir/")),
         ("b2id://file123", B2FileIdURI(file_id="file123")),
     ],
 )
