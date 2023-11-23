@@ -1,1 +1,1 @@
-Skip draft step in releases - all successful released are public
+Skip draft step in releases - all successful releases are public
