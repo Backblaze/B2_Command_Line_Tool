@@ -11,7 +11,7 @@
 import json
 from enum import Enum
 
-from b2sdk.v2 import Bucket, FileIdAndName, FileVersion
+from b2sdk.v2 import Bucket, DownloadVersion, FileIdAndName, FileVersion
 
 
 class B2CliJsonEncoder(json.JSONEncoder):
@@ -27,7 +27,7 @@ class B2CliJsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, set):
             return list(obj)
-        elif isinstance(obj, (FileVersion, FileIdAndName, Bucket)):
+        elif isinstance(obj, (DownloadVersion, FileVersion, FileIdAndName, Bucket)):
             return obj.as_dict()
         elif isinstance(obj, Enum):
             return obj.value

@@ -12,7 +12,7 @@ import argparse
 import sys
 
 from b2.arg_parser import (
-    ArgumentParser,
+    B2ArgumentParser,
     parse_comma_separated_list,
     parse_millis_from_float_timestamp,
     parse_range,
@@ -61,7 +61,7 @@ class TestNonUTF8TerminalSupport(TestBase):
         help_string = command_class.__doc__
 
         # create a parser with a help message that is based on the command_class.__doc__ string
-        parser = ArgumentParser(description=help_string)
+        parser = B2ArgumentParser(description=help_string)
 
         try:
             old_stdout = sys.stdout

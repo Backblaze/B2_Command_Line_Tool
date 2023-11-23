@@ -111,6 +111,7 @@ from b2._cli.autocomplete_install import (
     autocomplete_install,
 )
 from b2._cli.b2api import _get_b2api_for_profile
+from b2._cli.b2args import add_b2_file_argument
 from b2._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
@@ -124,14 +125,13 @@ from b2._cli.const import (
 )
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
-from b2._utils.uri import B2URI, B2FileIdURI, B2URIBase, parse_b2_uri
+from b2._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
 from b2.arg_parser import (
-    ArgumentParser,
+    B2ArgumentParser,
     parse_comma_separated_list,
     parse_default_retention_period,
     parse_millis_from_float_timestamp,
     parse_range,
-    wrap_with_argument_type_error,
 )
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
@@ -204,9 +204,6 @@ def local_path_to_b2_path(path):
     :return: A path that uses '/' as the separator.
     """
     return path.replace(os.path.sep, '/')
-
-
-B2_URI_ARG_TYPE = wrap_with_argument_type_error(parse_b2_uri)
 
 
 def keyboard_interrupt_handler(signum, frame):
@@ -573,6 +570,37 @@ class FileIdAndOptionalFileNameMixin(Described):
         return file_info.file_name
 
 
+class B2URIFileArgMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_file_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
+        return args.B2_URI
+
+
+class B2URIFileIDArgMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('fileId')
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
+        return B2FileIdURI(args.fileId)
+
+
+class B2URIBucketNFilenameArgMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('bucketName')
+        parser.add_argument('fileName')
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
+        return B2URI(args.bucketName, args.fileName)
+
+
 class UploadModeMixin(Described):
     """
     Use --incrementalMode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
@@ -659,6 +687,8 @@ class Command(Described):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
+    deprecated = False
+
     # The registry for the subcommands, should be reinitialized  in subclass
     subcommands_registry = None
 
@@ -667,7 +697,7 @@ class Command(Described):
 
     def __init__(self, console_tool):
         self.console_tool = console_tool
-        self.api = console_tool.api
+        self.api = B2URIAdapter(console_tool.api)
         self.stdout = console_tool.stdout
         self.stderr = console_tool.stderr
         self.quiet = False
@@ -688,28 +718,46 @@ class Command(Described):
         return decorator
 
     @classmethod
-    def get_parser(cls, subparsers=None, parents=None, for_docs=False):
+    def create_parser(
+        cls,
+        subparsers: argparse._SubParsersAction | None = None,
+        parents=None,
+        for_docs=False,
+        name: str | None = None
+    ) -> argparse.ArgumentParser:
+        """
+        Creates a parser for the command.
+
+        :param subparsers: subparsers object to which add new parser
+        :param parents: created ArgumentParser `parents`, see `argparse.ArgumentParser`
+        :param for_docs: if parser is to be used for documentation generation
+        :return: created parser
+        """
         if parents is None:
             parents = []
 
         description = cls._get_description()
 
-        if subparsers is None:
-            name, _ = cls.name_and_alias()
-            parser = ArgumentParser(
-                prog=name,
-                description=description,
-                parents=parents,
-                for_docs=for_docs,
-            )
+        if name:
+            alias = None
         else:
             name, alias = cls.name_and_alias()
+        parser_kwargs = dict(
+            prog=name,
+            description=description,
+            parents=parents,
+            for_docs=for_docs,
+            deprecated=cls.deprecated,
+        )
+
+        if subparsers is None:
+            parser = B2ArgumentParser(**parser_kwargs)
+        else:
             parser = subparsers.add_parser(
-                name,
-                description=description,
-                parents=parents,
+                parser_kwargs.pop('prog'),
+                **parser_kwargs,
                 aliases=[alias] if alias is not None and not for_docs else (),
-                for_docs=for_docs,
+                add_help_all=False,
             )
             # Register class that will handle this particular command, for both name and alias.
             parser.set_defaults(command_class=cls)
@@ -718,7 +766,7 @@ class Command(Described):
 
         if cls.subcommands_registry:
             if not parents:
-                common_parser = ArgumentParser(add_help=False)
+                common_parser = B2ArgumentParser(add_help=False, add_help_all=False)
                 common_parser.add_argument(
                     '--debugLogs', action='store_true', help=argparse.SUPPRESS
                 )
@@ -730,10 +778,15 @@ class Command(Described):
                 )
                 parents = [common_parser]
 
-            subparsers = parser.add_subparsers(prog=parser.prog, title='usages', dest='command')
+            subparsers = parser.add_subparsers(
+                prog=parser.prog,
+                title='usages',
+                dest='command',
+                parser_class=B2ArgumentParser,
+            )
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.get_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
+                subcommand.create_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
 
         return parser
 
@@ -815,6 +868,26 @@ class Command(Described):
 
     def __str__(self):
         return f'{self.__class__.__module__}.{self.__class__.__name__}'
+
+
+class CmdReplacedByMixin:
+    deprecated = True
+    replaced_by_cmd: type[Command]
+
+    def run(self, args):
+        self._print_stderr(
+            f'WARNING: {self.__class__.name_and_alias()[0]} command is deprecated. '
+            f'Use {self.replaced_by_cmd.name_and_alias()[0]} instead.'
+        )
+        return super().run(args)
+
+    @classmethod
+    def _get_description(cls):
+        return (
+            f'{super()._get_description()}\n\n'
+            f'.. warning::\n'
+            f'   This command is deprecated. Use ``{cls.replaced_by_cmd.name_and_alias()[0]}`` instead.\n'
+        )
 
 
 class B2(Command):
@@ -1407,7 +1480,9 @@ class DeleteKey(Command):
         return 0
 
 
-class DownloadCommand(Command):
+class DownloadCommand(
+    ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command
+):
     """ helper methods for returning results from download commands """
 
     def _print_download_info(self, downloaded_file: DownloadedFile):
@@ -1492,18 +1567,13 @@ class DownloadCommand(Command):
         return pathlib.Path(filename)
 
 
-@B2.register_subcommand
-class DownloadFileById(
+class DownloadFileBase(
     ThreadsMixin,
-    ProgressMixin,
-    SourceSseMixin,
-    WriteBufferSizeMixin,
-    SkipHashVerificationMixin,
     MaxDownloadStreamsMixin,
     DownloadCommand,
 ):
     """
-    Downloads the given file, and stores it in the given local file.
+    Downloads the given file-like object, and stores it in the given local file.
 
     {PROGRESSMIXIN}
     {THREADSMIXIN}
@@ -1517,12 +1587,6 @@ class DownloadFileById(
     - **readFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('fileId')
-        parser.add_argument('localFileName')
-        super()._setup_parser(parser)
-
     def run(self, args):
         super().run(args)
         progress_listener = make_progress_listener(
@@ -1530,8 +1594,10 @@ class DownloadFileById(
         )
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
-        downloaded_file = self.api.download_file_by_id(
-            args.fileId, progress_listener, encryption=encryption_setting
+
+        b2_uri = self.get_b2_uri_from_arg(args)
+        downloaded_file = self.api.download_file_by_uri(
+            b2_uri, progress_listener, encryption=encryption_setting
         )
 
         self._print_download_info(downloaded_file)
@@ -1543,67 +1609,44 @@ class DownloadFileById(
 
 
 @B2.register_subcommand
-class DownloadFileByName(
-    ThreadsMixin,
-    ProgressMixin,
-    SourceSseMixin,
-    WriteBufferSizeMixin,
-    SkipHashVerificationMixin,
-    MaxDownloadStreamsMixin,
-    DownloadCommand,
-):
-    """
-    Downloads the given file, and stores it in the given local file.
-
-    {PROGRESSMIXIN}
-    {THREADSMIXIN}
-    {SOURCESSEMIXIN}
-    {WRITEBUFFERSIZEMIXIN}
-    {SKIPHASHVERIFICATIONMIXIN}
-    {MAXDOWNLOADSTREAMSMIXIN}
-
-    Requires capability:
-
-    - **readFiles**
-    """
+class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
+    __doc__ = DownloadFileBase.__doc__
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('b2FileName').completer = file_name_completer
-        parser.add_argument('localFileName')
         super()._setup_parser(parser)
+        parser.add_argument('localFileName')
 
-    def run(self, args):
-        super().run(args)
-        self._set_threads_from_args(args)
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        progress_listener = make_progress_listener(
-            args.localFileName, args.noProgress or args.quiet
-        )
-        encryption_setting = self._get_source_sse_setting(args)
-        downloaded_file = bucket.download_file_by_name(
-            args.b2FileName, progress_listener, encryption=encryption_setting
-        )
-
-        self._print_download_info(downloaded_file)
-        output_filepath = self.get_local_output_filepath(args.localFileName)
-        downloaded_file.save_to(output_filepath)
-        self._print('Download finished')
-
-        return 0
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
+        return args.B2_URI
 
 
 @B2.register_subcommand
-class Cat(
-    ProgressMixin,
-    SourceSseMixin,
-    WriteBufferSizeMixin,
-    SkipHashVerificationMixin,
-    DownloadCommand,
-):
+class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase):
+    __doc__ = DownloadFileBase.__doc__
+    replaced_by_cmd = DownloadFile
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('localFileName')
+
+
+@B2.register_subcommand
+class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, DownloadFileBase):
+    __doc__ = DownloadFileBase.__doc__
+    replaced_by_cmd = DownloadFile
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('localFileName')
+
+
+@B2.register_subcommand
+class Cat(B2URIFileArgMixin, DownloadCommand):
     """
-    Download content of a file identified by B2 URI directly to stdout.
+    Download content of a file-like object identified by B2 URI directly to stdout.
 
     {PROGRESSMIXIN}
     {SOURCESSEMIXIN}
@@ -1615,36 +1658,16 @@ class Cat(
     - **readFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument(
-            'b2uri',
-            type=B2_URI_ARG_TYPE,
-            help=
-            "B2 URI identifying the file to print, e.g. b2://yourBucket/file.txt or b2id://fileId",
-        )
-        super()._setup_parser(parser)
-
-    def download_by_b2_uri(
-        self, b2_uri: B2URIBase, args: argparse.Namespace, local_filename: str
-    ) -> DownloadedFile:
-        progress_listener = make_progress_listener(local_filename, args.noProgress or args.quiet)
-        encryption_setting = self._get_source_sse_setting(args)
-        if isinstance(b2_uri, B2FileIdURI):
-            download = functools.partial(self.api.download_file_by_id, b2_uri.file_id)
-        elif isinstance(b2_uri, B2URI):
-            bucket = self.api.get_bucket_by_name(b2_uri.bucket)
-            download = functools.partial(bucket.download_file_by_name, b2_uri.path)
-        else:  # This should never happen since there are no more subclasses of B2URIBase
-            raise ValueError(f'Unsupported B2 URI: {b2_uri!r}')
-
-        return download(progress_listener=progress_listener, encryption=encryption_setting)
-
     def run(self, args):
         super().run(args)
-        downloaded_file = self.download_by_b2_uri(args.b2uri, args, '-')
-        output_filepath = self.get_local_output_filepath('-')
-        downloaded_file.save_to(output_filepath)
+        target_filename = '-'
+        progress_listener = make_progress_listener(target_filename, args.noProgress or args.quiet)
+        encryption_setting = self._get_source_sse_setting(args)
+        file_request = self.api.download_file_by_uri(
+            args.B2_URI, progress_listener=progress_listener, encryption=encryption_setting
+        )
+        output_filepath = self.get_local_output_filepath(target_filename)
+        file_request.save_to(output_filepath)
         return 0
 
 
@@ -1740,26 +1763,32 @@ class GetBucket(Command):
         return 1
 
 
-@B2.register_subcommand
-class GetFileInfo(Command):
+class FileInfoBase(Command):
     """
-    Prints all of the information about the file, but not its contents.
+    Prints all of the information about the object, but not its contents.
 
     Requires capability:
 
     - **readFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('fileId')
-        super()._setup_parser(parser)
-
     def run(self, args):
         super().run(args)
-        file_version = self.api.get_file_info(args.fileId)
+        b2_uri = self.get_b2_uri_from_arg(args)
+        file_version = self.api.get_file_info_by_uri(b2_uri)
         self._print_json(file_version)
         return 0
+
+
+@B2.register_subcommand
+class FileInfo(B2URIFileArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+
+
+@B2.register_subcommand
+class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    replaced_by_cmd = FileInfo
 
 
 @B2.register_subcommand
@@ -2415,41 +2444,34 @@ class Rm(ThreadsMixin, AbstractLsCommand):
         return 1 if failed_on_any_file else 0
 
 
-@B2.register_subcommand
-class MakeUrl(Command):
+class GetUrlBase(Command):
     """
     Prints an URL that can be used to download the given file, if
     it is public.
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('fileId')
-        super()._setup_parser(parser)
-
     def run(self, args):
         super().run(args)
-        self._print(self.api.get_download_url_for_fileid(args.fileId))
+        b2_uri = self.get_b2_uri_from_arg(args)
+        self._print(self.api.get_download_url_by_uri(b2_uri))
         return 0
 
 
 @B2.register_subcommand
-class MakeFriendlyUrl(Command):
-    """
-    Prints a short URL that can be used to download the given file, if
-    it is public.
-    """
+class GetUrl(B2URIFileArgMixin, GetUrlBase):
+    __doc__ = GetUrlBase.__doc__
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('fileName').completer = file_name_completer
-        super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
-        self._print(self.api.get_download_url_for_file_name(args.bucketName, args.fileName))
-        return 0
+@B2.register_subcommand
+class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, GetUrlBase):
+    __doc__ = GetUrlBase.__doc__
+    replaced_by_cmd = GetUrl
+
+
+@B2.register_subcommand
+class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, GetUrlBase):
+    __doc__ = GetUrlBase.__doc__
+    replaced_by_cmd = GetUrl
 
 
 @B2.register_subcommand
@@ -3915,7 +3937,7 @@ class ConsoleTool:
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = B2.get_parser()
+        parser = B2.create_parser(name=argv[0])
         argcomplete.autocomplete(parser, default_completer=None)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
@@ -4053,7 +4075,7 @@ class ConsoleTool:
 
 
 # used by Sphinx
-get_parser = functools.partial(B2.get_parser, for_docs=True)
+get_parser = functools.partial(B2.create_parser, for_docs=True)
 
 
 def main():

@@ -48,7 +48,7 @@ The `changelog.d` file name convention is:
 
 These files can either be created manually, or using `towncrier` e.g.
 
-    towncrier create -c 'write your description here' 157.fixed.md
+    towncrier create -c 'Add proper changelog example to CONTRIBUTING guide' 157.added.md
 
 `towncrier create` also takes care of duplicates automatically (if there is more than 1 news fragment of one type 
 for a given github issue).

@@ -13,21 +13,6 @@ from test.helpers import skip_on_windows
 
 import pytest
 
-
-@pytest.fixture
-def local_file(tmp_path):
-    """Set up a test file and return its path."""
-    filename = 'file1.txt'
-    content = 'hello world'
-    local_file = tmp_path / filename
-    local_file.write_text(content)
-
-    mod_time = 1500111222
-    os.utime(local_file, (mod_time, mod_time))
-
-    return local_file
-
-
 EXPECTED_STDOUT_DOWNLOAD = '''
 File name:           file1.txt
 File id:             9999
@@ -43,15 +28,34 @@ Download finished
 '''
 
 
-@pytest.fixture
-def uploaded_file(b2_cli, bucket, local_file):
-    filename = 'file1.txt'
-    b2_cli.run(['upload-file', bucket, str(local_file), filename])
-    return {
-        'bucket': bucket,
-        'fileName': filename,
-        'content': local_file.read_text(),
-    }
+@pytest.mark.parametrize(
+    'flag,expected_stdout', [
+        ('--noProgress', EXPECTED_STDOUT_DOWNLOAD),
+        ('-q', ''),
+        ('--quiet', ''),
+    ]
+)
+def test_download_file_by_uri__flag_support(b2_cli, uploaded_file, tmp_path, flag, expected_stdout):
+    output_path = tmp_path / 'output.txt'
+
+    b2_cli.run(
+        ['download-file', flag, 'b2id://9999',
+         str(output_path)], expected_stdout=expected_stdout
+    )
+    assert output_path.read_text() == uploaded_file['content']
+
+
+@pytest.mark.parametrize('b2_uri', [
+    'b2://my-bucket/file1.txt',
+    'b2id://9999',
+])
+def test_download_file_by_uri__b2_uri_support(b2_cli, uploaded_file, tmp_path, b2_uri):
+    output_path = tmp_path / 'output.txt'
+
+    b2_cli.run(
+        ['download-file', b2_uri, str(output_path)], expected_stdout=EXPECTED_STDOUT_DOWNLOAD
+    )
+    assert output_path.read_text() == uploaded_file['content']
 
 
 @pytest.mark.parametrize(
@@ -69,7 +73,9 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
             'download-file-by-name', uploaded_file['bucket'], uploaded_file['fileName'],
             str(output_path)
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD
+        expected_stdout=EXPECTED_STDOUT_DOWNLOAD,
+        expected_stderr=
+        'WARNING: download-file-by-name command is deprecated. Use download-file instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -85,7 +91,10 @@ def test_download_file_by_id(b2_cli, uploaded_file, tmp_path, flag, expected_std
     output_path = tmp_path / 'output.txt'
 
     b2_cli.run(
-        ['download-file-by-id', flag, '9999', str(output_path)], expected_stdout=expected_stdout
+        ['download-file-by-id', flag, '9999', str(output_path)],
+        expected_stdout=expected_stdout,
+        expected_stderr=
+        'WARNING: download-file-by-id command is deprecated. Use download-file instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -111,7 +120,9 @@ def test_download_file_by_name__named_pipe(
             uploaded_file['fileName'],
             str(output_path)
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD
+        expected_stdout=EXPECTED_STDOUT_DOWNLOAD,
+        expected_stderr=
+        'WARNING: download-file-by-name command is deprecated. Use download-file instead.\n',
     )
     reader_future.result(timeout=1)
     assert output_string == uploaded_file['content']
@@ -134,6 +145,8 @@ def test_download_file_by_name__to_stdout_by_alias(
     """Test download_file_by_name stdout alias support"""
     b2_cli.run(
         ['download-file-by-name', '--noProgress', bucket, uploaded_stdout_txt['fileName'], '-'],
+        expected_stderr=
+        'WARNING: download-file-by-name command is deprecated. Use download-file instead.\n',
     )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
     assert not pathlib.Path('-').exists()
@@ -151,7 +164,17 @@ def test_cat__b2_uri__invalid(b2_cli, capfd):
         expected_stderr=None,
         expected_status=2,
     )
-    assert "argument b2uri: Unsupported URI scheme: ''" in capfd.readouterr().err
+    assert "argument B2_URI: Unsupported URI scheme: ''" in capfd.readouterr().err
+
+
+def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
+    b2_cli.run(
+        ['cat', "b2://bucket/dir/subdir/"],
+        expected_stderr=None,
+        expected_status=2,
+    )
+    assert "argument B2_URI: B2 URI pointing to a file-like object is required" in capfd.readouterr(
+    ).err
 
 
 def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
