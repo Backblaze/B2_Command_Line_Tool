@@ -1,0 +1,1 @@
+Use cpython 3.12 (not 3.11) for integration tests with secrets
