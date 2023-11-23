@@ -687,7 +687,7 @@ class Command(Described):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
-    hide_from_help = False
+    deprecated = False
 
     # The registry for the subcommands, should be reinitialized  in subclass
     subcommands_registry = None
@@ -719,7 +719,11 @@ class Command(Described):
 
     @classmethod
     def create_parser(
-        cls, subparsers: "argparse._SubParsersAction | None" = None, parents=None, for_docs=False
+        cls,
+        subparsers: argparse._SubParsersAction | None = None,
+        parents=None,
+        for_docs=False,
+        name: str | None = None
     ) -> argparse.ArgumentParser:
         """
         Creates a parser for the command.
@@ -734,22 +738,26 @@ class Command(Described):
 
         description = cls._get_description()
 
-        name, alias = cls.name_and_alias()
+        if name:
+            alias = None
+        else:
+            name, alias = cls.name_and_alias()
         parser_kwargs = dict(
             prog=name,
             description=description,
             parents=parents,
             for_docs=for_docs,
-            hidden=cls.hide_from_help,
+            deprecated=cls.deprecated,
         )
 
         if subparsers is None:
-            parser = B2ArgumentParser(**parser_kwargs,)
+            parser = B2ArgumentParser(**parser_kwargs)
         else:
             parser = subparsers.add_parser(
                 parser_kwargs.pop('prog'),
                 **parser_kwargs,
                 aliases=[alias] if alias is not None and not for_docs else (),
+                add_help_all=False,
             )
             # Register class that will handle this particular command, for both name and alias.
             parser.set_defaults(command_class=cls)
@@ -758,7 +766,7 @@ class Command(Described):
 
         if cls.subcommands_registry:
             if not parents:
-                common_parser = B2ArgumentParser(add_help=False)
+                common_parser = B2ArgumentParser(add_help=False, add_help_all=False)
                 common_parser.add_argument(
                     '--debugLogs', action='store_true', help=argparse.SUPPRESS
                 )
@@ -863,8 +871,8 @@ class Command(Described):
 
 
 class CmdReplacedByMixin:
-    hide_from_help = True
-    replaced_by_cmd: "type[Command]"
+    deprecated = True
+    replaced_by_cmd: type[Command]
 
     def run(self, args):
         self._print_stderr(
@@ -3929,7 +3937,7 @@ class ConsoleTool:
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = B2.create_parser()
+        parser = B2.create_parser(name=argv[0])
         argcomplete.autocomplete(parser, default_completer=None)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)

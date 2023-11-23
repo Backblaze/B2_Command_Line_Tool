@@ -15,6 +15,7 @@ import locale
 import re
 import sys
 import textwrap
+import unittest.mock
 
 import arrow
 from b2sdk.v2 import RetentionPeriod
@@ -30,6 +31,10 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     It removes default "usage: " text and prints usage for all (non-hidden) subcommands.
     """
 
+    def __init__(self, *args, show_all: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.show_all = show_all
+
     def add_usage(self, usage, actions, groups, prefix=None):
         if prefix is None:
             prefix = ''
@@ -39,7 +44,11 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
         if isinstance(action, argparse._SubParsersAction) and action.help is not argparse.SUPPRESS:
             usages = []
             for choice in self._unique_choice_values(action):
-                if not getattr(choice, 'hidden', False):
+                deprecated = getattr(choice, 'deprecated', False)
+                if deprecated:
+                    if self.show_all:
+                        usages.append(f'(DEPRECATED) {choice.format_usage()}')
+                else:
                     usages.append(choice.format_usage())
             self.add_text(''.join(usages))
         else:
@@ -54,6 +63,14 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
                 yield value
 
 
+class _HelpAllAction(argparse._HelpAction):
+    """Like argparse._HelpAction but prints help for all subcommands (even deprecated ones)."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        parser.print_help(show_all=True)
+        parser.exit()
+
+
 class B2ArgumentParser(argparse.ArgumentParser):
     """
     CLI custom parser.
@@ -62,18 +79,32 @@ class B2ArgumentParser(argparse.ArgumentParser):
     and use help message in case of error.
     """
 
-    def __init__(self, *args, for_docs: bool = False, hidden: bool = False, **kwargs):
+    def __init__(
+        self,
+        *args,
+        add_help_all: bool = True,
+        for_docs: bool = False,
+        deprecated: bool = False,
+        **kwargs
+    ):
         """
 
         :param for_docs: is this parser used for generating docs
-        :param hidden: should this parser be hidden from `--help`
+        :param deprecated: is this option deprecated
         """
         self._raw_description = None
         self._description = None
         self._for_docs = for_docs
-        self.hidden = hidden
+        self.deprecated = deprecated
         kwargs.setdefault('formatter_class', B2RawTextHelpFormatter)
         super().__init__(*args, **kwargs)
+        if add_help_all:
+            self.register('action', 'help_all', _HelpAllAction)
+            self.add_argument(
+                '--help-all',
+                help='show help for all options, including deprecated ones',
+                action='help_all',
+            )
 
     @property
     def description(self):
@@ -112,6 +143,15 @@ class B2ArgumentParser(argparse.ArgumentParser):
 
         # locales are improperly configured
         return 'ascii'
+
+    def print_help(self, *args, show_all: bool = False, **kwargs):
+        """
+        Print help message.
+        """
+        with unittest.mock.patch.object(
+            self, 'formatter_class', functools.partial(B2RawTextHelpFormatter, show_all=show_all)
+        ):
+            super().print_help(*args, **kwargs)
 
 
 def parse_comma_separated_list(s):
