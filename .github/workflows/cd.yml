@@ -6,7 +6,6 @@ on:
 
 env:
   CD: "true"
-  ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PYTHON_DEFAULT_VERSION: "3.11"
 
@@ -41,7 +40,7 @@ jobs:
         with:
           name: ${{ steps.build.outputs.version }}
           body: ${{ steps.read-changelog.outputs.changes }}
-          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          draft: false
           prerelease: false
           files: ${{ steps.build.outputs.asset_path }}
       - name: Upload the distribution to PyPI
@@ -80,7 +79,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ needs.deploy.outputs.version }}
-          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          draft: false
           prerelease: false
           files: ${{ steps.sign.outputs.asset_path }}
   deploy-windows-bundle:
@@ -120,6 +119,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ needs.deploy.outputs.version }}
-          draft: ${{ env.ACTIONS_STEP_DEBUG == 'true' }}
+          draft: false
           prerelease: false
           files: ${{ steps.sign.outputs.asset_path }}
