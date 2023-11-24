@@ -70,7 +70,7 @@ def autocomplete_runner(monkeypatch):
 
 
 def argcomplete_result():
-    parser = b2.console_tool.B2.get_parser()
+    parser = b2.console_tool.B2.create_parser()
     exit, output = Exit(), io.StringIO()
     argcomplete.autocomplete(parser, exit_method=exit, output_stream=output)
     return exit.code, output.getvalue()
@@ -84,7 +84,7 @@ def cached_complete_result(cache: autocomplete_cache.AutocompleteCache):
 
 def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     exit, output = Exit(), io.StringIO()
-    parser = b2.console_tool.B2.get_parser()
+    parser = b2.console_tool.B2.create_parser()
     cache.cache_and_autocomplete(
         parser, uncached_args={
             'exit_method': exit,
@@ -131,10 +131,6 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket_na
         assert exit == 0
         assert bucket_name in argcomplete_output
 
-        exit, output = cached_complete_result(cache)
-        assert exit is None
-        assert output == ''
-
         exit, output = uncached_complete_result(cache)
         assert exit == 0
         assert output == argcomplete_output
@@ -151,7 +147,7 @@ def test_complete_with_file_suggestions(
         tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
-    with autocomplete_runner(f'b2 download-file-by-name {bucket_name} '):
+    with autocomplete_runner(f'b2 hide-file {bucket_name} '):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert file_name in argcomplete_output
@@ -159,6 +155,27 @@ def test_complete_with_file_suggestions(
         exit, output = cached_complete_result(cache)
         assert exit is None
         assert output == ''
+
+        exit, output = uncached_complete_result(cache)
+        assert exit == 0
+        assert output == argcomplete_output
+
+        exit, output = cached_complete_result(cache)
+        assert exit == 0
+        assert output == argcomplete_output
+
+
+def test_complete_with_file_uri_suggestions(
+    autocomplete_runner, tmpdir, bucket_name, file_name, b2_tool
+):
+    cache = autocomplete_cache.AutocompleteCache(
+        tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
+        store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
+    )
+    with autocomplete_runner(f'b2 download-file b2://{bucket_name}/'):
+        exit, argcomplete_output = argcomplete_result()
+        assert exit == 0
+        assert file_name in argcomplete_output
 
         exit, output = uncached_complete_result(cache)
         assert exit == 0

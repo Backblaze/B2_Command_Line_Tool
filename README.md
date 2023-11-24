@@ -74,11 +74,11 @@ b2 create-key [-h] [--bucket BUCKET] [--namePrefix NAMEPREFIX] [--duration DURAT
 b2 delete-bucket [-h] bucketName
 b2 delete-file-version [-h] [--bypassGovernance] [fileName] fileId
 b2 delete-key [-h] applicationKeyId
-b2 download-file-by-id [-h] [--threads THREADS] [--noProgress] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] fileId localFileName
-b2 download-file-by-name [-h] [--noProgress] [--threads THREADS] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] bucketName b2FileName localFileName
+b2 download-file [-h] [--threads THREADS] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--noProgress] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] B2_URI localFileName
+b2 cat [-h] [--noProgress] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] B2_URI
 b2 get-account-info [-h]
 b2 get-bucket [-h] [--showSize] bucketName
-b2 get-file-info [-h] fileId
+b2 file-info [-h] B2_URI
 b2 get-download-auth [-h] [--prefix PREFIX] [--duration DURATION] bucketName
 b2 get-download-url-with-auth [-h] [--duration DURATION] bucketName fileName
 b2 hide-file [-h] bucketName fileName
@@ -86,10 +86,9 @@ b2 list-buckets [-h] [--json]
 b2 list-keys [-h] [--long]
 b2 list-parts [-h] largeFileId
 b2 list-unfinished-large-files [-h] bucketName
-b2 ls [-h] [--long] [--json] [--replication] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
-b2 rm [-h] [--dryRun] [--queueSize QUEUESIZE] [--noProgress] [--failFast] [--threads THREADS] [--versions] [--recursive] [--withWildcard] bucketName [folderName]
-b2 make-url [-h] fileId
-b2 make-friendly-url [-h] bucketName fileName
+b2 ls [-h] [--long] [--json] [--replication] [--versions] [-r] [--withWildcard] bucketName [folderName]
+b2 rm [-h] [--dryRun] [--queueSize QUEUESIZE] [--noProgress] [--failFast] [--threads THREADS] [--versions] [-r] [--withWildcard] bucketName [folderName]
+b2 get-url [-h] B2_URI
 b2 sync [-h] [--noProgress] [--dryRun] [--allowEmptySource] [--excludeAllSymlinks] [--syncThreads SYNCTHREADS] [--downloadThreads DOWNLOADTHREADS] [--uploadThreads UPLOADTHREADS] [--compareVersions {none,modTime,size}] [--compareThreshold MILLIS] [--excludeRegex REGEX] [--includeRegex REGEX] [--excludeDirRegex REGEX] [--excludeIfModifiedAfter TIMESTAMP] [--threads THREADS] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--sourceServerSideEncryption {SSE-C}] [--sourceServerSideEncryptionAlgorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--incrementalMode] [--skipNewer | --replaceNewer] [--delete | --keepDays DAYS] source destination
 b2 update-bucket [-h] [--bucketInfo BUCKETINFO] [--corsRules CORSRULES] [--defaultRetentionMode {compliance,governance,none}] [--defaultRetentionPeriod period] [--replication REPLICATION] [--fileLockEnabled] [--defaultServerSideEncryption {SSE-B2,none}] [--defaultServerSideEncryptionAlgorithm {AES256}] [--lifecycleRule LIFECYCLERULES | --lifecycleRules LIFECYCLERULES] bucketName [{allPublic,allPrivate}]
 b2 upload-file [-h] [--contentType CONTENTTYPE] [--sha1 SHA1] [--cache-control CACHE_CONTROL] [--info INFO] [--custom-upload-timestamp CUSTOM_UPLOAD_TIMESTAMP] [--minPartSize MINPARTSIZE] [--threads THREADS] [--noProgress] [--destinationServerSideEncryption {SSE-B2,SSE-C}] [--destinationServerSideEncryptionAlgorithm {AES256}] [--legalHold {on,off}] [--fileRetentionMode {compliance,governance}] [--retainUntil TIMESTAMP] [--incrementalMode] bucketName localFilePath b2FileName
@@ -101,7 +100,7 @@ b2 replication-delete [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
 b2 replication-pause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
 b2 replication-unpause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
 b2 replication-status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--noProgress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
-b2 version [-h]
+b2 version [-h] [--short]
 b2 license [-h]
 b2 install-autocomplete [-h] [--shell {bash}]
 ```
@@ -147,7 +146,7 @@ docker run --rm -v b2:/root backblazeit/b2:latest list-buckets  # remember to in
 When uploading a single file, data can be passed to the container via a pipe:
 
 ```bash
-cat source_file.txt | docker run --rm -v b2:/root backblazeit/b2:latest upload-unbound-stream bucket_name - target_file_name
+cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest upload-unbound-stream bucket_name - target_file_name
 ```
 
 or by mounting local files in the docker container:

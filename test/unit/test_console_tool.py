@@ -101,7 +101,7 @@ class BaseConsoleToolTest(TestBase):
             return ''
 
         # Count the leading spaces
-        space_count = min(self._leading_spaces(line) for line in lines if line != '')
+        space_count = min((self._leading_spaces(line) for line in lines if line != ''), default=0)
 
         # Remove the leading spaces from each line, based on the line
         # with the fewest leading spaces
@@ -134,6 +134,8 @@ class BaseConsoleToolTest(TestBase):
         return re.sub(self.RE_API_VERSION, '/vx/', s)
 
     def _normalize_expected_output(self, text, format_vars=None):
+        if text is None:
+            return None
         format_vars = format_vars or {}
         return self._trim_leading_spaces(text).format(
             account_id=self.account_id, master_key=self.master_key, **format_vars
@@ -213,7 +215,7 @@ class BaseConsoleToolTest(TestBase):
             )
             print('EXPECTED TO FIND IN STDOUT:', repr(expected_part_of_stdout))
             print('ACTUAL STDOUT:             ', repr(actual_stdout))
-        if expected_stderr != actual_stderr:
+        if expected_stderr is not None and expected_stderr != actual_stderr:
             print('EXPECTED STDERR:', repr(expected_stderr))
             print('ACTUAL STDERR:  ', repr(actual_stderr))
             print(actual_stderr)
@@ -235,8 +237,10 @@ class BaseConsoleToolTest(TestBase):
             self.assertIn(expected_part_of_stdout, actual_stdout)
         if unexpected_part_of_stdout is not None:
             self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
-        self.assertEqual(expected_stderr, actual_stderr, 'stderr')
+        if expected_stderr is not None:
+            self.assertEqual(expected_stderr, actual_stderr, 'stderr')
         self.assertEqual(expected_status, actual_status, 'exit status code')
+        return actual_status, actual_stdout, actual_stderr
 
     @classmethod
     def _upload_multiple_files(cls, bucket):
@@ -923,7 +927,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['get-file-info', '9999'],
+                ['file-info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1070,7 +1074,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['get-file-info', '9999'],
+                ['file-info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1091,10 +1095,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1.txt',
-                    local_download1
-                ], expected_stdout, '', 0
+                ['download-file', '--noProgress', 'b2://my-bucket/file1.txt', local_download1],
+                expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
             self.assertEqual(mod_time, int(round(os.path.getmtime(local_download1))))
@@ -1102,7 +1104,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             self._run_command(
-                ['download-file-by-id', '--noProgress', '9999', local_download2], expected_stdout,
+                ['download-file', '--noProgress', 'b2id://9999', local_download2], expected_stdout,
                 '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
@@ -1203,7 +1205,11 @@ class TestConsoleTool(BaseConsoleToolTest):
             command += ['9999'] if download_by == 'id' else ['my-bucket', 'file.txt']
             local_download = os.path.join(temp_dir, 'download.txt')
             command += [local_download]
-            self._run_command(command)
+            self._run_command(
+                command,
+                expected_stderr=
+                f'WARNING: download-file-by-{download_by} command is deprecated. Use download-file instead.\n'
+            )
             self.assertEqual(b'hello world', self._read_file(local_download))
 
     def test_download_by_id_1_thread(self):
@@ -1305,10 +1311,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             local_download1 = os.path.join(temp_dir, 'file1_copy.txt')
             self._run_command(
-                [
-                    'download-file-by-name', '--noProgress', 'my-bucket', 'file1_copy.txt',
-                    local_download1
-                ]
+                ['download-file', '-q', 'b2://my-bucket/file1_copy.txt', local_download1]
             )
             self.assertEqual(b'lo wo', self._read_file(local_download1))
 
@@ -1564,10 +1567,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
             self._run_command(
                 [
-                    'download-file-by-name',
-                    '--noProgress',
-                    'my-bucket',
-                    'test.txt',
+                    'download-file',
+                    '-q',
+                    'b2://my-bucket/test.txt',
                     str(downloaded_path),
                 ]
             )
@@ -2169,6 +2171,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c
         '''
         self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(['ls', '-r', 'my-bucket'], expected_stdout, '', 0)
 
         # Check long output.   (The format expects full-length file ids, so it causes whitespace here)
         expected_stdout = '''

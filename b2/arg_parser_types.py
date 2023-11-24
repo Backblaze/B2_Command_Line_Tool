@@ -9,6 +9,7 @@
 ######################################################################
 
 import argparse
+import functools
 import re
 
 import arrow
@@ -60,3 +61,18 @@ def parse_default_retention_period(s):
             'default retention period must be in the form of "X days|years "'
         )
     return RetentionPeriod(**{m.group('unit'): int(m.group('duration'))})
+
+
+def wrap_with_argument_type_error(func, translator=str, exc_type=ValueError):
+    """
+    Wrap function that may raise an exception into a function that raises ArgumentTypeError error.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except exc_type as e:
+            raise argparse.ArgumentTypeError(translator(e))
+
+    return wrapper
