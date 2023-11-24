@@ -7,38 +7,27 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-from functools import wraps
-from itertools import islice
-
-from b2sdk.v2.api import B2Api
-
-from b2._cli.b2api import _get_b2api_for_profile
-from b2._cli.const import LIST_FILE_NAMES_MAX_LIMIT
 
 
-def _with_api(func):
-    """Decorator to inject B2Api instance into argcompleter function."""
-
-    @wraps(func)
-    def wrapper(prefix, parsed_args, **kwargs):
-        api = _get_b2api_for_profile(parsed_args.profile)
-        return func(prefix=prefix, parsed_args=parsed_args, api=api, **kwargs)
-
-    return wrapper
+def bucket_name_completer(prefix, parsed_args, **kwargs):
+    from b2._cli.b2api import _get_b2api_for_profile
+    api = _get_b2api_for_profile(getattr(parsed_args, 'profile', None))
+    res = [bucket.name for bucket in api.list_buckets(use_cache=True)]
+    return res
 
 
-@_with_api
-def bucket_name_completer(api: B2Api, **kwargs):
-    return [bucket.name for bucket in api.list_buckets(use_cache=True)]
-
-
-@_with_api
-def file_name_completer(api: B2Api, parsed_args, **kwargs):
+def file_name_completer(prefix, parsed_args, **kwargs):
     """
     Completes file names in a bucket.
 
     To limit delay & cost only lists files returned from by single call to b2_list_file_names
     """
+    from itertools import islice
+
+    from b2._cli.b2api import _get_b2api_for_profile
+    from b2._cli.const import LIST_FILE_NAMES_MAX_LIMIT
+
+    api = _get_b2api_for_profile(parsed_args.profile)
     bucket = api.get_bucket_by_name(parsed_args.bucketName)
     file_versions = bucket.ls(
         getattr(parsed_args, 'folderName', None) or '',

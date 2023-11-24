@@ -10,15 +10,10 @@
 
 import argparse
 import locale
-import re
 import sys
 import textwrap
 
-import arrow
-from b2sdk.v2 import RetentionPeriod
 from rst2ansi import rst2ansi
-
-_arrow_version = tuple(int(p) for p in arrow.__version__.split("."))
 
 
 class RawTextHelpFormatter(argparse.RawTextHelpFormatter):
@@ -103,48 +98,3 @@ class ArgumentParser(argparse.ArgumentParser):
 
         # locales are improperly configured
         return 'ascii'
-
-
-def parse_comma_separated_list(s):
-    """
-    Parse comma-separated list.
-    """
-    return [word.strip() for word in s.split(",")]
-
-
-def parse_millis_from_float_timestamp(s):
-    """
-    Parse timestamp, e.g. 1367900664 or 1367900664.152
-    """
-    parsed = arrow.get(float(s))
-    if _arrow_version < (1, 0, 0):
-        return int(parsed.format("XSSS"))
-    else:
-        return int(parsed.format("x")[:13])
-
-
-def parse_range(s):
-    """
-    Parse optional integer range
-    """
-    bytes_range = None
-    if s is not None:
-        bytes_range = s.split(',')
-        if len(bytes_range) != 2:
-            raise argparse.ArgumentTypeError('the range must have 2 values: start,end')
-        bytes_range = (
-            int(bytes_range[0]),
-            int(bytes_range[1]),
-        )
-
-    return bytes_range
-
-
-def parse_default_retention_period(s):
-    unit_part = '(' + ')|('.join(RetentionPeriod.KNOWN_UNITS) + ')'
-    m = re.match(r'^(?P<duration>\d+) (?P<unit>%s)$' % (unit_part), s)
-    if not m:
-        raise argparse.ArgumentTypeError(
-            'default retention period must be in the form of "X days|years "'
-        )
-    return RetentionPeriod(**{m.group('unit'): int(m.group('duration'))})

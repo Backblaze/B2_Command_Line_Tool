@@ -9,6 +9,8 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+from .autocomplete_cache import AUTOCOMPLETE  # noqa
+AUTOCOMPLETE.autocomplete_from_cache()
 
 import argparse
 import base64
@@ -39,7 +41,6 @@ from contextlib import suppress
 from enum import Enum
 from typing import Any, BinaryIO, Dict, List, Optional, Tuple
 
-import argcomplete
 import b2sdk
 import requests
 import rst2ansi
@@ -122,8 +123,8 @@ from b2._cli.const import (
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
 from b2._utils.filesystem import points_to_fifo
-from b2.arg_parser import (
-    ArgumentParser,
+from b2.arg_parser import ArgumentParser
+from b2.arg_parser_types import (
     parse_comma_separated_list,
     parse_default_retention_period,
     parse_millis_from_float_timestamp,
@@ -3779,7 +3780,7 @@ class ConsoleTool:
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
         parser = B2.get_parser()
-        argcomplete.autocomplete(parser, default_completer=None)
+        AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 
