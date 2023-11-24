@@ -904,10 +904,12 @@ class B2(Command):
     The location of this database is determined in the following way:
 
     If ``--profile`` arg is provided:
+
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/db-<profile>.sqlite``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
     * ``{B2_ACCOUNT_INFO_PROFILE_FILE}``
 
     Otherwise:
+
     * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
