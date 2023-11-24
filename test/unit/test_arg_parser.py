@@ -11,8 +11,8 @@
 import argparse
 import sys
 
-from b2.arg_parser import (
-    B2ArgumentParser,
+from b2.arg_parser import B2ArgumentParser
+from b2.arg_parser_types import (
     parse_comma_separated_list,
     parse_millis_from_float_timestamp,
     parse_range,
