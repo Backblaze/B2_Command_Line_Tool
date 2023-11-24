@@ -1,0 +1,1 @@
+Added autocomplete suggestion caching to improve autocomplete performance.

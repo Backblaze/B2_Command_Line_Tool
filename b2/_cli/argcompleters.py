@@ -8,6 +8,10 @@
 #
 ######################################################################
 
+# We import all the necessary modules lazily in completers in order
+# to avoid upfront cost of the imports when argcompleter is used for
+# autocompletions.
+
 from itertools import islice
 
 
