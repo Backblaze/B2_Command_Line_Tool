@@ -11,8 +11,8 @@ LABEL build-date-iso8601="${build_date}"
 
 WORKDIR /root
 
-COPY ${tar_path}/${tar_name} .
-RUN ["pip", "install", "${tar_name}[full]"]
+RUN --mount=type=bind,source=${tar_path}/${tar_name},target=/tmp/${tar_name} \
+  pip install --no-cache-dir /tmp/${tar_name}[full]
 
 ENTRYPOINT ["b2"]
 CMD ["--help"]
