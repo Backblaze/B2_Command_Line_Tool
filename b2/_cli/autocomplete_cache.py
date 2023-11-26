@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/autocomplete_cache.py
+# File: b2/_cli/autocomplete_cache.py
 #
 # Copyright 2020 Backblaze Inc. All Rights Reserved.
 #
@@ -11,13 +11,15 @@ from __future__ import annotations
 
 import abc
 import argparse
-import hashlib
 import os
 import pathlib
 import pickle
-from typing import Callable, Iterable
+from typing import Callable
 
 import argcomplete
+import platformdirs
+
+from b2.version import VERSION
 
 
 def identity(x):
@@ -40,20 +42,9 @@ class PickleStore(abc.ABC):
         raise NotImplementedError()
 
 
-class FileSetStateTrakcer(StateTracker):
-    _files: list[pathlib.Path]
-
-    def __init__(self, files: Iterable[pathlib.Path]) -> None:
-        self._files = list(files)
-
-    def _one_file_hash(self, file: pathlib.Path) -> str:
-        with open(file, 'rb') as f:
-            return hashlib.md5(str(file.absolute).encode('utf-8') + f.read()).hexdigest()
-
+class VersionTracker(StateTracker):
     def current_state_identifier(self) -> str:
-        return hashlib.md5(
-            b''.join(self._one_file_hash(file).encode('ascii') for file in self._files)
-        ).hexdigest()
+        return VERSION
 
 
 class HomeCachePickleStore(PickleStore):
@@ -62,24 +53,19 @@ class HomeCachePickleStore(PickleStore):
     def __init__(self, dir: pathlib.Path | None = None) -> None:
         self._dir = dir
 
-    def _dir_or_default(self) -> pathlib.Path:
-        if self._dir is not None:
+    def _cache_dir(self) -> pathlib.Path:
+        if self._dir:
             return self._dir
-        cache_home = os.environ.get('XDG_CACHE_HOME')
-        if cache_home:
-            return pathlib.Path(cache_home) / 'b2' / 'autocomplete'
-        home = os.environ.get('HOME')
-        if not home:
-            raise RuntimeError(
-                'Neither $HOME not $XDG_CACHE_HOME is set, cannot determine cache directory'
-            )
-        return pathlib.Path(home) / '.cache' / 'b2' / 'autocomplete'
+        self._dir = pathlib.Path(
+            platformdirs.user_cache_dir(appname='b2', appauthor='backblaze')
+        ) / 'autocomplete'
+        return self._dir
 
     def _fname(self, identifier: str) -> str:
         return f"b2-autocomplete-cache-{identifier}.pickle"
 
     def get_pickle(self, identifier: str) -> bytes | None:
-        path = self._dir_or_default() / self._fname(identifier)
+        path = self._cache_dir() / self._fname(identifier)
         if path.exists():
             with open(path, 'rb') as f:
                 return f.read()
@@ -88,7 +74,7 @@ class HomeCachePickleStore(PickleStore):
         """Sets the pickle for identifier if it doesn't exist.
         When a new pickle is added, old ones are removed."""
 
-        dir = self._dir_or_default()
+        dir = self._cache_dir()
         os.makedirs(dir, exist_ok=True)
         path = dir / self._fname(identifier)
         for file in dir.glob('b2-autocomplete-cache-*.pickle'):
@@ -157,7 +143,4 @@ class AutocompleteCache:
             argcomplete.autocomplete(parser, **(uncached_args or {}))
 
 
-AUTOCOMPLETE = AutocompleteCache(
-    tracker=FileSetStateTrakcer(pathlib.Path(__file__).parent.glob('**/*.py')),
-    store=HomeCachePickleStore()
-)
+AUTOCOMPLETE = AutocompleteCache(tracker=VersionTracker(), store=HomeCachePickleStore())

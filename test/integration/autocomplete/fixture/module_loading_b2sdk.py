@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/integration/autocomplete/module_loading_b2sdk.py
+# File: test/integration/autocomplete/fixture/module_loading_b2sdk.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #

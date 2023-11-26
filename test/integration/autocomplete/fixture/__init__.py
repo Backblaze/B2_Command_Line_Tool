@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/integration/autocomplete/__init__.py
+# File: test/integration/autocomplete/fixture/__init__.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #

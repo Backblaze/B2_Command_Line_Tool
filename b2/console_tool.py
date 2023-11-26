@@ -11,7 +11,7 @@
 ######################################################################
 from __future__ import annotations
 
-from .autocomplete_cache import AUTOCOMPLETE  # noqa
+from b2._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
 
 AUTOCOMPLETE.autocomplete_from_cache()
 
@@ -107,6 +107,12 @@ from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 from tabulate import tabulate
 
+from b2._cli.arg_parser_types import (
+    parse_comma_separated_list,
+    parse_default_retention_period,
+    parse_millis_from_float_timestamp,
+    parse_range,
+)
 from b2._cli.argcompleters import bucket_name_completer, file_name_completer
 from b2._cli.autocomplete_install import (
     SUPPORTED_SHELLS,
@@ -130,12 +136,6 @@ from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
 from b2._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
 from b2.arg_parser import B2ArgumentParser
-from b2.arg_parser_types import (
-    parse_comma_separated_list,
-    parse_default_retention_period,
-    parse_millis_from_float_timestamp,
-    parse_range,
-)
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 

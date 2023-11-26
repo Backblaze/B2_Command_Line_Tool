@@ -24,7 +24,7 @@ import pytest
 import b2._cli.argcompleters
 import b2.arg_parser
 import b2.console_tool
-from b2 import autocomplete_cache
+from b2._cli import autocomplete_cache
 
 
 class Exit:
@@ -97,7 +97,7 @@ def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
 
 def test_complete_main_command(autocomplete_runner, tmpdir):
     cache = autocomplete_cache.AutocompleteCache(
-        tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
+        tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
     with autocomplete_runner('b2 '):
@@ -124,7 +124,7 @@ def test_complete_main_command(autocomplete_runner, tmpdir):
 
 def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket_name, b2_tool):
     cache = autocomplete_cache.AutocompleteCache(
-        tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
+        tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
     with autocomplete_runner('b2 get-bucket '):
@@ -145,7 +145,7 @@ def test_complete_with_file_suggestions(
     autocomplete_runner, tmpdir, bucket_name, file_name, b2_tool
 ):
     cache = autocomplete_cache.AutocompleteCache(
-        tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
+        tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
     with autocomplete_runner(f'b2 hide-file {bucket_name} '):
@@ -170,7 +170,7 @@ def test_complete_with_file_uri_suggestions(
     autocomplete_runner, tmpdir, bucket_name, file_name, b2_tool
 ):
     cache = autocomplete_cache.AutocompleteCache(
-        tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
+        tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
     with autocomplete_runner(f'b2 download-file b2://{bucket_name}/'):
@@ -185,18 +185,6 @@ def test_complete_with_file_uri_suggestions(
         exit, output = cached_complete_result(cache)
         assert exit == 0
         assert output == argcomplete_output
-
-
-def test_hasher(tmpdir):
-    path_1 = pathlib.Path(tmpdir) / 'test_1'
-    path_1.write_text('test_1', 'ascii')
-    path_2 = pathlib.Path(tmpdir) / 'test_2'
-    path_2.write_text('test_2', 'ascii')
-    path_3 = pathlib.Path(tmpdir) / 'test_3'
-    path_3.write_text('test_3', 'ascii')
-    tracker_1 = autocomplete_cache.FileSetStateTrakcer([path_1, path_2])
-    tracker_2 = autocomplete_cache.FileSetStateTrakcer([path_2, path_3])
-    assert tracker_1.current_state_identifier() != tracker_2.current_state_identifier()
 
 
 def test_pickle_store(tmpdir):
@@ -243,7 +231,7 @@ class Unpickler(pickle.Unpickler):
 
 
 def unpickle(data: bytes) -> Any:
-    """Unpickling function that raises RunTimError if unpickled
+    """Unpickling function that raises RuntimeError if unpickled
     object depends on b2sdk."""
     return Unpickler(io.BytesIO(data)).load()
 
@@ -252,7 +240,7 @@ def test_unpickle():
     """This tests ensures that Unpickler works as expected:
     prevents successful unpickling of objects that depend on loading
     modules from b2sdk."""
-    from .module_loading_b2sdk import function
+    from .fixture.module_loading_b2sdk import function
     pickled = pickle.dumps(function)
     with pytest.raises(RuntimeError):
         unpickle(pickled)
@@ -260,7 +248,7 @@ def test_unpickle():
 
 def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner, tmpdir):
     cache = autocomplete_cache.AutocompleteCache(
-        tracker=autocomplete_cache.FileSetStateTrakcer([pathlib.Path(__file__)]),
+        tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
         unpickle=unpickle,  # using our unpickling function that fails if b2sdk is loaded
     )

@@ -11,12 +11,12 @@
 import argparse
 import sys
 
-from b2.arg_parser import B2ArgumentParser
-from b2.arg_parser_types import (
+from b2._cli.arg_parser_types import (
     parse_comma_separated_list,
     parse_millis_from_float_timestamp,
     parse_range,
 )
+from b2.arg_parser import B2ArgumentParser
 from b2.console_tool import B2
 
 from .test_base import TestBase

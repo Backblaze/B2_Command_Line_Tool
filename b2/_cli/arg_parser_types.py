@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/arg_parser_types.py
+# File: b2/_cli/arg_parser_types.py
 #
 # Copyright 2020 Backblaze Inc. All Rights Reserved.
 #

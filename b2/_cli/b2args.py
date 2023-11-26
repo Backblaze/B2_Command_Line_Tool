@@ -12,9 +12,9 @@ Utility functions for adding b2-specific arguments to an argparse parser.
 """
 import argparse
 
+from b2._cli.arg_parser_types import wrap_with_argument_type_error
 from b2._cli.argcompleters import b2uri_file_completer
 from b2._utils.uri import B2URI, B2URIBase, parse_b2_uri
-from b2.arg_parser_types import wrap_with_argument_type_error
 
 
 def b2_file_uri(value: str) -> B2URIBase:
