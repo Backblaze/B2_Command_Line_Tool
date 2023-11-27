@@ -19,7 +19,6 @@ from glob import glob
 from typing import List, Tuple
 
 import nox
-import pkg_resources
 
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
@@ -33,9 +32,9 @@ PYTHON_VERSIONS = [
     '3.9',
     '3.10',
     '3.11',
+    '3.12',
 ] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
-PYTHON_VERSIONS += ['3.12']  # move this into PYTHON_VERSION above after official 3.12 release
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
 
@@ -114,7 +113,7 @@ def install_myself(session, extras=None):
         cwd = os.getcwd()
         os.chdir(INSTALL_SDK_FROM)
         session.run('pip', 'uninstall', 'b2sdk', '-y')
-        session.run('python', 'setup.py', 'develop')
+        session.run('pip', 'install', '-e', '.')
         os.chdir(cwd)
     elif CI and not CD:
         # In CI, install B2 SDK from the master branch
@@ -164,9 +163,8 @@ def lint(session):
     updated_requirements = os.path.join(session.create_tmp(), 'requirements.txt')
     with open('requirements.txt') as orig_req_file, \
             open(updated_requirements, 'w') as updated_req_file:
-        requirements = pkg_resources.parse_requirements(orig_req_file)
-        for requirement in requirements:
-            if requirement.project_name == "b2sdk":
+        for requirement in orig_req_file.readlines():
+            if requirement.startswith("b2sdk"):
                 updated_req_file.write("b2sdk\n")
             else:
                 updated_req_file.write(f"{requirement}\n")

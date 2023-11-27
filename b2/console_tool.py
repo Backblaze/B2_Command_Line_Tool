@@ -2006,7 +2006,7 @@ class ListKeys(Command):
             return '-', '-'
         else:
             timestamp = timestamp_or_none
-            dt = datetime.datetime.utcfromtimestamp(timestamp / 1000)
+            dt = datetime.datetime.fromtimestamp(timestamp / 1000, datetime.timezone.utc)
             return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
@@ -2218,7 +2218,9 @@ class Ls(AbstractLsCommand):
         return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
 
     def format_ls_entry(self, file_version: FileVersion, replication: bool):
-        dt = datetime.datetime.utcfromtimestamp(file_version.upload_timestamp / 1000)
+        dt = datetime.datetime.fromtimestamp(
+            file_version.upload_timestamp / 1000, datetime.timezone.utc
+        )
         date_str = dt.strftime('%Y-%m-%d')
         time_str = dt.strftime('%H:%M:%S')
         size = file_version.size or 0  # required if self.action == 'hide'

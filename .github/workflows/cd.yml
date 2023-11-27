@@ -8,7 +8,7 @@ env:
   CD: "true"
   ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PYTHON_DEFAULT_VERSION: "3.11"
+  PYTHON_DEFAULT_VERSION: "3.12"
 
 jobs:
   deploy:
@@ -54,7 +54,7 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     container:
-      image: "python:3.11"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
+      image: "python:3.12"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
       env:
         DEBIAN_FRONTEND: noninteractive
     steps:
