@@ -1,0 +1,1 @@
+fix an error that caused multiprocessing semaphores to leak on OSX

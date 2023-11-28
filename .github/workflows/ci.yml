@@ -28,7 +28,7 @@ jobs:
       - name: Run linters
         run: nox -vs lint
       - name: Validate new changelog entries
-        if: contains(github.event.pull_request.labels.*.name, '-changelog') == false
+        if: (contains(github.event.pull_request.labels.*.name, '-changelog') == false) && (github.event.pull_request.base.ref != '')
         run: if [ -z "$(git diff --diff-filter=A --name-only origin/${{ github.event.pull_request.base.ref }} changelog.d)" ];
           then echo no changelog item added; exit 1; fi
 
