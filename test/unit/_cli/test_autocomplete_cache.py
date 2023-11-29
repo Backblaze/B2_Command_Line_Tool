@@ -18,7 +18,6 @@ import contextlib
 import importlib
 import io
 import os
-import pathlib
 import pickle
 import sys
 from typing import Any
