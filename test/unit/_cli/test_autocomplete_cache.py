@@ -30,8 +30,6 @@ import b2.arg_parser
 import b2.console_tool
 from b2._cli import autocomplete_cache
 
-from ..console_tool.conftest import *  # noqa
-
 # We can't use pytest.mark.skipif to skip forked tests because with pytest-forked,
 # there is an attempt to fork even if the test is marked as skipped.
 # See https://github.com/pytest-dev/pytest-forked/issues/44
