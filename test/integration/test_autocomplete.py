@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/integration/autocomplete/test_autocomplete.py
+# File: test/integration/test_autocomplete.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #

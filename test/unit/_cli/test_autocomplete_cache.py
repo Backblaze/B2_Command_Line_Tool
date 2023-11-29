@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: test/integration/autocomplete/test_autocomplete_cache.py
+# File: test/unit/_cli/test_autocomplete_cache.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #
@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import importlib
 import io
 import os
@@ -25,6 +26,8 @@ import b2._cli.argcompleters
 import b2.arg_parser
 import b2.console_tool
 from b2._cli import autocomplete_cache
+
+from ..console_tool.conftest import *  # noqa
 
 
 class Exit:
@@ -49,7 +52,7 @@ class Exit:
 
 
 @pytest.fixture
-def autocomplete_runner(monkeypatch):
+def autocomplete_runner(monkeypatch, b2_cli):
     def fdopen(fd, *args, **kwargs):
         # argcomplete package tries to open fd 9 for debugging which causes
         # pytest to later raise errors about bad file descriptors.
@@ -65,13 +68,18 @@ def autocomplete_runner(monkeypatch):
             m.setenv('_ARGCOMPLETE_IFS', ' ')
             m.setenv('_ARGCOMPLETE', '1')
             m.setattr('os.fdopen', fdopen)
+
+            def _get_b2api_for_profile(profile: str):
+                return b2_cli.b2_api
+
+            m.setattr('b2._cli.b2api._get_b2api_for_profile', _get_b2api_for_profile)
             yield
 
     return runner
 
 
 def argcomplete_result():
-    parser = b2.console_tool.B2.create_parser()
+    parser = copy.deepcopy(b2.console_tool.B2.create_parser())
     exit, output = Exit(), io.StringIO()
     argcomplete.autocomplete(parser, exit_method=exit, output_stream=output)
     return exit.code, output.getvalue()
@@ -85,7 +93,7 @@ def cached_complete_result(cache: autocomplete_cache.AutocompleteCache):
 
 def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     exit, output = Exit(), io.StringIO()
-    parser = b2.console_tool.B2.create_parser()
+    parser = copy.deepcopy(b2.console_tool.B2.create_parser())
     cache.cache_and_autocomplete(
         parser, uncached_args={
             'exit_method': exit,
@@ -95,6 +103,7 @@ def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     return exit.code, output.getvalue()
 
 
+@pytest.mark.forked
 def test_complete_main_command(autocomplete_runner, tmpdir):
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
@@ -122,7 +131,8 @@ def test_complete_main_command(autocomplete_runner, tmpdir):
         assert output == argcomplete_output
 
 
-def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket_name, b2_tool):
+@pytest.mark.forked
+def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket, authorized_b2_cli):
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
@@ -130,7 +140,7 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket_na
     with autocomplete_runner('b2 get-bucket '):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
-        assert bucket_name in argcomplete_output
+        assert bucket in argcomplete_output
 
         exit, output = uncached_complete_result(cache)
         assert exit == 0
@@ -141,14 +151,16 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket_na
         assert output == argcomplete_output
 
 
+@pytest.mark.forked
 def test_complete_with_file_suggestions(
-    autocomplete_runner, tmpdir, bucket_name, file_name, b2_tool
+    autocomplete_runner, tmpdir, bucket, uploaded_file, authorized_b2_cli
 ):
+    file_name = uploaded_file['fileName']
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
-    with autocomplete_runner(f'b2 hide-file {bucket_name} '):
+    with autocomplete_runner(f'b2 hide-file {bucket} '):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert file_name in argcomplete_output
@@ -166,14 +178,16 @@ def test_complete_with_file_suggestions(
         assert output == argcomplete_output
 
 
+@pytest.mark.forked
 def test_complete_with_file_uri_suggestions(
-    autocomplete_runner, tmpdir, bucket_name, file_name, b2_tool
+    autocomplete_runner, tmpdir, bucket, uploaded_file, authorized_b2_cli
 ):
+    file_name = uploaded_file['fileName']
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
     )
-    with autocomplete_runner(f'b2 download-file b2://{bucket_name}/'):
+    with autocomplete_runner(f'b2 download-file b2://{bucket}/'):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert file_name in argcomplete_output
@@ -240,12 +254,13 @@ def test_unpickle():
     """This tests ensures that Unpickler works as expected:
     prevents successful unpickling of objects that depend on loading
     modules from b2sdk."""
-    from .fixture.module_loading_b2sdk import function
+    from .fixtures.module_loading_b2sdk import function
     pickled = pickle.dumps(function)
     with pytest.raises(RuntimeError):
         unpickle(pickled)
 
 
+@pytest.mark.forked
 def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner, tmpdir):
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
