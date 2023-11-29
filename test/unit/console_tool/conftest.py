@@ -13,6 +13,8 @@ from test.unit.test_console_tool import BaseConsoleToolTest
 
 import pytest
 
+import b2.console_tool
+
 
 class ConsoleToolTester(BaseConsoleToolTest):
     def authorize(self):
@@ -20,6 +22,21 @@ class ConsoleToolTester(BaseConsoleToolTest):
 
     def run(self, *args, **kwargs):
         return self._run_command(*args, **kwargs)
+
+
+@pytest.fixture
+def cwd_path(tmp_path):
+    """Set up a test directory and return its path."""
+    prev_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    yield tmp_path
+    os.chdir(prev_cwd)
+
+
+@pytest.fixture
+def b2_cli_log_fix(caplog):
+    caplog.set_level(0)  # prevent pytest from blocking logs
+    b2.console_tool.logger.setLevel(0)  # reset logger level to default
 
 
 @pytest.fixture
