@@ -1,0 +1,1 @@
+Fix CI badge not showing correct status in README.
