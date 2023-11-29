@@ -4098,25 +4098,6 @@ class ConsoleTool:
 get_parser = functools.partial(B2.create_parser, for_docs=True)
 
 
-# TODO: import from b2sdk as soon as we rely on 1.0.0
-class InvalidArgument(B2Error):
-    """
-    Raised when one or more arguments are invalid
-    """
-
-    def __init__(self, parameter_name, message):
-        """
-        :param parameter_name: name of the function argument
-        :param message: brief explanation of misconfiguration
-        """
-        super().__init__()
-        self.parameter_name = parameter_name
-        self.message = message
-
-    def __str__(self):
-        return f"{self.parameter_name} {self.message}"
-
-
 def main():
     ct = ConsoleTool(b2_api=None, stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
