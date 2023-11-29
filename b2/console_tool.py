@@ -2747,7 +2747,7 @@ class Sync(
         with SyncReport(self.stdout, args.noProgress or args.quiet) as reporter:
             try:
                 synchronizer.sync_folders(
-                    source_folder=source,
+                source_folder=source,
                     dest_folder=destination,
                     now_millis=current_time_millis(),
                     reporter=reporter,
