@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import contextlib
-import copy
 import importlib
 import io
 import os
@@ -79,7 +78,7 @@ def autocomplete_runner(monkeypatch, b2_cli):
 
 
 def argcomplete_result():
-    parser = copy.deepcopy(b2.console_tool.B2.create_parser())
+    parser = b2.console_tool.B2.create_parser()
     exit, output = Exit(), io.StringIO()
     argcomplete.autocomplete(parser, exit_method=exit, output_stream=output)
     return exit.code, output.getvalue()
@@ -93,7 +92,7 @@ def cached_complete_result(cache: autocomplete_cache.AutocompleteCache):
 
 def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     exit, output = Exit(), io.StringIO()
-    parser = copy.deepcopy(b2.console_tool.B2.create_parser())
+    parser = b2.console_tool.B2.create_parser()
     cache.cache_and_autocomplete(
         parser, uncached_args={
             'exit_method': exit,
