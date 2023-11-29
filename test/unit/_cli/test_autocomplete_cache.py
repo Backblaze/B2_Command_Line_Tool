@@ -116,10 +116,10 @@ def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
 
 
 @forked
-def test_complete_main_command(autocomplete_runner, tmpdir):
+def test_complete_main_command(autocomplete_runner, tmp_path):
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
-        store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
     with autocomplete_runner('b2 '):
         exit, argcomplete_output = argcomplete_result()
@@ -144,10 +144,10 @@ def test_complete_main_command(autocomplete_runner, tmpdir):
 
 
 @forked
-def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket, authorized_b2_cli):
+def test_complete_with_bucket_suggestions(autocomplete_runner, tmp_path, bucket, authorized_b2_cli):
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
-        store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
     with autocomplete_runner('b2 get-bucket '):
         exit, argcomplete_output = argcomplete_result()
@@ -165,12 +165,12 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket, a
 
 @forked
 def test_complete_with_file_suggestions(
-    autocomplete_runner, tmpdir, bucket, uploaded_file, authorized_b2_cli
+    autocomplete_runner, tmp_path, bucket, uploaded_file, authorized_b2_cli
 ):
     file_name = uploaded_file['fileName']
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
-        store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
     with autocomplete_runner(f'b2 hide-file {bucket} '):
         exit, argcomplete_output = argcomplete_result()
@@ -192,12 +192,12 @@ def test_complete_with_file_suggestions(
 
 @forked
 def test_complete_with_file_uri_suggestions(
-    autocomplete_runner, tmpdir, bucket, uploaded_file, authorized_b2_cli
+    autocomplete_runner, tmp_path, bucket, uploaded_file, authorized_b2_cli
 ):
     file_name = uploaded_file['fileName']
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
-        store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
     with autocomplete_runner(f'b2 download-file b2://{bucket}/'):
         exit, argcomplete_output = argcomplete_result()
@@ -213,8 +213,8 @@ def test_complete_with_file_uri_suggestions(
         assert output == argcomplete_output
 
 
-def test_pickle_store(tmpdir):
-    dir = pathlib.Path(tmpdir)
+def test_pickle_store(tmp_path):
+    dir = tmp_path
     store = autocomplete_cache.HomeCachePickleStore(dir)
 
     store.set_pickle('test_1', b'test_data_1')
@@ -273,10 +273,10 @@ def test_unpickle():
 
 
 @forked
-def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner, tmpdir):
+def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner, tmp_path):
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
-        store=autocomplete_cache.HomeCachePickleStore(pathlib.Path(tmpdir)),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
         unpickle=unpickle,  # using our unpickling function that fails if b2sdk is loaded
     )
     with autocomplete_runner('b2 '):
