@@ -26,6 +26,7 @@ import b2.arg_parser
 import b2.console_tool
 from b2._cli import autocomplete_cache
 
+from ...helpers import skip_on_windows
 from ..console_tool.conftest import *  # noqa
 
 
@@ -102,6 +103,7 @@ def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     return exit.code, output.getvalue()
 
 
+@skip_on_windows
 @pytest.mark.forked
 def test_complete_main_command(autocomplete_runner, tmpdir):
     cache = autocomplete_cache.AutocompleteCache(
@@ -130,6 +132,7 @@ def test_complete_main_command(autocomplete_runner, tmpdir):
         assert output == argcomplete_output
 
 
+@skip_on_windows
 @pytest.mark.forked
 def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket, authorized_b2_cli):
     cache = autocomplete_cache.AutocompleteCache(
@@ -150,6 +153,7 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmpdir, bucket, a
         assert output == argcomplete_output
 
 
+@skip_on_windows
 @pytest.mark.forked
 def test_complete_with_file_suggestions(
     autocomplete_runner, tmpdir, bucket, uploaded_file, authorized_b2_cli
@@ -177,6 +181,7 @@ def test_complete_with_file_suggestions(
         assert output == argcomplete_output
 
 
+@skip_on_windows
 @pytest.mark.forked
 def test_complete_with_file_uri_suggestions(
     autocomplete_runner, tmpdir, bucket, uploaded_file, authorized_b2_cli
@@ -259,6 +264,7 @@ def test_unpickle():
         unpickle(pickled)
 
 
+@skip_on_windows
 @pytest.mark.forked
 def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner, tmpdir):
     cache = autocomplete_cache.AutocompleteCache(
