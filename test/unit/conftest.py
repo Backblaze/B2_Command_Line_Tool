@@ -8,13 +8,14 @@
 #
 ######################################################################
 import os
-import sys
 from test.unit.helpers import RunOrDieExecutor
 from test.unit.test_console_tool import BaseConsoleToolTest
 from unittest import mock
 
 import pytest
 from b2sdk.raw_api import REALM_URLS
+
+from b2.console_tool import _TqdmCloser
 
 
 @pytest.fixture(autouse=True, scope='session')
@@ -28,6 +29,12 @@ def bg_executor():
     """Executor for running background tasks in tests"""
     with RunOrDieExecutor() as executor:
         yield executor
+
+
+@pytest.fixture(autouse=True)
+def disable_tqdm_closer_cleanup():
+    with mock.patch.object(_TqdmCloser, '__exit__'):
+        yield
 
 
 class ConsoleToolTester(BaseConsoleToolTest):
@@ -66,15 +73,6 @@ def bucket_info(b2_cli, authorized_b2_cli):
 @pytest.fixture
 def bucket(bucket_info):
     return bucket_info['bucketName']
-
-
-@pytest.fixture
-def mock_stdin(monkeypatch):
-    out_, in_ = os.pipe()
-    monkeypatch.setattr(sys, 'stdin', os.fdopen(out_))
-    in_f = open(in_, 'w')
-    yield in_f
-    in_f.close()
 
 
 @pytest.fixture

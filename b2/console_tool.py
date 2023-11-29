@@ -17,6 +17,7 @@ AUTOCOMPLETE.autocomplete_from_cache()
 
 import argparse
 import base64
+import contextlib
 import csv
 import dataclasses
 import datetime
@@ -87,6 +88,7 @@ from b2sdk.v2 import (
     ScanPoliciesManager,
     Synchronizer,
     SyncReport,
+    TqdmProgressListener,
     UploadMode,
     current_time_millis,
     get_included_sources,
@@ -686,7 +688,31 @@ class ThreadsMixin(Described):
         self.api.services.download_manager.set_thread_pool_size(threads)
 
 
-class Command(Described):
+class _TqdmCloser:
+    """
+    On OSX using Tqdm with b2sdk causes semaphore leaks. This fix is located here and not in b2sdk, because after this
+    cleanup Tqdm might not work properly, therefore it's best to do it when exiting a python process.
+    """
+
+    def __init__(self, progress_listener):
+        self.progress_listener = progress_listener
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if sys.platform != "darwin" or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER'):
+            return
+        try:
+            from multiprocessing.synchronize import SemLock
+            tqdm_lock = self.progress_listener.tqdm.get_lock()
+            if tqdm_lock.mp_lock._semlock.name is not None:
+                SemLock._cleanup(tqdm_lock.mp_lock._semlock.name)
+        except Exception as ex:
+            logger.debug('Error encountered during Tqdm cleanup', exc_info=ex)
+
+
+class Command(Described, metaclass=ABCMeta):
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
@@ -704,6 +730,14 @@ class Command(Described):
         self.stdout = console_tool.stdout
         self.stderr = console_tool.stderr
         self.quiet = False
+        self.exit_stack = contextlib.ExitStack()
+
+    def make_progress_listener(self, file_name: str, quiet: bool):
+        progress_listener = make_progress_listener(file_name, quiet)
+        self.exit_stack.enter_context(progress_listener)
+        if isinstance(progress_listener, TqdmProgressListener):
+            self.exit_stack.enter_context(_TqdmCloser(progress_listener))
+        return progress_listener
 
     @classmethod
     def name_and_alias(cls):
@@ -795,7 +829,12 @@ class Command(Described):
 
     def run(self, args):
         self.quiet = args.quiet
-        return 0
+        with self.exit_stack:
+            return self._run(args)
+
+    @abstractmethod
+    def _run(self, args) -> int:
+        ...
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -907,10 +946,12 @@ class B2(Command):
     The location of this database is determined in the following way:
 
     If ``--profile`` arg is provided:
+
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/db-<profile>.sqlite``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
     * ``{B2_ACCOUNT_INFO_PROFILE_FILE}``
 
     Otherwise:
+
     * ``{B2_ACCOUNT_INFO_ENV_VAR}`` env var's value, if set
     * ``{B2_ACCOUNT_INFO_DEFAULT_FILE}``, if it exists
     * ``{XDG_CONFIG_HOME_ENV_VAR}/b2/account_info``, if ``{XDG_CONFIG_HOME_ENV_VAR}`` env var is set
@@ -948,8 +989,7 @@ class B2(Command):
     def name_and_alias(cls):
         return NAME, None
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         # Commands could be named via name or alias, so we fetch
         # the command from args assigned during parser preparation.
         return args.command_class
@@ -1004,11 +1044,10 @@ class AuthorizeAccount(Command):
         parser.add_argument('applicationKey', nargs='?')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         # Handle internal options for testing inside Backblaze.
         # These are not documented in the usage string.
-        realm = self._get_realm(args)
+        realm = self._get_user_requested_realm(args)
 
         if args.applicationKeyId is None:
             args.applicationKeyId = (
@@ -1024,17 +1063,21 @@ class AuthorizeAccount(Command):
 
         return self.authorize(args.applicationKeyId, args.applicationKey, realm)
 
-    def authorize(self, application_key_id, application_key, realm):
+    def authorize(self, application_key_id, application_key, realm: str | None):
         """
         Perform the authorization and capability checks, report errors.
 
         :param application_key_id: application key ID used to authenticate
         :param application_key: application key
-        :param realm: authorization realm
+        :param realm: authorization realm; if None, production is used
         :return: exit status
         """
+        verbose_realm = bool(realm)
+        realm = realm or 'production'
         url = REALM_URLS.get(realm, realm)
-        self._print_stderr(f"Using {url}")
+        logger.info(f"Using {url}")
+        if verbose_realm:
+            self._print_stderr(f'Using {url}')
         try:
             self.api.authorize_account(realm, application_key_id, application_key)
 
@@ -1063,7 +1106,10 @@ class AuthorizeAccount(Command):
             return 1
 
     @classmethod
-    def _get_realm(cls, args):
+    def _get_user_requested_realm(cls, args) -> str | None:
+        """
+        Determine the realm to use for authorization.
+        """
         if args.dev:
             return 'dev'
         if args.staging:
@@ -1071,7 +1117,7 @@ class AuthorizeAccount(Command):
         if args.environment:
             return args.environment
 
-        return os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
+        return os.environ.get(B2_ENVIRONMENT_ENV_VAR)
 
 
 @B2.register_subcommand
@@ -1092,8 +1138,7 @@ class CancelAllUnfinishedLargeFiles(Command):
         parser.add_argument('bucketName').completer = bucket_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for file_version in bucket.list_unfinished_large_files():
             bucket.cancel_large_file(file_version.file_id)
@@ -1119,8 +1164,7 @@ class CancelLargeFile(Command):
         parser.add_argument('fileId')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         self.api.cancel_large_file(args.fileId)
         self._print(args.fileId, 'canceled')
         return 0
@@ -1142,8 +1186,7 @@ class ClearAccount(Command):
 
     REQUIRES_AUTH = False
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         self.api.account_info.clear()
         return 0
 
@@ -1206,8 +1249,7 @@ class CopyFileById(
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         file_infos = None
         if args.info:
             file_infos = self._parse_file_infos(args.info)
@@ -1327,8 +1369,7 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         encryption_setting = self._get_default_sse_setting(args)
         bucket = self.api.create_bucket(
             args.bucketName,
@@ -1383,8 +1424,7 @@ class CreateKey(Command):
         capabilities.add_argument('--allCapabilities', action='store_true')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         # Translate the bucket name into a bucketId
         if args.bucket is None:
             bucket_id_or_none = None
@@ -1421,8 +1461,7 @@ class DeleteBucket(Command):
         parser.add_argument('bucketName').completer = bucket_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         self.api.delete_bucket(bucket)
         return 0
@@ -1453,8 +1492,7 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
         super()._setup_parser(parser)
         parser.add_argument('--bypassGovernance', action='store_true', default=False)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         file_name = self._get_file_name_from_args(args)
         file_info = self.api.delete_file_version(args.fileId, file_name, args.bypassGovernance)
         self._print_json(file_info)
@@ -1476,15 +1514,19 @@ class DeleteKey(Command):
         parser.add_argument('applicationKeyId')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         application_key = self.api.delete_key_by_id(application_key_id=args.applicationKeyId)
         self._print(application_key.id_)
         return 0
 
 
 class DownloadCommand(
-    ProgressMixin, SourceSseMixin, WriteBufferSizeMixin, SkipHashVerificationMixin, Command
+    ProgressMixin,
+    SourceSseMixin,
+    WriteBufferSizeMixin,
+    SkipHashVerificationMixin,
+    Command,
+    metaclass=ABCMeta
 ):
     """ helper methods for returning results from download commands """
 
@@ -1590,9 +1632,8 @@ class DownloadFileBase(
     - **readFiles**
     """
 
-    def run(self, args):
-        super().run(args)
-        progress_listener = make_progress_listener(
+    def _run(self, args):
+        progress_listener = self.make_progress_listener(
             args.localFileName, args.noProgress or args.quiet
         )
         encryption_setting = self._get_source_sse_setting(args)
@@ -1661,10 +1702,11 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
     - **readFiles**
     """
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         target_filename = '-'
-        progress_listener = make_progress_listener(target_filename, args.noProgress or args.quiet)
+        progress_listener = self.make_progress_listener(
+            target_filename, args.noProgress or args.quiet
+        )
         encryption_setting = self._get_source_sse_setting(args)
         file_request = self.api.download_file_by_uri(
             args.B2_URI, progress_listener=progress_listener, encryption=encryption_setting
@@ -1681,8 +1723,7 @@ class GetAccountInfo(Command):
     the current application keys has.
     """
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         account_info = self.api.account_info
         data = dict(
             accountId=account_info.get_account_id(),
@@ -1736,8 +1777,7 @@ class GetBucket(Command):
         parser.add_argument('bucketName').completer = bucket_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
         for b in self.api.list_buckets(args.bucketName):
@@ -1775,8 +1815,7 @@ class FileInfoBase(Command):
     - **readFiles**
     """
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
         file_version = self.api.get_file_info_by_uri(b2_uri)
         self._print_json(file_version)
@@ -1819,8 +1858,7 @@ class GetDownloadAuth(Command):
         parser.add_argument('bucketName').completer = bucket_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         auth_token = bucket.get_download_authorization(
             file_name_prefix=args.prefix, valid_duration_in_seconds=args.duration
@@ -1855,8 +1893,7 @@ class GetDownloadUrlWithAuth(Command):
         parser.add_argument('fileName').completer = file_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         auth_token = bucket.get_download_authorization(
             file_name_prefix=args.fileName, valid_duration_in_seconds=args.duration
@@ -1883,8 +1920,7 @@ class HideFile(Command):
         parser.add_argument('fileName').completer = file_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
         self._print_json(file_info)
@@ -1916,8 +1952,7 @@ class ListBuckets(Command):
         parser.add_argument('--json', action='store_true')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         buckets = self.api.list_buckets()
         if args.json:
             self._print_json(list(buckets))
@@ -1963,8 +1998,7 @@ class ListKeys(Command):
         super().__init__(console_tool)
         self.bucket_id_to_bucket_name = None
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         for key in self.api.list_keys():
             self.print_key(key, args.long)
 
@@ -2007,7 +2041,7 @@ class ListKeys(Command):
             return '-', '-'
         else:
             timestamp = timestamp_or_none
-            dt = datetime.datetime.utcfromtimestamp(timestamp / 1000)
+            dt = datetime.datetime.fromtimestamp(timestamp / 1000, datetime.timezone.utc)
             return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
@@ -2028,8 +2062,7 @@ class ListParts(Command):
         parser.add_argument('largeFileId')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         for part in self.api.list_parts(args.largeFileId):
             self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
         return 0
@@ -2051,8 +2084,7 @@ class ListUnfinishedLargeFiles(Command):
         parser.add_argument('bucketName').completer = bucket_name_completer
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         for unfinished in bucket.list_unfinished_large_files():
             file_info_text = ' '.join(
@@ -2185,8 +2217,7 @@ class Ls(AbstractLsCommand):
         parser.add_argument('--replication', action='store_true')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         if args.json:
             i = -1
             for i, (file_version, _) in enumerate(self._get_ls_generator(args)):
@@ -2219,7 +2250,9 @@ class Ls(AbstractLsCommand):
         return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
 
     def format_ls_entry(self, file_version: FileVersion, replication: bool):
-        dt = datetime.datetime.utcfromtimestamp(file_version.upload_timestamp / 1000)
+        dt = datetime.datetime.fromtimestamp(
+            file_version.upload_timestamp / 1000, datetime.timezone.utc
+        )
         date_str = dt.strftime('%Y-%m-%d')
         time_str = dt.strftime('%H:%M:%S')
         size = file_version.size or 0  # required if self.action == 'hide'
@@ -2411,8 +2444,7 @@ class Rm(ThreadsMixin, AbstractLsCommand):
         parser.add_argument('--failFast', action='store_true')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         if args.dryRun:
             self._print_files(args)
             return 0
@@ -2453,8 +2485,7 @@ class GetUrlBase(Command):
     it is public.
     """
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
         self._print(self.api.get_download_url_by_uri(b2_uri))
         return 0
@@ -2688,8 +2719,7 @@ class Sync(
         del_keep_group.add_argument('--delete', action='store_true')
         del_keep_group.add_argument('--keepDays', type=float, metavar='DAYS')
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
         if args.threads is not None:
@@ -2902,8 +2932,7 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
 
         super()._setup_parser(parser)  # add parameters from the mixins and the parent class
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         if args.defaultRetentionMode is not None:
             if args.defaultRetentionMode == 'none':
                 default_retention = NO_RETENTION_BUCKET_SETTING
@@ -3002,8 +3031,7 @@ class UploadFileMixin(
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         self._set_threads_from_args(args)
         upload_kwargs = self.get_execute_kwargs(args)
         file_info = self.execute_operation(**upload_kwargs)
@@ -3052,7 +3080,7 @@ class UploadFileMixin(
             "min_part_size":
                 args.minPartSize,
             "progress_listener":
-                make_progress_listener(args.localFilePath, args.noProgress or args.quiet),
+                self.make_progress_listener(args.localFilePath, args.noProgress or args.quiet),
             "sha1_sum":
                 args.sha1,
             "threads":
@@ -3260,8 +3288,7 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
         super()._setup_parser(parser)
         parser.add_argument('legalHold', choices=(LegalHold.ON.value, LegalHold.OFF.value))
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         file_name = self._get_file_name_from_args(args)
         legal_hold = LegalHold(args.legalHold)
         self.api.update_file_legal_hold(args.fileId, file_name, legal_hold)
@@ -3311,8 +3338,7 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
         )
         parser.add_argument('--bypassGovernance', action='store_true', default=False)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         file_name = self._get_file_name_from_args(args)
 
         if args.retentionMode == 'none':
@@ -3370,8 +3396,7 @@ class ReplicationSetup(Command):
             help='if given, also replicates files uploaded prior to creation of the replication rule'
         )
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         if args.destination_profile is None:
             destination_api = self.api
         else:
@@ -3397,8 +3422,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('rule_name', metavar='REPLICATION_RULE_NAME')
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.source).get_fresh_state()
         found, altered = self.alter_rule_by_name(bucket, args.rule_name)
         if not found:
@@ -3544,8 +3568,7 @@ class ReplicationStatus(Command):
             metavar='COLUMN ONE,COLUMN TWO'
         )
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         destination_api = args.destination_profile and _get_b2api_for_profile(
             args.destination_profile
         )
@@ -3686,8 +3709,7 @@ class Version(Command):
         parser.add_argument('--short', action='store_true')
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         if args.short:
             self._print(VERSION)
         else:
@@ -3750,8 +3772,7 @@ class License(Command):  # pragma: no cover
         )
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         if self.LICENSE_OUTPUT_FILE.exists() and not args.dump:
             self._print(self.LICENSE_OUTPUT_FILE.read_text(encoding='utf8'))
             return 0
@@ -3905,8 +3926,7 @@ class InstallAutocomplete(Command):
         parser.add_argument('--shell', choices=SUPPORTED_SHELLS, default=None)
         super()._setup_parser(parser)
 
-    def run(self, args):
-        super().run(args)
+    def _run(self, args):
         shell = args.shell or detect_shell()
         if shell not in SUPPORTED_SHELLS:
             self._print_stderr(
@@ -4022,9 +4042,9 @@ class ConsoleTool:
                 f'Please provide both "{B2_APPLICATION_KEY_ENV_VAR}" and "{B2_APPLICATION_KEY_ID_ENV_VAR}" environment variables or none of them'
             )
             return 1
-        realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR, 'production')
+        realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR)
 
-        if self.api.account_info.is_same_key(key_id, realm):
+        if self.api.account_info.is_same_key(key_id, realm or 'production'):
             return 0
 
         logger.info('authorize-account is being run from env variables')
@@ -4079,25 +4099,6 @@ class ConsoleTool:
 
 # used by Sphinx
 get_parser = functools.partial(B2.create_parser, for_docs=True)
-
-
-# TODO: import from b2sdk as soon as we rely on 1.0.0
-class InvalidArgument(B2Error):
-    """
-    Raised when one or more arguments are invalid
-    """
-
-    def __init__(self, parameter_name, message):
-        """
-        :param parameter_name: name of the function argument
-        :param message: brief explanation of misconfiguration
-        """
-        super().__init__()
-        self.parameter_name = parameter_name
-        self.message = message
-
-    def __str__(self):
-        return f"{self.parameter_name} {self.message}"
 
 
 def main():
