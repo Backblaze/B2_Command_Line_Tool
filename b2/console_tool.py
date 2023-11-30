@@ -11,6 +11,10 @@
 ######################################################################
 from __future__ import annotations
 
+from b2._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
+
+AUTOCOMPLETE.autocomplete_from_cache()
+
 import argparse
 import base64
 import contextlib
@@ -41,7 +45,6 @@ from contextlib import suppress
 from enum import Enum
 from typing import Any, BinaryIO, List
 
-import argcomplete
 import b2sdk
 import requests
 import rst2ansi
@@ -106,6 +109,12 @@ from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 from tabulate import tabulate
 
+from b2._cli.arg_parser_types import (
+    parse_comma_separated_list,
+    parse_default_retention_period,
+    parse_millis_from_float_timestamp,
+    parse_range,
+)
 from b2._cli.argcompleters import bucket_name_completer, file_name_completer
 from b2._cli.autocomplete_install import (
     SUPPORTED_SHELLS,
@@ -128,13 +137,7 @@ from b2._cli.const import (
 from b2._cli.obj_loads import validated_loads
 from b2._cli.shell import detect_shell
 from b2._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
-from b2.arg_parser import (
-    B2ArgumentParser,
-    parse_comma_separated_list,
-    parse_default_retention_period,
-    parse_millis_from_float_timestamp,
-    parse_range,
-)
+from b2.arg_parser import B2ArgumentParser
 from b2.json_encoder import B2CliJsonEncoder
 from b2.version import VERSION
 
@@ -3958,7 +3961,7 @@ class ConsoleTool:
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
         parser = B2.create_parser(name=argv[0])
-        argcomplete.autocomplete(parser, default_completer=None)
+        AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 

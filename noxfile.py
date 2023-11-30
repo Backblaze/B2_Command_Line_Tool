@@ -50,6 +50,7 @@ REQUIREMENTS_TEST = [
     "pexpect==4.8.0",
     "pytest==6.2.5",
     "pytest-cov==3.0.0",
+    'pytest-forked==1.4.0',
     'pytest-xdist==2.5.0',
     'backoff==2.1.2',
     'more_itertools==8.13.0',

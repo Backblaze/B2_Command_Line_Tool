@@ -54,6 +54,7 @@ line-length = 100
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
 "test/**" = ["D", "F403", "F405"]
+"b2/console_tool.py" = ["E402"]
 
 [tool.towncrier]
 directory = "changelog.d"
