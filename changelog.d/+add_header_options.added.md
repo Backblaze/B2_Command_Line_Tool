@@ -1,1 +1,1 @@
-Add `--expires`, `--content-disposition`, `--content-encoding`, `--content-language` options to subcommands `upload-file`, `upload-unbound-stream`, `copy-file-by-id`
+Add `--expires`, `--content-disposition`, `--content-encoding`, `--content-language` options to subcommands `upload-file`, `upload-unbound-stream`, `copy-file-by-id`.

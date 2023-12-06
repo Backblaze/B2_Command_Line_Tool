@@ -1,1 +1,1 @@
-Remove unused exception class and outdated todo
+Remove unused exception class and outdated todo.

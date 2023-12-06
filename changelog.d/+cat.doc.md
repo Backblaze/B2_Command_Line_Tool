@@ -1,1 +1,1 @@
-Add `cat` command to documentation
+Add `cat` command to documentation.

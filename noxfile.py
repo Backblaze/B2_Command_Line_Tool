@@ -16,7 +16,7 @@ import re
 import string
 import subprocess
 from glob import glob
-from typing import List, Tuple
+from typing import List, Set, Tuple
 
 import nox
 
@@ -601,3 +601,121 @@ def make_release_commit(session):
         f'    git push {{UPSTREAM_NAME}} v{version}\n'
         f'    git push {{UPSTREAM_NAME}} {current_branch}'
     )
+
+
+def load_allowed_change_types(project_toml: pathlib.Path = pathlib.Path('./pyproject.toml')
+                             ) -> Set[str]:
+    """
+    Load the list of allowed change types from the pyproject.toml file.
+    """
+    import tomllib
+    configuration = tomllib.loads(project_toml.read_text())
+    return set(entry['directory'] for entry in configuration['tool']['towncrier']['type'])
+
+
+def is_changelog_filename_valid(filename: str, allowed_change_types: Set[str]) -> Tuple[bool, str]:
+    """
+    Validates whether the given filename matches our rules.
+    Provides information about why it doesn't match them.
+    """
+    error_reasons = []
+
+    wanted_extension = 'md'
+    try:
+        description, change_type, extension = filename.rsplit('.', maxsplit=2)
+    except ValueError:
+        # Not enough values to unpack.
+        return False, "Doesn't follow the \"<description>.<change_type>.md\" pattern."
+
+    # Check whether the filename ends with .md.
+    if extension != wanted_extension:
+        error_reasons.append(f"Doesn't end with {wanted_extension} extension.")
+
+    # Check whether the change type is valid.
+    if change_type not in allowed_change_types:
+        error_reasons.append(
+            f"Change type '{change_type}' doesn't match allowed types: {allowed_change_types}."
+        )
+
+    # Check whether the description makes sense.
+    try:
+        int(description)
+    except ValueError:
+        if description[0] != '+':
+            error_reasons.append("Doesn't start with a number nor a plus sign.")
+
+    return len(error_reasons) == 0, ' / '.join(error_reasons) if error_reasons else ''
+
+
+def is_changelog_entry_valid(file_content: str) -> Tuple[bool, str]:
+    """
+    We expect the changelog entry to be a valid sentence in the English language.
+    This includes, but not limits to, providing a capital letter at the start
+    and the full-stop character at the end.
+
+    Note: to do this "properly", tools like `nltk` and `spacy` should be used.
+    """
+    error_reasons = []
+
+    # Check whether the first character is a capital letter.
+    # Not allowing special characters nor numbers at the very start.
+    if not file_content[0].isalpha() or not file_content[0].isupper():
+        error_reasons.append('The first character is not a capital letter.')
+
+    # Check if the last character is a full-stop character.
+    if file_content.strip()[-1] != '.':
+        error_reasons.append('The last character is not a full-stop character.')
+
+    return len(error_reasons) == 0, ' / '.join(error_reasons) if error_reasons else ''
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def towncrier_check(session):
+    """
+    Check whether all the entries in the changelog.d follow the expected naming convention
+    as well as some basic rules as to their format.
+    """
+    expected_non_md_files = {'.gitkeep'}
+    allowed_change_types = load_allowed_change_types()
+
+    is_error = False
+
+    for filename in pathlib.Path('./changelog.d/').glob('*'):
+        # If that's an expected file, it's all right.
+        if filename.name in expected_non_md_files:
+            continue
+
+        # Check whether the file matches the expected pattern.
+        is_valid, error_message = is_changelog_filename_valid(filename.name, allowed_change_types)
+        if not is_valid:
+            session.log(f"File {filename.name} doesn't match the expected pattern: {error_message}")
+            is_error = True
+            continue
+
+        # Check whether the file isn't too big.
+        if filename.lstat().st_size > 16 * 1024:
+            session.log(
+                f'File {filename.name} content is too big – it should be smaller than 16kB.'
+            )
+            is_error = True
+            continue
+
+        # Check whether the file can be loaded as UTF-8 file.
+        try:
+            file_content = filename.read_text(encoding='utf-8')
+        except UnicodeDecodeError:
+            session.log(f'File {filename.name} is not a valid UTF-8 file.')
+            is_error = True
+            continue
+
+        # Check whether the content of the file is anyhow valid.
+        is_valid, error_message = is_changelog_entry_valid(file_content)
+        if not is_valid:
+            session.log(f'File {filename.name} is not a valid changelog entry: {error_message}')
+            is_error = True
+            continue
+
+    if is_error:
+        session.error(
+            'Found errors in the changelog.d directory. Check logs above for more information'
+        )
