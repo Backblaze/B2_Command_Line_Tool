@@ -596,7 +596,7 @@ def make_release_commit(session):
 
     session.log(
         f'CHANGELOG updated, changes ready to commit and push\n'
-        f'    git commit -m release {version}\n'
+        f'    git commit -m "release {version}"\n'
         f'    git tag v{version}\n'
         f'    git push {{UPSTREAM_NAME}} v{version}\n'
         f'    git push {{UPSTREAM_NAME}} {current_branch}'
