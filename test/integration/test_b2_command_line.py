@@ -17,6 +17,7 @@ import itertools
 import json
 import os
 import os.path
+import pathlib
 import re
 import sys
 import time
@@ -2680,6 +2681,46 @@ def test_download_file_stdout(
     assert b2_tool.should_succeed(
         ['download-file', '--quiet', f"b2id://{uploaded_sample_file['fileId']}", '-'],
     ).replace("\r", "") == sample_filepath.read_text()
+
+
+def test_download_file_to_directory(
+    b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file
+):
+    downloads_directory = 'downloads'
+    target_directory = tmp_path / downloads_directory
+    target_directory.mkdir()
+    filename_as_path = pathlib.Path(uploaded_sample_file['fileName'])
+
+    sample_file_content = sample_filepath.read_text()
+    b2_tool.should_succeed(
+        [
+            'download-file',
+            '--quiet',
+            f"b2://{bucket_name}/{uploaded_sample_file['fileName']}",
+            str(target_directory),
+        ],
+    )
+    downloaded_file = target_directory / filename_as_path
+    assert downloaded_file.read_text() == sample_file_content, \
+        f'{downloaded_file}, {downloaded_file.read_text()}, {sample_file_content}'
+
+    b2_tool.should_succeed(
+        [
+            'download-file',
+            '--quiet',
+            f"b2id://{uploaded_sample_file['fileId']}",
+            str(target_directory),
+        ],
+    )
+    # A second file should be created.
+    new_files = [
+        filepath
+        for filepath in target_directory.glob(f'{filename_as_path.stem}*{filename_as_path.suffix}')
+        if filepath.name != filename_as_path.name
+    ]
+    assert len(new_files) == 1, f'{new_files}'
+    assert new_files[0].read_text() == sample_file_content, \
+        f'{new_files}, {new_files[0].read_text()}, {sample_file_content}'
 
 
 def test_cat(b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file):
