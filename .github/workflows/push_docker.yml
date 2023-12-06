@@ -11,7 +11,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       DOCKERHUB_USERNAME: secrets.DOCKERHUB_USERNAME
       DOCKERHUB_TOKEN: secrets.DOCKERHUB_TOKEN
-      PYTHON_DEFAULT_VERSION: 3.11
+      PYTHON_DEFAULT_VERSION: 3.12
     steps:
       - uses: actions/checkout@v3
         with:
