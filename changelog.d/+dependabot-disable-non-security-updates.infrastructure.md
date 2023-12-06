@@ -1,1 +1,0 @@
-Disable dependabot requests for updates unrelated to security issues.

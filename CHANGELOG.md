@@ -9,6 +9,49 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.14.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.14.0) - 2023-12-06
+
+
+### Changed
+
+- Update b2sdk to 1.28.0 (resolves [#958](https://github.com/Backblaze/B2_Command_Line_Tool/issues/958), [#934](https://github.com/Backblaze/B2_Command_Line_Tool/issues/934)).
+
+### Fixed
+
+- Don't print `Using https://REALM" in stderr unless explicitly set by user. ([#949](https://github.com/Backblaze/B2_Command_Line_Tool/issues/949))
+- Added autocomplete suggestion caching to improve autocomplete performance.
+- Do not include build cache in official `b2` docker image.
+- Fix an error that caused multiprocessing semaphores to leak on OSX.
+
+### Deprecated
+
+- Deprecated `download-file-by-id` and `download-file-by-name`, use `download-file` instead.
+  Deprecated `get-file-info`, use `file-info` instead.
+  Deprecated `make-url` and `make-friendly-url`, use `get-url` instead.
+
+### Added
+
+- Add `--expires`, `--content-disposition`, `--content-encoding`, `--content-language` options to subcommands `upload-file`, `upload-unbound-stream`, `copy-file-by-id`.
+- Add `download-file`, `file-info` and `get-url` commands using new B2 URI syntax allowing for referring to file-like objects by their bucket&name or ID.
+
+### Doc
+
+- Add `cat` command to documentation.
+- Add additional linebreaks to ensure lists are properly rendered.
+
+### Infrastructure
+
+- Ensure CI checks Python package compatibility with latest setuptools. ([#952](https://github.com/Backblaze/B2_Command_Line_Tool/issues/952))
+- Allow skipping changelog for PRs marked with `-changelog` label.
+- Changelog entries are now validated as a part of CI pipeline.
+- Disable dependabot requests for updates unrelated to security issues.
+- Fix CI badge not showing correct status in README.
+- Remove unused exception class and outdated todo.
+- Skip draft step in releases - all successful releases are public.
+- Update license text generation dependencies to prevent triggering security scan false-positives.
+- Use cpython 3.12 (not 3.11) for integration tests with secrets.
+
+
 ## [3.13.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.13.1) - 2023-11-21
 
 

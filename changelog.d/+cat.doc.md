@@ -1,1 +1,0 @@
-Add `cat` command to documentation.

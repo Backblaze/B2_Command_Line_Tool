@@ -1,1 +1,0 @@
-Update b2sdk to 1.28.0 (resolves #958 , #934 ).
