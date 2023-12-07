@@ -11,6 +11,8 @@
 ######################################################################
 from __future__ import annotations
 
+import tempfile
+
 from b2._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
 
 AUTOCOMPLETE.autocomplete_from_cache()
@@ -1606,10 +1608,50 @@ class DownloadCommand(
     def _print_file_attribute(self, label, value):
         self._print((label + ':').ljust(20) + ' ' + value)
 
-    def get_local_output_filepath(self, filename: str) -> pathlib.Path:
+    def get_local_output_filepath(
+        self, filename: str, file_request: DownloadedFile
+    ) -> pathlib.Path:
         if filename == '-':
             return STDOUT_FILEPATH
-        return pathlib.Path(filename)
+
+        output_filepath = pathlib.Path(filename)
+
+        # As longs as it's not a directory, we're overwriting everything.
+        if not output_filepath.is_dir():
+            return output_filepath
+
+        # If the output is directory, we're expected to download the file right there.
+        # Normally, we overwrite the target without asking any questions, but in this case
+        # user might be oblivious of the actual mistake he's about to commit.
+        # If he, e.g.: downloads file by ID, he might not know the name of the file
+        # and actually overwrite something unintended.
+        output_directory = output_filepath
+        output_filepath = output_directory / file_request.download_version.file_name
+        # If it doesn't exist, we stop worrying.
+        if not output_filepath.exists():
+            return output_filepath
+
+        # If it does exist, we make a unique file prefixed with the actual file name.
+        file_name_as_path = pathlib.Path(file_request.download_version.file_name)
+        file_name = file_name_as_path.stem
+        file_extension = file_name_as_path.suffix
+
+        # Default permissions are: readable and writable by this user only, executable by noone.
+        # This "temporary" file is not automatically removed, but still created in the safest way possible.
+        fd_handle, output_filepath_str = tempfile.mkstemp(
+            prefix=file_name,
+            suffix=file_extension,
+            dir=output_directory,
+        )
+        # Close the handle, so the file is not locked.
+        # This file is no longer 100% "safe", but that's acceptable.
+        os.close(fd_handle)
+
+        # "Normal" file created by Python has readable for everyone, writable for user only.
+        # We change the permissions, to match the default ones.
+        os.chmod(output_filepath_str, 0o644)
+
+        return pathlib.Path(output_filepath_str)
 
 
 class DownloadFileBase(
@@ -1645,7 +1687,7 @@ class DownloadFileBase(
         )
 
         self._print_download_info(downloaded_file)
-        output_filepath = self.get_local_output_filepath(args.localFileName)
+        output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
         downloaded_file.save_to(output_filepath)
         self._print('Download finished')
 
@@ -1711,7 +1753,7 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
         file_request = self.api.download_file_by_uri(
             args.B2_URI, progress_listener=progress_listener, encryption=encryption_setting
         )
-        output_filepath = self.get_local_output_filepath(target_filename)
+        output_filepath = self.get_local_output_filepath(target_filename, file_request)
         file_request.save_to(output_filepath)
         return 0
 

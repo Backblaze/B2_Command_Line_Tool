@@ -1117,6 +1117,56 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_download_by_name_10_threads(self):
         self._test_download_threads(download_by='name', num_threads=10)
 
+    def _test_download_to_directory(self, download_by: str):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        base_filename = 'file'
+        extension = '.txt'
+        source_filename = f'{base_filename}{extension}'
+
+        with TempDir() as temp_dir:
+            local_file = self._make_local_file(temp_dir, source_filename)
+            local_file_content = self._read_file(local_file)
+
+            self._run_command(
+                ['upload-file', '--noProgress', 'my-bucket', local_file, source_filename],
+                remove_version=True,
+            )
+
+            b2uri = f'b2://my-bucket/{source_filename}' if download_by == 'name' else 'b2id://9999'
+            command = [
+                'download-file',
+                '--noProgress',
+                b2uri,
+            ]
+
+            target_directory = os.path.join(temp_dir, 'target')
+            os.mkdir(target_directory)
+            command += [target_directory]
+            self._run_command(command)
+            self.assertEqual(
+                local_file_content,
+                self._read_file(os.path.join(target_directory, source_filename))
+            )
+
+            # Download the file second time, to check the override behavior.
+            self._run_command(command)
+            # We should get another file.
+            target_directory_files = [
+                elem
+                for elem in pathlib.Path(target_directory).glob(f'{base_filename}*{extension}')
+                if elem.name != source_filename
+            ]
+            assert len(target_directory_files) == 1, f'{target_directory_files}'
+            self.assertEqual(local_file_content, self._read_file(target_directory_files[0]))
+
+    def test_download_by_id_to_directory(self):
+        self._test_download_to_directory(download_by='id')
+
+    def test_download_by_name_to_directory(self):
+        self._test_download_to_directory(download_by='name')
+
     def test_copy_file_by_id(self):
         self._authorize_account()
         self._create_my_bucket()
