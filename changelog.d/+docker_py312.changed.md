@@ -1,1 +1,0 @@
-Use Python 3.12 in the official `b2` Docker image.

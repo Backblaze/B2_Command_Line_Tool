@@ -9,6 +9,22 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.15.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.15.0) - 2023-12-07
+
+
+### Changed
+
+- Use Python 3.12 in the official `b2` Docker image.
+
+### Fixed
+
+- Loosen platformdirs dependency version specifier.
+
+### Added
+
+- Whenever target filename is a directory, file is downloaded into that directory.
+
+
 ## [3.14.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.14.0) - 2023-12-06
 
 
