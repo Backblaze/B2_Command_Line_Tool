@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/const.py
+# File: b2/_internal/_cli/const.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #

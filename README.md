@@ -155,6 +155,26 @@ or by mounting local files in the docker container:
 docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest upload-file bucket_name /data/source_file.txt target_file_name
 ```
 
+## Versions
+
+When you start working with `b2`, you might notice that more than one script is available to you.
+This is by design - we use the `ApiVer` methodology to provide all the commands to all the versions
+while also providing all the bugfixes to all the old versions.
+
+If you use the `b2` command, you're working with the latest stable version.
+It provides all the bells and whistles, latest features, and the best performance.
+While it's a great version to work with, if you're willing to write a reliable, long-running script,
+you might find out that after some time it will break.
+New commands will appear, older will deprecate and be removed, parameters will change.
+Backblaze service evolves and the `b2` CLI evolves with it.
+
+However, now you have a way around this problem.
+Instead of using the `b2` command, you can use a version-bound interface e.g.: `b2v3`.
+This command will always provide the same interface that the `ApiVer` version `3` provided.
+Even if the `b2` command goes into the `ApiVer` version `4`, `6` or even `10` with some major changes,
+`b2v3` will still provide the same interface, same commands, and same parameters.
+Over time, it might get slower as we may need to emulate some older behaviors, but we'll ensure that it won't break.
+
 ## Contrib
 
 ### Detailed logs

@@ -32,13 +32,13 @@ from b2sdk.v2 import (
 from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
 from more_itertools import one
 
-from b2._cli.const import (
+from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
 )
-from b2.console_tool import ConsoleTool, Rm
-from b2.version import VERSION
+from b2._internal.b2v3.registry import Rm
+from b2._internal.version import VERSION
 
 from .test_base import TestBase
 
@@ -77,7 +77,8 @@ class BaseConsoleToolTest(TestBase):
         success, but ignoring the stdout.
         """
         stdout, stderr = self._get_stdouterr()
-        actual_status = ConsoleTool(self.b2_api, stdout, stderr).run_command(['b2'] + argv)
+        actual_status = self.console_tool_class(self.b2_api, stdout,
+                                                stderr).run_command(['b2'] + argv)
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
         if actual_stderr != '':
@@ -190,7 +191,7 @@ class BaseConsoleToolTest(TestBase):
         """
         expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
         stdout, stderr = self._get_stdouterr()
-        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
         try:
             actual_status = console_tool.run_command(['b2'] + argv)
         except SystemExit as e:
@@ -1747,7 +1748,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Hide some new files. Don't check the results here; it will be clear enough that
         # something has failed if the output of 'get-bucket' does not match the canon.
         stdout, stderr = self._get_stdouterr()
-        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden1'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden2'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden3'])
@@ -1808,7 +1809,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Hide some new files. Don't check the results here; it will be clear enough that
         # something has failed if the output of 'get-bucket' does not match the canon.
         stdout, stderr = self._get_stdouterr()
-        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden2'])
@@ -2358,7 +2359,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ] + list(range(25))
         )
         stderr = mock.MagicMock()
-        console_tool = ConsoleTool(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
     def test_passing_api_parameters(self):
@@ -2385,7 +2386,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             },
         ]
         for command, params in product(commands, parameters):
-            console_tool = ConsoleTool(
+            console_tool = self.console_tool_class(
                 None,  # do not initialize b2 api to allow passing in additional parameters
                 mock.MagicMock(),
                 mock.MagicMock(),

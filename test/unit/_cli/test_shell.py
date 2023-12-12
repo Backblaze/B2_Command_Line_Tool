@@ -11,7 +11,7 @@
 import os
 from unittest import mock
 
-from b2._cli import shell
+from b2._internal._cli import shell
 
 
 @mock.patch.dict(os.environ, {"SHELL": "/bin/bash"})

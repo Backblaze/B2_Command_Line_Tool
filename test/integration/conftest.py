@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,13 @@ from tempfile import TemporaryDirectory
 
 import pytest
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
+
+from b2._internal.version_listing import (
+    CLI_VERSIONS,
+    LATEST_STABLE_VERSION,
+    UNSTABLE_CLI_VERSION,
+    get_int_version,
+)
 
 from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_part, random_token
 
@@ -54,18 +62,70 @@ def node_stats(summary_notes):
 @pytest.hookimpl
 def pytest_addoption(parser):
     parser.addoption(
-        '--sut', default='%s -m b2' % sys.executable, help='Path to the System Under Test'
+        '--sut',
+        default=f'{sys.executable} -m b2._internal.{UNSTABLE_CLI_VERSION}',
+        help='Path to the System Under Test',
     )
     parser.addoption(
         '--env-file-cmd-placeholder',
         default=None,
         help=(
-            'If specified, all occurrences of this string in `--sut` will be substituted with a'
-            'path to a tmp file containing env vars to be used when running commands in tests. Useful'
+            'If specified, all occurrences of this string in `--sut` will be substituted with a '
+            'path to a tmp file containing env vars to be used when running commands in tests. Useful '
             'for docker.'
         )
     )
+    parser.addoption(
+        '--as_version',
+        default=None,
+        help='Force running tests as a particular version of the CLI, '
+        'useful if version cannot be determined easily from the executable',
+    )
     parser.addoption('--cleanup', action='store_true', help='Perform full cleanup at exit')
+
+
+def get_raw_cli_int_version(config) -> int | None:
+    forced_version = config.getoption('--as_version')
+    if forced_version:
+        return int(forced_version)
+
+    executable = config.getoption('--sut')
+    # If the executable contains anything that looks like a proper version, we can try to pick it up.
+    versions_list = '|'.join(CLI_VERSIONS)
+    versions_match = re.search(rf'({versions_list})', executable)
+    if versions_match:
+        return get_int_version(versions_match.group(1))
+
+    return None
+
+
+def get_cli_int_version(config) -> int:
+    return get_raw_cli_int_version(config) or get_int_version(LATEST_STABLE_VERSION)
+
+
+@pytest.hookimpl
+def pytest_report_header(config):
+    cli_version = get_cli_int_version(config)
+    return f'b2cli version: {cli_version}'
+
+
+@pytest.fixture(scope='session')
+def cli_int_version(request) -> int:
+    return get_cli_int_version(request.config)
+
+
+@pytest.fixture(scope='session')
+def cli_version(request) -> str:
+    # The default stable version could be provided directly as e.g.: b2v3, but also indirectly as b2.
+    # In case there is no direct version, we return the default binary name instead.
+    raw_cli_version = get_raw_cli_int_version(request.config)
+    if raw_cli_version is None:
+        return 'b2'
+
+    for version in CLI_VERSIONS:
+        if get_int_version(version) == raw_cli_version:
+            return version
+    raise pytest.UsageError(f'Unknown CLI version: {raw_cli_version}')
 
 
 @pytest.fixture(scope='session')

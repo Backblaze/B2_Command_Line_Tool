@@ -28,16 +28,20 @@
 #
 
 import datetime
+import importlib
 import os
-from os import path
 import re
 import sys
 import textwrap
+from os import path
 
 sys.path.insert(0, os.path.abspath('../..'))
 
-from b2.console_tool import B2
-from b2.version import VERSION
+from b2._internal.version import VERSION
+from b2._internal.version_listing import LATEST_STABLE_VERSION
+
+B2 = importlib.import_module(f'b2._internal.{LATEST_STABLE_VERSION}.registry').B2
+
 
 # -- General configuration ------------------------------------------------
 

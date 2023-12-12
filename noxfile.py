@@ -15,7 +15,6 @@ import platform
 import re
 import string
 import subprocess
-from glob import glob
 from typing import List, Set, Tuple
 
 import nox
@@ -89,6 +88,34 @@ if CI:
         stderr=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
     )
+
+
+def get_version_key(path: pathlib.Path) -> int:
+    version_name = path.name
+    # There is no version 0, thus we can provide it to the element starting with an underscore.
+    if version_name.startswith('_'):
+        return 0
+
+    version_match = re.match(r'[_]*b2v(\d+)', version_name)
+    assert version_match, f'Version {version_name} does not match pattern B2Cli version pattern.'
+    version_number = int(version_match.group(1))
+    return version_number
+
+
+def get_versions() -> List[str]:
+    """
+    "Almost" a copy of b2/_internalg/version_listing.py:get_versions(), because importing
+    the file directly seems impossible from the noxfile.
+    """
+    # This sorting ensures that:
+    # - the first element is the latest unstable version (starts with an underscore)
+    # - the last element is the latest stable version (highest version number)
+    return [
+        path.name for path in sorted(
+            (pathlib.Path(__file__).parent / 'b2' / '_internal').glob('*b2v*'),
+            key=get_version_key,
+        )
+    ]
 
 
 @nox.session(venv_backend='none')
@@ -178,7 +205,8 @@ def unit(session):
     """Run unit tests."""
     install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
-    session.run(
+
+    command = [
         'pytest',
         '-n',
         'auto',
@@ -188,16 +216,24 @@ def unit(session):
         '--doctest-modules',
         *session.posargs,
         'test/unit',
-    )
+    ]
+
+    versions = get_versions()
+    session.run(*command, '--cli', versions[0])
+    command.append('--cov-append')
     if not session.posargs:
         session.notify('cover')
+
+    for cli_version in versions[1:]:
+        session.run(*command, '--cli', cli_version)
 
 
 def run_integration_test(session, pytest_posargs):
     """Run integration tests."""
     install_myself(session, ['license'])
     session.run('pip', 'install', *REQUIREMENTS_TEST)
-    session.run(
+
+    command = [
         'pytest',
         'test/integration',
         '-s',
@@ -208,7 +244,19 @@ def run_integration_test(session, pytest_posargs):
         '-W',
         'ignore::DeprecationWarning:rst2ansi.visitor:',
         *pytest_posargs,
-    )
+    ]
+
+    # sut can be provided explicitly (like in docker) or like `"--sut=path/b2"`.
+    provided_sut = any('--sut' in elem for elem in pytest_posargs)
+
+    # If `sut` was provided, we just run this one.
+    # If not, we're running the test on all known versions.
+    if provided_sut:
+        session.run(*command)
+    else:
+        versions = get_versions()
+        for cli_version in versions:
+            session.run(*command, '--sut', f'python -m b2._internal.{cli_version}')
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -278,14 +326,32 @@ def bundle(session: nox.Session):
     install_myself(session, ['license', 'full'])
     session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
 
-    session.run('pyinstaller', *session.posargs, 'b2.spec', **run_kwargs)
+    template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
+    versions = get_versions()
 
-    if SYSTEM == 'linux' and not NO_STATICX:
-        session.run(
-            'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', 'dist/b2',
-            'dist/b2-static', **run_kwargs
-        )
-        session.run('mv', '-f', 'dist/b2-static', 'dist/b2', external=True, **run_kwargs)
+    # It is assumed that the last element will be the "latest stable".
+    for binary_name, version in [('b2', versions[-1])] + list(zip(versions, versions)):
+        spec = template_spec.safe_substitute({
+            'VERSION': version,
+            'NAME': binary_name,
+        })
+        pathlib.Path(f'{binary_name}.spec').write_text(spec)
+
+        session.run('pyinstaller', *session.posargs, f'{binary_name}.spec', **run_kwargs)
+
+        if SYSTEM == 'linux' and not NO_STATICX:
+            session.run(
+                'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', f'dist/{binary_name}',
+                f'dist/{binary_name}-static', **run_kwargs
+            )
+            session.run(
+                'mv',
+                '-f',
+                f'dist/{binary_name}-static',
+                f'dist/{binary_name}',
+                external=True,
+                **run_kwargs
+            )
 
     # Set outputs for GitHub Actions
     if CI:
@@ -293,7 +359,14 @@ def bundle(session: nox.Session):
         # otherwise glob won't find files on windows in action-gh-release.
         print('asset_path=dist/*')
 
-        executable = str(next(pathlib.Path('dist').glob('*')))
+        # Note: this should pick the shortest named executable from the directory.
+        # But, for yet unknown reason, the `./dist/b2` doesn't play well with `--sut` and the autocomplete.
+        # For this reason, we're returning here the "latest, stable version" instead.
+        # This current implementation works fine up until version 10, when it will break.
+        # By that time, we should have come back to picking the shortest named binary (`b2`) up.
+        executable = max(
+            str(path) for path in pathlib.Path('dist').glob('*') if not path.name.startswith('_')
+        )
         print(f'sut_path={executable}')
 
 
@@ -303,32 +376,33 @@ def sign(session):
 
     def sign_windows(cert_file, cert_password):
         session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file, **run_kwargs)
-        session.run(
-            WINDOWS_SIGNTOOL_PATH,
-            'sign',
-            '/f',
-            cert_file,
-            '/p',
-            cert_password,
-            '/tr',
-            WINDOWS_TIMESTAMP_SERVER,
-            '/td',
-            'sha256',
-            '/fd',
-            'sha256',
-            'dist/b2.exe',
-            external=True,
-            **run_kwargs
-        )
-        session.run(
-            WINDOWS_SIGNTOOL_PATH,
-            'verify',
-            '/pa',
-            '/all',
-            'dist/b2.exe',
-            external=True,
-            **run_kwargs
-        )
+        for binary_name in ['b2'] + get_versions():
+            session.run(
+                WINDOWS_SIGNTOOL_PATH,
+                'sign',
+                '/f',
+                cert_file,
+                '/p',
+                cert_password,
+                '/tr',
+                WINDOWS_TIMESTAMP_SERVER,
+                '/td',
+                'sha256',
+                '/fd',
+                'sha256',
+                f'dist/{binary_name}.exe',
+                external=True,
+                **run_kwargs
+            )
+            session.run(
+                WINDOWS_SIGNTOOL_PATH,
+                'verify',
+                '/pa',
+                '/all',
+                f'dist/{binary_name}.exe',
+                external=True,
+                **run_kwargs
+            )
 
     if SYSTEM == 'windows':
         try:
@@ -343,12 +417,12 @@ def sign(session):
     else:
         session.error(f'unrecognized platform: {SYSTEM}')
 
-    # Append OS name to the binary
-    asset_old_path = glob('dist/*')[0]
-    name, ext = os.path.splitext(os.path.basename(asset_old_path))
-    asset_path = f'dist/{name}-{SYSTEM}{ext}'
-
-    session.run('mv', '-f', asset_old_path, asset_path, external=True, **run_kwargs)
+    # Append OS name to all the binaries.
+    for asset in pathlib.Path('dist').glob('*'):
+        name = asset.stem
+        ext = asset.suffix
+        asset_path = f'dist/{name}-{SYSTEM}{ext}'
+        session.run('mv', '-f', asset, asset_path, external=True, **run_kwargs)
 
     # Set outputs for GitHub Actions
     if CI:
@@ -538,12 +612,23 @@ def run_docker_tests(session, image_tag):
     run_integration_test(
         session, [
             "--sut",
-            f"docker run -i -v b2:/root -v /tmp:/tmp:rw "
+            "docker run -i -v b2:/root -v /tmp:/tmp:rw "
             f"--env-file ENVFILE {image_tag}",
             "--env-file-cmd-placeholder",
             "ENVFILE",
         ]
     )
+    for binary_name in get_versions():
+        run_integration_test(
+            session, [
+                "--sut",
+                "docker run -i -v b2:/root -v /tmp:/tmp:rw "
+                f"--entrypoint {binary_name} "
+                f"--env-file ENVFILE {image_tag}",
+                "--env-file-cmd-placeholder",
+                "ENVFILE",
+            ]
+        )
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)

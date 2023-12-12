@@ -19,7 +19,7 @@ from b2sdk.v2 import (
     EncryptionSetting,
 )
 
-from b2.console_tool import CopyFileById
+from b2._internal.console_tool import CopyFileById
 
 from .test_base import TestBase
 

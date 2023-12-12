@@ -134,6 +134,11 @@ setup(
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
-        'console_scripts': ['b2=b2.console_tool:main'],
+        'console_scripts':
+            [
+                'b2=b2._internal.b2v3.__main__:main',
+                'b2v3=b2._internal.b2v3.__main__:main',
+                '_b2v4=b2._internal._b2v4.__main__:main',
+            ],
     },
 )

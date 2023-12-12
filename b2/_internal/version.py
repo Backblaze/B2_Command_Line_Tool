@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/version.py
+# File: b2/_internal/version.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #

@@ -9,7 +9,7 @@
 ######################################################################
 import pytest
 
-from b2._cli.autocomplete_install import add_or_update_shell_section
+from b2._internal._cli.autocomplete_install import add_or_update_shell_section
 
 section = "test_section"
 managed_by = "pytest"

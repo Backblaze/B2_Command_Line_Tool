@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/b2api.py
+# File: b2/_internal/_cli/b2api.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #
@@ -18,7 +18,7 @@ from b2sdk.v2 import (
     SqliteAccountInfo,
 )
 
-from b2._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
+from b2._internal._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
 
 
 def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs) -> B2Api:

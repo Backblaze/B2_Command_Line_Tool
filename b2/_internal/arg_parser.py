@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/arg_parser.py
+# File: b2/_internal/arg_parser.py
 #
 # Copyright 2020 Backblaze Inc. All Rights Reserved.
 #

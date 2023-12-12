@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/shell.py
+# File: b2/_internal/_cli/shell.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #

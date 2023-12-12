@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/argcompleters.py
+# File: b2/_internal/_cli/argcompleters.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #
@@ -16,7 +16,7 @@ from itertools import islice
 
 
 def bucket_name_completer(prefix, parsed_args, **kwargs):
-    from b2._cli.b2api import _get_b2api_for_profile
+    from b2._internal._cli.b2api import _get_b2api_for_profile
     api = _get_b2api_for_profile(getattr(parsed_args, 'profile', None))
     res = [bucket.name for bucket in api.list_buckets(use_cache=True)]
     return res
@@ -30,7 +30,7 @@ def file_name_completer(prefix, parsed_args, **kwargs):
     """
     from b2sdk.v2 import LIST_FILE_NAMES_MAX_LIMIT
 
-    from b2._cli.b2api import _get_b2api_for_profile
+    from b2._internal._cli.b2api import _get_b2api_for_profile
 
     api = _get_b2api_for_profile(parsed_args.profile)
     bucket = api.get_bucket_by_name(parsed_args.bucketName)
@@ -52,9 +52,9 @@ def b2uri_file_completer(prefix: str, parsed_args, **kwargs):
     """
     from b2sdk.v2 import LIST_FILE_NAMES_MAX_LIMIT
 
-    from b2._cli.b2api import _get_b2api_for_profile
-    from b2._utils.python_compat import removeprefix
-    from b2._utils.uri import parse_b2_uri
+    from b2._internal._cli.b2api import _get_b2api_for_profile
+    from b2._internal._utils.python_compat import removeprefix
+    from b2._internal._utils.uri import parse_b2_uri
 
     api = _get_b2api_for_profile(getattr(parsed_args, 'profile', None))
     if prefix.startswith('b2://'):

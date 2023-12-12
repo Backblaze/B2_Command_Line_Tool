@@ -25,7 +25,7 @@ from b2sdk.v2 import (
     StubAccountInfo,
 )
 
-from b2.console_tool import ConsoleTool, DownloadCommand
+from b2._internal.console_tool import ConsoleTool, DownloadCommand
 
 from .test_base import TestBase
 

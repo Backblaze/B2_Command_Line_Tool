@@ -25,10 +25,10 @@ from typing import Any
 import argcomplete
 import pytest
 
-import b2._cli.argcompleters
-import b2.arg_parser
-import b2.console_tool
-from b2._cli import autocomplete_cache
+import b2._internal._cli.argcompleters
+import b2._internal.arg_parser
+import b2._internal.console_tool
+from b2._internal._cli import autocomplete_cache
 
 # We can't use pytest.mark.skipif to skip forked tests because with pytest-forked,
 # there is an attempt to fork even if the test is marked as skipped.
@@ -81,14 +81,14 @@ def autocomplete_runner(monkeypatch, b2_cli):
             def _get_b2api_for_profile(profile: str):
                 return b2_cli.b2_api
 
-            m.setattr('b2._cli.b2api._get_b2api_for_profile', _get_b2api_for_profile)
+            m.setattr('b2._internal._cli.b2api._get_b2api_for_profile', _get_b2api_for_profile)
             yield
 
     return runner
 
 
 def argcomplete_result():
-    parser = b2.console_tool.B2.create_parser()
+    parser = b2._internal.console_tool.B2.create_parser()
     exit, output = Exit(), io.StringIO()
     argcomplete.autocomplete(parser, exit_method=exit, output_stream=output)
     return exit.code, output.getvalue()
@@ -102,7 +102,7 @@ def cached_complete_result(cache: autocomplete_cache.AutocompleteCache):
 
 def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     exit, output = Exit(), io.StringIO()
-    parser = b2.console_tool.B2.create_parser()
+    parser = b2._internal.console_tool.B2.create_parser()
     cache.cache_and_autocomplete(
         parser, uncached_args={
             'exit_method': exit,

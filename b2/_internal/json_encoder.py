@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/json_encoder.py
+# File: b2/_internal/json_encoder.py
 #
 # Copyright 2020 Backblaze Inc. All Rights Reserved.
 #

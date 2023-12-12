@@ -14,3 +14,4 @@ venv
 doc/source/main_help.rst
 Dockerfile
 b2/licenses_output.txt
+*.spec

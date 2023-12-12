@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/autocomplete_cache.py
+# File: b2/_internal/_cli/autocomplete_cache.py
 #
 # Copyright 2020 Backblaze Inc. All Rights Reserved.
 #
@@ -19,7 +19,7 @@ from typing import Callable
 import argcomplete
 import platformdirs
 
-from b2.version import VERSION
+from b2._internal.version import VERSION
 
 
 def identity(x):
