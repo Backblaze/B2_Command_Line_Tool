@@ -973,9 +973,10 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
-            expected_stdout = '''
+            expected_stdout_template = '''
             File name:           file1.txt
             File id:             9999
+            Output file path:    {output_path}
             File size:           11
             Content type:        b2/x-auto
             Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
@@ -986,6 +987,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             Checksum matches
             Download finished
             '''
+            expected_stdout = expected_stdout_template.format(
+                output_path=pathlib.Path(local_download1).resolve()
+            )
 
             self._run_command(
                 ['download-file', '--noProgress', 'b2://my-bucket/file1.txt', local_download1],
@@ -996,6 +1000,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
+            expected_stdout = expected_stdout_template.format(
+                output_path=pathlib.Path(local_download2).resolve()
+            )
             self._run_command(
                 ['download-file', '--noProgress', 'b2id://9999', local_download2], expected_stdout,
                 '', 0

@@ -16,6 +16,7 @@ import pytest
 EXPECTED_STDOUT_DOWNLOAD = '''
 File name:           file1.txt
 File id:             9999
+Output file path:    {output_path}
 File size:           11
 Content type:        b2/x-auto
 Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
@@ -40,7 +41,8 @@ def test_download_file_by_uri__flag_support(b2_cli, uploaded_file, tmp_path, fla
 
     b2_cli.run(
         ['download-file', flag, 'b2id://9999',
-         str(output_path)], expected_stdout=expected_stdout
+         str(output_path)],
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve())
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -53,7 +55,10 @@ def test_download_file_by_uri__b2_uri_support(b2_cli, uploaded_file, tmp_path, b
     output_path = tmp_path / 'output.txt'
 
     b2_cli.run(
-        ['download-file', b2_uri, str(output_path)], expected_stdout=EXPECTED_STDOUT_DOWNLOAD
+        ['download-file', b2_uri, str(output_path)],
+        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
+            output_path=pathlib.Path(output_path).resolve()
+        )
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -73,7 +78,9 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
             'download-file-by-name', uploaded_file['bucket'], uploaded_file['fileName'],
             str(output_path)
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD,
+        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
+            output_path=pathlib.Path(output_path).resolve()
+        ),
         expected_stderr=
         'WARNING: download-file-by-name command is deprecated. Use download-file instead.\n',
     )
@@ -92,7 +99,7 @@ def test_download_file_by_id(b2_cli, uploaded_file, tmp_path, flag, expected_std
 
     b2_cli.run(
         ['download-file-by-id', flag, '9999', str(output_path)],
-        expected_stdout=expected_stdout,
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
         expected_stderr=
         'WARNING: download-file-by-id command is deprecated. Use download-file instead.\n',
     )
@@ -120,7 +127,9 @@ def test_download_file_by_name__named_pipe(
             uploaded_file['fileName'],
             str(output_path)
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD,
+        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
+            output_path=pathlib.Path(output_path).resolve()
+        ),
         expected_stderr=
         'WARNING: download-file-by-name command is deprecated. Use download-file instead.\n',
     )
