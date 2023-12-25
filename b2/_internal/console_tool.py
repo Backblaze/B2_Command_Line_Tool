@@ -1526,10 +1526,16 @@ class DownloadCommand(
 ):
     """ helper methods for returning results from download commands """
 
-    def _print_download_info(self, downloaded_file: DownloadedFile):
+    def _print_download_info(
+        self, downloaded_file: DownloadedFile, output_filepath: pathlib.Path
+    ) -> None:
         download_version = downloaded_file.download_version
+        output_filepath_string = 'stdout' if output_filepath == STDOUT_FILEPATH else str(
+            output_filepath.resolve()
+        )
         self._print_file_attribute('File name', download_version.file_name)
         self._print_file_attribute('File id', download_version.id_)
+        self._print_file_attribute('Output file path', output_filepath_string)
         self._print_file_attribute('File size', str(download_version.content_length))
         self._print_file_attribute('Content type', download_version.content_type)
         self._print_file_attribute('Content sha1', download_version.content_sha1)
@@ -1680,8 +1686,10 @@ class DownloadFileBase(
             b2_uri, progress_listener, encryption=encryption_setting
         )
 
-        self._print_download_info(downloaded_file)
         output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
+        self._print_download_info(downloaded_file, output_filepath)
+        progress_listener.change_description(output_filepath.name)
+
         downloaded_file.save_to(output_filepath)
         self._print('Download finished')
 
