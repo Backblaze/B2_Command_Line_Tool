@@ -1,1 +1,1 @@
-All the Python libraries were moved to the `_internal` directory to discourage users from importing them.
+All Python modules were moved to the `b2._internal` package to discourage users from importing them.
