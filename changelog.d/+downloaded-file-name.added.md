@@ -1,1 +1,1 @@
-Ensured that the name of the output file is printed.
+Print output file path in `download-file` command.

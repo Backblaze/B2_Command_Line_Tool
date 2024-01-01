@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/autocomplete_install.py
+# File: b2/_internal/_cli/autocomplete_install.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #

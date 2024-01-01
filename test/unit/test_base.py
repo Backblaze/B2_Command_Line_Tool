@@ -11,9 +11,15 @@
 import re
 import unittest
 from contextlib import contextmanager
+from typing import Type
+
+import pytest
 
 
+@pytest.mark.usefixtures('unit_test_console_tool_class')
 class TestBase(unittest.TestCase):
+    console_tool_class: Type
+
     @contextmanager
     def assertRaises(self, exc, msg=None):
         try:

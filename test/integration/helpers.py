@@ -58,7 +58,7 @@ from b2sdk.v2.exception import (
     v3BucketIdNotFound,
 )
 
-from b2.console_tool import Command, current_time_millis
+from b2._internal.console_tool import Command, current_time_millis
 
 logger = logging.getLogger(__name__)
 

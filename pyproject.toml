@@ -36,7 +36,9 @@ license = { file = ["requirements-license.txt"] }
 Homepage = "https://github.com/Backblaze/B2_Command_Line_Tool"
 
 [project.scripts]
-b2 = "b2.console_tool:main"
+b2 = "b2._internal.b2v3.__main__:main"
+b2v3 = "b2._internal.b2v3.__main__:main"
+_b2v4 = "b2._internal._b2v4.__main__:main"
 
 [tool.ruff]
 target-version = "py37"  # to be replaced by project:requires-python when we will have that section in here

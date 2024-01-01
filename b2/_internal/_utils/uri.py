@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_utils/uri.py
+# File: b2/_internal/_utils/uri.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #
@@ -20,7 +20,7 @@ from b2sdk.v2 import (
     FileVersion,
 )
 
-from b2._utils.python_compat import removeprefix, singledispatchmethod
+from b2._internal._utils.python_compat import removeprefix, singledispatchmethod
 
 
 class B2URIBase:

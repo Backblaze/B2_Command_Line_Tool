@@ -11,7 +11,7 @@ from unittest import mock
 
 import pytest
 
-from b2._cli.const import (
+from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,

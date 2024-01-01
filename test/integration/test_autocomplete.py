@@ -34,16 +34,24 @@ def bashrc(homedir):
 
 
 @pytest.fixture(scope="module")
-def autocomplete_installed(env, homedir, bashrc):
+def cli_command(request) -> str:
+    return request.config.getoption('--sut')
+
+
+@pytest.fixture(scope="module")
+def autocomplete_installed(env, homedir, bashrc, cli_version, cli_command, is_running_on_docker):
+    if is_running_on_docker:
+        return
+
     shell = pexpect.spawn(
-        'bash -i -c "b2 install-autocomplete"', env=env, logfile=sys.stderr.buffer
+        f'bash -i -c "{cli_command} install-autocomplete"', env=env, logfile=sys.stderr.buffer
     )
     try:
         shell.expect_exact('Autocomplete successfully installed for bash', timeout=TIMEOUT)
     finally:
         shell.close()
     shell.wait()
-    assert (homedir / '.bash_completion.d' / 'b2').is_file()
+    assert (homedir / '.bash_completion.d' / cli_version).is_file()
     assert bashrc.read_text().startswith(BASHRC_CONTENT)
 
 
@@ -56,20 +64,20 @@ def shell(env):
 
 
 @skip_on_windows
-def test_autocomplete_b2_commands(autocomplete_installed, is_running_on_docker, shell):
+def test_autocomplete_b2_commands(autocomplete_installed, is_running_on_docker, shell, cli_version):
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
-    shell.send('b2 \t\t')
+    shell.send(f'{cli_version} \t\t')
     shell.expect_exact(["authorize-account", "download-file", "get-bucket"], timeout=TIMEOUT)
 
 
 @skip_on_windows
 def test_autocomplete_b2_only_matching_commands(
-    autocomplete_installed, is_running_on_docker, shell
+    autocomplete_installed, is_running_on_docker, shell, cli_version
 ):
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
-    shell.send('b2 delete-\t\t')
+    shell.send(f'{cli_version} delete-\t\t')
 
     shell.expect_exact("file", timeout=TIMEOUT)  # common part of remaining cmds is autocompleted
     with pytest.raises(pexpect.exceptions.TIMEOUT):  # no other commands are suggested
@@ -78,12 +86,18 @@ def test_autocomplete_b2_only_matching_commands(
 
 @skip_on_windows
 def test_autocomplete_b2__download_file__b2uri(
-    autocomplete_installed, shell, b2_tool, bucket_name, file_name, is_running_on_docker
+    autocomplete_installed,
+    shell,
+    b2_tool,
+    bucket_name,
+    file_name,
+    is_running_on_docker,
+    cli_version,
 ):
     """Test that autocomplete suggests bucket names and file names."""
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
-    shell.send('b2 download_file \t\t')
+    shell.send(f'{cli_version} download_file \t\t')
     shell.expect_exact("b2://", timeout=TIMEOUT)
     shell.send('b2://\t\t')
     shell.expect_exact(bucket_name, timeout=TIMEOUT)

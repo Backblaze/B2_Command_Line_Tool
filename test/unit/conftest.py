@@ -7,15 +7,57 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import importlib
 import os
-from test.unit.helpers import RunOrDieExecutor
-from test.unit.test_console_tool import BaseConsoleToolTest
 from unittest import mock
 
 import pytest
 from b2sdk.raw_api import REALM_URLS
 
-from b2.console_tool import _TqdmCloser
+from b2._internal.console_tool import _TqdmCloser
+from b2._internal.version_listing import CLI_VERSIONS, UNSTABLE_CLI_VERSION, get_int_version
+
+from .helpers import RunOrDieExecutor
+from .test_console_tool import BaseConsoleToolTest
+
+
+@pytest.hookimpl
+def pytest_addoption(parser):
+    parser.addoption(
+        '--cli',
+        default=UNSTABLE_CLI_VERSION,
+        choices=CLI_VERSIONS,
+        help='version of the CLI',
+    )
+
+
+@pytest.hookimpl
+def pytest_report_header(config):
+    int_version = get_int_version(config.getoption('--cli'))
+    return f'b2cli version: {int_version}'
+
+
+@pytest.fixture(scope='session')
+def cli_version(request) -> str:
+    return request.config.getoption('--cli')
+
+
+@pytest.fixture(scope='session')
+def cli_int_version(cli_version) -> int:
+    return get_int_version(cli_version)
+
+
+@pytest.fixture(scope='session')
+def console_tool_class(cli_version):
+    # Ensures import of the correct library to handle all the tests.
+    module = importlib.import_module(f'b2._internal.{cli_version}.registry')
+    return module.ConsoleTool
+
+
+@pytest.fixture(scope='class')
+def unit_test_console_tool_class(request, console_tool_class):
+    # Ensures that the unittest class uses the correct console tool version.
+    request.cls.console_tool_class = console_tool_class
 
 
 @pytest.fixture(autouse=True, scope='session')
@@ -46,8 +88,13 @@ class ConsoleToolTester(BaseConsoleToolTest):
 
 
 @pytest.fixture
-def b2_cli():
+def b2_cli(console_tool_class):
     cli_tester = ConsoleToolTester()
+    # Because of the magic the pytest does on importing and collecting fixtures,
+    # ConsoleToolTester is not injected with the `unit_test_console_tool_class`
+    # despite having it as a parent.
+    # Thus, we inject it manually here.
+    cli_tester.console_tool_class = console_tool_class
     cli_tester.setUp()
     yield cli_tester
     cli_tester.tearDown()

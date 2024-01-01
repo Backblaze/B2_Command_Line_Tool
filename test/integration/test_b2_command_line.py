@@ -36,7 +36,7 @@ from b2sdk.v2 import (
     fix_windows_path_limit,
 )
 
-from b2.console_tool import current_time_millis
+from b2._internal.console_tool import current_time_millis
 
 from ..helpers import skip_on_windows
 from .helpers import (
@@ -361,7 +361,7 @@ def test_rapid_bucket_operations(b2_tool):
     b2_tool.should_succeed(['delete-bucket', new_bucket_name])
 
 
-def test_account(b2_tool):
+def test_account(b2_tool, cli_version):
     with b2_tool.env_var_test_context:
         b2_tool.should_succeed(['clear-account'])
         bad_application_key = random_hex(len(b2_tool.application_key))
@@ -388,7 +388,7 @@ def test_account(b2_tool):
         b2_tool.should_fail(
             ['create-bucket', bucket_name, 'allPrivate'],
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
-            r'Use: b2(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
+            fr'Use: {cli_version}(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
             r'"B2_APPLICATION_KEY" environment variables'
         )
         os.remove(new_creds)
@@ -1509,14 +1509,18 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     "data in bundled and built packages."
 )
 @pytest.mark.parametrize('with_packages', [True, False])
-def test_license(b2_tool, with_packages):
+def test_license(b2_tool, with_packages, cli_version):
     license_text = b2_tool.should_succeed(
         ['license'] + (['--with-packages'] if with_packages else [])
     )
 
     if with_packages:
+        # In the case of e.g.: docker image, it has a license built-in with a `b2`.
+        # It also is unable to generate this license because it lacks required packages.
+        # Thus, I'm allowing here for the test of licenses to pass whenever
+        # the binary is named `b2` or with the proper cli version string (e.g. `_b2v4` or `b2v3`).
         full_license_re = re.compile(
-            r'Licenses of all modules used by b2(\.EXE)?, shipped with it in binary form:\r?\n'
+            fr'Licenses of all modules used by ({cli_version}|b2)(\.EXE)?, shipped with it in binary form:\r?\n'
             r'\+-*\+-*\+\r?\n'
             r'\|\s*Module name\s*\|\s*License text\s*\|\r?\n'
             r'.*'
@@ -1531,8 +1535,9 @@ def test_license(b2_tool, with_packages):
         # 'colorlog', 'virtualenv', 'nox', 'packaging', 'argcomplete', 'filelock'
         # that sum up to around 50k characters. Tests ran from docker image are unaffected.
 
+        # See the explanation above for why both `b2` and `cli_version` are allowed here.
         license_summary_re = re.compile(
-            r'Summary of all modules used by b2(\.EXE)?, shipped with it in binary form:\r?\n'
+            fr'Summary of all modules used by ({cli_version}|b2)(\.EXE)?, shipped with it in binary form:\r?\n'
             r'\+-*\+-*\+-*\+-*\+-*\+\r?\n'
             r'\|\s*Module name\s*\|\s*Version\s*\|\s*License\s*\|\s*Author\s*\|\s*URL\s*\|\r?\n'
             r'.*'
@@ -2666,8 +2671,9 @@ def test_upload_unbound_stream__redirect_operator(
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
     content = request.node.name
+    command = request.config.getoption('--sut')
     run = bash_runner(
-        f'b2 upload-unbound-stream {bucket_name} <(echo -n {content}) {request.node.name}.txt'
+        f'{command} upload-unbound-stream {bucket_name} <(echo -n {content}) {request.node.name}.txt'
     )
     assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
 

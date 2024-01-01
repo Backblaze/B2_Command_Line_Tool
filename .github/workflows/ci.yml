@@ -167,7 +167,7 @@ jobs:
         id: hashes
         run: nox -vs make_dist_digest
       - name: Run integration tests (without secrets)
-        run: nox -vs integration -- -m "not require_secrets"
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
@@ -206,7 +206,7 @@ jobs:
         id: hashes
         run: nox -vs make_dist_digest
       - name: Run integration tests (without secrets)
-        run: nox -vs integration -- -m "not require_secrets"
+        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup

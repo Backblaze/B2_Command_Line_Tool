@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from b2._utils.uri import B2URI, B2FileIdURI, parse_uri
+from b2._internal._utils.uri import B2URI, B2FileIdURI, parse_uri
 
 
 class TestB2URI:

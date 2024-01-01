@@ -8,7 +8,7 @@ block_cipher = None
 # https://github.com/Backblaze/B2_Command_Line_Tool/issues/689
 datas = copy_metadata('b2') + collect_data_files('dateutil')
 
-a = Analysis(['b2/console_tool.py'],
+a = Analysis(['b2/_internal/${VERSION}/__main__.py'],
              pathex=['.'],
              binaries=[],
              datas=datas,
@@ -30,7 +30,7 @@ exe = EXE(pyz,
           a.zipfiles,
           a.datas,
           [],
-          name='b2',
+          name='${NAME}',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,

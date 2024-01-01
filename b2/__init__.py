@@ -13,7 +13,7 @@ import logging  # noqa
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
-import b2.version  # noqa: E402
+import b2._internal.version  # noqa: E402
 
-__version__ = b2.version.VERSION
+__version__ = b2._internal.version.VERSION
 assert __version__  # PEP-0396

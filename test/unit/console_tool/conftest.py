@@ -12,7 +12,7 @@ import sys
 
 import pytest
 
-import b2.console_tool
+import b2._internal.console_tool
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def cwd_path(tmp_path):
 @pytest.fixture
 def b2_cli_log_fix(caplog):
     caplog.set_level(0)  # prevent pytest from blocking logs
-    b2.console_tool.logger.setLevel(0)  # reset logger level to default
+    b2._internal.console_tool.logger.setLevel(0)  # reset logger level to default
 
 
 @pytest.fixture

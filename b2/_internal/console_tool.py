@@ -2,18 +2,19 @@
 # PYTHON_ARGCOMPLETE_OK
 ######################################################################
 #
-# File: b2/console_tool.py
+# File: b2/_internal/console_tool.py
 #
 # Copyright 2019 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+# ruff: noqa: E402
 from __future__ import annotations
 
 import tempfile
 
-from b2._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
+from b2._internal._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
 
 AUTOCOMPLETE.autocomplete_from_cache()
 
@@ -111,21 +112,21 @@ from b2sdk.version import VERSION as b2sdk_version
 from class_registry import ClassRegistry
 from tabulate import tabulate
 
-from b2._cli.arg_parser_types import (
+from b2._internal._cli.arg_parser_types import (
     parse_comma_separated_list,
     parse_default_retention_period,
     parse_millis_from_float_timestamp,
     parse_range,
 )
-from b2._cli.argcompleters import bucket_name_completer, file_name_completer
-from b2._cli.autocomplete_install import (
+from b2._internal._cli.argcompleters import bucket_name_completer, file_name_completer
+from b2._internal._cli.autocomplete_install import (
     SUPPORTED_SHELLS,
     AutocompleteInstallError,
     autocomplete_install,
 )
-from b2._cli.b2api import _get_b2api_for_profile
-from b2._cli.b2args import add_b2_file_argument
-from b2._cli.const import (
+from b2._internal._cli.b2api import _get_b2api_for_profile
+from b2._internal._cli.b2args import add_b2_file_argument
+from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
@@ -136,12 +137,12 @@ from b2._cli.const import (
     CREATE_BUCKET_TYPES,
     DEFAULT_THREADS,
 )
-from b2._cli.obj_loads import validated_loads
-from b2._cli.shell import detect_shell
-from b2._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
-from b2.arg_parser import B2ArgumentParser
-from b2.json_encoder import B2CliJsonEncoder
-from b2.version import VERSION
+from b2._internal._cli.obj_loads import validated_loads
+from b2._internal._cli.shell import detect_shell
+from b2._internal._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
+from b2._internal.arg_parser import B2ArgumentParser
+from b2._internal.json_encoder import B2CliJsonEncoder
+from b2._internal.version import VERSION
 
 piplicenses = None
 prettytable = None
@@ -160,7 +161,10 @@ VERSION_0_COMPATIBILITY = False
 # The name of an executable entry point
 NAME = os.path.basename(sys.argv[0])
 if NAME.endswith('.py'):
-    NAME = 'b2'
+    version_name = re.search(
+        r'[\\/]b2[\\/]_internal[\\/](_{0,1}b2v\d+)[\\/]__main__.py', sys.argv[0]
+    )
+    NAME = version_name.group(1) if version_name else 'b2'
 
 FILE_RETENTION_COMPATIBILITY_WARNING = """
     .. warning::
@@ -997,7 +1001,6 @@ class B2(Command):
         return args.command_class
 
 
-@B2.register_subcommand
 class AuthorizeAccount(Command):
     """
     Prompts for Backblaze ``applicationKeyId`` and ``applicationKey`` (unless they are given
@@ -1122,7 +1125,6 @@ class AuthorizeAccount(Command):
         return os.environ.get(B2_ENVIRONMENT_ENV_VAR)
 
 
-@B2.register_subcommand
 class CancelAllUnfinishedLargeFiles(Command):
     """
     Lists all large files that have been started but not
@@ -1148,7 +1150,6 @@ class CancelAllUnfinishedLargeFiles(Command):
         return 0
 
 
-@B2.register_subcommand
 class CancelLargeFile(Command):
     """
     Cancels a large file upload.  Used to undo a ``start-large-file``.
@@ -1172,7 +1173,6 @@ class CancelLargeFile(Command):
         return 0
 
 
-@B2.register_subcommand
 class ClearAccount(Command):
     """
     Erases everything in local cache.
@@ -1193,7 +1193,6 @@ class ClearAccount(Command):
         return 0
 
 
-@B2.register_subcommand
 class CopyFileById(
     HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin,
     LegalHoldMixin, Command
@@ -1331,7 +1330,6 @@ class CopyFileById(
         return source_file_version.file_info, source_file_version.content_type
 
 
-@B2.register_subcommand
 class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
@@ -1387,7 +1385,6 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         return 0
 
 
-@B2.register_subcommand
 class CreateKey(Command):
     """
     Creates a new application key.  Prints the application key information.  This is the only
@@ -1448,7 +1445,6 @@ class CreateKey(Command):
         return 0
 
 
-@B2.register_subcommand
 class DeleteBucket(Command):
     """
     Deletes the bucket with the given name.
@@ -1469,7 +1465,6 @@ class DeleteBucket(Command):
         return 0
 
 
-@B2.register_subcommand
 class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
     """
     Permanently and irrevocably deletes one version of a file.
@@ -1501,7 +1496,6 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-@B2.register_subcommand
 class DeleteKey(Command):
     """
     Deletes the specified application key by its ID.
@@ -1702,7 +1696,6 @@ class DownloadFileBase(
         return 0
 
 
-@B2.register_subcommand
 class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
 
@@ -1715,7 +1708,6 @@ class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
         return args.B2_URI
 
 
-@B2.register_subcommand
 class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
     replaced_by_cmd = DownloadFile
@@ -1726,7 +1718,6 @@ class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase
         parser.add_argument('localFileName')
 
 
-@B2.register_subcommand
 class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
     replaced_by_cmd = DownloadFile
@@ -1737,7 +1728,6 @@ class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, Downl
         parser.add_argument('localFileName')
 
 
-@B2.register_subcommand
 class Cat(B2URIFileArgMixin, DownloadCommand):
     """
     Download content of a file-like object identified by B2 URI directly to stdout.
@@ -1766,7 +1756,6 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
         return 0
 
 
-@B2.register_subcommand
 class GetAccountInfo(Command):
     """
     Shows the account ID, key, auth token, URLs, and what capabilities
@@ -1795,7 +1784,6 @@ class GetAccountInfo(Command):
         return 0
 
 
-@B2.register_subcommand
 class GetBucket(Command):
     """
     Prints all of the information about the bucket, including
@@ -1872,18 +1860,15 @@ class FileInfoBase(Command):
         return 0
 
 
-@B2.register_subcommand
 class FileInfo(B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
 
 
-@B2.register_subcommand
 class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
     replaced_by_cmd = FileInfo
 
 
-@B2.register_subcommand
 class GetDownloadAuth(Command):
     """
     Prints an authorization token that is valid only for downloading
@@ -1917,7 +1902,6 @@ class GetDownloadAuth(Command):
         return 0
 
 
-@B2.register_subcommand
 class GetDownloadUrlWithAuth(Command):
     """
     Prints a URL to download the given file.  The URL includes an authorization
@@ -1954,7 +1938,6 @@ class GetDownloadUrlWithAuth(Command):
         return 0
 
 
-@B2.register_subcommand
 class HideFile(Command):
     """
     Uploads a new, hidden, version of the given file.
@@ -1977,7 +1960,6 @@ class HideFile(Command):
         return 0
 
 
-@B2.register_subcommand
 class ListBuckets(Command):
     """
     Lists all of the buckets in the current account.
@@ -2013,7 +1995,6 @@ class ListBuckets(Command):
         return 0
 
 
-@B2.register_subcommand
 class ListKeys(Command):
     """
     Lists the application keys for the current account.
@@ -2095,7 +2076,6 @@ class ListKeys(Command):
             return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
-@B2.register_subcommand
 class ListParts(Command):
     """
     Lists all of the parts that have been uploaded for the given
@@ -2118,7 +2098,6 @@ class ListParts(Command):
         return 0
 
 
-@B2.register_subcommand
 class ListUnfinishedLargeFiles(Command):
     """
     Lists all of the large files in the bucket that were started,
@@ -2201,7 +2180,6 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
             raise B2Error(error.args[0])
 
 
-@B2.register_subcommand
 class Ls(AbstractLsCommand):
     """
     Using the file naming convention that ``/`` separates folder
@@ -2321,7 +2299,6 @@ class Ls(AbstractLsCommand):
         return template % tuple(parameters)
 
 
-@B2.register_subcommand
 class Rm(ThreadsMixin, AbstractLsCommand):
     """
     Removes a "folder" or a set of files matching a pattern.  Use with caution.
@@ -2541,24 +2518,20 @@ class GetUrlBase(Command):
         return 0
 
 
-@B2.register_subcommand
 class GetUrl(B2URIFileArgMixin, GetUrlBase):
     __doc__ = GetUrlBase.__doc__
 
 
-@B2.register_subcommand
 class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, GetUrlBase):
     __doc__ = GetUrlBase.__doc__
     replaced_by_cmd = GetUrl
 
 
-@B2.register_subcommand
 class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, GetUrlBase):
     __doc__ = GetUrlBase.__doc__
     replaced_by_cmd = GetUrl
 
 
-@B2.register_subcommand
 class Sync(
     ThreadsMixin,
     DestinationSseMixin,
@@ -2904,7 +2877,6 @@ class Sync(
         )
 
 
-@B2.register_subcommand
 class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
@@ -3178,7 +3150,6 @@ class UploadFileMixin(
         pass
 
 
-@B2.register_subcommand
 class UploadFile(UploadFileMixin, UploadModeMixin, Command):
     """
     Uploads one file to the given bucket.
@@ -3238,7 +3209,6 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
         return file_version
 
 
-@B2.register_subcommand
 class UploadUnboundStream(UploadFileMixin, Command):
     """
     Uploads an unbound stream to the given bucket.
@@ -3319,7 +3289,6 @@ class UploadUnboundStream(UploadFileMixin, Command):
         return file_version
 
 
-@B2.register_subcommand
 class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true.
@@ -3345,7 +3314,6 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-@B2.register_subcommand
 class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires
@@ -3404,7 +3372,6 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-@B2.register_subcommand
 class ReplicationSetup(Command):
     """
     Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
@@ -3526,7 +3493,6 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
         pass
 
 
-@B2.register_subcommand
 class ReplicationDelete(ReplicationRuleChanger):
     """
     Deletes a replication rule
@@ -3543,7 +3509,6 @@ class ReplicationDelete(ReplicationRuleChanger):
         return None
 
 
-@B2.register_subcommand
 class ReplicationPause(ReplicationRuleChanger):
     """
     Pauses a replication rule
@@ -3561,7 +3526,6 @@ class ReplicationPause(ReplicationRuleChanger):
         return rule
 
 
-@B2.register_subcommand
 class ReplicationUnpause(ReplicationRuleChanger):
     """
     Unpauses a replication rule
@@ -3579,7 +3543,6 @@ class ReplicationUnpause(ReplicationRuleChanger):
         return rule
 
 
-@B2.register_subcommand
 class ReplicationStatus(Command):
     """
     Inspects files in only source or both source and destination buckets
@@ -3746,7 +3709,6 @@ class ReplicationStatus(Command):
         writer.writerows(rows)
 
 
-@B2.register_subcommand
 class Version(Command):
     """
     Prints the version number of this tool.
@@ -3767,12 +3729,11 @@ class Version(Command):
         return 0
 
 
-@B2.register_subcommand
 class License(Command):  # pragma: no cover
     """
     Prints the license of B2 Command line tool and all libraries shipped with it.
     """
-    LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent / 'licenses_output.txt'
+    LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent.parent / 'licenses_output.txt'
 
     REQUIRES_AUTH = False
     IGNORE_MODULES = {'b2', 'distlib', 'patchelf-wrapper', 'platformdirs'}
@@ -3859,7 +3820,7 @@ class License(Command):  # pragma: no cover
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
         stream.write(f'\n\n{NAME} license:\n')
-        b2_license_file_text = (pathlib.Path(__file__).parent /
+        b2_license_file_text = (pathlib.Path(__file__).parent.parent /
                                 'LICENSE').read_text(encoding='utf8')
         stream.write(b2_license_file_text)
 
@@ -3952,7 +3913,6 @@ class License(Command):  # pragma: no cover
         return license_
 
 
-@B2.register_subcommand
 class InstallAutocomplete(Command):
     """
     Installs autocomplete for supported shells.

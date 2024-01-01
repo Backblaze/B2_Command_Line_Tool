@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_cli/obj_loads.py
+# File: b2/_internal/_cli/obj_loads.py
 #
 # Copyright 2023 Backblaze Inc. All Rights Reserved.
 #
