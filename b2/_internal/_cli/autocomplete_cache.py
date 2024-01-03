@@ -50,15 +50,14 @@ class VersionTracker(StateTracker):
 class HomeCachePickleStore(PickleStore):
     _dir: pathlib.Path
 
-    def __init__(self, dir: pathlib.Path | None = None) -> None:
-        self._dir = dir
+    def __init__(self, dir_path: pathlib.Path | None = None) -> None:
+        self._dir = dir_path
 
     def _cache_dir(self) -> pathlib.Path:
-        if self._dir:
-            return self._dir
-        self._dir = pathlib.Path(
-            platformdirs.user_cache_dir(appname='b2', appauthor='backblaze')
-        ) / 'autocomplete'
+        if not self._dir:
+            self._dir = pathlib.Path(
+                platformdirs.user_cache_dir(appname='b2', appauthor='backblaze')
+            ) / 'autocomplete'
         return self._dir
 
     def _fname(self, identifier: str) -> str:
@@ -74,10 +73,10 @@ class HomeCachePickleStore(PickleStore):
         """Sets the pickle for identifier if it doesn't exist.
         When a new pickle is added, old ones are removed."""
 
-        dir = self._cache_dir()
-        os.makedirs(dir, exist_ok=True)
-        path = dir / self._fname(identifier)
-        for file in dir.glob('b2-autocomplete-cache-*.pickle'):
+        dir_path = self._cache_dir()
+        dir_path.mkdir(parents=True, exist_ok=True)
+        path = dir_path / self._fname(identifier)
+        for file in dir_path.glob('b2-autocomplete-cache-*.pickle'):
             file.unlink()
         with open(path, 'wb') as f:
             f.write(data)
