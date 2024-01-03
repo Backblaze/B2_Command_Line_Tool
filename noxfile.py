@@ -609,11 +609,11 @@ def generate_dockerfile(session):
 
 def run_docker_tests(session, image_tag):
     """Run unittests against a docker image."""
+    docker_run_cmd = "docker run -i -v b2:/root/ -v /tmp:/tmp:rw --env-file ENVFILE"
     run_integration_test(
         session, [
             "--sut",
-            "docker run -i -v b2:/root -v /tmp:/tmp:rw "
-            f"--env-file ENVFILE {image_tag}",
+            f"{docker_run_cmd} {image_tag}",
             "--env-file-cmd-placeholder",
             "ENVFILE",
         ]
@@ -622,9 +622,7 @@ def run_docker_tests(session, image_tag):
         run_integration_test(
             session, [
                 "--sut",
-                "docker run -i -v b2:/root -v /tmp:/tmp:rw "
-                f"--entrypoint {binary_name} "
-                f"--env-file ENVFILE {image_tag}",
+                f"{docker_run_cmd} --entrypoint {binary_name} {image_tag}",
                 "--env-file-cmd-placeholder",
                 "ENVFILE",
             ]
