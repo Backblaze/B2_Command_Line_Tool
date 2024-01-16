@@ -8,6 +8,7 @@ env:
   CD: "true"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PYTHON_DEFAULT_VERSION: "3.12"
+  PDM_REQUIREMENT: "'pdm>=2.11.2,<3'"
 
 jobs:
   deploy:
@@ -25,7 +26,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox ${{ env.PDM_REQUIREMENT }}
       - name: Build the distribution
         id: build
         run: nox -vs build >> $GITHUB_OUTPUT
@@ -64,7 +65,7 @@ jobs:
         run: |
           apt-get -y update
           apt-get -y install patchelf
-          python -m pip install --upgrade nox pip setuptools
+          python -m pip install --upgrade nox ${{ env.PDM_REQUIREMENT }}
           git config --global --add safe.directory '*'
       - name: Bundle the distribution
         id: bundle
@@ -97,7 +98,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox ${{ env.PDM_REQUIREMENT }}
       - name: Bundle the distribution
         id: bundle
         shell: bash

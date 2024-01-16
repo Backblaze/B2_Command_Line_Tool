@@ -449,7 +449,6 @@ class CommandLine:
 
     @classmethod
     def prepare_env(self, additional_env: dict | None = None):
-        environ['PYTHONPATH'] = '.'
         environ['PYTHONIOENCODING'] = 'utf-8'
         env = environ.copy()
         env.update(additional_env or {})

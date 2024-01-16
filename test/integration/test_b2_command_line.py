@@ -388,7 +388,7 @@ def test_account(b2_tool, cli_version):
         b2_tool.should_fail(
             ['create-bucket', bucket_name, 'allPrivate'],
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
-            fr'Use: {cli_version}(\.exe)? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
+            fr'Use: {cli_version}(\.(exe|EXE))? authorize-account or provide auth data with "B2_APPLICATION_KEY_ID" and '
             r'"B2_APPLICATION_KEY" environment variables'
         )
         os.remove(new_creds)

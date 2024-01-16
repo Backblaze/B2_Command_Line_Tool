@@ -1,16 +1,18 @@
 [project]
-requires-python = ">=3.7"
 name = "b2"
-dynamic = ["version", 'dependencies', 'optional-dependencies']
 description = "Command Line Tool for Backblaze B2"
-keywords = ["backblaze b2 cloud storage"]
-readme = "README.md"
 authors = [
     { name = "Backblaze, Inc.", email = "support@backblaze.com" },
 ]
+dynamic = ["version"]
+requires-python = ">=3.7"
+keywords = ["backblaze b2 cloud storage"]
+license = {text = "MIT"}
+readme = "README.md"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.7",
@@ -19,18 +21,43 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries",
 ]
-license = { text = "MIT" }
+dependencies = [
+    "argcomplete>=2,<4",
+    "arrow>=1.0.2,<2.0.0",
+    "b2sdk @ git+https://github.com/vbaltrusaitis-reef/b2-sdk-python@21b6ac0763d2f0029bf89ba47ae5d0d36b5d0ee3",
+    "docutils>=0.18.1",
+    "idna~=3.4; platform_system == 'Java'",
+    "importlib-metadata>=3.3; python_version < '3.8'",
+    "phx-class-registry>=4.0,<5",
+    "rst2ansi==0.1.5",
+    "tabulate==0.9.0",
+    "tqdm>=4.65.0,<5",
+    "platformdirs>=3.11.0,<5",
+]
 
-
-[tools.setuptools.dynamic.dependecies]
-file = ["requirements.txt"]
-
-[tool.setuptools.dynamic.optional-dependencies]
-doc = { file = ["requirements-doc.txt"] }
-full = { file = ["requirements-full.txt"] }
-license = { file = ["requirements-license.txt"] }
+[project.optional-dependencies]
+# doc and licence are actually dev requirements, not optional
+# requirements. They should be removed from this section when
+# a breaking version is released.
+doc = [
+    "sadisplay>=0.4.9; python_version>='3.9'",
+    "sphinx>=7.2,<8; python_version>='3.9'",
+    "sphinx-argparse; python_version>='3.9'",
+    "sphinx-autobuild; python_version>='3.9'",
+    "sphinx-rtd-theme>=1.3,<2; python_version>='3.9'",
+    "sphinxcontrib-plantuml; python_version>='3.9'"
+]
+license = [
+    "pip-licenses==3.5.5; python_version < '3.9'",
+    "pip-licenses~=4.3.3; python_version >= '3.9'",
+    "pipdeptree>=2.9,<3; python_version>='3.9'",
+    "prettytable~=3.7; python_version < '3.9'",
+    "prettytable~=3.9; python_version >= '3.9'",
+]
+full = [
+    "pydantic>=2.0.1,<3"
+]
 
 [project.urls]
 Homepage = "https://github.com/Backblaze/B2_Command_Line_Tool"
@@ -39,6 +66,46 @@ Homepage = "https://github.com/Backblaze/B2_Command_Line_Tool"
 b2 = "b2._internal.b2v3.__main__:main"
 b2v3 = "b2._internal.b2v3.__main__:main"
 _b2v4 = "b2._internal._b2v4.__main__:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.liccheck]
+authorized_licenses = [
+    "bsd",
+    "new bsd",
+    "bsd license",
+    "new bsd license",
+    "simplified bsd",
+    "apache",
+    "apache 2.0",
+    "apache software",
+    "apache software license",
+    "lgpl",
+    "gnu lgpl",
+    "gnu library or lesser general public license (lgpl)",
+    "lgpl with exceptions or zpl",
+    "isc license",
+    "isc license (iscl)",
+    "mit",
+    "mit license",
+    "mozilla public license 2.0 (mpl 2.0)",
+    "mpl-2.0",
+    "psf",
+    "python software foundation",
+    "python software foundation license",
+    "zpl 2.1",
+]
+unauthorized_licences = [
+    "affero",
+    "agpl",
+    "gpl v3",
+    "gpl v2",
+    "gpl",
+]
+dependencies = true
+optional_dependencies = ["doc", "full", "license"]
 
 [tool.ruff]
 target-version = "py37"  # to be replaced by project:requires-python when we will have that section in here
@@ -100,3 +167,48 @@ showcontent = true
 directory = "infrastructure"
 name = "Infrastructure"
 showcontent = true
+
+[tool.pdm]
+distribution = "true"
+
+[tool.pdm.build]
+includes = ["b2"]
+
+[tool.pdm.version]
+source = "scm"
+
+[tool.pdm.scripts]
+assert_prod_python = "pdm run python -c 'import sys; assert sys.version_info >= (3, 11)'"
+lock_prod_no_cross_platform = "pdm lock --lockfile pdm.prod.lock --group full --group test --strategy no_cross_platform"
+lock_bundle = {composite=["assert_prod_python", "lock_prod_no_cross_platform"]}
+
+[tool.pdm.dev-dependencies]
+format = [
+    "yapf==0.27",
+    "ruff==0.0.272",
+]
+lint = [
+    "yapf==0.27",
+    "ruff==0.0.272",
+    "pytest==6.2.5",
+    "liccheck==0.9.2",
+]
+release = [
+    "towncrier==23.11.0; python_version>='3.8'",
+]
+test = [
+    "coverage==7.2.7",
+    "pexpect==4.8.0",
+    "pytest==6.2.5",
+    "pytest-cov==3.0.0",
+    "pytest-forked==1.4.0",
+    "pytest-xdist==2.5.0",
+    "backoff==2.1.2",
+    "more-itertools==8.13.0",
+]
+bundle = [
+    "pyinstaller<6,>=5.13; python_version < \"3.13\"",
+    "pyinstaller-hooks-contrib>=2023.6",
+    "patchelf-wrapper==1.2.0; platform_system == \"Linux\"",
+    "staticx~=0.13.9; platform_system == \"Linux\"",
+]

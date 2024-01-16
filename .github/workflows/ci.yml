@@ -20,11 +20,11 @@ jobs:
         with:
           ignore_words_list: datas re-use
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox pdm
       - name: Run linters
         run: nox -vs lint
       - name: Validate new changelog entries
@@ -45,7 +45,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox pdm
       - name: Build the distribution
         run: nox -vs build >> $GITHUB_OUTPUT
   cleanup_buckets:
@@ -67,7 +67,7 @@ jobs:
           cache: "pip"
       - name: Install dependencies
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox pdm
       - name: Find and remove old buckets
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
         run: nox -vs cleanup_buckets
@@ -81,31 +81,31 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        # pypy version pin was required due 7.3.13 being broken https://foss.heptapod.net/pypy/pypy/-/issues/4021
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "pypy-3.10-nightly"]
-        exclude:
-          - os: "macos-latest"
-            python-version: "pypy-3.10-nightly"
-          - os: "windows-latest"
-            python-version: "pypy-3.10-nightly"
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "pypy3.9", "pypy3.10"]
+        # sdk-git: ["https://github.com/vbaltrusaitis-reef/b2-sdk-python", ""] # installing from PyPI if none
+        # exclude:
+        #   - os: "macos-latest"
+        #     python-version: "pypy3.10"
+        #   - os: "windows-latest"
+        #     python-version: "pypy3.10"
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox pdm
       - name: Run unit tests
-        run: nox -vs unit
+        run: nox -vs unit -p ${{ matrix.python-version }}
       - name: Run integration tests (without secrets)
-        run: nox -vs integration -- -m "not require_secrets"
+        run: nox -vs integration -p ${{ matrix.python-version }} -- -m "not require_secrets"
       - name: Run integration tests (with secrets)
         # Limit CI workload by running integration tests with secrets only on edge Python versions.
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.7", "pypy-3.10-nightly", "3.12"]'), matrix.python-version) }}
-        run: nox -vs integration -- -m "require_secrets" --cleanup
+        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.7", "pypy3.10", "3.12"]'), matrix.python-version) }}
+        run: nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" --cleanup
   test-docker:
     needs: cleanup_buckets
     env:
@@ -117,13 +117,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - name: setup sudo NOX_PYTHONS
-        run: echo NOX_PYTHONS=$(sudo python3 --version | cut -d ' ' -f 2) >> "$GITHUB_ENV"
       - name: Install dependencies
-        run: sudo python -m pip install --upgrade nox pip setuptools
+        run: sudo python -m pip install --upgrade nox pdm
       - name: Generate Dockerfile
         run: nox -vs generate_dockerfile
       - name: Set up QEMU
@@ -139,7 +137,7 @@ jobs:
           platforms: linux/amd64
       - name: Run tests with docker
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: sudo NOX_PYTHONS=$NOX_PYTHONS B2_TEST_APPLICATION_KEY=${{ env.B2_TEST_APPLICATION_KEY }} B2_TEST_APPLICATION_KEY_ID=${{ env.B2_TEST_APPLICATION_KEY_ID }} nox -vs docker_test -- backblazeit/b2:test
+        run: sudo B2_TEST_APPLICATION_KEY=${{ env.B2_TEST_APPLICATION_KEY }} B2_TEST_APPLICATION_KEY_ID=${{ env.B2_TEST_APPLICATION_KEY_ID }} nox -vs docker_test -- backblazeit/b2:test
   test-linux-bundle:
     needs: cleanup_buckets
     env:
@@ -158,7 +156,7 @@ jobs:
         run: |
           apt-get -y update
           apt-get -y install patchelf
-          python -m pip install --upgrade nox pip setuptools
+          python -m pip install --upgrade nox pdm
           git config --global --add safe.directory '*'
       - name: Bundle the distribution
         id: bundle
@@ -167,10 +165,10 @@ jobs:
         id: hashes
         run: nox -vs make_dist_digest
       - name: Run integration tests (without secrets)
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
+        run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
+        run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2
@@ -193,11 +191,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pip setuptools
+        run: python -m pip install --upgrade nox pdm
       - name: Bundle the distribution
         id: bundle
         shell: bash
@@ -206,10 +204,10 @@ jobs:
         id: hashes
         run: nox -vs make_dist_digest
       - name: Run integration tests (without secrets)
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
+        run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
+        run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
         uses: actions/upload-artifact@v2
@@ -225,7 +223,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -234,6 +232,6 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y graphviz plantuml
-          python -m pip install --upgrade nox pip setuptools
+          python -m pip install --upgrade nox pdm
       - name: Build the docs
         run: nox --non-interactive -vs doc

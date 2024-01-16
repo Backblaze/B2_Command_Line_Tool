@@ -1,6 +1,18 @@
+FROM python:${python_version}-slim as builder
+
+RUN pip install -U pip setuptools wheel
+RUN pip install pdm
+# In case we're installing from git repo
+RUN apt-get update -y && apt-get install git -y
+COPY pyproject.toml pdm.lock README.md /b2/
+COPY b2/ /b2/b2
+WORKDIR /b2
+ENV PDM_BUILD_SCM_VERSION=${version}
+RUN mkdir __pypackages__ && pdm sync --prod --group full --no-editable
+
 FROM python:${python_version}-slim as base
 
-LABEL vendor=${vendor}
+LABEL vendor="${vendor}"
 LABEL name="${name}"
 LABEL description="${description}"
 LABEL version="${version}"
@@ -9,11 +21,11 @@ LABEL vcs-url="${vcs_url}"
 LABEL vcs-ref="${vcs_ref}"
 LABEL build-date-iso8601="${build_date}"
 
-WORKDIR /root
+ENV PYTHONPATH=/b2/pkgs
+COPY --from=builder /b2/__pypackages__/${python_version_major_minor}/lib /b2/pkgs
+COPY --from=builder /b2/__pypackages__/${python_version_major_minor}/bin/* /bin/
 
-# due https://github.com/moby/moby/issues/47021 we cannot have /root/.cache leftover as it causes random errors in CI
-RUN --mount=type=bind,source=${tar_path}/${tar_name},target=/tmp/${tar_name} \
-  pip install --no-cache-dir /tmp/${tar_name}[full] && rm -rf /root/.cache
+WORKDIR /root
 
 ENTRYPOINT ["b2"]
 CMD ["--help"]

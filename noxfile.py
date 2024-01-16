@@ -19,6 +19,11 @@ import string
 import subprocess
 
 import nox
+import packaging.version
+
+# Required for PDM to use nox's virtualenvs
+os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
+os.environ.update({"PDM_NO_LOCK": "1"})
 
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
@@ -27,6 +32,8 @@ NO_STATICX = os.environ.get('NO_STATICX') is not None
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 
 PYTHON_VERSIONS = [
+    'pypy3.9',
+    'pypy3.10',
     '3.7',
     '3.8',
     '3.9',
@@ -51,37 +58,11 @@ if CI and not NOX_PYTHONS:
 
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
-PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
+PY_PATHS = ['b2', 'test', 'noxfile.py']
 
 DOCKER_TEMPLATE = pathlib.Path('./Dockerfile.template')
-FILES_USED_IN_TESTS = ['README.md', 'CHANGELOG.md']
 
 SYSTEM = platform.system().lower()
-
-REQUIREMENTS_FORMAT = ['yapf==0.27', 'ruff==0.0.272']
-REQUIREMENTS_LINT = REQUIREMENTS_FORMAT + ['pytest==6.2.5', 'liccheck==0.6.2']
-REQUIREMENTS_RELEASE = ['towncrier==23.11.0']
-REQUIREMENTS_TEST = [
-    "pexpect==4.8.0",
-    "pytest==6.2.5",
-    "pytest-cov==3.0.0",
-    'pytest-forked==1.4.0',
-    'pytest-xdist==2.5.0',
-    'backoff==2.1.2',
-    'more_itertools==8.13.0',
-]
-
-# not pinned to test the latest version works
-REQUIREMENTS_BUILD = [
-    'setuptools',
-]
-
-REQUIREMENTS_BUNDLE = [
-    'pyinstaller~=5.13',
-    'pyinstaller-hooks-contrib>=2023.6',
-    "patchelf-wrapper==1.2.0;platform_system=='Linux'",
-    "staticx~=0.13.9;platform_system=='Linux'",
-]
 
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
@@ -91,6 +72,47 @@ nox.options.sessions = [
     'lint',
     'test',
 ]
+
+
+def pdm_install(session: nox.Session, *args: str, dev: bool = True) -> None:
+    # dev dependencies are installed by default
+    # MORNING: install
+    prod_args = [] if dev else ['--prod']
+    group_args = []
+    for group in args:
+        group_args.extend(['--group', group])
+    session.run('pdm', 'install', *prod_args, *group_args, external=True, **run_kwargs)
+    return
+    # session.run(
+    #     'pdm',
+    #     'export',
+    #     '--self',
+    #     '--output',
+    #     'requirements.txt',
+    #     *prod_args,
+    #     *group_args,
+    #     '--no-hashes',
+    #     external=True,
+    #     **run_kwargs
+    # )
+    # session.run('pip', 'install', '-r', 'requirements.txt', external=True, **run_kwargs)
+    session.run('pdm', 'install', *prod_args, *group_args, external=True, **run_kwargs)
+    if INSTALL_SDK_FROM:
+        cwd = os.getcwd()
+        os.chdir(INSTALL_SDK_FROM)
+        session.run('pip', 'uninstall', 'b2sdk', '-y')
+        session.run('pip', 'install', '-e', '.', '--no-deps')
+        os.chdir(cwd)
+    elif CI and not CD:
+        # session.run('pdm', 'build', external=True)
+        # wheel = 'dist/' + list(pathlib.Path('dist').glob('b2*.whl'))[0].name
+        # In CI, install B2 SDK from the master branch
+        session.run(
+            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk',
+            '--no-deps', **run_kwargs
+        )
+        session.run('pip', 'install', '-e', '.', '--no-deps', **run_kwargs)
+
 
 run_kwargs = {}
 
@@ -133,7 +155,7 @@ def get_versions() -> list[str]:
 
 @nox.session(venv_backend='none')
 def install(session):
-    install_myself(session)
+    pdm_install(session, 'all')
 
 
 def install_myself(session, extras=None):
@@ -167,7 +189,7 @@ def install_myself(session, extras=None):
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
 def format_(session):
     """Lint the code and apply fixes in-place whenever possible."""
-    session.run('pip', 'install', *REQUIREMENTS_FORMAT)
+    pdm_install(session, 'format')
     # TODO: incremental mode for yapf
     session.run('yapf', '--in-place', '--parallel', '--recursive', *PY_PATHS)
     session.run('ruff', 'check', '--fix', *PY_PATHS)
@@ -184,8 +206,7 @@ def format_(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def lint(session):
     """Run linters in readonly mode."""
-    install_myself(session)
-    session.run('pip', 'install', *REQUIREMENTS_LINT)
+    pdm_install(session, 'lint', 'doc', 'full', 'license')
     session.run('yapf', '--diff', '--parallel', '--recursive', *PY_PATHS)
     session.run('ruff', 'check', *PY_PATHS)
     # session.run(
@@ -198,26 +219,14 @@ def lint(session):
     # )
 
     session.run('pytest', 'test/static')
-
-    # Before checking licenses, create an updated requirements.txt file, which accepts any b2sdk version.  This way
-    # the tool will still work if the SDK was installed from the master branch or a different directory.
-    updated_requirements = os.path.join(session.create_tmp(), 'requirements.txt')
-    with open('requirements.txt') as orig_req_file, \
-            open(updated_requirements, 'w') as updated_req_file:
-        for requirement in orig_req_file.readlines():
-            if requirement.startswith("b2sdk"):
-                updated_req_file.write("b2sdk\n")
-            else:
-                updated_req_file.write(f"{requirement}\n")
-
-    session.run('liccheck', '-s', 'setup.cfg', '-r', updated_requirements)
+    session.run('liccheck', '-s', 'pyproject.toml')
+    session.run('pdm', 'lock', '--check', external=True)
 
 
 @nox.session(python=PYTHON_VERSIONS)
 def unit(session):
     """Run unit tests."""
-    install_myself(session, ['license'])
-    session.run('pip', 'install', *REQUIREMENTS_TEST)
+    pdm_install(session, 'test')
 
     command = [
         'pytest',
@@ -243,8 +252,7 @@ def unit(session):
 
 def run_integration_test(session, pytest_posargs):
     """Run integration tests."""
-    install_myself(session, ['license'])
-    session.run('pip', 'install', *REQUIREMENTS_TEST)
+    pdm_install(session, 'license', 'test')
 
     command = [
         'pytest',
@@ -269,7 +277,13 @@ def run_integration_test(session, pytest_posargs):
     else:
         versions = get_versions()
         for cli_version in versions:
-            session.run(*command, '--sut', f'python -m b2._internal.{cli_version}')
+            # If we're in virtualenv, we want to extract the path to the executable.
+            # This may not be elegant but shutil gives us a cross-platform solution
+            # out of the box.
+            exe_path = session.run(
+                'python', '-c', f'import shutil; print(shutil.which("{cli_version}"))', silent=True
+            ).strip()
+            session.run(*command, '--sut', exe_path)
 
 
 @nox.session(python=PYTHON_VERSIONS)
@@ -292,15 +306,14 @@ def test(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def cleanup_buckets(session):
     """Remove buckets from previous test runs."""
-    install_myself(session)
-    session.run('pip', 'install', *REQUIREMENTS_TEST)
+    pdm_install(session, 'test')
     session.run('pytest', '-s', '-x', *session.posargs, 'test/integration/cleanup_buckets.py')
 
 
 @nox.session
 def cover(session):
     """Perform coverage analysis."""
-    session.run('pip', 'install', 'coverage')
+    pdm_install(session, 'test')
     session.run('coverage', 'report', '--fail-under=75', '--show-missing', '--skip-covered')
     session.run('coverage', 'erase')
 
@@ -308,12 +321,8 @@ def cover(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def build(session):
     """Build the distribution."""
-    # TODO: consider using wheel as well
-    session.run('pip', 'install', '-U', *REQUIREMENTS_BUILD, **run_kwargs)
-    session.run('nox', '-s', 'dump_license', '-fb', 'venv', **run_kwargs)
-    session.run('python', 'setup.py', 'check', '--metadata', '--strict', **run_kwargs)
-    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
-    session.run('python', 'setup.py', 'sdist', *session.posargs, **run_kwargs)
+    # In CI, the output is saved as a GITHUB_OUTPUT, we don't want build messages there.
+    session.run('pdm', 'build', external=True, silent=CI)
 
     # Set outputs for GitHub Actions
     if CI:
@@ -327,16 +336,14 @@ def build(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def dump_license(session: nox.Session):
-    install_myself(session, ['license'])
+    pdm_install(session, 'license')
     session.run('b2', 'license', '--dump', '--with-packages')
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session: nox.Session):
     """Bundle the distribution."""
-    session.run('pip', 'install', *REQUIREMENTS_BUNDLE, **run_kwargs)
-    session.run('rm', '-rf', 'build', 'dist', 'b2.egg-info', external=True, **run_kwargs)
-    install_myself(session, ['license', 'full'])
+    pdm_install(session, 'bundle', 'license', 'full')
     session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
 
     template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
@@ -588,8 +595,8 @@ def _read_readme_name_and_description() -> tuple[str, str]:
 def generate_dockerfile(session):
     """Generate Dockerfile from Dockerfile.template"""
     build(session)
+    pdm_install(session)
 
-    install_myself(session)
     # This string is like `b2 command line tool, version <sem-ver-string>`
     version = session.run('b2', 'version', '--short', silent=True).strip()
 
@@ -599,8 +606,11 @@ def generate_dockerfile(session):
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
 
+    major, minor = packaging.version.parse(PYTHON_DEFAULT_VERSION).release[:2]
+
     template_mapping = dict(
         python_version=PYTHON_DEFAULT_VERSION,
+        python_version_major_minor=f'{major}.{minor}',
         vendor='Backblaze',
         name=full_name,
         description=description,
@@ -612,6 +622,7 @@ def generate_dockerfile(session):
         build_date=datetime.datetime.utcnow().isoformat(),
         tar_path=dist_path,
         tar_name=built_distribution.name,
+        project_path='.',
     )
 
     template_file = DOCKER_TEMPLATE.read_text()
@@ -622,7 +633,9 @@ def generate_dockerfile(session):
 
 def run_docker_tests(session, image_tag):
     """Run unittests against a docker image."""
-    docker_run_cmd = "docker run -i -v b2:/root/ -v /tmp:/tmp:rw --env-file ENVFILE"
+    user_id = session.run('id', '-u', silent=True).strip()
+    group_id = session.run('id', '-g', silent=True).strip()
+    docker_run_cmd = f"docker run -i --user {user_id}:{group_id} -v /tmp:/tmp:rw --env-file ENVFILE"
     run_integration_test(
         session, [
             "--sut",
@@ -687,7 +700,7 @@ def make_release_commit(session):
     if current_branch != 'master':
         session.log('WARNING: releasing from a branch different than master')
 
-    session.run('pip', 'install', *REQUIREMENTS_RELEASE)
+    pdm_install(session, 'release')
     session.run('towncrier', 'build', '--yes', '--version', version)
 
     session.log(
