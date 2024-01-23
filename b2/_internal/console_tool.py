@@ -65,6 +65,7 @@ from b2sdk.v2 import (
     STDOUT_FILEPATH,
     UNKNOWN_KEY_ID,
     XDG_CONFIG_HOME_ENV_VAR,
+    AbstractAccountInfo,
     ApplicationKey,
     B2Api,
     BasicSyncEncryptionSettingsProvider,
@@ -235,6 +236,25 @@ def apply_or_none(fcn, value):
         return None
     else:
         return fcn(value)
+
+
+def format_account_info(account_info: AbstractAccountInfo) -> dict:
+    return dict(
+        accountId=account_info.get_account_id(),
+        accountFilePath=getattr(
+            account_info,
+            'filename',
+            None,
+        ),  # missing in StubAccountInfo in tests
+        allowed=account_info.get_allowed(),
+        applicationKeyId=account_info.get_application_key_id(),
+        applicationKey=account_info.get_application_key(),
+        isMasterKey=account_info.is_master_key(),
+        accountAuthToken=account_info.get_account_auth_token(),
+        apiUrl=account_info.get_api_url(),
+        downloadUrl=account_info.get_download_url(),
+        s3endpoint=account_info.get_s3_api_url(),
+    )
 
 
 class DescriptionGetter:
@@ -1066,7 +1086,11 @@ class AuthorizeAccount(Command):
                 getpass.getpass('Backblaze application key: ')
             )
 
-        return self.authorize(args.applicationKeyId, args.applicationKey, realm)
+        status = self.authorize(args.applicationKeyId, args.applicationKey, realm)
+        if status == 0:
+            data = format_account_info(self.api.account_info)
+            self._print_json(data)
+        return status
 
     def authorize(self, application_key_id, application_key, realm: str | None):
         """
@@ -1763,23 +1787,7 @@ class GetAccountInfo(Command):
     """
 
     def _run(self, args):
-        account_info = self.api.account_info
-        data = dict(
-            accountId=account_info.get_account_id(),
-            accountFilePath=getattr(
-                account_info,
-                'filename',
-                None,
-            ),  # missing in StubAccountInfo in tests
-            allowed=account_info.get_allowed(),
-            applicationKeyId=account_info.get_application_key_id(),
-            applicationKey=account_info.get_application_key(),
-            isMasterKey=account_info.is_master_key(),
-            accountAuthToken=account_info.get_account_auth_token(),
-            apiUrl=account_info.get_api_url(),
-            downloadUrl=account_info.get_download_url(),
-            s3endpoint=account_info.get_s3_api_url(),
-        )
+        data = format_account_info(self.api.account_info)
         self._print_json(data)
         return 0
 

@@ -272,7 +272,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            '',
+            None,
             '',
             0,
         )
@@ -418,7 +418,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
-            '',
+            None,
             '',
             0,
         )
@@ -670,7 +670,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(['list-keys', '--long'], expected_list_keys_out_long, '', 0)
 
         # authorize and make calls using application key with no restrictions
-        self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], '', '', 0)
+        self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], None, '', 0)
         self._run_command(
             ['list-buckets'],
             'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n', '', 0
@@ -693,7 +693,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(['get-bucket', 'my-bucket-a'], expected_json_in_stdout=expected_json)
 
         # authorize and make calls using an application key with bucket restrictions
-        self._run_command(['authorize-account', 'appKeyId1', 'appKey1'], '', '', 0)
+        self._run_command(['authorize-account', 'appKeyId1', 'appKey1'], None, '', 0)
 
         self._run_command(
             ['list-buckets'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
