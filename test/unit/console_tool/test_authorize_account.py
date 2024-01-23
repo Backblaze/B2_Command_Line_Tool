@@ -53,7 +53,7 @@ def test_authorize_with_good_key(b2_cli, b2_cli_is_authorized_afterwards, comman
     expected_stderr = """
     """
 
-    b2_cli._run_command([command, b2_cli.account_id, b2_cli.master_key], "", expected_stderr, 0)
+    b2_cli._run_command([command, b2_cli.account_id, b2_cli.master_key], None, expected_stderr, 0)
 
     assert b2_cli.account_info.get_account_auth_token() is not None
 
@@ -71,7 +71,7 @@ def test_authorize_using_env_variables(b2_cli):
             B2_APPLICATION_KEY_ENV_VAR: b2_cli.master_key,
         },
     ):
-        b2_cli._run_command(["authorize-account"], "", expected_stderr, 0)
+        b2_cli._run_command(["authorize-account"], None, expected_stderr, 0)
 
     assert b2_cli.account_info.get_account_auth_token() is not None
 
@@ -94,7 +94,7 @@ def test_authorize_towards_realm(
 
     b2_cli._run_command(
         ["authorize-account", *flags, b2_cli.account_id, b2_cli.master_key],
-        "",
+        None,
         expected_stderr,
         0,
     )
@@ -118,7 +118,61 @@ def test_authorize_towards_custom_realm_using_env(b2_cli, b2_cli_is_authorized_a
     ):
         b2_cli._run_command(
             ["authorize-account", b2_cli.account_id, b2_cli.master_key],
-            "",
+            None,
             expected_stderr,
             0,
         )
+
+
+def test_authorize_account_prints_account_info(b2_cli):
+    expected_json = {
+        'accountAuthToken': 'auth_token_0',
+        'accountFilePath': None,
+        'accountId': 'account-0',
+        'allowed':
+            {
+                'bucketId': None,
+                'bucketName': None,
+                'capabilities':
+                    [
+                        'listKeys',
+                        'writeKeys',
+                        'deleteKeys',
+                        'listBuckets',
+                        'listAllBucketNames',
+                        'readBuckets',
+                        'writeBuckets',
+                        'deleteBuckets',
+                        'readBucketEncryption',
+                        'writeBucketEncryption',
+                        'readBucketRetentions',
+                        'writeBucketRetentions',
+                        'readFileRetentions',
+                        'writeFileRetentions',
+                        'readFileLegalHolds',
+                        'writeFileLegalHolds',
+                        'readBucketReplications',
+                        'writeBucketReplications',
+                        'bypassGovernance',
+                        'listFiles',
+                        'readFiles',
+                        'shareFiles',
+                        'writeFiles',
+                        'deleteFiles',
+                    ],
+                'namePrefix': None,
+            },
+        'apiUrl': 'http://api.example.com',
+        'applicationKey': 'masterKey-0',
+        'applicationKeyId': 'account-0',
+        'downloadUrl': 'http://download.example.com',
+        'isMasterKey': True,
+        's3endpoint': 'http://s3.api.example.com'
+    }
+
+    b2_cli._run_command(
+        ['authorize-account', b2_cli.account_id, b2_cli.master_key],
+        expected_stderr='',
+        expected_status=0,
+        expected_json_in_stdout=expected_json,
+    )
