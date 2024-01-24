@@ -1,18 +1,6 @@
-FROM python:${python_version}-slim as builder
+FROM python:${python_version}-slim
 
-RUN pip install -U pip setuptools wheel
-RUN pip install pdm
-# In case we're installing from git repo
-RUN apt-get update -y && apt-get install git -y
-COPY pyproject.toml pdm.lock README.md /b2/
-COPY b2/ /b2/b2
-WORKDIR /b2
-ENV PDM_BUILD_SCM_VERSION=${version}
-RUN mkdir __pypackages__ && pdm sync --prod --group full --no-editable
-
-FROM python:${python_version}-slim as base
-
-LABEL vendor="${vendor}"
+LABEL vendor=${vendor}
 LABEL name="${name}"
 LABEL description="${description}"
 LABEL version="${version}"
@@ -21,9 +9,18 @@ LABEL vcs-url="${vcs_url}"
 LABEL vcs-ref="${vcs_ref}"
 LABEL build-date-iso8601="${build_date}"
 
-ENV PYTHONPATH=/b2/pkgs
-COPY --from=builder /b2/__pypackages__/${python_version_major_minor}/lib /b2/pkgs
-COPY --from=builder /b2/__pypackages__/${python_version_major_minor}/bin/* /bin/
+# In case we're installing from git repo
+RUN apt-get update -y && apt-get install git -y
+
+RUN pip install -U pdm
+
+ENV PDM_BUILD_SCM_VERSION=${version}
+RUN --mount=type=bind,source=./b2,target=/b2/b2 \
+    --mount=type=bind,source=./pyproject.toml,target=/b2/pyproject.toml \
+    --mount=type=bind,source=./pdm.lock,target=/b2/pdm.lock \
+    --mount=type=bind,source=./LICENSE,target=/b2/LICENSE \
+    --mount=type=bind,source=./README.md,target=/b2/README.md \
+    cd /b2 && pdm sync --prod --group full --no-editable --global --project .
 
 WORKDIR /root
 

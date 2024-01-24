@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     "argcomplete>=2,<4",
     "arrow>=1.0.2,<2.0.0",
-    "b2sdk @ git+https://github.com/vbaltrusaitis-reef/b2-sdk-python@21b6ac0763d2f0029bf89ba47ae5d0d36b5d0ee3",
+    "b2sdk @ git+https://github.com/vbaltrusaitis-reef/b2-sdk-python",
     "docutils>=0.18.1",
     "idna~=3.4; platform_system == 'Java'",
     "importlib-metadata>=3.3; python_version < '3.8'",

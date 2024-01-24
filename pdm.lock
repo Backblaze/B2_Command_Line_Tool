@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:e7c3097ee33f6c72031c8279405fa4480e6c17672435602071d1e1f884d54231"
+content_hash = "sha256:4529aab8666fba8a6dca05222678ecbfd8020fa6b78fd7441ef2debff4be6de0"
 
 [[package]]
 name = "alabaster"
@@ -100,11 +100,10 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "0.1.dev3265"
+version = "0.1.dev3271"
 requires_python = ">=3.7"
 git = "https://github.com/vbaltrusaitis-reef/b2-sdk-python"
-ref = "21b6ac0763d2f0029bf89ba47ae5d0d36b5d0ee3"
-revision = "21b6ac0763d2f0029bf89ba47ae5d0d36b5d0ee3"
+revision = "ac1e1355f1aaac10a398618214021cc7ecb6a1eb"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
 dependencies = [

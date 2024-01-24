@@ -82,36 +82,6 @@ def pdm_install(session: nox.Session, *args: str, dev: bool = True) -> None:
     for group in args:
         group_args.extend(['--group', group])
     session.run('pdm', 'install', *prod_args, *group_args, external=True, **run_kwargs)
-    return
-    # session.run(
-    #     'pdm',
-    #     'export',
-    #     '--self',
-    #     '--output',
-    #     'requirements.txt',
-    #     *prod_args,
-    #     *group_args,
-    #     '--no-hashes',
-    #     external=True,
-    #     **run_kwargs
-    # )
-    # session.run('pip', 'install', '-r', 'requirements.txt', external=True, **run_kwargs)
-    session.run('pdm', 'install', *prod_args, *group_args, external=True, **run_kwargs)
-    if INSTALL_SDK_FROM:
-        cwd = os.getcwd()
-        os.chdir(INSTALL_SDK_FROM)
-        session.run('pip', 'uninstall', 'b2sdk', '-y')
-        session.run('pip', 'install', '-e', '.', '--no-deps')
-        os.chdir(cwd)
-    elif CI and not CD:
-        # session.run('pdm', 'build', external=True)
-        # wheel = 'dist/' + list(pathlib.Path('dist').glob('b2*.whl'))[0].name
-        # In CI, install B2 SDK from the master branch
-        session.run(
-            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk',
-            '--no-deps', **run_kwargs
-        )
-        session.run('pip', 'install', '-e', '.', '--no-deps', **run_kwargs)
 
 
 run_kwargs = {}
@@ -151,39 +121,6 @@ def get_versions() -> list[str]:
             key=get_version_key,
         )
     ]
-
-
-@nox.session(venv_backend='none')
-def install(session):
-    pdm_install(session, 'all')
-
-
-def install_myself(session, extras=None):
-    """Install from the source."""
-
-    arg = '.'
-    if extras:
-        arg += '[%s]' % ','.join(extras)
-
-    # `--no-install` works only on `run_always` in case where there is a virtualenv available.
-    # This is to be used also on the docker image during tests, where we have no venv, thus
-    # we're ensuring that `--no-install` doesn't work on this installation.
-    # Internal member is used, as there is no public interface for fetching options.
-    if not session._runner.global_config.no_install:  # noqa
-        session.run('pip', 'install', '-e', arg, **run_kwargs)
-
-    if INSTALL_SDK_FROM:
-        cwd = os.getcwd()
-        os.chdir(INSTALL_SDK_FROM)
-        session.run('pip', 'uninstall', 'b2sdk', '-y')
-        session.run('pip', 'install', '-e', '.')
-        os.chdir(cwd)
-    elif CI and not CD:
-        # In CI, install B2 SDK from the master branch
-        session.run(
-            'pip', 'install', 'git+https://github.com/Backblaze/b2-sdk-python.git#egg=b2sdk',
-            **run_kwargs
-        )
 
 
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
@@ -322,6 +259,9 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     # In CI, the output is saved as a GITHUB_OUTPUT, we don't want build messages there.
+    session.run(
+        'nox', '-s', 'dump_license', '-fb', 'venv', '--no-reuse-existing-virtualenvs', **run_kwargs
+    )
     session.run('pdm', 'build', external=True, silent=CI)
 
     # Set outputs for GitHub Actions
@@ -513,7 +453,7 @@ def make_dist_digest(_session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def doc(session):
     """Build the documentation."""
-    install_myself(session, extras=['doc'])
+    pdm_install(session, 'doc')
     session.cd('doc')
     sphinx_args = ['-b', 'html', '-T', '-W', 'source', 'build/html']
     session.run('rm', '-rf', 'build', external=True)
@@ -536,7 +476,7 @@ def doc_cover(session):
     At the time of writing B2 CLI does not have object documentation, hence this always returns 0 out 0 objects.
     Which errors out in Sphinx 7.2 (https://github.com/sphinx-doc/sphinx/issues/11678).
     """
-    install_myself(session, extras=['doc'])
+    pdm_install(session, 'doc')
     session.cd('doc')
     sphinx_args = ['-b', 'coverage', '-T', '-W', 'source', 'build/coverage']
     session.run('sphinx-build', *sphinx_args)
@@ -606,7 +546,22 @@ def generate_dockerfile(session):
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
 
+    session.run(
+        'pdm',
+        'export',
+        '-f',
+        'requirements',
+        '-o',
+        'requirements-docker.txt',
+        external=True,
+        **run_kwargs
+    )
+    wheels = list(pathlib.Path('dist').glob('*.whl'))
+    assert len(wheels) == 1, f'Expected to find exactly one wheel, found {len(wheels)}'
+
     major, minor = packaging.version.parse(PYTHON_DEFAULT_VERSION).release[:2]
+    session.run('id', '-u', silent=True, external=True).strip()
+    session.run('id', '-g', silent=True, external=True).strip()
 
     template_mapping = dict(
         python_version=PYTHON_DEFAULT_VERSION,
@@ -621,6 +576,7 @@ def generate_dockerfile(session):
         vcs_ref=vcs_ref,
         build_date=datetime.datetime.utcnow().isoformat(),
         tar_path=dist_path,
+        requirements_path='requirements-docker.txt',
         tar_name=built_distribution.name,
         project_path='.',
     )
@@ -633,8 +589,8 @@ def generate_dockerfile(session):
 
 def run_docker_tests(session, image_tag):
     """Run unittests against a docker image."""
-    user_id = session.run('id', '-u', silent=True).strip()
-    group_id = session.run('id', '-g', silent=True).strip()
+    user_id = session.run('id', '-u', silent=True, external=True).strip()
+    group_id = session.run('id', '-g', silent=True, external=True).strip()
     docker_run_cmd = f"docker run -i --user {user_id}:{group_id} -v /tmp:/tmp:rw --env-file ENVFILE"
     run_integration_test(
         session, [
