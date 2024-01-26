@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import pathlib
-import urllib
+import urllib.parse
 from pathlib import Path
 
 from b2sdk.v2 import (
@@ -80,18 +80,18 @@ class B2FileIdURI(B2URIBase):
 
 
 def parse_uri(uri: str) -> Path | B2URI | B2FileIdURI:
-    parsed = urllib.parse.urlparse(uri)
+    parsed = urllib.parse.urlsplit(uri)
     if parsed.scheme == "":
         return pathlib.Path(uri)
     return _parse_b2_uri(uri, parsed)
 
 
 def parse_b2_uri(uri: str) -> B2URI | B2FileIdURI:
-    parsed = urllib.parse.urlparse(uri)
+    parsed = urllib.parse.urlsplit(uri)
     return _parse_b2_uri(uri, parsed)
 
 
-def _parse_b2_uri(uri, parsed: urllib.parse.ParseResult) -> B2URI | B2FileIdURI:
+def _parse_b2_uri(uri, parsed: urllib.parse.SplitResult) -> B2URI | B2FileIdURI:
     if parsed.scheme in ("b2", "b2id"):
         if not parsed.netloc:
             raise ValueError(f"Invalid B2 URI: {uri!r}")
@@ -101,12 +101,10 @@ def _parse_b2_uri(uri, parsed: urllib.parse.ParseResult) -> B2URI | B2FileIdURI:
             )
 
         if parsed.scheme == "b2":
-            return B2URI(bucket_name=parsed.netloc, path=parsed.path)
+            path = urllib.parse.urlunsplit(parsed._replace(scheme="", netloc=""))
+            return B2URI(bucket_name=parsed.netloc, path=path)
         elif parsed.scheme == "b2id":
-            file_id = parsed.netloc
-            if not file_id:
-                raise ValueError(f"File id was not provided in B2 URI: {uri!r}")
-            return B2FileIdURI(file_id=file_id)
+            return B2FileIdURI(file_id=parsed.netloc)
     else:
         raise ValueError(f"Unsupported URI scheme: {parsed.scheme!r}")
 
