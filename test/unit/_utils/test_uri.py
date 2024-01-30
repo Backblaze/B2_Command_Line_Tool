@@ -66,6 +66,9 @@ def test_b2fileuri_str():
         ("./some/local/path", Path("some/local/path")),
         ("b2://bucket/path/to/dir/", B2URI(bucket_name="bucket", path="path/to/dir/")),
         ("b2id://file123", B2FileIdURI(file_id="file123")),
+        ("b2://bucket/wild[card]", B2URI(bucket_name="bucket", path="wild[card]")),
+        ("b2://bucket/wild?card", B2URI(bucket_name="bucket", path="wild?card")),
+        ("b2://bucket/special#char", B2URI(bucket_name="bucket", path="special#char")),
     ],
 )
 def test_parse_uri(uri, expected):
