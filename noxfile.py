@@ -33,6 +33,21 @@ PYTHON_VERSIONS = [
     '3.11',
     '3.12',
 ] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
+
+
+def _detect_python_nox_id() -> str:
+    major, minor, *_ = platform.python_version_tuple()
+    python_nox_id = f"{major}.{minor}"
+    if platform.python_implementation() == 'PyPy':
+        python_nox_id = f"pypy{python_nox_id}"
+    return python_nox_id
+
+
+if CI and not NOX_PYTHONS:
+    # this is done to allow it to work even if `nox -p` was passed to nox
+    PYTHON_VERSIONS = [_detect_python_nox_id()]
+    print(f"CI job mode; using provided interpreter only; PYTHON_VERSIONS={PYTHON_VERSIONS!r}")
+
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py', 'setup.py']
@@ -78,10 +93,7 @@ nox.options.sessions = [
 
 run_kwargs = {}
 
-# In CI, use Python interpreter provided by GitHub Actions
 if CI:
-    nox.options.force_venv_backend = 'none'
-
     # Inside the CI we need to silence most of the outputs to be able to use GITHUB_OUTPUT properly.
     # Nox passes `stderr` and `stdout` directly to subprocess.Popen.
     run_kwargs = dict(
