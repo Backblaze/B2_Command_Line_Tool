@@ -76,7 +76,6 @@ nox.options.sessions = [
 
 def pdm_install(session: nox.Session, *args: str, dev: bool = True) -> None:
     # dev dependencies are installed by default
-    # MORNING: install
     prod_args = [] if dev else ['--prod']
     group_args = []
     for group in args:
@@ -214,9 +213,9 @@ def run_integration_test(session, pytest_posargs):
     else:
         versions = get_versions()
         for cli_version in versions:
-            # If we're in virtualenv, we want to extract the path to the executable.
-            # This may not be elegant but shutil gives us a cross-platform solution
-            # out of the box.
+            # If we're in a virtualenv, we want to extract the path to the executable
+            # that's installed in the virtualenv.  This may not be elegant but shutil
+            # gives us a cross-platform solution out of the box.
             exe_path = session.run(
                 'python', '-c', f'import shutil; print(shutil.which("{cli_version}"))', silent=True
             ).strip()
@@ -258,11 +257,8 @@ def cover(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def build(session):
     """Build the distribution."""
-    # In CI, the output is saved as a GITHUB_OUTPUT, we don't want build messages there.
-    session.run(
-        'nox', '-s', 'dump_license', '-fb', 'venv', '--no-reuse-existing-virtualenvs', **run_kwargs
-    )
-    session.run('pdm', 'build', external=True, silent=CI)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True, **run_kwargs)
+    session.run('pdm', 'build', external=True **run_kwargs)
 
     # Set outputs for GitHub Actions
     if CI:
@@ -546,26 +542,8 @@ def generate_dockerfile(session):
     vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
 
-    session.run(
-        'pdm',
-        'export',
-        '-f',
-        'requirements',
-        '-o',
-        'requirements-docker.txt',
-        external=True,
-        **run_kwargs
-    )
-    wheels = list(pathlib.Path('dist').glob('*.whl'))
-    assert len(wheels) == 1, f'Expected to find exactly one wheel, found {len(wheels)}'
-
-    major, minor = packaging.version.parse(PYTHON_DEFAULT_VERSION).release[:2]
-    session.run('id', '-u', silent=True, external=True).strip()
-    session.run('id', '-g', silent=True, external=True).strip()
-
     template_mapping = dict(
         python_version=PYTHON_DEFAULT_VERSION,
-        python_version_major_minor=f'{major}.{minor}',
         vendor='Backblaze',
         name=full_name,
         description=description,
@@ -576,9 +554,7 @@ def generate_dockerfile(session):
         vcs_ref=vcs_ref,
         build_date=datetime.datetime.utcnow().isoformat(),
         tar_path=dist_path,
-        requirements_path='requirements-docker.txt',
         tar_name=built_distribution.name,
-        project_path='.',
     )
 
     template_file = DOCKER_TEMPLATE.read_text()
