@@ -19,7 +19,6 @@ import string
 import subprocess
 
 import nox
-import packaging.version
 
 # Required for PDM to use nox's virtualenvs
 os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
@@ -258,7 +257,7 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True, **run_kwargs)
-    session.run('pdm', 'build', external=True **run_kwargs)
+    session.run('pdm', 'build', external=True, **run_kwargs)
 
     # Set outputs for GitHub Actions
     if CI:
@@ -617,6 +616,12 @@ def make_release_commit(session):
         version = session.posargs[0]
     else:
         session.error('Provide -- {release_version} (X.Y.Z - without leading "v")')
+
+    requirements = session.run('pdm', 'export', '--no-hashes', silent=True)
+    # if b2sdk requirement points to git, it won't have a version definition b2sdk==
+    assert ('b2sdk==' in requirements) and (
+        'git+' not in requirements
+    ), 'release version must depend on released b2sdk version'
 
     if not re.match(r'^\d+\.\d+\.\d+$', version):
         session.error(
