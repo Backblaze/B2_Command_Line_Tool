@@ -7,6 +7,8 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+from __future__ import annotations
+
 import datetime
 import hashlib
 import os
@@ -15,7 +17,6 @@ import platform
 import re
 import string
 import subprocess
-from typing import List, Set, Tuple
 
 import nox
 
@@ -114,7 +115,7 @@ def get_version_key(path: pathlib.Path) -> int:
     return version_number
 
 
-def get_versions() -> List[str]:
+def get_versions() -> list[str]:
     """
     "Almost" a copy of b2/_internalg/version_listing.py:get_versions(), because importing
     the file directly seems impossible from the noxfile.
@@ -445,8 +446,8 @@ def sign(session):
 
 def _calculate_hashes(
     file_path: pathlib.Path,
-    algorithms: List[str],
-) -> List['hashlib._Hash']:  # noqa
+    algorithms: list[str],
+) -> list[hashlib._Hash]:  # noqa
     read_size = 1024 * 1024
     hash_structures = [hashlib.new(algo) for algo in algorithms]
 
@@ -462,7 +463,7 @@ def _calculate_hashes(
     return hash_structures
 
 
-def _save_hashes(output_file: pathlib.Path, hashes: List['hashlib._Hash']) -> None:  # noqa
+def _save_hashes(output_file: pathlib.Path, hashes: list[hashlib._Hash]) -> None:  # noqa
     longest_algo_name = max([len(elem.name) for elem in hashes])
     line_format = '{algo:<%s} {hash_value}' % longest_algo_name
 
@@ -534,7 +535,7 @@ def doc_cover(session):
     session.run('sphinx-build', *sphinx_args)
 
 
-def _read_readme_name_and_description() -> Tuple[str, str]:
+def _read_readme_name_and_description() -> tuple[str, str]:
     """
     Get name and the description from the readme. First line is assumed to be the project name,
     second contains list of all different checks. Third one and the following contains some description.
@@ -699,7 +700,7 @@ def make_release_commit(session):
 
 
 def load_allowed_change_types(project_toml: pathlib.Path = pathlib.Path('./pyproject.toml')
-                             ) -> Set[str]:
+                             ) -> set[str]:
     """
     Load the list of allowed change types from the pyproject.toml file.
     """
@@ -708,7 +709,7 @@ def load_allowed_change_types(project_toml: pathlib.Path = pathlib.Path('./pypro
     return set(entry['directory'] for entry in configuration['tool']['towncrier']['type'])
 
 
-def is_changelog_filename_valid(filename: str, allowed_change_types: Set[str]) -> Tuple[bool, str]:
+def is_changelog_filename_valid(filename: str, allowed_change_types: set[str]) -> tuple[bool, str]:
     """
     Validates whether the given filename matches our rules.
     Provides information about why it doesn't match them.
@@ -742,7 +743,7 @@ def is_changelog_filename_valid(filename: str, allowed_change_types: Set[str]) -
     return len(error_reasons) == 0, ' / '.join(error_reasons) if error_reasons else ''
 
 
-def is_changelog_entry_valid(file_content: str) -> Tuple[bool, str]:
+def is_changelog_entry_valid(file_content: str) -> tuple[bool, str]:
     """
     We expect the changelog entry to be a valid sentence in the English language.
     This includes, but not limits to, providing a capital letter at the start
