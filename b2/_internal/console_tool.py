@@ -640,7 +640,7 @@ class B2URIBucketNFolderNameArgMixin:
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
-        return B2URI(args.bucketName, args.folderName)
+        return B2URI(args.bucketName, args.folderName or '')
 
 
 class B2URIMixin:

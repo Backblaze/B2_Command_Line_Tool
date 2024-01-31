@@ -82,7 +82,7 @@ def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, t
     assert output_b.read_text() == sample_filepath.read_text()
 
 
-def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
+def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
 
     file_mod_time_str = str(file_mod_time_millis(sample_file))
 
@@ -95,7 +95,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     )
 
     b2_tool.should_succeed(['upload-file', '--quiet', bucket_name, sample_file, 'a'])
-    b2_tool.should_succeed(['ls', '--long', '--replication', bucket_name])
+    b2_tool.should_succeed(['ls', '--long', '--replication', *b2_uri_args(bucket_name)])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'a'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'b/1'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'b/2'])
@@ -121,22 +121,26 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'rm'])
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'rm1'])
     # with_wildcard allows us to target a single file. rm will be removed, rm1 will be left alone
-    b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm'])
+    b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', *b2_uri_args(bucket_name, 'rm')])
     list_of_files = b2_tool.should_succeed_json(
-        ['ls', '--json', '--recursive', '--withWildcard', bucket_name, 'rm*']
+        ['ls', '--json', '--recursive', '--withWildcard', *b2_uri_args(bucket_name, 'rm*')]
     )
     should_equal(['rm1'], [f['fileName'] for f in list_of_files])
-    b2_tool.should_succeed(['rm', '--recursive', '--withWildcard', bucket_name, 'rm1'])
+    b2_tool.should_succeed(
+        ['rm', '--recursive', '--withWildcard', *b2_uri_args(bucket_name, 'rm1')]
+    )
 
     b2_tool.should_succeed(['download-file', '--quiet', f'b2://{bucket_name}/b/1', tmp_path / 'a'])
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
-    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+    )
     should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files])
 
     list_of_files = b2_tool.should_succeed_json(
-        ['ls', '--json', '--recursive', '--versions', bucket_name]
+        ['ls', '--json', '--recursive', '--versions', *b2_uri_args(bucket_name)]
     )
     should_equal(['a', 'a', 'b/1', 'b/2', 'c', 'c', 'd'], [f['fileName'] for f in list_of_files])
     should_equal(
@@ -149,31 +153,36 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     first_c_version = list_of_files[4]
     second_c_version = list_of_files[5]
     list_of_files = b2_tool.should_succeed_json(
-        ['ls', '--json', '--recursive', '--versions', bucket_name, 'c']
+        ['ls', '--json', '--recursive', '--versions', *b2_uri_args(bucket_name, 'c')]
     )
     should_equal([], [f['fileName'] for f in list_of_files])
 
     b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
-    b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}d{0}'.format(os.linesep))
+    b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)], '^a{0}b/{0}d{0}'.format(os.linesep))
     # file_id, action, date, time, size(, replication), name
     b2_tool.should_succeed(
-        ['ls', '--long', bucket_name],
+        ['ls', '--long', *b2_uri_args(bucket_name)],
         '^4_z.* upload .* {1}  a{0}.* - .* b/{0}4_z.* upload .* {1}  d{0}'.format(
             os.linesep, len(file_data)
         )
     )
     b2_tool.should_succeed(
-        ['ls', '--long', '--replication', bucket_name],
+        ['ls', '--long', '--replication', *b2_uri_args(bucket_name)],
         '^4_z.* upload .* {1}  -  a{0}.* - .*  -  b/{0}4_z.* upload .* {1}  -  d{0}'.format(
             os.linesep, len(file_data)
         )
     )
     b2_tool.should_succeed(
-        ['ls', '--versions', bucket_name], '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)
+        ['ls', '--versions', *b2_uri_args(bucket_name)],
+        '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)
     )
-    b2_tool.should_succeed(['ls', bucket_name, 'b'], '^b/1{0}b/2{0}'.format(os.linesep))
-    b2_tool.should_succeed(['ls', bucket_name, 'b/'], '^b/1{0}b/2{0}'.format(os.linesep))
+    b2_tool.should_succeed(
+        ['ls', *b2_uri_args(bucket_name, 'b')], '^b/1{0}b/2{0}'.format(os.linesep)
+    )
+    b2_tool.should_succeed(
+        ['ls', *b2_uri_args(bucket_name, 'b/')], '^b/1{0}b/2{0}'.format(os.linesep)
+    )
 
     file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{second_c_version['fileId']}"])
     expected_info = {
@@ -184,7 +193,9 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path):
     should_equal(expected_info, file_info['fileInfo'])
 
     b2_tool.should_succeed(['delete-file-version', 'c', first_c_version['fileId']])
-    b2_tool.should_succeed(['ls', bucket_name], '^a{0}b/{0}c{0}d{0}'.format(os.linesep))
+    b2_tool.should_succeed(
+        ['ls', *b2_uri_args(bucket_name)], '^a{0}b/{0}c{0}d{0}'.format(os.linesep)
+    )
 
     b2_tool.should_succeed(['get-url', f"b2id://{second_c_version['fileId']}"])
 
@@ -277,7 +288,7 @@ def test_bucket(b2_tool, bucket_name):
     ]
 
 
-def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory):
+def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_uri_args):
     # A single file for rm to fail on.
     b2_tool.should_succeed(['upload-file', '--noProgress', bucket_name, sample_file, 'test'])
 
@@ -315,7 +326,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory):
         ['authorize-account', '--environment', b2_tool.realm, key_two_id, key_two],
     )
     b2_tool.should_succeed(['get-bucket', bucket_name],)
-    b2_tool.should_succeed(['ls', bucket_name],)
+    b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
 
     # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
     # in ensures that there are three in total.
@@ -323,16 +334,18 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory):
                         r'application key with capabilities ' \
                         r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
                         r"restricted to bucket '%s' \(unauthorized\)" % bucket_name
-    b2_tool.should_fail(['rm', '--recursive', '--noProgress', bucket_name], failed_bucket_err)
+    b2_tool.should_fail(
+        ['rm', '--recursive', '--noProgress', *b2_uri_args(bucket_name)], failed_bucket_err
+    )
 
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['ls', second_bucket_name], failed_list_files_err)
+    b2_tool.should_fail(['ls', *b2_uri_args(second_bucket_name)], failed_list_files_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['rm', second_bucket_name], failed_list_files_err)
+    b2_tool.should_fail(['rm', *b2_uri_args(second_bucket_name)], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(
@@ -1140,7 +1153,7 @@ def test_default_sse_b2__create_bucket(b2_tool, schedule_bucket_cleanup):
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
 
 
-def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
+def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     b2_tool.should_succeed(
         [
             'upload-file', '--destinationServerSideEncryption=SSE-B2', '--quiet', bucket_name,
@@ -1159,7 +1172,9 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
         ]
     )
 
-    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+    )
     should_equal(
         [{
             'algorithm': 'AES256',
@@ -1188,7 +1203,9 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
         ['copy-file-by-id', not_encrypted_version['fileId'], bucket_name, 'copied_not_encrypted']
     )
 
-    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+    )
     should_equal(
         [{
             'algorithm': 'AES256',
@@ -1211,7 +1228,7 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path):
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
 
-def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path):
+def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path, b2_uri_args):
 
     sse_c_key_id = 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü'
     if is_running_on_docker:
@@ -1417,7 +1434,9 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
             'B2_DESTINATION_SSE_C_KEY_ID': 'another-user-generated-key-id',
         }
     )
-    list_of_files = b2_tool.should_succeed_json(['ls', '--json', '--recursive', bucket_name])
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+    )
     should_equal(
         [
             {
@@ -2617,7 +2636,7 @@ def _assert_file_lock_configuration(
         assert legal_hold == actual_legal_hold
 
 
-def test_upload_file__custom_upload_time(b2_tool, bucket_name, sample_file):
+def test_upload_file__custom_upload_time(b2_tool, bucket_name, sample_file, b2_uri_args):
     file_data = read_file(sample_file)
     cut = 12345
     cut_printable = '1970-01-01  00:00:12'
@@ -2637,14 +2656,15 @@ def test_upload_file__custom_upload_time(b2_tool, bucket_name, sample_file):
     else:
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
-            ['ls', '--long', bucket_name], '^4_z.*  upload  {} +{}  a'.format(
+            ['ls', '--long', *b2_uri_args(bucket_name)], '^4_z.*  upload  {} +{}  a'.format(
                 cut_printable,
                 len(file_data),
             )
         )
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
-            ['ls', '--long', '--replication', bucket_name], '^4_z.*  upload  {} +{}  -  a'.format(
+            ['ls', '--long', '--replication', *b2_uri_args(bucket_name)],
+            '^4_z.*  upload  {} +{}  -  a'.format(
                 cut_printable,
                 len(file_data),
             )

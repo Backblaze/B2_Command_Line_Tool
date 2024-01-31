@@ -49,8 +49,7 @@ def add_b2_uri_argument(parser: argparse.ArgumentParser, name="B2_URI"):
     parser.add_argument(
         name,
         type=B2_URI_ARG_TYPE,
-        help=
-        "B2 URI pointing to a bucket, directory or a pattern, "
+        help="B2 URI pointing to a bucket, directory or a pattern, "
         "e.g. b2://yourBucket, b2://yourBucket/file.txt, b2://yourBucket/folder, "
         "b2://yourBucket/*.txt or b2id://fileId",
     )

@@ -29,6 +29,7 @@ from b2._internal.version_listing import (
     get_int_version,
 )
 
+from ..helpers import b2_uri_args_v3, b2_uri_args_v4
 from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_part, random_token
 
 logger = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ def b2_api(
 @pytest.fixture(scope='module')
 def global_b2_tool(
     request, application_key_id, application_key, realm, this_run_bucket_name_prefix, b2_api,
-    auto_change_account_info_dir
+    auto_change_account_info_dir, b2_uri_args
 ) -> CommandLine:
     tool = CommandLine(
         request.config.getoption('--sut'),
@@ -252,6 +253,7 @@ def global_b2_tool(
         this_run_bucket_name_prefix,
         request.config.getoption('--env-file-cmd-placeholder'),
         api_wrapper=b2_api,
+        b2_uri_args=b2_uri_args,
     )
     tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
     yield tool
@@ -376,3 +378,11 @@ def pytest_collection_modifyitems(items):
     for item in items:
         if SECRET_FIXTURES & set(getattr(item, 'fixturenames', ())):
             item.add_marker('require_secrets')
+
+
+@pytest.fixture(scope='module')
+def b2_uri_args(cli_int_version):
+    if cli_int_version >= 4:
+        return b2_uri_args_v4
+    else:
+        return b2_uri_args_v3

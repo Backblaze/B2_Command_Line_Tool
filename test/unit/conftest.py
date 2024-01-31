@@ -17,6 +17,7 @@ from b2sdk.raw_api import REALM_URLS
 from b2._internal.console_tool import _TqdmCloser
 from b2._internal.version_listing import CLI_VERSIONS, UNSTABLE_CLI_VERSION, get_int_version
 
+from ..helpers import b2_uri_args_v3, b2_uri_args_v4
 from .helpers import RunOrDieExecutor
 from .test_console_tool import BaseConsoleToolTest
 
@@ -147,3 +148,13 @@ def uploaded_file(b2_cli, bucket_info, local_file):
         'fileId': '9999',
         'content': local_file.read_text(),
     }
+
+
+@pytest.fixture(scope='class')
+def b2_uri_args(cli_int_version, request):
+    if cli_int_version >= 4:
+        fn = b2_uri_args_v4
+    else:
+        fn = b2_uri_args_v3
+
+    request.cls.b2_uri_args = staticmethod(fn)

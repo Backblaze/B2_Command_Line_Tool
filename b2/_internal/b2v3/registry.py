@@ -10,15 +10,11 @@
 
 # ruff: noqa: F405
 from b2._internal._b2v4.registry import *  # noqa
+from .rm import Rm
 
 
 class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):
     __doc__ = BaseLs.__doc__
-    # TODO: fix doc
-
-
-class Rm(B2URIBucketNFolderNameArgMixin, BaseRm):
-    __doc__ = BaseRm.__doc__
     # TODO: fix doc
 
 
