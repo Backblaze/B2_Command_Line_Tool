@@ -2227,39 +2227,6 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     The ``--replication`` option adds replication status
 
     {ABSTRACTLSCOMMAND}
-
-    Examples
-
-    .. note::
-
-        Note the use of quotes, to ensure that special
-        characters are not expanded by the shell.
-
-
-    List csv and tsv files (in any directory, in the whole bucket):
-
-    .. code-block::
-
-        {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
-
-
-    List all info.txt files from buckets bX, where X is any character:
-
-    .. code-block::
-
-        {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
-
-
-    List all pdf files from buckets b0 to b9 (including sub-directories):
-
-    .. code-block::
-
-        {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
-
-
-    Requires capability:
-
-    - **listFiles**
     """
 
     # order is file_id, action, date, time, size(, replication), name
@@ -2328,7 +2295,42 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
 
 
 class Ls(B2URIMixin, BaseLs):
-    __doc__ = BaseLs.__doc__
+    """
+    {BASELS}
+
+    Examples
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    List csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard "b2://bucketName/*.[ct]sv"
+
+
+    List all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard "b2://bucketName/b?/info.txt"
+
+
+    List all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    """
 
 
 class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
@@ -2368,45 +2370,6 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
     Command returns 0 if all files were removed successfully and
     a value different from 0 if any file was left.
-
-    Examples.
-
-    .. note::
-
-        Note the use of quotes, to ensure that special
-        characters are not expanded by the shell.
-
-
-    .. note::
-
-        Use with caution. Running examples presented below can cause data-loss.
-
-
-    Remove all csv and tsv files (in any directory, in the whole bucket):
-
-    .. code-block::
-
-        {NAME} rm --recursive --withWildcard bucketName "*.[ct]sv"
-
-
-    Remove all info.txt files from buckets bX, where X is any character:
-
-    .. code-block::
-
-        {NAME} rm --recursive --withWildcard bucketName "b?/info.txt"
-
-
-    Remove all pdf files from buckets b0 to b9 (including sub-directories):
-
-    .. code-block::
-
-        {NAME} rm --recursive --withWildcard bucketName "b[0-9]/*.pdf"
-
-
-    Requires capability:
-
-    - **listFiles**
-    - **deleteFiles**
     """
 
     PROGRESS_REPORT_CLASS = ProgressReport
@@ -2501,7 +2464,6 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
         )
         parser.add_argument('--noProgress', action='store_true')
         parser.add_argument('--failFast', action='store_true')
-        # TODO: --bypassGovernance
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -2540,7 +2502,48 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
 
 class Rm(B2URIMixin, BaseRm):
-    __doc__ = BaseRm.__doc__
+    """
+    {BASERM}
+
+    Examples.
+
+        .. note::
+
+            Note the use of quotes, to ensure that special
+            characters are not expanded by the shell.
+
+
+        .. note::
+
+            Use with caution. Running examples presented below can cause data-loss.
+
+
+        Remove all csv and tsv files (in any directory, in the whole bucket):
+
+        .. code-block::
+
+            {NAME} rm --recursive --withWildcard "b2://bucketName/*.[ct]sv"
+
+
+        Remove all info.txt files from buckets bX, where X is any character:
+
+        .. code-block::
+
+            {NAME} rm --recursive --withWildcard "b2://bucketName/b?/info.txt"
+
+
+        Remove all pdf files from buckets b0 to b9 (including sub-directories):
+
+        .. code-block::
+
+            {NAME} rm --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+    """
 
 
 class GetUrlBase(Command):

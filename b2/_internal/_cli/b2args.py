@@ -44,13 +44,14 @@ B2_URI_FILE_ARG_TYPE = wrap_with_argument_type_error(b2_file_uri)
 
 def add_b2_uri_argument(parser: argparse.ArgumentParser, name="B2_URI"):
     """
-    Add a B2 URI pointing to a file as an argument to the parser.
+    Add a B2 URI pointing to a bucket, optionally with a directory
+    or a pattern as an argument to the parser.
     """
     parser.add_argument(
         name,
         type=B2_URI_ARG_TYPE,
         help="B2 URI pointing to a bucket, directory or a pattern, "
-        "e.g. b2://yourBucket, b2://yourBucket/file.txt, b2://yourBucket/folder, "
+        "e.g. b2://yourBucket, b2://yourBucket/file.txt, b2://yourBucket/folder/, "
         "b2://yourBucket/*.txt or b2id://fileId",
     )
 
