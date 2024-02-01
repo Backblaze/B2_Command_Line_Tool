@@ -21,8 +21,8 @@ import subprocess
 import nox
 
 # Required for PDM to use nox's virtualenvs
-os.environ.update({"PDM_IGNORE_SAVED_PYTHON": "1"})
-os.environ.update({"PDM_NO_LOCK": "1"})
+os.environ["PDM_IGNORE_SAVED_PYTHON"] = "1"
+os.environ["PDM_NO_LOCK"] = "1"
 
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
