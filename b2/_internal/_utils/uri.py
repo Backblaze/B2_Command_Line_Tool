@@ -19,6 +19,7 @@ from b2sdk.v2 import (
     DownloadVersion,
     FileVersion,
 )
+from b2sdk.v2.exception import B2Error
 
 from b2._internal._utils.python_compat import removeprefix, singledispatchmethod
 
@@ -158,3 +159,21 @@ class B2URIAdapter:
     @get_download_url_by_uri.register
     def _(self, uri: B2FileIdURI, *args, **kwargs) -> str:
         return self.get_download_url_for_fileid(uri.file_id, *args, **kwargs)
+
+    @singledispatchmethod
+    def list_file_versions_by_uri(self, uri, *args, **kwargs):
+        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+
+    @list_file_versions_by_uri.register
+    def _(self, uri: B2URI, *args, **kwargs):
+        bucket = self.api.get_bucket_by_name(uri.bucket_name)
+        try:
+            yield from bucket.ls(uri.path, *args, **kwargs)
+        except ValueError as error:
+            # Wrap these errors into B2Error. At the time of writing there's
+            # exactly one – `with_wildcard` being passed without `recursive` option.
+            raise B2Error(error.args[0])
+
+    @list_file_versions_by_uri.register
+    def _(self, uri: B2FileIdURI, *args, **kwargs):
+        yield self.get_file_info_by_uri(uri), None

@@ -2193,19 +2193,12 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
 
     def _get_ls_generator(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
-        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
-
-        try:
-            yield from bucket.ls(
-                b2_uri.path,
-                latest_only=not args.versions,
-                recursive=args.recursive,
-                with_wildcard=args.withWildcard,
-            )
-        except ValueError as error:
-            # Wrap these errors into B2Error. At the time of writing there's
-            # exactly one – `with_wildcard` being passed without `recursive` option.
-            raise B2Error(error.args[0])
+        yield from self.api.list_file_versions_by_uri(
+            b2_uri,
+            latest_only=not args.versions,
+            recursive=args.recursive,
+            with_wildcard=args.withWildcard,
+        )
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
         raise NotImplementedError
