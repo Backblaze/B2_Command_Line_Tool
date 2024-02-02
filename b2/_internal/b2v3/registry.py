@@ -10,6 +10,47 @@
 
 # ruff: noqa: F405
 from b2._internal._b2v4.registry import *  # noqa
+from .rm import Rm
+
+
+class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):
+    """
+    {BASELS}
+
+    Examples
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    List csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
+
+
+    List all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
+
+
+    List all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    """
+
 
 B2.register_subcommand(AuthorizeAccount)
 B2.register_subcommand(CancelAllUnfinishedLargeFiles)
