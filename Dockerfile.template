@@ -1,4 +1,18 @@
-FROM python:${python_version}-slim as base
+FROM python:${python_version}-slim as builder
+
+RUN apt-get update -y && apt-get install git patchelf -y && pip install -U pdm
+
+WORKDIR /b2
+COPY ./b2 /b2/b2
+COPY pyproject.toml pdm.lock LICENSE README.md /b2/
+
+ENV PDM_BUILD_SCM_VERSION=${version}
+RUN pdm install --prod --group license
+RUN pdm run b2 license --dump --with-packages
+# Run pdm in PEP 582 mode, install packaged to __pypackages__, not virtualenv
+RUN rm -r .venv && mkdir __pypackages__ && pdm install --prod --group full --no-editable
+
+FROM python:${python_version}-slim
 
 LABEL vendor=${vendor}
 LABEL name="${name}"
@@ -9,23 +23,10 @@ LABEL vcs-url="${vcs_url}"
 LABEL vcs-ref="${vcs_ref}"
 LABEL build-date-iso8601="${build_date}"
 
+ENV PYTHONPATH=/b2/pkgs
+COPY --from=builder /b2/__pypackages__/${python_version}/lib /b2/pkgs
+COPY --from=builder /b2/__pypackages__/${python_version}/bin/* /bin/
+
 WORKDIR /root
-
-# In case we're installing from git repo
-RUN apt-get update -y && apt-get install git -y
-
-RUN pip install -U pdm
-
-ENV PDM_BUILD_SCM_VERSION=${version}
-RUN --mount=type=bind,source=./b2,target=/b2/b2 \
-    --mount=type=bind,source=./pyproject.toml,target=/b2/pyproject.toml \
-    --mount=type=bind,source=./pdm.lock,target=/b2/pdm.lock \
-    --mount=type=bind,source=./LICENSE,target=/b2/LICENSE \
-    --mount=type=bind,source=./README.md,target=/b2/README.md \
-  cd /b2 \
-  && pdm sync --prod --group full --no-editable --global --project . \
-  # due https://github.com/moby/moby/issues/47021 we cannot have /root/.cache leftover as it causes random errors in CI
-  && rm -rf /root/.cache
-
 ENTRYPOINT ["b2"]
 CMD ["--help"]

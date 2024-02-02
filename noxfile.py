@@ -73,13 +73,14 @@ nox.options.sessions = [
 ]
 
 
-def pdm_install(session: nox.Session, *args: str, dev: bool = True) -> None:
+def pdm_install(session: nox.Session, *args: str, dev: bool = True, editable: bool = False) -> None:
     # dev dependencies are installed by default
     prod_args = [] if dev else ['--prod']
+    editable_args = [] if editable else ['--no-editable']
     group_args = []
     for group in args:
         group_args.extend(['--group', group])
-    session.run('pdm', 'install', *prod_args, *group_args, external=True, **run_kwargs)
+    session.run('pdm', 'install', *editable_args, *prod_args, *group_args, external=True, **run_kwargs)
 
 
 run_kwargs = {}
@@ -271,7 +272,7 @@ def build(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def dump_license(session: nox.Session):
-    pdm_install(session, 'license')
+    pdm_install(session, 'license', editable=True)
     session.run('b2', 'license', '--dump', '--with-packages')
 
 
@@ -603,7 +604,6 @@ def build_and_test_docker(session):
     """
     test_image_tag = 'b2:test'
     generate_dockerfile(session)
-    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True, **run_kwargs)
     session.run('docker', 'build', '-t', test_image_tag, '.', external=True)
     run_docker_tests(session, test_image_tag)
 

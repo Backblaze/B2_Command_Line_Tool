@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:4529aab8666fba8a6dca05222678ecbfd8020fa6b78fd7441ef2debff4be6de0"
+content_hash = "sha256:028df4fc2fca0cca8d300b5c3d104ca8f950e5cd6dc0a3d1b2a0ab1fd2147dbe"
 
 [[package]]
 name = "alabaster"
@@ -100,10 +100,8 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "0.1.dev3271"
+version = "1.30.1"
 requires_python = ">=3.7"
-git = "https://github.com/vbaltrusaitis-reef/b2-sdk-python"
-revision = "ac1e1355f1aaac10a398618214021cc7ecb6a1eb"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
 dependencies = [
@@ -114,6 +112,10 @@ dependencies = [
     "setuptools>=60.0",
     "tqdm<5.0.0,>=4.5.0",
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
+]
+files = [
+    {file = "b2sdk-1.30.1-py3-none-any.whl", hash = "sha256:e659dbe3b73e65c1bd057b41a9d875fe91171547b87aac719cc077594e828438"},
+    {file = "b2sdk-1.30.1.tar.gz", hash = "sha256:9217c30bfb5891e468c726aae2aace996e628411885752437bdf0d4b8a3ba29d"},
 ]
 
 [[package]]
@@ -141,13 +143,13 @@ files = [
 
 [[package]]
 name = "certifi"
-version = "2023.11.17"
+version = "2024.2.2"
 requires_python = ">=3.6"
 summary = "Python package for providing Mozilla's CA Bundle."
 groups = ["default", "doc"]
 files = [
-    {file = "certifi-2023.11.17-py3-none-any.whl", hash = "sha256:e036ab49d5b79556f99cfc2d9320b34cfbe5be05c5871b51de9329f0603b0474"},
-    {file = "certifi-2023.11.17.tar.gz", hash = "sha256:9b469f3a900bf28dc19b8cfbf8019bf47f7fdd1a65a1d4ffb98fc14166beb4d1"},
+    {file = "certifi-2024.2.2-py3-none-any.whl", hash = "sha256:dc383c07b76109f368f6106eee2b593b04a011ea4d55f652c6ca24a754d1cdd1"},
+    {file = "certifi-2024.2.2.tar.gz", hash = "sha256:0569859f95fc761b18b45ef421b1290a0f65f147e92a1e5eb3e635f9a5e4e66f"},
 ]
 
 [[package]]
@@ -790,6 +792,17 @@ groups = ["default"]
 files = [
     {file = "phx-class-registry-4.0.6.tar.gz", hash = "sha256:66e9818de0a9d62e8cfe311587fcd3853ba941b71c11a7a73e5808d6550db125"},
     {file = "phx_class_registry-4.0.6-py3-none-any.whl", hash = "sha256:90f8c44b9840ac1cb350876157669bf0d1f9d3be614a4f21d739a219a0640601"},
+]
+
+[[package]]
+name = "pip"
+version = "23.3.2"
+requires_python = ">=3.7"
+summary = "The PyPA recommended tool for installing Python packages."
+groups = ["license"]
+files = [
+    {file = "pip-23.3.2-py3-none-any.whl", hash = "sha256:5052d7889c1f9d05224cd41741acb7c5d6fa735ab34e339624a614eaaa7e7d76"},
+    {file = "pip-23.3.2.tar.gz", hash = "sha256:7fd9972f96db22c8077a1ee2691b172c8089b17a5652a44494a9ecb0d78f9149"},
 ]
 
 [[package]]
