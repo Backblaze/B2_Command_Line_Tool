@@ -394,6 +394,7 @@ class CommandLine:
         bucket_name_prefix,
         env_file_cmd_placeholder,
         api_wrapper: Api,
+        b2_uri_args,
     ):
         self.command = command
         self.account_id = account_id
@@ -403,6 +404,7 @@ class CommandLine:
         self.env_file_cmd_placeholder = env_file_cmd_placeholder
         self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.api_wrapper = api_wrapper
+        self.b2_uri_args = b2_uri_args
 
     def generate_bucket_name(self):
         return self.api_wrapper.new_bucket_name()
@@ -560,7 +562,9 @@ class CommandLine:
             assert not missing_capabilities, f'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {missing_capabilities}'
 
     def list_file_versions(self, bucket_name):
-        return self.should_succeed_json(['ls', '--json', '--recursive', '--versions', bucket_name])
+        return self.should_succeed_json(
+            ['ls', '--json', '--recursive', '--versions', *self.b2_uri_args(bucket_name)]
+        )
 
     def cleanup_buckets(self, buckets: dict[str, dict | None]) -> None:
         for bucket_name, bucket_dict in buckets.items():

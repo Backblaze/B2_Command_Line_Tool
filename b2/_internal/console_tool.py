@@ -126,7 +126,7 @@ from b2._internal._cli.autocomplete_install import (
     autocomplete_install,
 )
 from b2._internal._cli.b2api import _get_b2api_for_profile
-from b2._internal._cli.b2args import add_b2_file_argument
+from b2._internal._cli.b2args import add_b2_file_argument, add_b2_uri_argument
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
@@ -630,6 +630,27 @@ class B2URIBucketNFilenameArgMixin:
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
         return B2URI(args.bucketName, args.fileName)
+
+
+class B2URIBucketNFolderNameArgMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument('folderName', nargs='?').completer = file_name_completer
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+        return B2URI(args.bucketName, args.folderName or '')
+
+
+class B2URIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+        return args.B2_URI
 
 
 class UploadModeMixin(Described):
@@ -2140,7 +2161,6 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
 
     The ``--recursive`` option will descend into folders, and will select
     only files, not folders.
-
     The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
     wildcard and range of characters. It requires the ``--recursive`` option.
@@ -2152,8 +2172,6 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('-r', '--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
-        parser.add_argument('bucketName').completer = bucket_name_completer
-        parser.add_argument('folderName', nargs='?').completer = file_name_completer
         super()._setup_parser(parser)
 
     def _print_files(self, args):
@@ -2171,13 +2189,12 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         self._print(folder_name or file_version.file_name)
 
     def _get_ls_generator(self, args):
-        start_file_name = args.folderName or ''
-
-        bucket = self.api.get_bucket_by_name(args.bucketName)
+        b2_uri = self.get_b2_uri_from_arg(args)
+        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
 
         try:
             yield from bucket.ls(
-                start_file_name,
+                b2_uri.path,
                 latest_only=not args.versions,
                 recursive=args.recursive,
                 with_wildcard=args.withWildcard,
@@ -2187,8 +2204,11 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
             # exactly one – `with_wildcard` being passed without `recursive` option.
             raise B2Error(error.args[0])
 
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+        raise NotImplementedError
 
-class Ls(AbstractLsCommand):
+
+class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     """
     Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
@@ -2207,39 +2227,6 @@ class Ls(AbstractLsCommand):
     The ``--replication`` option adds replication status
 
     {ABSTRACTLSCOMMAND}
-
-    Examples
-
-    .. note::
-
-        Note the use of quotes, to ensure that special
-        characters are not expanded by the shell.
-
-
-    List csv and tsv files (in any directory, in the whole bucket):
-
-    .. code-block::
-
-        {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
-
-
-    List all info.txt files from buckets bX, where X is any character:
-
-    .. code-block::
-
-        {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
-
-
-    List all pdf files from buckets b0 to b9 (including sub-directories):
-
-    .. code-block::
-
-        {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
-
-
-    Requires capability:
-
-    - **listFiles**
     """
 
     # order is file_id, action, date, time, size(, replication), name
@@ -2307,7 +2294,46 @@ class Ls(AbstractLsCommand):
         return template % tuple(parameters)
 
 
-class Rm(ThreadsMixin, AbstractLsCommand):
+class Ls(B2URIMixin, BaseLs):
+    """
+    {BASELS}
+
+    Examples
+
+    .. note::
+
+        Note the use of quotes, to ensure that special
+        characters are not expanded by the shell.
+
+
+    List csv and tsv files (in any directory, in the whole bucket):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard "b2://bucketName/*.[ct]sv"
+
+
+    List all info.txt files from buckets bX, where X is any character:
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard "b2://bucketName/b?/info.txt"
+
+
+    List all pdf files from buckets b0 to b9 (including sub-directories):
+
+    .. code-block::
+
+        {NAME} ls --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    """
+
+
+class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
     """
     Removes a "folder" or a set of files matching a pattern.  Use with caution.
 
@@ -2344,45 +2370,6 @@ class Rm(ThreadsMixin, AbstractLsCommand):
 
     Command returns 0 if all files were removed successfully and
     a value different from 0 if any file was left.
-
-    Examples.
-
-    .. note::
-
-        Note the use of quotes, to ensure that special
-        characters are not expanded by the shell.
-
-
-    .. note::
-
-        Use with caution. Running examples presented below can cause data-loss.
-
-
-    Remove all csv and tsv files (in any directory, in the whole bucket):
-
-    .. code-block::
-
-        {NAME} rm --recursive --withWildcard bucketName "*.[ct]sv"
-
-
-    Remove all info.txt files from buckets bX, where X is any character:
-
-    .. code-block::
-
-        {NAME} rm --recursive --withWildcard bucketName "b?/info.txt"
-
-
-    Remove all pdf files from buckets b0 to b9 (including sub-directories):
-
-    .. code-block::
-
-        {NAME} rm --recursive --withWildcard bucketName "b[0-9]/*.pdf"
-
-
-    Requires capability:
-
-    - **listFiles**
-    - **deleteFiles**
     """
 
     PROGRESS_REPORT_CLASS = ProgressReport
@@ -2512,6 +2499,51 @@ class Rm(ThreadsMixin, AbstractLsCommand):
                     raise data[0]
 
         return 1 if failed_on_any_file else 0
+
+
+class Rm(B2URIMixin, BaseRm):
+    """
+    {BASERM}
+
+    Examples.
+
+        .. note::
+
+            Note the use of quotes, to ensure that special
+            characters are not expanded by the shell.
+
+
+        .. note::
+
+            Use with caution. Running examples presented below can cause data-loss.
+
+
+        Remove all csv and tsv files (in any directory, in the whole bucket):
+
+        .. code-block::
+
+            {NAME} rm --recursive --withWildcard "b2://bucketName/*.[ct]sv"
+
+
+        Remove all info.txt files from buckets bX, where X is any character:
+
+        .. code-block::
+
+            {NAME} rm --recursive --withWildcard "b2://bucketName/b?/info.txt"
+
+
+        Remove all pdf files from buckets b0 to b9 (including sub-directories):
+
+        .. code-block::
+
+            {NAME} rm --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
+
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+    """
 
 
 class GetUrlBase(Command):

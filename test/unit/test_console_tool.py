@@ -32,12 +32,13 @@ from b2sdk.v2 import (
 from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
 from more_itertools import one
 
+from b2._internal._b2v4.registry import Rm as v4Rm
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
 )
-from b2._internal.b2v3.registry import Rm
+from b2._internal.b2v3.rm import Rm as v3Rm
 from b2._internal.version import VERSION
 
 from .test_base import TestBase
@@ -720,7 +721,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(['get-bucket', 'my-bucket-a'], expected_json_in_stdout=expected_json)
         self._run_command(
-            ['ls', '--json', 'my-bucket-c'], '',
+            ['ls', '--json', *self.b2_uri_args('my-bucket-c')], '',
             'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
         )
 
@@ -877,7 +878,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ]
 
             self._run_command(
-                ['ls', '--json', '--versions', 'my-bucket'],
+                ['ls', '--json', '--versions', *self.b2_uri_args('my-bucket')],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -886,7 +887,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             []
             '''
 
-            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(
+                ['ls', '--json', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0
+            )
 
             # Delete one file version, passing the name in
             expected_json = {"action": "delete", "fileId": "9998", "fileName": "file1.txt"}
@@ -1061,7 +1064,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ]
 
             self._run_command(
-                ['ls', '--json', '--versions', 'my-bucket'],
+                ['ls', '--json', '--versions', *self.b2_uri_args('my-bucket')],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1070,7 +1073,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             []
             '''
 
-            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(
+                ['ls', '--json', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0
+            )
 
             # Delete one file version, passing the name in
             expected_json = {"action": "delete", "fileId": "9998", "fileName": "file1.txt"}
@@ -1927,7 +1932,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stdout = '''
             []
             '''
-            self._run_command(['ls', '--json', 'my-bucket'], expected_stdout, '', 0)
+            self._run_command(
+                ['ls', '--json', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0
+            )
 
             # upload file
             expected_stdout = '''
@@ -1956,7 +1963,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 }
             ]
             self._run_command(
-                ['ls', '--json', 'my-bucket'],
+                ['ls', '--json', *self.b2_uri_args('my-bucket')],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -2096,7 +2103,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
 
         # Check with no files
-        self._run_command(['ls', 'my-bucket'], '', '', 0)
+        self._run_command(['ls', *self.b2_uri_args('my-bucket')], '', '', 0)
 
         # Create some files, including files in a folder
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
@@ -2112,7 +2119,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/
         c
         '''
-        self._run_command(['ls', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(['ls', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0)
 
         # Recursive output
         expected_stdout = '''
@@ -2121,8 +2128,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/b2
         c
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout, '', 0)
-        self._run_command(['ls', '-r', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(
+            ['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0
+        )
+        self._run_command(['ls', '-r', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0)
 
         # Check long output.   (The format expects full-length file ids, so it causes whitespace here)
         expected_stdout = '''
@@ -2130,7 +2139,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                                                                                           -       -           -         -          0  b/
                                                                                        9995  upload  1970-01-01  00:00:05          6  c
         '''
-        self._run_command(['ls', '--long', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(['ls', '--long', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0)
 
         # Check long versions output   (The format expects full-length file ids, so it causes whitespace here)
         expected_stdout = '''
@@ -2139,14 +2148,19 @@ class TestConsoleTool(BaseConsoleToolTest):
                                                                                        9995  upload  1970-01-01  00:00:05          6  c
                                                                                        9996  upload  1970-01-01  00:00:05          5  c
         '''
-        self._run_command(['ls', '--long', '--versions', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(
+            ['ls', '--long', '--versions', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0
+        )
 
     def test_ls_wildcard(self):
         self._authorize_account()
         self._create_my_bucket()
 
         # Check with no files
-        self._run_command(['ls', '--recursive', '--withWildcard', 'my-bucket', '*.txt'], '', '', 0)
+        self._run_command(
+            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.txt')], '',
+            '', 0
+        )
 
         # Create some files, including files in a folder
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
@@ -2162,7 +2176,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', 'my-bucket', '*.[tc]sv'],
+            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.[tc]sv')],
             expected_stdout,
         )
 
@@ -2172,7 +2186,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', 'my-bucket', '*.tsv'],
+            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.tsv')],
             expected_stdout,
         )
 
@@ -2180,7 +2194,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', 'my-bucket', 'b/b?/test.csv'],
+            [
+                'ls', '--recursive', '--withWildcard',
+                *self.b2_uri_args('my-bucket', 'b/b?/test.csv')
+            ],
             expected_stdout,
         )
 
@@ -2191,7 +2208,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', 'my-bucket', '?/test.?sv'],
+            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '?/test.?sv')],
             expected_stdout,
         )
 
@@ -2200,7 +2217,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', 'my-bucket', '?/*/*.[!t]sv'],
+            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '?/*/*.[!t]sv')],
             expected_stdout,
         )
 
@@ -2210,7 +2227,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Check with no files
         self._run_command(
-            ['ls', '--withWildcard', 'my-bucket'],
+            ['ls', '--withWildcard', *self.b2_uri_args('my-bucket')],
             expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
             expected_status=1,
         )
@@ -2352,7 +2369,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorize with the key and list the files
         self._run_command_ignore_output(['authorize-account', 'appKeyId0', 'appKey0'],)
         self._run_command(
-            ['ls', 'my-bucket'],
+            ['ls', *self.b2_uri_args('my-bucket')],
             '',
             '',
             0,
@@ -2499,8 +2516,11 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.original_progress_class = Rm.PROGRESS_REPORT_CLASS
-        Rm.PROGRESS_REPORT_CLASS = cls.InstantReporter
+        cls.original_v3_progress_class = v3Rm.PROGRESS_REPORT_CLASS
+        cls.original_v4_progress_class = v4Rm.PROGRESS_REPORT_CLASS
+
+        v3Rm.PROGRESS_REPORT_CLASS = cls.InstantReporter
+        v4Rm.PROGRESS_REPORT_CLASS = cls.InstantReporter
 
     def setUp(self):
         super().setUp()
@@ -2513,11 +2533,15 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     @classmethod
     def tearDownClass(cls) -> None:
-        Rm.PROGRESS_REPORT_CLASS = cls.original_progress_class
+        v3Rm.PROGRESS_REPORT_CLASS = cls.original_v3_progress_class
+        v4Rm.PROGRESS_REPORT_CLASS = cls.original_v4_progress_class
 
     def test_rm_wildcard(self):
         self._run_command(
-            ['rm', '--recursive', '--withWildcard', '--noProgress', 'my-bucket', '*.csv'],
+            [
+                'rm', '--recursive', '--withWildcard', '--noProgress',
+                *self.b2_uri_args('my-bucket', '*.csv')
+            ],
         )
 
         expected_stdout = '''
@@ -2526,14 +2550,17 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/test.txt
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
     def test_rm_versions(self):
         # Uploading content of the bucket again to create second version of each file.
         self._upload_multiple_files(self.bucket)
 
         self._run_command(
-            ['rm', '--versions', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],
+            [
+                'rm', '--versions', '--recursive', '--withWildcard',
+                *self.b2_uri_args('my-bucket', '*.csv')
+            ],
         )
 
         expected_stdout = '''
@@ -2546,10 +2573,12 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         c/test.tsv
         '''
-        self._run_command(['ls', '--versions', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(
+            ['ls', '--versions', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout
+        )
 
     def test_rm_no_recursive(self):
-        self._run_command(['rm', '--noProgress', 'my-bucket', 'b/'])
+        self._run_command(['rm', '--noProgress', *self.b2_uri_args('my-bucket', 'b/')])
 
         expected_stdout = '''
         a/test.csv
@@ -2557,7 +2586,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
     def test_rm_dry_run(self):
         expected_stdout = '''
@@ -2567,7 +2596,10 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         c/test.csv
         '''
         self._run_command(
-            ['rm', '--recursive', '--withWildcard', '--dryRun', 'my-bucket', '*.csv'],
+            [
+                'rm', '--recursive', '--withWildcard', '--dryRun',
+                *self.b2_uri_args('my-bucket', '*.csv')
+            ],
             expected_stdout,
         )
 
@@ -2581,11 +2613,14 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
     def test_rm_exact_filename(self):
         self._run_command(
-            ['rm', '--recursive', '--withWildcard', '--noProgress', 'my-bucket', 'b/b/test.csv'],
+            [
+                'rm', '--recursive', '--withWildcard', '--noProgress',
+                *self.b2_uri_args('my-bucket', 'b/b/test.csv')
+            ],
         )
 
         expected_stdout = '''
@@ -2597,27 +2632,32 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         c/test.csv
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
     def test_rm_no_name_removes_everything(self):
-        self._run_command(['rm', '--recursive', '--noProgress', 'my-bucket'])
-        self._run_command(['ls', '--recursive', 'my-bucket'], '')
+        self._run_command(['rm', '--recursive', '--noProgress', *self.b2_uri_args('my-bucket')])
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], '')
 
     def test_rm_with_wildcard_without_recursive(self):
         self._run_command(
-            ['rm', '--withWildcard', 'my-bucket'],
+            ['rm', '--withWildcard', *self.b2_uri_args('my-bucket')],
             expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
             expected_status=1,
         )
 
     def test_rm_queue_size_and_number_of_threads(self):
-        self._run_command(['rm', '--recursive', '--threads', '2', '--queueSize', '4', 'my-bucket'])
-        self._run_command(['ls', '--recursive', 'my-bucket'], '')
+        self._run_command(
+            [
+                'rm', '--recursive', '--threads', '2', '--queueSize', '4',
+                *self.b2_uri_args('my-bucket')
+            ]
+        )
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], '')
 
     def test_rm_progress(self):
         expected_in_stdout = ' count: 4/4 '
         self._run_command(
-            ['rm', '--recursive', '--withWildcard', 'my-bucket', '*.csv'],
+            ['rm', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.csv')],
             expected_part_of_stdout=expected_in_stdout,
         )
 
@@ -2627,7 +2667,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/test.txt
         c/test.tsv
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
     def _run_problematic_removal(
         self,
@@ -2663,8 +2703,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
                     '--queueSize',
                     '1',
                     *additional_parameters,
-                    'my-bucket',
-                    '*',
+                    *self.b2_uri_args('my-bucket', '*'),
                 ],
                 expected_status=1,
                 expected_part_of_stdout=expected_in_stdout,
@@ -2686,7 +2725,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         expected_stdout = '''
         b/b1/test.csv
         '''
-        self._run_command(['ls', '--recursive', 'my-bucket'], expected_stdout)
+        self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
 
 class TestVersionConsoleTool(BaseConsoleToolTest):

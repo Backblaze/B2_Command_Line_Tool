@@ -16,7 +16,7 @@ from typing import Type
 import pytest
 
 
-@pytest.mark.usefixtures('unit_test_console_tool_class')
+@pytest.mark.usefixtures('unit_test_console_tool_class', 'b2_uri_args')
 class TestBase(unittest.TestCase):
     console_tool_class: Type
 
