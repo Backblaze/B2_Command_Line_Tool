@@ -66,7 +66,7 @@ SYSTEM = platform.system().lower()
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
-nox.options.reuse_existing_virtualenvs = True
+nox.options.reuse_existing_virtualenvs = not CI
 nox.options.sessions = [
     'lint',
     'test',
@@ -281,8 +281,13 @@ def dump_license(session: nox.Session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session: nox.Session):
     """Bundle the distribution."""
-    pdm_install(session, 'bundle', 'license', 'full')
-    session.run('b2', 'license', '--dump', '--with-packages', **run_kwargs)
+
+    # We're running dump_license in another session because:
+    # 1. `b2 license --dump` dumps the licence where the module is installed.
+    # 2. We don't want to install b2 as editable module in the current session
+    #    because that would make `b2 versions` show the versions as editable.
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True, **run_kwargs)
+    pdm_install(session, 'bundle', 'full')
 
     template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
     versions = get_versions()
