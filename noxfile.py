@@ -80,7 +80,9 @@ def pdm_install(session: nox.Session, *args: str, dev: bool = True, editable: bo
     group_args = []
     for group in args:
         group_args.extend(['--group', group])
-    session.run('pdm', 'install', *editable_args, *prod_args, *group_args, external=True, **run_kwargs)
+    session.run(
+        'pdm', 'install', *editable_args, *prod_args, *group_args, external=True, **run_kwargs
+    )
 
 
 run_kwargs = {}
