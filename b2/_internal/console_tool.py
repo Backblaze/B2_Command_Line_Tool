@@ -126,7 +126,10 @@ from b2._internal._cli.autocomplete_install import (
     autocomplete_install,
 )
 from b2._internal._cli.b2api import _get_b2api_for_profile
-from b2._internal._cli.b2args import add_b2_file_argument, add_b2_uri_argument
+from b2._internal._cli.b2args import (
+    add_b2id_or_b2_uri_argument,
+    add_b2id_or_file_like_b2_uri_argument,
+)
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
@@ -604,7 +607,7 @@ class FileIdAndOptionalFileNameMixin(Described):
 class B2URIFileArgMixin:
     @classmethod
     def _setup_parser(cls, parser):
-        add_b2_file_argument(parser)
+        add_b2id_or_file_like_b2_uri_argument(parser)
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
@@ -643,10 +646,10 @@ class B2URIBucketNFolderNameArgMixin:
         return B2URI(args.bucketName, args.folderName or '')
 
 
-class B2URIMixin:
+class B2IDOrB2URIMixin:
     @classmethod
     def _setup_parser(cls, parser):
-        add_b2_uri_argument(parser)
+        add_b2id_or_b2_uri_argument(parser)
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
@@ -2294,7 +2297,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         return template % tuple(parameters)
 
 
-class Ls(B2URIMixin, BaseLs):
+class Ls(B2IDOrB2URIMixin, BaseLs):
     """
     {BASELS}
 
@@ -2501,7 +2504,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
         return 1 if failed_on_any_file else 0
 
 
-class Rm(B2URIMixin, BaseRm):
+class Rm(B2IDOrB2URIMixin, BaseRm):
     """
     {BASERM}
 
