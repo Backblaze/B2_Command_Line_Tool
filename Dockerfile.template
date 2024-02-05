@@ -23,8 +23,8 @@ LABEL vcs-url="${vcs_url}"
 LABEL vcs-ref="${vcs_ref}"
 LABEL build-date-iso8601="${build_date}"
 
-ENV PYTHONPATH=/b2/pkgs
-COPY --from=builder /b2/__pypackages__/${python_version}/lib /b2/pkgs
+ENV PYTHONPATH=/opt/b2
+COPY --from=builder /b2/__pypackages__/${python_version}/lib /opt/b2
 COPY --from=builder /b2/__pypackages__/${python_version}/bin/* /bin/
 
 WORKDIR /root
