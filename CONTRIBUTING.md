@@ -55,9 +55,9 @@ for a given github issue).
  
 ## Developer Info
 
-You'll need to have [nox](https://github.com/theacodes/nox) installed:
+You'll need to have [nox](https://github.com/theacodes/nox) and [pdm](https://pdm-project.org/) installed:
 
-* `pip install nox`
+* `pip install nox pdm`
 
 With `nox`, you can run different sessions (default are `lint` and `test`):
 
@@ -69,7 +69,6 @@ With `nox`, you can run different sessions (default are `lint` and `test`):
 * `generate_dockerfile` -> generate dockerfile
 * `docker_test` -> run integration tests against a docker image
 * `build_and_test_docker` -> build a docker image and integration tests against it
-* `deploy` -> Deploy the distribution to the PyPi.
 * `doc` -> Build the documentation.
 * `doc_cover` -> Perform coverage analysis for the documentation.
 
@@ -104,6 +103,14 @@ export NOX_PYTHONS=3.9,3.10
 With the above setting, session `test` will run on Python 3.9 and 3.10, and all other sessions on Python 3.10.
 
 Given Python interpreters should be installed in the operating system or via [pyenv](https://github.com/pyenv/pyenv).
+
+## Managing dependencies
+
+We use [pdm](https://pdm-project.org/) for managing dependencies and developing locally.
+If you want to change any of the project requirements (or requirement bounds) in `pyproject.toml`,
+make sure that `pdm.lock` file reflects those changes by using `pdm add`, `pdm update` or other
+commands - see [documentation](https://pdm-project.org/latest/). You can verify that lock file
+is up to date by running the linter.
 
 ## Linting
 
