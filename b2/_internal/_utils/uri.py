@@ -165,10 +165,10 @@ class B2URIAdapter:
         raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
 
     @list_file_versions_by_uri.register
-    def _(self, uri: B2URI, *args, **kwargs):
+    def _(self, uri: B2URI, *args, filters=(), **kwargs):
         bucket = self.api.get_bucket_by_name(uri.bucket_name)
         try:
-            yield from bucket.ls(uri.path, *args, **kwargs)
+            yield from bucket.ls(uri.path, *args, filters=filters, **kwargs)
         except ValueError as error:
             # Wrap these errors into B2Error. At the time of writing there's
             # exactly one – `with_wildcard` being passed without `recursive` option.

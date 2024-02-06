@@ -2445,6 +2445,61 @@ class TestConsoleTool(BaseConsoleToolTest):
                 '''
         self._run_command(['ls', f'b2id://{file_version.id_}'], expected_stdout, '', 0)
 
+    def test_ls_filters(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Create some files, including files in a folder
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        data = UploadSourceBytes(b'test-data')
+        bucket.upload(data, 'a/test.csv')
+        bucket.upload(data, 'a/test.tsv')
+        bucket.upload(data, 'b/b/test.csv')
+        bucket.upload(data, 'c/test.csv')
+        bucket.upload(data, 'c/test.tsv')
+        bucket.upload(data, 'test.csv')
+        bucket.upload(data, 'test.tsv')
+
+        expected_stdout = '''
+            a/
+            b/
+            c/
+            test.csv
+            '''
+        self._run_command(
+            ['ls', *self.b2_uri_args('my-bucket'), '--include', '*.csv'],
+            expected_stdout,
+        )
+        self._run_command(
+            ['ls', *self.b2_uri_args('my-bucket'), '--exclude', '*.tsv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+            a/test.csv
+            b/b/test.csv
+            c/test.csv
+            test.csv
+            '''
+        self._run_command(
+            ['ls', *self.b2_uri_args('my-bucket'), '--recursive', '--include', '*.csv'],
+            expected_stdout,
+        )
+        self._run_command(
+            ['ls', *self.b2_uri_args('my-bucket'), '--recursive', '--exclude', '*.tsv'],
+            expected_stdout,
+        )
+
+        expected_stdout = '''
+            b/b/test.csv
+            c/test.csv
+            test.csv
+            '''
+        self._run_command(
+            ['ls', *self.b2_uri_args('my-bucket'), '--recursive', '--exclude', '*', '--include', '*.csv', '--exclude', 'a/*'],
+            expected_stdout,
+        )
+
 
 class TestConsoleToolWithV1(BaseConsoleToolTest):
     """These tests use v1 interface to perform various setups before running CLI commands"""
