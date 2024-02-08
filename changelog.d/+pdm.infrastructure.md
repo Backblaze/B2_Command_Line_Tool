@@ -1,0 +1,1 @@
+Use pdm for building, testing and managing dependencies. Remove unnecessary files (continuous integration scripts, tests) from sdist tarball.
