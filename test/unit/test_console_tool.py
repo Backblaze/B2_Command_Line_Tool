@@ -2496,7 +2496,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             test.csv
             '''
         self._run_command(
-            ['ls', *self.b2_uri_args('my-bucket'), '--recursive', '--exclude', '*', '--include', '*.csv', '--exclude', 'a/*'],
+            [
+                'ls', *self.b2_uri_args('my-bucket'), '--recursive', '--exclude', '*', '--include',
+                '*.csv', '--exclude', 'a/*'
+            ],
             expected_stdout,
         )
 
