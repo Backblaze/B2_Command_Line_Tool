@@ -17,6 +17,7 @@ from io import StringIO
 from itertools import chain, product
 from typing import List, Optional
 
+import pytest
 from b2sdk import v1
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
@@ -2429,6 +2430,21 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
             assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
 
+    @pytest.mark.cli_version(from_version=4)
+    def test_ls_b2id(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        # Create a file
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file_version = bucket.upload(UploadSourceBytes(b''), 'test.txt')
+
+        # Condensed output
+        expected_stdout = '''
+                test.txt
+                '''
+        self._run_command(['ls', f'b2id://{file_version.id_}'], expected_stdout, '', 0)
+
 
 class TestConsoleToolWithV1(BaseConsoleToolTest):
     """These tests use v1 interface to perform various setups before running CLI commands"""
@@ -2726,6 +2742,41 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         '''
         self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
+
+    @pytest.mark.cli_version(from_version=4)
+    def test_rm_b2id(self):
+        # Create a file
+        file_version = self.bucket.upload(UploadSourceBytes(b''), 'new-file.txt')
+
+        # Before deleting
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.csv
+        c/test.tsv
+        new-file.txt
+        '''
+        self._run_command(['ls', '--recursive', 'b2://my-bucket'], expected_stdout)
+
+        # Delete file
+        self._run_command(['rm', '--noProgress', f'b2id://{file_version.id_}'], '', '', 0)
+
+        # After deleting
+        expected_stdout = '''
+        a/test.csv
+        a/test.tsv
+        b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
+        b/test.txt
+        c/test.csv
+        c/test.tsv
+        '''
+        self._run_command(['ls', '--recursive', 'b2://my-bucket'], expected_stdout)
 
 
 class TestVersionConsoleTool(BaseConsoleToolTest):

@@ -208,6 +208,26 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     )  # \r? is for Windows, as $ doesn't match \r\n
 
 
+@pytest.mark.cli_version(from_version=4)
+def test_ls_b2id(b2_tool, uploaded_sample_file):
+    b2_tool.should_succeed(
+        ['ls', f"b2id://{uploaded_sample_file['fileId']}"],
+        expected_pattern=f"^{uploaded_sample_file['fileName']}",
+    )
+
+
+@pytest.mark.cli_version(from_version=4)
+def test_rm_b2id(b2_tool, bucket_name, uploaded_sample_file):
+    # remove the file by id
+    b2_tool.should_succeed(['rm', f"b2id://{uploaded_sample_file['fileId']}"])
+
+    # check that the file is gone
+    b2_tool.should_succeed(
+        ['ls', f'b2://{bucket_name}'],
+        expected_pattern='^$',
+    )
+
+
 def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
