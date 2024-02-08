@@ -36,14 +36,14 @@ B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_or_file_l
 def add_b2id_or_b2_uri_argument(parser: argparse.ArgumentParser, name="B2_URI"):
     """
     Add B2 URI (b2:// or b2id://) as an argument to the parser.
-    B2 URI can point to a bucket, optionally with a directory or a pattern.
+    B2 URI can point to a bucket optionally with a object name prefix (directory)
+    or a file-like object.
     """
     parser.add_argument(
         name,
         type=B2ID_OR_B2_URI_ARG_TYPE,
-        help="B2 URI pointing to a bucket, directory, pattern or a file."
-        "e.g. b2://yourBucket, b2://yourBucket/file.txt, b2://yourBucket/folder/, "
-        "b2://yourBucket/*.txt or b2id://fileId",
+        help="B2 URI pointing to a bucket, directory or a file."
+        "e.g. b2://yourBucket, b2://yourBucket/file.txt, b2://yourBucket/folderName/, or b2id://fileId",
     ).completer = b2uri_file_completer
 
 
