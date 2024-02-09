@@ -2165,10 +2165,18 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
 
     The ``--recursive`` option will descend into folders, and will select
     only files, not folders.
+
     The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
     wildcard and range of characters. It requires the ``--recursive`` option.
     Remember to quote ``folderName`` to avoid shell expansion.
+
+    The --include and --exclude flags can be used to filter the files returned
+    from the server using wildcards. You can specify multiple --include and --exclude filters.
+     The order of filters matters. The *last*
+    matching filter decides whether a file is included or excluded. If the
+    given list of filters contains only INCLUDE filters, then it is assumed
+    that all files are excluded by default.
     """
 
     @classmethod
