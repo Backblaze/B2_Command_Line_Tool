@@ -1,0 +1,1 @@
+Add `yaml` format fallback in addition to `json` format supported in some of the arguments.
