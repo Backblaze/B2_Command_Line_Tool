@@ -13,11 +13,13 @@ import dataclasses
 import pathlib
 import urllib.parse
 from pathlib import Path
+from typing import Sequence
 
 from b2sdk.v2 import (
     B2Api,
     DownloadVersion,
     FileVersion,
+    Filter,
 )
 from b2sdk.v2.exception import B2Error
 
@@ -165,7 +167,7 @@ class B2URIAdapter:
         raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
 
     @list_file_versions_by_uri.register
-    def _(self, uri: B2URI, *args, filters=(), **kwargs):
+    def _(self, uri: B2URI, *args, filters: Sequence[Filter] = (), **kwargs):
         bucket = self.api.get_bucket_by_name(uri.bucket_name)
         try:
             yield from bucket.ls(uri.path, *args, filters=filters, **kwargs)
