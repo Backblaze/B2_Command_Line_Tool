@@ -2389,7 +2389,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
         def __init__(
             self,
-            runner: Rm,
+            runner: BaseRm,
             args: argparse.Namespace,
             messages_queue: queue.Queue,
             reporter: ProgressReport,
