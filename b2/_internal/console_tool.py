@@ -2184,8 +2184,8 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('-r', '--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
-        parser.add_argument('--include', dest='filters', action='append', type=Filter.include)
-        parser.add_argument('--exclude', dest='filters', action='append', type=Filter.exclude)
+        parser.add_argument('--include', dest='filters', action='append', type=Filter.include, default=[])
+        parser.add_argument('--exclude', dest='filters', action='append', type=Filter.exclude, default=[])
         super()._setup_parser(parser)
 
     def _print_files(self, args):
@@ -2209,7 +2209,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
             latest_only=not args.versions,
             recursive=args.recursive,
             with_wildcard=args.withWildcard,
-            filters=args.filters or (),
+            filters=args.filters,
         )
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
