@@ -4006,7 +4006,7 @@ class ConsoleTool:
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = B2.create_parser(name=argv[0])
+        parser = B2.create_parser(name=NAME)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
