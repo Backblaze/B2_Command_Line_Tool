@@ -7,11 +7,11 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import itertools
 
 # We import all the necessary modules lazily in completers in order
 # to avoid upfront cost of the imports when argcompleter is used for
 # autocompletions.
-
 from itertools import islice
 
 
@@ -20,7 +20,12 @@ def bucket_name_completer(prefix, parsed_args, **kwargs):
 
     from b2._internal._cli.b2api import _get_b2api_for_profile
     api = _get_b2api_for_profile(getattr(parsed_args, 'profile', None))
-    res = [unprintable_to_hex(bucket.name) for bucket in api.list_buckets(use_cache=True)]
+    res = [
+        unprintable_to_hex(bucket_name_alias)
+        for bucket_name_alias in itertools.chain.from_iterable(
+            (bucket.name, f"b2://{bucket.name}") for bucket in api.list_buckets(use_cache=True)
+        )
+    ]
     return res
 
 
