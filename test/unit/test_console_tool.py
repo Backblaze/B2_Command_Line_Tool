@@ -2839,6 +2839,84 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--recursive', 'b2://my-bucket'], expected_stdout)
 
+    def rm_filters_helper(self, rm_args: List[str], expected_ls_stdout: str):
+        self._authorize_account()
+        self._run_command(['create-bucket', 'my-rm-bucket', 'allPublic'], 'bucket_1\n', '', 0)
+        bucket = self.b2_api.get_bucket_by_name('my-rm-bucket')
+
+        # Create some files, including files in a folder
+        data = UploadSourceBytes(b'test-data')
+        bucket.upload(data, 'a/test.csv')
+        bucket.upload(data, 'a/test.tsv')
+        bucket.upload(data, 'b/b/test.csv')
+        bucket.upload(data, 'c/test.csv')
+        bucket.upload(data, 'c/test.tsv')
+        bucket.upload(data, 'test.csv')
+        bucket.upload(data, 'test.tsv')
+        bucket.upload(data, 'test.txt')
+
+        self._run_command(
+            ['rm', '--noProgress', *self.b2_uri_args('my-rm-bucket'), *rm_args], '', '', 0
+        )
+        self._run_command(
+            ['ls', *self.b2_uri_args('my-rm-bucket'), '--recursive'],
+            expected_ls_stdout,
+        )
+
+    def test_rm_filters_include(self):
+        expected_ls_stdout = '''
+            a/test.csv
+            a/test.tsv
+            b/b/test.csv
+            c/test.csv
+            c/test.tsv
+            test.tsv
+            test.txt
+            '''
+        self.rm_filters_helper(['--include', '*.csv'], expected_ls_stdout)
+
+    def test_rm_filters_exclude(self):
+        expected_ls_stdout = '''
+            a/test.csv
+            a/test.tsv
+            b/b/test.csv
+            c/test.csv
+            c/test.tsv
+            test.csv
+            '''
+        self.rm_filters_helper(['--exclude', '*.csv'], expected_ls_stdout)
+
+    def test_rm_filters_include_recursive(self):
+        expected_ls_stdout = '''
+            a/test.tsv
+            c/test.tsv
+            test.tsv
+            test.txt
+            '''
+        self.rm_filters_helper(['--recursive', '--include', '*.csv'], expected_ls_stdout)
+
+    def test_rm_filters_exclude_recursive(self):
+        expected_ls_stdout = '''
+            a/test.csv
+            b/b/test.csv
+            c/test.csv
+            test.csv
+            '''
+        self.rm_filters_helper(['--recursive', '--exclude', '*.csv'], expected_ls_stdout)
+
+    def test_rm_filters_mixed(self):
+        expected_ls_stdout = '''
+            a/test.csv
+            a/test.tsv
+            c/test.tsv
+            test.tsv
+            test.txt
+            '''
+        self.rm_filters_helper(
+            ['--recursive', '--exclude', '*', '--include', '*.csv', '--exclude', 'a/*'],
+            expected_ls_stdout
+        )
+
 
 class TestVersionConsoleTool(BaseConsoleToolTest):
     def test_version(self):

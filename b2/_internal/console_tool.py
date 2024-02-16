@@ -2184,8 +2184,12 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('-r', '--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
-        parser.add_argument('--include', dest='filters', action='append', type=Filter.include, default=[])
-        parser.add_argument('--exclude', dest='filters', action='append', type=Filter.exclude, default=[])
+        parser.add_argument(
+            '--include', dest='filters', action='append', type=Filter.include, default=[]
+        )
+        parser.add_argument(
+            '--exclude', dest='filters', action='append', type=Filter.exclude, default=[]
+        )
         super()._setup_parser(parser)
 
     def _print_files(self, args):
