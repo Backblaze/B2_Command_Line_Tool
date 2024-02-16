@@ -2417,7 +2417,11 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
                 self.messages_queue.put(self.END_MARKER)
 
         def _run_removal(self, executor: Executor):
-            for file_version, _ in self.runner._get_ls_generator(self.args):
+            for file_version, subdirectory in self.runner._get_ls_generator(self.args):
+                if subdirectory is not None:
+                    # This file_version is not for listing/deleting.
+                    # It is only here to list the subdirectory, so skip deleting it.
+                    continue
                 # Obtaining semaphore limits number of elements that we fetch from LS.
                 self.semaphore.acquire(blocking=True)
                 # This event is updated before the semaphore is released. This way,

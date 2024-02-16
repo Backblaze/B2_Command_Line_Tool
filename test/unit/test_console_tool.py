@@ -2657,6 +2657,9 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         expected_stdout = '''
         a/test.csv
         a/test.tsv
+        b/b/test.csv
+        b/b1/test.csv
+        b/b2/test.tsv
         c/test.csv
         c/test.tsv
         '''
