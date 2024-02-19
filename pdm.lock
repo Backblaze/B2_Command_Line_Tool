@@ -100,7 +100,7 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "1.30.1"
+version = "1.31.0"
 requires_python = ">=3.7"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
@@ -114,8 +114,8 @@ dependencies = [
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-1.30.1-py3-none-any.whl", hash = "sha256:e659dbe3b73e65c1bd057b41a9d875fe91171547b87aac719cc077594e828438"},
-    {file = "b2sdk-1.30.1.tar.gz", hash = "sha256:9217c30bfb5891e468c726aae2aace996e628411885752437bdf0d4b8a3ba29d"},
+    {file = "b2sdk-1.31.0-py3-none-any.whl", hash = "sha256:75509102915ec0f7cfe42a08c40a9e6a2737ca50700b4b4cacf5fb1c115bfb76"},
+    {file = "b2sdk-1.31.0.tar.gz", hash = "sha256:3e0e4a78e273ee4cafd622a849c1c20ba75900f4f66a252b0cc7174792c21d2d"},
 ]
 
 [[package]]

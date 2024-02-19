@@ -1,0 +1,1 @@
+Fix `--minPartSize` not supporting values above 100MB.
