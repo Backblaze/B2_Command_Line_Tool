@@ -79,6 +79,7 @@ from b2sdk.v2 import (
     EncryptionSetting,
     FileRetentionSetting,
     FileVersion,
+    Filter,
     KeepOrDeleteMode,
     LegalHold,
     LifecycleRule,
@@ -2164,10 +2165,17 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
 
     The ``--recursive`` option will descend into folders, and will select
     only files, not folders.
+
     The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
     wildcard and range of characters. It requires the ``--recursive`` option.
     Remember to quote ``folderName`` to avoid shell expansion.
+
+    The --include and --exclude flags can be used to filter the files returned
+    from the server using wildcards. You can specify multiple --include and --exclude filters.
+    The order of filters matters. The *last* matching filter decides whether a file
+    is included or excluded. If the given list of filters contains only INCLUDE filters,
+    then it is assumed that all files are excluded by default.
     """
 
     @classmethod
@@ -2175,6 +2183,12 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('-r', '--recursive', action='store_true')
         parser.add_argument('--withWildcard', action='store_true')
+        parser.add_argument(
+            '--include', dest='filters', action='append', type=Filter.include, default=[]
+        )
+        parser.add_argument(
+            '--exclude', dest='filters', action='append', type=Filter.exclude, default=[]
+        )
         super()._setup_parser(parser)
 
     def _print_files(self, args):
@@ -2198,6 +2212,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
             latest_only=not args.versions,
             recursive=args.recursive,
             with_wildcard=args.withWildcard,
+            filters=args.filters,
         )
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
@@ -2377,7 +2392,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
         def __init__(
             self,
-            runner: Rm,
+            runner: BaseRm,
             args: argparse.Namespace,
             messages_queue: queue.Queue,
             reporter: ProgressReport,
