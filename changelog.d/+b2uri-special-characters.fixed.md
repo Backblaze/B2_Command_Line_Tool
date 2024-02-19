@@ -1,1 +1,0 @@
-Fixed special characters `?` and `#` in b2uri causing incorrect parsing of the URI.

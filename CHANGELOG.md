@@ -9,6 +9,37 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.16.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.16.0) - 2024-02-19
+
+
+### Changed
+
+- All internal Python modules were moved to the `b2._internal` package to further discourage users from importing them.
+- Change `ls` and `rm` commands to use the `b2://` URI scheme in the pre-release `_b2v4` command.
+
+### Fixed
+
+- Fix `--minPartSize` not supporting values above 100MB.
+- Fix a bug where `rm bucketName folderName` command without the `--recursive` flag would
+  remove a first file from every subdirectory inside `folderName`.
+- Fix handling of `?` and `#` in B2 URI.
+
+### Added
+
+- ApiVer introduced. `b2` executable points to the latest stable ApiVer version, while
+  `b2v3` will always point to v3 ApiVer release of `b2` CLI.
+- Add `--include` and `--exclude` filters to the `ls` and `rm` commands.
+- Add support for deleting a single file by `b2id://` URI in the pre-release `_b2v4` command.
+- Print account info if `b2 authorize-account` is successful using the same format as `b2 get-account-info`.
+- Print output file path in `download-file` command.
+
+### Infrastructure
+
+- Fix CI failing on `mkdir` when testing docker image.
+- Use pdm for building, testing and managing dependencies.
+- Remove unnecessary files (continuous integration scripts, tests) from sdist tarball.
+
+
 ## [3.15.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.15.0) - 2023-12-07
 
 
