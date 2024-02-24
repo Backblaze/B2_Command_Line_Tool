@@ -734,9 +734,8 @@ class ThreadsMixin(Described):
 
     def _set_threads_from_args(self, args):
         threads = self._get_threads_from_args(args)
-        # FIXME: This is using deprecated API. It should be be replaced when moving to b2sdk apiver 3.
-        #        There is `max_download_workers` param in B2Api constructor for this.
         self.api.services.download_manager.set_thread_pool_size(threads)
+        self.api.services.upload_manager.set_thread_pool_size(threads)
 
 
 class _TqdmCloser:
@@ -2811,8 +2810,6 @@ class Sync(
             upload_threads = args.uploadThreads
             download_threads = args.downloadThreads
 
-        # FIXME: This is using deprecated API. It should be replaced when moving to b2sdk apiver 3.
-        #        There are `max_X_workers` params in B2Api constructor for this.
         self.api.services.upload_manager.set_thread_pool_size(upload_threads)
         self.api.services.download_manager.set_thread_pool_size(download_threads)
 

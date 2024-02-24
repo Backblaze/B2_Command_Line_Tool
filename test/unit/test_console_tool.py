@@ -242,7 +242,7 @@ class BaseConsoleToolTest(TestBase):
             self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
         if expected_stderr is not None:
             self.assertEqual(expected_stderr, actual_stderr, 'stderr')
-        self.assertEqual(expected_status, actual_status, 'exit status code')
+        assert expected_status == actual_status, 'exit status code'
         return actual_status, actual_stdout, actual_stderr
 
     @classmethod
@@ -1093,43 +1093,6 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ['delete-file-version', '9999'],
                 expected_json_in_stdout=expected_json,
             )
-
-    def _test_download_threads(self, download_by, num_threads):
-        self._authorize_account()
-        self._create_my_bucket()
-
-        with TempDir() as temp_dir:
-            local_file = self._make_local_file(temp_dir, 'file.txt')
-            self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket', local_file, 'file.txt'],
-                remove_version=True,
-            )
-
-            command = [
-                'download-file-by-%s' % download_by, '--noProgress', '--threads',
-                str(num_threads)
-            ]
-            command += ['9999'] if download_by == 'id' else ['my-bucket', 'file.txt']
-            local_download = os.path.join(temp_dir, 'download.txt')
-            command += [local_download]
-            self._run_command(
-                command,
-                expected_stderr=
-                f'WARNING: download-file-by-{download_by} command is deprecated. Use download-file instead.\n'
-            )
-            self.assertEqual(b'hello world', self._read_file(local_download))
-
-    def test_download_by_id_1_thread(self):
-        self._test_download_threads(download_by='id', num_threads=1)
-
-    def test_download_by_id_10_threads(self):
-        self._test_download_threads(download_by='id', num_threads=10)
-
-    def test_download_by_name_1_thread(self):
-        self._test_download_threads(download_by='name', num_threads=1)
-
-    def test_download_by_name_10_threads(self):
-        self._test_download_threads(download_by='name', num_threads=10)
 
     def _test_download_to_directory(self, download_by: str):
         self._authorize_account()

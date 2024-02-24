@@ -125,3 +125,34 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
     )
+
+
+def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
+    """Test upload_file supports setting number of threads"""
+    num_threads = 66
+    filename = 'file1.txt'
+    content = 'hello world'
+    local_file1 = tmp_path / 'file1.txt'
+    local_file1.write_text(content)
+
+    expected_json = {
+        "action": "upload",
+        "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+        "fileInfo": {
+            "src_last_modified_millis": f"{local_file1.stat().st_mtime_ns // 1000000}"
+        },
+        "fileName": filename,
+        "size": len(content),
+    }
+
+    b2_cli.run(
+        [
+            'upload-file', '--noProgress', 'my-bucket', '--threads',
+            str(num_threads),
+            str(local_file1), 'file1.txt'
+        ],
+        expected_json_in_stdout=expected_json,
+        remove_version=True,
+    )
+
+    assert b2_cli.b2_api.services.upload_manager.get_thread_pool_size() == num_threads
