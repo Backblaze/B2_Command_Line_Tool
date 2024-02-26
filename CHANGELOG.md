@@ -9,6 +9,14 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.16.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.16.1) - 2024-02-26
+
+
+### Fixed
+
+- Fix `--threads` option being silently ignored in upload commands.
+
+
 ## [3.16.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.16.0) - 2024-02-19
 
 
