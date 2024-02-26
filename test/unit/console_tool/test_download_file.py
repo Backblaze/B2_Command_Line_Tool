@@ -190,3 +190,19 @@ def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     """Test download_file_by_name stdout alias support"""
     b2_cli.run(['cat', '--noProgress', "b2id://9999"],)
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
+
+
+def test__download_file__threads(b2_cli, local_file, uploaded_file, tmp_path):
+    num_threads = 13
+    output_path = tmp_path / 'output.txt'
+
+    b2_cli.run(
+        [
+            'download-file', '--noProgress', '--threads',
+            str(num_threads), 'b2://my-bucket/file1.txt',
+            str(output_path)
+        ]
+    )
+
+    assert output_path.read_text() == uploaded_file['content']
+    assert b2_cli.b2_api.services.download_manager.get_thread_pool_size() == num_threads
