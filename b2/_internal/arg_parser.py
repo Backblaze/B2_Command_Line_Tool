@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import functools
 import locale
+import re
 import sys
 import textwrap
 import unittest.mock
@@ -147,3 +148,54 @@ class B2ArgumentParser(argparse.ArgumentParser):
             self, 'formatter_class', functools.partial(B2RawTextHelpFormatter, show_all=show_all)
         ):
             super().print_help(*args, **kwargs)
+
+
+SUPPORT_CAMEL_CASE_ARGUMENTS = False
+
+
+def enable_camel_case_arguments():
+    global SUPPORT_CAMEL_CASE_ARGUMENTS
+    SUPPORT_CAMEL_CASE_ARGUMENTS = True
+
+
+def make_deprecated_action_call(action):
+    def deprecated_action_call(self, parser, namespace, values, option_string=None, **kwargs):
+        action.__call__(self, parser, namespace, values, option_string, **kwargs)
+        if option_string:
+            kebab_option_string = _camel_to_kebab(option_string)
+            print(
+                f"The '{option_string}' argument is deprecated. Use '{kebab_option_string}' instead.",
+                file=sys.stderr
+            )
+
+    return deprecated_action_call
+
+
+def _camel_to_kebab(s: str):
+    return re.sub(r'(?<=[a-z])([A-Z])', r'-\1', s).lower()
+
+
+def add_normalized_argument(parser, param_name, *args, **kwargs):
+    kebab_param_name = _camel_to_kebab(param_name)
+    kwargs_kebab = dict(kwargs)
+    kwargs['help'] = argparse.SUPPRESS
+
+    if 'dest' not in kwargs_kebab:
+        kwargs_kebab['dest'] = param_name[2:]
+
+    if 'action' in kwargs:
+        if isinstance(kwargs['action'], str):
+            action = parser._registry_get('action', kwargs['action'])
+        else:
+            action = kwargs['action']
+    else:
+        action = argparse._StoreAction
+
+    kwargs['action'] = type(
+        'DeprecatedAction', (action,), {'__call__': make_deprecated_action_call(action)}
+    )
+
+    parser.add_argument(f'{kebab_param_name}', *args, **kwargs_kebab)
+
+    if SUPPORT_CAMEL_CASE_ARGUMENTS:
+        parser.add_argument(f'{param_name}', *args, **kwargs)

@@ -31,7 +31,7 @@ Download finished
 
 @pytest.mark.parametrize(
     'flag,expected_stdout', [
-        ('--noProgress', EXPECTED_STDOUT_DOWNLOAD),
+        ('--no-progress', EXPECTED_STDOUT_DOWNLOAD),
         ('-q', ''),
         ('--quiet', ''),
     ]
@@ -65,7 +65,7 @@ def test_download_file_by_uri__b2_uri_support(b2_cli, uploaded_file, tmp_path, b
 
 @pytest.mark.parametrize(
     'flag,expected_stdout', [
-        ('--noProgress', EXPECTED_STDOUT_DOWNLOAD),
+        ('--no-progress', EXPECTED_STDOUT_DOWNLOAD),
         ('-q', ''),
         ('--quiet', ''),
     ]
@@ -89,7 +89,7 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
 
 @pytest.mark.parametrize(
     'flag,expected_stdout', [
-        ('--noProgress', EXPECTED_STDOUT_DOWNLOAD),
+        ('--no-progress', EXPECTED_STDOUT_DOWNLOAD),
         ('-q', ''),
         ('--quiet', ''),
     ]
@@ -123,7 +123,7 @@ def test_download_file_by_name__named_pipe(
 
     b2_cli.run(
         [
-            'download-file-by-name', '--noProgress', uploaded_file['bucket'],
+            'download-file-by-name', '--no-progress', uploaded_file['bucket'],
             uploaded_file['fileName'],
             str(output_path)
         ],
@@ -153,7 +153,7 @@ def test_download_file_by_name__to_stdout_by_alias(
 ):
     """Test download_file_by_name stdout alias support"""
     b2_cli.run(
-        ['download-file-by-name', '--noProgress', bucket, uploaded_stdout_txt['fileName'], '-'],
+        ['download-file-by-name', '--no-progress', bucket, uploaded_stdout_txt['fileName'], '-'],
         expected_stderr=
         'WARNING: download-file-by-name command is deprecated. Use download-file instead.\n',
     )
@@ -163,7 +163,7 @@ def test_download_file_by_name__to_stdout_by_alias(
 
 def test_cat__b2_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     """Test download_file_by_name stdout alias support"""
-    b2_cli.run(['cat', '--noProgress', f"b2://{bucket}/{uploaded_stdout_txt['fileName']}"],)
+    b2_cli.run(['cat', '--no-progress', f"b2://{bucket}/{uploaded_stdout_txt['fileName']}"],)
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
 
@@ -188,7 +188,7 @@ def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
 
 def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     """Test download_file_by_name stdout alias support"""
-    b2_cli.run(['cat', '--noProgress', "b2id://9999"],)
+    b2_cli.run(['cat', '--no-progress', "b2id://9999"],)
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
 
@@ -198,7 +198,7 @@ def test__download_file__threads(b2_cli, local_file, uploaded_file, tmp_path):
 
     b2_cli.run(
         [
-            'download-file', '--noProgress', '--threads',
+            'download-file', '--no-progress', '--threads',
             str(num_threads), 'b2://my-bucket/file1.txt',
             str(output_path)
         ]
