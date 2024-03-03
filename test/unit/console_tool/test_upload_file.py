@@ -37,7 +37,7 @@ def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, buc
     }
     b2_cli.run(
         [
-            'upload-file', '--noProgress', '--info=src_last_modified_millis=1', 'my-bucket',
+            'upload-file', '--no-progress', '--info=src_last_modified_millis=1', 'my-bucket',
             '--cache-control', 'max-age=3600', '--expires', 'Thu, 01 Dec 2050 16:00:00 GMT',
             '--content-language', 'en', '--content-disposition', 'attachment', '--content-encoding',
             'gzip',
@@ -68,7 +68,7 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
         "size": len(content),
     }
     b2_cli.run(
-        ['upload-file', '--noProgress', 'my-bucket',
+        ['upload-file', '--no-progress', 'my-bucket',
          str(local_file1), filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
@@ -95,7 +95,7 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
         "size": len(content),
     }
     b2_cli.run(
-        ['upload-file', '--noProgress', 'my-bucket', '-', filename],
+        ['upload-file', '--no-progress', 'my-bucket', '-', filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -120,7 +120,7 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     mock_stdin.close()
 
     b2_cli.run(
-        ['upload-file', '--noProgress', 'my-bucket', '-', filename],
+        ['upload-file', '--no-progress', 'my-bucket', '-', filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -147,7 +147,7 @@ def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
 
     b2_cli.run(
         [
-            'upload-file', '--noProgress', 'my-bucket', '--threads',
+            'upload-file', '--no-progress', 'my-bucket', '--threads',
             str(num_threads),
             str(local_file1), 'file1.txt'
         ],

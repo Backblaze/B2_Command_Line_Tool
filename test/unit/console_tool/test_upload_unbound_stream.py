@@ -30,7 +30,7 @@ def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
         "size": len(content),
     }
     b2_cli.run(
-        ['upload-unbound-stream', '--noProgress', 'my-bucket',
+        ['upload-unbound-stream', '--no-progress', 'my-bucket',
          str(fifo_file), filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
@@ -55,7 +55,7 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     mock_stdin.close()
 
     b2_cli.run(
-        ['upload-unbound-stream', '--noProgress', 'my-bucket', '-', filename],
+        ['upload-unbound-stream', '--no-progress', 'my-bucket', '-', filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -87,11 +87,11 @@ def test_upload_unbound_stream__with_part_size_options(
     b2_cli.run(
         [
             'upload-unbound-stream',
-            '--minPartSize',
+            '--min-part-size',
             str(DEFAULT_MIN_PART_SIZE),
-            '--partSize',
+            '--part-size',
             str(part_size),
-            '--noProgress',
+            '--no-progress',
             'my-bucket',
             str(fifo_file),
             filename,
@@ -119,7 +119,7 @@ def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):
     }
 
     b2_cli.run(
-        ['upload-unbound-stream', '--noProgress', 'my-bucket',
+        ['upload-unbound-stream', '--no-progress', 'my-bucket',
          str(filepath), filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
