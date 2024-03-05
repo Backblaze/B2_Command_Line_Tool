@@ -80,7 +80,7 @@ def test_authorize_using_env_variables(b2_cli):
     "flags,realm_url",
     [
         ([], "http://production.example.com"),
-        (["--debugLogs"], "http://production.example.com"),
+        (["--debug-logs"], "http://production.example.com"),
         (["--environment", "http://custom.example.com"], "http://custom.example.com"),
         (["--environment", "production"], "http://production.example.com"),
         (["--dev"], "http://api.backblazeb2.xyz:8180"),
@@ -90,7 +90,7 @@ def test_authorize_using_env_variables(b2_cli):
 def test_authorize_towards_realm(
     b2_cli, b2_cli_is_authorized_afterwards, flags, realm_url, cwd_path, b2_cli_log_fix
 ):
-    expected_stderr = f"Using {realm_url}\n" if any(f != "--debugLogs" for f in flags) else ""
+    expected_stderr = f"Using {realm_url}\n" if any(f != "--debug-logs" for f in flags) else ""
 
     b2_cli._run_command(
         ["authorize-account", *flags, b2_cli.account_id, b2_cli.master_key],
@@ -99,7 +99,7 @@ def test_authorize_towards_realm(
         0,
     )
     log_path = cwd_path / "b2_cli.log"
-    if "--debugLogs" in flags:
+    if "--debug-logs" in flags:
         assert f"Using {realm_url}\n" in log_path.read_text()
     else:
         assert not log_path.exists()

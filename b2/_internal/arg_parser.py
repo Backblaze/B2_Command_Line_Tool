@@ -171,17 +171,38 @@ def make_deprecated_action_call(action):
     return deprecated_action_call
 
 
+_kebab_to_snake_pattern = re.compile(r'-')
+_camel_to_kebab_pattern = re.compile(r'(?<=[a-z])([A-Z])')
+_kebab_to_camel_pattern = re.compile(r'-(\w)')
+
+
 def _camel_to_kebab(s: str):
-    return re.sub(r'(?<=[a-z])([A-Z])', r'-\1', s).lower()
+    return _camel_to_kebab_pattern.sub(r'-\1', s).lower()
+
+
+def _kebab_to_camel(s: str):
+    return "--" + _kebab_to_camel_pattern.sub(lambda m: m.group(1).upper(), s[2:])
+
+
+def _kebab_to_snake(s: str):
+    return _kebab_to_snake_pattern.sub('_', s)
+
+
+class DeprecatedActionMarker:
+    pass
 
 
 def add_normalized_argument(parser, param_name, *args, **kwargs):
-    kebab_param_name = _camel_to_kebab(param_name)
+    param_name_kebab = _camel_to_kebab(param_name)
+    param_name_camel = _kebab_to_camel(param_name_kebab)
+    dest_name_snake = _kebab_to_snake(param_name_kebab)[2:]
     kwargs_kebab = dict(kwargs)
-    kwargs['help'] = argparse.SUPPRESS
+    kwargs_camel = kwargs
+    kwargs_camel['help'] = argparse.SUPPRESS
 
     if 'dest' not in kwargs_kebab:
-        kwargs_kebab['dest'] = param_name[2:]
+        kwargs_kebab['dest'] = dest_name_snake
+        kwargs_camel['dest'] = dest_name_snake
 
     if 'action' in kwargs:
         if isinstance(kwargs['action'], str):
@@ -191,11 +212,12 @@ def add_normalized_argument(parser, param_name, *args, **kwargs):
     else:
         action = argparse._StoreAction
 
-    kwargs['action'] = type(
-        'DeprecatedAction', (action,), {'__call__': make_deprecated_action_call(action)}
+    kwargs_camel['action'] = type(
+        'DeprecatedAction', (action, DeprecatedActionMarker),
+        {'__call__': make_deprecated_action_call(action)}
     )
 
-    parser.add_argument(f'{kebab_param_name}', *args, **kwargs_kebab)
+    parser.add_argument(f'{param_name_kebab}', *args, **kwargs_kebab)
 
-    if SUPPORT_CAMEL_CASE_ARGUMENTS:
-        parser.add_argument(f'{param_name}', *args, **kwargs)
+    if SUPPORT_CAMEL_CASE_ARGUMENTS and param_name_kebab != param_name_camel:
+        parser.add_argument(f'{param_name_camel}', *args, **kwargs_camel)

@@ -86,7 +86,7 @@ class TestCopy(TestBase):
 
         with self.assertRaises(
             ValueError, 'Attempting to copy file with metadata while either source or '
-            'destination uses SSE-C. Use --fetchMetadata to fetch source '
+            'destination uses SSE-C. Use --fetch-metadata to fetch source '
             'file metadata before copying.'
         ):
             copy_file_command._determine_source_metadata(

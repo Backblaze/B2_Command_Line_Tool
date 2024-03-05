@@ -20,6 +20,7 @@ from typing import Callable
 import argcomplete
 import platformdirs
 
+from b2._internal.arg_parser import DeprecatedActionMarker
 from b2._internal.version import VERSION
 
 
@@ -119,7 +120,7 @@ class AutocompleteCache:
         parser.register('type', None, identity)
 
         def _get_deprecated_actions(actions):
-            return [action for action in actions if action.__class__.__name__ == 'DeprecatedAction']
+            return [action for action in actions if isinstance(action, DeprecatedActionMarker)]
 
         for action in _get_deprecated_actions(parser._actions):
             parser._actions.remove(action)
