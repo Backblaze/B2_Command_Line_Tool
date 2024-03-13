@@ -3061,7 +3061,7 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
                 default_retention = NO_RETENTION_BUCKET_SETTING
             else:
                 default_retention = BucketRetentionSetting(
-                    RetentionMode(args.default_retention_mode), args.default_retentionPeriod
+                    RetentionMode(args.default_retention_mode), args.default_retention_period
                 )
         else:
             default_retention = None
