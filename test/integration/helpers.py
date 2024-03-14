@@ -310,7 +310,11 @@ def print_json_indented(value):
     """
     Converts the value to JSON, then prints it.
     """
-    print_text_indented(json.dumps(value, indent=4, sort_keys=True, default=serialize_enc_settings))
+    print_text_indented(
+        json.dumps(
+            value, indent=4, sort_keys=True, ensure_ascii=True, default=serialize_enc_settings
+        )
+    )
 
 
 def remove_warnings(text):
@@ -410,7 +414,7 @@ class CommandLine:
         return self.api_wrapper.new_bucket_name()
 
     def get_bucket_info_args(self) -> tuple[str, str]:
-        return '--bucketInfo', json.dumps(self.api_wrapper.new_bucket_info())
+        return '--bucketInfo', json.dumps(self.api_wrapper.new_bucket_info(), ensure_ascii=True)
 
     def run_command(self, args, additional_env: dict | None = None):
         """

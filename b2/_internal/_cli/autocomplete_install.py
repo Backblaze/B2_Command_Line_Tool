@@ -13,7 +13,6 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from shlex import quote
 from typing import List
 
 import argcomplete
@@ -83,11 +82,11 @@ class ShellAutocompleteInstaller:
 
     def program_in_path(self) -> bool:
         """Check if the given program is in PATH."""
-        return _silent_success_run([self.shell_exec, '-c', quote(self.prog)])
+        return _silent_success_run([self.shell_exec, '-c', self.prog])
 
     def is_enabled(self) -> bool:
         """Check if autocompletion is enabled."""
-        return _silent_success_run([self.shell_exec, '-i', '-c', f'complete -p {quote(self.prog)}'])
+        return _silent_success_run([self.shell_exec, '-i', '-c', f'complete -p {self.prog}'])
 
 
 @SHELL_REGISTRY.register('bash')
