@@ -175,13 +175,13 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     )
     b2_tool.should_succeed(
         ['ls', '--versions', *b2_uri_args(bucket_name)],
-        '^a{0}a{0}b/{0}c{0}c{0}d{0}'.format(os.linesep)
+        f'^a{os.linesep}a{os.linesep}b/{os.linesep}c{os.linesep}c{os.linesep}d{os.linesep}'
     )
     b2_tool.should_succeed(
-        ['ls', *b2_uri_args(bucket_name, 'b')], '^b/1{0}b/2{0}'.format(os.linesep)
+        ['ls', *b2_uri_args(bucket_name, 'b')], f'^b/1{os.linesep}b/2{os.linesep}'
     )
     b2_tool.should_succeed(
-        ['ls', *b2_uri_args(bucket_name, 'b/')], '^b/1{0}b/2{0}'.format(os.linesep)
+        ['ls', *b2_uri_args(bucket_name, 'b/')], f'^b/1{os.linesep}b/2{os.linesep}'
     )
 
     file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{second_c_version['fileId']}"])
@@ -194,7 +194,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
 
     b2_tool.should_succeed(['delete-file-version', 'c', first_c_version['fileId']])
     b2_tool.should_succeed(
-        ['ls', *b2_uri_args(bucket_name)], '^a{0}b/{0}c{0}d{0}'.format(os.linesep)
+        ['ls', *b2_uri_args(bucket_name)], f'^a{os.linesep}b/{os.linesep}c{os.linesep}d{os.linesep}'
     )
 
     b2_tool.should_succeed(['get-url', f"b2id://{second_c_version['fileId']}"])
@@ -2135,9 +2135,7 @@ def test_profile_switch(b2_tool):
     account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
     account_file_path = account_info['accountFilePath']
     assert profile in account_file_path, \
-        'accountFilePath "{}" should contain profile name "{}"'.format(
-            account_file_path, profile,
-        )
+        f'accountFilePath "{account_file_path}" should contain profile name "{profile}"'
 
     b2_tool.should_succeed(['clear-account', '--profile', profile])
     b2_tool.should_fail(
@@ -2684,10 +2682,7 @@ def test_upload_file__custom_upload_time(b2_tool, bucket_name, sample_file, b2_u
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
             ['ls', '--long', '--replication', *b2_uri_args(bucket_name)],
-            '^4_z.*  upload  {} +{}  -  a'.format(
-                cut_printable,
-                len(file_data),
-            )
+            f'^4_z.*  upload  {cut_printable} +{len(file_data)}  -  a'
         )
 
 

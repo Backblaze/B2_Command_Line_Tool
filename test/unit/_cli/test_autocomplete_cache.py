@@ -161,6 +161,32 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmp_path, bucket,
 
 
 @forked
+def test_complete_with_escaped_control_characters(
+    autocomplete_runner, tmp_path, bucket, uploaded_file_with_control_chars, authorized_b2_cli
+):
+    cc_file_name = uploaded_file_with_control_chars['fileName']
+    escaped_cc_file_name = uploaded_file_with_control_chars['escapedFileName']
+    cache = autocomplete_cache.AutocompleteCache(
+        tracker=autocomplete_cache.VersionTracker(),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
+    )
+
+    with autocomplete_runner(f'b2 hide-file {bucket} '):
+        exit, argcomplete_output = argcomplete_result()
+        assert exit == 0
+        assert escaped_cc_file_name in argcomplete_output
+        assert cc_file_name not in argcomplete_output
+
+        exit, output = uncached_complete_result(cache)
+        assert exit == 0
+        assert output == argcomplete_output
+
+        exit, output = cached_complete_result(cache)
+        assert exit == 0
+        assert output == argcomplete_output
+
+
+@forked
 def test_complete_with_file_suggestions(
     autocomplete_runner, tmp_path, bucket, uploaded_file, authorized_b2_cli
 ):

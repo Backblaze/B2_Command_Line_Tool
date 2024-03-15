@@ -96,10 +96,13 @@ from b2sdk.v2 import (
     TqdmProgressListener,
     UploadMode,
     current_time_millis,
+    escape_control_chars,
     get_included_sources,
     make_progress_listener,
     parse_sync_folder,
     points_to_fifo,
+    substitute_control_chars,
+    unprintable_to_hex,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -137,6 +140,7 @@ from b2._internal._cli.const import (
     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
+    B2_ESCAPE_CONTROL_CHARACTERS,
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR,
     CREATE_BUCKET_TYPES,
@@ -162,6 +166,22 @@ SEPARATOR = '=' * 40
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
+
+
+class NoControlCharactersStdout:
+    def __init__(self, stdout):
+        self.stdout = stdout
+
+    def __getattr__(self, attr):
+        return getattr(self.stdout, attr)
+
+    def write(self, s):
+        if s:
+            s, cc_present = substitute_control_chars(s)
+            if cc_present:
+                logger.warning('WARNING: Control Characters were detected in the output')
+        self.stdout.write(s)
+
 
 # The name of an executable entry point
 NAME = os.path.basename(sys.argv[0])
@@ -863,6 +883,18 @@ class Command(Described, metaclass=ABCMeta):
                 common_parser.add_argument(
                     '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
                 )
+
+                common_parser.add_argument(
+                    '--escape-control-characters', action='store_true', help=argparse.SUPPRESS
+                )
+                common_parser.add_argument(
+                    '--no-escape-control-characters',
+                    dest='escape_control_characters',
+                    action='store_false',
+                    help=argparse.SUPPRESS
+                )
+
+                common_parser.set_defaults(escape_control_characters=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(
@@ -902,12 +934,22 @@ class Command(Described, metaclass=ABCMeta):
 
     def _print_json(self, data) -> None:
         return self._print(
-            json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True
+            json.dumps(data, indent=4, sort_keys=True, ensure_ascii=True, cls=B2CliJsonEncoder),
+            enforce_output=True
         )
 
-    def _print(self, *args, enforce_output: bool = False, end: str | None = None) -> None:
+    def _print(
+        self,
+        *args,
+        enforce_output: bool = False,
+        end: str | None = None,
+    ) -> None:
         return self._print_standard_descriptor(
-            self.stdout, "stdout", *args, enforce_output=enforce_output, end=end
+            self.stdout,
+            "stdout",
+            *args,
+            enforce_output=enforce_output,
+            end=end,
         )
 
     def _print_stderr(self, *args, end: str | None = None) -> None:
@@ -1010,6 +1052,10 @@ class B2(Command):
     If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
     Please note that the above rules may be changed in next versions of b2sdk, and in order to get
     reliable authentication file location you should use ``b2 get-account-info``.
+
+    Control characters escaping is turned on if running under terminal.
+    You can override it by explicitly using `--escape-control-chars`/`--no-escape-control-chars`` option,
+    or by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
 
     You can suppress command stdout & stderr output by using ``--quiet`` option.
     To supress only progress bar, use ``--noProgress`` option.
@@ -2202,17 +2248,23 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         file_version: FileVersion,
         folder_name: str | None,
     ) -> None:
-        self._print(folder_name or file_version.file_name)
+        name = folder_name or file_version.file_name
+        if args.escape_control_characters:
+            name = escape_control_chars(name)
+        self._print(name)
 
     def _get_ls_generator(self, args):
-        b2_uri = self.get_b2_uri_from_arg(args)
-        yield from self.api.list_file_versions_by_uri(
-            b2_uri,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-            with_wildcard=args.withWildcard,
-            filters=args.filters,
-        )
+        try:
+            b2_uri = self.get_b2_uri_from_arg(args)
+            yield from self.api.list_file_versions_by_uri(
+                b2_uri,
+                latest_only=not args.versions,
+                recursive=args.recursive,
+                with_wildcard=args.withWildcard,
+                filters=args.filters,
+            )
+        except Exception as err:
+            raise CommandError(unprintable_to_hex(str(err))) from err
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
         raise NotImplementedError
@@ -2273,16 +2325,18 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if not args.long:
             super()._print_file_version(args, file_version, folder_name)
         elif folder_name is not None:
-            self._print(self.format_folder_ls_entry(folder_name, args.replication))
+            self._print(self.format_folder_ls_entry(args, folder_name, args.replication))
         else:
-            self._print(self.format_ls_entry(file_version, args.replication))
+            self._print(self.format_ls_entry(args, file_version, args.replication))
 
-    def format_folder_ls_entry(self, name, replication: bool):
+    def format_folder_ls_entry(self, args, name, replication: bool):
+        if args.escape_control_characters:
+            name = escape_control_chars(name)
         if replication:
             return self.LS_ENTRY_TEMPLATE_REPLICATION % ('-', '-', '-', '-', 0, '-', name)
         return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
 
-    def format_ls_entry(self, file_version: FileVersion, replication: bool):
+    def format_ls_entry(self, args, file_version: FileVersion, replication: bool):
         dt = datetime.datetime.fromtimestamp(
             file_version.upload_timestamp / 1000, datetime.timezone.utc
         )
@@ -2300,7 +2354,10 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if replication:
             replication_status = file_version.replication_status
             parameters.append(replication_status.value if replication_status else '-')
-        parameters.append(file_version.file_name)
+        name = file_version.file_name
+        if args.escape_control_characters:
+            name = escape_control_chars(name)
+        parameters.append(name)
         return template % tuple(parameters)
 
 
@@ -4020,6 +4077,17 @@ class ConsoleTool:
         self.stdout = stdout
         self.stderr = stderr
 
+    def _get_default_escape_cc_setting(self):
+        escape_cc_env_var = os.environ.get(B2_ESCAPE_CONTROL_CHARACTERS, None)
+        if escape_cc_env_var is not None:
+            if int(escape_cc_env_var) in (0, 1):
+                return int(escape_cc_env_var) == 1
+            else:
+                logger.warning(
+                    "WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set"
+                )
+        return self.stdout.isatty()
+
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
         parser = B2.create_parser(name=argv[0])
@@ -4027,6 +4095,13 @@ class ConsoleTool:
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 
+        if args.escape_control_characters is None:
+            args.escape_control_characters = self._get_default_escape_cc_setting()
+
+        if args.escape_control_characters:
+            # in case any control characters slip through escaping, just delete them
+            self.stdout = NoControlCharactersStdout(self.stdout)
+            self.stderr = NoControlCharactersStdout(self.stderr)
         if self.api:
             if (
                 args.profile or getattr(args, 'write_buffer_size', None) or
