@@ -39,14 +39,12 @@ class B2URI(B2URIBase):
     there is no such thing as "directory" in B2, but it is possible to mimic it by using object names with non-trailing
     slashes.
     To make it possible, it is highly discouraged to use trailing slashes in object names.
+
+    Please note `path` attribute should exclude prefixing slash, i.e. `path` should be empty string for the root of the bucket.
     """
 
     bucket_name: str
     path: str = ""
-
-    def __post_init__(self):
-        path = removeprefix(self.path, "/")
-        self.__dict__["path"] = path  # hack for a custom init in frozen dataclass
 
     def __str__(self) -> str:
         return f"b2://{self.bucket_name}/{self.path}"
@@ -82,30 +80,56 @@ class B2FileIdURI(B2URIBase):
         return f"b2id://{self.file_id}"
 
 
-def parse_uri(uri: str) -> Path | B2URI | B2FileIdURI:
+def parse_uri(uri: str, *, allow_all_buckets: bool = False) -> Path | B2URI | B2FileIdURI:
+    """
+    Parse URI.
+
+    :param uri: string to parse
+    :param allow_all_buckets: if True, allow `b2://` without a bucket name to refer to all buckets
+    :return: B2 URI or Path
+    :raises ValueError: if the URI is invalid
+    """
+    if not uri:
+        raise ValueError("URI cannot be empty")
     parsed = urllib.parse.urlsplit(uri)
     if parsed.scheme == "":
         return pathlib.Path(uri)
-    return _parse_b2_uri(uri, parsed)
+    return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets)
 
 
-def parse_b2_uri(uri: str) -> B2URI | B2FileIdURI:
+def parse_b2_uri(uri: str, *, allow_all_buckets: bool = False) -> B2URI | B2FileIdURI:
+    """
+    Parse B2 URI.
+
+    :param uri: string to parse
+    :param allow_all_buckets: if True, allow `b2://` without a bucket name to refer to all buckets
+    :return: B2 URI
+    :raises ValueError: if the URI is invalid
+    """
     parsed = urllib.parse.urlsplit(uri)
-    return _parse_b2_uri(uri, parsed)
+    return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets)
 
 
-def _parse_b2_uri(uri, parsed: urllib.parse.SplitResult) -> B2URI | B2FileIdURI:
+def _parse_b2_uri(
+    uri, parsed: urllib.parse.SplitResult, allow_all_buckets: bool = False
+) -> B2URI | B2FileIdURI:
     if parsed.scheme in ("b2", "b2id"):
+        path = urllib.parse.urlunsplit(parsed._replace(scheme="", netloc=""))
         if not parsed.netloc:
+            if allow_all_buckets:
+                if path:
+                    raise ValueError(
+                        f"Invalid B2 URI: all buckets URI doesn't allow non-empty path, but {path!r} was provided"
+                    )
+                return B2URI(bucket_name="")
             raise ValueError(f"Invalid B2 URI: {uri!r}")
         elif parsed.password or parsed.username:
             raise ValueError(
-                "Invalid B2 URI: credentials passed using `user@password:` syntax are not supported in URI"
+                "Invalid B2 URI: credentials passed using `user@password:` syntax is not supported in URI"
             )
 
         if parsed.scheme == "b2":
-            path = urllib.parse.urlunsplit(parsed._replace(scheme="", netloc=""))
-            return B2URI(bucket_name=parsed.netloc, path=path)
+            return B2URI(bucket_name=parsed.netloc, path=removeprefix(path, "/"))
         elif parsed.scheme == "b2id":
             return B2FileIdURI(file_id=parsed.netloc)
     else:
