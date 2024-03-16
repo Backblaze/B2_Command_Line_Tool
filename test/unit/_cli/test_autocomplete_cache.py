@@ -94,9 +94,14 @@ def argcomplete_result():
     return exit.code, output.getvalue()
 
 
-def cached_complete_result(cache: autocomplete_cache.AutocompleteCache):
+def cached_complete_result(cache: autocomplete_cache.AutocompleteCache, raise_exc: bool = True):
     exit, output = Exit(), io.StringIO()
-    cache.autocomplete_from_cache(uncached_args={'exit_method': exit, 'output_stream': output})
+    cache.autocomplete_from_cache(
+        uncached_args={
+            'exit_method': exit,
+            'output_stream': output
+        }, raise_exc=raise_exc
+    )
     return exit.code, output.getvalue()
 
 
@@ -307,6 +312,5 @@ def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner
         assert exit == 0
         assert 'get-bucket' in uncached_output
 
-        exit, output = cached_complete_result(cache)
-        assert exit == 0
-        assert output == uncached_output
+        exit, output = cached_complete_result(cache, raise_exc=True)
+        assert (exit, output) == (0, uncached_output)
