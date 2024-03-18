@@ -13,10 +13,19 @@ jobs:
   deploy:
     env:
       B2_PYPI_PASSWORD: ${{ secrets.B2_PYPI_PASSWORD }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.build.outputs.version }}
     steps:
+      - name: Determine if pre-release
+        id: prerelease_check
+        run: |
+          if [[ ${{ github.ref }} =~ [^0-9]$ ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -41,10 +50,22 @@ jobs:
           name: ${{ steps.build.outputs.version }}
           body: ${{ steps.read-changelog.outputs.changes }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
           files: ${{ steps.build.outputs.asset_path }}
+      - name: Trigger docker image deployment
+        if: ${{ env.DOCKERHUB_USERNAME != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'push_docker.yml',
+              ref: context.ref,
+            });
       - name: Upload the distribution to PyPI
-        if: ${{ env.B2_PYPI_PASSWORD != '' }}
+        if: ${{ env.B2_PYPI_PASSWORD != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
         uses: pypa/gh-action-pypi-publish@v1.3.1
         with:
           user: __token__
@@ -80,7 +101,7 @@ jobs:
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
           files: ${{ steps.sign.outputs.asset_path }}
   deploy-windows-bundle:
     needs: deploy
@@ -104,21 +125,25 @@ jobs:
         run: nox -vs bundle
       - name: Import certificate
         id: windows_import_cert
+        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' }}
         uses: timheuer/base64-to-file@v1
         with:
           fileName: 'cert.pfx'
           encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
       - name: Sign the bundle
+        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' }}
         id: sign
         shell: bash
         run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
       - name: Generate hashes
         id: hashes
         run: nox -vs make_dist_digest
-      - name: Upload the bundle to the GitHub release
+      - name: Create GitHub release and upload the distribution
+        id: create-release
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
-          prerelease: false
-          files: ${{ steps.sign.outputs.asset_path }}
+          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+          files:
+            ${{ steps.sign.outputs.asset_path || steps.bundle.outputs.asset_path }}
