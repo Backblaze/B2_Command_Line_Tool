@@ -13,19 +13,20 @@ jobs:
   deploy:
     env:
       B2_PYPI_PASSWORD: ${{ secrets.B2_PYPI_PASSWORD }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.build.outputs.version }}
+      prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+      # publish_docker: ${{ steps.prerelease_check.outputs.prerelease == 'false' && secrets.DOCKERHUB_USERNAME != '' }}  # doesn't work, hence the workaround
+      publish_docker: ${{ steps.prerelease_check.outputs.publish_docker }}
     steps:
       - name: Determine if pre-release
         id: prerelease_check
         run: |
-          if [[ ${{ github.ref }} =~ [^0-9]$ ]]; then
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-          fi
+          export IS_PRERELEASE=$([[ ${{ github.ref }} =~ [^0-9]$ ]] && echo true || echo false)
+          echo "prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          export PUBLISH_DOCKER=$([[ $IS_PRERELEASE == 'false' && ${{ secrets.DOCKERHUB_USERNAME }} != '' ]] && echo true || echo false) 
+          echo "publish_docker=$PUBLISH_DOCKER" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -52,24 +53,12 @@ jobs:
           draft: false
           prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
           files: ${{ steps.build.outputs.asset_path }}
-      - name: Trigger docker image deployment
-        if: ${{ env.DOCKERHUB_USERNAME != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'push_docker.yml',
-              ref: context.ref,
-            });
       - name: Upload the distribution to PyPI
         if: ${{ env.B2_PYPI_PASSWORD != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
         uses: pypa/gh-action-pypi-publish@v1.3.1
         with:
           user: __token__
-          password: ${{ env.B2_PYPI_PASSWORD }}
+          password: ${{ secrets.B2_PYPI_PASSWORD }}
   deploy-linux-bundle:
     needs: deploy
     runs-on: ubuntu-latest
@@ -101,7 +90,7 @@ jobs:
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
-          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+          prerelease: ${{ needs.deploy.outputs.prerelease }}
           files: ${{ steps.sign.outputs.asset_path }}
   deploy-windows-bundle:
     needs: deploy
@@ -144,6 +133,49 @@ jobs:
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
-          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+          prerelease: ${{ needs.deploy.outputs.prerelease }}
           files:
             ${{ steps.sign.outputs.asset_path || steps.bundle.outputs.asset_path }}
+  deploy-docker:
+    needs: deploy
+    if: ${{ needs.deploy.outputs.publish_docker == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pdm
+      - name: Build Dockerfile
+        run: nox -vs generate_dockerfile
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Prepare Docker tags
+        id: docker_tags_prep
+        run: |
+          DOCKER_TAGS=backblazeit/b2:${{ needs.deploy.outputs.version }}
+          if [ "${{ needs.deploy.outputs.prerelease }}" != "true" ]; then
+            DOCKER_TAGS="$DOCKER_TAGS,backblazeit/b2:latest"
+          fi
+          echo DOCKER_TAGS=$DOCKER_TAGS
+          echo "docker_tags=$DOCKER_TAGS" >> $GITHUB_OUTPUT
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
+          platforms: linux/amd64,linux/arm64
