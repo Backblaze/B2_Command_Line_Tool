@@ -15,6 +15,7 @@ from __future__ import annotations
 import tempfile
 
 from b2._internal._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
+from b2._internal._utils.python_compat import removeprefix
 
 AUTOCOMPLETE.autocomplete_from_cache()
 
@@ -657,23 +658,30 @@ class B2URIBucketNFilenameArgMixin:
 
 
 class B2URIBucketNFolderNameArgMixin:
+    ALLOW_ALL_BUCKETS: bool = False
+
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument(
+            'bucketName',
+            nargs='?' if cls.ALLOW_ALL_BUCKETS else None,
+        ).completer = bucket_name_completer
         parser.add_argument('folderName', nargs='?').completer = file_name_completer
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
-        return B2URI(args.bucketName, args.folderName or '')
+        return B2URI(removeprefix(args.bucketName or '', "b2://"), args.folderName or '')
 
 
 class B2IDOrB2URIMixin:
+    ALLOW_ALL_BUCKETS: bool = False
+
     @classmethod
     def _setup_parser(cls, parser):
-        add_b2id_or_b2_uri_argument(parser)
+        add_b2id_or_b2_uri_argument(parser, allow_all_buckets=cls.ALLOW_ALL_BUCKETS)
         super()._setup_parser(parser)
 
-    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI | B2FileIdURI:
         return args.B2_URI
 
 
@@ -2073,13 +2081,17 @@ class ListBuckets(Command):
         super()._setup_parser(parser)
 
     def _run(self, args):
-        buckets = self.api.list_buckets()
-        if args.json:
-            self._print_json(list(buckets))
+        return self.__class__.run_list_buckets(self, json_=args.json)
+
+    @classmethod
+    def run_list_buckets(cls, command: Command, *, json_: bool) -> int:
+        buckets = command.api.list_buckets()
+        if json_:
+            command._print_json(list(buckets))
             return 0
 
         for b in buckets:
-            self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
+            command._print(f'{b.id_}  {b.type_:<10}  {b.name}')
         return 0
 
 
@@ -2246,8 +2258,8 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         )
         super()._setup_parser(parser)
 
-    def _print_files(self, args):
-        generator = self._get_ls_generator(args)
+    def _print_files(self, args, b2_uri: B2URI | None = None):
+        generator = self._get_ls_generator(args, b2_uri=b2_uri)
 
         for file_version, folder_name in generator:
             self._print_file_version(args, file_version, folder_name)
@@ -2263,9 +2275,9 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
             name = escape_control_chars(name)
         self._print(name)
 
-    def _get_ls_generator(self, args):
+    def _get_ls_generator(self, args, b2_uri: B2URI | None = None):
+        b2_uri = b2_uri or self.get_b2_uri_from_arg(args)
         try:
-            b2_uri = self.get_b2_uri_from_arg(args)
             yield from self.api.list_file_versions_by_uri(
                 b2_uri,
                 latest_only=not args.versions,
@@ -2313,9 +2325,21 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         super()._setup_parser(parser)
 
     def _run(self, args):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        if args.long and args.json:
+            raise CommandError('Cannot use --long and --json options together')
+
+        if not b2_uri or b2_uri == B2URI(""):
+            for option_name in ('long', 'recursive', 'replication'):
+                if getattr(args, option_name, False):
+                    raise CommandError(
+                        f'Cannot use --{option_name} option without specifying a bucket name'
+                    )
+            return ListBuckets.run_list_buckets(self, json_=args.json)
+
         if args.json:
             i = -1
-            for i, (file_version, _) in enumerate(self._get_ls_generator(args)):
+            for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
                 if i:
                     self._print(',', end='')
                 else:
@@ -2390,24 +2414,33 @@ class Ls(B2IDOrB2URIMixin, BaseLs):
         {NAME} ls --recursive --withWildcard "b2://bucketName/*.[ct]sv"
 
 
-    List all info.txt files from buckets bX, where X is any character:
+    List all info.txt files from directories named `b?`, where `?` is any character:
 
     .. code-block::
 
         {NAME} ls --recursive --withWildcard "b2://bucketName/b?/info.txt"
 
 
-    List all pdf files from buckets b0 to b9 (including sub-directories):
+    List all pdf files from directories b0 to b9 (including sub-directories):
 
     .. code-block::
 
         {NAME} ls --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
 
 
+    List all buckets:
+
+    .. code-block::
+
+        {NAME} ls
+
+
     Requires capability:
 
     - **listFiles**
+    - **listBuckets** (if bucket name is not provided)
     """
+    ALLOW_ALL_BUCKETS = True
 
 
 class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
