@@ -16,12 +16,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.build.outputs.version }}
+      prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+      # publish_docker: ${{ steps.prerelease_check.outputs.prerelease == 'false' && secrets.DOCKERHUB_USERNAME != '' }}  # doesn't work, hence the workaround
+      publish_docker: ${{ steps.prerelease_check.outputs.publish_docker }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Determine if pre-release
+        id: prerelease_check
+        run: |
+          export IS_PRERELEASE=$([[ ${{ github.ref }} =~ [^0-9]$ ]] && echo true || echo false)
+          echo "prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          export PUBLISH_DOCKER=$([[ $IS_PRERELEASE == 'false' && ${{ secrets.DOCKERHUB_USERNAME }} != '' ]] && echo true || echo false) 
+          echo "publish_docker=$PUBLISH_DOCKER" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -36,19 +46,19 @@ jobs:
           version: ${{ steps.build.outputs.version }}
       - name: Create GitHub release and upload the distribution
         id: create-release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.build.outputs.version }}
           body: ${{ steps.read-changelog.outputs.changes }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
           files: ${{ steps.build.outputs.asset_path }}
       - name: Upload the distribution to PyPI
-        if: ${{ env.B2_PYPI_PASSWORD != '' }}
+        if: ${{ env.B2_PYPI_PASSWORD != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
         uses: pypa/gh-action-pypi-publish@v1.3.1
         with:
           user: __token__
-          password: ${{ env.B2_PYPI_PASSWORD }}
+          password: ${{ secrets.B2_PYPI_PASSWORD }}
   deploy-linux-bundle:
     needs: deploy
     runs-on: ubuntu-latest
@@ -57,7 +67,7 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install dependencies
@@ -76,11 +86,11 @@ jobs:
         id: hashes
         run: nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
-          prerelease: false
+          prerelease: ${{ needs.deploy.outputs.prerelease }}
           files: ${{ steps.sign.outputs.asset_path }}
   deploy-windows-bundle:
     needs: deploy
@@ -89,11 +99,11 @@ jobs:
       B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
     runs-on: windows-2019
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -104,21 +114,68 @@ jobs:
         run: nox -vs bundle
       - name: Import certificate
         id: windows_import_cert
+        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' }}
         uses: timheuer/base64-to-file@v1
         with:
           fileName: 'cert.pfx'
           encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
       - name: Sign the bundle
+        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' }}
         id: sign
         shell: bash
         run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
       - name: Generate hashes
         id: hashes
         run: nox -vs make_dist_digest
-      - name: Upload the bundle to the GitHub release
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub release and upload the distribution
+        id: create-release
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
-          prerelease: false
-          files: ${{ steps.sign.outputs.asset_path }}
+          prerelease: ${{ needs.deploy.outputs.prerelease }}
+          files:
+            ${{ steps.sign.outputs.asset_path || steps.bundle.outputs.asset_path }}
+  deploy-docker:
+    needs: deploy
+    if: ${{ needs.deploy.outputs.publish_docker == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade nox pdm
+      - name: Build Dockerfile
+        run: nox -vs generate_dockerfile
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Prepare Docker tags
+        id: docker_tags_prep
+        run: |
+          DOCKER_TAGS=backblazeit/b2:${{ needs.deploy.outputs.version }}
+          if [ "${{ needs.deploy.outputs.prerelease }}" != "true" ]; then
+            DOCKER_TAGS="$DOCKER_TAGS,backblazeit/b2:latest"
+          fi
+          echo DOCKER_TAGS=$DOCKER_TAGS
+          echo "docker_tags=$DOCKER_TAGS" >> $GITHUB_OUTPUT
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
+          platforms: linux/amd64,linux/arm64
