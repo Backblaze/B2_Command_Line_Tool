@@ -213,7 +213,7 @@ def setup(_):
     reasonable way to piggy back that behaviour. Checking if the new file contents would the same as the old one
     (if any) is important, so that the automatic file-watcher/doc-builder doesn't fall into an endless loop.
     """
-    main_help_text = str(B2.lazy_get_description())
+    main_help_text = str(B2.lazy_get_description(NAME='b2'))
     main_help_text = textwrap.dedent(main_help_text)
 
     main_help_path = path.join(path.dirname(__file__), 'main_help.rst')

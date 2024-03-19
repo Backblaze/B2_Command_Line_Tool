@@ -147,7 +147,7 @@ from b2._internal._cli.const import (
     DEFAULT_THREADS,
 )
 from b2._internal._cli.obj_loads import validated_loads
-from b2._internal._cli.shell import detect_shell
+from b2._internal._cli.shell import detect_shell, resolve_short_call_name
 from b2._internal._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
 from b2._internal.arg_parser import B2ArgumentParser
 from b2._internal.json_encoder import B2CliJsonEncoder
@@ -183,13 +183,13 @@ class NoControlCharactersStdout:
         self.stdout.write(s)
 
 
-# The name of an executable entry point
-NAME = os.path.basename(sys.argv[0])
-if NAME.endswith('.py'):
-    version_name = re.search(
-        r'[\\/]b2[\\/]_internal[\\/](_{0,1}b2v\d+)[\\/]__main__.py', sys.argv[0]
-    )
-    NAME = version_name.group(1) if version_name else 'b2'
+def resolve_b2_bin_call_name(argv: list[str] | None = None) -> str:
+    call_name = resolve_short_call_name((argv or sys.argv)[0])
+    if call_name.endswith('.py'):
+        version_name = re.search(r'[\\/]b2[\\/]_internal[\\/](_?b2v\d+)[\\/]__main__.py', call_name)
+        call_name = version_name.group(1) if version_name else 'b2'
+    return call_name
+
 
 FILE_RETENTION_COMPATIBILITY_WARNING = """
     .. warning::
@@ -200,7 +200,6 @@ FILE_RETENTION_COMPATIBILITY_WARNING = """
 
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
-    NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_ACCOUNT_INFO_PROFILE_FILE=B2_ACCOUNT_INFO_PROFILE_FILE,
@@ -282,11 +281,12 @@ def format_account_info(account_info: AbstractAccountInfo) -> dict:
 
 
 class DescriptionGetter:
-    def __init__(self, described_cls):
+    def __init__(self, described_cls, **kwargs):
         self.described_cls = described_cls
+        self.kwargs = kwargs
 
     def __str__(self):
-        return self.described_cls._get_description()
+        return self.described_cls._get_description(**self.kwargs)
 
 
 class Described:
@@ -296,17 +296,17 @@ class Described:
     """
 
     @classmethod
-    def _get_description(cls):
+    def _get_description(cls, **kwargs):
         mro_docs = {
-            klass.__name__.upper(): klass.lazy_get_description()
+            klass.__name__.upper(): klass.lazy_get_description(**kwargs)
             for klass in cls.mro()
             if klass is not cls and klass.__doc__ and issubclass(klass, Described)
         }
-        return cls.__doc__.format(**DOC_STRING_DATA, **mro_docs)
+        return cls.__doc__.format(**kwargs, **DOC_STRING_DATA, **mro_docs)
 
     @classmethod
-    def lazy_get_description(cls):
-        return DescriptionGetter(cls)
+    def lazy_get_description(cls, **kwargs):
+        return DescriptionGetter(cls, **kwargs)
 
 
 class DefaultSseMixin(Described):
@@ -830,7 +830,8 @@ class Command(Described, metaclass=ABCMeta):
         subparsers: argparse._SubParsersAction | None = None,
         parents=None,
         for_docs=False,
-        name: str | None = None
+        name: str | None = None,
+        b2_binary_name: str | None = None,
     ) -> argparse.ArgumentParser:
         """
         Creates a parser for the command.
@@ -838,12 +839,15 @@ class Command(Described, metaclass=ABCMeta):
         :param subparsers: subparsers object to which add new parser
         :param parents: created ArgumentParser `parents`, see `argparse.ArgumentParser`
         :param for_docs: if parser is to be used for documentation generation
+        :param name: action name
+        :param b2_binary_name: B2 binary call name
         :return: created parser
         """
         if parents is None:
             parents = []
 
-        description = cls._get_description()
+        b2_binary_name = b2_binary_name or resolve_b2_bin_call_name()
+        description = cls._get_description(NAME=b2_binary_name)
 
         if name:
             alias = None
@@ -905,7 +909,12 @@ class Command(Described, metaclass=ABCMeta):
             )
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.create_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
+                subcommand.create_parser(
+                    subparsers=subparsers,
+                    parents=parents,
+                    for_docs=for_docs,
+                    b2_binary_name=b2_binary_name
+                )
 
         return parser
 
@@ -1016,9 +1025,9 @@ class CmdReplacedByMixin:
         return super().run(args)
 
     @classmethod
-    def _get_description(cls):
+    def _get_description(cls, **kwargs):
         return (
-            f'{super()._get_description()}\n\n'
+            f'{super()._get_description(**kwargs)}\n\n'
             f'.. warning::\n'
             f'   This command is deprecated. Use ``{cls.replaced_by_cmd.name_and_alias()[0]}`` instead.\n'
         )
@@ -1083,7 +1092,7 @@ class B2(Command):
 
     @classmethod
     def name_and_alias(cls):
-        return NAME, None
+        return resolve_b2_bin_call_name(), None
 
     def _run(self, args):
         # Commands could be named via name or alias, so we fetch
@@ -1112,6 +1121,7 @@ class AuthorizeAccount(Command):
     ``{B2_APPLICATION_KEY_ENV_VAR}`` respectively.
 
     Stores an account auth token in a local cache, see
+
 
     .. code-block::
 
@@ -3912,10 +3922,11 @@ class License(Command):  # pragma: no cover
         if with_packages:
             self._put_license_text_for_packages(stream)
 
+        b2_call_name = self.console_tool.b2_binary_name
         included_sources = get_included_sources()
         if included_sources:
             stream.write(
-                f'\n\nThird party libraries modified and included in {NAME} or {b2sdk.__name__}:\n'
+                f'\n\nThird party libraries modified and included in {b2_call_name} or {b2sdk.__name__}:\n'
             )
         for src in included_sources:
             stream.write('\n')
@@ -3928,7 +3939,7 @@ class License(Command):  # pragma: no cover
             for file_name, file_content in src.files.items():
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
-        stream.write(f'\n\n{NAME} license:\n')
+        stream.write(f'\n\n{b2_call_name} license:\n')
         b2_license_file_text = (pathlib.Path(__file__).parent.parent /
                                 'LICENSE').read_text(encoding='utf8')
         stream.write(b2_license_file_text)
@@ -3959,10 +3970,13 @@ class License(Command):  # pragma: no cover
             modules_added.add(module_info['Name'])
 
         assert not (self.MODULES_TO_OVERRIDE_LICENSE_TEXT - modules_added)
-        stream.write(f'Licenses of all modules used by {NAME}, shipped with it in binary form:\n')
+        b2_call_name = self.console_tool.b2_binary_name
+        stream.write(
+            f'Licenses of all modules used by {b2_call_name}, shipped with it in binary form:\n'
+        )
         stream.write(str(license_table))
         stream.write(
-            f'\n\nSummary of all modules used by {NAME}, shipped with it in binary form:\n'
+            f'\n\nSummary of all modules used by {b2_call_name}, shipped with it in binary form:\n'
         )
         stream.write(str(summary_table))
 
@@ -4054,7 +4068,7 @@ class InstallAutocomplete(Command):
             return 1
 
         try:
-            autocomplete_install(NAME, shell=shell)
+            autocomplete_install(self.console_tool.b2_binary_name, shell=shell)
         except AutocompleteInstallError as e:
             raise CommandError(str(e)) from e
         self._print(f'Autocomplete successfully installed for {shell}.')
@@ -4076,6 +4090,7 @@ class ConsoleTool:
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
+        self.b2_binary_name = 'b2'
 
     def _get_default_escape_cc_setting(self):
         escape_cc_env_var = os.environ.get(B2_ESCAPE_CONTROL_CHARACTERS, None)
@@ -4090,7 +4105,8 @@ class ConsoleTool:
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = B2.create_parser(name=argv[0])
+        self.b2_binary_name = resolve_b2_bin_call_name(argv)
+        parser = B2.create_parser(name=self.b2_binary_name, b2_binary_name=self.b2_binary_name)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
@@ -4146,15 +4162,13 @@ class ConsoleTool:
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                'ERROR: {}  Use: {} authorize-account or provide auth data with "{}" and "{}"'
-                ' environment variables'.format(
-                    str(e), NAME, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
-                )
+                f'ERROR: {e}  Use: {self.b2_binary_name} authorize-account or provide auth data with '
+                f'{B2_APPLICATION_KEY_ID_ENV_VAR!r} and {B2_APPLICATION_KEY_ENV_VAR!r} environment variables'
             )
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
-            self._print_stderr(f'ERROR: {str(e)}')
+            self._print_stderr(f'ERROR: {e}')
             return 1
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')

@@ -113,7 +113,7 @@ def get_version_key(path: pathlib.Path) -> int:
 
 def get_versions() -> list[str]:
     """
-    "Almost" a copy of b2/_internalg/version_listing.py:get_versions(), because importing
+    "Almost" a copy of b2/_internal/version_listing.py:get_versions(), because importing
     the file directly seems impossible from the noxfile.
     """
     # This sorting ensures that:
