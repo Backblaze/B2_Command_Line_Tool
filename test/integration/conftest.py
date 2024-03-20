@@ -205,11 +205,12 @@ def monkeysession():
 
 
 @pytest.fixture(scope='session', autouse=True)
-def auto_change_account_info_dir(monkeysession) -> dir:
+def auto_change_account_info_dir(monkeysession) -> str:
     """
     Automatically for the whole testing:
     1) temporary remove B2_APPLICATION_KEY and B2_APPLICATION_KEY_ID from environment
     2) create a temporary directory for storing account info database
+    3) set B2_ACCOUNT_INFO_ENV_VAR to point to the temporary account info file
     """
 
     monkeysession.delenv('B2_APPLICATION_KEY_ID', raising=False)
@@ -267,6 +268,17 @@ def b2_tool(global_b2_tool):
     """Automatically reauthorized b2_tool for each test (without check)"""
     global_b2_tool.reauthorize(check_key_capabilities=False)
     return global_b2_tool
+
+
+@pytest.fixture
+def account_info_file() -> pathlib.Path:
+    return pathlib.Path(os.environ[B2_ACCOUNT_INFO_ENV_VAR]).expanduser()
+
+
+@pytest.fixture
+def no_account_info_file(account_info_file):
+    """Remove account info file to deauthorize b2_tool"""
+    yield account_info_file.unlink()
 
 
 @pytest.fixture

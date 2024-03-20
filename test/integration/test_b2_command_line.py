@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 import pytest
+from b2sdk.account_info.exception import MissingAccountData
 from b2sdk.v2 import (
     B2_ACCOUNT_INFO_ENV_VAR,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
@@ -33,9 +34,14 @@ from b2sdk.v2 import (
     FileRetentionSetting,
     LegalHold,
     RetentionMode,
+    SqliteAccountInfo,
     fix_windows_path_limit,
 )
 
+from b2._internal._cli.const import (
+    B2_APPLICATION_KEY_ENV_VAR,
+    B2_APPLICATION_KEY_ID_ENV_VAR,
+)
 from b2._internal.console_tool import current_time_millis
 
 from ..helpers import skip_on_windows
@@ -54,6 +60,111 @@ from .helpers import (
     should_equal,
     write_file,
 )
+
+
+def test_authorize_account_via_params_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    no_account_info_file,
+):
+    """
+    When calling `authorize-account` and passing credentials as params,
+    we want the credentials to be saved.
+    """
+
+    assert not account_info_file.exists()
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(['authorize-account', application_key_id, application_key])
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+
+def test_authorize_account_via_env_vars_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    no_account_info_file,
+):
+    """
+    When calling `authorize-account` and passing credentials
+    via env vars, we still want the credentials to be saved.
+    """
+
+    assert not account_info_file.exists()
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(['authorize-account'], additional_env={
+        B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+        B2_APPLICATION_KEY_ENV_VAR: application_key,
+    })
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+
+def test_clear_account_with_env_vars(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+):
+    """
+    When calling `clear-account` and passing credentials via env vars,
+    we want the credentials to be removed from the file.
+    """
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+    b2_tool.should_succeed(['clear-account'], additional_env={
+        B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+        B2_APPLICATION_KEY_ENV_VAR: application_key,
+    })
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key_id()
+
+
+def test_command_with_env_vars_not_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    uploaded_sample_file,
+    no_account_info_file,
+):
+    """
+    When calling any command other then `authorize-account` and passing credentials
+    via env vars, we don't want them to be saved.
+    """
+
+    assert not account_info_file.exists()
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(['ls', f"b2id://{uploaded_sample_file['fileId']}"], additional_env={
+        B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+        B2_APPLICATION_KEY_ENV_VAR: application_key,
+    })
+
+    assert not account_info_file.exists()
 
 
 @pytest.fixture

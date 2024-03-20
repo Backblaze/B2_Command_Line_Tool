@@ -15,6 +15,8 @@ from b2sdk.v2 import (
     AuthInfoCache,
     B2Api,
     B2HttpApiConfig,
+    InMemoryAccountInfo,
+    InMemoryCache,
     SqliteAccountInfo,
 )
 
@@ -44,6 +46,10 @@ def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs) -> B2Api:
         b2http.TRY_COUNT_HEAD = 2
         b2http.TRY_COUNT_OTHER = 2
     return b2api
+
+
+def _get_inmemory_b2api(**kwargs) -> B2Api:
+    return B2Api(InMemoryAccountInfo(), cache=InMemoryCache(), **kwargs)
 
 
 def _get_b2httpapiconfig():
