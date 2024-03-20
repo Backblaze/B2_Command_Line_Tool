@@ -150,7 +150,7 @@ from b2._internal._cli.const import (
 from b2._internal._cli.obj_loads import validated_loads
 from b2._internal._cli.shell import detect_shell, resolve_short_call_name
 from b2._internal._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
-from b2._internal.arg_parser import B2ArgumentParser
+from b2._internal.arg_parser import B2ArgumentParser, add_normalized_argument
 from b2._internal.json_encoder import B2CliJsonEncoder
 from b2._internal.version import VERSION
 
@@ -314,15 +314,15 @@ class DefaultSseMixin(Described):
     """
     If you want server-side encryption for all of the files that are uploaded to a bucket,
     you can enable SSE-B2 encryption as a default setting for the bucket.
-    In order to do that pass ``--defaultServerSideEncryption=SSE-B2``.
+    In order to do that pass ``--default-server-side-encryption=SSE-B2``.
     The default algorithm is set to AES256 which can by changed
-    with ``--defaultServerSideEncryptionAlgorithm`` parameter.
+    with ``--default-server-side-encryption-algorithm`` parameter.
     All uploads to that bucket, from the time default encryption is enabled onward,
     will then be encrypted with SSE-B2 by default.
 
-    To disable default bucket encryption, use ``--defaultServerSideEncryption=none``.
+    To disable default bucket encryption, use ``--default-server-side-encryption=none``.
 
-    If ``--defaultServerSideEncryption`` is not provided,
+    If ``--default-server-side-encryption`` is not provided,
     default server side encryption is determined by the server.
 
     .. note::
@@ -332,24 +332,27 @@ class DefaultSseMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--defaultServerSideEncryption', default=None, choices=('SSE-B2', 'none')
+        add_normalized_argument(
+            parser, '--default-server-side-encryption', default=None, choices=('SSE-B2', 'none')
         )
-        parser.add_argument(
-            '--defaultServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        add_normalized_argument(
+            parser,
+            '--default-server-side-encryption-algorithm',
+            default='AES256',
+            choices=('AES256',)
         )
 
         super()._setup_parser(parser)  # noqa
 
     @classmethod
     def _get_default_sse_setting(cls, args):
-        mode = apply_or_none(EncryptionMode, args.defaultServerSideEncryption)
+        mode = apply_or_none(EncryptionMode, args.default_server_side_encryption)
         if mode is not None:
             if mode == EncryptionMode.NONE:
-                args.defaultServerSideEncryptionAlgorithm = None
+                args.default_server_side_encryption_algorithm = None
 
             algorithm = apply_or_none(
-                EncryptionAlgorithm, args.defaultServerSideEncryptionAlgorithm
+                EncryptionAlgorithm, args.default_server_side_encryption_algorithm
             )
             return EncryptionSetting(mode=mode, algorithm=algorithm)
 
@@ -359,9 +362,9 @@ class DefaultSseMixin(Described):
 class DestinationSseMixin(Described):
     """
     To request SSE-B2 or SSE-C encryption for destination files,
-    please set ``--destinationServerSideEncryption=SSE-B2/SSE-C``.
+    please set ``--destination-server-side-encryption=SSE-B2/SSE-C``.
     The default algorithm is set to AES256 which can be changed
-    with ``--destinationServerSideEncryptionAlgorithm`` parameter.
+    with ``--destination-server-side-encryption-algorithm`` parameter.
     Using SSE-C requires providing ``{B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR}`` environment variable,
     containing the base64 encoded encryption key.
     If ``{B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR}`` environment variable is provided,
@@ -371,20 +374,26 @@ class DestinationSseMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--destinationServerSideEncryption', default=None, choices=('SSE-B2', 'SSE-C')
+        add_normalized_argument(
+            parser,
+            '--destination-server-side-encryption',
+            default=None,
+            choices=('SSE-B2', 'SSE-C')
         )
-        parser.add_argument(
-            '--destinationServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        add_normalized_argument(
+            parser,
+            '--destination-server-side-encryption-algorithm',
+            default='AES256',
+            choices=('AES256',)
         )
 
         super()._setup_parser(parser)  # noqa
 
     def _get_destination_sse_setting(self, args):
-        mode = apply_or_none(EncryptionMode, args.destinationServerSideEncryption)
+        mode = apply_or_none(EncryptionMode, args.destination_server_side_encryption)
         if mode is not None:
             algorithm = apply_or_none(
-                EncryptionAlgorithm, args.destinationServerSideEncryptionAlgorithm
+                EncryptionAlgorithm, args.destination_server_side_encryption_algorithm
             )
             if mode == EncryptionMode.SSE_B2:
                 key = None
@@ -412,21 +421,23 @@ class DestinationSseMixin(Described):
 class FileRetentionSettingMixin(Described):
     """
     Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
-    with fileLockEnabled=true. Providing ``--fileRetentionMode`` requires providing ``--retainUntil`` which has to
+    with fileLockEnabled=true. Providing ``--file-retention-mode`` requires providing ``--retain-until`` which has to
     be a future timestamp, in the form of an integer representing milliseconds
     since epoch. Leaving out these options results in a file retained according to bucket defaults.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--fileRetentionMode',
+        add_normalized_argument(
+            parser,
+            '--file-retention-mode',
             default=None,
             choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value)
         )
 
-        parser.add_argument(
-            '--retainUntil',
+        add_normalized_argument(
+            parser,
+            '--retain-until',
             type=parse_millis_from_float_timestamp,
             default=None,
             metavar='TIMESTAMP'
@@ -435,42 +446,47 @@ class FileRetentionSettingMixin(Described):
 
     @classmethod
     def _get_file_retention_setting(cls, args):
-        if (args.fileRetentionMode is None) != (args.retainUntil is None):
+        if (args.file_retention_mode is None) != (args.retain_until is None):
             raise ValueError(
-                'provide either both --retainUntil and --fileRetentionMode or none of them'
+                'provide either both --retain-until and --file-retention-mode or none of them'
             )
 
-        file_retention_mode = apply_or_none(RetentionMode, args.fileRetentionMode)
+        file_retention_mode = apply_or_none(RetentionMode, args.file_retention_mode)
         if file_retention_mode is None:
             return None
 
-        return FileRetentionSetting(file_retention_mode, args.retainUntil)
+        return FileRetentionSetting(file_retention_mode, args.retain_until)
 
 
 class HeaderFlagsMixin(Described):
     @classmethod
     def _setup_parser(cls, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--cache-control',
             help=
             "optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--content-disposition',
             help=
             "optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--content-encoding',
             help=
             "optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--content-language',
             help=
             "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--expires',
             help=
             "optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
@@ -518,40 +534,47 @@ class LegalHoldMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--legalHold', default=None, choices=(LegalHold.ON.value, LegalHold.OFF.value)
+        add_normalized_argument(
+            parser, '--legal-hold', default=None, choices=(LegalHold.ON.value, LegalHold.OFF.value)
         )
         super()._setup_parser(parser)  # noqa
 
     @classmethod
     def _get_legal_hold_setting(cls, args) -> LegalHold:
-        return apply_or_none(LegalHold.from_string_or_none, args.legalHold)
+        return apply_or_none(LegalHold.from_string_or_none, args.legal_hold)
 
 
 class SourceSseMixin(Described):
     """
     To access SSE-C encrypted files,
-    please set ``--sourceServerSideEncryption=SSE-C``.
+    please set ``--source-server-side-encryption=SSE-C``.
     The default algorithm is set to AES256 which can by changed
-    with ``--sourceServerSideEncryptionAlgorithm`` parameter.
+    with ``--source-server-side-encryption-algorithm`` parameter.
     Using SSE-C requires providing ``{B2_SOURCE_SSE_C_KEY_B64_ENV_VAR}`` environment variable,
     containing the base64 encoded encryption key.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--sourceServerSideEncryption', default=None, choices=('SSE-C',))
-        parser.add_argument(
-            '--sourceServerSideEncryptionAlgorithm', default='AES256', choices=('AES256',)
+        add_normalized_argument(
+            parser, '--source-server-side-encryption', default=None, choices=('SSE-C',)
+        )
+        add_normalized_argument(
+            parser,
+            '--source-server-side-encryption-algorithm',
+            default='AES256',
+            choices=('AES256',)
         )
 
         super()._setup_parser(parser)  # noqa
 
     @classmethod
     def _get_source_sse_setting(cls, args):
-        mode = apply_or_none(EncryptionMode, args.sourceServerSideEncryption)
+        mode = apply_or_none(EncryptionMode, args.source_server_side_encryption)
         if mode is not None:
-            algorithm = apply_or_none(EncryptionAlgorithm, args.sourceServerSideEncryptionAlgorithm)
+            algorithm = apply_or_none(
+                EncryptionAlgorithm, args.source_server_side_encryption_algorithm
+            )
             key = None
             if mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
@@ -579,7 +602,7 @@ class WriteBufferSizeMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--write-buffer-size', type=int, metavar='BYTES')
+        add_normalized_argument(parser, '--write-buffer-size', type=int, metavar='BYTES')
         super()._setup_parser(parser)  # noqa
 
 
@@ -590,7 +613,9 @@ class SkipHashVerificationMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--skip-hash-verification', action='store_true', default=False)
+        add_normalized_argument(
+            parser, '--skip-hash-verification', action='store_true', default=False
+        )
         super()._setup_parser(parser)  # noqa
 
 
@@ -601,7 +626,7 @@ class MaxDownloadStreamsMixin(Described):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--max-download-streams-per-file', type=int)
+        add_normalized_argument(parser, '--max-download-streams-per-file', type=int)
         super()._setup_parser(parser)  # noqa
 
 
@@ -687,18 +712,18 @@ class B2IDOrB2URIMixin:
 
 class UploadModeMixin(Described):
     """
-    Use --incrementalMode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
+    Use --incremental-mode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
     have been appended to since last upload.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--incrementalMode', action='store_true')
+        add_normalized_argument(parser, '--incremental-mode', action='store_true')
         super()._setup_parser(parser)  # noqa
 
     @staticmethod
     def _get_upload_mode_from_args(args):
-        if args.incrementalMode:
+        if args.incremental_mode:
             return UploadMode.INCREMENTAL
         return UploadMode.FULL
 
@@ -707,40 +732,43 @@ class ProgressMixin(Described):
     """
     If the ``tqdm`` library is installed, progress bar is displayed
     on stderr.  Without it, simple text progress is printed.
-    Use ``--noProgress`` to disable progress reporting (marginally improves performance in some cases).
+    Use ``--no-progress`` to disable progress reporting (marginally improves performance in some cases).
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--noProgress', action='store_true', help="progress will not be reported"
+        add_normalized_argument(
+            parser, '--no-progress', action='store_true', help="progress will not be reported"
         )
         super()._setup_parser(parser)  # noqa
 
 
 class LifecycleRulesMixin(Described):
     """
-    Use `--lifecycleRule` to set lifecycle rule for the bucket.
+    Use `--lifecycle-rule` to set lifecycle rule for the bucket.
     Multiple rules can be specified by repeating the option.
 
-    `--lifecycleRules` option is deprecated and cannot be used together with --lifecycleRule.
+    `--lifecycle-rules` option is deprecated and cannot be used together with --lifecycle-rule.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
         lifecycle_group = parser.add_mutually_exclusive_group()
-        lifecycle_group.add_argument(
-            '--lifecycleRule',
+        add_normalized_argument(
+            lifecycle_group,
+            '--lifecycle-rule',
             action='append',
             default=None,
             type=functools.partial(validated_loads, expected_type=LifecycleRule),
-            dest='lifecycleRules',
+            dest='lifecycle_rules',
             help="Lifecycle rule in JSON format. Can be supplied multiple times.",
         )
-        lifecycle_group.add_argument(
-            '--lifecycleRules',
+        add_normalized_argument(
+            lifecycle_group,
+            '--lifecycle-rules',
             type=functools.partial(validated_loads, expected_type=List[LifecycleRule]),
-            help="(deprecated; use --lifecycleRule instead) List of lifecycle rules in JSON format.",
+            help=
+            "(deprecated; use --lifecycle-rule instead) List of lifecycle rules in JSON format.",
         )
 
         super()._setup_parser(parser)  # noqa
@@ -886,11 +914,11 @@ class Command(Described, metaclass=ABCMeta):
         if cls.subcommands_registry:
             if not parents:
                 common_parser = B2ArgumentParser(add_help=False, add_help_all=False)
-                common_parser.add_argument(
-                    '--debugLogs', action='store_true', help=argparse.SUPPRESS
+                add_normalized_argument(
+                    common_parser, '--debug-logs', action='store_true', help=argparse.SUPPRESS
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
-                common_parser.add_argument('--logConfig', help=argparse.SUPPRESS)
+                add_normalized_argument(common_parser, '--log-config', help=argparse.SUPPRESS)
                 common_parser.add_argument('--profile', default=None, help=argparse.SUPPRESS)
                 common_parser.add_argument(
                     '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
@@ -1075,7 +1103,7 @@ class B2(Command):
     or by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
 
     You can suppress command stdout & stderr output by using ``--quiet`` option.
-    To supress only progress bar, use ``--noProgress`` option.
+    To supress only progress bar, use ``--no-progress`` option.
 
     For more details on one command:
 
@@ -1317,10 +1345,10 @@ class CopyFileById(
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
-    By default, it copies the file info and content type, therefore ``--contentType`` and ``--info`` are optional.
+    By default, it copies the file info and content type, therefore ``--content-type`` and ``--info`` are optional.
     If one of them is set, the other has to be set as well.
 
-    To force the destination file to have empty fileInfo, use ``--noInfo``.
+    To force the destination file to have empty fileInfo, use ``--no-info``.
 
     By default, the whole file gets copied, but you can copy an (inclusive!) range of bytes
     from the source file to the new file using ``--range`` option.
@@ -1334,9 +1362,9 @@ class CopyFileById(
     {FILERETENTIONSETTINGMIXIN}
     {LEGALHOLDMIXIN}
 
-    If either the source or the destination uses SSE-C and ``--contentType`` and ``--info`` are not provided, then
+    If either the source or the destination uses SSE-C and ``--content-type`` and ``--info`` are not provided, then
     to perform the copy the source file's metadata has to be fetched first - an additional request to B2 cloud has
-    to be made. To achieve that, provide ``--fetchMetadata``. Without that flag, the command will fail.
+    to be made. To achieve that, provide ``--fetch-metadata``. Without that flag, the command will fail.
 
     Requires capability:
 
@@ -1346,15 +1374,17 @@ class CopyFileById(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--fetchMetadata', action='store_true', default=False)
-        parser.add_argument('--metadataDirective', default=None, help=argparse.SUPPRESS)
-        parser.add_argument('--contentType')
+        add_normalized_argument(parser, '--fetch-metadata', action='store_true', default=False)
+        add_normalized_argument(
+            parser, '--metadata-directive', default=None, help=argparse.SUPPRESS
+        )
+        add_normalized_argument(parser, '--content-type')
         parser.add_argument('--range', type=parse_range)
 
         info_group = parser.add_mutually_exclusive_group()
 
-        info_group.add_argument('--info', action='append')
-        info_group.add_argument('--noInfo', action='store_true', default=False)
+        add_normalized_argument(info_group, '--info', action='append')
+        add_normalized_argument(info_group, '--no-info', action='store_true', default=False)
 
         parser.add_argument('sourceFileId')
         parser.add_argument('destinationBucketName')
@@ -1366,14 +1396,14 @@ class CopyFileById(
         file_infos = None
         if args.info:
             file_infos = self._parse_file_infos(args.info)
-        elif args.noInfo:
+        elif args.no_info:
             file_infos = {}
         file_infos = self._file_info_with_header_args(args, file_infos)
 
-        if args.metadataDirective is not None:
+        if args.metadata_directive is not None:
             self._print_stderr(
-                '--metadataDirective is deprecated, the value of this argument is determined based on the existence of '
-                '--contentType and --info.'
+                '--metadata-directive is deprecated, the value of this argument is determined based on the existence of '
+                '--content-type and --info.'
             )
 
         bucket = self.api.get_bucket_by_name(args.destinationBucketName)
@@ -1392,15 +1422,15 @@ class CopyFileById(
             source_file_id=args.sourceFileId,
             source_encryption=source_encryption_setting,
             destination_encryption=destination_encryption_setting,
-            target_content_type=args.contentType,
+            target_content_type=args.content_type,
             target_file_info=file_infos,
-            fetch_if_necessary=args.fetchMetadata,
+            fetch_if_necessary=args.fetch_metadata,
         )
         file_version = bucket.copy(
             args.sourceFileId,
             args.b2FileName,
             **range_args,
-            content_type=args.contentType,
+            content_type=args.content_type,
             file_info=file_infos,
             destination_encryption=destination_encryption_setting,
             source_encryption=source_encryption_setting,
@@ -1436,7 +1466,7 @@ class CopyFileById(
         if not fetch_if_necessary:
             raise ValueError(
                 'Attempting to copy file with metadata while either source or destination uses '
-                'SSE-C. Use --fetchMetadata to fetch source file metadata before copying.'
+                'SSE-C. Use --fetch-metadata to fetch source file metadata before copying.'
             )
         source_file_version = self.api.get_file_info(source_file_id)
         return source_file_version.file_info, source_file_version.content_type
@@ -1462,15 +1492,17 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucketInfo', type=validated_loads)
-        parser.add_argument(
-            '--corsRules',
+        add_normalized_argument(parser, '--bucket-info', type=validated_loads)
+        add_normalized_argument(
+            parser,
+            '--cors-rules',
             type=validated_loads,
             help=
             "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
         )
-        parser.add_argument(
-            '--fileLockEnabled',
+        add_normalized_argument(
+            parser,
+            '--file-lock-enabled',
             action='store_true',
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
@@ -1486,11 +1518,11 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         bucket = self.api.create_bucket(
             args.bucketName,
             args.bucketType,
-            bucket_info=args.bucketInfo,
-            cors_rules=args.corsRules,
-            lifecycle_rules=args.lifecycleRules,
+            bucket_info=args.bucket_info,
+            cors_rules=args.cors_rules,
+            lifecycle_rules=args.lifecycle_rules,
             default_server_side_encryption=encryption_setting,
-            is_file_lock_enabled=args.fileLockEnabled,
+            is_file_lock_enabled=args.file_lock_enabled,
             replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
         )
         self._print(bucket.id_)
@@ -1504,7 +1536,7 @@ class CreateKey(Command):
     their IDs, but not the secret keys.
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
-    Optionally, you can pass all capabilities known to this client with ``--allCapabilities``.
+    Optionally, you can pass all capabilities known to this client with ``--all-capabilities``.
 
     The ``duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
@@ -1526,13 +1558,13 @@ class CreateKey(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--bucket')
-        parser.add_argument('--namePrefix')
+        add_normalized_argument(parser, '--name-prefix')
         parser.add_argument('--duration', type=int)
         parser.add_argument('keyName')
 
         capabilities = parser.add_mutually_exclusive_group(required=True)
         capabilities.add_argument('capabilities', type=parse_comma_separated_list, nargs='?')
-        capabilities.add_argument('--allCapabilities', action='store_true')
+        add_normalized_argument(capabilities, '--all-capabilities', action='store_true')
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -1542,7 +1574,7 @@ class CreateKey(Command):
         else:
             bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
 
-        if args.allCapabilities:
+        if args.all_capabilities:
             args.capabilities = ALL_CAPABILITIES
 
         application_key = self.api.create_key(
@@ -1550,7 +1582,7 @@ class CreateKey(Command):
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
             bucket_id=bucket_id_or_none,
-            name_prefix=args.namePrefix
+            name_prefix=args.name_prefix
         )
 
         self._print(f'{application_key.id_} {application_key.application_key}')
@@ -1583,7 +1615,7 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
 
     {FILEIDANDOPTIONALFILENAMEMIXIN}
 
-    If a file is in governance retention mode, and the retention period has not expired, adding ``--bypassGovernance``
+    If a file is in governance retention mode, and the retention period has not expired, adding ``--bypass-governance``
     is required.
 
     Requires capability:
@@ -1599,11 +1631,11 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        parser.add_argument('--bypassGovernance', action='store_true', default=False)
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
 
     def _run(self, args):
         file_name = self._get_file_name_from_args(args)
-        file_info = self.api.delete_file_version(args.fileId, file_name, args.bypassGovernance)
+        file_info = self.api.delete_file_version(args.fileId, file_name, args.bypass_governance)
         self._print_json(file_info)
         return 0
 
@@ -1788,7 +1820,7 @@ class DownloadFileBase(
 
     def _run(self, args):
         progress_listener = self.make_progress_listener(
-            args.localFileName, args.noProgress or args.quiet
+            args.localFileName, args.no_progress or args.quiet
         )
         encryption_setting = self._get_source_sse_setting(args)
         self._set_threads_from_args(args)
@@ -1857,7 +1889,7 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
     def _run(self, args):
         target_filename = '-'
         progress_listener = self.make_progress_listener(
-            target_filename, args.noProgress or args.quiet
+            target_filename, args.no_progress or args.quiet
         )
         encryption_setting = self._get_source_sse_setting(args)
         file_request = self.api.download_file_by_uri(
@@ -1885,7 +1917,7 @@ class GetBucket(Command):
     Prints all of the information about the bucket, including
     bucket info, CORS rules and lifecycle rules.
 
-    If ``--showSize`` is specified, then display the number of files
+    If ``--show-size`` is specified, then display the number of files
     (``fileCount``) in the bucket and the aggregate size of all files
     (``totalSize``). Hidden files and hide markers are accounted for
     in the reported number of files, and hidden files also
@@ -1896,7 +1928,7 @@ class GetBucket(Command):
 
     .. note::
 
-        Note that ``--showSize`` requires multiple
+        Note that ``--show-size`` requires multiple
         API calls, and will therefore incur additional latency,
         computation, and Class C transactions.
 
@@ -1907,7 +1939,7 @@ class GetBucket(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--showSize', action='store_true')
+        add_normalized_argument(parser, '--show-size', action='store_true')
         parser.add_argument('bucketName').completer = bucket_name_completer
         super()._setup_parser(parser)
 
@@ -1915,7 +1947,7 @@ class GetBucket(Command):
         # This always wants up-to-date info, so it does not use
         # the bucket cache.
         for b in self.api.list_buckets(args.bucketName):
-            if not args.showSize:
+            if not args.show_size:
                 self._print_json(b)
                 return 0
             else:
@@ -2233,7 +2265,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
     The ``--recursive`` option will descend into folders, and will select
     only files, not folders.
 
-    The ``--withWildcard`` option will allow using ``*``, ``?`` and ```[]```
+    The ``--with-wildcard`` option will allow using ``*``, ``?`` and ```[]```
     characters in ``folderName`` as a greedy wildcard, single character
     wildcard and range of characters. It requires the ``--recursive`` option.
     Remember to quote ``folderName`` to avoid shell expansion.
@@ -2249,7 +2281,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
     def _setup_parser(cls, parser):
         parser.add_argument('--versions', action='store_true')
         parser.add_argument('-r', '--recursive', action='store_true')
-        parser.add_argument('--withWildcard', action='store_true')
+        add_normalized_argument(parser, '--with-wildcard', action='store_true')
         parser.add_argument(
             '--include', dest='filters', action='append', type=Filter.include, default=[]
         )
@@ -2282,7 +2314,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
                 b2_uri,
                 latest_only=not args.versions,
                 recursive=args.recursive,
-                with_wildcard=args.withWildcard,
+                with_wildcard=args.with_wildcard,
                 filters=args.filters,
             )
         except Exception as err:
@@ -2411,21 +2443,21 @@ class Ls(B2IDOrB2URIMixin, BaseLs):
 
     .. code-block::
 
-        {NAME} ls --recursive --withWildcard "b2://bucketName/*.[ct]sv"
+        {NAME} ls --recursive --with-wildcard "b2://bucketName/*.[ct]sv"
 
 
     List all info.txt files from directories named `b?`, where `?` is any character:
 
     .. code-block::
 
-        {NAME} ls --recursive --withWildcard "b2://bucketName/b?/info.txt"
+        {NAME} ls --recursive --with-wildcard "b2://bucketName/b?/info.txt"
 
 
     List all pdf files from directories b0 to b9 (including sub-directories):
 
     .. code-block::
 
-        {NAME} ls --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
+        {NAME} ls --recursive --with-wildcard "b2://bucketName/b[0-9]/*.pdf"
 
 
     List all buckets:
@@ -2456,25 +2488,25 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
     In order to safely delete a single file version, please use ``delete-file-version``.
 
-    To list (but not remove) files to be deleted, use ``--dryRun``.  You can also
+    To list (but not remove) files to be deleted, use ``--dry-run``.  You can also
     list files via ``ls`` command - the listing behaviour is exactly the same.
 
-    Progress is displayed on the console unless ``--noProgress`` is specified.
+    Progress is displayed on the console unless ``--no-progress`` is specified.
     {THREADSMIXIN}
     {ABSTRACTLSCOMMAND}
 
-    The ``--dryRun`` option prints all the files that would be affected by
+    The ``--dry-run`` option prints all the files that would be affected by
     the command, but removes nothing.
 
     Normally, when an error happens during file removal, log is printed and the command
     goes further. If any error should be immediately breaking the command,
-    ``--failFast`` can be passed to ensure that first error will stop the execution.
+    ``--fail-fast`` can be passed to ensure that first error will stop the execution.
     This could be useful to e.g. check whether provided credentials have **deleteFiles**
     capabilities.
 
     .. note::
 
-        Using ``--failFast`` doesn't prevent the command from trying to remove further files.
+        Using ``--fail-fast`` doesn't prevent the command from trying to remove further files.
         It just stops the progress. Since multiple files are removed in parallel, it's possible
         that just some of them were not reported.
 
@@ -2502,7 +2534,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
             self.messages_queue = messages_queue
             self.reporter = reporter
             self.threads = threads
-            removal_queue_size = self.args.queueSize or (2 * self.threads)
+            removal_queue_size = self.args.queue_size or (2 * self.threads)
             self.semaphore = threading.BoundedSemaphore(value=removal_queue_size)
             self.fail_fast_event = threading.Event()
             self.mapping_lock = threading.Lock()
@@ -2555,7 +2587,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
                 # We wanted to remove this file anyway.
                 self.reporter.update_count(1)
             except B2Error as error:
-                if self.args.failFast:
+                if self.args.fail_fast:
                     # This is set before releasing the semaphore.
                     # It means that when the semaphore is released,
                     # we'll already have information about requirement to fail.
@@ -2568,27 +2600,27 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--dryRun', action='store_true')
-        parser.add_argument(
-            '--queueSize',
+        add_normalized_argument(parser, '--dry-run', action='store_true')
+        add_normalized_argument(parser,
+            '--queue-size',
             type=int,
             default=None,
             help='max elements fetched at once for removal, ' \
                  'if left unset defaults to twice the number of threads.',
         )
-        parser.add_argument('--noProgress', action='store_true')
-        parser.add_argument('--failFast', action='store_true')
+        add_normalized_argument(parser, '--no-progress', action='store_true')
+        add_normalized_argument(parser, '--fail-fast', action='store_true')
         super()._setup_parser(parser)
 
     def _run(self, args):
-        if args.dryRun:
+        if args.dry_run:
             self._print_files(args)
             return 0
         failed_on_any_file = False
         messages_queue = queue.Queue()
 
         threads = self._get_threads_from_args(args)
-        with self.PROGRESS_REPORT_CLASS(self.stdout, args.noProgress or args.quiet) as reporter:
+        with self.PROGRESS_REPORT_CLASS(self.stdout, args.no_progress or args.quiet) as reporter:
             submit_thread = self.SubmitThread(self, args, messages_queue, reporter, threads=threads)
             # This thread is started in daemon mode, no joining needed.
             submit_thread.start()
@@ -2606,7 +2638,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
                     reporter.print_completion(message)
 
                     failed_on_any_file = True
-                    if args.failFast:
+                    if args.fail_fast:
                         break
 
                 elif event_type == submit_thread.EXCEPTION_TAG:
@@ -2636,21 +2668,21 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
 
         .. code-block::
 
-            {NAME} rm --recursive --withWildcard "b2://bucketName/*.[ct]sv"
+            {NAME} rm --recursive --with-wildcard "b2://bucketName/*.[ct]sv"
 
 
         Remove all info.txt files from buckets bX, where X is any character:
 
         .. code-block::
 
-            {NAME} rm --recursive --withWildcard "b2://bucketName/b?/info.txt"
+            {NAME} rm --recursive --with-wildcard "b2://bucketName/b?/info.txt"
 
 
         Remove all pdf files from buckets b0 to b9 (including sub-directories):
 
         .. code-block::
 
-            {NAME} rm --recursive --withWildcard "b2://bucketName/b[0-9]/*.pdf"
+            {NAME} rm --recursive --with-wildcard "b2://bucketName/b[0-9]/*.pdf"
 
 
     Requires capability:
@@ -2709,22 +2741,22 @@ class Sync(
 
     Use ``b2://<bucketName>/<prefix>`` for B2 paths, e.g. ``b2://my-bucket-name/a/path/prefix/``.
 
-    Progress is displayed on the console unless ``--noProgress`` is
+    Progress is displayed on the console unless ``--no-progress`` is
     specified.  A list of actions taken is always printed.
 
-    Specify ``--dryRun`` to simulate the actions that would be taken.
+    Specify ``--dry-run`` to simulate the actions that would be taken.
 
     To allow sync to run when the source directory is empty, potentially
-    deleting all files in a bucket, specify ``--allowEmptySource``.
+    deleting all files in a bucket, specify ``--allow-empty-source``.
     The default is to fail when the specified source directory doesn't exist
     or is empty.  (This check only applies to version 1.0 and later.)
 
     {THREADSMIXIN}
 
     You can alternatively control number of threads per each operation.
-    The number of files processed in parallel is set by ``--syncThreads``,
-    the number of files/file parts downloaded in parallel is set by``--downloadThreads``,
-    and the number of files/file parts uploaded in parallel is set by `--uploadThreads``.
+    The number of files processed in parallel is set by ``--sync-threads``,
+    the number of files/file parts downloaded in parallel is set by``--download-threads``,
+    and the number of files/file parts uploaded in parallel is set by `--upload-threads``.
     All the three parameters can be set to the same value by ``--threads``.
     Experiment with parameters if the defaults are not working well.
 
@@ -2737,31 +2769,31 @@ class Sync(
         Note that using multiple threads could be detrimental to
         the other users on your network.
 
-    You can specify ``--excludeRegex`` to selectively ignore files that
+    You can specify ``--exclude-regex`` to selectively ignore files that
     match the given pattern. Ignored files will not copy during
     the sync operation. The pattern is a regular expression
     that is tested against the full path of each file.
 
-    You can specify ``--includeRegex`` to selectively override ignoring
-    files that match the given ``--excludeRegex`` pattern by an
-    ``--includeRegex`` pattern. Similarly to ``--excludeRegex``, the pattern
+    You can specify ``--include-regex`` to selectively override ignoring
+    files that match the given ``--exclude-regex`` pattern by an
+    ``--include-regex`` pattern. Similarly to ``--exclude-regex``, the pattern
     is a regular expression that is tested against the full path
     of each file.
 
     .. note::
 
-        Note that ``--includeRegex`` cannot be used without ``--excludeRegex``.
+        Note that ``--include-regex`` cannot be used without ``--exclude-regex``.
 
-    You can specify ``--excludeAllSymlinks`` to skip symlinks when
+    You can specify ``--exclude-all-symlinks`` to skip symlinks when
     syncing from a local source.
 
-    When a directory is excluded by using ``--excludeDirRegex``, all of
-    the files within it are excluded, even if they match an ``--includeRegex``
+    When a directory is excluded by using ``--exclude-dir-regex``, all of
+    the files within it are excluded, even if they match an ``--include-regex``
     pattern.   This means that there is no need to look inside excluded
     directories, and you can exclude directories containing files for which
     you don't have read permission and avoid getting errors.
 
-    The ``--excludeDirRegex`` is a regular expression that is tested against
+    The ``--exclude-dir-regex`` is a regular expression that is tested against
     the full path of each directory.  The path being matched does not have
     a trailing ``/``, so don't include on in your regular expression.
 
@@ -2776,7 +2808,7 @@ class Sync(
     If you want to match the entire path, put a ``$`` at the end of the
     regex, such as ``.*llo$``.
 
-    You can specify ``--excludeIfModifiedAfter`` to selectively ignore file versions
+    You can specify ``--exclude-if-modified-after`` to selectively ignore file versions
     (including hide markers) which were synced after given time (for local source)
     or ignore only specific file versions (for b2 source).
     Ignored files or file versions will not be taken for consideration during sync.
@@ -2785,7 +2817,7 @@ class Sync(
 
     Files are considered to be the same if they have the same name
     and modification time.  This behaviour can be changed using the
-    ``--compareVersions`` option. Possible values are:
+    ``--compare-versions`` option. Possible values are:
 
     - ``none``:    Comparison using the file name only
     - ``modTime``: Comparison using the modification time (default)
@@ -2795,10 +2827,10 @@ class Sync(
     of the files.
 
     Fuzzy comparison of files based on modTime or size can be enabled by
-    specifying the ``--compareThreshold`` option.  This will treat modTimes
+    specifying the ``--compare-threshold`` option.  This will treat modTimes
     (in milliseconds) or sizes (in bytes) as the same if they are within
     the comparison threshold.  Files that match, within the threshold, will
-    not be synced. Specifying ``--verbose`` and ``--dryRun`` can be useful to
+    not be synced. Specifying ``--verbose`` and ``--dry-run`` can be useful to
     determine comparison value differences.
 
     When a destination file is present that is not in the source, the
@@ -2806,27 +2838,27 @@ class Sync(
     destination files that are not in the source.
 
     When the destination is B2, you have the option of leaving older
-    versions in place.  Specifying ``--keepDays`` will delete any older
+    versions in place.  Specifying ``--keep-days`` will delete any older
     versions more than the given number of days old, based on the
     modification time of the file.  This option is not available when
     the destination is a local folder.
 
     Files at the source that have a newer modification time are always
     copied to the destination.  If the destination file is newer, the
-    default is to report an error and stop.  But with ``--skipNewer`` set,
-    those files will just be skipped.  With ``--replaceNewer`` set, the
+    default is to report an error and stop.  But with ``--skip-newer`` set,
+    those files will just be skipped.  With ``--replace-newer`` set, the
     old file from the source will replace the newer one in the destination.
 
     To make the destination exactly match the source, use:
 
     .. code-block::
 
-        {NAME} sync --delete --replaceNewer ... ...
+        {NAME} sync --delete --replace-newer ... ...
 
     .. warning::
 
         Using ``--delete`` deletes files!  We recommend not using it.
-        If you use ``--keepDays`` instead, you will have some time to recover your
+        If you use ``--keep-days`` instead, you will have some time to recover your
         files if you discover they are missing on the source end.
 
     To make the destination match the source, but retain previous versions
@@ -2834,14 +2866,14 @@ class Sync(
 
     .. code-block::
 
-        {NAME} sync --keepDays 30 --replaceNewer ... b2://...
+        {NAME} sync --keep-days 30 --replace-newer ... b2://...
 
-    Example of sync being used with ``--excludeRegex``. This will ignore ``.DS_Store`` files
+    Example of sync being used with ``--exclude-regex``. This will ignore ``.DS_Store`` files
     and ``.Spotlight-V100`` folders:
 
     .. code-block::
 
-        {NAME} sync --excludeRegex '(.*\\.DS_Store)|(.*\\.Spotlight-V100)' ... b2://...
+        {NAME} sync --exclude-regex '(.*\\.DS_Store)|(.*\\.Spotlight-V100)' ... b2://...
 
     {DESTINATIONSSEMIXIN}
     {SOURCESSEMIXIN}
@@ -2864,22 +2896,35 @@ class Sync(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--noProgress', action='store_true')
-        parser.add_argument('--dryRun', action='store_true')
-        parser.add_argument('--allowEmptySource', action='store_true')
-        parser.add_argument('--excludeAllSymlinks', action='store_true')
-        parser.add_argument('--syncThreads', type=int, default=cls.DEFAULT_SYNC_THREADS)
-        parser.add_argument('--downloadThreads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS)
-        parser.add_argument('--uploadThreads', type=int, default=cls.DEFAULT_UPLOAD_THREADS)
-        parser.add_argument(
-            '--compareVersions', default='modTime', choices=('none', 'modTime', 'size')
+        add_normalized_argument(parser, '--no-progress', action='store_true')
+        add_normalized_argument(parser, '--dry-run', action='store_true')
+        add_normalized_argument(parser, '--allow-empty-source', action='store_true')
+        add_normalized_argument(parser, '--exclude-all-symlinks', action='store_true')
+        add_normalized_argument(
+            parser, '--sync-threads', type=int, default=cls.DEFAULT_SYNC_THREADS
         )
-        parser.add_argument('--compareThreshold', type=int, metavar='MILLIS')
-        parser.add_argument('--excludeRegex', action='append', default=[], metavar='REGEX')
-        parser.add_argument('--includeRegex', action='append', default=[], metavar='REGEX')
-        parser.add_argument('--excludeDirRegex', action='append', default=[], metavar='REGEX')
-        parser.add_argument(
-            '--excludeIfModifiedAfter',
+        add_normalized_argument(
+            parser, '--download-threads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS
+        )
+        add_normalized_argument(
+            parser, '--upload-threads', type=int, default=cls.DEFAULT_UPLOAD_THREADS
+        )
+        add_normalized_argument(
+            parser, '--compare-versions', default='modTime', choices=('none', 'modTime', 'size')
+        )
+        add_normalized_argument(parser, '--compare-threshold', type=int, metavar='MILLIS')
+        add_normalized_argument(
+            parser, '--exclude-regex', action='append', default=[], metavar='REGEX'
+        )
+        add_normalized_argument(
+            parser, '--include-regex', action='append', default=[], metavar='REGEX'
+        )
+        add_normalized_argument(
+            parser, '--exclude-dir-regex', action='append', default=[], metavar='REGEX'
+        )
+        add_normalized_argument(
+            parser,
+            '--exclude-if-modified-after',
             type=parse_millis_from_float_timestamp,
             default=None,
             metavar='TIMESTAMP'
@@ -2889,33 +2934,33 @@ class Sync(
         parser.add_argument('destination')
 
         skip_group = parser.add_mutually_exclusive_group()
-        skip_group.add_argument('--skipNewer', action='store_true')
-        skip_group.add_argument('--replaceNewer', action='store_true')
+        add_normalized_argument(skip_group, '--skip-newer', action='store_true')
+        add_normalized_argument(skip_group, '--replace-newer', action='store_true')
 
         del_keep_group = parser.add_mutually_exclusive_group()
-        del_keep_group.add_argument('--delete', action='store_true')
-        del_keep_group.add_argument('--keepDays', type=float, metavar='DAYS')
+        add_normalized_argument(del_keep_group, '--delete', action='store_true')
+        add_normalized_argument(del_keep_group, '--keep-days', type=float, metavar='DAYS')
 
     def _run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
         if args.threads is not None:
-            if args.syncThreads != self.DEFAULT_SYNC_THREADS \
-                    or args.uploadThreads != self.DEFAULT_UPLOAD_THREADS \
-                    or args.downloadThreads != self.DEFAULT_DOWNLOAD_THREADS:
+            if args.sync_threads != self.DEFAULT_SYNC_THREADS \
+                    or args.upload_threads != self.DEFAULT_UPLOAD_THREADS \
+                    or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS:
                 raise ValueError("--threads cannot be used with other thread options")
             sync_threads = upload_threads = download_threads = args.threads
         else:
-            sync_threads = args.syncThreads
-            upload_threads = args.uploadThreads
-            download_threads = args.downloadThreads
+            sync_threads = args.sync_threads
+            upload_threads = args.upload_threads
+            download_threads = args.download_threads
 
         self.api.services.upload_manager.set_thread_pool_size(upload_threads)
         self.api.services.download_manager.set_thread_pool_size(download_threads)
 
         source = parse_sync_folder(args.source, self.console_tool.api)
         destination = parse_sync_folder(args.destination, self.console_tool.api)
-        allow_empty_source = args.allowEmptySource or VERSION_0_COMPATIBILITY
+        allow_empty_source = args.allow_empty_source or VERSION_0_COMPATIBILITY
 
         synchronizer = self.get_synchronizer_from_args(
             args,
@@ -2949,7 +2994,7 @@ class Sync(
                 write_bucket_settings=write_encryption_settings,
             )
 
-        with SyncReport(self.stdout, args.noProgress or args.quiet) as reporter:
+        with SyncReport(self.stdout, args.no_progress or args.quiet) as reporter:
             try:
                 synchronizer.sync_folders(
                     source_folder=source,
@@ -2960,7 +3005,7 @@ class Sync(
                 )
             except EmptyDirectory as ex:
                 raise CommandError(
-                    f'Directory {ex.path} is empty.  Use --allowEmptySource to sync anyway.'
+                    f'Directory {ex.path} is empty.  Use --allow-empty-source to sync anyway.'
                 )
             except NotADirectory as ex:
                 raise CommandError(f'{ex.path} is not a directory')
@@ -2970,11 +3015,11 @@ class Sync(
 
     def get_policies_manager_from_args(self, args):
         return ScanPoliciesManager(
-            exclude_dir_regexes=args.excludeDirRegex,
-            exclude_file_regexes=args.excludeRegex,
-            include_file_regexes=args.includeRegex,
-            exclude_all_symlinks=args.excludeAllSymlinks,
-            exclude_modified_after=args.excludeIfModifiedAfter,
+            exclude_dir_regexes=args.exclude_dir_regex,
+            exclude_file_regexes=args.exclude_regex,
+            include_file_regexes=args.include_regex,
+            exclude_all_symlinks=args.exclude_all_symlinks,
+            exclude_modified_after=args.exclude_if_modified_after,
         )
 
     def get_synchronizer_from_args(
@@ -2985,30 +3030,30 @@ class Sync(
         allow_empty_source=False,
         absolute_minimum_part_size=None,
     ):
-        if args.replaceNewer:
+        if args.replace_newer:
             newer_file_mode = NewerFileSyncMode.REPLACE
-        elif args.skipNewer:
+        elif args.skip_newer:
             newer_file_mode = NewerFileSyncMode.SKIP
         else:
             newer_file_mode = NewerFileSyncMode.RAISE_ERROR
 
-        if args.compareVersions == 'none':
+        if args.compare_versions == 'none':
             compare_version_mode = CompareVersionMode.NONE
-        elif args.compareVersions == 'modTime':
+        elif args.compare_versions == 'modTime':
             compare_version_mode = CompareVersionMode.MODTIME
-        elif args.compareVersions == 'size':
+        elif args.compare_versions == 'size':
             compare_version_mode = CompareVersionMode.SIZE
         else:
             compare_version_mode = CompareVersionMode.MODTIME
-        compare_threshold = args.compareThreshold
+        compare_threshold = args.compare_threshold
 
         keep_days = None
 
         if args.delete:
             keep_days_or_delete = KeepOrDeleteMode.DELETE
-        elif args.keepDays:
+        elif args.keep_days:
             keep_days_or_delete = KeepOrDeleteMode.KEEP_BEFORE_DELETE
-            keep_days = args.keepDays
+            keep_days = args.keep_days
         else:
             keep_days_or_delete = KeepOrDeleteMode.NO_DELETE
 
@@ -3017,7 +3062,7 @@ class Sync(
         return Synchronizer(
             max_workers,
             policies_manager=policies_manager,
-            dry_run=args.dryRun,
+            dry_run=args.dry_run,
             allow_empty_source=allow_empty_source,
             newer_file_mode=newer_file_mode,
             keep_days_or_delete=keep_days_or_delete,
@@ -3040,12 +3085,12 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     {DEFAULTSSEMIXIN}
     {LIFECYCLERULESMIXIN}
 
-    To set a default retention for files in the bucket ``--defaultRetentionMode`` and
-    ``--defaultRetentionPeriod`` have to be specified. The latter one is of the form "X days|years".
+    To set a default retention for files in the bucket ``--default-retention-mode`` and
+    ``--default-retention-period`` have to be specified. The latter one is of the form "X days|years".
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
-    This command can be used to set the bucket's ``fileLockEnabled`` flag to ``true`` using the ``--fileLockEnabled``
+    This command can be used to set the bucket's ``fileLockEnabled`` flag to ``true`` using the ``--file-lock-enabled``
     option.  This can only be done if the bucket is not set up as a replication source.
 
     .. warning::
@@ -3072,15 +3117,17 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucketInfo', type=validated_loads)
-        parser.add_argument(
-            '--corsRules',
+        add_normalized_argument(parser, '--bucket-info', type=validated_loads)
+        add_normalized_argument(
+            parser,
+            '--cors-rules',
             type=validated_loads,
             help=
             "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
         )
-        parser.add_argument(
-            '--defaultRetentionMode',
+        add_normalized_argument(
+            parser,
+            '--default-retention-mode',
             choices=(
                 RetentionMode.COMPLIANCE.value,
                 RetentionMode.GOVERNANCE.value,
@@ -3088,14 +3135,16 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
             ),
             default=None,
         )
-        parser.add_argument(
-            '--defaultRetentionPeriod',
+        add_normalized_argument(
+            parser,
+            '--default-retention-period',
             type=parse_default_retention_period,
             metavar='period',
         )
         parser.add_argument('--replication', type=validated_loads)
-        parser.add_argument(
-            '--fileLockEnabled',
+        add_normalized_argument(
+            parser,
+            '--file-lock-enabled',
             action='store_true',
             default=None,
             help=
@@ -3107,12 +3156,12 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins and the parent class
 
     def _run(self, args):
-        if args.defaultRetentionMode is not None:
-            if args.defaultRetentionMode == 'none':
+        if args.default_retention_mode is not None:
+            if args.default_retention_mode == 'none':
                 default_retention = NO_RETENTION_BUCKET_SETTING
             else:
                 default_retention = BucketRetentionSetting(
-                    RetentionMode(args.defaultRetentionMode), args.defaultRetentionPeriod
+                    RetentionMode(args.default_retention_mode), args.default_retention_period
                 )
         else:
             default_retention = None
@@ -3124,13 +3173,13 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         bucket = bucket.update(
             bucket_type=args.bucketType,
-            bucket_info=args.bucketInfo,
-            cors_rules=args.corsRules,
-            lifecycle_rules=args.lifecycleRules,
+            bucket_info=args.bucket_info,
+            cors_rules=args.cors_rules,
+            lifecycle_rules=args.lifecycle_rules,
             default_server_side_encryption=encryption_setting,
             default_retention=default_retention,
             replication=replication,
-            is_file_lock_enabled=args.fileLockEnabled,
+            is_file_lock_enabled=args.file_lock_enabled,
         )
         self._print_json(bucket)
         return 0
@@ -3139,15 +3188,16 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
 class MinPartSizeMixin(Described):
     """
     By default, the file is broken into many parts to maximize upload parallelism and increase speed.
-    Setting ``--minPartSize`` controls the minimal upload file part size.
+    Setting ``--min-part-size`` controls the minimal upload file part size.
     Part size must be in 5MB to 5GB range.
     Reference: `<https://www.backblaze.com/docs/cloud-storage-create-large-files-with-the-native-api>`_
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--minPartSize',
+        add_normalized_argument(
+            parser,
+            '--min-part-size',
             type=int,
             help="minimum part size in bytes",
             default=None,
@@ -3178,8 +3228,9 @@ class UploadFileMixin(
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--contentType',
+        add_normalized_argument(
+            parser,
+            '--content-type',
             help="MIME type of the file being uploaded. If not set it will be guessed."
         )
         parser.add_argument(
@@ -3192,7 +3243,8 @@ class UploadFileMixin(
             help=
             "additional file info to be stored with the file. Can be used multiple times for different information."
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--custom-upload-timestamp',
             type=int,
             help="overrides object creation date. Expressed as a number of milliseconds since epoch."
@@ -3236,7 +3288,7 @@ class UploadFileMixin(
             "bucket":
                 self.api.get_bucket_by_name(args.bucketName),
             "content_type":
-                args.contentType,
+                args.content_type,
             "custom_upload_timestamp":
                 args.custom_upload_timestamp,
             "encryption":
@@ -3252,9 +3304,9 @@ class UploadFileMixin(
             "local_file":
                 args.localFilePath,
             "min_part_size":
-                args.minPartSize,
+                args.min_part_size,
             "progress_listener":
-                self.make_progress_listener(args.localFilePath, args.noProgress or args.quiet),
+                self.make_progress_listener(args.localFilePath, args.no_progress or args.quiet),
             "sha1_sum":
                 args.sha1,
             "threads":
@@ -3373,8 +3425,8 @@ class UploadUnboundStream(UploadFileMixin, Command):
     {MINPARTSIZEMIXIN}
 
     As opposed to ``b2 upload-file``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
-    So on memory constrained system it is best to use ``--partSize`` option to set it manually.
-    During upload of unbound stream ``--partSize`` as well as ``--threads`` determine the amount of memory used.
+    So on memory constrained system it is best to use ``--part-size`` option to set it manually.
+    During upload of unbound stream ``--part-size`` as well as ``--threads`` determine the amount of memory used.
     The maximum memory use for the upload buffers can be estimated at ``partSize * threads``, that is ~1GB by default.
     What is more, B2 Large File may consist of at most 10,000 parts, so ``minPartSize`` should be adjusted accordingly,
     if you expect the stream to be larger than 50GB.
@@ -3398,14 +3450,16 @@ class UploadUnboundStream(UploadFileMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            '--partSize',
+        add_normalized_argument(
+            parser,
+            '--part-size',
             type=int,
             default=None,
             help=("part size in bytes. Must be in range of <minPartSize, 5GB>"),
         )
-        parser.add_argument(
-            '--unusedBufferTimeoutSeconds',
+        add_normalized_argument(
+            parser,
+            '--unused-buffer-timeout-seconds',
             type=float,
             default=3600.0,
             help=(
@@ -3418,8 +3472,8 @@ class UploadUnboundStream(UploadFileMixin, Command):
     def get_execute_kwargs(self, args) -> dict:
         kwargs = super().get_execute_kwargs(args)
         kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
-        kwargs["recommended_upload_part_size"] = args.partSize
-        kwargs["unused_buffer_timeout_seconds"] = args.unusedBufferTimeoutSeconds
+        kwargs["recommended_upload_part_size"] = args.part_size
+        kwargs["unused_buffer_timeout_seconds"] = args.unused_buffer_timeout_seconds
         return kwargs
 
     def execute_operation(self, local_file, bucket, threads, **kwargs):
@@ -3468,12 +3522,12 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
 
 class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
     """
-    Only works in buckets with fileLockEnabled=true. Providing a ``retentionMode`` other than ``none`` requires
+    Only works in buckets with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
     providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
     since epoch.
 
     If a file already is in governance mode, disabling retention or shortening it's period requires providing
-    ``--bypassGovernance``.
+    ``--bypass-governance``.
 
     If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
 
@@ -3500,13 +3554,14 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
             'retentionMode',
             choices=(RetentionMode.GOVERNANCE.value, RetentionMode.COMPLIANCE.value, 'none')
         )
-        parser.add_argument(
-            '--retainUntil',
+        add_normalized_argument(
+            parser,
+            '--retain-until',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
             default=None
         )
-        parser.add_argument('--bypassGovernance', action='store_true', default=False)
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
 
     def _run(self, args):
         file_name = self._get_file_name_from_args(args)
@@ -3515,11 +3570,11 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
             file_retention = FileRetentionSetting(RetentionMode.NONE)
         else:
             file_retention = FileRetentionSetting(
-                RetentionMode(args.retentionMode), args.retainUntil
+                RetentionMode(args.retentionMode), args.retain_until
             )
 
         self.api.update_file_retention(
-            args.fileId, file_name, file_retention, args.bypassGovernance
+            args.fileId, file_name, file_retention, args.bypass_governance
         )
         return 0
 
@@ -3539,11 +3594,14 @@ class ReplicationSetup(Command):
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        parser.add_argument('--destination-profile', default=None)
+        add_normalized_argument(parser, '--destination-profile', default=None)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
-        parser.add_argument('--name', help='name for the new replication rule on the source side')
-        parser.add_argument(
+        add_normalized_argument(
+            parser, '--name', help='name for the new replication rule on the source side'
+        )
+        add_normalized_argument(
+            parser,
             '--priority',
             help=
             'priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.'
@@ -3554,12 +3612,14 @@ class ReplicationSetup(Command):
             type=int,
             default=None,
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--file-name-prefix',
             metavar='PREFIX',
             help='only replicate files starting with PREFIX'
         )
-        parser.add_argument(
+        add_normalized_argument(
+            parser,
             '--include-existing-files',
             action='store_true',
             help='if given, also replicates files uploaded prior to creation of the replication rule'
@@ -3707,7 +3767,7 @@ class ReplicationStatus(Command):
     "Console" output format is meant to be human-readable and is subject to change
     in any further release. One should use "json" for reliable "no-breaking-changes"
     output format. When piping "csv" format to some .csv file, it's handy to use
-    --noProgress flag which will disable interactive reporting output, otherwise it will
+    --no-progress flag which will disable interactive reporting output, otherwise it will
     also go to target csv file's first line.
 
     --columns
@@ -3719,14 +3779,15 @@ class ReplicationStatus(Command):
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
-        parser.add_argument('--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        parser.add_argument('--destination-profile')
-        parser.add_argument('--dont-scan-destination', action='store_true')
-        parser.add_argument(
-            '--output-format', default='console', choices=('console', 'json', 'csv')
+        add_normalized_argument(parser, '--rule', metavar='REPLICATION_RULE_NAME', default=None)
+        add_normalized_argument(parser, '--destination-profile')
+        add_normalized_argument(parser, '--dont-scan-destination', action='store_true')
+        add_normalized_argument(
+            parser, '--output-format', default='console', choices=('console', 'json', 'csv')
         )
-        parser.add_argument('--noProgress', action='store_true')
-        parser.add_argument(
+        add_normalized_argument(parser, '--no-progress', action='store_true')
+        add_normalized_argument(
+            parser,
             '--columns',
             default=['all'],
             type=lambda value: re.split(r', ?', value),
@@ -3759,7 +3820,7 @@ class ReplicationStatus(Command):
                 rule=rule,
                 destination_api=destination_api,
                 scan_destination=not args.dont_scan_destination,
-                quiet=args.noProgress or args.quiet,
+                quiet=args.no_progress or args.quiet,
             )
             for rule in rules
         }
@@ -3870,7 +3931,7 @@ class Version(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--short', action='store_true')
+        add_normalized_argument(parser, '--short', action='store_true')
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -3929,9 +3990,11 @@ class License(Command):  # pragma: no cover
     @classmethod
     def _setup_parser(cls, parser):
         # these are for building, users should not call it:
-        parser.add_argument('--dump', action='store_true', default=False, help=argparse.SUPPRESS)
-        parser.add_argument(
-            '--with-packages', action='store_true', default=False, help=argparse.SUPPRESS
+        add_normalized_argument(
+            parser, '--dump', action='store_true', default=False, help=argparse.SUPPRESS
+        )
+        add_normalized_argument(
+            parser, '--with-packages', action='store_true', default=False, help=argparse.SUPPRESS
         )
         super()._setup_parser(parser)
 
@@ -4089,7 +4152,7 @@ class InstallAutocomplete(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--shell', choices=SUPPORTED_SHELLS, default=None)
+        add_normalized_argument(parser, '--shell', choices=SUPPORTED_SHELLS, default=None)
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -4242,11 +4305,11 @@ class ConsoleTool:
 
     @classmethod
     def _setup_logging(cls, args, argv):
-        if args.logConfig and (args.verbose or args.debugLogs):
-            raise ValueError('Please provide either --logConfig or --verbose/--debugLogs')
-        if args.logConfig:
-            logging.config.fileConfig(args.logConfig)
-        elif args.verbose or args.debugLogs:
+        if args.log_config and (args.verbose or args.debug_logs):
+            raise ValueError('Please provide either --log-config or --verbose/--debug-logs')
+        if args.log_config:
+            logging.config.fileConfig(args.log_config)
+        elif args.verbose or args.debug_logs:
             # set log level to DEBUG for ALL loggers (even those not belonging to B2), but without any handlers,
             # those will added as needed (file and/or stderr)
             logging.basicConfig(level=logging.DEBUG, handlers=[])
@@ -4259,7 +4322,7 @@ class ConsoleTool:
 
             # logs from ALL loggers sent to stderr should be formatted this way
             logging.root.addHandler(handler)
-        if args.debugLogs:
+        if args.debug_logs:
             formatter = logging.Formatter(
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )

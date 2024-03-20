@@ -10,7 +10,10 @@
 
 # ruff: noqa: F405
 from b2._internal._b2v4.registry import *  # noqa
+from b2._internal.arg_parser import enable_camel_case_arguments
 from .rm import Rm
+
+enable_camel_case_arguments()
 
 
 class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):

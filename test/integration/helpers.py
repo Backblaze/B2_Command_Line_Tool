@@ -414,7 +414,7 @@ class CommandLine:
         return self.api_wrapper.new_bucket_name()
 
     def get_bucket_info_args(self) -> tuple[str, str]:
-        return '--bucketInfo', json.dumps(self.api_wrapper.new_bucket_info(), ensure_ascii=True)
+        return '--bucket-info', json.dumps(self.api_wrapper.new_bucket_info(), ensure_ascii=True)
 
     def run_command(self, args, additional_env: dict | None = None):
         """

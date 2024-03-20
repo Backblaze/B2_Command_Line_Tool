@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import abc
 import argparse
+import itertools
 import os
 import pathlib
 import pickle
@@ -19,6 +20,7 @@ from typing import Callable
 import argcomplete
 import platformdirs
 
+from b2._internal.arg_parser import DeprecatedActionMarker
 from b2._internal.version import VERSION
 
 
@@ -120,12 +122,26 @@ class AutocompleteCache:
 
     def _clean_parser(self, parser: argparse.ArgumentParser) -> None:
         parser.register('type', None, identity)
+
+        def _get_deprecated_actions(actions):
+            return [action for action in actions if isinstance(action, DeprecatedActionMarker)]
+
+        for action in _get_deprecated_actions(parser._actions):
+            parser._actions.remove(action)
+            for option_string in action.option_strings:
+                del parser._option_string_actions[option_string]
+
         for action in parser._actions:
             if action.type not in [str, int]:
                 action.type = None
-        for action in parser._action_groups:
+
+        for group in itertools.chain(parser._action_groups, parser._mutually_exclusive_groups):
+            for action in _get_deprecated_actions(group._group_actions):
+                group._group_actions.remove(action)
+
             for key in parser._defaults:
-                action.set_defaults(**{key: None})
+                group.set_defaults(**{key: None})
+
         parser.description = None
         if parser._subparsers:
             for group_action in parser._subparsers._group_actions:

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import functools
 import locale
+import re
 import sys
 import textwrap
 import unittest.mock
@@ -147,3 +148,76 @@ class B2ArgumentParser(argparse.ArgumentParser):
             self, 'formatter_class', functools.partial(B2RawTextHelpFormatter, show_all=show_all)
         ):
             super().print_help(*args, **kwargs)
+
+
+SUPPORT_CAMEL_CASE_ARGUMENTS = False
+
+
+def enable_camel_case_arguments():
+    global SUPPORT_CAMEL_CASE_ARGUMENTS
+    SUPPORT_CAMEL_CASE_ARGUMENTS = True
+
+
+def make_deprecated_action_call(action):
+    def deprecated_action_call(self, parser, namespace, values, option_string=None, **kwargs):
+        action.__call__(self, parser, namespace, values, option_string, **kwargs)
+        if option_string:
+            kebab_option_string = _camel_to_kebab(option_string)
+            print(
+                f"The '{option_string}' argument is deprecated. Use '{kebab_option_string}' instead.",
+                file=sys.stderr
+            )
+
+    return deprecated_action_call
+
+
+_kebab_to_snake_pattern = re.compile(r'-')
+_camel_to_kebab_pattern = re.compile(r'(?<=[a-z])([A-Z])')
+_kebab_to_camel_pattern = re.compile(r'-(\w)')
+
+
+def _camel_to_kebab(s: str):
+    return _camel_to_kebab_pattern.sub(r'-\1', s).lower()
+
+
+def _kebab_to_camel(s: str):
+    return "--" + _kebab_to_camel_pattern.sub(lambda m: m.group(1).upper(), s[2:])
+
+
+def _kebab_to_snake(s: str):
+    return _kebab_to_snake_pattern.sub('_', s)
+
+
+class DeprecatedActionMarker:
+    pass
+
+
+def add_normalized_argument(parser, param_name, *args, **kwargs):
+    param_name_kebab = _camel_to_kebab(param_name)
+    param_name_camel = _kebab_to_camel(param_name_kebab)
+    dest_name_snake = _kebab_to_snake(param_name_kebab)[2:]
+    kwargs_kebab = dict(kwargs)
+    kwargs_camel = kwargs
+    kwargs_camel['help'] = argparse.SUPPRESS
+
+    if 'dest' not in kwargs_kebab:
+        kwargs_kebab['dest'] = dest_name_snake
+        kwargs_camel['dest'] = dest_name_snake
+
+    if 'action' in kwargs:
+        if isinstance(kwargs['action'], str):
+            action = parser._registry_get('action', kwargs['action'])
+        else:
+            action = kwargs['action']
+    else:
+        action = argparse._StoreAction
+
+    kwargs_camel['action'] = type(
+        'DeprecatedAction', (action, DeprecatedActionMarker),
+        {'__call__': make_deprecated_action_call(action)}
+    )
+
+    parser.add_argument(f'{param_name_kebab}', *args, **kwargs_kebab)
+
+    if SUPPORT_CAMEL_CASE_ARGUMENTS and param_name_kebab != param_name_camel:
+        parser.add_argument(f'{param_name_camel}', *args, **kwargs_camel)

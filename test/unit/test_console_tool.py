@@ -278,9 +278,9 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
             bad_str = "\u009b2K\u009b7Gb\u009b24Gx\u009b4GH"
             escaped_bad_str = "\\x9b2K\\x9b7Gb\\x9b24Gx\\x9b4GH"
 
-            self._run_command(['upload-file', '--noProgress', 'my-bucket-cc', local_file, bad_str])
+            self._run_command(['upload-file', '--no-progress', 'my-bucket-cc', local_file, bad_str])
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket-cc', local_file, "some_normal_text"]
+                ['upload-file', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
             )
 
             self._run_command(
@@ -289,6 +289,27 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
 
 
 class TestConsoleTool(BaseConsoleToolTest):
+    @pytest.mark.cli_version(to_version=3)
+    def test_camel_case_supported_in_v3(self):
+        self._authorize_account()
+        self._run_command(
+            ['create-bucket', 'my-bucket', '--bucketInfo', '{"xxx": "123"}', 'allPrivate'],
+            'bucket_0\n', '', 0
+        )
+        self._run_command(
+            ['create-bucket', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
+            'bucket_1\n', '', 0
+        )
+
+    @pytest.mark.cli_version(from_version=4)
+    def test_camel_case_not_supported_in_v4(self):
+        self._authorize_account()
+        self._run_command(['create-bucket', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2)
+        self._run_command(
+            ['create-bucket', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
+            'bucket_0\n', '', 0
+        )
+
     def test_create_key_and_authorize_with_it(self):
         # Start with authorizing with the master key
         self._authorize_account()
@@ -394,8 +415,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycleRule', rule], 'bucket_0\n', '',
-            0
+            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule], 'bucket_0\n',
+            '', 0
         )
 
     def test_create_bucket__with_lifecycle_rules(self):
@@ -412,7 +433,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycleRules', rules], 'bucket_0\n',
+            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycle-rules', rules], 'bucket_0\n',
             '', 0
         )
 
@@ -429,8 +450,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             [
-                'create-bucket', 'my-bucket', 'allPrivate', '--lifecycleRule', rule,
-                '--lifecycleRules', f"[{rule}]"
+                'create-bucket', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule,
+                '--lifecycle-rules', f"[{rule}]"
             ], '', '', 2
         )
 
@@ -463,7 +484,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a bucket with lifecycleRule
         self._run_command(
             [
-                'create-bucket', '--lifecycleRule',
+                'create-bucket', '--lifecycle-rule',
                 '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}', bucket_name,
                 'allPrivate'
             ], 'bucket_0\n', '', 0
@@ -485,7 +506,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Update some other attribute than lifecycleRule, which should remain intact
         self._run_command(
-            ['update-bucket', bucket_name, '--bucketInfo', '{"xxx": "123"}'],
+            ['update-bucket', bucket_name, '--bucket-info', '{"xxx": "123"}'],
             expected_json_in_stdout=expected_stdout_dict,
         )
 
@@ -549,8 +570,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Make two encrypted buckets
         self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
         self._run_command(
-            ['create-bucket', '--defaultServerSideEncryption=SSE-B2', 'your-bucket', 'allPrivate'],
-            'bucket_1\n', '', 0
+            [
+                'create-bucket', '--default-server-side-encryption=SSE-B2', 'your-bucket',
+                'allPrivate'
+            ], 'bucket_1\n', '', 0
         )
 
         # Update the one without encryption
@@ -571,7 +594,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         }
 
         self._run_command(
-            ['update-bucket', '--defaultServerSideEncryption=SSE-B2', 'my-bucket', 'allPublic'],
+            ['update-bucket', '--default-server-side-encryption=SSE-B2', 'my-bucket', 'allPublic'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -665,7 +688,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            ['create-key', '--allCapabilities', 'goodKeyName-Four'],
+            ['create-key', '--all-capabilities', 'goodKeyName-Four'],
             'appKeyId3 appKey3\n',
             '',
             0,
@@ -780,7 +803,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "revision": 2
         }
         self._run_command(
-            ['update-bucket', '--bucketInfo',
+            ['update-bucket', '--bucket-info',
              json.dumps(bucket_info), 'my-bucket', 'allPrivate'],
             expected_json_in_stdout=expected_json,
         )
@@ -822,7 +845,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt',
+                    'upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
                     '--cache-control=private, max-age=3600'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -972,7 +995,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2',
+                    'upload-file', '--no-progress', '--destination-server-side-encryption=SSE-B2',
                     'my-bucket', local_file1, 'file1.txt'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1027,7 +1050,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             self._run_command(
-                ['download-file', '--noProgress', 'b2://my-bucket/file1.txt', local_download1],
+                ['download-file', '--no-progress', 'b2://my-bucket/file1.txt', local_download1],
                 expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -1039,7 +1062,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 output_path=pathlib.Path(local_download2).resolve()
             )
             self._run_command(
-                ['download-file', '--noProgress', 'b2id://9999', local_download2], expected_stdout,
+                ['download-file', '--no-progress', 'b2id://9999', local_download2], expected_stdout,
                 '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
@@ -1137,14 +1160,14 @@ class TestConsoleTool(BaseConsoleToolTest):
             local_file_content = self._read_file(local_file)
 
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket', local_file, source_filename],
+                ['upload-file', '--no-progress', 'my-bucket', local_file, source_filename],
                 remove_version=True,
             )
 
             b2uri = f'b2://my-bucket/{source_filename}' if download_by == 'name' else 'b2id://9999'
             command = [
                 'download-file',
-                '--noProgress',
+                '--no-progress',
                 b2uri,
             ]
 
@@ -1207,7 +1230,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                ['upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -1286,7 +1309,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             self._run_command(
                 [
                     'copy-file-by-id',
-                    '--contentType',
+                    '--content-type',
                     'text/plain',
                     '9999',
                     'my-bucket',
@@ -1318,7 +1341,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             self._run_command(
                 [
                     'copy-file-by-id',
-                    '--contentType',
+                    '--content-type',
                     'text/plain',
                     '--info',
                     'a=b',
@@ -1435,7 +1458,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--noProgress', '--threads', '5', 'my-bucket', file_path,
+                    'upload-file', '--no-progress', '--threads', '5', 'my-bucket', file_path,
                     'test.txt'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1479,7 +1502,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--noProgress', '--destinationServerSideEncryption=SSE-B2',
+                    'upload-file', '--no-progress', '--destination-server-side-encryption=SSE-B2',
                     '--threads', '5', 'my-bucket', file_path, 'test.txt'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1498,10 +1521,10 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             incremental_upload_params = [
                 'upload-file',
-                '--noProgress',
+                '--no-progress',
                 '--threads',
                 '5',
-                '--incrementalMode',
+                '--incremental-mode',
                 'my-bucket',
                 str(file_path),
                 'test.txt',
@@ -1591,7 +1614,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 0
         }
         self._run_command(
-            ['get-bucket', '--showSize', 'my-bucket'],
+            ['get-bucket', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1621,7 +1644,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5000
             }
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket', local_file1, 'file1.txt'],
+                ['upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -1645,7 +1668,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "totalSize": 11
             }
             self._run_command(
-                ['get-bucket', '--showSize', 'my-bucket'],
+                ['get-bucket', '--show-size', 'my-bucket'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1684,7 +1707,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 40
         }
         self._run_command(
-            ['get-bucket', '--showSize', 'my-bucket'],
+            ['get-bucket', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1734,7 +1757,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 90
         }
         self._run_command(
-            ['get-bucket', '--showSize', 'my-bucket'],
+            ['get-bucket', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1778,7 +1801,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 24
         }
         self._run_command(
-            ['get-bucket', '--showSize', 'my-bucket'],
+            ['get-bucket', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1842,7 +1865,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 99
         }
         self._run_command(
-            ['get-bucket', '--showSize', 'my-bucket'],
+            ['get-bucket', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1850,8 +1873,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._run_command(
             [
-                'create-bucket', '--defaultServerSideEncryption=SSE-B2',
-                '--defaultServerSideEncryptionAlgorithm=AES256', 'my-bucket', 'allPublic'
+                'create-bucket', '--default-server-side-encryption=SSE-B2',
+                '--default-server-side-encryption-algorithm=AES256', 'my-bucket', 'allPublic'
             ], 'bucket_0\n', '', 0
         )
         expected_json = {
@@ -1872,7 +1895,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 0
         }
         self._run_command(
-            ['get-bucket', '--showSize', 'my-bucket'],
+            ['get-bucket', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1888,15 +1911,15 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--no-progress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_empty_folder_when_not_enabled(self):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
-            expected_stderr = 'ERROR: Directory %s is empty.  Use --allowEmptySource to sync anyway.\n' % fix_windows_path_limit(
+            command = ['sync', '--no-progress', temp_dir, 'b2://my-bucket']
+            expected_stderr = 'ERROR: Directory %s is empty.  Use --allow-empty-source to sync anyway.\n' % fix_windows_path_limit(
                 temp_dir.replace('\\\\', '\\')
             )
             self._run_command(command, '', expected_stderr, 1)
@@ -1905,7 +1928,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._create_my_bucket()
         with TempDir() as temp_dir:
-            command = ['sync', '--noProgress', '--allowEmptySource', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--no-progress', '--allow-empty-source', temp_dir, 'b2://my-bucket']
             self._run_command(command, '', '', 0)
 
     def test_sync_dry_run(self):
@@ -1919,7 +1942,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stdout = '''
             upload test-dry-run.txt
             '''
-            command = ['sync', '--noProgress', '--dryRun', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--no-progress', '--dry-run', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
             # file should not have been uploaded
@@ -1934,7 +1957,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stdout = '''
             upload test-dry-run.txt
             '''
-            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--no-progress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
             # file should have been uploaded
@@ -1972,7 +1995,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload test.txt
             '''
 
-            command = ['sync', '--noProgress', '--excludeAllSymlinks', temp_dir, 'b2://my-bucket']
+            command = [
+                'sync', '--no-progress', '--exclude-all-symlinks', temp_dir, 'b2://my-bucket'
+            ]
             self._run_command(command, expected_stdout, '', 0)
 
     def test_sync_dont_exclude_all_symlinks(self):
@@ -1987,7 +2012,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             upload alink
             '''
 
-            command = ['sync', '--noProgress', temp_dir, 'b2://my-bucket']
+            command = ['sync', '--no-progress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_part_of_stdout=expected_part_of_stdout)
 
     def test_sync_exclude_if_modified_after_in_range(self):
@@ -2005,7 +2030,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             command = [
-                'sync', '--noProgress', '--excludeIfModifiedAfter', '1367700664.152', temp_dir,
+                'sync', '--no-progress', '--exclude-if-modified-after', '1367700664.152', temp_dir,
                 'b2://my-bucket'
             ]
             self._run_command(command, expected_stdout, '', 0)
@@ -2025,7 +2050,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             '''
 
             command = [
-                'sync', '--noProgress', '--excludeIfModifiedAfter', '1367600664.152', temp_dir,
+                'sync', '--no-progress', '--exclude-if-modified-after', '1367600664.152', temp_dir,
                 'b2://my-bucket'
             ]
             self._run_command(command, expected_stdout, '', 0)
@@ -2042,15 +2067,15 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         with TempDir() as temp_dir:
             self._make_local_file(temp_dir, 'file.txt')
-            command = ['sync', '--noProgress']
+            command = ['sync', '--no-progress']
             if threads is not None:
                 command += ['--threads', str(threads)]
             if sync_threads is not None:
-                command += ['--syncThreads', str(sync_threads)]
+                command += ['--sync-threads', str(sync_threads)]
             if download_threads is not None:
-                command += ['--downloadThreads', str(download_threads)]
+                command += ['--download-threads', str(download_threads)]
             if upload_threads is not None:
-                command += ['--uploadThreads', str(upload_threads)]
+                command += ['--upload-threads', str(upload_threads)]
             command += [temp_dir, 'b2://my-bucket']
             expected_stdout = '''
             upload file.txt
@@ -2152,7 +2177,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Check with no files
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.txt')], '',
+            ['ls', '--recursive', '--with-wildcard', *self.b2_uri_args('my-bucket', '*.txt')], '',
             '', 0
         )
 
@@ -2170,7 +2195,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.[tc]sv')],
+            ['ls', '--recursive', '--with-wildcard', *self.b2_uri_args('my-bucket', '*.[tc]sv')],
             expected_stdout,
         )
 
@@ -2180,7 +2205,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.tsv')],
+            ['ls', '--recursive', '--with-wildcard', *self.b2_uri_args('my-bucket', '*.tsv')],
             expected_stdout,
         )
 
@@ -2189,7 +2214,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(
             [
-                'ls', '--recursive', '--withWildcard',
+                'ls', '--recursive', '--with-wildcard',
                 *self.b2_uri_args('my-bucket', 'b/b?/test.csv')
             ],
             expected_stdout,
@@ -2202,7 +2227,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         c/test.tsv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '?/test.?sv')],
+            ['ls', '--recursive', '--with-wildcard', *self.b2_uri_args('my-bucket', '?/test.?sv')],
             expected_stdout,
         )
 
@@ -2211,7 +2236,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         b/b1/test.csv
         '''
         self._run_command(
-            ['ls', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '?/*/*.[!t]sv')],
+            [
+                'ls', '--recursive', '--with-wildcard',
+                *self.b2_uri_args('my-bucket', '?/*/*.[!t]sv')
+            ],
             expected_stdout,
         )
 
@@ -2221,7 +2249,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Check with no files
         self._run_command(
-            ['ls', '--withWildcard', *self.b2_uri_args('my-bucket')],
+            ['ls', '--with-wildcard', *self.b2_uri_args('my-bucket')],
             expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
             expected_status=1,
         )
@@ -2250,7 +2278,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         file_prefix = 'some/file/prefix/'
         self._run_command(
             [
-                'create-key', '--bucket', bucket_name, '--namePrefix', file_prefix, 'my-key',
+                'create-key', '--bucket', bucket_name, '--name-prefix', file_prefix, 'my-key',
                 capabilities
             ],
             app_key_id + ' ' + app_key + '\n',
@@ -2507,7 +2535,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             _ = self._make_local_file(temp_dir, "\x1b[32mC\x1b[33mC\x1b[34mI\x1b[0m")
             self._run_command(
                 [
-                    'sync', '--noProgress', '--no-escape-control-characters', temp_dir,
+                    'sync', '--no-progress', '--no-escape-control-characters', temp_dir,
                     'b2://my-bucket-0'
                 ],
                 expected_part_of_stdout='\\x1b[32m',
@@ -2515,7 +2543,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
             self._run_command(
                 [
-                    'sync', '--noProgress', '--escape-control-characters', temp_dir,
+                    'sync', '--no-progress', '--escape-control-characters', temp_dir,
                     'b2://my-bucket-1'
                 ],
                 expected_part_of_stdout="upload '\\x1b[32mC\\x1b[33mC\\x1b[34mI\\x1b[0m'\n",
@@ -2532,7 +2560,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a key
         self._run_command(
             [
-                'create-key', '--bucket', 'my-bucket-0', '--namePrefix', cc_name, 'key1',
+                'create-key', '--bucket', 'my-bucket-0', '--name-prefix', cc_name, 'key1',
                 'listBuckets,listKeys'
             ],
             'appKeyId0 appKey0\n',
@@ -2570,7 +2598,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             escaped_cc_filename = '\\x9bT\\x9bE\\x9bS\\x9bTtest.txt'
 
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket-0', local_file, cc_filename]
+                ['upload-file', '--no-progress', 'my-bucket-0', local_file, cc_filename]
             )
 
         self._run_command(
@@ -2597,10 +2625,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             bad_str = "\u009b2K\u009b7Gb\u009b24Gx\u009b4GH"
             escaped_bad_str = "\\x9b2K\\x9b7Gb\\x9b24Gx\\x9b4GH"
 
-            self._run_command(['upload-file', '--noProgress', 'my-bucket-cc', local_file, bad_str])
+            self._run_command(['upload-file', '--no-progress', 'my-bucket-cc', local_file, bad_str])
 
             self._run_command(
-                ['upload-file', '--noProgress', 'my-bucket-cc', local_file, "some_normal_text"]
+                ['upload-file', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
             )
 
             self._run_command(
@@ -2727,7 +2755,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_wildcard(self):
         self._run_command(
             [
-                'rm', '--recursive', '--withWildcard', '--noProgress',
+                'rm', '--recursive', '--with-wildcard', '--no-progress',
                 *self.b2_uri_args('my-bucket', '*.csv')
             ],
         )
@@ -2746,7 +2774,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             [
-                'rm', '--versions', '--recursive', '--withWildcard',
+                'rm', '--versions', '--recursive', '--with-wildcard',
                 *self.b2_uri_args('my-bucket', '*.csv')
             ],
         )
@@ -2766,7 +2794,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         )
 
     def test_rm_no_recursive(self):
-        self._run_command(['rm', '--noProgress', *self.b2_uri_args('my-bucket', 'b/')])
+        self._run_command(['rm', '--no-progress', *self.b2_uri_args('my-bucket', 'b/')])
 
         expected_stdout = '''
         a/test.csv
@@ -2788,7 +2816,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(
             [
-                'rm', '--recursive', '--withWildcard', '--dryRun',
+                'rm', '--recursive', '--with-wildcard', '--dry-run',
                 *self.b2_uri_args('my-bucket', '*.csv')
             ],
             expected_stdout,
@@ -2809,7 +2837,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_exact_filename(self):
         self._run_command(
             [
-                'rm', '--recursive', '--withWildcard', '--noProgress',
+                'rm', '--recursive', '--with-wildcard', '--no-progress',
                 *self.b2_uri_args('my-bucket', 'b/b/test.csv')
             ],
         )
@@ -2826,12 +2854,12 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
     def test_rm_no_name_removes_everything(self):
-        self._run_command(['rm', '--recursive', '--noProgress', *self.b2_uri_args('my-bucket')])
+        self._run_command(['rm', '--recursive', '--no-progress', *self.b2_uri_args('my-bucket')])
         self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], '')
 
     def test_rm_with_wildcard_without_recursive(self):
         self._run_command(
-            ['rm', '--withWildcard', *self.b2_uri_args('my-bucket')],
+            ['rm', '--with-wildcard', *self.b2_uri_args('my-bucket')],
             expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
             expected_status=1,
         )
@@ -2839,7 +2867,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_queue_size_and_number_of_threads(self):
         self._run_command(
             [
-                'rm', '--recursive', '--threads', '2', '--queueSize', '4',
+                'rm', '--recursive', '--threads', '2', '--queue-size', '4',
                 *self.b2_uri_args('my-bucket')
             ]
         )
@@ -2848,7 +2876,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_progress(self):
         expected_in_stdout = ' count: 4/4 '
         self._run_command(
-            ['rm', '--recursive', '--withWildcard', *self.b2_uri_args('my-bucket', '*.csv')],
+            ['rm', '--recursive', '--with-wildcard', *self.b2_uri_args('my-bucket', '*.csv')],
             expected_part_of_stdout=expected_in_stdout,
         )
 
@@ -2888,10 +2916,10 @@ class TestRmConsoleTool(BaseConsoleToolTest):
                 [
                     'rm',
                     '--recursive',
-                    '--withWildcard',
+                    '--with-wildcard',
                     '--threads',
                     '1',
-                    '--queueSize',
+                    '--queue-size',
                     '1',
                     *additional_parameters,
                     *self.b2_uri_args('my-bucket', '*'),
@@ -2908,7 +2936,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         Deletion of file "b/b1/test.csv" (9996) failed: Conflict:
          count: 3/4'''
         unexpected_in_stdout = ' count: 5/5 '
-        self._run_problematic_removal(['--failFast'], expected_in_stdout, unexpected_in_stdout)
+        self._run_problematic_removal(['--fail-fast'], expected_in_stdout, unexpected_in_stdout)
 
     def test_rm_skipping_over_errors(self):
         self._run_problematic_removal()
@@ -2938,7 +2966,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self._run_command(['ls', '--recursive', 'b2://my-bucket'], expected_stdout)
 
         # Delete file
-        self._run_command(['rm', '--noProgress', f'b2id://{file_version.id_}'], '', '', 0)
+        self._run_command(['rm', '--no-progress', f'b2id://{file_version.id_}'], '', '', 0)
 
         # After deleting
         expected_stdout = '''
@@ -2970,7 +2998,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         bucket.upload(data, 'test.txt')
 
         self._run_command(
-            ['rm', '--noProgress', *self.b2_uri_args('my-rm-bucket'), *rm_args], '', '', 0
+            ['rm', '--no-progress', *self.b2_uri_args('my-rm-bucket'), *rm_args], '', '', 0
         )
         self._run_command(
             ['ls', *self.b2_uri_args('my-rm-bucket'), '--recursive'],
