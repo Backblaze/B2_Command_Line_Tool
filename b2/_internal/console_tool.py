@@ -3415,7 +3415,7 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
 
     def _run(self, args):
         file_name = self._get_file_name_from_args(args)
-        legal_hold = LegalHold(args.legal_hold)
+        legal_hold = LegalHold(args.legalHold)
         self.api.update_file_legal_hold(args.fileId, file_name, legal_hold)
         return 0
 
@@ -3470,7 +3470,7 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
             file_retention = FileRetentionSetting(RetentionMode.NONE)
         else:
             file_retention = FileRetentionSetting(
-                RetentionMode(args.retention_mode), args.retain_until
+                RetentionMode(args.retentionMode), args.retain_until
             )
 
         self.api.update_file_retention(
@@ -3538,7 +3538,7 @@ class ReplicationSetup(Command):
                                                                  ).get_fresh_state(),
             name=args.name,
             priority=args.priority,
-            prefix=args.fileName_prefix,
+            prefix=args.file_name_prefix,
             include_existing_files=args.include_existing_files,
         )
         return 0
