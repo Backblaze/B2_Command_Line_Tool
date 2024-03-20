@@ -289,7 +289,7 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
 
 
 class TestConsoleTool(BaseConsoleToolTest):
-    @pytest.mark.cli_version(to_version=3)
+    @pytest.mark.apiver(to_ver=3)
     def test_camel_case_supported_in_v3(self):
         self._authorize_account()
         self._run_command(
@@ -301,7 +301,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             'bucket_1\n', '', 0
         )
 
-    @pytest.mark.cli_version(from_version=4)
+    @pytest.mark.apiver(from_ver=4)
     def test_camel_case_not_supported_in_v4(self):
         self._authorize_account()
         self._run_command(['create-bucket', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2)
