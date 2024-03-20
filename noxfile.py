@@ -75,27 +75,28 @@ nox.options.sessions = [
 ]
 
 
-def pdm_install(session: nox.Session, *args: str, dev: bool = True, editable: bool = False) -> None:
-    # dev dependencies are installed by default
-    prod_args = [] if dev else ['--prod']
-    editable_args = [] if editable else ['--no-editable']
-    group_args = []
-    for group in args:
-        group_args.extend(['--group', group])
-    session.run(
-        'pdm', 'install', *editable_args, *prod_args, *group_args, external=True, **run_kwargs
-    )
+def pdm_install(
+    session: nox.Session, *groups: str, dev: bool = True, editable: bool = False
+) -> None:
+    args = []
+    if not dev:
+        args.append('--prod')
+    if not editable:
+        args.append('--no-editable')
+    for group in groups:
+        args.extend(['--group', group])
+    session.run('pdm', 'install', *args, external=True)
 
 
-run_kwargs = {}
-
-if CI:
-    # Inside the CI we need to silence most of the outputs to be able to use GITHUB_OUTPUT properly.
-    # Nox passes `stderr` and `stdout` directly to subprocess.Popen.
-    run_kwargs = dict(
-        stderr=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-    )
+def github_output(name, value, *, secret=False):
+    gh_output_path = os.environ.get('GITHUB_OUTPUT')
+    if secret:
+        print(f"::add-mask::{value}")
+    if gh_output_path:
+        with open(gh_output_path, "a") as file:
+            file.write(f"{name}={value}\n")
+    else:
+        print(f"github_output {name}={'******' if secret else value}")
 
 
 def get_version_key(path: pathlib.Path) -> int:
@@ -112,7 +113,7 @@ def get_version_key(path: pathlib.Path) -> int:
 
 def get_versions() -> list[str]:
     """
-    "Almost" a copy of b2/_internalg/version_listing.py:get_versions(), because importing
+    "Almost" a copy of b2/_internal/version_listing.py:get_versions(), because importing
     the file directly seems impossible from the noxfile.
     """
     # This sorting ensures that:
@@ -261,17 +262,15 @@ def cover(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def build(session):
     """Build the distribution."""
-    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True, **run_kwargs)
-    session.run('pdm', 'build', external=True, **run_kwargs)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True)
+    session.run('pdm', 'build', external=True)
 
-    # Set outputs for GitHub Actions
-    if CI:
-        # Path have to be specified with unix style slashes even for windows,
-        # otherwise glob won't find files on windows in action-gh-release.
-        print('asset_path=dist/*')
+    # Path have to be specified with unix style slashes even for windows,
+    # otherwise glob won't find files on windows in action-gh-release.
+    github_output('asset_path', 'dist/*')
 
-        version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
-        print(f'version={version}')
+    version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
+    github_output('version', version)
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
@@ -288,7 +287,7 @@ def bundle(session: nox.Session):
     # 1. `b2 license --dump` dumps the licence where the module is installed.
     # 2. We don't want to install b2 as editable module in the current session
     #    because that would make `b2 versions` show the versions as editable.
-    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True, **run_kwargs)
+    session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True)
     pdm_install(session, 'bundle', 'full')
 
     template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
@@ -302,12 +301,12 @@ def bundle(session: nox.Session):
         })
         pathlib.Path(f'{binary_name}.spec').write_text(spec)
 
-        session.run('pyinstaller', *session.posargs, f'{binary_name}.spec', **run_kwargs)
+        session.run('pyinstaller', *session.posargs, f'{binary_name}.spec')
 
         if SYSTEM == 'linux' and not NO_STATICX:
             session.run(
                 'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', f'dist/{binary_name}',
-                f'dist/{binary_name}-static', **run_kwargs
+                f'dist/{binary_name}-static'
             )
             session.run(
                 'mv',
@@ -315,24 +314,21 @@ def bundle(session: nox.Session):
                 f'dist/{binary_name}-static',
                 f'dist/{binary_name}',
                 external=True,
-                **run_kwargs
             )
 
-    # Set outputs for GitHub Actions
-    if CI:
-        # Path have to be specified with unix style slashes even for windows,
-        # otherwise glob won't find files on windows in action-gh-release.
-        print('asset_path=dist/*')
+    # Path have to be specified with unix style slashes even for windows,
+    # otherwise glob won't find files on windows in action-gh-release.
+    github_output('asset_path', 'dist/*')
 
-        # Note: this should pick the shortest named executable from the directory.
-        # But, for yet unknown reason, the `./dist/b2` doesn't play well with `--sut` and the autocomplete.
-        # For this reason, we're returning here the "latest, stable version" instead.
-        # This current implementation works fine up until version 10, when it will break.
-        # By that time, we should have come back to picking the shortest named binary (`b2`) up.
-        executable = max(
-            str(path) for path in pathlib.Path('dist').glob('*') if not path.name.startswith('_')
-        )
-        print(f'sut_path={executable}')
+    # Note: this should pick the shortest named executable from the directory.
+    # But, for yet unknown reason, the `./dist/b2` doesn't play well with `--sut` and the autocomplete.
+    # For this reason, we're returning here the "latest, stable version" instead.
+    # This current implementation works fine up until version 10, when it will break.
+    # By that time, we should have come back to picking the shortest named binary (`b2`) up.
+    executable = max(
+        str(path) for path in pathlib.Path('dist').glob('*') if not path.name.startswith('_')
+    )
+    github_output('sut_path', executable)
 
 
 @nox.session(python=False)
@@ -340,7 +336,7 @@ def sign(session):
     """Sign the bundled distribution (macOS and Windows only)."""
 
     def sign_windows(cert_file, cert_password):
-        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file, **run_kwargs)
+        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
         for binary_name in ['b2'] + get_versions():
             session.run(
                 WINDOWS_SIGNTOOL_PATH,
@@ -357,7 +353,6 @@ def sign(session):
                 'sha256',
                 f'dist/{binary_name}.exe',
                 external=True,
-                **run_kwargs
             )
             session.run(
                 WINDOWS_SIGNTOOL_PATH,
@@ -366,7 +361,6 @@ def sign(session):
                 '/all',
                 f'dist/{binary_name}.exe',
                 external=True,
-                **run_kwargs
             )
 
     if SYSTEM == 'windows':
@@ -387,13 +381,11 @@ def sign(session):
         name = asset.stem
         ext = asset.suffix
         asset_path = f'dist/{name}-{SYSTEM}{ext}'
-        session.run('mv', '-f', asset, asset_path, external=True, **run_kwargs)
+        session.run('mv', '-f', asset, asset_path, external=True)
 
-    # Set outputs for GitHub Actions
-    if CI:
-        # Path have to be specified with unix style slashes even for windows,
-        # otherwise glob won't find files on windows in action-gh-release.
-        print('asset_path=dist/*')
+    # Path have to be specified with unix style slashes even for windows,
+    # otherwise glob won't find files on windows in action-gh-release.
+    github_output('asset_path', 'dist/*')
 
 
 def _calculate_hashes(
@@ -416,7 +408,7 @@ def _calculate_hashes(
 
 
 def _save_hashes(output_file: pathlib.Path, hashes: list[hashlib._Hash]) -> None:  # noqa
-    longest_algo_name = max([len(elem.name) for elem in hashes])
+    longest_algo_name = max(len(elem.name) for elem in hashes)
     line_format = '{algo:<%s} {hash_value}' % longest_algo_name
 
     output_lines = []

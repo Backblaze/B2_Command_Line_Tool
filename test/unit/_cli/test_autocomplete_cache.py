@@ -94,9 +94,14 @@ def argcomplete_result():
     return exit.code, output.getvalue()
 
 
-def cached_complete_result(cache: autocomplete_cache.AutocompleteCache):
+def cached_complete_result(cache: autocomplete_cache.AutocompleteCache, raise_exc: bool = True):
     exit, output = Exit(), io.StringIO()
-    cache.autocomplete_from_cache(uncached_args={'exit_method': exit, 'output_stream': output})
+    cache.autocomplete_from_cache(
+        uncached_args={
+            'exit_method': exit,
+            'output_stream': output
+        }, raise_exc=raise_exc
+    )
     return exit.code, output.getvalue()
 
 
@@ -150,6 +155,32 @@ def test_complete_with_bucket_suggestions(autocomplete_runner, tmp_path, bucket,
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert bucket in argcomplete_output
+
+        exit, output = uncached_complete_result(cache)
+        assert exit == 0
+        assert output == argcomplete_output
+
+        exit, output = cached_complete_result(cache)
+        assert exit == 0
+        assert output == argcomplete_output
+
+
+@forked
+def test_complete_with_escaped_control_characters(
+    autocomplete_runner, tmp_path, bucket, uploaded_file_with_control_chars, authorized_b2_cli
+):
+    cc_file_name = uploaded_file_with_control_chars['fileName']
+    escaped_cc_file_name = uploaded_file_with_control_chars['escapedFileName']
+    cache = autocomplete_cache.AutocompleteCache(
+        tracker=autocomplete_cache.VersionTracker(),
+        store=autocomplete_cache.HomeCachePickleStore(tmp_path),
+    )
+
+    with autocomplete_runner(f'b2 hide-file {bucket} '):
+        exit, argcomplete_output = argcomplete_result()
+        assert exit == 0
+        assert escaped_cc_file_name in argcomplete_output
+        assert cc_file_name not in argcomplete_output
 
         exit, output = uncached_complete_result(cache)
         assert exit == 0
@@ -281,6 +312,5 @@ def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner
         assert exit == 0
         assert 'get-bucket' in uncached_output
 
-        exit, output = cached_complete_result(cache)
-        assert exit == 0
-        assert output == uncached_output
+        exit, output = cached_complete_result(cache, raise_exc=True)
+        assert (exit, output) == (0, uncached_output)

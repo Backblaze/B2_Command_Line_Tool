@@ -102,7 +102,9 @@ class AutocompleteCache:
     def _is_autocomplete_run(self) -> bool:
         return '_ARGCOMPLETE' in os.environ
 
-    def autocomplete_from_cache(self, uncached_args: dict | None = None) -> None:
+    def autocomplete_from_cache(
+        self, uncached_args: dict | None = None, raise_exc: bool = False
+    ) -> None:
         if not self._is_autocomplete_run():
             return
 
@@ -113,6 +115,8 @@ class AutocompleteCache:
                 parser = self._unpickle(pickle_data)
                 argcomplete.autocomplete(parser, **(uncached_args or {}))
         except Exception:
+            if raise_exc:
+                raise
             # Autocomplete from cache failed but maybe we can autocomplete from scratch
             return
 

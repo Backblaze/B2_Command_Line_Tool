@@ -15,6 +15,7 @@ from __future__ import annotations
 import tempfile
 
 from b2._internal._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
+from b2._internal._utils.python_compat import removeprefix
 
 AUTOCOMPLETE.autocomplete_from_cache()
 
@@ -96,10 +97,13 @@ from b2sdk.v2 import (
     TqdmProgressListener,
     UploadMode,
     current_time_millis,
+    escape_control_chars,
     get_included_sources,
     make_progress_listener,
     parse_sync_folder,
     points_to_fifo,
+    substitute_control_chars,
+    unprintable_to_hex,
 )
 from b2sdk.v2.exception import (
     B2Error,
@@ -137,13 +141,14 @@ from b2._internal._cli.const import (
     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
+    B2_ESCAPE_CONTROL_CHARACTERS,
     B2_SOURCE_SSE_C_KEY_B64_ENV_VAR,
     B2_USER_AGENT_APPEND_ENV_VAR,
     CREATE_BUCKET_TYPES,
     DEFAULT_THREADS,
 )
 from b2._internal._cli.obj_loads import validated_loads
-from b2._internal._cli.shell import detect_shell
+from b2._internal._cli.shell import detect_shell, resolve_short_call_name
 from b2._internal._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
 from b2._internal.arg_parser import B2ArgumentParser, add_normalized_argument
 from b2._internal.json_encoder import B2CliJsonEncoder
@@ -163,13 +168,29 @@ SEPARATOR = '=' * 40
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
 
-# The name of an executable entry point
-NAME = os.path.basename(sys.argv[0])
-if NAME.endswith('.py'):
-    version_name = re.search(
-        r'[\\/]b2[\\/]_internal[\\/](_{0,1}b2v\d+)[\\/]__main__.py', sys.argv[0]
-    )
-    NAME = version_name.group(1) if version_name else 'b2'
+
+class NoControlCharactersStdout:
+    def __init__(self, stdout):
+        self.stdout = stdout
+
+    def __getattr__(self, attr):
+        return getattr(self.stdout, attr)
+
+    def write(self, s):
+        if s:
+            s, cc_present = substitute_control_chars(s)
+            if cc_present:
+                logger.warning('WARNING: Control Characters were detected in the output')
+        self.stdout.write(s)
+
+
+def resolve_b2_bin_call_name(argv: list[str] | None = None) -> str:
+    call_name = resolve_short_call_name((argv or sys.argv)[0])
+    if call_name.endswith('.py'):
+        version_name = re.search(r'[\\/]b2[\\/]_internal[\\/](_?b2v\d+)[\\/]__main__.py', call_name)
+        call_name = version_name.group(1) if version_name else 'b2'
+    return call_name
+
 
 FILE_RETENTION_COMPATIBILITY_WARNING = """
     .. warning::
@@ -180,7 +201,6 @@ FILE_RETENTION_COMPATIBILITY_WARNING = """
 
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
-    NAME=NAME,
     B2_ACCOUNT_INFO_ENV_VAR=B2_ACCOUNT_INFO_ENV_VAR,
     B2_ACCOUNT_INFO_DEFAULT_FILE=B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_ACCOUNT_INFO_PROFILE_FILE=B2_ACCOUNT_INFO_PROFILE_FILE,
@@ -262,11 +282,12 @@ def format_account_info(account_info: AbstractAccountInfo) -> dict:
 
 
 class DescriptionGetter:
-    def __init__(self, described_cls):
+    def __init__(self, described_cls, **kwargs):
         self.described_cls = described_cls
+        self.kwargs = kwargs
 
     def __str__(self):
-        return self.described_cls._get_description()
+        return self.described_cls._get_description(**self.kwargs)
 
 
 class Described:
@@ -276,17 +297,17 @@ class Described:
     """
 
     @classmethod
-    def _get_description(cls):
+    def _get_description(cls, **kwargs):
         mro_docs = {
-            klass.__name__.upper(): klass.lazy_get_description()
+            klass.__name__.upper(): klass.lazy_get_description(**kwargs)
             for klass in cls.mro()
             if klass is not cls and klass.__doc__ and issubclass(klass, Described)
         }
-        return cls.__doc__.format(**DOC_STRING_DATA, **mro_docs)
+        return cls.__doc__.format(**kwargs, **DOC_STRING_DATA, **mro_docs)
 
     @classmethod
-    def lazy_get_description(cls):
-        return DescriptionGetter(cls)
+    def lazy_get_description(cls, **kwargs):
+        return DescriptionGetter(cls, **kwargs)
 
 
 class DefaultSseMixin(Described):
@@ -662,23 +683,30 @@ class B2URIBucketNFilenameArgMixin:
 
 
 class B2URIBucketNFolderNameArgMixin:
+    ALLOW_ALL_BUCKETS: bool = False
+
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        parser.add_argument(
+            'bucketName',
+            nargs='?' if cls.ALLOW_ALL_BUCKETS else None,
+        ).completer = bucket_name_completer
         parser.add_argument('folderName', nargs='?').completer = file_name_completer
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
-        return B2URI(args.bucketName, args.folderName or '')
+        return B2URI(removeprefix(args.bucketName or '', "b2://"), args.folderName or '')
 
 
 class B2IDOrB2URIMixin:
+    ALLOW_ALL_BUCKETS: bool = False
+
     @classmethod
     def _setup_parser(cls, parser):
-        add_b2id_or_b2_uri_argument(parser)
+        add_b2id_or_b2_uri_argument(parser, allow_all_buckets=cls.ALLOW_ALL_BUCKETS)
         super()._setup_parser(parser)
 
-    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI | B2FileIdURI:
         return args.B2_URI
 
 
@@ -838,7 +866,8 @@ class Command(Described, metaclass=ABCMeta):
         subparsers: argparse._SubParsersAction | None = None,
         parents=None,
         for_docs=False,
-        name: str | None = None
+        name: str | None = None,
+        b2_binary_name: str | None = None,
     ) -> argparse.ArgumentParser:
         """
         Creates a parser for the command.
@@ -846,12 +875,15 @@ class Command(Described, metaclass=ABCMeta):
         :param subparsers: subparsers object to which add new parser
         :param parents: created ArgumentParser `parents`, see `argparse.ArgumentParser`
         :param for_docs: if parser is to be used for documentation generation
+        :param name: action name
+        :param b2_binary_name: B2 binary call name
         :return: created parser
         """
         if parents is None:
             parents = []
 
-        description = cls._get_description()
+        b2_binary_name = b2_binary_name or resolve_b2_bin_call_name()
+        description = cls._get_description(NAME=b2_binary_name)
 
         if name:
             alias = None
@@ -891,6 +923,18 @@ class Command(Described, metaclass=ABCMeta):
                 common_parser.add_argument(
                     '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
                 )
+
+                common_parser.add_argument(
+                    '--escape-control-characters', action='store_true', help=argparse.SUPPRESS
+                )
+                common_parser.add_argument(
+                    '--no-escape-control-characters',
+                    dest='escape_control_characters',
+                    action='store_false',
+                    help=argparse.SUPPRESS
+                )
+
+                common_parser.set_defaults(escape_control_characters=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(
@@ -901,7 +945,12 @@ class Command(Described, metaclass=ABCMeta):
             )
             subparsers.required = True
             for subcommand in cls.subcommands_registry.values():
-                subcommand.create_parser(subparsers=subparsers, parents=parents, for_docs=for_docs)
+                subcommand.create_parser(
+                    subparsers=subparsers,
+                    parents=parents,
+                    for_docs=for_docs,
+                    b2_binary_name=b2_binary_name
+                )
 
         return parser
 
@@ -930,12 +979,22 @@ class Command(Described, metaclass=ABCMeta):
 
     def _print_json(self, data) -> None:
         return self._print(
-            json.dumps(data, indent=4, sort_keys=True, cls=B2CliJsonEncoder), enforce_output=True
+            json.dumps(data, indent=4, sort_keys=True, ensure_ascii=True, cls=B2CliJsonEncoder),
+            enforce_output=True
         )
 
-    def _print(self, *args, enforce_output: bool = False, end: str | None = None) -> None:
+    def _print(
+        self,
+        *args,
+        enforce_output: bool = False,
+        end: str | None = None,
+    ) -> None:
         return self._print_standard_descriptor(
-            self.stdout, "stdout", *args, enforce_output=enforce_output, end=end
+            self.stdout,
+            "stdout",
+            *args,
+            enforce_output=enforce_output,
+            end=end,
         )
 
     def _print_stderr(self, *args, end: str | None = None) -> None:
@@ -1002,9 +1061,9 @@ class CmdReplacedByMixin:
         return super().run(args)
 
     @classmethod
-    def _get_description(cls):
+    def _get_description(cls, **kwargs):
         return (
-            f'{super()._get_description()}\n\n'
+            f'{super()._get_description(**kwargs)}\n\n'
             f'.. warning::\n'
             f'   This command is deprecated. Use ``{cls.replaced_by_cmd.name_and_alias()[0]}`` instead.\n'
         )
@@ -1039,6 +1098,10 @@ class B2(Command):
     Please note that the above rules may be changed in next versions of b2sdk, and in order to get
     reliable authentication file location you should use ``b2 get-account-info``.
 
+    Control characters escaping is turned on if running under terminal.
+    You can override it by explicitly using `--escape-control-chars`/`--no-escape-control-chars`` option,
+    or by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
+
     You can suppress command stdout & stderr output by using ``--quiet`` option.
     To supress only progress bar, use ``--no-progress`` option.
 
@@ -1065,7 +1128,7 @@ class B2(Command):
 
     @classmethod
     def name_and_alias(cls):
-        return NAME, None
+        return resolve_b2_bin_call_name(), None
 
     def _run(self, args):
         # Commands could be named via name or alias, so we fetch
@@ -1094,6 +1157,7 @@ class AuthorizeAccount(Command):
     ``{B2_APPLICATION_KEY_ENV_VAR}`` respectively.
 
     Stores an account auth token in a local cache, see
+
 
     .. code-block::
 
@@ -2049,13 +2113,17 @@ class ListBuckets(Command):
         super()._setup_parser(parser)
 
     def _run(self, args):
-        buckets = self.api.list_buckets()
-        if args.json:
-            self._print_json(list(buckets))
+        return self.__class__.run_list_buckets(self, json_=args.json)
+
+    @classmethod
+    def run_list_buckets(cls, command: Command, *, json_: bool) -> int:
+        buckets = command.api.list_buckets()
+        if json_:
+            command._print_json(list(buckets))
             return 0
 
         for b in buckets:
-            self._print('%s  %-10s  %s' % (b.id_, b.type_, b.name))
+            command._print(f'{b.id_}  {b.type_:<10}  {b.name}')
         return 0
 
 
@@ -2222,8 +2290,8 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         )
         super()._setup_parser(parser)
 
-    def _print_files(self, args):
-        generator = self._get_ls_generator(args)
+    def _print_files(self, args, b2_uri: B2URI | None = None):
+        generator = self._get_ls_generator(args, b2_uri=b2_uri)
 
         for file_version, folder_name in generator:
             self._print_file_version(args, file_version, folder_name)
@@ -2234,17 +2302,23 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         file_version: FileVersion,
         folder_name: str | None,
     ) -> None:
-        self._print(folder_name or file_version.file_name)
+        name = folder_name or file_version.file_name
+        if args.escape_control_characters:
+            name = escape_control_chars(name)
+        self._print(name)
 
-    def _get_ls_generator(self, args):
-        b2_uri = self.get_b2_uri_from_arg(args)
-        yield from self.api.list_file_versions_by_uri(
-            b2_uri,
-            latest_only=not args.versions,
-            recursive=args.recursive,
-            with_wildcard=args.with_wildcard,
-            filters=args.filters,
-        )
+    def _get_ls_generator(self, args, b2_uri: B2URI | None = None):
+        b2_uri = b2_uri or self.get_b2_uri_from_arg(args)
+        try:
+            yield from self.api.list_file_versions_by_uri(
+                b2_uri,
+                latest_only=not args.versions,
+                recursive=args.recursive,
+                with_wildcard=args.with_wildcard,
+                filters=args.filters,
+            )
+        except Exception as err:
+            raise CommandError(unprintable_to_hex(str(err))) from err
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
         raise NotImplementedError
@@ -2283,9 +2357,21 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         super()._setup_parser(parser)
 
     def _run(self, args):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        if args.long and args.json:
+            raise CommandError('Cannot use --long and --json options together')
+
+        if not b2_uri or b2_uri == B2URI(""):
+            for option_name in ('long', 'recursive', 'replication'):
+                if getattr(args, option_name, False):
+                    raise CommandError(
+                        f'Cannot use --{option_name} option without specifying a bucket name'
+                    )
+            return ListBuckets.run_list_buckets(self, json_=args.json)
+
         if args.json:
             i = -1
-            for i, (file_version, _) in enumerate(self._get_ls_generator(args)):
+            for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
                 if i:
                     self._print(',', end='')
                 else:
@@ -2305,16 +2391,18 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if not args.long:
             super()._print_file_version(args, file_version, folder_name)
         elif folder_name is not None:
-            self._print(self.format_folder_ls_entry(folder_name, args.replication))
+            self._print(self.format_folder_ls_entry(args, folder_name, args.replication))
         else:
-            self._print(self.format_ls_entry(file_version, args.replication))
+            self._print(self.format_ls_entry(args, file_version, args.replication))
 
-    def format_folder_ls_entry(self, name, replication: bool):
+    def format_folder_ls_entry(self, args, name, replication: bool):
+        if args.escape_control_characters:
+            name = escape_control_chars(name)
         if replication:
             return self.LS_ENTRY_TEMPLATE_REPLICATION % ('-', '-', '-', '-', 0, '-', name)
         return self.LS_ENTRY_TEMPLATE % ('-', '-', '-', '-', 0, name)
 
-    def format_ls_entry(self, file_version: FileVersion, replication: bool):
+    def format_ls_entry(self, args, file_version: FileVersion, replication: bool):
         dt = datetime.datetime.fromtimestamp(
             file_version.upload_timestamp / 1000, datetime.timezone.utc
         )
@@ -2332,7 +2420,10 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if replication:
             replication_status = file_version.replication_status
             parameters.append(replication_status.value if replication_status else '-')
-        parameters.append(file_version.file_name)
+        name = file_version.file_name
+        if args.escape_control_characters:
+            name = escape_control_chars(name)
+        parameters.append(name)
         return template % tuple(parameters)
 
 
@@ -2355,24 +2446,33 @@ class Ls(B2IDOrB2URIMixin, BaseLs):
         {NAME} ls --recursive --with-wildcard "b2://bucketName/*.[ct]sv"
 
 
-    List all info.txt files from buckets bX, where X is any character:
+    List all info.txt files from directories named `b?`, where `?` is any character:
 
     .. code-block::
 
         {NAME} ls --recursive --with-wildcard "b2://bucketName/b?/info.txt"
 
 
-    List all pdf files from buckets b0 to b9 (including sub-directories):
+    List all pdf files from directories b0 to b9 (including sub-directories):
 
     .. code-block::
 
         {NAME} ls --recursive --with-wildcard "b2://bucketName/b[0-9]/*.pdf"
 
 
+    List all buckets:
+
+    .. code-block::
+
+        {NAME} ls
+
+
     Requires capability:
 
     - **listFiles**
+    - **listBuckets** (if bucket name is not provided)
     """
+    ALLOW_ALL_BUCKETS = True
 
 
 class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
@@ -3918,10 +4018,11 @@ class License(Command):  # pragma: no cover
         if with_packages:
             self._put_license_text_for_packages(stream)
 
+        b2_call_name = self.console_tool.b2_binary_name
         included_sources = get_included_sources()
         if included_sources:
             stream.write(
-                f'\n\nThird party libraries modified and included in {NAME} or {b2sdk.__name__}:\n'
+                f'\n\nThird party libraries modified and included in {b2_call_name} or {b2sdk.__name__}:\n'
             )
         for src in included_sources:
             stream.write('\n')
@@ -3934,7 +4035,7 @@ class License(Command):  # pragma: no cover
             for file_name, file_content in src.files.items():
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
-        stream.write(f'\n\n{NAME} license:\n')
+        stream.write(f'\n\n{b2_call_name} license:\n')
         b2_license_file_text = (pathlib.Path(__file__).parent.parent /
                                 'LICENSE').read_text(encoding='utf8')
         stream.write(b2_license_file_text)
@@ -3965,10 +4066,13 @@ class License(Command):  # pragma: no cover
             modules_added.add(module_info['Name'])
 
         assert not (self.MODULES_TO_OVERRIDE_LICENSE_TEXT - modules_added)
-        stream.write(f'Licenses of all modules used by {NAME}, shipped with it in binary form:\n')
+        b2_call_name = self.console_tool.b2_binary_name
+        stream.write(
+            f'Licenses of all modules used by {b2_call_name}, shipped with it in binary form:\n'
+        )
         stream.write(str(license_table))
         stream.write(
-            f'\n\nSummary of all modules used by {NAME}, shipped with it in binary form:\n'
+            f'\n\nSummary of all modules used by {b2_call_name}, shipped with it in binary form:\n'
         )
         stream.write(str(summary_table))
 
@@ -4060,7 +4164,7 @@ class InstallAutocomplete(Command):
             return 1
 
         try:
-            autocomplete_install(NAME, shell=shell)
+            autocomplete_install(self.console_tool.b2_binary_name, shell=shell)
         except AutocompleteInstallError as e:
             raise CommandError(str(e)) from e
         self._print(f'Autocomplete successfully installed for {shell}.')
@@ -4082,14 +4186,34 @@ class ConsoleTool:
         self.api = b2_api
         self.stdout = stdout
         self.stderr = stderr
+        self.b2_binary_name = 'b2'
+
+    def _get_default_escape_cc_setting(self):
+        escape_cc_env_var = os.environ.get(B2_ESCAPE_CONTROL_CHARACTERS, None)
+        if escape_cc_env_var is not None:
+            if int(escape_cc_env_var) in (0, 1):
+                return int(escape_cc_env_var) == 1
+            else:
+                logger.warning(
+                    "WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set"
+                )
+        return self.stdout.isatty()
 
     def run_command(self, argv):
         signal.signal(signal.SIGINT, keyboard_interrupt_handler)
-        parser = B2.create_parser(name=argv[0])
+        self.b2_binary_name = resolve_b2_bin_call_name(argv)
+        parser = B2.create_parser(name=self.b2_binary_name, b2_binary_name=self.b2_binary_name)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
         self._setup_logging(args, argv)
 
+        if args.escape_control_characters is None:
+            args.escape_control_characters = self._get_default_escape_cc_setting()
+
+        if args.escape_control_characters:
+            # in case any control characters slip through escaping, just delete them
+            self.stdout = NoControlCharactersStdout(self.stdout)
+            self.stderr = NoControlCharactersStdout(self.stderr)
         if self.api:
             if (
                 args.profile or getattr(args, 'write_buffer_size', None) or
@@ -4134,15 +4258,13 @@ class ConsoleTool:
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                'ERROR: {}  Use: {} authorize-account or provide auth data with "{}" and "{}"'
-                ' environment variables'.format(
-                    str(e), NAME, B2_APPLICATION_KEY_ID_ENV_VAR, B2_APPLICATION_KEY_ENV_VAR
-                )
+                f'ERROR: {e}  Use: {self.b2_binary_name} authorize-account or provide auth data with '
+                f'{B2_APPLICATION_KEY_ID_ENV_VAR!r} and {B2_APPLICATION_KEY_ENV_VAR!r} environment variables'
             )
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
-            self._print_stderr(f'ERROR: {str(e)}')
+            self._print_stderr(f'ERROR: {e}')
             return 1
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')

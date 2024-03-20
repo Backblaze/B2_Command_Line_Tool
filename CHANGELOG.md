@@ -9,6 +9,19 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.17.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.17.0) - 2024-03-15
+
+
+### Fixed
+
+- Control character escaping is now enabled by default if running in a terminal for improved security.
+
+### Added
+
+- Added `--escape-control-characters` and `--no-escape-control-characters` flags,
+  as well as `B2_ESCAPE_CONTROL_CHARACTERS` env var to explicitly enable or disable control character escaping.
+
+
 ## [3.16.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.16.1) - 2024-02-26
 
 

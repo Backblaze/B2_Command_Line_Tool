@@ -35,24 +35,32 @@ class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):
         {NAME} ls --recursive --withWildcard bucketName "*.[ct]sv"
 
 
-    List all info.txt files from buckets bX, where X is any character:
+    List all info.txt files from directories `b?`, where `?` is any character:
 
     .. code-block::
 
         {NAME} ls --recursive --withWildcard bucketName "b?/info.txt"
 
 
-    List all pdf files from buckets b0 to b9 (including sub-directories):
+    List all pdf files from directories b0 to b9 (including sub-directories):
 
     .. code-block::
 
         {NAME} ls --recursive --withWildcard bucketName "b[0-9]/*.pdf"
 
 
+    List all buckets:
+
+    .. code-block::
+
+        {NAME} ls
+
     Requires capability:
 
     - **listFiles**
+    - **listBuckets** (if bucket name is not provided)
     """
+    ALLOW_ALL_BUCKETS = True
 
 
 B2.register_subcommand(AuthorizeAccount)

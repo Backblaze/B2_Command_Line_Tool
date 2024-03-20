@@ -138,6 +138,20 @@ def local_file(tmp_path):
 
 
 @pytest.fixture
+def uploaded_file_with_control_chars(b2_cli, bucket_info, local_file):
+    filename = '\u009bC\u009bC\u009bIfile.txt'
+    b2_cli.run(['upload-file', bucket_info["bucketName"], str(local_file), filename])
+    return {
+        'bucket': bucket_info["bucketName"],
+        'bucketId': bucket_info["bucketId"],
+        'fileName': filename,
+        'escapedFileName': '\\\\x9bC\\\\x9bC\\\\x9bIfile.txt',
+        'fileId': '1111',
+        'content': local_file.read_text(),
+    }
+
+
+@pytest.fixture
 def uploaded_file(b2_cli, bucket_info, local_file):
     filename = 'file1.txt'
     b2_cli.run(['upload-file', '--quiet', bucket_info["bucketName"], str(local_file), filename])

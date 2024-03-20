@@ -41,7 +41,7 @@ def cli_command(request) -> str:
 @pytest.fixture(scope="module")
 def autocomplete_installed(env, homedir, bashrc, cli_version, cli_command, is_running_on_docker):
     if is_running_on_docker:
-        return
+        pytest.skip('Not supported on Docker')
 
     shell = pexpect.spawn(
         f'bash -i -c "{cli_command} install-autocomplete"', env=env, logfile=sys.stderr.buffer
