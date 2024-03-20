@@ -12,36 +12,40 @@ import sys
 
 import pytest
 
+from b2._internal._utils.python_compat import removeprefix
+
 
 @pytest.hookimpl
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "cli_version(from_version, to_version): run tests only on certain versions",
+        "apiver(from_ver, to_ver): run tests only on certain apiver versions",
     )
 
 
 @pytest.fixture(scope='session')
-def cli_int_version() -> int:
-    """
-    This should never be called, only provides a placeholder for tests
-    not belonging to neither units nor integrations.
-    """
-    return -1
+def apiver(request):
+    """Get apiver as a v-prefixed string, e.g. "v2"."""
+    return removeprefix(request.config.getoption('--cli', '').lstrip('_'), "b2") or None
+
+
+@pytest.fixture(scope='session')
+def apiver_int(apiver) -> int:
+    return int(apiver[1:]) if apiver else -1
 
 
 @pytest.fixture(autouse=True)
-def run_on_cli_version_handler(request, cli_int_version):
+def run_on_apiver_handler(request, apiver_int):
     """
-    Auto-fixture that allows skipping tests based on the CLI version.
+    Auto-fixture that allows skipping tests based on the CLI apiver versions.
 
     Usage:
-        @pytest.mark.cli_version(1, 3)
+        @pytest.mark.apiver(1, 3)
         def test_foo():
             # Test is run only for versions 1 and 3
             ...
 
-        @pytest.mark.cli_version(from_version=2, to_version=5)
+        @pytest.mark.apiver(from_ver=2, to_ver=5)
         def test_bar():
             # Test is run only for versions 2, 3, 4 and 5
             ...
@@ -50,26 +54,26 @@ def run_on_cli_version_handler(request, cli_int_version):
     Both unit tests and integration tests handle it a little bit different, thus
     two different fixtures are provided.
     """
-    node = request.node.get_closest_marker('cli_version')
+    node = request.node.get_closest_marker('apiver')
     if not node:
         return
 
     if not node.args and not node.kwargs:
         return
 
-    assert cli_int_version >= 0, 'cli_int_version fixture is not defined'
+    assert apiver_int >= 0, 'apiver_int fixture is not defined'
 
     if node.args:
-        if cli_int_version in node.args:
+        if apiver_int in node.args:
             # Run the test.
             return
 
     if node.kwargs:
-        from_version = node.kwargs.get('from_version', 0)
-        to_version = node.kwargs.get('to_version', sys.maxsize)
+        from_ver = node.kwargs.get('from_ver', 0)
+        to_ver = node.kwargs.get('to_ver', sys.maxsize)
 
-        if from_version <= cli_int_version <= to_version:
+        if from_ver <= apiver_int <= to_ver:
             # Run the test.
             return
 
-    pytest.skip('Not supported on this CLI version')
+    pytest.skip('Not supported on this apiver version')

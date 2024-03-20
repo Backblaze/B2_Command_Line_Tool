@@ -100,6 +100,11 @@ def get_raw_cli_int_version(config) -> int | None:
     return None
 
 
+@pytest.fixture(scope='session')
+def apiver(request):
+    return f"v{get_cli_int_version(request.config)}"
+
+
 def get_cli_int_version(config) -> int:
     return get_raw_cli_int_version(config) or get_int_version(LATEST_STABLE_VERSION)
 
@@ -107,16 +112,14 @@ def get_cli_int_version(config) -> int:
 @pytest.hookimpl
 def pytest_report_header(config):
     cli_version = get_cli_int_version(config)
-    return f'b2cli version: {cli_version}'
-
-
-@pytest.fixture(scope='session')
-def cli_int_version(request) -> int:
-    return get_cli_int_version(request.config)
+    return f'b2 apiver: {cli_version}'
 
 
 @pytest.fixture(scope='session')
 def cli_version(request) -> str:
+    """
+    Get CLI version name, i.e. b2v3, _b2v4, etc.
+    """
     # The default stable version could be provided directly as e.g.: b2v3, but also indirectly as b2.
     # In case there is no direct version, we return the default binary name instead.
     raw_cli_version = get_raw_cli_int_version(request.config)
@@ -381,8 +384,8 @@ def pytest_collection_modifyitems(items):
 
 
 @pytest.fixture(scope='module')
-def b2_uri_args(cli_int_version):
-    if cli_int_version >= 4:
+def b2_uri_args(apiver_int):
+    if apiver_int >= 4:
         return b2_uri_args_v4
     else:
         return b2_uri_args_v3
