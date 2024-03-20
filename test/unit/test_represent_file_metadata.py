@@ -10,6 +10,7 @@
 
 from io import StringIO
 
+import pytest
 from b2sdk.v2 import (
     SSE_B2_AES,
     B2Api,
@@ -24,7 +25,6 @@ from b2sdk.v2 import (
     RetentionMode,
     StubAccountInfo,
 )
-import pytest
 
 from b2._internal.console_tool import ConsoleTool, DownloadCommand
 

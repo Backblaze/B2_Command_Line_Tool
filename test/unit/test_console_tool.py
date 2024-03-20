@@ -102,8 +102,7 @@ class BaseConsoleToolTest(TestBase):
         success, but ignoring the stdout.
         """
         stdout, stderr = self._get_stdouterr()
-        actual_status = self.console_tool_class(stdout,
-                                                stderr).run_command(['b2'] + argv)
+        actual_status = self.console_tool_class(stdout, stderr).run_command(['b2'] + argv)
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
         if actual_stderr != '':
@@ -2485,9 +2484,14 @@ class TestConsoleTool(BaseConsoleToolTest):
         os.environ[B2_APPLICATION_KEY_ENV_VAR] = self.master_key
 
         command = [
-            'b2', 'download-file-by-id', 'dummy-id', 'dummy-local-file-name',
-            '--write-buffer-size', '123',
-            '--max-download-streams-per-file', '5',
+            'b2',
+            'download-file-by-id',
+            'dummy-id',
+            'dummy-local-file-name',
+            '--write-buffer-size',
+            '123',
+            '--max-download-streams-per-file',
+            '5',
             '--skip-hash-verification',
         ]
 

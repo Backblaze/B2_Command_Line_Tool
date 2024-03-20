@@ -102,10 +102,13 @@ def test_authorize_account_via_env_vars_saving_credentials(
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
-    b2_tool.should_succeed(['authorize-account'], additional_env={
-        B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
-        B2_APPLICATION_KEY_ENV_VAR: application_key,
-    })
+    b2_tool.should_succeed(
+        ['authorize-account'],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
 
     assert account_info_file.exists()
     account_info = SqliteAccountInfo()
@@ -129,10 +132,13 @@ def test_clear_account_with_env_vars(
     assert account_info.get_application_key() == application_key
     assert account_info.get_application_key_id() == application_key_id
 
-    b2_tool.should_succeed(['clear-account'], additional_env={
-        B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
-        B2_APPLICATION_KEY_ENV_VAR: application_key,
-    })
+    b2_tool.should_succeed(
+        ['clear-account'],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
 
     assert account_info_file.exists()
     account_info = SqliteAccountInfo()
@@ -159,10 +165,13 @@ def test_command_with_env_vars_not_saving_credentials(
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
-    b2_tool.should_succeed(['ls', f"b2id://{uploaded_sample_file['fileId']}"], additional_env={
-        B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
-        B2_APPLICATION_KEY_ENV_VAR: application_key,
-    })
+    b2_tool.should_succeed(
+        ['ls', f"b2id://{uploaded_sample_file['fileId']}"],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
 
     assert not account_info_file.exists()
 

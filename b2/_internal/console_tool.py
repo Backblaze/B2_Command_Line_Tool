@@ -4224,7 +4224,8 @@ class ConsoleTool:
         with suppress(AttributeError):
             kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
-        if all(get_keyid_and_key_from_env_vars()) and args.command_class not in (AuthorizeAccount, ClearAccount):
+        if all(get_keyid_and_key_from_env_vars()
+              ) and args.command_class not in (AuthorizeAccount, ClearAccount):
             # when user specifies keys via env variables, we switch to in-memory account info
             self.api = _get_inmemory_b2api(**kwargs)
         else:
