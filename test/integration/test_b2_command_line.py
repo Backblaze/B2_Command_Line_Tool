@@ -208,7 +208,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     )  # \r? is for Windows, as $ doesn't match \r\n
 
 
-@pytest.mark.cli_version(from_version=4)
+@pytest.mark.apiver(from_ver=4)
 def test_ls_b2id(b2_tool, uploaded_sample_file):
     b2_tool.should_succeed(
         ['ls', f"b2id://{uploaded_sample_file['fileId']}"],
@@ -216,7 +216,7 @@ def test_ls_b2id(b2_tool, uploaded_sample_file):
     )
 
 
-@pytest.mark.cli_version(from_version=4)
+@pytest.mark.apiver(from_ver=4)
 def test_rm_b2id(b2_tool, bucket_name, uploaded_sample_file):
     # remove the file by id
     b2_tool.should_succeed(['rm', f"b2id://{uploaded_sample_file['fileId']}"])

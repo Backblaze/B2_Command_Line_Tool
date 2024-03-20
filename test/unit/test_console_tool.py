@@ -2423,7 +2423,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
             assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
 
-    @pytest.mark.cli_version(from_version=4)
+    @pytest.mark.apiver(from_ver=4)
     def test_ls_b2id(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -2918,7 +2918,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         '''
         self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], expected_stdout)
 
-    @pytest.mark.cli_version(from_version=4)
+    @pytest.mark.apiver(from_ver=4)
     def test_rm_b2id(self):
         # Create a file
         file_version = self.bucket.upload(UploadSourceBytes(b''), 'new-file.txt')

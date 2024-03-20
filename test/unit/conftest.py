@@ -35,17 +35,12 @@ def pytest_addoption(parser):
 @pytest.hookimpl
 def pytest_report_header(config):
     int_version = get_int_version(config.getoption('--cli'))
-    return f'b2cli version: {int_version}'
+    return f"b2 apiver: {int_version}"
 
 
 @pytest.fixture(scope='session')
 def cli_version(request) -> str:
     return request.config.getoption('--cli')
-
-
-@pytest.fixture(scope='session')
-def cli_int_version(cli_version) -> int:
-    return get_int_version(cli_version)
 
 
 @pytest.fixture(scope='session')
@@ -165,8 +160,8 @@ def uploaded_file(b2_cli, bucket_info, local_file):
 
 
 @pytest.fixture(scope='class')
-def b2_uri_args(cli_int_version, request):
-    if cli_int_version >= 4:
+def b2_uri_args(apiver_int, request):
+    if apiver_int >= 4:
         fn = b2_uri_args_v4
     else:
         fn = b2_uri_args_v3
