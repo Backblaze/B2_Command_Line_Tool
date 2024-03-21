@@ -558,7 +558,7 @@ def test_account(b2_tool, cli_version):
             ['create-bucket', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
         )
         b2_tool.should_succeed(['delete-bucket', bucket_name])
-        assert os.path.exists(new_creds), 'sqlite file not created'
+        assert not os.path.exists(new_creds), 'sqlite file was created'
 
         os.environ.pop('B2_APPLICATION_KEY')
         os.environ.pop('B2_APPLICATION_KEY_ID')
