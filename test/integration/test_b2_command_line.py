@@ -153,8 +153,9 @@ def test_command_with_env_vars_not_saving_credentials(
     application_key,
     application_key_id,
     account_info_file,
-    uploaded_sample_file,
+    bucket_name,
     no_account_info_file,
+    b2_uri_args,
 ):
     """
     When calling any command other then `authorize-account` and passing credentials
@@ -166,7 +167,7 @@ def test_command_with_env_vars_not_saving_credentials(
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
     b2_tool.should_succeed(
-        ['ls', f"b2id://{uploaded_sample_file['fileId']}"],
+        ['ls', '--long', *b2_uri_args(bucket_name)],
         additional_env={
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
             B2_APPLICATION_KEY_ENV_VAR: application_key,
