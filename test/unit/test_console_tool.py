@@ -12,6 +12,7 @@ import json
 import os
 import pathlib
 import re
+from functools import lru_cache
 from io import StringIO
 from itertools import chain, product
 from test.helpers import skip_on_windows
@@ -63,6 +64,7 @@ class BaseConsoleToolTest(TestBase):
         self.raw_simulator = RawSimulator()
         self.api_config = B2HttpApiConfig(_raw_api_class=lambda *args, **kwargs: self.raw_simulator)
 
+        @lru_cache(maxsize=None)
         def _get_b2api(**kwargs) -> B2Api:
             kwargs.pop('profile', None)
             return B2Api(
@@ -2513,7 +2515,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
         assert parallel_strategy.max_streams == 5
 
-    @pytest.mark.cli_version(from_version=4)
+    @pytest.mark.apiver(from_ver=4)
     def test_ls_b2id(self):
         self._authorize_account()
         self._create_my_bucket()
