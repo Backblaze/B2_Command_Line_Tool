@@ -217,13 +217,15 @@ class BaseConsoleToolTest(TestBase):
         format_vars.
 
         The ConsoleTool is stateless, so we can make a new one for each
-        call, with a fresh stdout and stderr
+        call, with a fresh stdout and stderr. However, last instance of ConsoleTool
+        is stored in `self.console_tool`, may be handy for testing internals
+        of the tool after last command invocation.
         """
         expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
         stdout, stderr = self._get_stdouterr()
-        console_tool = self.console_tool_class(stdout, stderr)
+        self.console_tool = self.console_tool_class(stdout, stderr)
         try:
-            actual_status = console_tool.run_command(['b2'] + argv)
+            actual_status = self.console_tool.run_command(['b2'] + argv)
         except SystemExit as e:
             actual_status = e.code
 

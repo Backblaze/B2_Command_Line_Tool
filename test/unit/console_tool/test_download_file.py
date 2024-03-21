@@ -205,4 +205,4 @@ def test__download_file__threads(b2_cli, local_file, uploaded_file, tmp_path):
     )
 
     assert output_path.read_text() == uploaded_file['content']
-    assert b2_cli.b2_api.services.download_manager.get_thread_pool_size() == num_threads
+    assert b2_cli.console_tool.api.services.download_manager.get_thread_pool_size() == num_threads
