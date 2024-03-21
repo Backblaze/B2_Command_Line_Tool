@@ -67,14 +67,14 @@ def test_authorize_account_via_params_saving_credentials(
     application_key,
     application_key_id,
     account_info_file,
-    no_account_info_file,
 ):
     """
     When calling `authorize-account` and passing credentials as params,
     we want the credentials to be saved.
     """
 
-    assert not account_info_file.exists()
+    b2_tool.should_succeed(['clear-account'])
+
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
@@ -91,14 +91,14 @@ def test_authorize_account_via_env_vars_saving_credentials(
     application_key,
     application_key_id,
     account_info_file,
-    no_account_info_file,
 ):
     """
     When calling `authorize-account` and passing credentials
     via env vars, we still want the credentials to be saved.
     """
 
-    assert not account_info_file.exists()
+    b2_tool.should_succeed(['clear-account'])
+
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
@@ -154,7 +154,6 @@ def test_command_with_env_vars_not_saving_credentials(
     application_key_id,
     account_info_file,
     bucket_name,
-    no_account_info_file,
     b2_uri_args,
 ):
     """
@@ -162,7 +161,8 @@ def test_command_with_env_vars_not_saving_credentials(
     via env vars, we don't want them to be saved.
     """
 
-    assert not account_info_file.exists()
+    b2_tool.should_succeed(['clear-account'])
+
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
@@ -174,7 +174,12 @@ def test_command_with_env_vars_not_saving_credentials(
         }
     )
 
-    assert not account_info_file.exists()
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key_id()
 
 
 @pytest.fixture

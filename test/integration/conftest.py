@@ -276,12 +276,6 @@ def account_info_file() -> pathlib.Path:
 
 
 @pytest.fixture
-def no_account_info_file(account_info_file):
-    """Remove account info file to deauthorize b2_tool"""
-    yield account_info_file.unlink()
-
-
-@pytest.fixture
 def schedule_bucket_cleanup(global_b2_tool):
     """
     Explicitly ask for buckets cleanup after the test
