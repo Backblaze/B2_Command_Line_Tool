@@ -4224,12 +4224,7 @@ class ConsoleTool:
         with suppress(AttributeError):
             kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
-        if all(get_keyid_and_key_from_env_vars()
-              ) and args.command_class not in (AuthorizeAccount, ClearAccount):
-            # when user specifies keys via env variables, we switch to in-memory account info
-            self.api = _get_inmemory_b2api(**kwargs)
-        else:
-            self.api = _get_b2api_for_profile(profile=args.profile, **kwargs)
+        self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -4263,6 +4258,15 @@ class ConsoleTool:
         except Exception:
             logger.exception('ConsoleTool unexpected exception')
             raise
+
+    @classmethod
+    def _initialize_b2_api(cls, args: argparse.Namespace, kwargs: dict) -> B2Api:
+        if all(get_keyid_and_key_from_env_vars()
+              ) and args.command_class not in (AuthorizeAccount, ClearAccount):
+            # when user specifies keys via env variables, we switch to in-memory account info
+            return _get_inmemory_b2api(**kwargs)
+
+        return _get_b2api_for_profile(profile=args.profile, **kwargs)
 
     def authorize_from_env(self, command_class):
         if not command_class.REQUIRES_AUTH:

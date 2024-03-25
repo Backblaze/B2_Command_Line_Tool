@@ -74,9 +74,7 @@ class BaseConsoleToolTest(TestBase):
                 **kwargs,
             )
 
-        self.mp = pytest.MonkeyPatch()
-        self.mp.setattr('b2._internal.console_tool._get_b2api_for_profile', _get_b2api)
-        self.mp.setattr('b2._internal.console_tool._get_inmemory_b2api', _get_b2api)
+        self.console_tool_class._initialize_b2_api = lambda cls, args, kwargs: _get_b2api(**kwargs)
 
         self.b2_api = _get_b2api()
         self.raw_api = self.b2_api.session.raw_api
@@ -88,10 +86,6 @@ class BaseConsoleToolTest(TestBase):
             B2_ENVIRONMENT_ENV_VAR,
         ]:
             os.environ.pop(env_var_name, None)
-
-    def tearDown(self) -> None:
-        super().tearDown()
-        self.mp.undo()
 
     def _get_stdouterr(self):
         stdout = StringIO()

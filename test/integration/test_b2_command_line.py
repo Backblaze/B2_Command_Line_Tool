@@ -148,6 +148,40 @@ def test_clear_account_with_env_vars(
         account_info.get_application_key_id()
 
 
+@pytest.mark.apiver(to_ver=3)
+def test_command_with_env_vars_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    bucket_name,
+    b2_uri_args,
+):
+    """
+    When calling any command other then `authorize-account` and passing credentials
+    via env vars, we don't want them to be saved.
+    """
+
+    b2_tool.should_succeed(['clear-account'])
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(
+        ['ls', '--long', *b2_uri_args(bucket_name)],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+
+@pytest.mark.apiver(from_ver=4)
 def test_command_with_env_vars_not_saving_credentials(
     b2_tool,
     application_key,
