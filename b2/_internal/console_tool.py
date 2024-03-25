@@ -4236,9 +4236,10 @@ class ConsoleTool:
             logger.info('starting command [%s] with arguments: %s', command, argv)
 
         try:
-            auth_ret = self.authorize_from_env(command_class)
-            if auth_ret:
-                return auth_ret
+            if command_class.REQUIRES_AUTH:
+                auth_ret = self.authorize_from_env()
+                if auth_ret:
+                    return auth_ret
             return command.run(args)
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
@@ -4261,16 +4262,25 @@ class ConsoleTool:
 
     @classmethod
     def _initialize_b2_api(cls, args: argparse.Namespace, kwargs: dict) -> B2Api:
-        if all(get_keyid_and_key_from_env_vars()
-              ) and args.command_class not in (AuthorizeAccount, ClearAccount):
-            # when user specifies keys via env variables, we switch to in-memory account info
-            return _get_inmemory_b2api(**kwargs)
 
-        return _get_b2api_for_profile(profile=args.profile, **kwargs)
+        # here we initialize regular b2 api on disk, and check whether it matches
+        # the keys from env vars; if they indeed match then there's no need to
+        # initialize in-memory account info cause it's already stored on disk
+        b2_api = _get_b2api_for_profile(profile=args.profile, **kwargs)
 
-    def authorize_from_env(self, command_class):
-        if not command_class.REQUIRES_AUTH:
-            return 0
+        key_id, key = get_keyid_and_key_from_env_vars()
+        if key_id and key:
+            realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR) or 'production'
+            if (
+                not b2_api.account_info.is_same_key(key_id, realm) and
+                args.command_class not in (AuthorizeAccount, ClearAccount)
+            ):
+                # when user specifies keys via env variables, we switch to in-memory account info
+                return _get_inmemory_b2api(**kwargs)
+
+        return b2_api
+
+    def authorize_from_env(self) -> int:
 
         key_id, key = get_keyid_and_key_from_env_vars()
 

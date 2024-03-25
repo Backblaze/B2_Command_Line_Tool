@@ -216,6 +216,45 @@ def test_command_with_env_vars_not_saving_credentials(
         account_info.get_application_key_id()
 
 
+@pytest.mark.apiver(from_ver=4)
+def test_command_with_env_vars_reusing_existing_account_info(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    bucket_name,
+    b2_uri_args,
+):
+    """
+    When calling any command with credentials passed via env vars, and the account
+    info file already contains the same credentials, we want to use filesystem for
+    storing cache, not the in-memory cache.
+    """
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+    account_info.remove_bucket_name(bucket_name)
+    assert account_info.get_bucket_id_or_none_from_bucket_name(bucket_name) is None
+
+    b2_tool.should_succeed(
+        ['ls', '--long', *b2_uri_args(bucket_name)],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_bucket_id_or_none_from_bucket_name(bucket_name) is not None
+
+
 @pytest.fixture
 def uploaded_sample_file(b2_tool, bucket_name, sample_filepath):
     return b2_tool.should_succeed_json(
