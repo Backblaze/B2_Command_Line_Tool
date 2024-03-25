@@ -179,3 +179,10 @@ jobs:
           push: true
           tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
           platforms: linux/amd64,linux/arm64
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: backblazeit/b2
+          short-description: "Official Backblaze B2 CLI docker image"
