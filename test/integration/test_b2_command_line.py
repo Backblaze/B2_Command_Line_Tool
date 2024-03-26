@@ -22,6 +22,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from tempfile import mkdtemp
 
 import pytest
 from b2sdk.account_info.exception import MissingAccountData
@@ -595,8 +596,12 @@ def test_rapid_bucket_operations(b2_tool):
     b2_tool.should_succeed(['delete-bucket', new_bucket_name])
 
 
-def test_account(b2_tool, cli_version, apiver_int):
-    with b2_tool.env_var_test_context:
+def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
+
+    with monkeypatch.context() as mp:
+        account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
+        mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
+
         b2_tool.should_succeed(['clear-account'])
         bad_application_key = random_hex(len(b2_tool.application_key))
         b2_tool.should_fail(
@@ -613,10 +618,11 @@ def test_account(b2_tool, cli_version, apiver_int):
         )
 
     # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
-    with b2_tool.env_var_test_context as new_creds:
-        os.remove(new_creds)
+    with monkeypatch.context() as mp:
+        account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
+        mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
-        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
+        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file has been
         # successfully removed
         bucket_name = b2_tool.generate_bucket_name()
         b2_tool.should_fail(
@@ -625,7 +631,10 @@ def test_account(b2_tool, cli_version, apiver_int):
             fr'Use: {cli_version}(\.(exe|EXE))? authorize-account or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
             r'\'B2_APPLICATION_KEY\' environment variables'
         )
-        os.remove(new_creds)
+
+    with monkeypatch.context() as mp:
+        account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
+        mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
         # then, let's see that auth data from env vars works
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
@@ -638,8 +647,8 @@ def test_account(b2_tool, cli_version, apiver_int):
         )
         b2_tool.should_succeed(['delete-bucket', bucket_name])
 
-        assert os.path.exists(new_creds), 'sqlite file was not created'
-        account_info = SqliteAccountInfo(new_creds)
+        assert os.path.exists(account_info_file_path), 'sqlite file was not created'
+        account_info = SqliteAccountInfo(account_info_file_path)
         if apiver_int >= 4:
             with pytest.raises(MissingAccountData):
                 account_info.get_application_key_id()
