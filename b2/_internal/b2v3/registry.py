@@ -18,7 +18,7 @@ enable_camel_case_arguments()
 
 class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):
     """
-    {BASELS}
+    {BaseLs}
 
     Examples
 
