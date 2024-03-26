@@ -95,6 +95,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install test binary dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install zsh fish
+          sudo chmod -R 755 /usr/share/zsh/vendor-completions /usr/share/zsh  # Fix permissions for zsh completions
+      - name: Install test binary dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew install fish
       - name: Install dependencies
         run: python -m pip install --upgrade nox pdm
       - name: Run unit tests

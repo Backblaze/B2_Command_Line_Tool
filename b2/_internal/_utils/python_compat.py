@@ -11,6 +11,7 @@
 Utilities for compatibility with older Python versions.
 """
 import functools
+import shlex
 import sys
 
 if sys.version_info < (3, 9):
@@ -45,5 +46,9 @@ if sys.version_info < (3, 8):
 
             method_wrapper.register = self.register
             return method_wrapper
+
+    def shlex_join(split_command):
+        return ' '.join(shlex.quote(arg) for arg in split_command)
 else:
     singledispatchmethod = functools.singledispatchmethod
+    shlex_join = shlex.join

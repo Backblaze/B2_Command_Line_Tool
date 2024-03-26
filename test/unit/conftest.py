@@ -43,6 +43,22 @@ def cli_version(request) -> str:
     return request.config.getoption('--cli')
 
 
+@pytest.fixture
+def homedir(tmp_path_factory):
+    yield tmp_path_factory.mktemp("test_homedir")
+
+
+@pytest.fixture
+def env(homedir, monkeypatch):
+    """Get ENV for running b2 command from shell level."""
+    monkeypatch.setenv("HOME", str(homedir))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("SHELL", "/bin/bash")  # fix for running under github actions
+    if "TERM" not in os.environ:
+        monkeypatch.setenv("TERM", "xterm")
+    yield os.environ
+
+
 @pytest.fixture(scope='session')
 def console_tool_class(cli_version):
     # Ensures import of the correct library to handle all the tests.
