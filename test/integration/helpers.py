@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from os import environ, linesep, path
 from pathlib import Path
-from tempfile import gettempdir, mkdtemp, mktemp
+from tempfile import mkdtemp, mktemp
 
 import backoff
 from b2sdk.v2 import (
@@ -349,7 +349,7 @@ class EnvVarTestContext:
 
     def __enter__(self):
         src = self.account_info_file_name
-        dst = path.join(gettempdir(), 'b2_account_info')
+        dst = path.join(mkdtemp(), 'b2_account_info')
         shutil.copyfile(src, dst)
         shutil.move(src, src + self.suffix)
         environ[self.ENV_VAR] = dst
