@@ -4265,7 +4265,9 @@ class ConsoleTool:
 
         # here we initialize regular b2 api on disk, and check whether it matches
         # the keys from env vars; if they indeed match then there's no need to
-        # initialize in-memory account info cause it's already stored on disk
+        # initialize in-memory account info cause it's already stored on disk;
+        # beware that this has side effect of creating an empty account info file
+        # if it didn't exist before
         b2_api = _get_b2api_for_profile(profile=args.profile, **kwargs)
 
         key_id, key = get_keyid_and_key_from_env_vars()

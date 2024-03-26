@@ -595,7 +595,7 @@ def test_rapid_bucket_operations(b2_tool):
     b2_tool.should_succeed(['delete-bucket', new_bucket_name])
 
 
-def test_account(b2_tool, cli_version):
+def test_account(b2_tool, cli_version, apiver_int):
     with b2_tool.env_var_test_context:
         b2_tool.should_succeed(['clear-account'])
         bad_application_key = random_hex(len(b2_tool.application_key))
@@ -637,7 +637,17 @@ def test_account(b2_tool, cli_version):
             ['create-bucket', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
         )
         b2_tool.should_succeed(['delete-bucket', bucket_name])
-        assert not os.path.exists(new_creds), 'sqlite file was created'
+
+        assert os.path.exists(new_creds), 'sqlite file was not created'
+        account_info = SqliteAccountInfo(new_creds)
+        if apiver_int >= 4:
+            with pytest.raises(MissingAccountData):
+                account_info.get_application_key_id()
+            with pytest.raises(MissingAccountData):
+                account_info.get_application_key()
+        else:
+            assert account_info.get_application_key_id() == os.environ['B2_TEST_APPLICATION_KEY_ID']
+            assert account_info.get_application_key() == os.environ['B2_TEST_APPLICATION_KEY']
 
         os.environ.pop('B2_APPLICATION_KEY')
         os.environ.pop('B2_APPLICATION_KEY_ID')

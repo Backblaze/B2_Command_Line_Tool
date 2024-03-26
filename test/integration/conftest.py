@@ -100,13 +100,18 @@ def get_raw_cli_int_version(config) -> int | None:
     return None
 
 
-@pytest.fixture(scope='session')
-def apiver(request):
-    return f"v{get_cli_int_version(request.config)}"
-
-
 def get_cli_int_version(config) -> int:
     return get_raw_cli_int_version(config) or get_int_version(LATEST_STABLE_VERSION)
+
+
+@pytest.fixture(scope='session')
+def apiver_int(request):
+    return get_cli_int_version(request.config)
+
+
+@pytest.fixture(scope='session')
+def apiver(apiver_int):
+    return f"v{apiver_int}"
 
 
 @pytest.hookimpl
