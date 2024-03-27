@@ -83,6 +83,12 @@ class ConsoleToolTester(BaseConsoleToolTest):
         return self._run_command(*args, **kwargs)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def mock_signal():
+    with mock.patch('signal.signal'):
+        yield
+
+
 @pytest.fixture
 def b2_cli(console_tool_class):
     cli_tester = ConsoleToolTester()
