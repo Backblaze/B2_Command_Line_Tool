@@ -16,7 +16,7 @@ from b2._internal._b2v4.registry import B2URIBucketNFolderNameArgMixin, BaseRm
 # unit tests without registering any commands.
 class Rm(B2URIBucketNFolderNameArgMixin, BaseRm):
     """
-        {BASERM}
+        {BaseRm}
 
         Examples.
 

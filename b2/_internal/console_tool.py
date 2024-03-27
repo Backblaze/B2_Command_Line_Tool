@@ -299,7 +299,7 @@ class Described:
     @classmethod
     def _get_description(cls, **kwargs):
         mro_docs = {
-            klass.__name__.upper(): klass.lazy_get_description(**kwargs)
+            klass.__name__: klass.lazy_get_description(**kwargs)
             for klass in cls.mro()
             if klass is not cls and klass.__doc__ and issubclass(klass, Described)
         }
@@ -1357,10 +1357,10 @@ class CopyFileById(
 
     The maximum file size is 5GB or 10TB, depending on capability of installed ``b2sdk`` version.
 
-    {DESTINATIONSSEMIXIN}
-    {SOURCESSEMIXIN}
-    {FILERETENTIONSETTINGMIXIN}
-    {LEGALHOLDMIXIN}
+    {DestinationSseMixin}
+    {SourceSseMixin}
+    {FileRetentionSettingMixin}
+    {LegalHoldMixin}
 
     If either the source or the destination uses SSE-C and ``--content-type`` and ``--info`` are not provided, then
     to perform the copy the source file's metadata has to be fetched first - an additional request to B2 cloud has
@@ -1479,8 +1479,8 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
-    {DEFAULTSSEMIXIN}
-    {LIFECYCLERULESMIXIN}
+    {DefaultSseMixin}
+    {LifecycleRulesMixin}
 
     Requires capability:
 
@@ -1613,7 +1613,7 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
-    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    {FileIdAndOptionalFileNameMixin}
 
     If a file is in governance retention mode, and the retention period has not expired, adding ``--bypass-governance``
     is required.
@@ -1806,12 +1806,12 @@ class DownloadFileBase(
     """
     Downloads the given file-like object, and stores it in the given local file.
 
-    {PROGRESSMIXIN}
-    {THREADSMIXIN}
-    {SOURCESSEMIXIN}
-    {WRITEBUFFERSIZEMIXIN}
-    {SKIPHASHVERIFICATIONMIXIN}
-    {MAXDOWNLOADSTREAMSMIXIN}
+    {ProgressMixin}
+    {ThreadsMixin}
+    {SourceSseMixin}
+    {WriteBufferSizeMixin}
+    {SkipHashVerificationMixin}
+    {MaxDownloadStreamsMixin}
 
     Requires capability:
 
@@ -1876,10 +1876,10 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
     """
     Download content of a file-like object identified by B2 URI directly to stdout.
 
-    {PROGRESSMIXIN}
-    {SOURCESSEMIXIN}
-    {WRITEBUFFERSIZEMIXIN}
-    {SKIPHASHVERIFICATIONMIXIN}
+    {ProgressMixin}
+    {SourceSseMixin}
+    {WriteBufferSizeMixin}
+    {SkipHashVerificationMixin}
 
     Requires capability:
 
@@ -2342,7 +2342,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
 
     The ``--replication`` option adds replication status
 
-    {ABSTRACTLSCOMMAND}
+    {AbstractLsCommand}
     """
 
     # order is file_id, action, date, time, size(, replication), name
@@ -2429,7 +2429,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
 
 class Ls(B2IDOrB2URIMixin, BaseLs):
     """
-    {BASELS}
+    {BaseLs}
 
     Examples
 
@@ -2492,8 +2492,8 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
     list files via ``ls`` command - the listing behaviour is exactly the same.
 
     Progress is displayed on the console unless ``--no-progress`` is specified.
-    {THREADSMIXIN}
-    {ABSTRACTLSCOMMAND}
+    {ThreadsMixin}
+    {AbstractLsCommand}
 
     The ``--dry-run`` option prints all the files that would be affected by
     the command, but removes nothing.
@@ -2649,7 +2649,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
 class Rm(B2IDOrB2URIMixin, BaseRm):
     """
-    {BASERM}
+    {BaseRm}
 
     Examples.
 
@@ -2751,7 +2751,7 @@ class Sync(
     The default is to fail when the specified source directory doesn't exist
     or is empty.  (This check only applies to version 1.0 and later.)
 
-    {THREADSMIXIN}
+    {ThreadsMixin}
 
     You can alternatively control number of threads per each operation.
     The number of files processed in parallel is set by ``--sync-threads``,
@@ -2875,13 +2875,13 @@ class Sync(
 
         {NAME} sync --exclude-regex '(.*\\.DS_Store)|(.*\\.Spotlight-V100)' ... b2://...
 
-    {DESTINATIONSSEMIXIN}
-    {SOURCESSEMIXIN}
+    {DestinationSseMixin}
+    {SourceSseMixin}
 
-    {WRITEBUFFERSIZEMIXIN}
-    {SKIPHASHVERIFICATIONMIXIN}
-    {MAXDOWNLOADSTREAMSMIXIN}
-    {UPLOADMODEMIXIN}
+    {WriteBufferSizeMixin}
+    {SkipHashVerificationMixin}
+    {MaxDownloadStreamsMixin}
+    {UploadModeMixin}
 
     Requires capabilities:
 
@@ -3082,8 +3082,8 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
-    {DEFAULTSSEMIXIN}
-    {LIFECYCLERULESMIXIN}
+    {DefaultSseMixin}
+    {LifecycleRulesMixin}
 
     To set a default retention for files in the bucket ``--default-retention-mode`` and
     ``--default-retention-period`` have to be specified. The latter one is of the form "X days|years".
@@ -3368,14 +3368,14 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
     on the command line to save a little time.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
-    {UPLOADFILEMIXIN}
-    {MINPARTSIZEMIXIN}
-    {PROGRESSMIXIN}
-    {THREADSMIXIN}
-    {DESTINATIONSSEMIXIN}
-    {FILERETENTIONSETTINGMIXIN}
-    {LEGALHOLDMIXIN}
-    {UPLOADMODEMIXIN}
+    {UploadFileMixin}
+    {MinPartSizeMixin}
+    {ProgressMixin}
+    {ThreadsMixin}
+    {DestinationSseMixin}
+    {FileRetentionSettingMixin}
+    {LegalHoldMixin}
+    {UploadModeMixin}
 
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
@@ -3421,8 +3421,8 @@ class UploadUnboundStream(UploadFileMixin, Command):
     and assigns the given name to the resulting B2 file.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
-    {UPLOADFILEMIXIN}
-    {MINPARTSIZEMIXIN}
+    {UploadFileMixin}
+    {MinPartSizeMixin}
 
     As opposed to ``b2 upload-file``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
     So on memory constrained system it is best to use ``--part-size`` option to set it manually.
@@ -3431,11 +3431,11 @@ class UploadUnboundStream(UploadFileMixin, Command):
     What is more, B2 Large File may consist of at most 10,000 parts, so ``minPartSize`` should be adjusted accordingly,
     if you expect the stream to be larger than 50GB.
 
-    {PROGRESSMIXIN}
-    {THREADSMIXIN}
-    {DESTINATIONSSEMIXIN}
-    {FILERETENTIONSETTINGMIXIN}
-    {LEGALHOLDMIXIN}
+    {ProgressMixin}
+    {ThreadsMixin}
+    {DestinationSseMixin}
+    {FileRetentionSettingMixin}
+    {LegalHoldMixin}
 
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
@@ -3499,7 +3499,7 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true.
 
-    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    {FileIdAndOptionalFileNameMixin}
 
     Requires capability:
 
@@ -3535,7 +3535,7 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
 
     In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
 
-    {FILEIDANDOPTIONALFILENAMEMIXIN}
+    {FileIdAndOptionalFileNameMixin}
 
     Requires capability:
 
