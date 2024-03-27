@@ -4262,25 +4262,28 @@ class ConsoleTool:
 
     @classmethod
     def _initialize_b2_api(cls, args: argparse.Namespace, kwargs: dict) -> B2Api:
-
-        # here we initialize regular b2 api on disk, and check whether it matches
-        # the keys from env vars; if they indeed match then there's no need to
-        # initialize in-memory account info cause it's already stored on disk;
-        # beware that this has side effect of creating an empty account info file
-        # if it didn't exist before
-        b2_api = _get_b2api_for_profile(profile=args.profile, **kwargs)
-
+        b2_api = None
         key_id, key = get_keyid_and_key_from_env_vars()
         if key_id and key:
-            realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR) or 'production'
-            if (
-                not b2_api.account_info.is_same_key(key_id, realm) and
-                args.command_class not in (AuthorizeAccount, ClearAccount)
+            try:
+                # here we initialize regular b2 api on disk and check whether it matches
+                # the keys from env vars; if they indeed match then there's no need to
+                # initialize in-memory account info cause it's already stored on disk
+                b2_api = _get_b2api_for_profile(
+                    profile=args.profile, raise_if_does_not_exist=True, **kwargs
+                )
+                realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR) or 'production'
+                is_same_key_on_disk = b2_api.account_info.is_same_key(key_id, realm)
+            except MissingAccountData:
+                is_same_key_on_disk = False
+
+            if not is_same_key_on_disk and args.command_class not in (
+                AuthorizeAccount, ClearAccount
             ):
                 # when user specifies keys via env variables, we switch to in-memory account info
                 return _get_inmemory_b2api(**kwargs)
 
-        return b2_api
+        return b2_api or _get_b2api_for_profile(profile=args.profile, **kwargs)
 
     def authorize_from_env(self) -> int:
 

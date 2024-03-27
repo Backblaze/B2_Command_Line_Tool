@@ -647,14 +647,13 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         )
         b2_tool.should_succeed(['delete-bucket', bucket_name])
 
-        assert os.path.exists(account_info_file_path), 'sqlite file was not created'
-        account_info = SqliteAccountInfo(account_info_file_path)
         if apiver_int >= 4:
-            with pytest.raises(MissingAccountData):
-                account_info.get_application_key_id()
-            with pytest.raises(MissingAccountData):
-                account_info.get_application_key()
+            assert not os.path.exists(
+                account_info_file_path
+            ), 'sqlite file was created while it shouldn\'t'
         else:
+            assert os.path.exists(account_info_file_path), 'sqlite file was not created'
+            account_info = SqliteAccountInfo(account_info_file_path)
             assert account_info.get_application_key_id() == os.environ['B2_TEST_APPLICATION_KEY_ID']
             assert account_info.get_application_key() == os.environ['B2_TEST_APPLICATION_KEY']
 
