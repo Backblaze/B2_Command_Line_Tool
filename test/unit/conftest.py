@@ -12,7 +12,7 @@ import os
 from unittest import mock
 
 import pytest
-from b2sdk.raw_api import REALM_URLS
+from b2sdk.v2 import REALM_URLS
 
 from b2._internal.console_tool import _TqdmCloser
 from b2._internal.version_listing import CLI_VERSIONS, UNSTABLE_CLI_VERSION, get_int_version
