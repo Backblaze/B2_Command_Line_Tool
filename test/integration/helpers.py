@@ -27,9 +27,9 @@ import time
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from os import environ, linesep, path
+from os import environ, linesep
 from pathlib import Path
-from tempfile import gettempdir, mkdtemp, mktemp
+from tempfile import mkdtemp, mktemp
 
 import backoff
 from b2sdk.v2 import (
@@ -47,7 +47,6 @@ from b2sdk.v2 import (
     InMemoryCache,
     LegalHold,
     RetentionMode,
-    SqliteAccountInfo,
     fix_windows_path_limit,
 )
 from b2sdk.v2.exception import (
@@ -336,33 +335,6 @@ class StringReader:
             self.string = str(e)
 
 
-class EnvVarTestContext:
-    """
-    Establish config for environment variable test.
-    Copy the B2 credential file and rename the existing copy
-    """
-    ENV_VAR = 'B2_ACCOUNT_INFO'
-
-    def __init__(self, account_info_file_name: str):
-        self.account_info_file_name = account_info_file_name
-        self.suffix = ''.join(RNG.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(7))
-
-    def __enter__(self):
-        src = self.account_info_file_name
-        dst = path.join(gettempdir(), 'b2_account_info')
-        shutil.copyfile(src, dst)
-        shutil.move(src, src + self.suffix)
-        environ[self.ENV_VAR] = dst
-        return dst
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        os.remove(environ.get(self.ENV_VAR))
-        fname = self.account_info_file_name
-        shutil.move(fname + self.suffix, fname)
-        if environ.get(self.ENV_VAR) is not None:
-            del environ[self.ENV_VAR]
-
-
 def should_equal(expected, actual):
     print('  expected:')
     print_json_indented(expected)
@@ -406,7 +378,6 @@ class CommandLine:
         self.realm = realm
         self.bucket_name_prefix = bucket_name_prefix
         self.env_file_cmd_placeholder = env_file_cmd_placeholder
-        self.env_var_test_context = EnvVarTestContext(SqliteAccountInfo().filename)
         self.api_wrapper = api_wrapper
         self.b2_uri_args = b2_uri_args
 

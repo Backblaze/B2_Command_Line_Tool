@@ -10,6 +10,7 @@
 
 from io import StringIO
 
+import pytest
 from b2sdk.v2 import (
     SSE_B2_AES,
     B2Api,
@@ -60,9 +61,21 @@ class TestReprentFileMetadata(TestBase):
             'production', self.restricted_key_id, self.restricted_key
         )
 
+        def _get_b2api(**kwargs) -> B2Api:
+            kwargs.pop('profile', None)
+            return self.master_b2_api
+
+        self.mp = pytest.MonkeyPatch()
+        self.mp.setattr('b2._internal.console_tool._get_b2api_for_profile', _get_b2api)
+        self.mp.setattr('b2._internal.console_tool._get_inmemory_b2api', _get_b2api)
+
         self.stdout = StringIO()
         self.stderr = StringIO()
-        self.console_tool = ConsoleTool(self.master_b2_api, self.stdout, self.stderr)
+        self.console_tool = ConsoleTool(self.stdout, self.stderr)
+
+    def tearDown(self):
+        self.mp.undo()
+        super().tearDown()
 
     def assertRetentionRepr(self, file_id: str, api: B2Api, expected_repr: str):
         file_version = api.get_file_info(file_id)

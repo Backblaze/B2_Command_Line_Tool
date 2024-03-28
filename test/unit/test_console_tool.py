@@ -12,11 +12,12 @@ import json
 import os
 import pathlib
 import re
-import unittest.mock as mock
+from functools import lru_cache
 from io import StringIO
 from itertools import chain, product
 from test.helpers import skip_on_windows
 from typing import List, Optional
+from unittest import mock
 
 import pytest
 from b2sdk import v1
@@ -57,11 +58,28 @@ class BaseConsoleToolTest(TestBase):
     def setUp(self):
         self.account_info = StubAccountInfo()
 
-        self.b2_api = B2Api(
-            self.account_info, None, api_config=B2HttpApiConfig(_raw_api_class=RawSimulator)
-        )
+        # this is a hack - B2HttpApiConfig expects a class, but we want to use an instance
+        # which will be reused during the test, thus instead of class we pass a lambda which
+        # returns already predefined instance
+        self.raw_simulator = RawSimulator()
+        self.api_config = B2HttpApiConfig(_raw_api_class=lambda *args, **kwargs: self.raw_simulator)
+
+        @lru_cache(maxsize=None)
+        def _get_b2api(**kwargs) -> B2Api:
+            kwargs.pop('profile', None)
+            return B2Api(
+                account_info=self.account_info,
+                cache=None,
+                api_config=self.api_config,
+                **kwargs,
+            )
+
+        self.console_tool_class._initialize_b2_api = lambda cls, args, kwargs: _get_b2api(**kwargs)
+
+        self.b2_api = _get_b2api()
         self.raw_api = self.b2_api.session.raw_api
-        (self.account_id, self.master_key) = self.raw_api.create_account()
+        self.account_id, self.master_key = self.raw_api.create_account()
+
         for env_var_name in [
             B2_APPLICATION_KEY_ID_ENV_VAR,
             B2_APPLICATION_KEY_ENV_VAR,
@@ -80,8 +98,7 @@ class BaseConsoleToolTest(TestBase):
         success, but ignoring the stdout.
         """
         stdout, stderr = self._get_stdouterr()
-        actual_status = self.console_tool_class(self.b2_api, stdout,
-                                                stderr).run_command(['b2'] + argv)
+        actual_status = self.console_tool_class(stdout, stderr).run_command(['b2'] + argv)
         actual_stderr = self._trim_trailing_spaces(stderr.getvalue())
 
         if actual_stderr != '':
@@ -165,6 +182,12 @@ class BaseConsoleToolTest(TestBase):
         """
         self._run_command_ignore_output(['authorize-account', self.account_id, self.master_key])
 
+    def _clear_account(self):
+        """
+        Clear account auth data
+        """
+        self._run_command_ignore_output(['clear-account'])
+
     def _create_my_bucket(self):
         self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
@@ -190,13 +213,15 @@ class BaseConsoleToolTest(TestBase):
         format_vars.
 
         The ConsoleTool is stateless, so we can make a new one for each
-        call, with a fresh stdout and stderr
+        call, with a fresh stdout and stderr. However, last instance of ConsoleTool
+        is stored in `self.console_tool`, may be handy for testing internals
+        of the tool after last command invocation.
         """
         expected_stderr = self._normalize_expected_output(expected_stderr, format_vars)
         stdout, stderr = self._get_stdouterr()
-        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
+        self.console_tool = self.console_tool_class(stdout, stderr)
         try:
-            actual_status = console_tool.run_command(['b2'] + argv)
+            actual_status = self.console_tool.run_command(['b2'] + argv)
         except SystemExit as e:
             actual_status = e.code
 
@@ -1777,7 +1802,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Hide some new files. Don't check the results here; it will be clear enough that
         # something has failed if the output of 'get-bucket' does not match the canon.
         stdout, stderr = self._get_stdouterr()
-        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(stdout, stderr)
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden1'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden2'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden3'])
@@ -1838,7 +1863,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Hide some new files. Don't check the results here; it will be clear enough that
         # something has failed if the output of 'get-bucket' does not match the canon.
         stdout, stderr = self._get_stdouterr()
-        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(stdout, stderr)
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden2'])
@@ -2405,10 +2430,11 @@ class TestConsoleTool(BaseConsoleToolTest):
             ] + list(range(25))
         )
         stderr = mock.MagicMock()
-        console_tool = self.console_tool_class(self.b2_api, stdout, stderr)
+        console_tool = self.console_tool_class(stdout, stderr)
         console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
 
     def test_passing_api_parameters(self):
+        self._authorize_account()
         commands = [
             [
                 'b2', 'download-file-by-name', '--profile', 'nonexistent', 'dummy-name',
@@ -2433,12 +2459,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         ]
         for command, params in product(commands, parameters):
             console_tool = self.console_tool_class(
-                None,  # do not initialize b2 api to allow passing in additional parameters
                 mock.MagicMock(),
                 mock.MagicMock(),
             )
 
-            args = list(map(str, filter(None, chain.from_iterable(params.items()))))
+            args = [str(val) for val in chain.from_iterable(params.items()) if val]
             console_tool.run_command(command + args)
 
             download_manager = console_tool.api.services.download_manager
@@ -2450,6 +2475,39 @@ class TestConsoleTool(BaseConsoleToolTest):
                 if isinstance(strategy, download_manager.PARALLEL_DOWNLOADER_CLASS)
             )
             assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
+
+    def test_passing_api_parameters_with_auth_env_vars(self):
+
+        os.environ[B2_APPLICATION_KEY_ID_ENV_VAR] = self.account_id
+        os.environ[B2_APPLICATION_KEY_ENV_VAR] = self.master_key
+
+        command = [
+            'b2',
+            'download-file-by-id',
+            'dummy-id',
+            'dummy-local-file-name',
+            '--write-buffer-size',
+            '123',
+            '--max-download-streams-per-file',
+            '5',
+            '--skip-hash-verification',
+        ]
+
+        console_tool = self.console_tool_class(
+            mock.MagicMock(),
+            mock.MagicMock(),
+        )
+        console_tool.run_command(command)
+
+        download_manager = console_tool.api.services.download_manager
+        assert download_manager.write_buffer_size == 123
+        assert download_manager.check_hash is False
+
+        parallel_strategy = one(
+            strategy for strategy in download_manager.strategies
+            if isinstance(strategy, download_manager.PARALLEL_DOWNLOADER_CLASS)
+        )
+        assert parallel_strategy.max_streams == 5
 
     @pytest.mark.apiver(from_ver=4)
     def test_ls_b2id(self):

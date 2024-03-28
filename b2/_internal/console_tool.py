@@ -130,10 +130,11 @@ from b2._internal._cli.autocomplete_install import (
     AutocompleteInstallError,
     autocomplete_install,
 )
-from b2._internal._cli.b2api import _get_b2api_for_profile
+from b2._internal._cli.b2api import _get_b2api_for_profile, _get_inmemory_b2api
 from b2._internal._cli.b2args import (
     add_b2id_or_b2_uri_argument,
     add_b2id_or_file_like_b2_uri_argument,
+    get_keyid_and_key_from_env_vars,
 )
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
@@ -4179,11 +4180,11 @@ class ConsoleTool:
     Implements the commands available in the B2 command-line tool
     using the B2Api library.
 
-    Uses a ``b2sdk.SqlitedAccountInfo`` object to keep account data between runs.
+    Uses a ``b2sdk.SqlitedAccountInfo`` object to keep account data between runs
+    (unless authorization is performed via environment variables).
     """
 
-    def __init__(self, b2_api: B2Api | None, stdout, stderr):
-        self.api = b2_api
+    def __init__(self, stdout, stderr):
         self.stdout = stdout
         self.stderr = stderr
         self.b2_binary_name = 'b2'
@@ -4214,32 +4215,16 @@ class ConsoleTool:
             # in case any control characters slip through escaping, just delete them
             self.stdout = NoControlCharactersStdout(self.stdout)
             self.stderr = NoControlCharactersStdout(self.stderr)
-        if self.api:
-            if (
-                args.profile or getattr(args, 'write_buffer_size', None) or
-                getattr(args, 'skip_hash_verification', None) or
-                getattr(args, 'max_download_streams_per_file', None)
-            ):
-                self._print_stderr(
-                    'ERROR: cannot change configuration on already initialized object'
-                )
-                return 1
 
-        else:
-            kwargs = {
-                'profile': args.profile,
-            }
+        kwargs = {}
+        with suppress(AttributeError):
+            kwargs['save_to_buffer_size'] = args.write_buffer_size
+        with suppress(AttributeError):
+            kwargs['check_download_hash'] = not args.skip_hash_verification
+        with suppress(AttributeError):
+            kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
-            if 'write_buffer_size' in args:
-                kwargs['save_to_buffer_size'] = args.write_buffer_size
-
-            if 'skip_hash_verification' in args:
-                kwargs['check_download_hash'] = not args.skip_hash_verification
-
-            if 'max_download_streams_per_file' in args:
-                kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
-
-            self.api = _get_b2api_for_profile(**kwargs)
+        self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -4251,9 +4236,10 @@ class ConsoleTool:
             logger.info('starting command [%s] with arguments: %s', command, argv)
 
         try:
-            auth_ret = self.authorize_from_env(command_class)
-            if auth_ret:
-                return auth_ret
+            if command_class.REQUIRES_AUTH:
+                auth_ret = self.authorize_from_env()
+                if auth_ret:
+                    return auth_ret
             return command.run(args)
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
@@ -4274,12 +4260,34 @@ class ConsoleTool:
             logger.exception('ConsoleTool unexpected exception')
             raise
 
-    def authorize_from_env(self, command_class):
-        if not command_class.REQUIRES_AUTH:
-            return 0
+    @classmethod
+    def _initialize_b2_api(cls, args: argparse.Namespace, kwargs: dict) -> B2Api:
+        b2_api = None
+        key_id, key = get_keyid_and_key_from_env_vars()
+        if key_id and key:
+            try:
+                # here we initialize regular b2 api on disk and check whether it matches
+                # the keys from env vars; if they indeed match then there's no need to
+                # initialize in-memory account info cause it's already stored on disk
+                b2_api = _get_b2api_for_profile(
+                    profile=args.profile, raise_if_does_not_exist=True, **kwargs
+                )
+                realm = os.environ.get(B2_ENVIRONMENT_ENV_VAR) or 'production'
+                is_same_key_on_disk = b2_api.account_info.is_same_key(key_id, realm)
+            except MissingAccountData:
+                is_same_key_on_disk = False
 
-        key_id = os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR)
-        key = os.environ.get(B2_APPLICATION_KEY_ENV_VAR)
+            if not is_same_key_on_disk and args.command_class not in (
+                AuthorizeAccount, ClearAccount
+            ):
+                # when user specifies keys via env variables, we switch to in-memory account info
+                return _get_inmemory_b2api(**kwargs)
+
+        return b2_api or _get_b2api_for_profile(profile=args.profile, **kwargs)
+
+    def authorize_from_env(self) -> int:
+
+        key_id, key = get_keyid_and_key_from_env_vars()
 
         if key_id is None and key is None:
             return 0
@@ -4349,7 +4357,7 @@ get_parser = functools.partial(B2.create_parser, for_docs=True)
 
 
 def main():
-    ct = ConsoleTool(b2_api=None, stdout=sys.stdout, stderr=sys.stderr)
+    ct = ConsoleTool(stdout=sys.stdout, stderr=sys.stderr)
     exit_status = ct.run_command(sys.argv)
     logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
 

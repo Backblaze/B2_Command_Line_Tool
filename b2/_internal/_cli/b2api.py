@@ -15,13 +15,26 @@ from b2sdk.v2 import (
     AuthInfoCache,
     B2Api,
     B2HttpApiConfig,
+    InMemoryAccountInfo,
+    InMemoryCache,
     SqliteAccountInfo,
 )
+from b2sdk.v2.exception import MissingAccountData
 
 from b2._internal._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
 
 
-def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs) -> B2Api:
+def _get_b2api_for_profile(
+    profile: Optional[str] = None,
+    raise_if_does_not_exist: bool = False,
+    **kwargs,
+) -> B2Api:
+
+    if raise_if_does_not_exist:
+        account_info_file = SqliteAccountInfo._get_user_account_info_path(profile=profile)
+        if not os.path.exists(account_info_file):
+            raise MissingAccountData(account_info_file)
+
     account_info = SqliteAccountInfo(profile=profile)
     b2api = B2Api(
         api_config=_get_b2httpapiconfig(),
@@ -44,6 +57,10 @@ def _get_b2api_for_profile(profile: Optional[str] = None, **kwargs) -> B2Api:
         b2http.TRY_COUNT_HEAD = 2
         b2http.TRY_COUNT_OTHER = 2
     return b2api
+
+
+def _get_inmemory_b2api(**kwargs) -> B2Api:
+    return B2Api(InMemoryAccountInfo(), cache=InMemoryCache(), **kwargs)
 
 
 def _get_b2httpapiconfig():

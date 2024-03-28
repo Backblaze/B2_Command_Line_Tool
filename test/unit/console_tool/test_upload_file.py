@@ -155,4 +155,4 @@ def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
         remove_version=True,
     )
 
-    assert b2_cli.b2_api.services.upload_manager.get_thread_pool_size() == num_threads
+    assert b2_cli.console_tool.api.services.upload_manager.get_thread_pool_size() == num_threads

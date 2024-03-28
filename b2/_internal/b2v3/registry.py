@@ -10,10 +10,38 @@
 
 # ruff: noqa: F405
 from b2._internal._b2v4.registry import *  # noqa
+from b2._internal._cli.b2api import _get_b2api_for_profile
 from b2._internal.arg_parser import enable_camel_case_arguments
 from .rm import Rm
 
 enable_camel_case_arguments()
+
+
+class ConsoleTool(ConsoleTool):
+    # same as original console tool, but does not use InMemoryAccountInfo and InMemoryCache
+    # when auth env vars are used
+
+    @classmethod
+    def _initialize_b2_api(cls, args: argparse.Namespace, kwargs: dict) -> B2Api:
+        return _get_b2api_for_profile(profile=args.profile, **kwargs)
+
+
+def main() -> None:
+    # this is a copy of v4 `main()` but with custom console tool class
+
+    ct = ConsoleTool(stdout=sys.stdout, stderr=sys.stderr)
+    exit_status = ct.run_command(sys.argv)
+    logger.info('\\\\ %s %s %s //', SEPARATOR, ('exit=%s' % exit_status).center(8), SEPARATOR)
+
+    # I haven't tracked down the root cause yet, but in Python 2.7, the futures
+    # packages is hanging on exit sometimes, waiting for a thread to finish.
+    # This happens when using sync to upload files.
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    logging.shutdown()
+
+    os._exit(exit_status)
 
 
 class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):

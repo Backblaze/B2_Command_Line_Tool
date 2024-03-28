@@ -22,8 +22,10 @@ import re
 import sys
 import time
 from pathlib import Path
+from tempfile import mkdtemp
 
 import pytest
+from b2sdk.account_info.exception import MissingAccountData
 from b2sdk.v2 import (
     B2_ACCOUNT_INFO_ENV_VAR,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
@@ -33,9 +35,14 @@ from b2sdk.v2 import (
     FileRetentionSetting,
     LegalHold,
     RetentionMode,
+    SqliteAccountInfo,
     fix_windows_path_limit,
 )
 
+from b2._internal._cli.const import (
+    B2_APPLICATION_KEY_ENV_VAR,
+    B2_APPLICATION_KEY_ID_ENV_VAR,
+)
 from b2._internal.console_tool import current_time_millis
 
 from ..helpers import skip_on_windows
@@ -54,6 +61,199 @@ from .helpers import (
     should_equal,
     write_file,
 )
+
+
+def test_authorize_account_via_params_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+):
+    """
+    When calling `authorize-account` and passing credentials as params,
+    we want the credentials to be saved.
+    """
+
+    b2_tool.should_succeed(['clear-account'])
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(['authorize-account', application_key_id, application_key])
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+
+def test_authorize_account_via_env_vars_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+):
+    """
+    When calling `authorize-account` and passing credentials
+    via env vars, we still want the credentials to be saved.
+    """
+
+    b2_tool.should_succeed(['clear-account'])
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(
+        ['authorize-account'],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+
+def test_clear_account_with_env_vars(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+):
+    """
+    When calling `clear-account` and passing credentials via env vars,
+    we want the credentials to be removed from the file.
+    """
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+    b2_tool.should_succeed(
+        ['clear-account'],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key_id()
+
+
+@pytest.mark.apiver(to_ver=3)
+def test_command_with_env_vars_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    bucket_name,
+    b2_uri_args,
+):
+    """
+    When calling any command other then `authorize-account` and passing credentials
+    via env vars, we don't want them to be saved.
+    """
+
+    b2_tool.should_succeed(['clear-account'])
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(
+        ['ls', '--long', *b2_uri_args(bucket_name)],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+
+@pytest.mark.apiver(from_ver=4)
+def test_command_with_env_vars_not_saving_credentials(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    bucket_name,
+    b2_uri_args,
+):
+    """
+    When calling any command other then `authorize-account` and passing credentials
+    via env vars, we don't want them to be saved.
+    """
+
+    b2_tool.should_succeed(['clear-account'])
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    b2_tool.should_succeed(
+        ['ls', '--long', *b2_uri_args(bucket_name)],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key()
+    with pytest.raises(MissingAccountData):
+        account_info.get_application_key_id()
+
+
+@pytest.mark.apiver(from_ver=4)
+def test_command_with_env_vars_reusing_existing_account_info(
+    b2_tool,
+    application_key,
+    application_key_id,
+    account_info_file,
+    bucket_name,
+    b2_uri_args,
+):
+    """
+    When calling any command with credentials passed via env vars, and the account
+    info file already contains the same credentials, we want to use filesystem for
+    storing cache, not the in-memory cache.
+    """
+
+    assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
+    assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_application_key() == application_key
+    assert account_info.get_application_key_id() == application_key_id
+
+    account_info.remove_bucket_name(bucket_name)
+    assert account_info.get_bucket_id_or_none_from_bucket_name(bucket_name) is None
+
+    b2_tool.should_succeed(
+        ['ls', '--long', *b2_uri_args(bucket_name)],
+        additional_env={
+            B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
+            B2_APPLICATION_KEY_ENV_VAR: application_key,
+        }
+    )
+
+    assert account_info_file.exists()
+    account_info = SqliteAccountInfo()
+    assert account_info.get_bucket_id_or_none_from_bucket_name(bucket_name) is not None
 
 
 @pytest.fixture
@@ -396,8 +596,12 @@ def test_rapid_bucket_operations(b2_tool):
     b2_tool.should_succeed(['delete-bucket', new_bucket_name])
 
 
-def test_account(b2_tool, cli_version):
-    with b2_tool.env_var_test_context:
+def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
+
+    with monkeypatch.context() as mp:
+        account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
+        mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
+
         b2_tool.should_succeed(['clear-account'])
         bad_application_key = random_hex(len(b2_tool.application_key))
         b2_tool.should_fail(
@@ -414,10 +618,11 @@ def test_account(b2_tool, cli_version):
         )
 
     # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
-    with b2_tool.env_var_test_context as new_creds:
-        os.remove(new_creds)
+    with monkeypatch.context() as mp:
+        account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
+        mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
-        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file hs been
+        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file has been
         # successfully removed
         bucket_name = b2_tool.generate_bucket_name()
         b2_tool.should_fail(
@@ -426,7 +631,10 @@ def test_account(b2_tool, cli_version):
             fr'Use: {cli_version}(\.(exe|EXE))? authorize-account or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
             r'\'B2_APPLICATION_KEY\' environment variables'
         )
-        os.remove(new_creds)
+
+    with monkeypatch.context() as mp:
+        account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
+        mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
         # then, let's see that auth data from env vars works
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
@@ -438,7 +646,16 @@ def test_account(b2_tool, cli_version):
             ['create-bucket', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
         )
         b2_tool.should_succeed(['delete-bucket', bucket_name])
-        assert os.path.exists(new_creds), 'sqlite file not created'
+
+        if apiver_int >= 4:
+            assert not os.path.exists(
+                account_info_file_path
+            ), 'sqlite file was created while it shouldn\'t'
+        else:
+            assert os.path.exists(account_info_file_path), 'sqlite file was not created'
+            account_info = SqliteAccountInfo(account_info_file_path)
+            assert account_info.get_application_key_id() == os.environ['B2_TEST_APPLICATION_KEY_ID']
+            assert account_info.get_application_key() == os.environ['B2_TEST_APPLICATION_KEY']
 
         os.environ.pop('B2_APPLICATION_KEY')
         os.environ.pop('B2_APPLICATION_KEY_ID')
