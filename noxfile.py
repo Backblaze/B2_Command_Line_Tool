@@ -74,6 +74,10 @@ nox.options.sessions = [
     'test',
 ]
 
+PYTEST_GLOBAL_ARGS = []
+if CI:
+    PYTEST_GLOBAL_ARGS.append("-vv")
+
 
 def pdm_install(
     session: nox.Session, *groups: str, dev: bool = True, editable: bool = False
@@ -159,7 +163,7 @@ def lint(session):
     #     *PY_PATHS,
     # )
 
-    session.run('pytest', 'test/static')
+    session.run('pytest', 'test/static', *PYTEST_GLOBAL_ARGS)
     session.run('liccheck', '-s', 'pyproject.toml')
     session.run('pdm', 'lock', '--check', external=True)
 
@@ -177,6 +181,7 @@ def unit(session):
         '--cov-branch',
         '--cov-report=xml',
         '--doctest-modules',
+        *PYTEST_GLOBAL_ARGS,
         *session.posargs,
         'test/unit',
     ]
@@ -205,6 +210,7 @@ def run_integration_test(session, pytest_posargs):
         'INFO',
         '-W',
         'ignore::DeprecationWarning:rst2ansi.visitor:',
+        *PYTEST_GLOBAL_ARGS,
         *pytest_posargs,
     ]
 
@@ -248,7 +254,10 @@ def test(session):
 def cleanup_buckets(session):
     """Remove buckets from previous test runs."""
     pdm_install(session, 'test')
-    session.run('pytest', '-s', '-x', *session.posargs, 'test/integration/cleanup_buckets.py')
+    session.run(
+        'pytest', '-s', '-x', *PYTEST_GLOBAL_ARGS, *session.posargs,
+        'test/integration/cleanup_buckets.py'
+    )
 
 
 @nox.session

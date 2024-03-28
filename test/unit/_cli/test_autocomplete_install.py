@@ -7,9 +7,16 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import pathlib
+import shutil
+from test.helpers import skip_on_windows
+
 import pytest
 
-from b2._internal._cli.autocomplete_install import add_or_update_shell_section
+from b2._internal._cli.autocomplete_install import (
+    SHELL_REGISTRY,
+    add_or_update_shell_section,
+)
 
 section = "test_section"
 managed_by = "pytest"
@@ -73,3 +80,28 @@ def test_add_or_update_shell_section_no_file(test_file):
 {content}
 # <<< {section} <<<
 """
+
+
+@pytest.fixture
+def dummy_command(homedir, monkeypatch, env):
+    name = "dummy_command"
+    bin_path = homedir / "bin" / name
+    bin_path.parent.mkdir(parents=True, exist_ok=True)
+    bin_path.symlink_to(pathlib.Path(__file__).parent / "fixtures" / f"{name}.py")
+    monkeypatch.setenv("PATH", f"{homedir}/bin:{env['PATH']}")
+    yield name
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish"])
+@skip_on_windows
+def test_autocomplete_installer(homedir, env, shell, caplog, dummy_command):
+    caplog.set_level(10)
+    shell_installer = SHELL_REGISTRY.get(shell, prog=dummy_command)
+
+    shell_bin = shutil.which(shell)
+    if shell_bin is None:
+        pytest.skip(f"{shell} is not installed")
+
+    assert shell_installer.is_enabled() is False
+    shell_installer.install()
+    assert shell_installer.is_enabled() is True
