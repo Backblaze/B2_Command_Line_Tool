@@ -12,7 +12,7 @@ import os
 from unittest import mock
 
 import pytest
-from b2sdk.raw_api import REALM_URLS
+from b2sdk.v2 import REALM_URLS
 
 from b2._internal.console_tool import _TqdmCloser
 from b2._internal.version_listing import CLI_VERSIONS, UNSTABLE_CLI_VERSION, get_int_version
@@ -41,6 +41,22 @@ def pytest_report_header(config):
 @pytest.fixture(scope='session')
 def cli_version(request) -> str:
     return request.config.getoption('--cli')
+
+
+@pytest.fixture
+def homedir(tmp_path_factory):
+    yield tmp_path_factory.mktemp("test_homedir")
+
+
+@pytest.fixture
+def env(homedir, monkeypatch):
+    """Get ENV for running b2 command from shell level."""
+    monkeypatch.setenv("HOME", str(homedir))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("SHELL", "/bin/bash")  # fix for running under github actions
+    if "TERM" not in os.environ:
+        monkeypatch.setenv("TERM", "xterm")
+    yield os.environ
 
 
 @pytest.fixture(scope='session')
@@ -81,6 +97,12 @@ class ConsoleToolTester(BaseConsoleToolTest):
 
     def run(self, *args, **kwargs):
         return self._run_command(*args, **kwargs)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_signal():
+    with mock.patch('signal.signal'):
+        yield
 
 
 @pytest.fixture
