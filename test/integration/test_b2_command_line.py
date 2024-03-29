@@ -42,6 +42,7 @@ from b2sdk.v2 import (
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
+    B2_ENVIRONMENT_ENV_VAR,
 )
 from b2._internal.console_tool import current_time_millis
 
@@ -65,6 +66,7 @@ from .helpers import (
 
 def test_authorize_account_via_params_saving_credentials(
     b2_tool,
+    realm,
     application_key,
     application_key_id,
     account_info_file,
@@ -79,7 +81,9 @@ def test_authorize_account_via_params_saving_credentials(
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
-    b2_tool.should_succeed(['authorize-account', application_key_id, application_key])
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', realm, application_key_id, application_key]
+    )
 
     assert account_info_file.exists()
     account_info = SqliteAccountInfo()
@@ -89,6 +93,7 @@ def test_authorize_account_via_params_saving_credentials(
 
 def test_authorize_account_via_env_vars_saving_credentials(
     b2_tool,
+    realm,
     application_key,
     application_key_id,
     account_info_file,
@@ -106,6 +111,7 @@ def test_authorize_account_via_env_vars_saving_credentials(
     b2_tool.should_succeed(
         ['authorize-account'],
         additional_env={
+            B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
             B2_APPLICATION_KEY_ENV_VAR: application_key,
         }
@@ -119,6 +125,7 @@ def test_authorize_account_via_env_vars_saving_credentials(
 
 def test_clear_account_with_env_vars(
     b2_tool,
+    realm,
     application_key,
     application_key_id,
     account_info_file,
@@ -136,6 +143,7 @@ def test_clear_account_with_env_vars(
     b2_tool.should_succeed(
         ['clear-account'],
         additional_env={
+            B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
             B2_APPLICATION_KEY_ENV_VAR: application_key,
         }
@@ -152,6 +160,7 @@ def test_clear_account_with_env_vars(
 @pytest.mark.apiver(to_ver=3)
 def test_command_with_env_vars_saving_credentials(
     b2_tool,
+    realm,
     application_key,
     application_key_id,
     account_info_file,
@@ -171,6 +180,7 @@ def test_command_with_env_vars_saving_credentials(
     b2_tool.should_succeed(
         ['ls', '--long', *b2_uri_args(bucket_name)],
         additional_env={
+            B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
             B2_APPLICATION_KEY_ENV_VAR: application_key,
         }
@@ -185,6 +195,7 @@ def test_command_with_env_vars_saving_credentials(
 @pytest.mark.apiver(from_ver=4)
 def test_command_with_env_vars_not_saving_credentials(
     b2_tool,
+    realm,
     application_key,
     application_key_id,
     account_info_file,
@@ -204,6 +215,7 @@ def test_command_with_env_vars_not_saving_credentials(
     b2_tool.should_succeed(
         ['ls', '--long', *b2_uri_args(bucket_name)],
         additional_env={
+            B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
             B2_APPLICATION_KEY_ENV_VAR: application_key,
         }
@@ -220,6 +232,7 @@ def test_command_with_env_vars_not_saving_credentials(
 @pytest.mark.apiver(from_ver=4)
 def test_command_with_env_vars_reusing_existing_account_info(
     b2_tool,
+    realm,
     application_key,
     application_key_id,
     account_info_file,
@@ -246,6 +259,7 @@ def test_command_with_env_vars_reusing_existing_account_info(
     b2_tool.should_succeed(
         ['ls', '--long', *b2_uri_args(bucket_name)],
         additional_env={
+            B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
             B2_APPLICATION_KEY_ENV_VAR: application_key,
         }
