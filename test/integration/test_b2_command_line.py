@@ -1103,7 +1103,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryp
             b2_tool.should_fail(
                 ['sync', '--no-progress', b2_sync_point, new_local_path],
                 expected_pattern=
-                'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+                'b2sdk._internal.exception.BadRequest: The object was stored using a form of Server Side '
                 'Encryption. The correct parameters must be provided to retrieve the object. '
                 r'\(bad_request\)',
             )
@@ -1313,7 +1313,7 @@ def run_sync_copy_with_basic_checks(
                     destination_encryption.key.key_id,
             },
             expected_pattern=
-            'b2sdk.exception.BadRequest: The object was stored using a form of Server Side '
+            'b2sdk._internal.exception.BadRequest: The object was stored using a form of Server Side '
             'Encryption. The correct parameters must be provided to retrieve the object. '
             r'\(bad_request\)'
         )
