@@ -185,8 +185,6 @@ A hidden flag `--debug-logs` can be used to enable logging to a `b2_cli.log` fil
 
 For advanced users, a hidden option `--log-config <filename.ini>` can be used to enable logging in a user-defined format and verbosity. Check out the [example log configuration](contrib/debug_logs.ini).
 
-In order to see the raw request headers you may `export B2_DEBUG_HTTP=1` before calling the CLI.
-
 ## Release History
 
 Please refer to the [changelog](CHANGELOG.md).
