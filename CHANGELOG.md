@@ -9,6 +9,33 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.18.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.18.0) - 2024-04-02
+
+
+### Changed
+
+- Change all `_b2v4 --camelCase` CLI flags to --kebab-case.
+  Add deprecation warning for `b2v3 --camelCase` CLI flags.
+
+### Fixed
+
+- Don't persist credentials provided in the Environment variables in any command other than `authorize-account` when using `b2v4`.
+- Fix `b2 --help` showing full binary path instead of just basename.
+
+### Added
+
+- Add autocomplete support for `zsh` and `fish` shells.
+- Add support for calling `b2 ls` without arguments to list all buckets.
+
+### Infrastructure
+
+- Add dockerhub description deployment to CD workflow.
+- Add support for pre-releases in CD.
+- Fix missing command output when running `nox` under CI.
+- Increase verbosity when running tests under CI.
+- Update to [GitHub Actions using Node 20](https://github.blog/changelog/2023-09-22-github-actions-transitioning-from-node-16-to-node-20/).
+
+
 ## [3.17.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.17.0) - 2024-03-15
 
 
