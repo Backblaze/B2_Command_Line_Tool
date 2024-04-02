@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:0802654362453c872e1418c412ebc5a15b1fc1a5c0785f9eabe93d9adac634a6"
+content_hash = "sha256:454c2cab0c928d6f9b44476c771b5fbd0247cc294a322d21eb19d72df97ffbc9"
 
 [[package]]
 name = "alabaster"
@@ -100,21 +100,19 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "1.33.0"
+version = "2.0.0"
 requires_python = ">=3.7"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
 dependencies = [
     "importlib-metadata>=3.3.0; python_version < \"3.8\"",
     "logfury<2.0.0,>=1.0.1",
-    "packaging>=21.0",
     "requests<3.0.0,>=2.9.1",
-    "tqdm<5.0.0,>=4.5.0",
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-1.33.0-py3-none-any.whl", hash = "sha256:e7eeb8e95694ad8f9495a4ed4d39d011db865adfe9a6c9a6852245d703ebd476"},
-    {file = "b2sdk-1.33.0.tar.gz", hash = "sha256:bb4b52081491146776326dced464f14fafc54853a062d2acc326159dddb7d76e"},
+    {file = "b2sdk-2.0.0-py3-none-any.whl", hash = "sha256:e1be966e312f08cb33edefcd2449cb16c6cef66994e5a353f07bdbd310e139a6"},
+    {file = "b2sdk-2.0.0.tar.gz", hash = "sha256:0e49cd0fdc989b1bdf8a2509b06badb41e5b9384ac509ab82d09d677037ea93e"},
 ]
 
 [[package]]
@@ -741,7 +739,7 @@ name = "packaging"
 version = "24.0"
 requires_python = ">=3.7"
 summary = "Core utilities for Python packages"
-groups = ["bundle", "default", "doc", "lint", "test"]
+groups = ["bundle", "doc", "lint", "test"]
 files = [
     {file = "packaging-24.0-py3-none-any.whl", hash = "sha256:2ddfb553fdf02fb784c234c7ba6ccc288296ceabec964ad2eae3777778130bc5"},
     {file = "packaging-24.0.tar.gz", hash = "sha256:eb82c5e3e56209074766e6885bb04b8c38a0c015d0a30036ebe7ece34c9989e9"},
@@ -821,14 +819,17 @@ files = [
 
 [[package]]
 name = "pipdeptree"
-version = "2.16.1"
+version = "2.16.2"
 requires_python = ">=3.8"
 summary = "Command line utility to show dependency tree of packages."
 groups = ["license"]
 marker = "python_version >= \"3.9\""
+dependencies = [
+    "pip>=23.1.2",
+]
 files = [
-    {file = "pipdeptree-2.16.1-py3-none-any.whl", hash = "sha256:7131023df30220678b6a42c7372ce07453b39e0b3df935b129e832f0acf96b8a"},
-    {file = "pipdeptree-2.16.1.tar.gz", hash = "sha256:f1ca64ce4aff9373613711048b9c4e8106ad955dea0dd962b7974fa168d7650a"},
+    {file = "pipdeptree-2.16.2-py3-none-any.whl", hash = "sha256:4b60a20f632aa3449880141d1cd0bc99cb5f93ed46d54d689fd1c9b95f0e53d0"},
+    {file = "pipdeptree-2.16.2.tar.gz", hash = "sha256:96ecde8e6f40c95998491a385e4af56d387f94ff7d3b8f209aa34982a721bc43"},
 ]
 
 [[package]]

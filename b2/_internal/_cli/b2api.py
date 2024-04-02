@@ -31,7 +31,7 @@ def _get_b2api_for_profile(
 ) -> B2Api:
 
     if raise_if_does_not_exist:
-        account_info_file = SqliteAccountInfo._get_user_account_info_path(profile=profile)
+        account_info_file = SqliteAccountInfo.get_user_account_info_path(profile=profile)
         if not os.path.exists(account_info_file):
             raise MissingAccountData(account_info_file)
 

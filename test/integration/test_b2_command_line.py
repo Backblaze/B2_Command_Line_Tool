@@ -25,7 +25,6 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 import pytest
-from b2sdk.account_info.exception import MissingAccountData
 from b2sdk.v2 import (
     B2_ACCOUNT_INFO_ENV_VAR,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
@@ -38,6 +37,7 @@ from b2sdk.v2 import (
     SqliteAccountInfo,
     fix_windows_path_limit,
 )
+from b2sdk.v2.exception import MissingAccountData
 
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
