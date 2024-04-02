@@ -53,13 +53,13 @@ See examples in [Usage/Docker image](#docker-image)
 
 ### Installing from source
 
-If installing from the repository is needed in order to e.g. check if a pre-release version resolves a bug effectively, it can be installed with:
+Not recommended, unless you want to check if a current pre-release code solves a bug affecting you.
 
 ```bash
-python3 setup.py install
+pip install git+https://github.com/Backblaze/B2_Command_Line_Tool.git
 ```
 
-In this case of installing a pre-release, [virtualenv](https://pypi.org/project/virtualenv/) is strongly recommended.
+If you wish to contribute to or otherwise modify source code, please see our [contributing guidelines](CONTRIBUTING.md).
 
 ## Usage
 
