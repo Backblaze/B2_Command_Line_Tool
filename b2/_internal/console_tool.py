@@ -777,7 +777,7 @@ class LifecycleRulesMixin(Described):
 
 class ThreadsMixin(Described):
     """
-    Use --threads to manually adjust number of threads used in the operation.
+    Use --threads to manually adjust the number of threads used in the operation.
     Otherwise, the number of threads will be automatically chosen.
     """
 
@@ -3222,7 +3222,6 @@ class UploadFileMixin(
 
     The maximum number of upload threads to use to upload parts of a large file is specified by ``--threads``.
     It has no effect on "small" files (under 200MB as of writing this).
-    Default is 10.
 
     Each fileInfo is of the form ``a=b``.
     """

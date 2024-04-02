@@ -118,12 +118,6 @@ B2 Storage service.  Each different command may required additional
 capabilities. You can find the details for each command in the help for
 that command.
 
-### Parallelism and the `--threads` parameter
-
-Users with high performance networks, file sets with very small files, or high network latency, will usually benefit from increased parallelism. Experiment with using the `--threads` parameter to increase performance.
-
-Note that using many threads could in some cases be detrimental to the other users on your network.
-
 ### Docker image
 
 #### Authorization
