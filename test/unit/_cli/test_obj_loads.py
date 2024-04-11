@@ -30,34 +30,6 @@ from b2._internal._cli.obj_loads import validated_loads
             "b": 2,
             "c": 3
         }),
-        # yaml
-        ("a: 1", {
-            "a": 1
-        }),
-        ("a: 1\nb: 2", {
-            "a": 1,
-            "b": 2
-        }),
-        ("a: 1\nb: 2\nc: 3", {
-            "a": 1,
-            "b": 2,
-            "c": 3
-        }),
-        # yaml one-liners
-        ("a: 1", {
-            "a": 1
-        }),
-        ("{a: 1,b: 2}", {
-            "a": 1,
-            "b": 2
-        }),
-        ("{a: test,b: 2,sub:{c: 3}}", {
-            "a": "test",
-            "b": 2,
-            "sub": {
-                "c": 3
-            }
-        }),
     ],
 )
 def test_validated_loads(input_, expected_val):
@@ -68,12 +40,7 @@ def test_validated_loads(input_, expected_val):
     "input_, error_msg",
     [
         # not valid json nor yaml
-        ("{", "'{' is not a valid JSON/YAML:"),
-        # not-valid yaml
-        (
-            "a: 1, a: 2",
-            r"a: 1, a: 2\' is not a valid JSON/YAML: mapping values are not allowed here",
-        ),
+        ("{", "'{' is not a valid JSON value"),
     ],
 )
 def test_validated_loads__invalid_syntax(input_, error_msg):

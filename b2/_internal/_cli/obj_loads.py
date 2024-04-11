@@ -14,7 +14,6 @@ import io
 import json
 from typing import TypeVar
 
-import yaml
 from b2sdk.v2 import get_b2sdk_doc_urls
 
 try:
@@ -44,22 +43,18 @@ T = TypeVar('T')
 
 
 def validated_loads(data: str, expected_type: type[T] | None = None) -> T:
-    try:
-        try:
-            val = json.loads(data)
-        except json.JSONDecodeError:
-            val = yaml.safe_load(data)
-    except yaml.YAMLError as e:
-        raise argparse.ArgumentTypeError(f'{data!r} is not a valid JSON/YAML: {e}') from e
-
     if expected_type is not None and pydantic is not None:
         ta = TypeAdapter(expected_type)
         try:
-            val = ta.validate_python(data)
+            val = ta.validate_json(data)
         except ValidationError as e:
             errors = convert_error_to_human_readable(e)
             raise argparse.ArgumentTypeError(
                 f'Invalid value inputted, expected {describe_type(expected_type)}, got {data!r}, more detail below:\n{errors}'
             ) from e
-
+    else:
+        try:
+            val = json.loads(data)
+        except json.JSONDecodeError as e:
+            raise argparse.ArgumentTypeError(f'{data!r} is not a valid JSON value') from e
     return val

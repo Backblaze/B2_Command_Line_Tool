@@ -53,11 +53,11 @@ def test_notification_rules__list_all(b2_cli, bucket, bucket_notification_rule):
     assert (
         stdout == f"""\
 Notification rules for b2://{bucket}/ :
-- eventTypes:
-  - b2:ObjectCreated:*
+- name: test-rule
+  eventTypes:
+    - b2:ObjectCreated:*
   isEnabled: true
   isSuspended: false
-  name: test-rule
   objectNamePrefix: ''
   suspensionReason: ''
   targetConfiguration:

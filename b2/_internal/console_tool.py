@@ -54,7 +54,6 @@ from typing import Any, BinaryIO, List
 import b2sdk
 import requests
 import rst2ansi
-import yaml
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -154,6 +153,7 @@ from b2._internal._cli.const import (
     CREATE_BUCKET_TYPES,
     DEFAULT_THREADS,
 )
+from b2._internal._cli.obj_dumps import readable_yaml_dump
 from b2._internal._cli.obj_loads import validated_loads
 from b2._internal._cli.shell import detect_shell, resolve_short_call_name
 from b2._internal._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
@@ -1038,7 +1038,9 @@ class Command(Described, metaclass=ABCMeta):
         )
 
     def _print_human_readable_structure(self, data) -> None:
-        return self._print(yaml.dump(data, sort_keys=True).rstrip())
+        output = io.StringIO()
+        readable_yaml_dump(data, output)
+        return self._print(output.getvalue().rstrip())
 
     def _print(
         self,
