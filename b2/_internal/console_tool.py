@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import copy
 import tempfile
+import warnings
 
 from b2._internal._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
 from b2._internal._utils.python_compat import removeprefix
@@ -4771,6 +4772,10 @@ class ConsoleTool:
 
             # logs from ALL loggers sent to the log file should be formatted this way
             logging.root.addHandler(handler)
+        if not args.debug_logs and not args.verbose:
+            warnings.showwarning = lambda message, category, *arg_, **_: print(
+                f'{category.__name__}: {message}', file=sys.stderr
+            )
 
         logger.info(r'// %s %s %s \\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
