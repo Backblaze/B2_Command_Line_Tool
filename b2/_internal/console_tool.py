@@ -4240,9 +4240,20 @@ class InstallAutocomplete(Command):
         return 0
 
 
-class NotificationRules(Command):
+class NotificationRulesWarningMixin(Described):
+    """
+    .. warning::
+
+        Event Notifications feature is in \"Private Preview\" state and may change without notice.
+        See https://www.backblaze.com/blog/announcing-event-notifications/ for details.
+    """
+
+
+class NotificationRules(NotificationRulesWarningMixin, Command):
     """
     Bucket notification rules management subcommands.
+
+    {NotificationRulesWarningMixin}
 
     For more information on each subcommand, use ``{NAME} notification-rules SUBCOMMAND --help``.
 
@@ -4259,10 +4270,11 @@ class NotificationRules(Command):
 
 
 @NotificationRules.subcommands_registry.register
-class NotificationRulesList(JSONOptionMixin, Command):
+class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Command):
     """
     Allows listing bucket notification rules of the given bucket.
 
+    {NotificationRulesWarningMixin}
 
     {JSONOptionMixin}
 
@@ -4308,7 +4320,7 @@ class NotificationRulesList(JSONOptionMixin, Command):
         return 0
 
 
-class NotificationRulesCreateBase(JSONOptionMixin, Command):
+class NotificationRulesCreateBase(JSONOptionMixin, NotificationRulesWarningMixin, Command):
     @classmethod
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
@@ -4421,6 +4433,7 @@ class NotificationRulesCreate(NotificationRulesCreateBase):
     """
     Allows creating bucket notification rules for the given bucket.
 
+    {NotificationRulesWarningMixin}
 
     Examples:
 
@@ -4479,6 +4492,7 @@ class NotificationRulesUpdate(NotificationRulesUpdateBase):
     """
     Allows updating notification rule of the given bucket.
 
+    {NotificationRulesWarningMixin}
 
     Examples:
 
@@ -4507,6 +4521,7 @@ class NotificationRulesEnable(NotificationRulesUpdateBase):
     """
     Allows enabling notification rule of the given bucket.
 
+    {NotificationRulesWarningMixin}
 
     Examples:
 
@@ -4541,6 +4556,7 @@ class NotificationRulesDisable(NotificationRulesUpdateBase):
     """
     Allows disabling notification rule of the given bucket.
 
+    {NotificationRulesWarningMixin}
 
     Examples:
 

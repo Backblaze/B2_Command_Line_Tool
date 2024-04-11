@@ -1,3 +1,5 @@
+.. note:: **Event Notifications** feature is now in **Private Preview**. See https://www.backblaze.com/blog/announcing-event-notifications/ for details.
+
 #########################################
 Overview
 #########################################
