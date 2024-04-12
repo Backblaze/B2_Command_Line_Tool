@@ -19,6 +19,7 @@ test_cases = [
     ([{"a": 1, "b": 2}], "- a: 1\n  b: 2\n"),
     ([1, 2, "false"], "- 1\n- 2\n- 'false'\n"),
     ({"true": True, "null": None}, "'null': null\n'true': true\n"),
+    ([1., 0.567], "- 1.0\n- 0.567\n"),
     ([''], "- ''\n"),
     (
         # make sure id and name are first, rest should be sorted alphabetically

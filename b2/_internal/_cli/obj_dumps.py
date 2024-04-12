@@ -25,10 +25,11 @@ def _yaml_simple_repr(obj):
     """
     Like YAML for simple types, but also escapes control characters for safety.
     """
-    if obj is None or isinstance(obj, (bool, float)):
-        simple_repr = _simple_repr_map.get(obj)
-        if simple_repr:
-            return simple_repr
+    if isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        return str(obj)
+    simple_repr = _simple_repr_map.get(obj)
+    if simple_repr:
+        return simple_repr
     obj_repr = unprintable_to_hex(str(obj))
     if isinstance(
         obj, str
