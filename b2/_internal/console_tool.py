@@ -331,7 +331,6 @@ class Described:
             for klass in cls.mro()
             if klass is not cls and klass.__doc__ and issubclass(klass, Described)
         }
-        mro_docs.update(**{name.upper(): value for name, value in mro_docs.items()})
         return cls.__doc__.format(**kwargs, **DOC_STRING_DATA, **mro_docs)
 
     @classmethod

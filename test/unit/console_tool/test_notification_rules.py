@@ -226,7 +226,7 @@ def test_notification_rules__disable_enable__no_such_rule(
 
 
 def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rule):
-    _, _, stderr = b2_cli.run(
+    b2_cli.run(
         [
             "notification-rules",
             "update",
@@ -238,7 +238,6 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
         ],
         expected_status=2,
     )
-    assert "" in stderr
 
     _, stdout, _ = b2_cli.run(
         [
