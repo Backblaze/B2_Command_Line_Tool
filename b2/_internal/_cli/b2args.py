@@ -36,8 +36,8 @@ def b2id_or_file_like_b2_uri(value: str) -> B2URIBase:
     return b2_uri
 
 
-def parse_bucket_name(value: str) -> str:
-    uri = parse_uri(value)
+def parse_bucket_name(value: str, allow_all_buckets: bool = False) -> str:
+    uri = parse_uri(value, allow_all_buckets=allow_all_buckets)
     if isinstance(uri, B2URI):
         if uri.path:
             raise ValueError(
@@ -47,7 +47,6 @@ def parse_bucket_name(value: str) -> str:
     return str(value)
 
 
-B2_BUCKET_NAME_ARG_TYPE = wrap_with_argument_type_error(parse_bucket_name)
 B2ID_OR_B2_URI_ARG_TYPE = wrap_with_argument_type_error(parse_b2_uri)
 B2ID_OR_B2_URI_OR_ALL_BUCKETS_ARG_TYPE = wrap_with_argument_type_error(
     functools.partial(parse_b2_uri, allow_all_buckets=True)
@@ -59,7 +58,12 @@ def add_bucket_name_argument(
     parser: argparse.ArgumentParser, name="bucketName", help="Target bucket name", nargs=None
 ):
     parser.add_argument(
-        name, type=B2_BUCKET_NAME_ARG_TYPE, help=help, nargs=nargs
+        name,
+        type=wrap_with_argument_type_error(
+            functools.partial(parse_bucket_name, allow_all_buckets=nargs == "?")
+        ),
+        help=help,
+        nargs=nargs
     ).completer = bucket_name_completer
 
 
