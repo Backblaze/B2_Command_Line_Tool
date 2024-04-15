@@ -9,6 +9,15 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.19.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.19.0) - 2024-04-15
+
+
+### Added
+
+- Add `notification-rules` commands for manipulating Bucket notification rules as part of Event Notifications feature Private Preview.
+  See https://www.backblaze.com/blog/announcing-event-notifications/ for details.
+
+
 ## [3.18.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.18.0) - 2024-04-02
 
 
