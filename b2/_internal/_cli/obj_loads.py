@@ -53,5 +53,8 @@ def validated_loads(data: str, expected_type: type[T] | None = None) -> T:
                 f'Invalid value inputted, expected {describe_type(expected_type)}, got {data!r}, more detail below:\n{errors}'
             ) from e
     else:
-        val = json.loads(data)
+        try:
+            val = json.loads(data)
+        except json.JSONDecodeError as e:
+            raise argparse.ArgumentTypeError(f'{data!r} is not a valid JSON value') from e
     return val

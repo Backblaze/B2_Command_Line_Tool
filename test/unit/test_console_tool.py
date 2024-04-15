@@ -268,7 +268,7 @@ class BaseConsoleToolTest(TestBase):
             self.assertNotIn(unexpected_part_of_stdout, actual_stdout)
         if expected_stderr is not None:
             self.assertEqual(expected_stderr, actual_stderr, 'stderr')
-        assert expected_status == actual_status, 'exit status code'
+        assert expected_status == actual_status
         return actual_status, actual_stdout, actual_stderr
 
     @classmethod

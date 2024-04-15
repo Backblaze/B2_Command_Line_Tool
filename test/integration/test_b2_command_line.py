@@ -3067,3 +3067,65 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
     assert re.search(r'ContentEncoding: *gzip', download_output)
     assert re.search(r'ContentLanguage: *en', download_output)
     assert re.search(r'Expires: *Thu, 01 Dec 2050 16:00:00 GMT', download_output)
+
+
+def test_notification_rules(b2_tool, bucket_name):
+    assert b2_tool.should_succeed_json(
+        ["notification-rules", "list", f"b2://{bucket_name}", "--json"]
+    ) == []
+
+    notification_rule = {
+        "eventTypes": ["b2:ObjectCreated:*"],
+        "isEnabled": True,
+        "name": "test-rule",
+        "objectNamePrefix": "",
+        "targetConfiguration":
+            {
+                "customHeaders": None,
+                "targetType": "webhook",
+                "url": "https://example.com/webhook",
+            }
+    }
+    # add rule
+    created_rule = b2_tool.should_succeed_json(
+        [
+            "notification-rules",
+            "create",
+            "--json",
+            f"b2://{bucket_name}",
+            "test-rule",
+            "--webhook-url",
+            "https://example.com/webhook",
+            "--event-type",
+            "b2:ObjectCreated:*",
+        ]
+    )
+    expected_rules = [{**notification_rule, "isSuspended": False, "suspensionReason": ""}]
+    assert created_rule == expected_rules[0]
+
+    # modify rule
+    modified_rule = b2_tool.should_succeed_json(
+        [
+            "notification-rules",
+            "update",
+            "--json",
+            f"b2://{bucket_name}/prefix",
+            "test-rule",
+            "--disable",
+        ]
+    )
+    expected_rules[0].update({"objectNamePrefix": "prefix", "isEnabled": False})
+    assert modified_rule == expected_rules[0]
+
+    # read updated rules
+    assert b2_tool.should_succeed_json(
+        ["notification-rules", "list", f"b2://{bucket_name}", "--json"]
+    ) == expected_rules
+
+    # delete rule by name
+    assert b2_tool.should_succeed(
+        ["notification-rules", "delete", f"b2://{bucket_name}", "test-rule"],
+    ) == f"Rule 'test-rule' has been deleted from b2://{bucket_name}/\n"
+    assert b2_tool.should_succeed_json(
+        ["notification-rules", "list", f"b2://{bucket_name}", "--json"]
+    ) == []

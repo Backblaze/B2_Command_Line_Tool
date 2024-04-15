@@ -159,6 +159,8 @@ def test_authorize_account_prints_account_info(b2_cli):
                         'shareFiles',
                         'writeFiles',
                         'deleteFiles',
+                        'readBucketNotifications',
+                        'writeBucketNotifications',
                     ],
                 'namePrefix': None,
             },

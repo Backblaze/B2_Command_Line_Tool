@@ -97,21 +97,28 @@ def parse_uri(uri: str, *, allow_all_buckets: bool = False) -> Path | B2URI | B2
     return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets)
 
 
-def parse_b2_uri(uri: str, *, allow_all_buckets: bool = False) -> B2URI | B2FileIdURI:
+def parse_b2_uri(
+    uri: str, *, allow_all_buckets: bool = False, allow_b2id: bool = True
+) -> B2URI | B2FileIdURI:
     """
     Parse B2 URI.
 
     :param uri: string to parse
     :param allow_all_buckets: if True, allow `b2://` without a bucket name to refer to all buckets
+    :param allow_b2id: if True, allow `b2id://` to refer to a file by its id
     :return: B2 URI
     :raises ValueError: if the URI is invalid
     """
     parsed = urllib.parse.urlsplit(uri)
-    return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets)
+    return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets, allow_b2id=allow_b2id)
 
 
 def _parse_b2_uri(
-    uri, parsed: urllib.parse.SplitResult, allow_all_buckets: bool = False
+    uri,
+    parsed: urllib.parse.SplitResult,
+    *,
+    allow_all_buckets: bool = False,
+    allow_b2id: bool = True
 ) -> B2URI | B2FileIdURI:
     if parsed.scheme in ("b2", "b2id"):
         path = urllib.parse.urlunsplit(parsed._replace(scheme="", netloc=""))
@@ -130,7 +137,7 @@ def _parse_b2_uri(
 
         if parsed.scheme == "b2":
             return B2URI(bucket_name=parsed.netloc, path=removeprefix(path, "/"))
-        elif parsed.scheme == "b2id":
+        elif parsed.scheme == "b2id" and allow_b2id:
             return B2FileIdURI(file_id=parsed.netloc)
     else:
         raise ValueError(f"Unsupported URI scheme: {parsed.scheme!r}")

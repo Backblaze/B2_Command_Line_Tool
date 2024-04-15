@@ -12,7 +12,9 @@
 # ruff: noqa: E402
 from __future__ import annotations
 
+import copy
 import tempfile
+import warnings
 
 from b2._internal._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
 from b2._internal._utils.python_compat import removeprefix
@@ -100,6 +102,7 @@ from b2sdk.v2 import (
     escape_control_chars,
     get_included_sources,
     make_progress_listener,
+    notification_rule_response_to_request,
     parse_sync_folder,
     points_to_fifo,
     substitute_control_chars,
@@ -124,7 +127,7 @@ from b2._internal._cli.arg_parser_types import (
     parse_millis_from_float_timestamp,
     parse_range,
 )
-from b2._internal._cli.argcompleters import bucket_name_completer, file_name_completer
+from b2._internal._cli.argcompleters import file_name_completer
 from b2._internal._cli.autocomplete_install import (
     SUPPORTED_SHELLS,
     AutocompleteInstallError,
@@ -132,8 +135,10 @@ from b2._internal._cli.autocomplete_install import (
 )
 from b2._internal._cli.b2api import _get_b2api_for_profile, _get_inmemory_b2api
 from b2._internal._cli.b2args import (
+    add_b2_uri_argument,
     add_b2id_or_b2_uri_argument,
     add_b2id_or_file_like_b2_uri_argument,
+    add_bucket_name_argument,
     get_keyid_and_key_from_env_vars,
 )
 from b2._internal._cli.const import (
@@ -148,6 +153,7 @@ from b2._internal._cli.const import (
     CREATE_BUCKET_TYPES,
     DEFAULT_THREADS,
 )
+from b2._internal._cli.obj_dumps import readable_yaml_dump
 from b2._internal._cli.obj_loads import validated_loads
 from b2._internal._cli.shell import detect_shell, resolve_short_call_name
 from b2._internal._utils.uri import B2URI, B2FileIdURI, B2URIAdapter, B2URIBase
@@ -168,6 +174,27 @@ SEPARATOR = '=' * 40
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
+
+
+def filter_out_empty_values(v, empty_marker=None):
+    if isinstance(v, dict):
+        d = {}
+        for k, v in v.items():
+            new_v = filter_out_empty_values(v, empty_marker=empty_marker)
+            if new_v is not empty_marker:
+                d[k] = new_v
+        return d or empty_marker
+    return v
+
+
+def override_dict(base_dict, override):
+    result = copy.deepcopy(base_dict)
+    for k, v in override.items():
+        if isinstance(v, dict):
+            result[k] = override_dict(result.get(k, {}), v)
+        else:
+            result[k] = v
+    return result
 
 
 class NoControlCharactersStdout:
@@ -309,6 +336,21 @@ class Described:
     @classmethod
     def lazy_get_description(cls, **kwargs):
         return DescriptionGetter(cls, **kwargs)
+
+
+class JSONOptionMixin(Described):
+    """
+    Use ``--json`` to get machine-readable output.
+    Unless ``--json`` is used, the output is human-readable, and may change from one minor version to the next.
+    Therefore, for scripting, it is strongly encouraged to use ``--json``.
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--json', action='store_true', help='output in JSON format to use in scripts'
+        )
+        super()._setup_parser(parser)  # noqa
 
 
 class DefaultSseMixin(Described):
@@ -672,11 +714,21 @@ class B2URIFileIDArgMixin:
         return B2FileIdURI(args.fileId)
 
 
+class B2URIBucketArgMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_bucket_name_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
+        return B2URI(args.bucketName)
+
+
 class B2URIBucketNFilenameArgMixin:
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName')
-        parser.add_argument('fileName')
+        add_bucket_name_argument(parser)
+        parser.add_argument('fileName').completion = file_name_completer
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
@@ -688,10 +740,7 @@ class B2URIBucketNFolderNameArgMixin:
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument(
-            'bucketName',
-            nargs='?' if cls.ALLOW_ALL_BUCKETS else None,
-        ).completer = bucket_name_completer
+        add_bucket_name_argument(parser, nargs='?' if cls.ALLOW_ALL_BUCKETS else None)
         parser.add_argument('folderName', nargs='?').completer = file_name_completer
         super()._setup_parser(parser)
 
@@ -820,6 +869,7 @@ class _TqdmCloser:
 
 
 class Command(Described, metaclass=ABCMeta):
+    COMMAND_NAME: str | None = None
     # Set to True for commands that receive sensitive information in arguments
     FORBID_LOGGING_ARGUMENTS = False
 
@@ -837,6 +887,7 @@ class Command(Described, metaclass=ABCMeta):
         self.stdout = console_tool.stdout
         self.stderr = console_tool.stderr
         self.quiet = False
+        self.escape_control_characters = True
         self.exit_stack = contextlib.ExitStack()
 
     def make_progress_listener(self, file_name: str, quiet: bool):
@@ -848,7 +899,7 @@ class Command(Described, metaclass=ABCMeta):
 
     @classmethod
     def name_and_alias(cls):
-        name = mixed_case_to_hyphens(cls.__name__)
+        name = mixed_case_to_hyphens(cls.COMMAND_NAME or cls.__name__)
         alias = None
         if '-' in name:
             alias = name.replace('-', '_')
@@ -957,6 +1008,7 @@ class Command(Described, metaclass=ABCMeta):
 
     def run(self, args):
         self.quiet = args.quiet
+        self.escape_control_characters = args.escape_control_characters
         with self.exit_stack:
             return self._run(args)
 
@@ -983,6 +1035,11 @@ class Command(Described, metaclass=ABCMeta):
             json.dumps(data, indent=4, sort_keys=True, ensure_ascii=True, cls=B2CliJsonEncoder),
             enforce_output=True
         )
+
+    def _print_human_readable_structure(self, data) -> None:
+        output = io.StringIO()
+        readable_yaml_dump(data, output)
+        return self._print(output.getvalue().rstrip())
 
     def _print(
         self,
@@ -1021,7 +1078,14 @@ class Command(Described, metaclass=ABCMeta):
         :param end: end of the line characters; None for default newline
         """
         if not self.quiet or enforce_output:
-            self._print_helper(descriptor, descriptor.encoding, descriptor_name, *args, end=end)
+            self._print_helper(
+                descriptor,
+                descriptor.encoding,
+                descriptor_name,
+                *args,
+                end=end,
+                sanitize=self.escape_control_characters
+            )
 
     @classmethod
     def _print_helper(
@@ -1030,8 +1094,11 @@ class Command(Described, metaclass=ABCMeta):
         descriptor_encoding: str,
         descriptor_name: str,
         *args,
+        sanitize: bool = True,
         end: str | None = None
     ):
+        if sanitize:
+            args = tuple(unprintable_to_hex(arg) or '' for arg in args)
         try:
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
@@ -1280,7 +1347,7 @@ class CancelAllUnfinishedLargeFiles(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -1509,7 +1576,7 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
         )
         parser.add_argument('--replication', type=validated_loads)
-        parser.add_argument('bucketName')
+        add_bucket_name_argument(parser)
         parser.add_argument('bucketType', choices=CREATE_BUCKET_TYPES)
 
         super()._setup_parser(parser)  # add parameters from the mixins
@@ -1601,7 +1668,7 @@ class DeleteBucket(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -1941,7 +2008,7 @@ class GetBucket(Command):
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--show-size', action='store_true')
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -2019,7 +2086,7 @@ class GetDownloadAuth(Command):
     def _setup_parser(cls, parser):
         parser.add_argument('--prefix', default='')
         parser.add_argument('--duration', type=int, default=86400)
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -2052,7 +2119,7 @@ class GetDownloadUrlWithAuth(Command):
     @classmethod
     def _setup_parser(cls, parser):
         parser.add_argument('--duration', type=int, default=86400)
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         parser.add_argument('fileName').completer = file_name_completer
         super()._setup_parser(parser)
 
@@ -2078,7 +2145,7 @@ class HideFile(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         parser.add_argument('fileName').completer = file_name_completer
         super()._setup_parser(parser)
 
@@ -2243,7 +2310,7 @@ class ListUnfinishedLargeFiles(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -3151,7 +3218,7 @@ class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
             help=
             "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed back."
         )
-        parser.add_argument('bucketName').completer = bucket_name_completer
+        add_bucket_name_argument(parser)
         parser.add_argument('bucketType', nargs='?', choices=CREATE_BUCKET_TYPES)
 
         super()._setup_parser(parser)  # add parameters from the mixins and the parent class
@@ -3249,9 +3316,7 @@ class UploadFileMixin(
             type=int,
             help="overrides object creation date. Expressed as a number of milliseconds since epoch."
         )
-        parser.add_argument(
-            'bucketName', help="name of the bucket where the file will be stored"
-        ).completer = bucket_name_completer
+        add_bucket_name_argument(parser, help="name of the bucket where the file will be stored")
         parser.add_argument('localFilePath', help="path of the local file or stream to be uploaded")
         parser.add_argument('b2FileName', help="name file will be given when stored in B2")
 
@@ -4174,6 +4239,391 @@ class InstallAutocomplete(Command):
         return 0
 
 
+class NotificationRulesWarningMixin(Described):
+    """
+    .. warning::
+
+        Event Notifications feature is in \"Private Preview\" state and may change without notice.
+        See https://www.backblaze.com/blog/announcing-event-notifications/ for details.
+    """
+
+
+class NotificationRules(NotificationRulesWarningMixin, Command):
+    """
+    Bucket notification rules management subcommands.
+
+    {NotificationRulesWarningMixin}
+
+    For more information on each subcommand, use ``{NAME} notification-rules SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} notification-rules create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
+        {NAME} notification-rules list b2://bucketName
+        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
+        {NAME} notification-rules delete b2://bucketName ruleName
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@NotificationRules.subcommands_registry.register
+class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Command):
+    """
+    Allows listing bucket notification rules of the given bucket.
+
+    {NotificationRulesWarningMixin}
+
+    {JSONOptionMixin}
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} notification-rules list b2://bucketName
+
+
+    Requires capability:
+
+    - **readBucketNotifications**
+    """
+    COMMAND_NAME = 'list'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_uri_argument(
+            parser,
+            help=
+            "B2 URI of the bucket with optional path prefix, e.g. b2://bucketName or b2://bucketName/optionalSubPath/"
+        )
+        super()._setup_parser(parser)
+
+    def _run(self, args):
+        bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
+        rules = sorted(
+            (
+                rule for rule in bucket.get_notification_rules()
+                if rule["objectNamePrefix"].startswith(args.B2_URI.path)
+            ),
+            key=lambda rule: rule["name"]
+        )
+        if args.json:
+            self._print_json(rules)
+        else:
+            if rules:
+                self._print(f'Notification rules for {args.B2_URI} :')
+                self._print_human_readable_structure(rules)
+            else:
+                self._print(f'No notification rules for {args.B2_URI}')
+        return 0
+
+
+class NotificationRulesCreateBase(JSONOptionMixin, NotificationRulesWarningMixin, Command):
+    @classmethod
+    def _validate_secret(cls, value: str) -> str:
+        if not re.match(r'^[a-zA-Z0-9]{32}$', value):
+            raise argparse.ArgumentTypeError(
+                f'the secret has to be exactly 32 alphanumeric characters, got: {value!r}'
+            )
+        return value
+
+    @classmethod
+    def setup_rule_fields_parser(cls, parser, creation: bool):
+        add_b2_uri_argument(
+            parser,
+            help=
+            "B2 URI of the bucket with optional path prefix, e.g. b2://bucketName or b2://bucketName/optionalSubPath/"
+        )
+        parser.add_argument('ruleName', help="Name of the rule")
+        parser.add_argument(
+            '--event-type',
+            action='append',
+            help=
+            "Events scope, e.g., 'b2:ObjectCreated:*'. Can be used multiple times to set multiple scopes.",
+            required=creation
+        )
+        parser.add_argument(
+            '--webhook-url', help="URL to send the notification to", required=creation
+        )
+        parser.add_argument(
+            '--sign-secret',
+            help="optional signature key consisting of 32 alphanumeric characters ",
+            type=cls._validate_secret,
+            default=None,
+        )
+        parser.add_argument(
+            '--custom-header',
+            action='append',
+            help=
+            "Custom header to be sent with the notification. Can be used multiple times to set multiple headers. Format: HEADER_NAME=VALUE"
+        )
+        parser.add_argument(
+            '--enable',
+            action='store_true',
+            help="Flag to enable the notification rule",
+            default=None
+        )
+        parser.add_argument(
+            '--disable',
+            action='store_false',
+            help="Flag to disable the notification rule",
+            dest='enable'
+        )
+
+    def get_rule_from_args(self, args):
+        custom_headers = None
+        if args.custom_header is not None:
+            custom_headers = {}
+            for header in args.custom_header:
+                try:
+                    name, value = header.split('=', 1)
+                except ValueError:
+                    name, value = header, ''
+                custom_headers[name] = value
+
+        rule = {
+            'name': args.ruleName,
+            'eventTypes': args.event_type,
+            'isEnabled': args.enable,
+            'objectNamePrefix': args.B2_URI.path,
+            'targetConfiguration':
+                {
+                    'url': args.webhook_url,
+                    'customHeaders': custom_headers,
+                    'hmacSha256SigningSecret': args.sign_secret,
+                },
+        }
+        return filter_out_empty_values(rule)
+
+    def print_rule(self, args, rule):
+        if args.json:
+            self._print_json(rule)
+        else:
+            self._print_human_readable_structure(rule)
+
+
+class NotificationRulesUpdateBase(NotificationRulesCreateBase):
+    def _run(self, args):
+        bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
+        rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
+        rule = rules_by_name.get(args.ruleName)
+        if not rule:
+            raise CommandError(
+                f'rule with name {args.ruleName!r} does not exist on bucket {bucket.name!r}, '
+                f'available rules: {sorted(rules_by_name)}'
+            )
+
+        rules_by_name[args.ruleName] = override_dict(
+            rule,
+            self.get_rule_from_args(args),
+        )
+
+        rules = bucket.set_notification_rules(
+            [notification_rule_response_to_request(rule) for rule in rules_by_name.values()]
+        )
+        rule = next(rule for rule in rules if rule["name"] == args.ruleName)
+        self.print_rule(args=args, rule=rule)
+        return 0
+
+
+@NotificationRules.subcommands_registry.register
+class NotificationRulesCreate(NotificationRulesCreateBase):
+    """
+    Allows creating bucket notification rules for the given bucket.
+
+    {NotificationRulesWarningMixin}
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} notification-rules create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
+
+
+    Requires capability:
+
+    - **readBucketNotifications**
+    - **writeBucketNotifications**
+    """
+    COMMAND_NAME = 'create'
+
+    NEW_RULE_DEFAULTS = {
+        'isEnabled': True,
+        'objectNamePrefix': '',
+        'targetConfiguration': {
+            'targetType': 'webhook',
+        },
+    }
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        cls.setup_rule_fields_parser(parser, creation=True)
+        super()._setup_parser(parser)
+
+    def _run(self, args):
+        bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
+        rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
+        if args.ruleName in rules_by_name:
+            raise CommandError(
+                f'rule with name {args.ruleName!r} already exists on bucket {bucket.name!r}'
+            )
+
+        rule = override_dict(
+            self.NEW_RULE_DEFAULTS,
+            self.get_rule_from_args(args),
+        )
+        rules_by_name[args.ruleName] = rule
+
+        rules = bucket.set_notification_rules(
+            [
+                notification_rule_response_to_request(rule)
+                for rule in sorted(rules_by_name.values(), key=lambda r: r["name"])
+            ]
+        )
+        rule = next(rule for rule in rules if rule["name"] == args.ruleName)
+        self.print_rule(args=args, rule=rule)
+        return 0
+
+
+@NotificationRules.subcommands_registry.register
+class NotificationRulesUpdate(NotificationRulesUpdateBase):
+    """
+    Allows updating notification rule of the given bucket.
+
+    {NotificationRulesWarningMixin}
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
+        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --enable
+
+
+    Requires capability:
+
+    - **readBucketNotifications**
+    - **writeBucketNotifications**
+    """
+
+    COMMAND_NAME = 'update'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        cls.setup_rule_fields_parser(parser, creation=False)
+        super()._setup_parser(parser)
+
+
+@NotificationRules.subcommands_registry.register
+class NotificationRulesEnable(NotificationRulesUpdateBase):
+    """
+    Allows enabling notification rule of the given bucket.
+
+    {NotificationRulesWarningMixin}
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} notification-rules enable b2://bucketName/ ruleName
+
+
+    Requires capability:
+
+    - **readBucketNotifications**
+    - **writeBucketNotifications**
+    """
+
+    COMMAND_NAME = 'enable'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_uri_argument(
+            parser, help="B2 URI of the bucket to enable the rule for, e.g. b2://bucketName"
+        )
+        parser.add_argument('ruleName', help="Name of the rule to enable")
+        super()._setup_parser(parser)
+
+    def get_rule_from_args(self, args):
+        logger.warning("WARNING: ignoring path from %r", args.B2_URI)
+        return {'name': args.ruleName, 'isEnabled': True}
+
+
+@NotificationRules.subcommands_registry.register
+class NotificationRulesDisable(NotificationRulesUpdateBase):
+    """
+    Allows disabling notification rule of the given bucket.
+
+    {NotificationRulesWarningMixin}
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} notification-rules disable b2://bucketName/ ruleName
+
+
+    Requires capability:
+
+    - **readBucketNotifications**
+    - **writeBucketNotifications**
+    """
+
+    COMMAND_NAME = 'disable'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_uri_argument(
+            parser, help="B2 URI of the bucket to enable the rule for, e.g. b2://bucketName"
+        )
+        parser.add_argument('ruleName', help="Name of the rule to enable")
+        super()._setup_parser(parser)
+
+    def get_rule_from_args(self, args):
+        logger.warning("WARNING: ignoring path from %r", args.B2_URI)
+        return {'name': args.ruleName, 'isEnabled': False}
+
+
+@NotificationRules.subcommands_registry.register
+class NotificationRulesDelete(Command):
+    """
+    Allows deleting bucket notification rule of the given bucket.
+
+    Requires capability:
+
+    - **readBucketNotifications**
+    - **writeBucketNotifications**
+    """
+
+    COMMAND_NAME = 'delete'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_uri_argument(
+            parser, help="B2 URI of the bucket to delete the rule from, e.g. b2://bucketName"
+        )
+        parser.add_argument('ruleName', help="Name of the rule to delete")
+        super()._setup_parser(parser)
+
+    def _run(self, args):
+        bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
+        rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
+
+        try:
+            del rules_by_name[args.ruleName]
+        except KeyError:
+            raise CommandError(
+                f'no such rule to delete: {args.ruleName!r}, '
+                f'available rules: {sorted(rules_by_name.keys())!r}; No rules have been deleted.'
+            )
+        bucket.set_notification_rules(
+            [notification_rule_response_to_request(rule) for rule in rules_by_name.values()]
+        )
+        self._print(f'Rule {args.ruleName!r} has been deleted from {args.B2_URI}')
+        return 0
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
@@ -4339,6 +4789,10 @@ class ConsoleTool:
 
             # logs from ALL loggers sent to the log file should be formatted this way
             logging.root.addHandler(handler)
+        if not args.debug_logs and not args.verbose:
+            warnings.showwarning = lambda message, category, *arg_, **_: print(
+                f'{category.__name__}: {message}', file=sys.stderr
+            )
 
         logger.info(r'// %s %s %s \\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())

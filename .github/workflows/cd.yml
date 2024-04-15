@@ -25,7 +25,7 @@ jobs:
         run: |
           export IS_PRERELEASE=$([[ ${{ github.ref }} =~ [^0-9]$ ]] && echo true || echo false)
           echo "prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-          export PUBLISH_DOCKER=$([[ $IS_PRERELEASE == 'false' && ${{ secrets.DOCKERHUB_USERNAME }} != '' ]] && echo true || echo false) 
+          export PUBLISH_DOCKER=$([[ $IS_PRERELEASE == 'false' && "${{ secrets.DOCKERHUB_USERNAME }}" != '' ]] && echo true || echo false)
           echo "publish_docker=$PUBLISH_DOCKER" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
         with:
