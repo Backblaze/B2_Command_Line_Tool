@@ -496,13 +496,13 @@ class CommandLine:
         print_output(p.returncode, stdout_decoded, stderr_decoded)
         return p.returncode, stdout_decoded, stderr_decoded
 
-    def should_succeed_json(self, args, additional_env: dict | None = None):
+    def should_succeed_json(self, args, additional_env: dict | None = None, **kwargs):
         """
         Runs the command-line with the given arguments.  Raises an exception
         if there was an error; otherwise, treats the stdout as JSON and returns
         the data in it.
         """
-        result = self.should_succeed(args, additional_env=additional_env)
+        result = self.should_succeed(args, additional_env=additional_env, **kwargs)
         try:
             loaded_result = json.loads(result)
         except json.JSONDecodeError:
@@ -531,9 +531,13 @@ class CommandLine:
         )
         if check_key_capabilities:
             auth_dict = self.should_succeed_json(['get-account-info'])
+            private_preview_caps = {
+                'readBucketNotifications',
+                'writeBucketNotifications',
+            }
             missing_capabilities = set(ALL_CAPABILITIES) - {
                 'readBuckets', 'listAllBucketNames'
-            } - set(auth_dict['allowed']['capabilities'])
+            } - private_preview_caps - set(auth_dict['allowed']['capabilities'])
             assert not missing_capabilities, f'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {missing_capabilities}'
 
     def list_file_versions(self, bucket_name):
