@@ -3088,6 +3088,7 @@ def test_notification_rules(b2_tool, bucket_name):
         "targetConfiguration":
             {
                 "customHeaders": None,
+                "hmacSha256SigningSecret": None,
                 "targetType": "webhook",
                 "url": "https://example.com/webhook",
             }
@@ -3111,6 +3112,7 @@ def test_notification_rules(b2_tool, bucket_name):
     assert created_rule == expected_rules[0]
 
     # modify rule
+    secret = "0testSecret000000000000000000032"
     modified_rule = b2_tool.should_succeed_json(
         [
             "notification-rules",
@@ -3119,10 +3121,13 @@ def test_notification_rules(b2_tool, bucket_name):
             f"b2://{bucket_name}/prefix",
             "test-rule",
             "--disable",
+            "--sign-secret",
+            secret,
         ],
         expected_stderr_pattern=private_preview_pattern
     )
     expected_rules[0].update({"objectNamePrefix": "prefix", "isEnabled": False})
+    expected_rules[0]["targetConfiguration"]["hmacSha256SigningSecret"] = secret
     assert modified_rule == expected_rules[0]
 
     # read updated rules
