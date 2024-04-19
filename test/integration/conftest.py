@@ -246,6 +246,7 @@ def b2_api(
     )
     yield api
     api.clean_buckets()
+    summary_notes.append(f"B2 Account ID: {api.account_id!r}")
     summary_notes.append(f"Buckets names used during this tests: {api.bucket_name_log!r}")
 
 
