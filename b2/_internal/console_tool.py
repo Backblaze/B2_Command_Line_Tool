@@ -4644,8 +4644,8 @@ class Key(Command):
     .. code-block::
 
         {NAME} key list
-        {NAME} key create
-        {NAME} key remove
+        {NAME} key create my-key listFiles,deleteFiles
+        {NAME} key remove 005c398ac3212400000000010
     """
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
