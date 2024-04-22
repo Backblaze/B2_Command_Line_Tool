@@ -744,7 +744,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
             appKeyId3   goodKeyName-Four       -                      -            -          ''   {}
             appKeyId4   goodKeyName-Five       id=bucket_1            -            -          ''   readFiles,listBuckets
-            """.format(','.join(ALL_CAPABILITIES))
+            """.format(','.join(sorted(ALL_CAPABILITIES)))
 
         self._run_command(['list-keys'], expected_list_keys_out, '', 0)
         self._run_command(['list-keys', '--long'], expected_list_keys_out_long, '', 0)
@@ -1584,7 +1584,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 {
                     "bucketId": None,
                     "bucketName": None,
-                    "capabilities": ALL_CAPABILITIES,
+                    "capabilities": sorted(ALL_CAPABILITIES),
                     "namePrefix": None
                 },
             "apiUrl": "http://api.example.com",
