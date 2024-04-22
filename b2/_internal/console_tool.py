@@ -1599,7 +1599,7 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         return 0
 
 
-class CreateKey(Command):
+class KeyCreateBase(Command):
     """
     Creates a new application key.  Prints the application key information.  This is the only
     time the application key itself will be returned.  Listing application keys will show
@@ -1717,7 +1717,7 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-class DeleteKey(Command):
+class KeyDeleteBase(Command):
     """
     Deletes the specified application key by its ID.
 
@@ -2204,7 +2204,7 @@ class ListBuckets(Command):
         return 0
 
 
-class ListKeys(Command):
+class KeyListBase(Command):
     """
     Lists the application keys for the current account.
 
@@ -4631,6 +4631,56 @@ class NotificationRulesDelete(Command):
         )
         self._print(f'Rule {args.ruleName!r} has been deleted from {args.B2_URI}')
         return 0
+
+
+class Key(Command):
+    """
+    Application keys management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} key list
+        {NAME} key create
+        {NAME} key remove
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@Key.subcommands_registry.register
+class KeyList(KeyListBase):
+    __doc__ = KeyListBase.__doc__
+    COMMAND_NAME = 'list'
+
+
+@Key.subcommands_registry.register
+class KeyCreate(KeyCreateBase):
+    __doc__ = KeyCreateBase.__doc__
+    COMMAND_NAME = 'create'
+
+
+@Key.subcommands_registry.register
+class KeyDelete(KeyDeleteBase):
+    __doc__ = KeyDeleteBase.__doc__
+    COMMAND_NAME = 'delete'
+
+
+class ListKeys(CmdReplacedByMixin, KeyListBase):
+    __doc__ = KeyListBase.__doc__
+    replaced_by_cmd = Key
+
+
+class CreateKey(CmdReplacedByMixin, KeyCreateBase):
+    __doc__ = KeyCreateBase.__doc__
+    replaced_by_cmd = Key
+
+
+class DeleteKey(CmdReplacedByMixin, KeyDeleteBase):
+    __doc__ = KeyDeleteBase.__doc__
+    replaced_by_cmd = Key
 
 
 class ConsoleTool:
