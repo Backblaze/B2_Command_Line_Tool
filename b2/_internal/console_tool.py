@@ -1218,7 +1218,7 @@ class AuthorizeAccount(Command):
     application key from the ``B2 Cloud Storage Buckets`` page on
     the web site: https://secure.backblaze.com/b2_buckets.htm
 
-    To use a normal application key, created with the ``create-key``
+    To use a normal application key, created with the ``key create``
     command or on the web site, provide the application key ID
     and the application key itself.
 

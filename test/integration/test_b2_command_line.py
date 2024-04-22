@@ -531,7 +531,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_one_name,
             'listFiles,listBuckets,readFiles,writeKeys',
         ]
@@ -549,7 +550,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_two_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             '--bucket',
             bucket_name,
             key_two_name,
@@ -590,8 +592,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
             b2_tool.application_key
         ]
     )
-    b2_tool.should_succeed(['delete-key', key_one_id])
-    b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['key', 'delete', key_one_id])
+    b2_tool.should_succeed(['key', 'delete', key_two_id])
 
 
 def test_delete_bucket(b2_tool, bucket_name):
@@ -2146,7 +2148,8 @@ def make_lock_disabled_key(b2_tool):
     key_name = 'no-perms-for-file-lock' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_name,
             'listFiles,listBuckets,readFiles,writeKeys,deleteFiles',
         ]
@@ -2389,7 +2392,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_one_name,
             'listBuckets,readFiles',
         ]
@@ -2399,7 +2403,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_two_name,
             'listBuckets,writeFiles',
         ]
@@ -2533,8 +2538,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
         'asReplicationSource': None
     }
 
-    b2_tool.should_succeed(['delete-key', key_one_id])
-    b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['key', 'delete', key_one_id])
+    b2_tool.should_succeed(['key', 'delete', key_two_id])
 
 
 def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
@@ -2589,8 +2594,8 @@ def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
 
     for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'].items():
-        b2_tool.should_succeed(['delete-key', key_one_id])
-        b2_tool.should_succeed(['delete-key', key_two_id])
+        b2_tool.should_succeed(['key', 'delete', key_one_id])
+        b2_tool.should_succeed(['key', 'delete', key_two_id])
     assert destination_bucket_old['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
             'asReplicationDestination']['sourceToDestinationKeyMapping']
@@ -2602,7 +2607,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_one_name,
             'listBuckets,readFiles',
         ]
@@ -2612,7 +2618,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_two_name,
             'listBuckets,writeFiles',
         ]

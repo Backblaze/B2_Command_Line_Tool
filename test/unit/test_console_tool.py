@@ -341,7 +341,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Create a key
         self._run_command(
-            ['create-key', 'key1', 'listBuckets,listKeys'],
+            ['key', 'create', 'key1', 'listBuckets,listKeys'],
             'appKeyId0 appKey0\n',
             '',
             0,
@@ -373,7 +373,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             # The first time we're running on this cache there will be output from the implicit "authorize-account" call
             self._run_command(
-                ['create-key', 'key1', 'listBuckets,listKeys'],
+                ['key', 'create', 'key1', 'listBuckets,listKeys'],
                 'appKeyId0 appKey0\n',
                 '',
                 0,
@@ -381,7 +381,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             # The second time "authorize-account" is not called
             self._run_command(
-                ['create-key', 'key1', 'listBuckets,listKeys,writeKeys'],
+                ['key', 'create', 'key1', 'listBuckets,listKeys,writeKeys'],
                 'appKeyId1 appKey1\n',
                 '',
                 0,
@@ -395,7 +395,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ):
                 # "authorize-account" is called when the key changes
                 self._run_command(
-                    ['create-key', 'key1', 'listBuckets,listKeys'],
+                    ['key', 'create', 'key1', 'listBuckets,listKeys'],
                     'appKeyId2 appKey2\n',
                     '',
                     0,
@@ -408,7 +408,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                     }
                 ):
                     self._run_command(
-                        ['create-key', 'key1', 'listBuckets,listKeys'],
+                        ['key', 'create', 'key1', 'listBuckets,listKeys'],
                         'appKeyId3 appKey3\n',
                         'Using http://custom.example.com\n',
                         0,
@@ -418,7 +418,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Create a key without listBuckets
-        self._run_command(['create-key', 'key1', 'listKeys'], 'appKeyId0 appKey0\n', '', 0)
+        self._run_command(['key', 'create', 'key1', 'listKeys'], 'appKeyId0 appKey0\n', '', 0)
 
         # Authorize with the key
         self._run_command(
@@ -489,7 +489,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Create a key restricted to that bucket
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket', 'key1', 'listKeys,listBuckets'],
+            ['key', 'create', '--bucket', 'my-bucket', 'key1', 'listKeys,listBuckets'],
             'appKeyId0 appKey0\n', '', 0
         )
 
@@ -665,13 +665,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Make a key with an illegal name
         expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
         self._run_command(
-            ['create-key', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
+            ['key', 'create', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
         )
 
         # Make a key with negative validDurationInSeconds
         expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, and less than 1000 days in seconds\n'
         self._run_command(
-            ['create-key', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
+            ['key', 'create', '--duration', '-456', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
@@ -679,24 +679,24 @@ class TestConsoleTool(BaseConsoleToolTest):
         expected_stderr = 'ERROR: Bad request: valid duration must be greater than 0, ' \
                           'and less than 1000 days in seconds\n'
         self._run_command(
-            ['create-key', '--duration', '0', 'goodKeyName', capabilities_with_commas], '',
+            ['key', 'create', '--duration', '0', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
         self._run_command(
-            ['create-key', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
+            ['key', 'create', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
             expected_stderr, 1
         )
 
         # Create three keys
         self._run_command(
-            ['create-key', 'goodKeyName-One', capabilities_with_commas],
+            ['key', 'create', 'goodKeyName-One', capabilities_with_commas],
             'appKeyId0 appKey0\n',
             '',
             0,
         )
         self._run_command(
             [
-                'create-key', '--bucket', 'my-bucket-a', 'goodKeyName-Two',
+                'key', 'create', '--bucket', 'my-bucket-a', 'goodKeyName-Two',
                 capabilities_with_commas + ',readBucketEncryption'
             ],
             'appKeyId1 appKey1\n',
@@ -705,7 +705,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
         self._run_command(
             [
-                'create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Three',
+                'key', 'create', '--bucket', 'my-bucket-b', 'goodKeyName-Three',
                 capabilities_with_commas
             ],
             'appKeyId2 appKey2\n',
@@ -713,20 +713,20 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            ['create-key', '--all-capabilities', 'goodKeyName-Four'],
+            ['key', 'create', '--all-capabilities', 'goodKeyName-Four'],
             'appKeyId3 appKey3\n',
             '',
             0,
         )
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Five', capabilities_with_commas],
+            ['key', 'create', '--bucket', 'my-bucket-b', 'goodKeyName-Five', capabilities_with_commas],
             'appKeyId4 appKey4\n',
             '',
             0,
         )
 
         # Delete one key
-        self._run_command(['delete-key', 'appKeyId2'], 'appKeyId2\n', '', 0)
+        self._run_command(['key', 'delete', 'appKeyId2'], 'appKeyId2\n', '', 0)
 
         # Delete one bucket, to test listing when a bucket is gone.
         self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
@@ -746,8 +746,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             appKeyId4   goodKeyName-Five       id=bucket_1            -            -          ''   readFiles,listBuckets
             """.format(','.join(sorted(ALL_CAPABILITIES)))
 
-        self._run_command(['list-keys'], expected_list_keys_out, '', 0)
-        self._run_command(['list-keys', '--long'], expected_list_keys_out_long, '', 0)
+        self._run_command(['key', 'list'], expected_list_keys_out, '', 0)
+        self._run_command(['key', 'list', '--long'], expected_list_keys_out_long, '', 0)
 
         # authorize and make calls using application key with no restrictions
         self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], None, '', 0)
@@ -2303,7 +2303,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         file_prefix = 'some/file/prefix/'
         self._run_command(
             [
-                'create-key', '--bucket', bucket_name, '--name-prefix', file_prefix, 'my-key',
+                'key', 'create', '--bucket', bucket_name, '--name-prefix', file_prefix, 'my-key',
                 capabilities
             ],
             app_key_id + ' ' + app_key + '\n',
@@ -2336,7 +2336,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                                      "restricted to bucket 'restrictedBucket', " \
                                      "restricted to files that start with 'some/file/prefix/' (unauthorized)\n"
         self._run_command(
-            ['create-key', 'goodKeyName-One', 'readFiles,listBuckets'],
+            ['key', 'create', 'goodKeyName-One', 'readFiles,listBuckets'],
             '',
             expected_create_key_stderr,
             1,
@@ -2355,7 +2355,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
         self._run_command(
-            ['create-key', 'my-key', 'listFiles'],
+            ['key', 'create', 'my-key', 'listFiles'],
             'appKeyId0 appKey0\n',
             '',
             0,
@@ -2379,7 +2379,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
+            ['key', 'create', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
             'appKeyId0 appKey0\n',
             '',
             0,
@@ -2407,7 +2407,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            ['create-key', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
+            ['key', 'create', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
             'appKeyId0 appKey0\n',
             '',
             0,
@@ -2618,7 +2618,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a key
         self._run_command(
             [
-                'create-key', '--bucket', 'my-bucket-0', '--name-prefix', cc_name, 'key1',
+                'key', 'create', '--bucket', 'my-bucket-0', '--name-prefix', cc_name, 'key1',
                 'listBuckets,listKeys'
             ],
             'appKeyId0 appKey0\n',
