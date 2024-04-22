@@ -683,8 +683,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stderr, 1
         )
         self._run_command(
-            ['key', 'create', '--duration', '86400001', 'goodKeyName', capabilities_with_commas], '',
-            expected_stderr, 1
+            ['key', 'create', '--duration', '86400001', 'goodKeyName', capabilities_with_commas],
+            '', expected_stderr, 1
         )
 
         # Create three keys
@@ -719,7 +719,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            ['key', 'create', '--bucket', 'my-bucket-b', 'goodKeyName-Five', capabilities_with_commas],
+            [
+                'key', 'create', '--bucket', 'my-bucket-b', 'goodKeyName-Five',
+                capabilities_with_commas
+            ],
             'appKeyId4 appKey4\n',
             '',
             0,
