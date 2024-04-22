@@ -9,6 +9,20 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.20.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.20.0) - 2024-XX-XX
+
+
+### Added
+
+- Add `key {list|create|delete}` commands
+
+### Deprecated
+
+- Deprecated `list-keys`, use `key list` instead.
+- Deprecated `create-key`, use `key create` instead.
+- Deprecated `delete-key`, use `key delete` instead.
+
+
 ## [3.19.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.19.0) - 2024-04-15
 
 
