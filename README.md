@@ -70,10 +70,8 @@ b2 cancel-large-file [-h] fileId
 b2 clear-account [-h]
 b2 copy-file-by-id [-h] [--fetch-metadata] [--content-type CONTENTTYPE] [--range RANGE] [--info INFO | --no-info] [--destination-server-side-encryption {SSE-B2,SSE-C}] [--destination-server-side-encryption-algorithm {AES256}] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--file-retention-mode {compliance,governance}] [--retain-until TIMESTAMP] [--legal-hold {on,off}] sourceFileId destinationBucketName b2FileName
 b2 create-bucket [-h] [--bucket-info BUCKETINFO] [--cors-rules CORSRULES] [--file-lock-enabled] [--replication REPLICATION] [--default-server-side-encryption {SSE-B2,none}] [--default-server-side-encryption-algorithm {AES256}] [--lifecycle-rule LIFECYCLERULES | --lifecycle-rules LIFECYCLERULES] bucketName {allPublic,allPrivate}
-b2 create-key [-h] [--bucket BUCKET] [--name-prefix NAMEPREFIX] [--duration DURATION] [--all-capabilities] keyName [capabilities]
 b2 delete-bucket [-h] bucketName
 b2 delete-file-version [-h] [--bypass-governance] [fileName] fileId
-b2 delete-key [-h] applicationKeyId
 b2 download-file [-h] [--threads THREADS] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--no-progress] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] B2_URI localFileName
 b2 cat [-h] [--no-progress] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] B2_URI
 b2 get-account-info [-h]
@@ -83,7 +81,6 @@ b2 get-download-auth [-h] [--prefix PREFIX] [--duration DURATION] bucketName
 b2 get-download-url-with-auth [-h] [--duration DURATION] bucketName fileName
 b2 hide-file [-h] bucketName fileName
 b2 list-buckets [-h] [--json]
-b2 list-keys [-h] [--long]
 b2 list-parts [-h] largeFileId
 b2 list-unfinished-large-files [-h] bucketName
 b2 ls [-h] [--long] [--json] [--replication] [--versions] [-r] [--with-wildcard] bucketName [folderName]
@@ -103,6 +100,10 @@ b2 replication-status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile
 b2 version [-h] [--short]
 b2 license [-h]
 b2 install-autocomplete [-h] [--shell {bash}]
+b2 notification-rules [-h] {list,create,update,enable,disable,delete} ...
+b2 key list [-h] [--long]
+b2 key create [-h] [--bucket BUCKET] [--name-prefix NAMEPREFIX] [--duration DURATION] [--all-capabilities] keyName [capabilities]
+b2 key delete [-h] applicationKeyId
 ```
 
 The environment variable `B2_ACCOUNT_INFO` specifies the SQLite
