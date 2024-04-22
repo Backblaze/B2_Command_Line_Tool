@@ -33,7 +33,7 @@ Setup source key
 
 .. code-block:: sh
 
-    $ b2 create-key my-bucket-rplsrc readFiles,readFileLegalHolds,readFileRetentions
+    $ b2 key create my-bucket-rplsrc readFiles,readFileLegalHolds,readFileRetentions
     0014ab1234567890000000123 K001ZA12345678901234567890ABCDE
 
 
@@ -64,7 +64,7 @@ Setup destination key
 
 .. code-block:: sh
 
-    $ b2 create-key --profile myprofile2 my-bucket-rpldst writeFiles,writeFileLegalHolds,writeFileRetentions,deleteFiles
+    $ b2 key create --profile myprofile2 my-bucket-rpldst writeFiles,writeFileLegalHolds,writeFileRetentions,deleteFiles
     0024ab2345678900000000234 K001YYABCDE12345678901234567890
 
 
