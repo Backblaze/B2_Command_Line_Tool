@@ -1,0 +1,1 @@
+Deprecated `create-key`, use `key create` instead.

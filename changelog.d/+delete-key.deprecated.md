@@ -1,0 +1,1 @@
+Deprecated `delete-key`, use `key delete` instead.
