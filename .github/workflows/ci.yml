@@ -96,11 +96,11 @@ jobs:
             python-version: 3.9
         include:
           # Workaround for https://github.com/actions/setup-python/issues/696
-          - os: "macos-12"
+          - os: "macos-13"
             python-version: 3.7
-          - os: "macos-12"
+          - os: "macos-13"
             python-version: 3.8
-          - os: "macos-12"
+          - os: "macos-13"
             python-version: 3.9
     steps:
       - uses: actions/checkout@v4
