@@ -9,6 +9,14 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [3.19.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.19.1) - 2024-04-23
+
+
+### Fixed
+
+- Fix `create-key --all-capabilities` error when using `b2sdk>=2.1`.
+
+
 ## [3.19.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.19.0) - 2024-04-15
 
 
