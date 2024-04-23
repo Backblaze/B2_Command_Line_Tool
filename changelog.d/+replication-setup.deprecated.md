@@ -1,0 +1,1 @@
+Deprecated `replication-setup`, use `replication setup` instead.

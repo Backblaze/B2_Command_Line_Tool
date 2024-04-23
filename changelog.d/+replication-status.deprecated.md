@@ -1,0 +1,1 @@
+Deprecated `replication-status`, use `replication status` instead.

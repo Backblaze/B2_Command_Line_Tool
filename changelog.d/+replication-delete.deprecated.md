@@ -1,0 +1,1 @@
+Deprecated `replication-delete`, use `replication delete` instead.

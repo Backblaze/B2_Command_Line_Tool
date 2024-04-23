@@ -3653,7 +3653,7 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-class ReplicationSetup(Command):
+class ReplicationSetupBase(Command):
     """
     Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
 
@@ -3779,7 +3779,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
         pass
 
 
-class ReplicationDelete(ReplicationRuleChanger):
+class ReplicationDeleteBase(ReplicationRuleChanger):
     """
     Deletes a replication rule
 
@@ -3795,7 +3795,7 @@ class ReplicationDelete(ReplicationRuleChanger):
         return None
 
 
-class ReplicationPause(ReplicationRuleChanger):
+class ReplicationPauseBase(ReplicationRuleChanger):
     """
     Pauses a replication rule
 
@@ -3812,7 +3812,7 @@ class ReplicationPause(ReplicationRuleChanger):
         return rule
 
 
-class ReplicationUnpause(ReplicationRuleChanger):
+class ReplicationUnpauseBase(ReplicationRuleChanger):
     """
     Unpauses a replication rule
 
@@ -3829,7 +3829,7 @@ class ReplicationUnpause(ReplicationRuleChanger):
         return rule
 
 
-class ReplicationStatus(Command):
+class ReplicationStatusBase(Command):
     """
     Inspects files in only source or both source and destination buckets
     (potentially from different accounts) and provides detailed replication statistics.
@@ -4681,6 +4681,80 @@ class CreateKey(CmdReplacedByMixin, KeyCreateBase):
 class DeleteKey(CmdReplacedByMixin, KeyDeleteBase):
     __doc__ = KeyDeleteBase.__doc__
     replaced_by_cmd = Key
+
+
+class Replication(Command):
+    """
+    Replication rule management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} replication setup --name=my-repl-rule src-bucket dest-bucket
+        {NAME} replication status --rule=my-repl-rule src-bucket
+        {NAME} replication pause src-bucket my-repl-rule
+        {NAME} replication unpause src-bucket my-repl-rule
+        {NAME} replication delete src-bucket my-repl-rule
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@Replication.subcommands_registry.register
+class ReplicationSetupSubcommand(ReplicationSetupBase):
+    __doc__ = ReplicationSetupBase.__doc__
+    COMMAND_NAME = 'setup'
+
+
+@Replication.subcommands_registry.register
+class ReplicationStatusSubcommand(ReplicationStatusBase):
+    __doc__ = ReplicationStatusBase.__doc__
+    COMMAND_NAME = 'status'
+
+
+@Replication.subcommands_registry.register
+class ReplicationPauseSubcommand(ReplicationPauseBase):
+    __doc__ = ReplicationPauseBase.__doc__
+    COMMAND_NAME = 'pause'
+
+
+@Replication.subcommands_registry.register
+class ReplicationUnpauseSubcommand(ReplicationUnpauseBase):
+    __doc__ = ReplicationUnpauseBase.__doc__
+    COMMAND_NAME = 'unpause'
+
+
+@Replication.subcommands_registry.register
+class ReplicationDeleteSubcommand(ReplicationDeleteBase):
+    __doc__ = ReplicationDeleteBase.__doc__
+    COMMAND_NAME = 'delete'
+
+
+class ReplicationSetup(CmdReplacedByMixin, ReplicationSetupBase):
+    __doc__ = ReplicationSetupBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationStatus(CmdReplacedByMixin, ReplicationStatusBase):
+    __doc__ = ReplicationStatusBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationPause(CmdReplacedByMixin, ReplicationPauseBase):
+    __doc__ = ReplicationPauseBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationUnpause(CmdReplacedByMixin, ReplicationUnpauseBase):
+    __doc__ = ReplicationUnpauseBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationDelete(CmdReplacedByMixin, ReplicationDeleteBase):
+    __doc__ = ReplicationDeleteBase.__doc__
+    replaced_by_cmd = Replication
 
 
 class ConsoleTool:
