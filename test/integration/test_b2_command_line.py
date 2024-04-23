@@ -131,7 +131,7 @@ def test_clear_account_with_env_vars(
     account_info_file,
 ):
     """
-    When calling `clear-account` and passing credentials via env vars,
+    When calling `account clear` and passing credentials via env vars,
     we want the credentials to be removed from the file.
     """
 

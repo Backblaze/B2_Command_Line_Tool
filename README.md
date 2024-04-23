@@ -135,8 +135,8 @@ B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_AP
 or authorize once and keep the credentials persisted:
 
 ```bash
-docker run --rm -it -v b2:/root backblazeit/b2:latest b2v3 authorize-account
-docker run --rm -v b2:/root backblazeit/b2:latest b2v3 list-buckets  # remember to include `-v` - authorization details are there
+docker run --rm -it -v b2:/root backblazeit/b2:latest account authorize
+docker run --rm -v b2:/root backblazeit/b2:latest list-buckets  # remember to include `-v` - authorization details are there
 ```
 
 #### Downloading and uploading

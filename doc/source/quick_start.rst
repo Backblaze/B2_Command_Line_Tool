@@ -12,7 +12,7 @@ Prepare B2 cli
 
 .. code-block:: sh
 
-    $ b2 authorize-account 4ab123456789 001aabbccddeeff123456789012345678901234567
+    $ b2 account authorize 4ab123456789 001aabbccddeeff123456789012345678901234567
     Using https://api.backblazeb2.com
 
 .. tip::
@@ -21,13 +21,13 @@ Prepare B2 cli
 .. warning::
    Local users might be able to access your process list and read command arguments. To avoid exposing credentials,
    you can provide application key ID and application key using environment variables ``B2_APPLICATION_KEY_ID`` and ``B2_APPLICATION_KEY`` respectively.
-   Those will be picked up automatically, so after defining those you'll just need to run ``b2 authorize-account`` with no extra parameters.
+   Those will be picked up automatically, so after defining those you'll just need to run ``b2 account authorize`` with no extra parameters.
 
    .. code-block:: sh
 
       $ export B2_APPLICATION_KEY_ID="$(<file-with-key-id.txt)"
       $ export B2_APPLICATION_KEY="$(<file-with-key.txt)"
-      $ b2 authorize-account
+      $ b2 account authorize
       Using https://api.backblazeb2.com
 
 

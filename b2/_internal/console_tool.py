@@ -1145,7 +1145,7 @@ class B2(Command):
 
     There are two flows of authorization:
 
-    * call ``{NAME} authorize-account`` and have the credentials cached in sqlite
+    * call ``{NAME} account authorize`` and have the credentials cached in sqlite
     * set ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and ``{B2_APPLICATION_KEY_ENV_VAR}`` environment
       variables when running this program
 
@@ -1166,7 +1166,7 @@ class B2(Command):
 
     If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
     Please note that the above rules may be changed in next versions of b2sdk, and in order to get
-    reliable authentication file location you should use ``b2 get-account-info``.
+    reliable authentication file location you should use ``b2 account get``.
 
     Control characters escaping is turned on if running under terminal.
     You can override it by explicitly using `--escape-control-chars`/`--no-escape-control-chars`` option,
@@ -1618,7 +1618,7 @@ class KeyCreateBase(Command):
     The ``namePrefix`` restricts file access to files whose names start with the prefix.
 
     The output is the new application key ID, followed by the application key itself.
-    The two values returned are the two that you pass to ``authorize-account`` to use the key.
+    The two values returned are the two that you pass to ``account authorize`` to use the key.
 
     Requires capability:
 
@@ -4876,7 +4876,7 @@ class ConsoleTool:
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                f'ERROR: {e}  Use: {self.b2_binary_name} authorize-account or provide auth data with '
+                f'ERROR: {e}  Use: `{self.b2_binary_name} account authorize` or provide auth data with '
                 f'{B2_APPLICATION_KEY_ID_ENV_VAR!r} and {B2_APPLICATION_KEY_ENV_VAR!r} environment variables'
             )
             return 1
@@ -4934,7 +4934,7 @@ class ConsoleTool:
         if self.api.account_info.is_same_key(key_id, realm or 'production'):
             return 0
 
-        logger.info('authorize-account is being run from env variables')
+        logger.info('`account authorize` is being run from env variables')
         return AccountAuthorizeBase(self).authorize(key_id, key, realm)
 
     def _print(self, *args, **kwargs):

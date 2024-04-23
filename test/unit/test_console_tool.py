@@ -386,7 +386,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             assert B2_APPLICATION_KEY_ID_ENV_VAR in os.environ
             assert B2_APPLICATION_KEY_ENV_VAR in os.environ
 
-            # The first time we're running on this cache there will be output from the implicit "authorize-account" call
+            # The first time we're running on this cache there will be output from the implicit "account authorize" call
             self._run_command(
                 ['key', 'create', 'key1', 'listBuckets,listKeys'],
                 'appKeyId0 appKey0\n',
@@ -394,7 +394,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 0,
             )
 
-            # The second time "authorize-account" is not called
+            # The second time "account authorize" is not called
             self._run_command(
                 ['key', 'create', 'key1', 'listBuckets,listKeys,writeKeys'],
                 'appKeyId1 appKey1\n',
@@ -408,7 +408,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                     B2_APPLICATION_KEY_ENV_VAR: 'appKey1',
                 }
             ):
-                # "authorize-account" is called when the key changes
+                # "account authorize" is called when the key changes
                 self._run_command(
                     ['key', 'create', 'key1', 'listBuckets,listKeys'],
                     'appKeyId2 appKey2\n',
@@ -416,7 +416,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                     0,
                 )
 
-                # "authorize-account" is also called when the realm changes
+                # "account authorize" is also called when the realm changes
                 with mock.patch.dict(
                     'os.environ', {
                         B2_ENVIRONMENT_ENV_VAR: 'http://custom.example.com',
