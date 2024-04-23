@@ -4651,19 +4651,19 @@ class Key(Command):
 
 
 @Key.subcommands_registry.register
-class KeyList(KeyListBase):
+class KeyListSubcommand(KeyListBase):
     __doc__ = KeyListBase.__doc__
     COMMAND_NAME = 'list'
 
 
 @Key.subcommands_registry.register
-class KeyCreate(KeyCreateBase):
+class KeyCreateSubcommand(KeyCreateBase):
     __doc__ = KeyCreateBase.__doc__
     COMMAND_NAME = 'create'
 
 
 @Key.subcommands_registry.register
-class KeyDelete(KeyDeleteBase):
+class KeyDeleteSubcommand(KeyDeleteBase):
     __doc__ = KeyDeleteBase.__doc__
     COMMAND_NAME = 'delete'
 
