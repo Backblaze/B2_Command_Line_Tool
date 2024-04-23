@@ -2571,6 +2571,16 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
 
 
 def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
+    base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, True)
+
+
+def test_replication_setup_deprecated(b2_tool, bucket_name, schedule_bucket_cleanup):
+    base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, False)
+
+
+def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, use_subcommands):
+    setup_cmd = ['replication', 'setup'] if use_subcommands else ['replication-setup']
+
     source_bucket_name = b2_tool.generate_bucket_name()
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
@@ -2583,12 +2593,12 @@ def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
         ]
     )
     destination_bucket_name = bucket_name
-    b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
+    b2_tool.should_succeed([*setup_cmd, source_bucket_name, destination_bucket_name])
     destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
     b2_tool.should_succeed(
         [
-            'replication-setup',
+            *setup_cmd,
             '--priority',
             '132',
             '--file-name-prefix',
@@ -2780,9 +2790,27 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
 
     # run stats command
+    replication_status_deprecated_pattern = re.compile(
+        re.escape('WARNING: replication-status command is deprecated. Use replication instead.')
+    )
     replication_status_json = b2_tool.should_succeed_json(
         [
             'replication-status',
+            # '--destination-profile',
+            # profile,
+            '--no-progress',
+            # '--columns=count, hash differs',
+            '--output-format',
+            'json',
+            source_bucket_name,
+        ],
+        expected_stderr_pattern=replication_status_deprecated_pattern
+    )
+
+    replication_status_json = b2_tool.should_succeed_json(
+        [
+            'replication',
+            'status',
             # '--destination-profile',
             # profile,
             '--no-progress',
