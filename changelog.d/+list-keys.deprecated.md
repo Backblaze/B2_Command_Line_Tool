@@ -1,1 +1,0 @@
-Deprecated `list-keys`, use `key list` instead.

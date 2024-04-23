@@ -1,0 +1,1 @@
+Deprecated `list-keys`, `create-key` and `delete-key`, use `key {list|create|delete}` instead.
