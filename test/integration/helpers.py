@@ -422,7 +422,7 @@ class CommandLine:
             assert re.search(expected_pattern, stdout), \
             f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
 
-        return stdout
+        return stdout.replace(os.linesep, '\n')
 
     @classmethod
     def prepare_env(self, additional_env: dict | None = None):

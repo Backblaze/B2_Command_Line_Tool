@@ -10,6 +10,7 @@
 from unittest import mock
 
 import pytest
+from b2sdk.v2 import ALL_CAPABILITIES
 
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
@@ -133,35 +134,7 @@ def test_authorize_account_prints_account_info(b2_cli):
             {
                 'bucketId': None,
                 'bucketName': None,
-                'capabilities':
-                    [
-                        'listKeys',
-                        'writeKeys',
-                        'deleteKeys',
-                        'listBuckets',
-                        'listAllBucketNames',
-                        'readBuckets',
-                        'writeBuckets',
-                        'deleteBuckets',
-                        'readBucketEncryption',
-                        'writeBucketEncryption',
-                        'readBucketRetentions',
-                        'writeBucketRetentions',
-                        'readFileRetentions',
-                        'writeFileRetentions',
-                        'readFileLegalHolds',
-                        'writeFileLegalHolds',
-                        'readBucketReplications',
-                        'writeBucketReplications',
-                        'bypassGovernance',
-                        'listFiles',
-                        'readFiles',
-                        'shareFiles',
-                        'writeFiles',
-                        'deleteFiles',
-                        'readBucketNotifications',
-                        'writeBucketNotifications',
-                    ],
+                'capabilities': sorted(ALL_CAPABILITIES),
                 'namePrefix': None,
             },
         'apiUrl': 'http://api.example.com',

@@ -291,6 +291,8 @@ def apply_or_none(fcn, value):
 
 
 def format_account_info(account_info: AbstractAccountInfo) -> dict:
+    allowed = account_info.get_allowed()
+    allowed['capabilities'] = sorted(allowed['capabilities'])
     return dict(
         accountId=account_info.get_account_id(),
         accountFilePath=getattr(
@@ -298,7 +300,7 @@ def format_account_info(account_info: AbstractAccountInfo) -> dict:
             'filename',
             None,
         ),  # missing in StubAccountInfo in tests
-        allowed=account_info.get_allowed(),
+        allowed=allowed,
         applicationKeyId=account_info.get_application_key_id(),
         applicationKey=account_info.get_application_key(),
         isMasterKey=account_info.is_master_key(),
@@ -1643,7 +1645,14 @@ class CreateKey(Command):
             bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
 
         if args.all_capabilities:
-            args.capabilities = ALL_CAPABILITIES
+            current_key_caps = set(self.api.account_info.get_allowed()['capabilities'])
+            preview_feature_caps = {
+                'readBucketNotifications',
+                'writeBucketNotifications',
+            }
+            args.capabilities = sorted(
+                set(ALL_CAPABILITIES) - preview_feature_caps | current_key_caps
+            )
 
         application_key = self.api.create_key(
             capabilities=args.capabilities,
