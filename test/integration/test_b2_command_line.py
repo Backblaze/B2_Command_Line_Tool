@@ -2954,10 +2954,10 @@ def test_download_file_stdout(
 ):
     assert b2_tool.should_succeed(
         ['download-file', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}", '-'],
-    ).replace("\r", "") == sample_filepath.read_text()
+    ) == sample_filepath.read_text()
     assert b2_tool.should_succeed(
         ['download-file', '--quiet', f"b2id://{uploaded_sample_file['fileId']}", '-'],
-    ).replace("\r", "") == sample_filepath.read_text()
+    ) == sample_filepath.read_text()
 
 
 def test_download_file_to_directory(
@@ -3003,9 +3003,9 @@ def test_download_file_to_directory(
 def test_cat(b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file):
     assert b2_tool.should_succeed(
         ['cat', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}"],
-    ).replace("\r", "") == sample_filepath.read_text()
-    assert b2_tool.should_succeed(['cat', f"b2id://{uploaded_sample_file['fileId']}"
-                                  ],).replace("\r", "") == sample_filepath.read_text()
+    ) == sample_filepath.read_text()
+    assert b2_tool.should_succeed(['cat', f"b2id://{uploaded_sample_file['fileId']}"]
+                                 ) == sample_filepath.read_text()
 
 
 def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
