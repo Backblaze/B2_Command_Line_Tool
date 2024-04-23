@@ -1206,7 +1206,7 @@ class B2(Command):
         return args.command_class
 
 
-class AuthorizeAccount(Command):
+class AccountAuthorizeBase(Command):
     """
     Prompts for Backblaze ``applicationKeyId`` and ``applicationKey`` (unless they are given
     on the command line).
@@ -1383,7 +1383,7 @@ class CancelLargeFile(Command):
         return 0
 
 
-class ClearAccount(Command):
+class AccountClearBase(Command):
     """
     Erases everything in local cache.
 
@@ -1977,7 +1977,7 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
         return 0
 
 
-class GetAccountInfo(Command):
+class AccountGetBase(Command):
     """
     Shows the account ID, key, auth token, URLs, and what capabilities
     the current application keys has.
@@ -4757,6 +4757,56 @@ class ReplicationDelete(CmdReplacedByMixin, ReplicationDeleteBase):
     replaced_by_cmd = Replication
 
 
+class Account(Command):
+    """
+    Account management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} account authorize [applicationKeyId] [applicationKey]
+        {NAME} account get
+        {NAME} account clear
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@Account.subcommands_registry.register
+class AccountAuthorize(AccountAuthorizeBase):
+    __doc__ = AccountAuthorizeBase.__doc__
+    COMMAND_NAME = 'authorize'
+
+
+@Account.subcommands_registry.register
+class AccountGet(AccountGetBase):
+    __doc__ = AccountGetBase.__doc__
+    COMMAND_NAME = 'get'
+
+
+@Account.subcommands_registry.register
+class AccountClear(AccountClearBase):
+    __doc__ = AccountClearBase.__doc__
+    COMMAND_NAME = 'clear'
+
+
+class AuthorizeAccount(CmdReplacedByMixin, AccountAuthorizeBase):
+    __doc__ = AccountAuthorizeBase.__doc__
+    replaced_by_cmd = Account
+
+
+class GetAccountInfo(CmdReplacedByMixin, AccountGetBase):
+    __doc__ = AccountGetBase.__doc__
+    replaced_by_cmd = Account
+
+
+class ClearAccount(CmdReplacedByMixin, AccountClearBase):
+    __doc__ = AccountClearBase.__doc__
+    replaced_by_cmd = Account
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
@@ -4859,8 +4909,8 @@ class ConsoleTool:
             except MissingAccountData:
                 is_same_key_on_disk = False
 
-            if not is_same_key_on_disk and args.command_class not in (
-                AuthorizeAccount, ClearAccount
+            if not is_same_key_on_disk and not isinstance(
+                args.command_class, (AccountAuthorizeBase, AccountClearBase)
             ):
                 # when user specifies keys via env variables, we switch to in-memory account info
                 return _get_inmemory_b2api(**kwargs)
@@ -4885,7 +4935,7 @@ class ConsoleTool:
             return 0
 
         logger.info('authorize-account is being run from env variables')
-        return AuthorizeAccount(self).authorize(key_id, key, realm)
+        return AccountAuthorizeBase(self).authorize(key_id, key, realm)
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)
