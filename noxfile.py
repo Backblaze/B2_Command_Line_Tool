@@ -61,7 +61,7 @@ PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-1]
 
 PY_PATHS = ['b2', 'test', 'noxfile.py']
 
-DOCKER_TEMPLATE = pathlib.Path('./Dockerfile.template')
+DOCKER_TEMPLATE = pathlib.Path('docker/Dockerfile.template')
 
 SYSTEM = platform.system().lower()
 
@@ -590,7 +590,7 @@ def run_docker_tests(session, image_tag):
         run_integration_test(
             session, [
                 "--sut",
-                f"{docker_run_cmd} --entrypoint {binary_name} {image_tag}",
+                f"{docker_run_cmd} {image_tag} {binary_name}",
                 "--env-file-cmd-placeholder",
                 "ENVFILE",
             ]
