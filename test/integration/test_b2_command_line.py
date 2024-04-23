@@ -2165,7 +2165,10 @@ def test_file_lock(
     )
 
     b2_tool.should_succeed(
-        ['account', 'authorize', '--environment', b2_tool.realm, application_key_id, application_key],
+        [
+            'account', 'authorize', '--environment', b2_tool.realm, application_key_id,
+            application_key
+        ],
     )
 
     deleting_locked_files(
