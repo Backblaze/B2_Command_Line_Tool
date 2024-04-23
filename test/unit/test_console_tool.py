@@ -186,7 +186,7 @@ class BaseConsoleToolTest(TestBase):
         """
         Clear account auth data
         """
-        self._run_command_ignore_output(['clear-account'])
+        self._run_command_ignore_output(['account', 'clear'])
 
     def _create_my_bucket(self):
         self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
@@ -571,7 +571,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Clearing the account should remove the auth token
         # from the account info.
-        self._run_command(['clear-account'], '', '', 0)
+        self._run_command(['account', 'clear'], '', '', 0)
         assert self.account_info.get_account_auth_token() is None
 
     def test_buckets(self):
@@ -1646,7 +1646,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "s3endpoint": "http://s3.api.example.com",
         }
         self._run_command(
-            ['get-account-info'],
+            ['account', 'get'],
             expected_json_in_stdout=expected_json,
         )
 

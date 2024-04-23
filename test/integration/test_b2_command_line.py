@@ -76,7 +76,7 @@ def test_authorize_account_via_params_saving_credentials(
     we want the credentials to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
@@ -103,7 +103,7 @@ def test_authorize_account_via_env_vars_saving_credentials(
     via env vars, we still want the credentials to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
@@ -141,7 +141,7 @@ def test_clear_account_with_env_vars(
     assert account_info.get_application_key_id() == application_key_id
 
     b2_tool.should_succeed(
-        ['clear-account'],
+        ['account', 'clear'],
         additional_env={
             B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
@@ -172,7 +172,7 @@ def test_command_with_env_vars_saving_credentials(
     via env vars, we don't want them to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
@@ -207,7 +207,7 @@ def test_command_with_env_vars_not_saving_credentials(
     via env vars, we don't want them to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
@@ -646,7 +646,7 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
         mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
-        b2_tool.should_succeed(['clear-account'])
+        b2_tool.should_succeed(['account', 'clear'])
         bad_application_key = random_hex(len(b2_tool.application_key))
         b2_tool.should_fail(
             ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
@@ -2373,9 +2373,9 @@ def test_profile_switch(b2_tool):
             b2_tool.application_key,
         ]
     )
-    b2_tool.should_succeed(['get-account-info'])
-    b2_tool.should_succeed(['clear-account'])
-    b2_tool.should_fail(['get-account-info'], expected_pattern=MISSING_ACCOUNT_PATTERN)
+    b2_tool.should_succeed(['account', 'get'])
+    b2_tool.should_succeed(['account', 'clear'])
+    b2_tool.should_fail(['account', 'get'], expected_pattern=MISSING_ACCOUNT_PATTERN)
 
     # in order to use --profile flag, we need to temporary
     # delete B2_ACCOUNT_INFO_ENV_VAR
@@ -2384,7 +2384,7 @@ def test_profile_switch(b2_tool):
     # now authorize a different account
     profile = 'profile-for-test-' + random_hex(6)
     b2_tool.should_fail(
-        ['get-account-info', '--profile', profile],
+        ['account', 'get', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
     b2_tool.should_succeed(
@@ -2399,14 +2399,14 @@ def test_profile_switch(b2_tool):
         ]
     )
 
-    account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
+    account_info = b2_tool.should_succeed_json(['account', 'get', '--profile', profile])
     account_file_path = account_info['accountFilePath']
     assert profile in account_file_path, \
         f'accountFilePath "{account_file_path}" should contain profile name "{profile}"'
 
-    b2_tool.should_succeed(['clear-account', '--profile', profile])
+    b2_tool.should_succeed(['account', 'clear', '--profile', profile])
     b2_tool.should_fail(
-        ['get-account-info', '--profile', profile],
+        ['account', 'get', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
     os.remove(account_file_path)
@@ -3141,7 +3141,7 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
 
 
 def test_notification_rules(b2_tool, bucket_name):
-    auth_dict = b2_tool.should_succeed_json(['get-account-info'])
+    auth_dict = b2_tool.should_succeed_json(['account', 'get'])
     if 'writeBucketNotifications' not in auth_dict['allowed']['capabilities']:
         pytest.skip('Test account does not have writeBucketNotifications capability')
 
