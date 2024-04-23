@@ -560,11 +560,27 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
     key_two_id, key_two = created_key_two_stdout.split()
 
+    key_three_name = 'clt-testKey-03' + random_hex(6)
+    created_key_three_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            '--bucket',
+            bucket_name,
+            key_three_name,
+            'listFiles,listBuckets,readFiles',
+        ]
+    )
+    key_three_id, key_three = created_key_three_stdout.split()
+
     b2_tool.should_succeed(
         ['authorize-account', '--environment', b2_tool.realm, key_two_id, key_two],
     )
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
+
+    b2_tool.should_succeed(
+        ['authorize-account', '--environment', b2_tool.realm, key_three_id, key_three],
+    )
 
     # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
     # in ensures that there are three in total.
@@ -594,6 +610,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
     b2_tool.should_succeed(['key', 'delete', key_one_id])
     b2_tool.should_succeed(['key', 'delete', key_two_id])
+    b2_tool.should_succeed(['delete-key', key_three_id])
 
 
 def test_delete_bucket(b2_tool, bucket_name):

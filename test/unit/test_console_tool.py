@@ -347,9 +347,24 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+        # test deprecated command
+        self._run_command(
+            ['create-key', 'key2', 'listBuckets,listKeys'],
+            'appKeyId1 appKey1\n',
+            '',
+            0,
+        )
+
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
+            None,
+            '',
+            0,
+        )
+
+        self._run_command(
+            ['authorize-account', 'appKeyId1', 'appKey1'],
             None,
             '',
             0,
@@ -493,9 +508,22 @@ class TestConsoleTool(BaseConsoleToolTest):
             'appKeyId0 appKey0\n', '', 0
         )
 
+        # test deprecated command
+        self._run_command(
+            ['create-key', '--bucket', 'my-bucket', 'key2', 'listKeys,listBuckets'],
+            'appKeyId1 appKey1\n', '', 0
+        )
+
         # Authorize with the key
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
+            None,
+            '',
+            0,
+        )
+
+        self._run_command(
+            ['authorize-account', 'appKeyId1', 'appKey1'],
             None,
             '',
             0,
@@ -727,9 +755,21 @@ class TestConsoleTool(BaseConsoleToolTest):
             '',
             0,
         )
+        self._run_command(
+            [
+                'create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Six',
+                capabilities_with_commas
+            ],
+            'appKeyId5 appKey5\n',
+            '',
+            0,
+        )
 
         # Delete one key
         self._run_command(['key', 'delete', 'appKeyId2'], 'appKeyId2\n', '', 0)
+
+        # test deprecated command
+        self._run_command(['delete-key', 'appKeyId5'], 'appKeyId5\n', '', 0)
 
         # Delete one bucket, to test listing when a bucket is gone.
         self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
@@ -751,6 +791,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(['key', 'list'], expected_list_keys_out, '', 0)
         self._run_command(['key', 'list', '--long'], expected_list_keys_out_long, '', 0)
+
+        self._run_command(['list-keys', 'list'], expected_list_keys_out, '', 0)
+        self._run_command(['list-keys', 'list', '--long'], expected_list_keys_out_long, '', 0)
 
         # authorize and make calls using application key with no restrictions
         self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], None, '', 0)
