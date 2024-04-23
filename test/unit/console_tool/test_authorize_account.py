@@ -44,17 +44,19 @@ def test_authorize_with_bad_key(b2_cli):
 @pytest.mark.parametrize(
     "command",
     [
-        "authorize-account",
-        "authorize_account",
+        ["authorize-account"],
+        ["authorize_account"],
+        ["account", "authorize"],
     ],
 )
 def test_authorize_with_good_key(b2_cli, b2_cli_is_authorized_afterwards, command):
     assert b2_cli.account_info.get_account_auth_token() is None
 
-    expected_stderr = """
-    """
+    expected_stderr = "" if len(
+        command
+    ) == 2 else "WARNING: authorize-account command is deprecated. Use account instead.\n"
 
-    b2_cli._run_command([command, b2_cli.account_id, b2_cli.master_key], None, expected_stderr, 0)
+    b2_cli._run_command([*command, b2_cli.account_id, b2_cli.master_key], None, expected_stderr, 0)
 
     assert b2_cli.account_info.get_account_auth_token() is not None
 
