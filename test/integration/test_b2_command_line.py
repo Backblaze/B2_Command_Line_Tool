@@ -2580,6 +2580,10 @@ def test_replication_setup_deprecated(b2_tool, bucket_name, schedule_bucket_clea
 
 def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, use_subcommands):
     setup_cmd = ['replication', 'setup'] if use_subcommands else ['replication-setup']
+    replication_setup_deprecated_pattern = re.compile(
+        re.escape('WARNING: replication-setup command is deprecated. Use replication instead.')
+    )
+    replication_setup_expected_stderr_pattern = None if use_subcommands else replication_setup_deprecated_pattern
 
     source_bucket_name = b2_tool.generate_bucket_name()
     schedule_bucket_cleanup(source_bucket_name)
@@ -2593,7 +2597,10 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
         ]
     )
     destination_bucket_name = bucket_name
-    b2_tool.should_succeed([*setup_cmd, source_bucket_name, destination_bucket_name])
+    b2_tool.should_succeed(
+        [*setup_cmd, source_bucket_name, destination_bucket_name],
+        expected_stderr_pattern=replication_setup_expected_stderr_pattern
+    )
     destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
     b2_tool.should_succeed(
@@ -2607,7 +2614,8 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
             'my-replication-rule',
             source_bucket_name,
             destination_bucket_name,
-        ]
+        ],
+        expected_stderr_pattern=replication_setup_expected_stderr_pattern,
     )
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
     destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
