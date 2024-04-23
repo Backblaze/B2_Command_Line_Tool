@@ -4909,7 +4909,7 @@ class ConsoleTool:
             except MissingAccountData:
                 is_same_key_on_disk = False
 
-            if not is_same_key_on_disk and not isinstance(
+            if not is_same_key_on_disk and not issubclass(
                 args.command_class, (AccountAuthorizeBase, AccountClearBase)
             ):
                 # when user specifies keys via env variables, we switch to in-memory account info
