@@ -560,6 +560,9 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
     key_two_id, key_two = created_key_two_stdout.split()
 
+    create_key_deprecated_pattern = re.compile(
+        re.escape('WARNING: create-key command is deprecated. Use key instead.')
+    )
     key_three_name = 'clt-testKey-03' + random_hex(6)
     created_key_three_stdout = b2_tool.should_succeed(
         [
@@ -569,7 +572,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
             key_three_name,
             'listFiles,listBuckets,readFiles',
         ],
-        expected_stderr_pattern='WARNING: create-key command is deprecated. Use key instead.',
+        expected_stderr_pattern=create_key_deprecated_pattern,
     )
     key_three_id, key_three = created_key_three_stdout.split()
 
@@ -611,9 +614,13 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
     b2_tool.should_succeed(['key', 'delete', key_one_id])
     b2_tool.should_succeed(['key', 'delete', key_two_id])
+
+    delete_key_deprecated_pattern = re.compile(
+        re.escape('WARNING: delete-key command is deprecated. Use key instead.')
+    )
     b2_tool.should_succeed(
         ['delete-key', key_three_id],
-        expected_stderr_pattern='WARNING: delete-key command is deprecated. Use key instead.',
+        expected_stderr_pattern=delete_key_deprecated_pattern,
     )
 
 
