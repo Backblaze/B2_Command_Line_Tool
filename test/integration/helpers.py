@@ -525,7 +525,7 @@ class CommandLine:
         self.should_succeed(['account', 'clear'])
         self.should_succeed(
             [
-                'authorize-account', '--environment', self.realm, self.account_id,
+                'account', 'authorize', '--environment', self.realm, self.account_id,
                 self.application_key
             ]
         )

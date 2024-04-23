@@ -180,7 +180,7 @@ class BaseConsoleToolTest(TestBase):
         """
         Prepare for a test by authorizing an account and getting an account auth token
         """
-        self._run_command_ignore_output(['authorize-account', self.account_id, self.master_key])
+        self._run_command_ignore_output(['account', 'authorize', self.account_id, self.master_key])
 
     def _clear_account(self):
         """
@@ -357,14 +357,14 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', 'appKeyId0', 'appKey0'],
             None,
             '',
             0,
         )
 
         self._run_command(
-            ['authorize-account', 'appKeyId1', 'appKey1'],
+            ['account', 'authorize', 'appKeyId1', 'appKey1'],
             None,
             '',
             0,
@@ -437,7 +437,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', 'appKeyId0', 'appKey0'],
             '',
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
@@ -517,14 +517,14 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Authorize with the key
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', 'appKeyId0', 'appKey0'],
             None,
             '',
             0,
         )
 
         self._run_command(
-            ['authorize-account', 'appKeyId1', 'appKey1'],
+            ['account', 'authorize', 'appKeyId1', 'appKey1'],
             None,
             '',
             0,
@@ -803,7 +803,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # authorize and make calls using application key with no restrictions
-        self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], None, '', 0)
+        self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], None, '', 0)
         self._run_command(
             ['list-buckets'],
             'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n', '', 0
@@ -826,7 +826,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(['get-bucket', 'my-bucket-a'], expected_json_in_stdout=expected_json)
 
         # authorize and make calls using an application key with bucket restrictions
-        self._run_command(['authorize-account', 'appKeyId1', 'appKey1'], None, '', 0)
+        self._run_command(['account', 'authorize', 'appKeyId1', 'appKey1'], None, '', 0)
 
         self._run_command(
             ['list-buckets'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
@@ -2338,7 +2338,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Authorize an account with the master key.
         account_id = self.account_id
-        self._run_command_ignore_output(['authorize-account', account_id, self.master_key])
+        self._run_command_ignore_output(['account', 'authorize', account_id, self.master_key])
 
         # Create a bucket to use
         bucket_name = 'restrictedBucket'
@@ -2364,7 +2364,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
-        self._run_command_ignore_output(['authorize-account', app_key_id, app_key])
+        self._run_command_ignore_output(['account', 'authorize', app_key_id, app_key])
 
         # Auth token should be in account info now
         self.assertEqual('auth_token_1', self.account_info.get_account_auth_token())
@@ -2416,7 +2416,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Authorize with the key, which should result in an error.
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', 'appKeyId0', 'appKey0'],
             '',
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
@@ -2444,7 +2444,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', 'appKeyId0', 'appKey0'],
             '',
             "ERROR: unable to authorize account: Application key is restricted to a bucket that doesn't exist\n",
             1,
@@ -2467,7 +2467,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Authorize with the key and list the files
-        self._run_command_ignore_output(['authorize-account', 'appKeyId0', 'appKey0'],)
+        self._run_command_ignore_output(['account', 'authorize', 'appKeyId0', 'appKey0'],)
         self._run_command(
             ['ls', *self.b2_uri_args('my-bucket')],
             '',
@@ -2484,7 +2484,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
         stderr = mock.MagicMock()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'authorize-account', self.account_id, self.master_key])
+        console_tool.run_command(['b2', 'account', 'authorize', self.account_id, self.master_key])
 
     def test_passing_api_parameters(self):
         self._authorize_account()
@@ -2679,7 +2679,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Authorize with the key
-        self._run_command(['authorize-account', 'appKeyId0', 'appKey0'], expected_status=0)
+        self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], expected_status=0)
 
         self._run_command(
             ['ls', *self.b2_uri_args('my-bucket-0'), '--no-escape-control-characters'],

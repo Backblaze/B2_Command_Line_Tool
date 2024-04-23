@@ -72,7 +72,7 @@ def test_authorize_account_via_params_saving_credentials(
     account_info_file,
 ):
     """
-    When calling `authorize-account` and passing credentials as params,
+    When calling `account authorize` and passing credentials as params,
     we want the credentials to be saved.
     """
 
@@ -82,7 +82,7 @@ def test_authorize_account_via_params_saving_credentials(
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', realm, application_key_id, application_key]
+        ['account', 'authorize', '--environment', realm, application_key_id, application_key]
     )
 
     assert account_info_file.exists()
@@ -99,7 +99,7 @@ def test_authorize_account_via_env_vars_saving_credentials(
     account_info_file,
 ):
     """
-    When calling `authorize-account` and passing credentials
+    When calling `account authorize` and passing credentials
     via env vars, we still want the credentials to be saved.
     """
 
@@ -109,7 +109,7 @@ def test_authorize_account_via_env_vars_saving_credentials(
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
     b2_tool.should_succeed(
-        ['authorize-account'],
+        ['account', 'authorize'],
         additional_env={
             B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
@@ -168,7 +168,7 @@ def test_command_with_env_vars_saving_credentials(
     b2_uri_args,
 ):
     """
-    When calling any command other then `authorize-account` and passing credentials
+    When calling any command other then `account authorize` and passing credentials
     via env vars, we don't want them to be saved.
     """
 
@@ -203,7 +203,7 @@ def test_command_with_env_vars_not_saving_credentials(
     b2_uri_args,
 ):
     """
-    When calling any command other then `authorize-account` and passing credentials
+    When calling any command other then `account authorize` and passing credentials
     via env vars, we don't want them to be saved.
     """
 
@@ -540,7 +540,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_one_id, key_one = created_key_stdout.split()
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, key_one_id, key_one],
+        ['account', 'authorize', '--environment', b2_tool.realm, key_one_id, key_one],
     )
 
     b2_tool.should_succeed(['get-bucket', bucket_name],)
@@ -577,13 +577,13 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_three_id, key_three = created_key_three_stdout.split()
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, key_two_id, key_two],
+        ['account', 'authorize', '--environment', b2_tool.realm, key_two_id, key_two],
     )
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, key_three_id, key_three],
+        ['account', 'authorize', '--environment', b2_tool.realm, key_three_id, key_three],
     )
 
     # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
@@ -608,7 +608,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
+            'account', 'authorize', '--environment', b2_tool.realm, b2_tool.account_id,
             b2_tool.application_key
         ]
     )
@@ -649,11 +649,12 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         b2_tool.should_succeed(['account', 'clear'])
         bad_application_key = random_hex(len(b2_tool.application_key))
         b2_tool.should_fail(
-            ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+            ['account', 'authorize', b2_tool.account_id, bad_application_key], r'unauthorized'
         )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
         b2_tool.should_succeed(
             [
-                'authorize-account',
+                'account',
+                'authorize',
                 '--environment',
                 b2_tool.realm,
                 b2_tool.account_id,
@@ -661,7 +662,7 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
             ]
         )
 
-    # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
+    # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than `account authorize`
     with monkeypatch.context() as mp:
         account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
         mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
@@ -672,7 +673,7 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         b2_tool.should_fail(
             ['create-bucket', bucket_name, 'allPrivate'],
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
-            fr'Use: {cli_version}(\.(exe|EXE))? authorize-account or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
+            fr'Use: {cli_version}(\.(exe|EXE))? \'account authorize\' or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
             r'\'B2_APPLICATION_KEY\' environment variables'
         )
 
@@ -2149,7 +2150,7 @@ def test_file_lock(
 
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, lock_disabled_key_id,
+            'account', 'authorize', '--environment', b2_tool.realm, lock_disabled_key_id,
             lock_disabled_key
         ],
     )
@@ -2164,7 +2165,7 @@ def test_file_lock(
     )
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
+        ['account', 'authorize', '--environment', b2_tool.realm, application_key_id, application_key],
     )
 
     deleting_locked_files(
@@ -2345,7 +2346,7 @@ def deleting_locked_files(
 
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, lock_disabled_key_id,
+            'account', 'authorize', '--environment', b2_tool.realm, lock_disabled_key_id,
             lock_disabled_key
         ],
     )
@@ -2366,7 +2367,8 @@ def test_profile_switch(b2_tool):
 
     b2_tool.should_succeed(
         [
-            'authorize-account',
+            'account',
+            'authorize',
             '--environment',
             b2_tool.realm,
             b2_tool.account_id,
@@ -2389,7 +2391,8 @@ def test_profile_switch(b2_tool):
     )
     b2_tool.should_succeed(
         [
-            'authorize-account',
+            'account',
+            'authorize',
             '--environment',
             b2_tool.realm,
             '--profile',
