@@ -278,7 +278,11 @@ def build(session):
     # otherwise glob won't find files on windows in action-gh-release.
     github_output('asset_path', 'dist/*')
 
-    version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
+    if CI:
+        version = os.environ['GITHUB_REF'].replace('refs/tags/v', '')
+    else:
+        version = subprocess.check_output(['git', 'describe', '--tags']).decode().strip()
+
     github_output('version', version)
 
 
