@@ -568,7 +568,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
             bucket_name,
             key_three_name,
             'listFiles,listBuckets,readFiles',
-        ]
+        ],
+        expected_stderr_pattern='WARNING: create-key command is deprecated. Use key instead.',
     )
     key_three_id, key_three = created_key_three_stdout.split()
 
@@ -610,7 +611,10 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
     b2_tool.should_succeed(['key', 'delete', key_one_id])
     b2_tool.should_succeed(['key', 'delete', key_two_id])
-    b2_tool.should_succeed(['delete-key', key_three_id])
+    b2_tool.should_succeed(
+        ['delete-key', key_three_id],
+        expected_stderr_pattern='WARNING: delete-key command is deprecated. Use key instead.',
+    )
 
 
 def test_delete_bucket(b2_tool, bucket_name):
