@@ -756,10 +756,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
         self._run_command(
-            [
-                'create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Six',
-                capabilities_with_commas
-            ],
+            ['create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Six', capabilities_with_commas],
             'appKeyId5 appKey5\n',
             '',
             0,
