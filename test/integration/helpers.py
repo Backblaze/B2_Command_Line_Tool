@@ -558,7 +558,7 @@ class CommandLine:
         """
         if not bucket_dict:
             try:
-                bucket_dict = self.should_succeed_json(['get-bucket', bucket_name])
+                bucket_dict = self.should_succeed_json(['bucket', 'get', bucket_name])
             except (ValueError, AssertionError):  # bucket doesn't exist
                 return
 

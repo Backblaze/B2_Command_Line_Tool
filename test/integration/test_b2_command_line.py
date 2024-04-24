@@ -546,9 +546,9 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
         ['account', 'authorize', '--environment', b2_tool.realm, key_one_id, key_one],
     )
 
-    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', bucket_name],)
     second_bucket_name = bucket_factory().name
-    b2_tool.should_succeed(['get-bucket', second_bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', second_bucket_name],)
 
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_two_stdout = b2_tool.should_succeed(
@@ -582,7 +582,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     b2_tool.should_succeed(
         ['account', 'authorize', '--environment', b2_tool.realm, key_two_id, key_two],
     )
-    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', bucket_name],)
     b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
 
     b2_tool.should_succeed(
@@ -600,7 +600,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
 
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
+    b2_tool.should_fail(['bucket', 'get', second_bucket_name], failed_bucket_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['ls', *b2_uri_args(second_bucket_name)], failed_list_files_err)
@@ -1401,7 +1401,7 @@ def test_sync_long_path(b2_tool, bucket_name):
 
 def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cleanup):
     # Set default encryption via `bucket update`
-    bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
+    bucket_info = b2_tool.should_succeed_json(['bucket', 'get', bucket_name])
     bucket_default_sse = {'mode': 'none'}
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
@@ -1414,7 +1414,7 @@ def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cle
     }
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
-    bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
+    bucket_info = b2_tool.should_succeed_json(['bucket', 'get', bucket_name])
     bucket_default_sse = {
         'algorithm': 'AES256',
         'mode': 'SSE-B2',
@@ -1435,7 +1435,7 @@ def test_default_sse_b2__create_bucket(b2_tool, schedule_bucket_cleanup):
             *b2_tool.get_bucket_info_args(),
         ]
     )
-    second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
+    second_bucket_info = b2_tool.should_succeed_json(['bucket', 'get', second_bucket_name])
     second_bucket_default_sse = {
         'algorithm': 'AES256',
         'mode': 'SSE-B2',
@@ -2452,7 +2452,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     key_two_id, _ = created_key_stdout.split()
 
     destination_bucket_name = bucket_name
-    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    destination_bucket = b2_tool.should_succeed_json(['bucket', 'get', destination_bucket_name])
 
     # test that by default there's no `replicationConfiguration` key
     assert 'replicationConfiguration' not in destination_bucket
@@ -2526,7 +2526,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
             *b2_tool.get_bucket_info_args(),
         ]
     )
-    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
+    source_bucket = b2_tool.should_succeed_json(['bucket', 'get', source_bucket_name])
 
     # test that all replication rules are present in source bucket
     assert source_bucket['replication']['asReplicationSource'
@@ -2617,7 +2617,7 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
         [*setup_cmd, source_bucket_name, destination_bucket_name],
         expected_stderr_pattern=replication_setup_expected_stderr_pattern
     )
-    destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    destination_bucket_old = b2_tool.should_succeed_json(['bucket', 'get', destination_bucket_name])
 
     b2_tool.should_succeed(
         [
@@ -2633,8 +2633,8 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
         ],
         expected_stderr_pattern=replication_setup_expected_stderr_pattern,
     )
-    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
-    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    source_bucket = b2_tool.should_succeed_json(['bucket', 'get', source_bucket_name])
+    destination_bucket = b2_tool.should_succeed_json(['bucket', 'get', destination_bucket_name])
     assert source_bucket['replication']['asReplicationSource']['replicationRules'] == [
         {
             "destinationBucketId": destination_bucket['bucketId'],
