@@ -655,6 +655,67 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(['bucket', 'delete', 'your-bucket'], expected_stdout, '', 0)
 
+    def test_deprecated_buckets(self):
+        self._authorize_account()
+
+        # Make a bucket with an illegal name
+        expected_stderr = (
+            'WARNING: create-bucket command is deprecated. Use bucket instead.\n'
+            'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
+        )
+        self._run_command(['create-bucket', 'bad/bucket/name', 'allPublic'], '', expected_stderr, 1)
+
+        # Make two buckets
+        self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n',
+            'WARNING: create-bucket command is deprecated. Use bucket instead.\n', 0
+        )
+        self._run_command(
+            ['create-bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n',
+            'WARNING: create-bucket command is deprecated. Use bucket instead.\n', 0
+        )
+
+        # Update one of them
+        expected_json = {
+            "accountId": self.account_id,
+            "bucketId": "bucket_0",
+            "bucketInfo": {},
+            "bucketName": "my-bucket",
+            "bucketType": "allPublic",
+            "corsRules": [],
+            "defaultServerSideEncryption": {
+                "mode": "none"
+            },
+            "lifecycleRules": [],
+            "options": [],
+            "revision": 2
+        }
+
+        self._run_command(
+            ['update-bucket', 'my-bucket', 'allPublic'],
+            expected_stderr='WARNING: update-bucket command is deprecated. Use bucket instead.\n',
+            expected_json_in_stdout=expected_json
+        )
+
+        # Make sure they are there
+        expected_stdout = '''
+        bucket_0  allPublic   my-bucket
+        bucket_1  allPrivate  your-bucket
+        '''
+
+        self._run_command(
+            ['list-buckets'], expected_stdout,
+            'WARNING: list-buckets command is deprecated. Use bucket instead.\n', 0
+        )
+
+        # Delete one
+        expected_stdout = ''
+
+        self._run_command(
+            ['delete-bucket', 'your-bucket'], expected_stdout,
+            'WARNING: delete-bucket command is deprecated. Use bucket instead.\n', 0
+        )
+
     def test_encrypted_buckets(self):
         self._authorize_account()
 
