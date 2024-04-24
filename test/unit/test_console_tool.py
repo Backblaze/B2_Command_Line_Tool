@@ -613,9 +613,9 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Make a bucket with an illegal name
-        expected_stdout = 'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
+        expected_stderr = 'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
         self._run_command(
-            ['bucket', 'create', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1
+            ['bucket', 'create', 'bad/bucket/name', 'allPublic'], '', expected_stderr, 1
         )
 
         # Make two buckets
