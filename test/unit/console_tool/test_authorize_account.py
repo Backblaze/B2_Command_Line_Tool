@@ -33,7 +33,7 @@ def test_authorize_with_bad_key(b2_cli):
     """
 
     b2_cli._run_command(
-        ["authorize-account", b2_cli.account_id, "bad-app-key"],
+        ["account", "authorize", b2_cli.account_id, "bad-app-key"],
         expected_stdout,
         expected_stderr,
         1,
@@ -44,26 +44,25 @@ def test_authorize_with_bad_key(b2_cli):
 @pytest.mark.parametrize(
     "command",
     [
-        "authorize-account",
-        "authorize_account",
+        ["authorize-account"],
+        ["authorize_account"],
+        ["account", "authorize"],
     ],
 )
 def test_authorize_with_good_key(b2_cli, b2_cli_is_authorized_afterwards, command):
     assert b2_cli.account_info.get_account_auth_token() is None
 
-    expected_stderr = """
-    """
+    expected_stderr = "" if len(
+        command
+    ) == 2 else "WARNING: authorize-account command is deprecated. Use account instead.\n"
 
-    b2_cli._run_command([command, b2_cli.account_id, b2_cli.master_key], None, expected_stderr, 0)
+    b2_cli._run_command([*command, b2_cli.account_id, b2_cli.master_key], None, expected_stderr, 0)
 
     assert b2_cli.account_info.get_account_auth_token() is not None
 
 
 def test_authorize_using_env_variables(b2_cli):
     assert b2_cli.account_info.get_account_auth_token() is None
-
-    expected_stderr = """
-    """
 
     with mock.patch.dict(
         "os.environ",
@@ -72,7 +71,20 @@ def test_authorize_using_env_variables(b2_cli):
             B2_APPLICATION_KEY_ENV_VAR: b2_cli.master_key,
         },
     ):
-        b2_cli._run_command(["authorize-account"], None, expected_stderr, 0)
+        b2_cli._run_command(["account", "authorize"], None, "", 0)
+
+    # test deprecated command
+    with mock.patch.dict(
+        "os.environ",
+        {
+            B2_APPLICATION_KEY_ID_ENV_VAR: b2_cli.account_id,
+            B2_APPLICATION_KEY_ENV_VAR: b2_cli.master_key,
+        },
+    ):
+        b2_cli._run_command(
+            ["authorize-account"], None,
+            'WARNING: authorize-account command is deprecated. Use account instead.\n', 0
+        )
 
     assert b2_cli.account_info.get_account_auth_token() is not None
 
@@ -94,7 +106,7 @@ def test_authorize_towards_realm(
     expected_stderr = f"Using {realm_url}\n" if any(f != "--debug-logs" for f in flags) else ""
 
     b2_cli._run_command(
-        ["authorize-account", *flags, b2_cli.account_id, b2_cli.master_key],
+        ["account", "authorize", *flags, b2_cli.account_id, b2_cli.master_key],
         None,
         expected_stderr,
         0,
@@ -118,7 +130,7 @@ def test_authorize_towards_custom_realm_using_env(b2_cli, b2_cli_is_authorized_a
         },
     ):
         b2_cli._run_command(
-            ["authorize-account", b2_cli.account_id, b2_cli.master_key],
+            ["account", "authorize", b2_cli.account_id, b2_cli.master_key],
             None,
             expected_stderr,
             0,
@@ -146,7 +158,7 @@ def test_authorize_account_prints_account_info(b2_cli):
     }
 
     b2_cli._run_command(
-        ['authorize-account', b2_cli.account_id, b2_cli.master_key],
+        ['account', 'authorize', b2_cli.account_id, b2_cli.master_key],
         expected_stderr='',
         expected_status=0,
         expected_json_in_stdout=expected_json,

@@ -522,15 +522,15 @@ class CommandLine:
 
     def reauthorize(self, check_key_capabilities=False):
         """Clear and authorize again to the account."""
-        self.should_succeed(['clear-account'])
+        self.should_succeed(['account', 'clear'])
         self.should_succeed(
             [
-                'authorize-account', '--environment', self.realm, self.account_id,
+                'account', 'authorize', '--environment', self.realm, self.account_id,
                 self.application_key
             ]
         )
         if check_key_capabilities:
-            auth_dict = self.should_succeed_json(['get-account-info'])
+            auth_dict = self.should_succeed_json(['account', 'get'])
             private_preview_caps = {
                 'readBucketNotifications',
                 'writeBucketNotifications',

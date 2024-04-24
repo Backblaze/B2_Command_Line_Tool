@@ -72,17 +72,17 @@ def test_authorize_account_via_params_saving_credentials(
     account_info_file,
 ):
     """
-    When calling `authorize-account` and passing credentials as params,
+    When calling `account authorize` and passing credentials as params,
     we want the credentials to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', realm, application_key_id, application_key]
+        ['account', 'authorize', '--environment', realm, application_key_id, application_key]
     )
 
     assert account_info_file.exists()
@@ -99,17 +99,17 @@ def test_authorize_account_via_env_vars_saving_credentials(
     account_info_file,
 ):
     """
-    When calling `authorize-account` and passing credentials
+    When calling `account authorize` and passing credentials
     via env vars, we still want the credentials to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
 
     b2_tool.should_succeed(
-        ['authorize-account'],
+        ['account', 'authorize'],
         additional_env={
             B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
@@ -131,7 +131,7 @@ def test_clear_account_with_env_vars(
     account_info_file,
 ):
     """
-    When calling `clear-account` and passing credentials via env vars,
+    When calling `account clear` and passing credentials via env vars,
     we want the credentials to be removed from the file.
     """
 
@@ -141,7 +141,7 @@ def test_clear_account_with_env_vars(
     assert account_info.get_application_key_id() == application_key_id
 
     b2_tool.should_succeed(
-        ['clear-account'],
+        ['account', 'clear'],
         additional_env={
             B2_ENVIRONMENT_ENV_VAR: realm,
             B2_APPLICATION_KEY_ID_ENV_VAR: application_key_id,
@@ -168,11 +168,11 @@ def test_command_with_env_vars_saving_credentials(
     b2_uri_args,
 ):
     """
-    When calling any command other then `authorize-account` and passing credentials
+    When calling any command other then `account authorize` and passing credentials
     via env vars, we don't want them to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
@@ -203,11 +203,11 @@ def test_command_with_env_vars_not_saving_credentials(
     b2_uri_args,
 ):
     """
-    When calling any command other then `authorize-account` and passing credentials
+    When calling any command other then `account authorize` and passing credentials
     via env vars, we don't want them to be saved.
     """
 
-    b2_tool.should_succeed(['clear-account'])
+    b2_tool.should_succeed(['account', 'clear'])
 
     assert B2_APPLICATION_KEY_ID_ENV_VAR not in os.environ
     assert B2_APPLICATION_KEY_ENV_VAR not in os.environ
@@ -531,7 +531,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_one_name,
             'listFiles,listBuckets,readFiles,writeKeys',
         ]
@@ -539,7 +540,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_one_id, key_one = created_key_stdout.split()
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, key_one_id, key_one],
+        ['account', 'authorize', '--environment', b2_tool.realm, key_one_id, key_one],
     )
 
     b2_tool.should_succeed(['get-bucket', bucket_name],)
@@ -549,7 +550,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_two_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             '--bucket',
             bucket_name,
             key_two_name,
@@ -558,11 +560,31 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
     key_two_id, key_two = created_key_two_stdout.split()
 
+    create_key_deprecated_pattern = re.compile(
+        re.escape('WARNING: create-key command is deprecated. Use key instead.')
+    )
+    key_three_name = 'clt-testKey-03' + random_hex(6)
+    created_key_three_stdout = b2_tool.should_succeed(
+        [
+            'create-key',
+            '--bucket',
+            bucket_name,
+            key_three_name,
+            'listFiles,listBuckets,readFiles',
+        ],
+        expected_stderr_pattern=create_key_deprecated_pattern,
+    )
+    key_three_id, key_three = created_key_three_stdout.split()
+
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, key_two_id, key_two],
+        ['account', 'authorize', '--environment', b2_tool.realm, key_two_id, key_two],
     )
     b2_tool.should_succeed(['get-bucket', bucket_name],)
     b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
+
+    b2_tool.should_succeed(
+        ['account', 'authorize', '--environment', b2_tool.realm, key_three_id, key_three],
+    )
 
     # Capabilities can be listed in any order. While this regex doesn't confirm that all three are present,
     # in ensures that there are three in total.
@@ -586,12 +608,20 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     # reauthorize with more capabilities for clean up
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, b2_tool.account_id,
+            'account', 'authorize', '--environment', b2_tool.realm, b2_tool.account_id,
             b2_tool.application_key
         ]
     )
-    b2_tool.should_succeed(['delete-key', key_one_id])
-    b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['key', 'delete', key_one_id])
+    b2_tool.should_succeed(['key', 'delete', key_two_id])
+
+    delete_key_deprecated_pattern = re.compile(
+        re.escape('WARNING: delete-key command is deprecated. Use key instead.')
+    )
+    b2_tool.should_succeed(
+        ['delete-key', key_three_id],
+        expected_stderr_pattern=delete_key_deprecated_pattern,
+    )
 
 
 def test_delete_bucket(b2_tool, bucket_name):
@@ -616,14 +646,15 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
         mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
-        b2_tool.should_succeed(['clear-account'])
+        b2_tool.should_succeed(['account', 'clear'])
         bad_application_key = random_hex(len(b2_tool.application_key))
         b2_tool.should_fail(
-            ['authorize-account', b2_tool.account_id, bad_application_key], r'unauthorized'
+            ['account', 'authorize', b2_tool.account_id, bad_application_key], r'unauthorized'
         )  # this call doesn't use --environment on purpose, so that we check that it is non-mandatory
         b2_tool.should_succeed(
             [
-                'authorize-account',
+                'account',
+                'authorize',
                 '--environment',
                 b2_tool.realm,
                 b2_tool.account_id,
@@ -631,7 +662,7 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
             ]
         )
 
-    # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than authorize-account
+    # Testing (B2_APPLICATION_KEY, B2_APPLICATION_KEY_ID) for commands other than `account authorize`
     with monkeypatch.context() as mp:
         account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
         mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
@@ -642,7 +673,7 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         b2_tool.should_fail(
             ['create-bucket', bucket_name, 'allPrivate'],
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
-            fr'Use: {cli_version}(\.(exe|EXE))? authorize-account or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
+            fr'Use: \'{cli_version}(\.(exe|EXE))? account authorize\' or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
             r'\'B2_APPLICATION_KEY\' environment variables'
         )
 
@@ -2119,7 +2150,7 @@ def test_file_lock(
 
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, lock_disabled_key_id,
+            'account', 'authorize', '--environment', b2_tool.realm, lock_disabled_key_id,
             lock_disabled_key
         ],
     )
@@ -2134,7 +2165,10 @@ def test_file_lock(
     )
 
     b2_tool.should_succeed(
-        ['authorize-account', '--environment', b2_tool.realm, application_key_id, application_key],
+        [
+            'account', 'authorize', '--environment', b2_tool.realm, application_key_id,
+            application_key
+        ],
     )
 
     deleting_locked_files(
@@ -2146,7 +2180,8 @@ def make_lock_disabled_key(b2_tool):
     key_name = 'no-perms-for-file-lock' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_name,
             'listFiles,listBuckets,readFiles,writeKeys,deleteFiles',
         ]
@@ -2314,7 +2349,7 @@ def deleting_locked_files(
 
     b2_tool.should_succeed(
         [
-            'authorize-account', '--environment', b2_tool.realm, lock_disabled_key_id,
+            'account', 'authorize', '--environment', b2_tool.realm, lock_disabled_key_id,
             lock_disabled_key
         ],
     )
@@ -2335,16 +2370,17 @@ def test_profile_switch(b2_tool):
 
     b2_tool.should_succeed(
         [
-            'authorize-account',
+            'account',
+            'authorize',
             '--environment',
             b2_tool.realm,
             b2_tool.account_id,
             b2_tool.application_key,
         ]
     )
-    b2_tool.should_succeed(['get-account-info'])
-    b2_tool.should_succeed(['clear-account'])
-    b2_tool.should_fail(['get-account-info'], expected_pattern=MISSING_ACCOUNT_PATTERN)
+    b2_tool.should_succeed(['account', 'get'])
+    b2_tool.should_succeed(['account', 'clear'])
+    b2_tool.should_fail(['account', 'get'], expected_pattern=MISSING_ACCOUNT_PATTERN)
 
     # in order to use --profile flag, we need to temporary
     # delete B2_ACCOUNT_INFO_ENV_VAR
@@ -2353,12 +2389,13 @@ def test_profile_switch(b2_tool):
     # now authorize a different account
     profile = 'profile-for-test-' + random_hex(6)
     b2_tool.should_fail(
-        ['get-account-info', '--profile', profile],
+        ['account', 'get', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
     b2_tool.should_succeed(
         [
-            'authorize-account',
+            'account',
+            'authorize',
             '--environment',
             b2_tool.realm,
             '--profile',
@@ -2368,14 +2405,14 @@ def test_profile_switch(b2_tool):
         ]
     )
 
-    account_info = b2_tool.should_succeed_json(['get-account-info', '--profile', profile])
+    account_info = b2_tool.should_succeed_json(['account', 'get', '--profile', profile])
     account_file_path = account_info['accountFilePath']
     assert profile in account_file_path, \
         f'accountFilePath "{account_file_path}" should contain profile name "{profile}"'
 
-    b2_tool.should_succeed(['clear-account', '--profile', profile])
+    b2_tool.should_succeed(['account', 'clear', '--profile', profile])
     b2_tool.should_fail(
-        ['get-account-info', '--profile', profile],
+        ['account', 'get', '--profile', profile],
         expected_pattern=MISSING_ACCOUNT_PATTERN,
     )
     os.remove(account_file_path)
@@ -2389,7 +2426,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_one_name,
             'listBuckets,readFiles',
         ]
@@ -2399,7 +2437,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_two_name,
             'listBuckets,writeFiles',
         ]
@@ -2533,11 +2572,25 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
         'asReplicationSource': None
     }
 
-    b2_tool.should_succeed(['delete-key', key_one_id])
-    b2_tool.should_succeed(['delete-key', key_two_id])
+    b2_tool.should_succeed(['key', 'delete', key_one_id])
+    b2_tool.should_succeed(['key', 'delete', key_two_id])
 
 
 def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
+    base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, True)
+
+
+def test_replication_setup_deprecated(b2_tool, bucket_name, schedule_bucket_cleanup):
+    base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, False)
+
+
+def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, use_subcommands):
+    setup_cmd = ['replication', 'setup'] if use_subcommands else ['replication-setup']
+    replication_setup_deprecated_pattern = re.compile(
+        re.escape('WARNING: replication-setup command is deprecated. Use replication instead.')
+    )
+    replication_setup_expected_stderr_pattern = None if use_subcommands else replication_setup_deprecated_pattern
+
     source_bucket_name = b2_tool.generate_bucket_name()
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
@@ -2550,12 +2603,15 @@ def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
         ]
     )
     destination_bucket_name = bucket_name
-    b2_tool.should_succeed(['replication-setup', source_bucket_name, destination_bucket_name])
+    b2_tool.should_succeed(
+        [*setup_cmd, source_bucket_name, destination_bucket_name],
+        expected_stderr_pattern=replication_setup_expected_stderr_pattern
+    )
     destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
 
     b2_tool.should_succeed(
         [
-            'replication-setup',
+            *setup_cmd,
             '--priority',
             '132',
             '--file-name-prefix',
@@ -2564,7 +2620,8 @@ def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
             'my-replication-rule',
             source_bucket_name,
             destination_bucket_name,
-        ]
+        ],
+        expected_stderr_pattern=replication_setup_expected_stderr_pattern,
     )
     source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
     destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
@@ -2589,8 +2646,8 @@ def test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup):
 
     for key_one_id, key_two_id in destination_bucket['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'].items():
-        b2_tool.should_succeed(['delete-key', key_one_id])
-        b2_tool.should_succeed(['delete-key', key_two_id])
+        b2_tool.should_succeed(['key', 'delete', key_one_id])
+        b2_tool.should_succeed(['key', 'delete', key_two_id])
     assert destination_bucket_old['replication']['asReplicationDestination'][
         'sourceToDestinationKeyMapping'] == destination_bucket['replication'][
             'asReplicationDestination']['sourceToDestinationKeyMapping']
@@ -2602,7 +2659,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_one_name,
             'listBuckets,readFiles',
         ]
@@ -2612,7 +2670,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
         [
-            'create-key',
+            'key',
+            'create',
             key_two_name,
             'listBuckets,writeFiles',
         ]
@@ -2745,9 +2804,27 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
 
     # run stats command
+    replication_status_deprecated_pattern = re.compile(
+        re.escape('WARNING: replication-status command is deprecated. Use replication instead.')
+    )
     replication_status_json = b2_tool.should_succeed_json(
         [
             'replication-status',
+            # '--destination-profile',
+            # profile,
+            '--no-progress',
+            # '--columns=count, hash differs',
+            '--output-format',
+            'json',
+            source_bucket_name,
+        ],
+        expected_stderr_pattern=replication_status_deprecated_pattern
+    )
+
+    replication_status_json = b2_tool.should_succeed_json(
+        [
+            'replication',
+            'status',
             # '--destination-profile',
             # profile,
             '--no-progress',
@@ -3070,7 +3147,7 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
 
 
 def test_notification_rules(b2_tool, bucket_name):
-    auth_dict = b2_tool.should_succeed_json(['get-account-info'])
+    auth_dict = b2_tool.should_succeed_json(['account', 'get'])
     if 'writeBucketNotifications' not in auth_dict['allowed']['capabilities']:
         pytest.skip('Test account does not have writeBucketNotifications capability')
 

@@ -1145,7 +1145,7 @@ class B2(Command):
 
     There are two flows of authorization:
 
-    * call ``{NAME} authorize-account`` and have the credentials cached in sqlite
+    * call ``{NAME} account authorize`` and have the credentials cached in sqlite
     * set ``{B2_APPLICATION_KEY_ID_ENV_VAR}`` and ``{B2_APPLICATION_KEY_ENV_VAR}`` environment
       variables when running this program
 
@@ -1166,7 +1166,7 @@ class B2(Command):
 
     If the directory ``{XDG_CONFIG_HOME_ENV_VAR}/b2`` does not exist (and is needed), it is created.
     Please note that the above rules may be changed in next versions of b2sdk, and in order to get
-    reliable authentication file location you should use ``b2 get-account-info``.
+    reliable authentication file location you should use ``b2 account get``.
 
     Control characters escaping is turned on if running under terminal.
     You can override it by explicitly using `--escape-control-chars`/`--no-escape-control-chars`` option,
@@ -1206,7 +1206,7 @@ class B2(Command):
         return args.command_class
 
 
-class AuthorizeAccount(Command):
+class AccountAuthorizeBase(Command):
     """
     Prompts for Backblaze ``applicationKeyId`` and ``applicationKey`` (unless they are given
     on the command line).
@@ -1218,7 +1218,7 @@ class AuthorizeAccount(Command):
     application key from the ``B2 Cloud Storage Buckets`` page on
     the web site: https://secure.backblaze.com/b2_buckets.htm
 
-    To use a normal application key, created with the ``create-key``
+    To use a normal application key, created with the ``key create``
     command or on the web site, provide the application key ID
     and the application key itself.
 
@@ -1383,7 +1383,7 @@ class CancelLargeFile(Command):
         return 0
 
 
-class ClearAccount(Command):
+class AccountClearBase(Command):
     """
     Erases everything in local cache.
 
@@ -1599,7 +1599,7 @@ class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
         return 0
 
 
-class CreateKey(Command):
+class KeyCreateBase(Command):
     """
     Creates a new application key.  Prints the application key information.  This is the only
     time the application key itself will be returned.  Listing application keys will show
@@ -1618,7 +1618,7 @@ class CreateKey(Command):
     The ``namePrefix`` restricts file access to files whose names start with the prefix.
 
     The output is the new application key ID, followed by the application key itself.
-    The two values returned are the two that you pass to ``authorize-account`` to use the key.
+    The two values returned are the two that you pass to ``account authorize`` to use the key.
 
     Requires capability:
 
@@ -1717,7 +1717,7 @@ class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-class DeleteKey(Command):
+class KeyDeleteBase(Command):
     """
     Deletes the specified application key by its ID.
 
@@ -1977,7 +1977,7 @@ class Cat(B2URIFileArgMixin, DownloadCommand):
         return 0
 
 
-class GetAccountInfo(Command):
+class AccountGetBase(Command):
     """
     Shows the account ID, key, auth token, URLs, and what capabilities
     the current application keys has.
@@ -2204,7 +2204,7 @@ class ListBuckets(Command):
         return 0
 
 
-class ListKeys(Command):
+class KeyListBase(Command):
     """
     Lists the application keys for the current account.
 
@@ -3653,7 +3653,7 @@ class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-class ReplicationSetup(Command):
+class ReplicationSetupBase(Command):
     """
     Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
 
@@ -3779,7 +3779,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
         pass
 
 
-class ReplicationDelete(ReplicationRuleChanger):
+class ReplicationDeleteBase(ReplicationRuleChanger):
     """
     Deletes a replication rule
 
@@ -3795,7 +3795,7 @@ class ReplicationDelete(ReplicationRuleChanger):
         return None
 
 
-class ReplicationPause(ReplicationRuleChanger):
+class ReplicationPauseBase(ReplicationRuleChanger):
     """
     Pauses a replication rule
 
@@ -3812,7 +3812,7 @@ class ReplicationPause(ReplicationRuleChanger):
         return rule
 
 
-class ReplicationUnpause(ReplicationRuleChanger):
+class ReplicationUnpauseBase(ReplicationRuleChanger):
     """
     Unpauses a replication rule
 
@@ -3829,7 +3829,7 @@ class ReplicationUnpause(ReplicationRuleChanger):
         return rule
 
 
-class ReplicationStatus(Command):
+class ReplicationStatusBase(Command):
     """
     Inspects files in only source or both source and destination buckets
     (potentially from different accounts) and provides detailed replication statistics.
@@ -4633,6 +4633,180 @@ class NotificationRulesDelete(Command):
         return 0
 
 
+class Key(Command):
+    """
+    Application keys management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} key list
+        {NAME} key create my-key listFiles,deleteFiles
+        {NAME} key delete 005c398ac3212400000000010
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@Key.subcommands_registry.register
+class KeyListSubcommand(KeyListBase):
+    __doc__ = KeyListBase.__doc__
+    COMMAND_NAME = 'list'
+
+
+@Key.subcommands_registry.register
+class KeyCreateSubcommand(KeyCreateBase):
+    __doc__ = KeyCreateBase.__doc__
+    COMMAND_NAME = 'create'
+
+
+@Key.subcommands_registry.register
+class KeyDeleteSubcommand(KeyDeleteBase):
+    __doc__ = KeyDeleteBase.__doc__
+    COMMAND_NAME = 'delete'
+
+
+class ListKeys(CmdReplacedByMixin, KeyListBase):
+    __doc__ = KeyListBase.__doc__
+    replaced_by_cmd = Key
+
+
+class CreateKey(CmdReplacedByMixin, KeyCreateBase):
+    __doc__ = KeyCreateBase.__doc__
+    replaced_by_cmd = Key
+
+
+class DeleteKey(CmdReplacedByMixin, KeyDeleteBase):
+    __doc__ = KeyDeleteBase.__doc__
+    replaced_by_cmd = Key
+
+
+class Replication(Command):
+    """
+    Replication rule management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} replication setup --name=my-repl-rule src-bucket dest-bucket
+        {NAME} replication status --rule=my-repl-rule src-bucket
+        {NAME} replication pause src-bucket my-repl-rule
+        {NAME} replication unpause src-bucket my-repl-rule
+        {NAME} replication delete src-bucket my-repl-rule
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@Replication.subcommands_registry.register
+class ReplicationSetupSubcommand(ReplicationSetupBase):
+    __doc__ = ReplicationSetupBase.__doc__
+    COMMAND_NAME = 'setup'
+
+
+@Replication.subcommands_registry.register
+class ReplicationStatusSubcommand(ReplicationStatusBase):
+    __doc__ = ReplicationStatusBase.__doc__
+    COMMAND_NAME = 'status'
+
+
+@Replication.subcommands_registry.register
+class ReplicationPauseSubcommand(ReplicationPauseBase):
+    __doc__ = ReplicationPauseBase.__doc__
+    COMMAND_NAME = 'pause'
+
+
+@Replication.subcommands_registry.register
+class ReplicationUnpauseSubcommand(ReplicationUnpauseBase):
+    __doc__ = ReplicationUnpauseBase.__doc__
+    COMMAND_NAME = 'unpause'
+
+
+@Replication.subcommands_registry.register
+class ReplicationDeleteSubcommand(ReplicationDeleteBase):
+    __doc__ = ReplicationDeleteBase.__doc__
+    COMMAND_NAME = 'delete'
+
+
+class ReplicationSetup(CmdReplacedByMixin, ReplicationSetupBase):
+    __doc__ = ReplicationSetupBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationStatus(CmdReplacedByMixin, ReplicationStatusBase):
+    __doc__ = ReplicationStatusBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationPause(CmdReplacedByMixin, ReplicationPauseBase):
+    __doc__ = ReplicationPauseBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationUnpause(CmdReplacedByMixin, ReplicationUnpauseBase):
+    __doc__ = ReplicationUnpauseBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class ReplicationDelete(CmdReplacedByMixin, ReplicationDeleteBase):
+    __doc__ = ReplicationDeleteBase.__doc__
+    replaced_by_cmd = Replication
+
+
+class Account(Command):
+    """
+    Account management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} account authorize [applicationKeyId] [applicationKey]
+        {NAME} account get
+        {NAME} account clear
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@Account.subcommands_registry.register
+class AccountAuthorize(AccountAuthorizeBase):
+    __doc__ = AccountAuthorizeBase.__doc__
+    COMMAND_NAME = 'authorize'
+
+
+@Account.subcommands_registry.register
+class AccountGet(AccountGetBase):
+    __doc__ = AccountGetBase.__doc__
+    COMMAND_NAME = 'get'
+
+
+@Account.subcommands_registry.register
+class AccountClear(AccountClearBase):
+    __doc__ = AccountClearBase.__doc__
+    COMMAND_NAME = 'clear'
+
+
+class AuthorizeAccount(CmdReplacedByMixin, AccountAuthorizeBase):
+    __doc__ = AccountAuthorizeBase.__doc__
+    replaced_by_cmd = Account
+
+
+class GetAccountInfo(CmdReplacedByMixin, AccountGetBase):
+    __doc__ = AccountGetBase.__doc__
+    replaced_by_cmd = Account
+
+
+class ClearAccount(CmdReplacedByMixin, AccountClearBase):
+    __doc__ = AccountClearBase.__doc__
+    replaced_by_cmd = Account
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
@@ -4702,7 +4876,7 @@ class ConsoleTool:
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                f'ERROR: {e}  Use: {self.b2_binary_name} authorize-account or provide auth data with '
+                f'ERROR: {e}  Use: \'{self.b2_binary_name} account authorize\' or provide auth data with '
                 f'{B2_APPLICATION_KEY_ID_ENV_VAR!r} and {B2_APPLICATION_KEY_ENV_VAR!r} environment variables'
             )
             return 1
@@ -4735,8 +4909,8 @@ class ConsoleTool:
             except MissingAccountData:
                 is_same_key_on_disk = False
 
-            if not is_same_key_on_disk and args.command_class not in (
-                AuthorizeAccount, ClearAccount
+            if not is_same_key_on_disk and not issubclass(
+                args.command_class, (AccountAuthorizeBase, AccountClearBase)
             ):
                 # when user specifies keys via env variables, we switch to in-memory account info
                 return _get_inmemory_b2api(**kwargs)
@@ -4760,8 +4934,8 @@ class ConsoleTool:
         if self.api.account_info.is_same_key(key_id, realm or 'production'):
             return 0
 
-        logger.info('authorize-account is being run from env variables')
-        return AuthorizeAccount(self).authorize(key_id, key, realm)
+        logger.info('`account authorize` is being run from env variables')
+        return AccountAuthorizeBase(self).authorize(key_id, key, realm)
 
     def _print(self, *args, **kwargs):
         print(*args, file=self.stdout, **kwargs)

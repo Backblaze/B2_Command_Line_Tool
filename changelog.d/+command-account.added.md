@@ -1,0 +1,1 @@
+Add `account {authorize|get|clear}` commands.
