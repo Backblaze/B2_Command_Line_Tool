@@ -189,7 +189,7 @@ class BaseConsoleToolTest(TestBase):
         self._run_command_ignore_output(['account', 'clear'])
 
     def _create_my_bucket(self):
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
     def _run_command(
         self,
@@ -296,7 +296,7 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
 
     def test_e_c1_char_ls_default_escape_control_chars_setting(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket-cc', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-cc', 'allPrivate'], 'bucket_0\n', '', 0)
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, "x")
@@ -318,20 +318,20 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_camel_case_supported_in_v3(self):
         self._authorize_account()
         self._run_command(
-            ['create-bucket', 'my-bucket', '--bucketInfo', '{"xxx": "123"}', 'allPrivate'],
+            ['bucket', 'create', 'my-bucket', '--bucketInfo', '{"xxx": "123"}', 'allPrivate'],
             'bucket_0\n', '', 0
         )
         self._run_command(
-            ['create-bucket', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
+            ['bucket', 'create', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
             'bucket_1\n', '', 0
         )
 
     @pytest.mark.apiver(from_ver=4)
     def test_camel_case_not_supported_in_v4(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2)
+        self._run_command(['bucket', 'create', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2)
         self._run_command(
-            ['create-bucket', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
+            ['bucket', 'create', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
             'bucket_0\n', '', 0
         )
 
@@ -471,7 +471,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule], 'bucket_0\n',
+            ['bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule], 'bucket_0\n',
             '', 0
         )
 
@@ -489,7 +489,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate', '--lifecycle-rules', rules], 'bucket_0\n',
+            ['bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rules', rules], 'bucket_0\n',
             '', 0
         )
 
@@ -506,7 +506,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             [
-                'create-bucket', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule,
+                'bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule,
                 '--lifecycle-rules', f"[{rule}]"
             ], '', '', 2
         )
@@ -516,7 +516,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Make a bucket
-        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
 
         # Create a key restricted to that bucket
         self._run_command(
@@ -554,7 +554,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a bucket with lifecycleRule
         self._run_command(
             [
-                'create-bucket', '--lifecycle-rule',
+                'bucket', 'create', '--lifecycle-rule',
                 '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}', bucket_name,
                 'allPrivate'
             ], 'bucket_0\n', '', 0
@@ -608,11 +608,11 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Make a bucket with an illegal name
         expected_stdout = 'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
-        self._run_command(['create-bucket', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1)
+        self._run_command(['bucket', 'create', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1)
 
         # Make two buckets
-        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(['create-bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
 
         # Update one of them
         expected_json = {
@@ -640,7 +640,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket_1  allPrivate  your-bucket
         '''
 
-        self._run_command(['list-buckets'], expected_stdout, '', 0)
+        self._run_command(['bucket', 'list'], expected_stdout, '', 0)
 
         # Delete one
         expected_stdout = ''
@@ -712,14 +712,14 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket_1  allPrivate  your-bucket
         '''
 
-        self._run_command(['list-buckets'], expected_stdout, '', 0)
+        self._run_command(['bucket', 'list'], expected_stdout, '', 0)
 
     def test_keys(self):
         self._authorize_account()
 
-        self._run_command(['create-bucket', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
-        self._run_command(['create-bucket', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
-        self._run_command(['create-bucket', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
 
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
@@ -838,7 +838,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # authorize and make calls using application key with no restrictions
         self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], None, '', 0)
         self._run_command(
-            ['list-buckets'],
+            ['bucket', 'list'],
             'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n', '', 0
         )
 
@@ -862,7 +862,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(['account', 'authorize', 'appKeyId1', 'appKey1'], None, '', 0)
 
         self._run_command(
-            ['list-buckets'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+            ['bucket', 'list'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
         )
         self._run_command(
             ['get-bucket', 'my-bucket-c'], '',
@@ -893,7 +893,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_bucket_info_from_json(self):
 
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
         bucket_info = {'color': 'blue'}
 
@@ -924,7 +924,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_files(self):
 
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -1075,7 +1075,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_files_encrypted(self):
 
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -1475,7 +1475,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             # Copy in different bucket
-            self._run_command(['create-bucket', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
+            self._run_command(['bucket', 'create', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
             expected_json = {
                 "accountId": self.account_id,
                 "action": "copy",
@@ -1584,7 +1584,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_upload_large_file_encrypted(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
         min_part_size = self.account_info.get_recommended_part_size()
         file_size = min_part_size * 3
 
@@ -1628,7 +1628,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_upload_incremental(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
         min_part_size = self.account_info.get_recommended_part_size()
         file_size = min_part_size * 2
 
@@ -1996,7 +1996,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._run_command(
             [
-                'create-bucket', '--default-server-side-encryption=SSE-B2',
+                'bucket', 'create', '--default-server-side-encryption=SSE-B2',
                 '--default-server-side-encryption-algorithm=AES256', 'my-bucket', 'allPublic'
             ], 'bucket_0\n', '', 0
         )
@@ -2388,11 +2388,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a bucket to use
         bucket_name = 'restrictedBucket'
         bucket_id = 'bucket_0'
-        self._run_command(['create-bucket', bucket_name, 'allPrivate'], bucket_id + '\n', '', 0)
+        self._run_command(['bucket', 'create', bucket_name, 'allPrivate'], bucket_id + '\n', '', 0)
 
         # Create another bucket
         other_bucket_name = 'otherBucket'
-        self._run_command_ignore_output(['create-bucket', other_bucket_name, 'allPrivate'])
+        self._run_command_ignore_output(['bucket', 'create', other_bucket_name, 'allPrivate'])
 
         # Create a key restricted to a bucket
         app_key_id = 'appKeyId0'
@@ -2444,7 +2444,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate'],
+            ['bucket', 'create', 'my-bucket', 'allPrivate'],
             'bucket_0\n',
             '',
             0,
@@ -2471,7 +2471,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate'],
+            ['bucket', 'create', 'my-bucket', 'allPrivate'],
             'bucket_0\n',
             '',
             0,
@@ -2499,7 +2499,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
         self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate'],
+            ['bucket', 'create', 'my-bucket', 'allPrivate'],
             'bucket_0\n',
             '',
             0,
@@ -2684,8 +2684,8 @@ class TestConsoleTool(BaseConsoleToolTest):
     @skip_on_windows
     def test_escape_c0_char_on_sync_stack_trace(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(['create-bucket', 'my-bucket-1', 'allPrivate'], 'bucket_1\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-1', 'allPrivate'], 'bucket_1\n', '', 0)
 
         with TempDir() as temp_dir:
             _ = self._make_local_file(temp_dir, "\x1b[32mC\x1b[33mC\x1b[34mI\x1b[0m")
@@ -2709,7 +2709,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_escape_c0_char_on_key_restricted_path(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket-0', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPublic'], 'bucket_0\n', '', 0)
         cc_name = "$'\x1b[31mC\x1b[32mC\x1b[33mI\x1b[0m'"
         escaped_error = "ERROR: unauthorized for application key with capabilities 'listBuckets,listKeys', restricted to bucket 'my-bucket-0', restricted to files that start with '$'\\x1b[31mC\\x1b[32mC\\x1b[33mI\\x1b[0m'' (unauthorized)\n"
 
@@ -2746,7 +2746,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_escape_c1_char_on_ls_long(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'file1.txt')
@@ -2774,7 +2774,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_escape_c1_char_ls(self):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-bucket-cc', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-cc', 'allPrivate'], 'bucket_0\n', '', 0)
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, "x")
@@ -3139,7 +3139,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     def rm_filters_helper(self, rm_args: List[str], expected_ls_stdout: str):
         self._authorize_account()
-        self._run_command(['create-bucket', 'my-rm-bucket', 'allPublic'], 'bucket_1\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-rm-bucket', 'allPublic'], 'bucket_1\n', '', 0)
         bucket = self.b2_api.get_bucket_by_name('my-rm-bucket')
 
         # Create some files, including files in a folder

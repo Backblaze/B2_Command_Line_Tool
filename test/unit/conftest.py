@@ -128,7 +128,7 @@ def authorized_b2_cli(b2_cli):
 def bucket_info(b2_cli, authorized_b2_cli):
     bucket_name = "my-bucket"
     bucket_id = "bucket_0"
-    b2_cli.run(['create-bucket', bucket_name, 'allPublic'], expected_stdout=f'{bucket_id}\n')
+    b2_cli.run(['bucket', 'create', bucket_name, 'allPublic'], expected_stdout=f'{bucket_id}\n')
     return {
         'bucketName': bucket_name,
         'bucketId': bucket_id,
