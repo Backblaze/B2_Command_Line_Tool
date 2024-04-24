@@ -51,7 +51,7 @@ List buckets
 
 .. code-block:: sh
 
-    $ b2 list-buckets
+    $ b2 bucket list
     34567890abcdef1234567890  allPublic   example-mybucket-b2-1
     345678901234567890abcdef  allPublic   example-mybucket-b2-2
 
@@ -60,7 +60,7 @@ Create a bucket
 
 .. code-block:: sh
 
-    $ b2 create_bucket example-mybucket-b2-3 allPublic
+    $ b2 bucket create example-mybucket-b2-3 allPublic
     ...
 
 You can optionally store bucket info, CORS rules and lifecycle rules with the bucket.
@@ -71,6 +71,6 @@ Delete a bucket
 
 .. code-block:: sh
 
-    $ b2 delete-bucket 'example-mybucket-b2-1'
+    $ b2 bucket delete 'example-mybucket-b2-1'
 
 returns 0 if successful, outputs a message and a non-0 return code in case of error.
