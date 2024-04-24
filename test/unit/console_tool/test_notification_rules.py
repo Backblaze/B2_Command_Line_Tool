@@ -11,8 +11,8 @@ import json
 
 import pytest
 
-
 COMMANDS = (["bucket", "notification-rule"], ["notification-rules"])
+
 
 @pytest.fixture()
 def bucket_notification_rule(b2_cli, bucket):
@@ -69,6 +69,7 @@ Notification rules for b2://{bucket}/ :
     url: https://example.com/webhook
 """
         )
+
 
 def test_notification_rules__list_all_json(b2_cli, bucket, bucket_notification_rule):
     for command in COMMANDS:
@@ -266,6 +267,6 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
         bucket_notification_rule["targetConfiguration"]["hmacSha256SigningSecret"] = "7" * 32
         assert json.loads(stdout) == bucket_notification_rule
 
-        assert json.loads(
-            b2_cli.run([*command, "list", "--json", f"b2://{bucket}"],)[1]
-        ) == [bucket_notification_rule]
+        assert json.loads(b2_cli.run([*command, "list", "--json", f"b2://{bucket}"],)[1]) == [
+            bucket_notification_rule
+        ]
