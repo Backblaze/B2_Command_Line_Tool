@@ -24,9 +24,10 @@ LABEL vcs-ref="${vcs_ref}"
 LABEL build-date-iso8601="${build_date}"
 
 ENV PYTHONPATH=/opt/b2
+COPY ./docker/entrypoint.sh /entrypoint.sh
 COPY --from=builder /b2/__pypackages__/${python_version}/lib /opt/b2
 COPY --from=builder /b2/__pypackages__/${python_version}/bin/* /bin/
 
 WORKDIR /root
-ENTRYPOINT ["b2"]
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["--help"]

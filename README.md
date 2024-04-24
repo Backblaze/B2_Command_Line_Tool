@@ -120,19 +120,23 @@ that command.
 
 ### Docker image
 
+Thanks to [ApiVer methodology](#apiver-cli-versions-b2-vs-b2v3-b2v4-etc),
+you should be perfectly fine using `b2:latest` version even in long-term support scripts,
+but make sure to explicitly use `b2v3` command from the docker image as shown below.
+
 #### Authorization
 
 User can either authorize on each command (`list-buckets` is just a example here)
 
 ```bash
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID backblazeit/b2:latest list-buckets
+B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID backblazeit/b2:latest b2v3 list-buckets
 ```
 
 or authorize once and keep the credentials persisted:
 
 ```bash
-docker run --rm -it -v b2:/root backblazeit/b2:latest authorize-account
-docker run --rm -v b2:/root backblazeit/b2:latest list-buckets  # remember to include `-v` - authorization details are there
+docker run --rm -it -v b2:/root backblazeit/b2:latest b2v3 authorize-account
+docker run --rm -v b2:/root backblazeit/b2:latest b2v3 list-buckets  # remember to include `-v` - authorization details are there
 ```
 
 #### Downloading and uploading
@@ -140,34 +144,40 @@ docker run --rm -v b2:/root backblazeit/b2:latest list-buckets  # remember to in
 When uploading a single file, data can be passed to the container via a pipe:
 
 ```bash
-cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest upload-unbound-stream bucket_name - target_file_name
+cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest b2v3 upload-unbound-stream bucket_name - target_file_name
 ```
 
 or by mounting local files in the docker container:
 
 ```bash
-docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest upload-file bucket_name /data/source_file.txt target_file_name
+docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest b2v3 upload-file bucket_name /data/source_file.txt target_file_name
 ```
 
-## Versions
+## ApiVer CLI versions (`b2` vs `b2v3`, `b2v4`, etc.)
 
-When you start working with `b2`, you might notice that more than one script is available to you.
-This is by design - we use the `ApiVer` methodology to provide all the commands to all the versions
-while also providing all the bugfixes to all the old versions.
+Summary:
 
-If you use the `b2` command, you're working with the latest stable version.
+* in terminal, for best UX, use the latest apiver interface provided by `b2` command
+* for long-term support, i.e. in scripts, use `b2v3` command
+
+Explanation:
+
+We use the `ApiVer` methodology so we can continue to evolve the `b2` command line tool,
+while also providing all the bugfixes to the old interface versions.
+
+If you use the `b2` command, you're working with the latest stable interface.
 It provides all the bells and whistles, latest features, and the best performance.
-While it's a great version to work with, if you're willing to write a reliable, long-running script,
-you might find out that after some time it will break.
-New commands will appear, older will deprecate and be removed, parameters will change.
-Backblaze service evolves and the `b2` CLI evolves with it.
+While it's a great version to work with directly, but when writing a reliable, long-running script,
+you want to ensure that your script won't break when we release a new version of the `b2` command.
 
-However, now you have a way around this problem.
-Instead of using the `b2` command, you can use a version-bound interface e.g.: `b2v3`.
-This command will always provide the same interface that the `ApiVer` version `3` provided.
-Even if the `b2` command goes into the `ApiVer` version `4`, `6` or even `10` with some major changes,
-`b2v3` will still provide the same interface, same commands, and same parameters.
+In that case instead of using the `b2` command, you should use a version-bound interface e.g.: `b2v3`.
+This command will always provide the same ApiVer 3 interface, regardless of the semantic version of the `b2` command.
+Even if the `b2` command goes into the ApiVer `4`, `6` or even `10` with some major changes,
+`b2v3` will still provide the same interface, same commands, and same parameters, with all the security and bug fixes.
 Over time, it might get slower as we may need to emulate some older behaviors, but we'll ensure that it won't break.
+
+You may find the next interface under `_b2v4`, but please note, as suggested by `_` prefix,
+it is not yet stable and is not yet covered by guarantees listed above.
 
 ## Contrib
 
