@@ -4876,7 +4876,7 @@ class ConsoleTool:
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                f'ERROR: {e}  Use: `{self.b2_binary_name} account authorize` or provide auth data with '
+                f'ERROR: {e}  Use: \'{self.b2_binary_name} account authorize\' or provide auth data with '
                 f'{B2_APPLICATION_KEY_ID_ENV_VAR!r} and {B2_APPLICATION_KEY_ENV_VAR!r} environment variables'
             )
             return 1
