@@ -1548,7 +1548,7 @@ class CopyFileById(
         return source_file_version.file_info, source_file_version.content_type
 
 
-class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
+class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
 
@@ -1672,7 +1672,7 @@ class KeyCreateBase(Command):
         return 0
 
 
-class DeleteBucket(Command):
+class BucketDeleteBase(Command):
     """
     Deletes the bucket with the given name.
 
@@ -1995,7 +1995,7 @@ class AccountGetBase(Command):
         return 0
 
 
-class GetBucket(Command):
+class BucketGetBase(Command):
     """
     Prints all of the information about the bucket, including
     bucket info, CORS rules and lifecycle rules.
@@ -2080,7 +2080,7 @@ class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
     replaced_by_cmd = FileInfo
 
 
-class GetDownloadAuth(Command):
+class BucketGetDownloadAuthBase(Command):
     """
     Prints an authorization token that is valid only for downloading
     files from the given bucket.
@@ -2171,7 +2171,7 @@ class HideFile(Command):
         return 0
 
 
-class ListBuckets(Command):
+class BucketListBase(Command):
     """
     Lists all of the buckets in the current account.
 
@@ -3157,7 +3157,7 @@ class Sync(
         )
 
 
-class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
+class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
@@ -4811,6 +4811,96 @@ class GetAccountInfo(CmdReplacedByMixin, AccountGetBase):
 class ClearAccount(CmdReplacedByMixin, AccountClearBase):
     __doc__ = AccountClearBase.__doc__
     replaced_by_cmd = (Account, AccountClear)
+
+
+class BucketCmd(Command):
+    """
+    Bucket management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} bucket list
+        {NAME} bucket get
+        {NAME} bucket create
+        {NAME} bucket update
+        {NAME} bucket delete
+        {NAME} bucket get-download-auth
+    """
+    # to avoid conflicts with the Bucket class this class is named BucketCmd
+    COMMAND_NAME = "bucket"
+
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@BucketCmd.subcommands_registry.register
+class BucketList(BucketListBase):
+    __doc__ = BucketListBase.__doc__
+    COMMAND_NAME = 'list'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketGet(BucketGetBase):
+    __doc__ = BucketGetBase.__doc__
+    COMMAND_NAME = 'get'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketCreate(BucketCreateBase):
+    __doc__ = BucketCreateBase.__doc__
+    COMMAND_NAME = 'create'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketUpdate(BucketUpdateBase):
+    __doc__ = BucketUpdateBase.__doc__
+    COMMAND_NAME = 'update'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketDelete(BucketDeleteBase):
+    __doc__ = BucketDeleteBase.__doc__
+    COMMAND_NAME = 'delete'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketGetDownloadAuth(BucketGetDownloadAuthBase):
+    __doc__ = BucketGetDownloadAuthBase.__doc__
+    # TODO we can't use 'get-download-auth', gets transformed to 'get--download--auth'
+    COMMAND_NAME = 'GetDownloadAuth'
+
+
+class ListBuckets(CmdReplacedByMixin, BucketListBase):
+    __doc__ = BucketListBase.__doc__
+    replaced_by_cmd = BucketCmd
+
+
+class GetBucket(CmdReplacedByMixin, BucketGetBase):
+    __doc__ = BucketGetBase.__doc__
+    replaced_by_cmd = BucketCmd
+
+
+class CreateBucket(CmdReplacedByMixin, BucketCreateBase):
+    __doc__ = BucketCreateBase.__doc__
+    replaced_by_cmd = BucketCmd
+
+
+class UpdateBucket(CmdReplacedByMixin, BucketUpdateBase):
+    __doc__ = BucketUpdateBase.__doc__
+    replaced_by_cmd = BucketCmd
+
+
+class DeleteBucket(CmdReplacedByMixin, BucketDeleteBase):
+    __doc__ = BucketDeleteBase.__doc__
+    replaced_by_cmd = BucketCmd
+
+
+class GetDownloadAuth(CmdReplacedByMixin, BucketGetDownloadAuthBase):
+    __doc__ = BucketGetDownloadAuthBase.__doc__
+    replaced_by_cmd = BucketCmd
 
 
 class ConsoleTool:
