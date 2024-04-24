@@ -95,11 +95,11 @@ b2 upload-file [-h] [--content-type CONTENTTYPE] [--sha1 SHA1] [--cache-control 
 b2 upload-unbound-stream [-h] [--part-size PARTSIZE] [--unused-buffer-timeout-seconds UNUSEDBUFFERTIMEOUTSECONDS] [--content-type CONTENTTYPE] [--sha1 SHA1] [--cache-control CACHE_CONTROL] [--info INFO] [--custom-upload-timestamp CUSTOM_UPLOAD_TIMESTAMP] [--min-part-size MINPARTSIZE] [--threads THREADS] [--no-progress] [--destination-server-side-encryption {SSE-B2,SSE-C}] [--destination-server-side-encryption-algorithm {AES256}] [--legal-hold {on,off}] [--file-retention-mode {compliance,governance}] [--retain-until TIMESTAMP] bucketName localFilePath b2FileName
 b2 update-file-legal-hold [-h] [fileName] fileId {on,off}
 b2 update-file-retention [-h] [--retain-until TIMESTAMP] [--bypass-governance] [fileName] fileId {governance,compliance,none}
-b2 replication setup [-h] [--destination-profile DESTINATION_PROFILE] [--name NAME] [--priority PRIORITY] [--file-name-prefix PREFIX] [--include-existing-files] SOURCE_BUCKET_NAME DESTINATION_BUCKET_NAME
-b2 replication delete [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication pause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication unpause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--no-progress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
+b2 replication-setup [-h] [--destination-profile DESTINATION_PROFILE] [--name NAME] [--priority PRIORITY] [--file-name-prefix PREFIX] [--include-existing-files] SOURCE_BUCKET_NAME DESTINATION_BUCKET_NAME
+b2 replication-delete [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+b2 replication-pause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+b2 replication-unpause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
+b2 replication-status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--no-progress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
 b2 version [-h] [--short]
 b2 license [-h]
 b2 install-autocomplete [-h] [--shell {bash}]
