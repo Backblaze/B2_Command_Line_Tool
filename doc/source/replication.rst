@@ -42,7 +42,7 @@ Setup source replication
 
 .. code-block:: sh
 
-    $ b2 update-bucket --replication '{
+    $ b2 bucket update --replication '{
         "asReplicationSource": {
             "replicationRules": [
                 {
@@ -73,7 +73,7 @@ Setup destination replication
 
 .. code-block:: sh
 
-    $ b2 update-bucket --profile myprofile2 --replication '{
+    $ b2 bucket update --profile myprofile2 --replication '{
         "asReplicationDestination": {
             "sourceToDestinationKeyMapping": {
                 "0014ab1234567890000000123": "0024ab2345678900000000234"
