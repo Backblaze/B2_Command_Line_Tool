@@ -287,7 +287,7 @@ def schedule_bucket_cleanup(global_b2_tool):
     """
     Explicitly ask for buckets cleanup after the test
 
-    This should be only used when testing `create-bucket` command; otherwise use `bucket_factory` fixture.
+    This should be only used when testing `bucket create` command; otherwise use `bucket_factory` fixture.
     """
     buckets_to_clean = {}
 

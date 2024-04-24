@@ -303,7 +303,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     file_data = read_file(sample_file)
     hex_sha1 = hashlib.sha1(file_data).hexdigest()
 
-    list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
+    list_of_buckets = b2_tool.should_succeed_json(['bucket', 'list', '--json'])
     should_equal(
         [bucket_name], [b['bucketName'] for b in list_of_buckets if b['bucketName'] == bucket_name]
     )
@@ -448,7 +448,7 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket', 'create',
             to_be_removed_bucket_name,
             'allPublic',
             *b2_tool.get_bucket_info_args(),
@@ -670,11 +670,11 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
         mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
-        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file has been
+        # first, let's make sure "bucket create" doesn't work without auth data - i.e. that the sqlite file has been
         # successfully removed
         bucket_name = b2_tool.generate_bucket_name()
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['bucket', 'create', bucket_name, 'allPrivate'],
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
             fr'Use: \'{cli_version}(\.(exe|EXE))? account authorize\' or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
             r'\'B2_APPLICATION_KEY\' environment variables'
@@ -711,14 +711,14 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['bucket', 'create', bucket_name, 'allPrivate'],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY')
 
         os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['bucket', 'create', bucket_name, 'allPrivate'],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY_ID')
@@ -1423,12 +1423,12 @@ def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cle
 
 
 def test_default_sse_b2__create_bucket(b2_tool, schedule_bucket_cleanup):
-    # Set default encryption via create-bucket
+    # Set default encryption via `bucket create`
     second_bucket_name = b2_tool.generate_bucket_name()
     schedule_bucket_cleanup(second_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket', 'create',
             '--default-server-side-encryption=SSE-B2',
             second_bucket_name,
             'allPublic',
@@ -2518,7 +2518,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket', 'create',
             source_bucket_name,
             'allPublic',
             '--replication',
@@ -2603,7 +2603,7 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket', 'create',
             source_bucket_name,
             'allPublic',
             '--file-lock-enabled',
@@ -2747,7 +2747,7 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket', 'create',
             source_bucket_name,
             'allPublic',
             '--file-lock-enabled',
