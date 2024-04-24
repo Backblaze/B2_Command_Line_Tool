@@ -576,7 +576,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Update some other attribute than lifecycleRule, which should remain intact
         self._run_command(
-            ['update-bucket', bucket_name, '--bucket-info', '{"xxx": "123"}'],
+            ['bucket', 'update', bucket_name, '--bucket-info', '{"xxx": "123"}'],
             expected_json_in_stdout=expected_stdout_dict,
         )
 
@@ -631,7 +631,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         }
 
         self._run_command(
-            ['update-bucket', 'my-bucket', 'allPublic'], expected_json_in_stdout=expected_json
+            ['bucket', 'update', 'my-bucket', 'allPublic'], expected_json_in_stdout=expected_json
         )
 
         # Make sure they are there
@@ -645,16 +645,16 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Delete one
         expected_stdout = ''
 
-        self._run_command(['delete-bucket', 'your-bucket'], expected_stdout, '', 0)
+        self._run_command(['bucket', 'delete', 'your-bucket'], expected_stdout, '', 0)
 
     def test_encrypted_buckets(self):
         self._authorize_account()
 
         # Make two encrypted buckets
-        self._run_command(['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
         self._run_command(
             [
-                'create-bucket', '--default-server-side-encryption=SSE-B2', 'your-bucket',
+                'bucket', 'create', '--default-server-side-encryption=SSE-B2', 'your-bucket',
                 'allPrivate'
             ], 'bucket_1\n', '', 0
         )
@@ -677,7 +677,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         }
 
         self._run_command(
-            ['update-bucket', '--default-server-side-encryption=SSE-B2', 'my-bucket', 'allPublic'],
+            [
+                'bucket', 'update', '--default-server-side-encryption=SSE-B2', 'my-bucket',
+                'allPublic'
+            ],
             expected_json_in_stdout=expected_json,
         )
 
@@ -699,7 +702,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         }
 
         self._run_command(
-            ['update-bucket', 'your-bucket', 'allPrivate'], expected_json_in_stdout=expected_json
+            ['bucket', 'update', 'your-bucket', 'allPrivate'],
+            expected_json_in_stdout=expected_json
         )
 
         # Make sure they are there
@@ -802,7 +806,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Delete one bucket, to test listing when a bucket is gone.
-        self._run_command_ignore_output(['delete-bucket', 'my-bucket-b'])
+        self._run_command_ignore_output(['bucket', 'delete', 'my-bucket-b'])
 
         # List keys
         expected_list_keys_out = """
@@ -910,8 +914,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             "revision": 2
         }
         self._run_command(
-            ['update-bucket', '--bucket-info',
-             json.dumps(bucket_info), 'my-bucket', 'allPrivate'],
+            [
+                'bucket', 'update', '--bucket-info',
+                json.dumps(bucket_info), 'my-bucket', 'allPrivate'
+            ],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1496,15 +1502,18 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(
-            ['get-download-auth', 'my-bucket'], 'fake_download_auth_token_bucket_0__86400\n', '', 0
+            ['bucket', 'get-download-auth', 'my-bucket'],
+            'fake_download_auth_token_bucket_0__86400\n', '', 0
         )
 
     def test_get_download_auth_explicit(self):
         self._authorize_account()
         self._create_my_bucket()
         self._run_command(
-            ['get-download-auth', '--prefix', 'prefix', '--duration', '12345', 'my-bucket'],
-            'fake_download_auth_token_bucket_0_prefix_12345\n', '', 0
+            [
+                'bucket', 'get-download-auth', '--prefix', 'prefix', '--duration', '12345',
+                'my-bucket'
+            ], 'fake_download_auth_token_bucket_0_prefix_12345\n', '', 0
         )
 
     def test_get_download_auth_url(self):
@@ -2475,7 +2484,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Get rid of the bucket, leaving the key with a dangling pointer to it.
-        self._run_command_ignore_output(['delete-bucket', 'my-bucket'])
+        self._run_command_ignore_output(['bucket', 'delete', 'my-bucket'])
 
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
