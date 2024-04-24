@@ -3171,7 +3171,7 @@ def test_notification_rules(b2_tool, bucket_name):
 
     private_preview_pattern = re.compile(r'FeaturePreviewWarning')
     assert b2_tool.should_succeed_json(
-        ["notification-rules", "list", f"b2://{bucket_name}", "--json"],
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
         expected_stderr_pattern=private_preview_pattern
     ) == []
 
@@ -3191,7 +3191,8 @@ def test_notification_rules(b2_tool, bucket_name):
     # add rule
     created_rule = b2_tool.should_succeed_json(
         [
-            "notification-rules",
+            "bucket",
+            "notification-rule",
             "create",
             "--json",
             f"b2://{bucket_name}",
@@ -3210,7 +3211,8 @@ def test_notification_rules(b2_tool, bucket_name):
     secret = "0testSecret000000000000000000032"
     modified_rule = b2_tool.should_succeed_json(
         [
-            "notification-rules",
+            "bucket",
+            "notification-rule",
             "update",
             "--json",
             f"b2://{bucket_name}/prefix",
@@ -3227,16 +3229,16 @@ def test_notification_rules(b2_tool, bucket_name):
 
     # read updated rules
     assert b2_tool.should_succeed_json(
-        ["notification-rules", "list", f"b2://{bucket_name}", "--json"],
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
         expected_stderr_pattern=private_preview_pattern
     ) == expected_rules
 
     # delete rule by name
     assert b2_tool.should_succeed(
-        ["notification-rules", "delete", f"b2://{bucket_name}", "test-rule"],
+        ["bucket", "notification-rule", "delete", f"b2://{bucket_name}", "test-rule"],
         expected_stderr_pattern=private_preview_pattern
     ) == f"Rule 'test-rule' has been deleted from b2://{bucket_name}/\n"
     assert b2_tool.should_succeed_json(
-        ["notification-rules", "list", f"b2://{bucket_name}", "--json"],
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
         expected_stderr_pattern=private_preview_pattern
     ) == []
