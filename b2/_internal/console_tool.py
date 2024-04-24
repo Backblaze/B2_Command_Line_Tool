@@ -4645,7 +4645,7 @@ class Key(Command):
 
         {NAME} key list
         {NAME} key create my-key listFiles,deleteFiles
-        {NAME} key remove 005c398ac3212400000000010
+        {NAME} key delete 005c398ac3212400000000010
     """
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
