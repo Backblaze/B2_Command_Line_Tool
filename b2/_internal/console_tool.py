@@ -4334,7 +4334,9 @@ class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningM
         return 0
 
 
-class BucketNotificationRuleCreateBase(JSONOptionMixin, BucketNotificationRuleWarningMixin, Command):
+class BucketNotificationRuleCreateBase(
+    JSONOptionMixin, BucketNotificationRuleWarningMixin, Command
+):
     @classmethod
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
