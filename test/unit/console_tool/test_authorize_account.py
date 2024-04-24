@@ -64,9 +64,6 @@ def test_authorize_with_good_key(b2_cli, b2_cli_is_authorized_afterwards, comman
 def test_authorize_using_env_variables(b2_cli):
     assert b2_cli.account_info.get_account_auth_token() is None
 
-    expected_stderr = """
-    """
-
     with mock.patch.dict(
         "os.environ",
         {
@@ -74,7 +71,20 @@ def test_authorize_using_env_variables(b2_cli):
             B2_APPLICATION_KEY_ENV_VAR: b2_cli.master_key,
         },
     ):
-        b2_cli._run_command(["account", "authorize"], None, expected_stderr, 0)
+        b2_cli._run_command(["account", "authorize"], None, "", 0)
+
+    # test deprecated command
+    with mock.patch.dict(
+        "os.environ",
+        {
+            B2_APPLICATION_KEY_ID_ENV_VAR: b2_cli.account_id,
+            B2_APPLICATION_KEY_ENV_VAR: b2_cli.master_key,
+        },
+    ):
+        b2_cli._run_command(
+            ["authorize-account"], None,
+            'WARNING: authorize-account command is deprecated. Use account instead.\n', 0
+        )
 
     assert b2_cli.account_info.get_account_auth_token() is not None
 

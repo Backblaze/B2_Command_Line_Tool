@@ -370,6 +370,22 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+        # test deprecated command
+        self._run_command(
+            ['authorize-account', 'appKeyId0', 'appKey0'],
+            None,
+            "WARNING: authorize-account command is deprecated. Use account instead.\n",
+            0,
+        )
+
+        # test deprecated command
+        self._run_command(
+            ['authorize-account', 'appKeyId1', 'appKey1'],
+            None,
+            "WARNING: authorize-account command is deprecated. Use account instead.\n",
+            0,
+        )
+
     def test_create_key_with_authorization_from_env_vars(self):
         # Initial condition
         assert self.account_info.get_account_auth_token() is None
@@ -572,6 +588,19 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Clearing the account should remove the auth token
         # from the account info.
         self._run_command(['account', 'clear'], '', '', 0)
+        assert self.account_info.get_account_auth_token() is None
+
+    def test_deprecated_clear_account(self):
+        # Initial condition
+        self._authorize_account()
+        assert self.account_info.get_account_auth_token() is not None
+
+        # Clearing the account should remove the auth token
+        # from the account info.
+        self._run_command(
+            ['clear-account'], '',
+            'WARNING: clear-account command is deprecated. Use account instead.\n', 0
+        )
         assert self.account_info.get_account_auth_token() is None
 
     def test_buckets(self):
@@ -1648,6 +1677,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['account', 'get'],
             expected_json_in_stdout=expected_json,
+        )
+        # test deprecated command
+        self._run_command(
+            ['get-account-info'],
+            expected_json_in_stdout=expected_json,
+            expected_stderr=
+            'WARNING: get-account-info command is deprecated. Use account instead.\n',
         )
 
     def test_get_bucket(self):
