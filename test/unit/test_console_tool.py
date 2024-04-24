@@ -856,7 +856,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "options": [],
             "revision": 1
         }
-        self._run_command(['get-bucket', 'my-bucket-a'], expected_json_in_stdout=expected_json)
+        self._run_command(['bucket', 'get', 'my-bucket-a'], expected_json_in_stdout=expected_json)
 
         # authorize and make calls using an application key with bucket restrictions
         self._run_command(['account', 'authorize', 'appKeyId1', 'appKey1'], None, '', 0)
@@ -865,7 +865,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ['bucket', 'list'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
         )
         self._run_command(
-            ['get-bucket', 'my-bucket-c'], '',
+            ['bucket', 'get', 'my-bucket-c'], '',
             'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
         )
 
@@ -884,7 +884,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "revision": 1
         }
 
-        self._run_command(['get-bucket', 'my-bucket-a'], expected_json_in_stdout=expected_json)
+        self._run_command(['bucket', 'get', 'my-bucket-a'], expected_json_in_stdout=expected_json)
         self._run_command(
             ['ls', '--json', *self.b2_uri_args('my-bucket-c')], '',
             'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
@@ -1713,7 +1713,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "revision": 1
         }
         self._run_command(
-            ['get-bucket', 'my-bucket'],
+            ['bucket', 'get', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1737,7 +1737,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 0
         }
         self._run_command(
-            ['get-bucket', '--show-size', 'my-bucket'],
+            ['bucket', 'get', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1773,7 +1773,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 expected_part_of_stdout=expected_stdout,
             )
 
-            # Now check the output of get-bucket against the canon.
+            # Now check the output of `bucket get` against the canon.
             expected_json = {
                 "accountId": self.account_id,
                 "bucketId": "bucket_0",
@@ -1791,7 +1791,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "totalSize": 11
             }
             self._run_command(
-                ['get-bucket', '--show-size', 'my-bucket'],
+                ['bucket', 'get', '--show-size', 'my-bucket'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1812,7 +1812,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket.upload(UploadSourceBytes(b'test'), 'test')
         bucket.upload(UploadSourceBytes(b'test'), 'test')
 
-        # Now check the output of get-bucket against the canon.
+        # Now check the output of `bucket get` against the canon.
         expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
@@ -1830,7 +1830,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 40
         }
         self._run_command(
-            ['get-bucket', '--show-size', 'my-bucket'],
+            ['bucket', 'get', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1862,7 +1862,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/7/8/check')
         bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/5/6/7/8/9/check')
 
-        # Now check the output of get-bucket against the canon.
+        # Now check the output of `bucket get` against the canon.
         expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
@@ -1880,7 +1880,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 90
         }
         self._run_command(
-            ['get-bucket', '--show-size', 'my-bucket'],
+            ['bucket', 'get', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1898,7 +1898,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket.upload(UploadSourceBytes(b'test'), 'upload6')
 
         # Hide some new files. Don't check the results here; it will be clear enough that
-        # something has failed if the output of 'get-bucket' does not match the canon.
+        # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden1'])
@@ -1906,7 +1906,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden3'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
-        # Now check the output of get-bucket against the canon.
+        # Now check the output of `bucket get` against the canon.
         expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
@@ -1924,7 +1924,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 24
         }
         self._run_command(
-            ['get-bucket', '--show-size', 'my-bucket'],
+            ['bucket', 'get', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -1959,7 +1959,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         bucket.upload(UploadSourceBytes(b'check'), '1/2/3/4/check')
 
         # Hide some new files. Don't check the results here; it will be clear enough that
-        # something has failed if the output of 'get-bucket' does not match the canon.
+        # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
@@ -1970,7 +1970,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
 
-        # Now check the output of get-bucket against the canon.
+        # Now check the output of `bucket get` against the canon.
         expected_json = {
             "accountId": self.account_id,
             "bucketId": "bucket_0",
@@ -1988,7 +1988,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 99
         }
         self._run_command(
-            ['get-bucket', '--show-size', 'my-bucket'],
+            ['bucket', 'get', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
@@ -2018,7 +2018,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "totalSize": 0
         }
         self._run_command(
-            ['get-bucket', '--show-size', 'my-bucket'],
+            ['bucket', 'get', '--show-size', 'my-bucket'],
             expected_json_in_stdout=expected_json,
         )
 
