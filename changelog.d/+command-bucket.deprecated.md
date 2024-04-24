@@ -1,0 +1,1 @@
+Deprecated `list-buckets`, `get-bucket`, `create-bucket`, `update-bucket`, `delete-bucket` and `get-download-auth`, use `bucket {list|get|create|update|delete|get-download-auth}` instead.
