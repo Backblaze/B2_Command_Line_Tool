@@ -4263,16 +4263,16 @@ class BucketNotificationRuleBase(BucketNotificationRuleWarningMixin, Command):
 
     {BucketNotificationRuleWarningMixin}
 
-    For more information on each subcommand, use ``{NAME} notification-rules SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} notification-rule SUBCOMMAND --help``.
 
     Examples:
 
     .. code-block::
 
-        {NAME} notification-rules create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
-        {NAME} notification-rules list b2://bucketName
-        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
-        {NAME} notification-rules delete b2://bucketName ruleName
+        {NAME} notification-rule create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
+        {NAME} notification-rule list b2://bucketName
+        {NAME} notification-rule update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
+        {NAME} notification-rule delete b2://bucketName ruleName
     """
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
@@ -4290,7 +4290,7 @@ class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningM
 
     .. code-block::
 
-        {NAME} notification-rules list b2://bucketName
+        {NAME} notification-rule list b2://bucketName
 
 
     Requires capability:
@@ -4449,7 +4449,7 @@ class BucketNotificationRuleCreate(BucketNotificationRuleCreateBase):
 
     .. code-block::
 
-        {NAME} notification-rules create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
+        {NAME} notification-rule create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
 
 
     Requires capability:
@@ -4508,8 +4508,8 @@ class BucketNotificationRuleUpdate(BucketNotificationRuleUpdateBase):
 
     .. code-block::
 
-        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
-        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --enable
+        {NAME} notification-rule update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
+        {NAME} notification-rule update b2://bucketName/newPath/ ruleName --enable
 
 
     Requires capability:
@@ -4537,7 +4537,7 @@ class BucketNotificationRuleEnable(BucketNotificationRuleUpdateBase):
 
     .. code-block::
 
-        {NAME} notification-rules enable b2://bucketName/ ruleName
+        {NAME} notification-rule enable b2://bucketName/ ruleName
 
 
     Requires capability:
@@ -4572,7 +4572,7 @@ class BucketNotificationRuleDisable(BucketNotificationRuleUpdateBase):
 
     .. code-block::
 
-        {NAME} notification-rules disable b2://bucketName/ ruleName
+        {NAME} notification-rule disable b2://bucketName/ ruleName
 
 
     Requires capability:
