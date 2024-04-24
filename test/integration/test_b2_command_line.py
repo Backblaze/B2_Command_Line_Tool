@@ -448,7 +448,8 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
-            'bucket', 'create',
+            'bucket',
+            'create',
             to_be_removed_bucket_name,
             'allPublic',
             *b2_tool.get_bucket_info_args(),
@@ -1428,7 +1429,8 @@ def test_default_sse_b2__create_bucket(b2_tool, schedule_bucket_cleanup):
     schedule_bucket_cleanup(second_bucket_name)
     b2_tool.should_succeed(
         [
-            'bucket', 'create',
+            'bucket',
+            'create',
             '--default-server-side-encryption=SSE-B2',
             second_bucket_name,
             'allPublic',
@@ -2518,7 +2520,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'bucket', 'create',
+            'bucket',
+            'create',
             source_bucket_name,
             'allPublic',
             '--replication',
@@ -2605,7 +2608,8 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'bucket', 'create',
+            'bucket',
+            'create',
             source_bucket_name,
             'allPublic',
             '--file-lock-enabled',
@@ -2749,7 +2753,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'bucket', 'create',
+            'bucket',
+            'create',
             source_bucket_name,
             'allPublic',
             '--file-lock-enabled',

@@ -322,17 +322,23 @@ class TestConsoleTool(BaseConsoleToolTest):
             'bucket_0\n', '', 0
         )
         self._run_command(
-            ['bucket', 'create', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
-            'bucket_1\n', '', 0
+            [
+                'bucket', 'create', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}',
+                'allPrivate'
+            ], 'bucket_1\n', '', 0
         )
 
     @pytest.mark.apiver(from_ver=4)
     def test_camel_case_not_supported_in_v4(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2)
         self._run_command(
-            ['bucket', 'create', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate'],
-            'bucket_0\n', '', 0
+            ['bucket', 'create', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2
+        )
+        self._run_command(
+            [
+                'bucket', 'create', 'my-bucket-kebab', '--bucket-info', '{"xxx": "123"}',
+                'allPrivate'
+            ], 'bucket_0\n', '', 0
         )
 
     def test_create_key_and_authorize_with_it(self):
@@ -489,8 +495,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         self._run_command(
-            ['bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rules', rules], 'bucket_0\n',
-            '', 0
+            ['bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rules', rules],
+            'bucket_0\n', '', 0
         )
 
     def test_create_bucket__mutually_exclusive_lifecycle_rules_options(self):
@@ -608,7 +614,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Make a bucket with an illegal name
         expected_stdout = 'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
-        self._run_command(['bucket', 'create', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1)
+        self._run_command(
+            ['bucket', 'create', 'bad/bucket/name', 'allPublic'], '', expected_stdout, 1
+        )
 
         # Make two buckets
         self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
@@ -862,7 +870,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(['account', 'authorize', 'appKeyId1', 'appKey1'], None, '', 0)
 
         self._run_command(
-            ['bucket', 'list'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n', 1
+            ['bucket', 'list'], '', 'ERROR: Application key is restricted to bucket: my-bucket-a\n',
+            1
         )
         self._run_command(
             ['bucket', 'get', 'my-bucket-c'], '',
