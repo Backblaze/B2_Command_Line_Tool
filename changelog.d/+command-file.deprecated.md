@@ -1,0 +1,1 @@
+Deprecated `file-info`, `get-url`, `cat`, `upload-file`, `download-file`, `copy-file-by-id` and `hide-file`, use `file {info|url|cat|upload|download|copy-by-id|hide}` instead.

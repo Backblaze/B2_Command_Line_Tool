@@ -1955,7 +1955,7 @@ class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, Downl
         parser.add_argument('localFileName')
 
 
-class Cat(B2URIFileArgMixin, DownloadCommand):
+class FileCatBase(B2URIFileArgMixin, DownloadCommand):
     """
     Download content of a file-like object identified by B2 URI directly to stdout.
 
@@ -2069,15 +2069,6 @@ class FileInfoBase(Command):
         file_version = self.api.get_file_info_by_uri(b2_uri)
         self._print_json(file_version)
         return 0
-
-
-class FileInfo(B2URIFileArgMixin, FileInfoBase):
-    __doc__ = FileInfoBase.__doc__
-
-
-class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
-    __doc__ = FileInfoBase.__doc__
-    replaced_by_cmd = FileInfo
 
 
 class BucketGetDownloadAuthBase(Command):
@@ -2775,7 +2766,7 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
     """
 
 
-class GetUrlBase(Command):
+class FileUrlBase(Command):
     """
     Prints an URL that can be used to download the given file, if
     it is public.
@@ -2785,20 +2776,6 @@ class GetUrlBase(Command):
         b2_uri = self.get_b2_uri_from_arg(args)
         self._print(self.api.get_download_url_by_uri(b2_uri))
         return 0
-
-
-class GetUrl(B2URIFileArgMixin, GetUrlBase):
-    __doc__ = GetUrlBase.__doc__
-
-
-class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, GetUrlBase):
-    __doc__ = GetUrlBase.__doc__
-    replaced_by_cmd = GetUrl
-
-
-class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, GetUrlBase):
-    __doc__ = GetUrlBase.__doc__
-    replaced_by_cmd = GetUrl
 
 
 class Sync(
@@ -3434,7 +3411,7 @@ class UploadFileMixin(
         pass
 
 
-class UploadFile(UploadFileMixin, UploadModeMixin, Command):
+class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     """
     Uploads one file to the given bucket.
 
@@ -4915,6 +4892,88 @@ class GetDownloadAuth(CmdReplacedByMixin, BucketGetDownloadAuthBase):
 class NotificationRules(CmdReplacedByMixin, BucketNotificationRuleBase):
     __doc__ = BucketNotificationRuleBase.__doc__
     replaced_by_cmd = (BucketCmd, BucketNotificationRule)
+
+
+class File(Command):
+    """
+    File management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} file info
+        {NAME} file url
+        {NAME} file cat
+        {NAME} file upload
+        {NAME} file download
+        {NAME} file copy-by-id
+        {NAME} file hide
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@File.subcommands_registry.register
+class FileInfo(B2URIFileArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    COMMAND_NAME = 'info'
+
+
+@File.subcommands_registry.register
+class FileUrl(B2URIFileArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    COMMAND_NAME = 'url'
+
+
+@File.subcommands_registry.register
+class FileCat(FileCatBase):
+    __doc__ = FileCatBase.__doc__
+    COMMAND_NAME = 'cat'
+
+
+@File.subcommands_registry.register
+class FileUpload(FileUploadBase):
+    __doc__ = FileUploadBase.__doc__
+    COMMAND_NAME = 'upload'
+
+
+class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    replaced_by_cmd = File
+    # TODO we can't use 'file-info', gets transformed to 'file--info'
+    COMMAND_NAME = 'FileInfo'
+
+
+class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    replaced_by_cmd = File
+
+
+class GetUrl(CmdReplacedByMixin, B2URIFileArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    replaced_by_cmd = File
+
+
+class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    replaced_by_cmd = File
+
+
+class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    replaced_by_cmd = File
+
+
+class Cat(CmdReplacedByMixin, FileCatBase):
+    __doc__ = FileCatBase.__doc__
+    replaced_by_cmd = File
+
+
+class UploadFile(CmdReplacedByMixin, FileUploadBase):
+    __doc__ = FileUploadBase.__doc__
+    replaced_by_cmd = File
 
 
 class ConsoleTool:
