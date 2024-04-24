@@ -454,15 +454,15 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
             *b2_tool.get_bucket_info_args(),
         ],
     )
-    b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
+    b2_tool.should_succeed(['bucket', 'delete', to_be_removed_bucket_name],)
     b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name],
+        ['bucket', 'delete', to_be_removed_bucket_name],
         re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
     # Check logging settings
     if not is_running_on_docker:  # It's difficult to read the log in docker in CI
         b2_tool.should_fail(
-            ['delete-bucket', to_be_removed_bucket_name, '--debug-logs'],
+            ['bucket', 'delete', to_be_removed_bucket_name, '--debug-logs'],
             re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
         )
         stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
@@ -484,11 +484,14 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
             assert re.search(log_file_regex, log), log
         os.remove('b2_cli.log')
 
-        b2_tool.should_fail(['delete-bucket', to_be_removed_bucket_name, '--verbose'], stderr_regex)
+        b2_tool.should_fail(
+            ['bucket', 'delete', to_be_removed_bucket_name, '--verbose'], stderr_regex
+        )
         assert not os.path.exists('b2_cli.log')
 
         b2_tool.should_fail(
-            ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debug-logs'], stderr_regex
+            ['bucket', 'delete', to_be_removed_bucket_name, '--verbose', '--debug-logs'],
+            stderr_regex
         )
         with open('b2_cli.log') as logfile:
             log = logfile.read()
@@ -503,7 +506,7 @@ def test_bucket(b2_tool, bucket_name):
     }"""
     output = b2_tool.should_succeed_json(
         [
-            'update-bucket', '--lifecycle-rule', rule, bucket_name, 'allPublic',
+            'bucket', 'update', '--lifecycle-rule', rule, bucket_name, 'allPublic',
             *b2_tool.get_bucket_info_args()
         ],
     )
@@ -625,9 +628,9 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
 
 
 def test_delete_bucket(b2_tool, bucket_name):
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
+    b2_tool.should_succeed(['bucket', 'delete', bucket_name])
     b2_tool.should_fail(
-        ['delete-bucket', bucket_name], re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+        ['bucket', 'delete', bucket_name], re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
 
 
@@ -635,9 +638,9 @@ def test_rapid_bucket_operations(b2_tool):
     new_bucket_name = b2_tool.generate_bucket_name()
     bucket_info_args = b2_tool.get_bucket_info_args()
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *bucket_info_args])
-    b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
-    b2_tool.should_succeed(['delete-bucket', new_bucket_name])
+    b2_tool.should_succeed(['bucket', 'create', new_bucket_name, 'allPrivate', *bucket_info_args])
+    b2_tool.should_succeed(['bucket', 'update', new_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(['bucket', 'delete', new_bucket_name])
 
 
 def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
@@ -688,9 +691,9 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
 
         bucket_name = b2_tool.generate_bucket_name()
         b2_tool.should_succeed(
-            ['create-bucket', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
+            ['bucket', 'create', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
         )
-        b2_tool.should_succeed(['delete-bucket', bucket_name])
+        b2_tool.should_succeed(['bucket', 'delete', bucket_name])
 
         if apiver_int >= 4:
             assert not os.path.exists(
@@ -1397,13 +1400,13 @@ def test_sync_long_path(b2_tool, bucket_name):
 
 
 def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cleanup):
-    # Set default encryption via update-bucket
+    # Set default encryption via `bucket update`
     bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
     bucket_default_sse = {'mode': 'none'}
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     bucket_info = b2_tool.should_succeed_json(
-        ['update-bucket', '--default-server-side-encryption=SSE-B2', bucket_name]
+        ['bucket', 'update', '--default-server-side-encryption=SSE-B2', bucket_name]
     )
     bucket_default_sse = {
         'algorithm': 'AES256',
@@ -1924,13 +1927,13 @@ def test_file_lock(
 
     b2_tool.should_fail(
         [
-            'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
+            'bucket', 'update', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
             'compliance'
         ], 'ValueError: must specify period for retention mode RetentionMode.COMPLIANCE'
     )
     b2_tool.should_fail(
         [
-            'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
+            'bucket', 'update', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
             'compliance', '--default-retention-period', '7 days'
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
@@ -1938,7 +1941,8 @@ def test_file_lock(
     schedule_bucket_cleanup(lock_enabled_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             lock_enabled_bucket_name,
             'allPrivate',
             '--file-lock-enabled',
@@ -1947,7 +1951,8 @@ def test_file_lock(
     )
     updated_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             lock_enabled_bucket_name,
             'allPrivate',
             '--default-retention-mode',
@@ -2059,7 +2064,8 @@ def test_file_lock(
 
     updated_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             lock_enabled_bucket_name,
             'allPrivate',
             '--default-retention-mode',
@@ -2197,7 +2203,7 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'update-bucket', lock_enabled_bucket_name, 'allPrivate', '--default-retention-mode',
+            'bucket', 'update', lock_enabled_bucket_name, 'allPrivate', '--default-retention-mode',
             'governance', '--default-retention-period', '1 days'
         ],
         'ERROR: unauthorized for application key with capabilities',
@@ -2465,7 +2471,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     destination_replication_configuration_json = json.dumps(destination_replication_configuration)
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             destination_bucket_name,
             'allPublic',
             '--replication',
@@ -2530,7 +2537,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
 
     # ---------------- attempt enabling object lock  ----------------
     b2_tool.should_fail(
-        ['update-bucket', source_bucket_name, '--file-lock-enabled'],
+        ['bucket', 'update', source_bucket_name, '--file-lock-enabled'],
         'ERROR: Operation not supported for buckets with source replication'
     )
 
@@ -2543,7 +2550,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     no_replication_configuration_json = json.dumps(no_replication_configuration)
     source_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket', source_bucket_name, 'allPublic', '--replication',
+            'bucket', 'update', source_bucket_name, 'allPublic', '--replication',
             no_replication_configuration_json
         ]
     )
@@ -2558,7 +2565,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
 
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             destination_bucket_name,
             'allPublic',
             '--replication',
@@ -2700,7 +2708,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     destination_replication_configuration_json = json.dumps(destination_replication_configuration)
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             destination_bucket_name,
             'allPublic',
             '--replication',
@@ -2910,25 +2919,25 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
 
 def test_enable_file_lock_first_retention_second(b2_tool, bucket_name):
     # enable file lock only
-    b2_tool.should_succeed(['update-bucket', bucket_name, '--file-lock-enabled'])
+    b2_tool.should_succeed(['bucket', 'update', bucket_name, '--file-lock-enabled'])
 
     # set retention with file lock already enabled
     b2_tool.should_succeed(
         [
-            'update-bucket', bucket_name, '--default-retention-mode', 'compliance',
+            'bucket', 'update', bucket_name, '--default-retention-mode', 'compliance',
             '--default-retention-period', '7 days'
         ]
     )
 
     # attempt to re-enable should be a noop
-    b2_tool.should_succeed(['update-bucket', bucket_name, '--file-lock-enabled'])
+    b2_tool.should_succeed(['bucket', 'update', bucket_name, '--file-lock-enabled'])
 
 
 def test_enable_file_lock_and_set_retention_at_once(b2_tool, bucket_name):
     # attempt setting retention without file lock enabled
     b2_tool.should_fail(
         [
-            'update-bucket', bucket_name, '--default-retention-mode', 'compliance',
+            'bucket', 'update', bucket_name, '--default-retention-mode', 'compliance',
             '--default-retention-period', '7 days'
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
@@ -2936,13 +2945,13 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, bucket_name):
     # enable file lock and set retention at once
     b2_tool.should_succeed(
         [
-            'update-bucket', bucket_name, '--default-retention-mode', 'compliance',
+            'bucket', 'update', bucket_name, '--default-retention-mode', 'compliance',
             '--default-retention-period', '7 days', '--file-lock-enabled'
         ]
     )
 
     # attempt to re-enable should be a noop
-    b2_tool.should_succeed(['update-bucket', bucket_name, '--file-lock-enabled'])
+    b2_tool.should_succeed(['bucket', 'update', bucket_name, '--file-lock-enabled'])
 
 
 def _assert_file_lock_configuration(
