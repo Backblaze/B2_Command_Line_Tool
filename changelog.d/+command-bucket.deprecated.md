@@ -1,1 +1,1 @@
-Deprecated `list-buckets`, `get-bucket`, `create-bucket`, `update-bucket`, `delete-bucket` and `get-download-auth`, use `bucket {list|get|create|update|delete|get-download-auth}` instead.
+Deprecated `list-buckets`, `get-bucket`, `create-bucket`, `update-bucket`, `delete-bucket`, `get-download-auth` and `notification-rules`, use `bucket {list|get|create|update|delete|get-download-auth|notification-rule}` instead.

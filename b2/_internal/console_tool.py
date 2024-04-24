@@ -4254,7 +4254,7 @@ class InstallAutocomplete(Command):
         return 0
 
 
-class NotificationRulesWarningMixin(Described):
+class BucketNotificationRuleWarningMixin(Described):
     """
     .. warning::
 
@@ -4263,11 +4263,11 @@ class NotificationRulesWarningMixin(Described):
     """
 
 
-class NotificationRules(NotificationRulesWarningMixin, Command):
+class BucketNotificationRuleBase(BucketNotificationRuleWarningMixin, Command):
     """
     Bucket notification rules management subcommands.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     For more information on each subcommand, use ``{NAME} notification-rules SUBCOMMAND --help``.
 
@@ -4283,12 +4283,12 @@ class NotificationRules(NotificationRulesWarningMixin, Command):
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Command):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningMixin, Command):
     """
     Allows listing bucket notification rules of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     {JSONOptionMixin}
 
@@ -4334,7 +4334,7 @@ class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Comm
         return 0
 
 
-class NotificationRulesCreateBase(JSONOptionMixin, NotificationRulesWarningMixin, Command):
+class BucketNotificationRuleCreateBase(JSONOptionMixin, BucketNotificationRuleWarningMixin, Command):
     @classmethod
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
@@ -4418,7 +4418,7 @@ class NotificationRulesCreateBase(JSONOptionMixin, NotificationRulesWarningMixin
             self._print_human_readable_structure(rule)
 
 
-class NotificationRulesUpdateBase(NotificationRulesCreateBase):
+class BucketNotificationRuleUpdateBase(BucketNotificationRuleCreateBase):
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
         rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
@@ -4442,12 +4442,12 @@ class NotificationRulesUpdateBase(NotificationRulesCreateBase):
         return 0
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesCreate(NotificationRulesCreateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleCreate(BucketNotificationRuleCreateBase):
     """
     Allows creating bucket notification rules for the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
@@ -4501,12 +4501,12 @@ class NotificationRulesCreate(NotificationRulesCreateBase):
         return 0
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesUpdate(NotificationRulesUpdateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleUpdate(BucketNotificationRuleUpdateBase):
     """
     Allows updating notification rule of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
@@ -4530,12 +4530,12 @@ class NotificationRulesUpdate(NotificationRulesUpdateBase):
         super()._setup_parser(parser)
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesEnable(NotificationRulesUpdateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleEnable(BucketNotificationRuleUpdateBase):
     """
     Allows enabling notification rule of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
@@ -4565,12 +4565,12 @@ class NotificationRulesEnable(NotificationRulesUpdateBase):
         return {'name': args.ruleName, 'isEnabled': True}
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesDisable(NotificationRulesUpdateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleDisable(BucketNotificationRuleUpdateBase):
     """
     Allows disabling notification rule of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
@@ -4600,8 +4600,8 @@ class NotificationRulesDisable(NotificationRulesUpdateBase):
         return {'name': args.ruleName, 'isEnabled': False}
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesDelete(Command):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleDelete(Command):
     """
     Allows deleting bucket notification rule of the given bucket.
 
@@ -4873,6 +4873,13 @@ class BucketGetDownloadAuth(BucketGetDownloadAuthBase):
     COMMAND_NAME = 'GetDownloadAuth'
 
 
+@BucketCmd.subcommands_registry.register
+class BucketNotificationRule(BucketNotificationRuleBase):
+    __doc__ = BucketNotificationRuleBase.__doc__
+    # TODO we can't use 'notification-rule', gets transformed to 'notification--rule'
+    COMMAND_NAME = 'NotificationRule'
+
+
 class ListBuckets(CmdReplacedByMixin, BucketListBase):
     __doc__ = BucketListBase.__doc__
     replaced_by_cmd = BucketCmd
@@ -4900,6 +4907,11 @@ class DeleteBucket(CmdReplacedByMixin, BucketDeleteBase):
 
 class GetDownloadAuth(CmdReplacedByMixin, BucketGetDownloadAuthBase):
     __doc__ = BucketGetDownloadAuthBase.__doc__
+    replaced_by_cmd = BucketCmd
+
+
+class NotificationRules(CmdReplacedByMixin, BucketNotificationRuleBase):
+    __doc__ = BucketNotificationRuleBase.__doc__
     replaced_by_cmd = BucketCmd
 
 
