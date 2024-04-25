@@ -655,7 +655,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(['bucket', 'delete', 'your-bucket'], expected_stdout, '', 0)
 
-    def test_deprecated_buckets(self):
+    def test_deprecated_bucket_commands(self):
         self._authorize_account()
 
         # Make a bucket with an illegal name
