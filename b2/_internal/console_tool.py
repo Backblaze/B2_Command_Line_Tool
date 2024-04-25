@@ -4884,37 +4884,37 @@ class BucketNotificationRule(BucketNotificationRuleBase):
 
 class ListBuckets(CmdReplacedByMixin, BucketListBase):
     __doc__ = BucketListBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketList)
 
 
 class GetBucket(CmdReplacedByMixin, BucketGetBase):
     __doc__ = BucketGetBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketGet)
 
 
 class CreateBucket(CmdReplacedByMixin, BucketCreateBase):
     __doc__ = BucketCreateBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketCreate)
 
 
 class UpdateBucket(CmdReplacedByMixin, BucketUpdateBase):
     __doc__ = BucketUpdateBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketUpdate)
 
 
 class DeleteBucket(CmdReplacedByMixin, BucketDeleteBase):
     __doc__ = BucketDeleteBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketDelete)
 
 
 class GetDownloadAuth(CmdReplacedByMixin, BucketGetDownloadAuthBase):
     __doc__ = BucketGetDownloadAuthBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketGetDownloadAuth)
 
 
 class NotificationRules(CmdReplacedByMixin, BucketNotificationRuleBase):
     __doc__ = BucketNotificationRuleBase.__doc__
-    replaced_by_cmd = BucketCmd
+    replaced_by_cmd = (BucketCmd, BucketNotificationRule)
 
 
 class ConsoleTool:
