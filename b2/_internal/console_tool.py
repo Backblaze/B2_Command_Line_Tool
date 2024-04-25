@@ -1121,12 +1121,12 @@ class Command(Described, metaclass=ABCMeta):
 
 class CmdReplacedByMixin:
     deprecated = True
-    replaced_by_cmd: type[Command]
+    replaced_by_cmd: type[Command] | tuple[type[Command], ...]
 
     def run(self, args):
         self._print_stderr(
-            f'WARNING: {self.__class__.name_and_alias()[0]} command is deprecated. '
-            f'Use {self.replaced_by_cmd.name_and_alias()[0]} instead.'
+            f'WARNING: `{self.__class__.name_and_alias()[0]}` command is deprecated. '
+            f'Use `{self.get_replaced_command_name()}` instead.'
         )
         return super().run(args)
 
@@ -1135,8 +1135,14 @@ class CmdReplacedByMixin:
         return (
             f'{super()._get_description(**kwargs)}\n\n'
             f'.. warning::\n'
-            f'   This command is deprecated. Use ``{cls.replaced_by_cmd.name_and_alias()[0]}`` instead.\n'
+            f'   This command is deprecated. Use ``{cls.get_replaced_command_name()}`` instead.\n'
         )
+
+    @classmethod
+    def get_replaced_command_name(cls) -> str:
+        if isinstance(cls.replaced_by_cmd, tuple):
+            return ' '.join(cmd.name_and_alias()[0] for cmd in cls.replaced_by_cmd)
+        return cls.replaced_by_cmd.name_and_alias()[0]
 
 
 class B2(Command):
@@ -4670,17 +4676,17 @@ class KeyDeleteSubcommand(KeyDeleteBase):
 
 class ListKeys(CmdReplacedByMixin, KeyListBase):
     __doc__ = KeyListBase.__doc__
-    replaced_by_cmd = Key
+    replaced_by_cmd = (Key, KeyListSubcommand)
 
 
 class CreateKey(CmdReplacedByMixin, KeyCreateBase):
     __doc__ = KeyCreateBase.__doc__
-    replaced_by_cmd = Key
+    replaced_by_cmd = (Key, KeyCreateSubcommand)
 
 
 class DeleteKey(CmdReplacedByMixin, KeyDeleteBase):
     __doc__ = KeyDeleteBase.__doc__
-    replaced_by_cmd = Key
+    replaced_by_cmd = (Key, KeyDeleteSubcommand)
 
 
 class Replication(Command):
@@ -4734,27 +4740,27 @@ class ReplicationDeleteSubcommand(ReplicationDeleteBase):
 
 class ReplicationSetup(CmdReplacedByMixin, ReplicationSetupBase):
     __doc__ = ReplicationSetupBase.__doc__
-    replaced_by_cmd = Replication
+    replaced_by_cmd = (Replication, ReplicationSetupSubcommand)
 
 
 class ReplicationStatus(CmdReplacedByMixin, ReplicationStatusBase):
     __doc__ = ReplicationStatusBase.__doc__
-    replaced_by_cmd = Replication
+    replaced_by_cmd = (Replication, ReplicationStatusSubcommand)
 
 
 class ReplicationPause(CmdReplacedByMixin, ReplicationPauseBase):
     __doc__ = ReplicationPauseBase.__doc__
-    replaced_by_cmd = Replication
+    replaced_by_cmd = (Replication, ReplicationPauseSubcommand)
 
 
 class ReplicationUnpause(CmdReplacedByMixin, ReplicationUnpauseBase):
     __doc__ = ReplicationUnpauseBase.__doc__
-    replaced_by_cmd = Replication
+    replaced_by_cmd = (Replication, ReplicationUnpauseSubcommand)
 
 
 class ReplicationDelete(CmdReplacedByMixin, ReplicationDeleteBase):
     __doc__ = ReplicationDeleteBase.__doc__
-    replaced_by_cmd = Replication
+    replaced_by_cmd = (Replication, ReplicationDeleteSubcommand)
 
 
 class Account(Command):
@@ -4794,17 +4800,17 @@ class AccountClear(AccountClearBase):
 
 class AuthorizeAccount(CmdReplacedByMixin, AccountAuthorizeBase):
     __doc__ = AccountAuthorizeBase.__doc__
-    replaced_by_cmd = Account
+    replaced_by_cmd = (Account, AccountAuthorize)
 
 
 class GetAccountInfo(CmdReplacedByMixin, AccountGetBase):
     __doc__ = AccountGetBase.__doc__
-    replaced_by_cmd = Account
+    replaced_by_cmd = (Account, AccountGet)
 
 
 class ClearAccount(CmdReplacedByMixin, AccountClearBase):
     __doc__ = AccountClearBase.__doc__
-    replaced_by_cmd = Account
+    replaced_by_cmd = (Account, AccountClear)
 
 
 class ConsoleTool:

@@ -351,7 +351,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['create-key', 'key2', 'listBuckets,listKeys'],
             'appKeyId1 appKey1\n',
-            'WARNING: create-key command is deprecated. Use key instead.\n',
+            'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
             0,
         )
 
@@ -374,7 +374,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['authorize-account', 'appKeyId0', 'appKey0'],
             None,
-            "WARNING: authorize-account command is deprecated. Use account instead.\n",
+            "WARNING: `authorize-account` command is deprecated. Use `account authorize` instead.\n",
             0,
         )
 
@@ -382,7 +382,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['authorize-account', 'appKeyId1', 'appKey1'],
             None,
-            "WARNING: authorize-account command is deprecated. Use account instead.\n",
+            "WARNING: `authorize-account` command is deprecated. Use `account authorize` instead.\n",
             0,
         )
 
@@ -527,8 +527,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         # test deprecated command
         self._run_command(
             ['create-key', '--bucket', 'my-bucket', 'key2', 'listKeys,listBuckets'],
-            'appKeyId1 appKey1\n', 'WARNING: create-key command is deprecated. Use key instead.\n',
-            0
+            'appKeyId1 appKey1\n',
+            'WARNING: `create-key` command is deprecated. Use `key create` instead.\n', 0
         )
 
         # Authorize with the key
@@ -599,7 +599,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # from the account info.
         self._run_command(
             ['clear-account'], '',
-            'WARNING: clear-account command is deprecated. Use account instead.\n', 0
+            'WARNING: `clear-account` command is deprecated. Use `account clear` instead.\n', 0
         )
         assert self.account_info.get_account_auth_token() is None
 
@@ -788,7 +788,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Six', capabilities_with_commas],
             'appKeyId5 appKey5\n',
-            'WARNING: create-key command is deprecated. Use key instead.\n',
+            'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
             0,
         )
 
@@ -798,7 +798,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # test deprecated command
         self._run_command(
             ['delete-key', 'appKeyId5'], 'appKeyId5\n',
-            'WARNING: delete-key command is deprecated. Use key instead.\n', 0
+            'WARNING: `delete-key` command is deprecated. Use `key delete` instead.\n', 0
         )
 
         # Delete one bucket, to test listing when a bucket is gone.
@@ -824,11 +824,11 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             ['list-keys'], expected_list_keys_out,
-            'WARNING: list-keys command is deprecated. Use key instead.\n', 0
+            'WARNING: `list-keys` command is deprecated. Use `key list` instead.\n', 0
         )
         self._run_command(
             ['list-keys', '--long'], expected_list_keys_out_long,
-            'WARNING: list-keys command is deprecated. Use key instead.\n', 0
+            'WARNING: `list-keys` command is deprecated. Use `key list` instead.\n', 0
         )
 
         # authorize and make calls using application key with no restrictions
@@ -1683,7 +1683,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ['get-account-info'],
             expected_json_in_stdout=expected_json,
             expected_stderr=
-            'WARNING: get-account-info command is deprecated. Use account instead.\n',
+            'WARNING: `get-account-info` command is deprecated. Use `account get` instead.\n',
         )
 
     def test_get_bucket(self):

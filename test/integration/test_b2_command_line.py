@@ -561,7 +561,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     key_two_id, key_two = created_key_two_stdout.split()
 
     create_key_deprecated_pattern = re.compile(
-        re.escape('WARNING: create-key command is deprecated. Use key instead.')
+        re.escape('WARNING: `create-key` command is deprecated. Use `key create` instead.')
     )
     key_three_name = 'clt-testKey-03' + random_hex(6)
     created_key_three_stdout = b2_tool.should_succeed(
@@ -616,7 +616,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     b2_tool.should_succeed(['key', 'delete', key_two_id])
 
     delete_key_deprecated_pattern = re.compile(
-        re.escape('WARNING: delete-key command is deprecated. Use key instead.')
+        re.escape('WARNING: `delete-key` command is deprecated. Use `key delete` instead.')
     )
     b2_tool.should_succeed(
         ['delete-key', key_three_id],
@@ -2587,7 +2587,9 @@ def test_replication_setup_deprecated(b2_tool, bucket_name, schedule_bucket_clea
 def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, use_subcommands):
     setup_cmd = ['replication', 'setup'] if use_subcommands else ['replication-setup']
     replication_setup_deprecated_pattern = re.compile(
-        re.escape('WARNING: replication-setup command is deprecated. Use replication instead.')
+        re.escape(
+            'WARNING: `replication-setup` command is deprecated. Use `replication setup` instead.'
+        )
     )
     replication_setup_expected_stderr_pattern = None if use_subcommands else replication_setup_deprecated_pattern
 
@@ -2805,7 +2807,9 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
 
     # run stats command
     replication_status_deprecated_pattern = re.compile(
-        re.escape('WARNING: replication-status command is deprecated. Use replication instead.')
+        re.escape(
+            'WARNING: `replication-status` command is deprecated. Use `replication status` instead.'
+        )
     )
     replication_status_json = b2_tool.should_succeed_json(
         [
