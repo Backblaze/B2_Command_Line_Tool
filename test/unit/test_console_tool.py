@@ -1443,7 +1443,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5001
             }
             self._run_command(
-                ['copy-file-by-id', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1466,7 +1466,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5002
             }
             self._run_command(
-                ['copy-file-by-id', '--range', '3,7', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '--range', '3,7', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1480,7 +1480,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stderr = "ERROR: File info can be set only when content type is set\n"
             self._run_command(
                 [
-                    'copy-file-by-id',
+                    'file',
+                    'copy-by-id',
                     '--info',
                     'a=b',
                     '9999',
@@ -1496,7 +1497,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stderr = "ERROR: File info can be not set only when content type is not set\n"
             self._run_command(
                 [
-                    'copy-file-by-id',
+                    'file',
+                    'copy-by-id',
                     '--content-type',
                     'text/plain',
                     '9999',
@@ -1528,7 +1530,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
             self._run_command(
                 [
-                    'copy-file-by-id',
+                    'file',
+                    'copy-by-id',
                     '--content-type',
                     'text/plain',
                     '--info',
@@ -1543,7 +1546,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             # UnsatisfiableRange
             expected_stderr = "ERROR: The range in the request is outside the size of the file\n"
             self._run_command(
-                ['copy-file-by-id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -1569,7 +1572,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5004
             }
             self._run_command(
-                ['copy-file-by-id', '9999', 'my-bucket1', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '9999', 'my-bucket1', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
 

@@ -375,7 +375,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     )
     should_equal([], [f['fileName'] for f in list_of_files])
 
-    b2_tool.should_succeed(['copy-file-by-id', first_a_version['fileId'], bucket_name, 'x'])
+    b2_tool.should_succeed(['file', 'copy-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
     b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)], '^a{0}b/{0}d{0}'.format(os.linesep))
     # file_id, action, date, time, size(, replication), name
@@ -1493,12 +1493,15 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
 
     b2_tool.should_succeed(
         [
-            'copy-file-by-id', '--destination-server-side-encryption=SSE-B2',
+            'file', 'copy-by-id', '--destination-server-side-encryption=SSE-B2',
             encrypted_version['fileId'], bucket_name, 'copied_encrypted'
         ]
     )
     b2_tool.should_succeed(
-        ['copy-file-by-id', not_encrypted_version['fileId'], bucket_name, 'copied_not_encrypted']
+        [
+            'file', 'copy-by-id', not_encrypted_version['fileId'], bucket_name,
+            'copied_not_encrypted'
+        ]
     )
 
     list_of_files = b2_tool.should_succeed_json(
@@ -1617,22 +1620,22 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
         assert read_file(dir_path / 'b') == read_file(sample_file)
 
     b2_tool.should_fail(
-        ['copy-file-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
+        ['file', 'copy-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
         expected_pattern=
         'ERROR: The object was stored using a form of Server Side Encryption. The correct '
         r'parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
         [
-            'copy-file-by-id', '--source-server-side-encryption=SSE-C', file_version_info['fileId'],
-            bucket_name, 'gonna-fail-anyway'
+            'file', 'copy-by-id', '--source-server-side-encryption=SSE-C',
+            file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var'
     )
     b2_tool.should_fail(
         [
-            'copy-file-by-id', '--source-server-side-encryption=SSE-C',
+            'file', 'copy-by-id', '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C', file_version_info['fileId'], bucket_name,
             'gonna-fail-anyway'
         ],
@@ -1642,8 +1645,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_fail(
         [
-            'copy-file-by-id', '--source-server-side-encryption=SSE-C', file_version_info['fileId'],
-            bucket_name, 'gonna-fail-anyway'
+            'file', 'copy-by-id', '--source-server-side-encryption=SSE-C',
+            file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
         expected_pattern=
@@ -1652,7 +1655,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             '--source-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
@@ -1666,7 +1670,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             '--source-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
@@ -1679,7 +1684,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             '--source-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
@@ -1690,7 +1696,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C',
             file_version_info['fileId'],
@@ -1705,7 +1712,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C',
             file_version_info['fileId'],
@@ -1723,7 +1731,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_succeed(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C',
             file_version_info['fileId'],
@@ -2133,7 +2142,8 @@ def test_file_lock(
 
     b2_tool.should_fail(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             lockable_file['fileId'],
             lock_disabled_bucket_name,
             'copied',
@@ -2148,7 +2158,8 @@ def test_file_lock(
 
     copied_file = b2_tool.should_succeed_json(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             lockable_file['fileId'],
             lock_enabled_bucket_name,
             'copied',
@@ -2302,7 +2313,8 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             lockable_file_id,
             lock_enabled_bucket_name,
             'copied',
@@ -2318,7 +2330,8 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'copy-file-by-id',
+            'file',
+            'copy-by-id',
             lockable_file_id,
             lock_disabled_bucket_name,
             'copied',
@@ -3174,7 +3187,7 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
 
     copied_version = b2_tool.should_succeed_json(
         [
-            'copy-file-by-id', '--quiet', *args, '--content-type', 'text/plain',
+            'file', 'copy-by-id', '--quiet', *args, '--content-type', 'text/plain',
             file_version['fileId'], bucket_name, 'copied_file'
         ]
     )
