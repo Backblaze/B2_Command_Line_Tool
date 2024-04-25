@@ -1,0 +1,1 @@
+Add `bucket {list|get|create|update|delete|get-download-auth|notification-rule}` commands.

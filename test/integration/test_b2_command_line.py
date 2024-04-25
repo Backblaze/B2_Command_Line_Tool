@@ -303,7 +303,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     file_data = read_file(sample_file)
     hex_sha1 = hashlib.sha1(file_data).hexdigest()
 
-    list_of_buckets = b2_tool.should_succeed_json(['list-buckets', '--json'])
+    list_of_buckets = b2_tool.should_succeed_json(['bucket', 'list', '--json'])
     should_equal(
         [bucket_name], [b['bucketName'] for b in list_of_buckets if b['bucketName'] == bucket_name]
     )
@@ -448,21 +448,22 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
     to_be_removed_bucket_name = b2_tool.generate_bucket_name()
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             to_be_removed_bucket_name,
             'allPublic',
             *b2_tool.get_bucket_info_args(),
         ],
     )
-    b2_tool.should_succeed(['delete-bucket', to_be_removed_bucket_name],)
+    b2_tool.should_succeed(['bucket', 'delete', to_be_removed_bucket_name],)
     b2_tool.should_fail(
-        ['delete-bucket', to_be_removed_bucket_name],
+        ['bucket', 'delete', to_be_removed_bucket_name],
         re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
     # Check logging settings
     if not is_running_on_docker:  # It's difficult to read the log in docker in CI
         b2_tool.should_fail(
-            ['delete-bucket', to_be_removed_bucket_name, '--debug-logs'],
+            ['bucket', 'delete', to_be_removed_bucket_name, '--debug-logs'],
             re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
         )
         stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
@@ -484,11 +485,14 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
             assert re.search(log_file_regex, log), log
         os.remove('b2_cli.log')
 
-        b2_tool.should_fail(['delete-bucket', to_be_removed_bucket_name, '--verbose'], stderr_regex)
+        b2_tool.should_fail(
+            ['bucket', 'delete', to_be_removed_bucket_name, '--verbose'], stderr_regex
+        )
         assert not os.path.exists('b2_cli.log')
 
         b2_tool.should_fail(
-            ['delete-bucket', to_be_removed_bucket_name, '--verbose', '--debug-logs'], stderr_regex
+            ['bucket', 'delete', to_be_removed_bucket_name, '--verbose', '--debug-logs'],
+            stderr_regex
         )
         with open('b2_cli.log') as logfile:
             log = logfile.read()
@@ -503,7 +507,7 @@ def test_bucket(b2_tool, bucket_name):
     }"""
     output = b2_tool.should_succeed_json(
         [
-            'update-bucket', '--lifecycle-rule', rule, bucket_name, 'allPublic',
+            'bucket', 'update', '--lifecycle-rule', rule, bucket_name, 'allPublic',
             *b2_tool.get_bucket_info_args()
         ],
     )
@@ -543,9 +547,9 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
         ['account', 'authorize', '--environment', b2_tool.realm, key_one_id, key_one],
     )
 
-    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', bucket_name],)
     second_bucket_name = bucket_factory().name
-    b2_tool.should_succeed(['get-bucket', second_bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', second_bucket_name],)
 
     key_two_name = 'clt-testKey-02' + random_hex(6)
     created_key_two_stdout = b2_tool.should_succeed(
@@ -579,7 +583,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     b2_tool.should_succeed(
         ['account', 'authorize', '--environment', b2_tool.realm, key_two_id, key_two],
     )
-    b2_tool.should_succeed(['get-bucket', bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', bucket_name],)
     b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
 
     b2_tool.should_succeed(
@@ -597,7 +601,7 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
 
     failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
-    b2_tool.should_fail(['get-bucket', second_bucket_name], failed_bucket_err)
+    b2_tool.should_fail(['bucket', 'get', second_bucket_name], failed_bucket_err)
 
     failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['ls', *b2_uri_args(second_bucket_name)], failed_list_files_err)
@@ -625,9 +629,9 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
 
 
 def test_delete_bucket(b2_tool, bucket_name):
-    b2_tool.should_succeed(['delete-bucket', bucket_name])
+    b2_tool.should_succeed(['bucket', 'delete', bucket_name])
     b2_tool.should_fail(
-        ['delete-bucket', bucket_name], re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+        ['bucket', 'delete', bucket_name], re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
     )
 
 
@@ -635,9 +639,9 @@ def test_rapid_bucket_operations(b2_tool):
     new_bucket_name = b2_tool.generate_bucket_name()
     bucket_info_args = b2_tool.get_bucket_info_args()
     # apparently server behaves erratically when we delete a bucket and recreate it right away
-    b2_tool.should_succeed(['create-bucket', new_bucket_name, 'allPrivate', *bucket_info_args])
-    b2_tool.should_succeed(['update-bucket', new_bucket_name, 'allPublic'])
-    b2_tool.should_succeed(['delete-bucket', new_bucket_name])
+    b2_tool.should_succeed(['bucket', 'create', new_bucket_name, 'allPrivate', *bucket_info_args])
+    b2_tool.should_succeed(['bucket', 'update', new_bucket_name, 'allPublic'])
+    b2_tool.should_succeed(['bucket', 'delete', new_bucket_name])
 
 
 def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
@@ -667,11 +671,11 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         account_info_file_path = os.path.join(mkdtemp(), 'b2_account_info')
         mp.setenv(B2_ACCOUNT_INFO_ENV_VAR, account_info_file_path)
 
-        # first, let's make sure "create-bucket" doesn't work without auth data - i.e. that the sqlite file has been
+        # first, let's make sure "bucket create" doesn't work without auth data - i.e. that the sqlite file has been
         # successfully removed
         bucket_name = b2_tool.generate_bucket_name()
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['bucket', 'create', bucket_name, 'allPrivate'],
             r'ERROR: Missing account data: \'NoneType\' object is not subscriptable (\(key 0\) )? '
             fr'Use: \'{cli_version}(\.(exe|EXE))? account authorize\' or provide auth data with \'B2_APPLICATION_KEY_ID\' and '
             r'\'B2_APPLICATION_KEY\' environment variables'
@@ -688,9 +692,9 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
 
         bucket_name = b2_tool.generate_bucket_name()
         b2_tool.should_succeed(
-            ['create-bucket', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
+            ['bucket', 'create', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
         )
-        b2_tool.should_succeed(['delete-bucket', bucket_name])
+        b2_tool.should_succeed(['bucket', 'delete', bucket_name])
 
         if apiver_int >= 4:
             assert not os.path.exists(
@@ -708,14 +712,14 @@ def test_account(b2_tool, cli_version, apiver_int, monkeypatch):
         # last, let's see that providing only one of the env vars results in a failure
         os.environ['B2_APPLICATION_KEY'] = os.environ['B2_TEST_APPLICATION_KEY']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['bucket', 'create', bucket_name, 'allPrivate'],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY')
 
         os.environ['B2_APPLICATION_KEY_ID'] = os.environ['B2_TEST_APPLICATION_KEY_ID']
         b2_tool.should_fail(
-            ['create-bucket', bucket_name, 'allPrivate'],
+            ['bucket', 'create', bucket_name, 'allPrivate'],
             r'Please provide both "B2_APPLICATION_KEY" and "B2_APPLICATION_KEY_ID" environment variables or none of them'
         )
         os.environ.pop('B2_APPLICATION_KEY_ID')
@@ -1397,13 +1401,13 @@ def test_sync_long_path(b2_tool, bucket_name):
 
 
 def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cleanup):
-    # Set default encryption via update-bucket
-    bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
+    # Set default encryption via `bucket update`
+    bucket_info = b2_tool.should_succeed_json(['bucket', 'get', bucket_name])
     bucket_default_sse = {'mode': 'none'}
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     bucket_info = b2_tool.should_succeed_json(
-        ['update-bucket', '--default-server-side-encryption=SSE-B2', bucket_name]
+        ['bucket', 'update', '--default-server-side-encryption=SSE-B2', bucket_name]
     )
     bucket_default_sse = {
         'algorithm': 'AES256',
@@ -1411,7 +1415,7 @@ def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cle
     }
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
-    bucket_info = b2_tool.should_succeed_json(['get-bucket', bucket_name])
+    bucket_info = b2_tool.should_succeed_json(['bucket', 'get', bucket_name])
     bucket_default_sse = {
         'algorithm': 'AES256',
         'mode': 'SSE-B2',
@@ -1420,19 +1424,20 @@ def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cle
 
 
 def test_default_sse_b2__create_bucket(b2_tool, schedule_bucket_cleanup):
-    # Set default encryption via create-bucket
+    # Set default encryption via `bucket create`
     second_bucket_name = b2_tool.generate_bucket_name()
     schedule_bucket_cleanup(second_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             '--default-server-side-encryption=SSE-B2',
             second_bucket_name,
             'allPublic',
             *b2_tool.get_bucket_info_args(),
         ]
     )
-    second_bucket_info = b2_tool.should_succeed_json(['get-bucket', second_bucket_name])
+    second_bucket_info = b2_tool.should_succeed_json(['bucket', 'get', second_bucket_name])
     second_bucket_default_sse = {
         'algorithm': 'AES256',
         'mode': 'SSE-B2',
@@ -1924,13 +1929,13 @@ def test_file_lock(
 
     b2_tool.should_fail(
         [
-            'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
+            'bucket', 'update', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
             'compliance'
         ], 'ValueError: must specify period for retention mode RetentionMode.COMPLIANCE'
     )
     b2_tool.should_fail(
         [
-            'update-bucket', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
+            'bucket', 'update', lock_disabled_bucket_name, 'allPrivate', '--default-retention-mode',
             'compliance', '--default-retention-period', '7 days'
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
@@ -1938,7 +1943,8 @@ def test_file_lock(
     schedule_bucket_cleanup(lock_enabled_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             lock_enabled_bucket_name,
             'allPrivate',
             '--file-lock-enabled',
@@ -1947,7 +1953,8 @@ def test_file_lock(
     )
     updated_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             lock_enabled_bucket_name,
             'allPrivate',
             '--default-retention-mode',
@@ -2059,7 +2066,8 @@ def test_file_lock(
 
     updated_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             lock_enabled_bucket_name,
             'allPrivate',
             '--default-retention-mode',
@@ -2197,7 +2205,7 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'update-bucket', lock_enabled_bucket_name, 'allPrivate', '--default-retention-mode',
+            'bucket', 'update', lock_enabled_bucket_name, 'allPrivate', '--default-retention-mode',
             'governance', '--default-retention-period', '1 days'
         ],
         'ERROR: unauthorized for application key with capabilities',
@@ -2446,7 +2454,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     key_two_id, _ = created_key_stdout.split()
 
     destination_bucket_name = bucket_name
-    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    destination_bucket = b2_tool.should_succeed_json(['bucket', 'get', destination_bucket_name])
 
     # test that by default there's no `replicationConfiguration` key
     assert 'replicationConfiguration' not in destination_bucket
@@ -2465,7 +2473,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     destination_replication_configuration_json = json.dumps(destination_replication_configuration)
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             destination_bucket_name,
             'allPublic',
             '--replication',
@@ -2511,7 +2520,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             source_bucket_name,
             'allPublic',
             '--replication',
@@ -2519,7 +2529,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
             *b2_tool.get_bucket_info_args(),
         ]
     )
-    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
+    source_bucket = b2_tool.should_succeed_json(['bucket', 'get', source_bucket_name])
 
     # test that all replication rules are present in source bucket
     assert source_bucket['replication']['asReplicationSource'
@@ -2530,7 +2540,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
 
     # ---------------- attempt enabling object lock  ----------------
     b2_tool.should_fail(
-        ['update-bucket', source_bucket_name, '--file-lock-enabled'],
+        ['bucket', 'update', source_bucket_name, '--file-lock-enabled'],
         'ERROR: Operation not supported for buckets with source replication'
     )
 
@@ -2543,7 +2553,7 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
     no_replication_configuration_json = json.dumps(no_replication_configuration)
     source_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket', source_bucket_name, 'allPublic', '--replication',
+            'bucket', 'update', source_bucket_name, 'allPublic', '--replication',
             no_replication_configuration_json
         ]
     )
@@ -2558,7 +2568,8 @@ def test_replication_basic(b2_tool, bucket_name, schedule_bucket_cleanup):
 
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             destination_bucket_name,
             'allPublic',
             '--replication',
@@ -2597,7 +2608,8 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             source_bucket_name,
             'allPublic',
             '--file-lock-enabled',
@@ -2609,7 +2621,7 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
         [*setup_cmd, source_bucket_name, destination_bucket_name],
         expected_stderr_pattern=replication_setup_expected_stderr_pattern
     )
-    destination_bucket_old = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    destination_bucket_old = b2_tool.should_succeed_json(['bucket', 'get', destination_bucket_name])
 
     b2_tool.should_succeed(
         [
@@ -2625,8 +2637,8 @@ def base_test_replication_setup(b2_tool, bucket_name, schedule_bucket_cleanup, u
         ],
         expected_stderr_pattern=replication_setup_expected_stderr_pattern,
     )
-    source_bucket = b2_tool.should_succeed_json(['get-bucket', source_bucket_name])
-    destination_bucket = b2_tool.should_succeed_json(['get-bucket', destination_bucket_name])
+    source_bucket = b2_tool.should_succeed_json(['bucket', 'get', source_bucket_name])
+    destination_bucket = b2_tool.should_succeed_json(['bucket', 'get', destination_bucket_name])
     assert source_bucket['replication']['asReplicationSource']['replicationRules'] == [
         {
             "destinationBucketId": destination_bucket['bucketId'],
@@ -2700,7 +2712,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     destination_replication_configuration_json = json.dumps(destination_replication_configuration)
     destination_bucket = b2_tool.should_succeed_json(
         [
-            'update-bucket',
+            'bucket',
+            'update',
             destination_bucket_name,
             'allPublic',
             '--replication',
@@ -2740,7 +2753,8 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     schedule_bucket_cleanup(source_bucket_name)
     b2_tool.should_succeed(
         [
-            'create-bucket',
+            'bucket',
+            'create',
             source_bucket_name,
             'allPublic',
             '--file-lock-enabled',
@@ -2910,25 +2924,25 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
 
 def test_enable_file_lock_first_retention_second(b2_tool, bucket_name):
     # enable file lock only
-    b2_tool.should_succeed(['update-bucket', bucket_name, '--file-lock-enabled'])
+    b2_tool.should_succeed(['bucket', 'update', bucket_name, '--file-lock-enabled'])
 
     # set retention with file lock already enabled
     b2_tool.should_succeed(
         [
-            'update-bucket', bucket_name, '--default-retention-mode', 'compliance',
+            'bucket', 'update', bucket_name, '--default-retention-mode', 'compliance',
             '--default-retention-period', '7 days'
         ]
     )
 
     # attempt to re-enable should be a noop
-    b2_tool.should_succeed(['update-bucket', bucket_name, '--file-lock-enabled'])
+    b2_tool.should_succeed(['bucket', 'update', bucket_name, '--file-lock-enabled'])
 
 
 def test_enable_file_lock_and_set_retention_at_once(b2_tool, bucket_name):
     # attempt setting retention without file lock enabled
     b2_tool.should_fail(
         [
-            'update-bucket', bucket_name, '--default-retention-mode', 'compliance',
+            'bucket', 'update', bucket_name, '--default-retention-mode', 'compliance',
             '--default-retention-period', '7 days'
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
@@ -2936,13 +2950,13 @@ def test_enable_file_lock_and_set_retention_at_once(b2_tool, bucket_name):
     # enable file lock and set retention at once
     b2_tool.should_succeed(
         [
-            'update-bucket', bucket_name, '--default-retention-mode', 'compliance',
+            'bucket', 'update', bucket_name, '--default-retention-mode', 'compliance',
             '--default-retention-period', '7 days', '--file-lock-enabled'
         ]
     )
 
     # attempt to re-enable should be a noop
-    b2_tool.should_succeed(['update-bucket', bucket_name, '--file-lock-enabled'])
+    b2_tool.should_succeed(['bucket', 'update', bucket_name, '--file-lock-enabled'])
 
 
 def _assert_file_lock_configuration(
@@ -3157,7 +3171,7 @@ def test_notification_rules(b2_tool, bucket_name):
 
     private_preview_pattern = re.compile(r'FeaturePreviewWarning')
     assert b2_tool.should_succeed_json(
-        ["notification-rules", "list", f"b2://{bucket_name}", "--json"],
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
         expected_stderr_pattern=private_preview_pattern
     ) == []
 
@@ -3177,7 +3191,8 @@ def test_notification_rules(b2_tool, bucket_name):
     # add rule
     created_rule = b2_tool.should_succeed_json(
         [
-            "notification-rules",
+            "bucket",
+            "notification-rule",
             "create",
             "--json",
             f"b2://{bucket_name}",
@@ -3196,7 +3211,8 @@ def test_notification_rules(b2_tool, bucket_name):
     secret = "0testSecret000000000000000000032"
     modified_rule = b2_tool.should_succeed_json(
         [
-            "notification-rules",
+            "bucket",
+            "notification-rule",
             "update",
             "--json",
             f"b2://{bucket_name}/prefix",
@@ -3213,16 +3229,16 @@ def test_notification_rules(b2_tool, bucket_name):
 
     # read updated rules
     assert b2_tool.should_succeed_json(
-        ["notification-rules", "list", f"b2://{bucket_name}", "--json"],
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
         expected_stderr_pattern=private_preview_pattern
     ) == expected_rules
 
     # delete rule by name
     assert b2_tool.should_succeed(
-        ["notification-rules", "delete", f"b2://{bucket_name}", "test-rule"],
+        ["bucket", "notification-rule", "delete", f"b2://{bucket_name}", "test-rule"],
         expected_stderr_pattern=private_preview_pattern
     ) == f"Rule 'test-rule' has been deleted from b2://{bucket_name}/\n"
     assert b2_tool.should_succeed_json(
-        ["notification-rules", "list", f"b2://{bucket_name}", "--json"],
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
         expected_stderr_pattern=private_preview_pattern
     ) == []

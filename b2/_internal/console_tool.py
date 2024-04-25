@@ -1548,7 +1548,7 @@ class CopyFileById(
         return source_file_version.file_info, source_file_version.content_type
 
 
-class CreateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
+class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Creates a new bucket.  Prints the ID of the bucket created.
 
@@ -1672,7 +1672,7 @@ class KeyCreateBase(Command):
         return 0
 
 
-class DeleteBucket(Command):
+class BucketDeleteBase(Command):
     """
     Deletes the bucket with the given name.
 
@@ -1995,7 +1995,7 @@ class AccountGetBase(Command):
         return 0
 
 
-class GetBucket(Command):
+class BucketGetBase(Command):
     """
     Prints all of the information about the bucket, including
     bucket info, CORS rules and lifecycle rules.
@@ -2080,7 +2080,7 @@ class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
     replaced_by_cmd = FileInfo
 
 
-class GetDownloadAuth(Command):
+class BucketGetDownloadAuthBase(Command):
     """
     Prints an authorization token that is valid only for downloading
     files from the given bucket.
@@ -2171,7 +2171,7 @@ class HideFile(Command):
         return 0
 
 
-class ListBuckets(Command):
+class BucketListBase(Command):
     """
     Lists all of the buckets in the current account.
 
@@ -3157,7 +3157,7 @@ class Sync(
         )
 
 
-class UpdateBucket(DefaultSseMixin, LifecycleRulesMixin, Command):
+class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.  Prints the ID
     of the bucket updated.
@@ -4254,7 +4254,7 @@ class InstallAutocomplete(Command):
         return 0
 
 
-class NotificationRulesWarningMixin(Described):
+class BucketNotificationRuleWarningMixin(Described):
     """
     .. warning::
 
@@ -4263,32 +4263,32 @@ class NotificationRulesWarningMixin(Described):
     """
 
 
-class NotificationRules(NotificationRulesWarningMixin, Command):
+class BucketNotificationRuleBase(BucketNotificationRuleWarningMixin, Command):
     """
     Bucket notification rules management subcommands.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
-    For more information on each subcommand, use ``{NAME} notification-rules SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} bucket notification-rule SUBCOMMAND --help``.
 
     Examples:
 
     .. code-block::
 
-        {NAME} notification-rules create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
-        {NAME} notification-rules list b2://bucketName
-        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
-        {NAME} notification-rules delete b2://bucketName ruleName
+        {NAME} bucket notification-rule create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
+        {NAME} bucket notification-rule list b2://bucketName
+        {NAME} bucket notification-rule update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
+        {NAME} bucket notification-rule delete b2://bucketName ruleName
     """
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Command):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningMixin, Command):
     """
     Allows listing bucket notification rules of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     {JSONOptionMixin}
 
@@ -4296,7 +4296,7 @@ class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Comm
 
     .. code-block::
 
-        {NAME} notification-rules list b2://bucketName
+        {NAME} notification-rule list b2://bucketName
 
 
     Requires capability:
@@ -4334,7 +4334,9 @@ class NotificationRulesList(JSONOptionMixin, NotificationRulesWarningMixin, Comm
         return 0
 
 
-class NotificationRulesCreateBase(JSONOptionMixin, NotificationRulesWarningMixin, Command):
+class BucketNotificationRuleCreateBase(
+    JSONOptionMixin, BucketNotificationRuleWarningMixin, Command
+):
     @classmethod
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
@@ -4418,7 +4420,7 @@ class NotificationRulesCreateBase(JSONOptionMixin, NotificationRulesWarningMixin
             self._print_human_readable_structure(rule)
 
 
-class NotificationRulesUpdateBase(NotificationRulesCreateBase):
+class BucketNotificationRuleUpdateBase(BucketNotificationRuleCreateBase):
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
         rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
@@ -4442,18 +4444,18 @@ class NotificationRulesUpdateBase(NotificationRulesCreateBase):
         return 0
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesCreate(NotificationRulesCreateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleCreate(BucketNotificationRuleCreateBase):
     """
     Allows creating bucket notification rules for the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
     .. code-block::
 
-        {NAME} notification-rules create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
+        {NAME} notification-rule create b2://bucketName/optionalSubPath/ ruleName --event-type "b2:ObjectCreated:*" --webhook-url https://example.com/webhook
 
 
     Requires capability:
@@ -4501,19 +4503,19 @@ class NotificationRulesCreate(NotificationRulesCreateBase):
         return 0
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesUpdate(NotificationRulesUpdateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleUpdate(BucketNotificationRuleUpdateBase):
     """
     Allows updating notification rule of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
     .. code-block::
 
-        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
-        {NAME} notification-rules update b2://bucketName/newPath/ ruleName --enable
+        {NAME} notification-rule update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
+        {NAME} notification-rule update b2://bucketName/newPath/ ruleName --enable
 
 
     Requires capability:
@@ -4530,18 +4532,18 @@ class NotificationRulesUpdate(NotificationRulesUpdateBase):
         super()._setup_parser(parser)
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesEnable(NotificationRulesUpdateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleEnable(BucketNotificationRuleUpdateBase):
     """
     Allows enabling notification rule of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
     .. code-block::
 
-        {NAME} notification-rules enable b2://bucketName/ ruleName
+        {NAME} notification-rule enable b2://bucketName/ ruleName
 
 
     Requires capability:
@@ -4565,18 +4567,18 @@ class NotificationRulesEnable(NotificationRulesUpdateBase):
         return {'name': args.ruleName, 'isEnabled': True}
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesDisable(NotificationRulesUpdateBase):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleDisable(BucketNotificationRuleUpdateBase):
     """
     Allows disabling notification rule of the given bucket.
 
-    {NotificationRulesWarningMixin}
+    {BucketNotificationRuleWarningMixin}
 
     Examples:
 
     .. code-block::
 
-        {NAME} notification-rules disable b2://bucketName/ ruleName
+        {NAME} notification-rule disable b2://bucketName/ ruleName
 
 
     Requires capability:
@@ -4600,8 +4602,8 @@ class NotificationRulesDisable(NotificationRulesUpdateBase):
         return {'name': args.ruleName, 'isEnabled': False}
 
 
-@NotificationRules.subcommands_registry.register
-class NotificationRulesDelete(Command):
+@BucketNotificationRuleBase.subcommands_registry.register
+class BucketNotificationRuleDelete(Command):
     """
     Allows deleting bucket notification rule of the given bucket.
 
@@ -4811,6 +4813,108 @@ class GetAccountInfo(CmdReplacedByMixin, AccountGetBase):
 class ClearAccount(CmdReplacedByMixin, AccountClearBase):
     __doc__ = AccountClearBase.__doc__
     replaced_by_cmd = (Account, AccountClear)
+
+
+class BucketCmd(Command):
+    """
+    Bucket management subcommands.
+
+    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} bucket list
+        {NAME} bucket get
+        {NAME} bucket create
+        {NAME} bucket update
+        {NAME} bucket delete
+        {NAME} bucket get-download-auth
+    """
+    # to avoid conflicts with the Bucket class this class is named BucketCmd
+    COMMAND_NAME = "bucket"
+
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@BucketCmd.subcommands_registry.register
+class BucketList(BucketListBase):
+    __doc__ = BucketListBase.__doc__
+    COMMAND_NAME = 'list'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketGet(BucketGetBase):
+    __doc__ = BucketGetBase.__doc__
+    COMMAND_NAME = 'get'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketCreate(BucketCreateBase):
+    __doc__ = BucketCreateBase.__doc__
+    COMMAND_NAME = 'create'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketUpdate(BucketUpdateBase):
+    __doc__ = BucketUpdateBase.__doc__
+    COMMAND_NAME = 'update'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketDelete(BucketDeleteBase):
+    __doc__ = BucketDeleteBase.__doc__
+    COMMAND_NAME = 'delete'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketGetDownloadAuth(BucketGetDownloadAuthBase):
+    __doc__ = BucketGetDownloadAuthBase.__doc__
+    # TODO we can't use 'get-download-auth', gets transformed to 'get--download--auth'
+    COMMAND_NAME = 'GetDownloadAuth'
+
+
+@BucketCmd.subcommands_registry.register
+class BucketNotificationRule(BucketNotificationRuleBase):
+    __doc__ = BucketNotificationRuleBase.__doc__
+    # TODO we can't use 'notification-rule', gets transformed to 'notification--rule'
+    COMMAND_NAME = 'NotificationRule'
+
+
+class ListBuckets(CmdReplacedByMixin, BucketListBase):
+    __doc__ = BucketListBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketList)
+
+
+class GetBucket(CmdReplacedByMixin, BucketGetBase):
+    __doc__ = BucketGetBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketGet)
+
+
+class CreateBucket(CmdReplacedByMixin, BucketCreateBase):
+    __doc__ = BucketCreateBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketCreate)
+
+
+class UpdateBucket(CmdReplacedByMixin, BucketUpdateBase):
+    __doc__ = BucketUpdateBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketUpdate)
+
+
+class DeleteBucket(CmdReplacedByMixin, BucketDeleteBase):
+    __doc__ = BucketDeleteBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketDelete)
+
+
+class GetDownloadAuth(CmdReplacedByMixin, BucketGetDownloadAuthBase):
+    __doc__ = BucketGetDownloadAuthBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketGetDownloadAuth)
+
+
+class NotificationRules(CmdReplacedByMixin, BucketNotificationRuleBase):
+    __doc__ = BucketNotificationRuleBase.__doc__
+    replaced_by_cmd = (BucketCmd, BucketNotificationRule)
 
 
 class ConsoleTool:
