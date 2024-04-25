@@ -54,7 +54,7 @@ def test_authorize_with_good_key(b2_cli, b2_cli_is_authorized_afterwards, comman
 
     expected_stderr = "" if len(
         command
-    ) == 2 else "WARNING: authorize-account command is deprecated. Use account instead.\n"
+    ) == 2 else "WARNING: `authorize-account` command is deprecated. Use `account authorize` instead.\n"
 
     b2_cli._run_command([*command, b2_cli.account_id, b2_cli.master_key], None, expected_stderr, 0)
 
@@ -83,7 +83,8 @@ def test_authorize_using_env_variables(b2_cli):
     ):
         b2_cli._run_command(
             ["authorize-account"], None,
-            'WARNING: authorize-account command is deprecated. Use account instead.\n', 0
+            'WARNING: `authorize-account` command is deprecated. Use `account authorize` instead.\n',
+            0
         )
 
     assert b2_cli.account_info.get_account_auth_token() is not None
