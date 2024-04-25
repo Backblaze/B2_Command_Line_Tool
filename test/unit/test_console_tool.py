@@ -1060,7 +1060,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['file-info', 'b2id://9999'],
+                ['file', 'info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1209,7 +1209,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['file-info', 'b2id://9999'],
+                ['file', 'info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 

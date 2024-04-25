@@ -24,7 +24,7 @@ def test_make_url(b2_cli, uploaded_file, uploaded_file_url_by_id):
     b2_cli.run(
         ["make-url", uploaded_file["fileId"]],
         expected_stdout=f"{uploaded_file_url_by_id}\n",
-        expected_stderr='WARNING: `make-url` command is deprecated. Use `get-url` instead.\n',
+        expected_stderr='WARNING: `make-url` command is deprecated. Use `file url` instead.\n',
     )
 
 
@@ -33,14 +33,15 @@ def test_make_friendly_url(b2_cli, bucket, uploaded_file, uploaded_file_url):
         ["make-friendly-url", bucket, uploaded_file["fileName"]],
         expected_stdout=f"{uploaded_file_url}\n",
         expected_stderr=
-        'WARNING: `make-friendly-url` command is deprecated. Use `get-url` instead.\n',
+        'WARNING: `make-friendly-url` command is deprecated. Use `file url` instead.\n',
     )
 
 
 def test_get_url__b2_uri(b2_cli, bucket, uploaded_file, uploaded_file_url):
     b2_cli.run(
         [
-            "get-url",
+            "file",
+            "url",
             f'b2://{bucket}/{uploaded_file["fileName"]}',
         ],
         expected_stdout=f"{uploaded_file_url}\n",
@@ -49,6 +50,6 @@ def test_get_url__b2_uri(b2_cli, bucket, uploaded_file, uploaded_file_url):
 
 def test_get_url__b2id_uri(b2_cli, uploaded_file, uploaded_file_url_by_id):
     b2_cli.run(
-        ["get-url", f'b2id://{uploaded_file["fileId"]}'],
+        ["file", "url", f'b2id://{uploaded_file["fileId"]}'],
         expected_stdout=f"{uploaded_file_url_by_id}\n",
     )

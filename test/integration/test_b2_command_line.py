@@ -400,7 +400,9 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
         ['ls', *b2_uri_args(bucket_name, 'b/')], f'^b/1{os.linesep}b/2{os.linesep}'
     )
 
-    file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{second_c_version['fileId']}"])
+    file_info = b2_tool.should_succeed_json(
+        ['file', 'info', f"b2id://{second_c_version['fileId']}"]
+    )
     expected_info = {
         'color': 'blue',
         'foo': 'bar=baz',
@@ -413,10 +415,10 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
         ['ls', *b2_uri_args(bucket_name)], f'^a{os.linesep}b/{os.linesep}c{os.linesep}d{os.linesep}'
     )
 
-    b2_tool.should_succeed(['get-url', f"b2id://{second_c_version['fileId']}"])
+    b2_tool.should_succeed(['file', 'url', f"b2id://{second_c_version['fileId']}"])
 
     b2_tool.should_succeed(
-        ['get-url', f"b2://{bucket_name}/any-file-name"],
+        ['file', 'url', f"b2://{bucket_name}/any-file-name"],
         '^https://.*/file/{}/{}\r?$'.format(
             bucket_name,
             'any-file-name',
@@ -897,7 +899,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
             return  # that's enough, we've checked that encryption works, no need to repeat the whole sync suite
 
         c_id = find_file_id(file_versions, prefix + 'c')
-        file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{c_id}"])['fileInfo']
+        file_info = b2_tool.should_succeed_json(['file', 'info', f"b2id://{c_id}"])['fileInfo']
         should_equal(
             file_mod_time_millis(dir_path / 'c'), int(file_info['src_last_modified_millis'])
         )
@@ -1477,11 +1479,13 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     )
 
     encrypted_version = list_of_files[0]
-    file_info = b2_tool.should_succeed_json(['file-info', f"b2id://{encrypted_version['fileId']}"])
+    file_info = b2_tool.should_succeed_json(
+        ['file', 'info', f"b2id://{encrypted_version['fileId']}"]
+    )
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
     not_encrypted_version = list_of_files[1]
     file_info = b2_tool.should_succeed_json(
-        ['file-info', f"b2id://{not_encrypted_version['fileId']}"]
+        ['file', 'info', f"b2id://{not_encrypted_version['fileId']}"]
     )
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
@@ -1509,13 +1513,13 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
 
     copied_encrypted_version = list_of_files[2]
     file_info = b2_tool.should_succeed_json(
-        ['file-info', f"b2id://{copied_encrypted_version['fileId']}"]
+        ['file', 'info', f"b2id://{copied_encrypted_version['fileId']}"]
     )
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
 
     copied_not_encrypted_version = list_of_files[3]
     file_info = b2_tool.should_succeed_json(
-        ['file-info', f"b2id://{copied_not_encrypted_version['fileId']}"]
+        ['file', 'info', f"b2id://{copied_not_encrypted_version['fileId']}"]
     )
     should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
 
@@ -2967,7 +2971,7 @@ def _assert_file_lock_configuration(
     legal_hold: LegalHold | None = None
 ):
 
-    file_version = b2_tool.should_succeed_json(['file-info', f"b2id://{file_id}"])
+    file_version = b2_tool.should_succeed_json(['file', 'info', f"b2id://{file_id}"])
     if retention_mode is not None:
         if file_version['fileRetention']['mode'] == 'unknown':
             actual_file_retention = UNKNOWN_FILE_RETENTION_SETTING
@@ -3097,9 +3101,9 @@ def test_download_file_to_directory(
 
 def test_cat(b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file):
     assert b2_tool.should_succeed(
-        ['cat', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}"],
+        ['file', 'cat', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}"],
     ) == sample_filepath.read_text()
-    assert b2_tool.should_succeed(['cat', f"b2id://{uploaded_sample_file['fileId']}"]
+    assert b2_tool.should_succeed(['file', 'cat', f"b2id://{uploaded_sample_file['fileId']}"]
                                  ) == sample_filepath.read_text()
 
 

@@ -163,13 +163,15 @@ def test_download_file_by_name__to_stdout_by_alias(
 
 def test_cat__b2_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     """Test download_file_by_name stdout alias support"""
-    b2_cli.run(['cat', '--no-progress', f"b2://{bucket}/{uploaded_stdout_txt['fileName']}"],)
+    b2_cli.run(
+        ['file', 'cat', '--no-progress', f"b2://{bucket}/{uploaded_stdout_txt['fileName']}"],
+    )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
 
 def test_cat__b2_uri__invalid(b2_cli, capfd):
     b2_cli.run(
-        ['cat', "nothing/meaningful"],
+        ['file', 'cat', "nothing/meaningful"],
         expected_stderr=None,
         expected_status=2,
     )
@@ -178,7 +180,7 @@ def test_cat__b2_uri__invalid(b2_cli, capfd):
 
 def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
     b2_cli.run(
-        ['cat', "b2://bucket/dir/subdir/"],
+        ['file', 'cat', "b2://bucket/dir/subdir/"],
         expected_stderr=None,
         expected_status=2,
     )
@@ -188,7 +190,7 @@ def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
 
 def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     """Test download_file_by_name stdout alias support"""
-    b2_cli.run(['cat', '--no-progress', "b2id://9999"],)
+    b2_cli.run(['file', 'cat', '--no-progress', "b2id://9999"],)
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
 
