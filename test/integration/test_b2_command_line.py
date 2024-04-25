@@ -1996,6 +1996,7 @@ def test_file_lock(
         ['file', 'upload', '--no-progress', '--quiet', lock_enabled_bucket_name, sample_file, 'a']
     )
 
+    # deprecated command
     b2_tool.should_fail(
         [
             'update-file-retention', not_lockable_file['fileName'], not_lockable_file['fileId'],
@@ -2004,10 +2005,20 @@ def test_file_lock(
         ], r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
+    # deprecated command
+    update_file_retention_deprecated_pattern = re.compile(
+        re.escape(
+            'WARNING: `update-file-retention` command is deprecated. Use `file update` instead.'
+        )
+    )
     b2_tool.should_succeed(  # first let's try with a file name
         ['update-file-retention', lockable_file['fileName'], lockable_file['fileId'], 'governance',
-         '--retain-until', str(now_millis + ONE_DAY_MILLIS + ONE_HOUR_MILLIS)]
+         '--retain-until', str(now_millis + ONE_DAY_MILLIS + ONE_HOUR_MILLIS)],
+        expected_stderr_pattern=update_file_retention_deprecated_pattern,
     )
+
+    lockable_b2uri = f"b2://{lock_enabled_bucket_name}/{lockable_file['fileName']}"
+    not_lockable_b2uri = f"b2://{lock_disabled_bucket_name}/{not_lockable_file['fileName']}"
 
     _assert_file_lock_configuration(
         b2_tool,
@@ -2017,8 +2028,8 @@ def test_file_lock(
     )
 
     b2_tool.should_succeed(  # and now without a file name
-        ['update-file-retention', lockable_file['fileId'], 'governance',
-         '--retain-until', str(now_millis + ONE_DAY_MILLIS + 2 * ONE_HOUR_MILLIS)]
+        ['file', 'update', '--file-retention-mode', 'governance',
+         '--retain-until', str(now_millis + ONE_DAY_MILLIS + 2 * ONE_HOUR_MILLIS), lockable_b2uri],
     )
 
     _assert_file_lock_configuration(
@@ -2030,18 +2041,16 @@ def test_file_lock(
 
     b2_tool.should_fail(
         [
-            'update-file-retention', lockable_file['fileName'], lockable_file['fileId'],
-            'governance', '--retain-until',
-            str(now_millis + ONE_HOUR_MILLIS)
+            'file', 'update', '--file-retention-mode', 'governance', '--retain-until',
+            str(now_millis + ONE_HOUR_MILLIS), lockable_b2uri
         ],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
         "bypassGovernance=true parameter missing",
     )
     b2_tool.should_succeed(
         [
-            'update-file-retention', lockable_file['fileName'], lockable_file['fileId'],
-            'governance', '--retain-until',
-            str(now_millis + ONE_HOUR_MILLIS), '--bypass-governance'
+            'file', 'update', '--file-retention-mode', 'governance', '--retain-until',
+            str(now_millis + ONE_HOUR_MILLIS), '--bypass-governance', lockable_b2uri
         ],
     )
 
@@ -2053,15 +2062,12 @@ def test_file_lock(
     )
 
     b2_tool.should_fail(
-        ['update-file-retention', lockable_file['fileName'], lockable_file['fileId'], 'none'],
+        ['file', 'update', '--file-retention-mode', 'none', lockable_b2uri],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
         "bypassGovernance=true parameter missing",
     )
     b2_tool.should_succeed(
-        [
-            'update-file-retention', lockable_file['fileName'], lockable_file['fileId'], 'none',
-            '--bypass-governance'
-        ],
+        ['file', 'update', '--file-retention-mode', 'none', '--bypass-governance', lockable_b2uri],
     )
 
     _assert_file_lock_configuration(
@@ -2069,18 +2075,25 @@ def test_file_lock(
     )
 
     b2_tool.should_fail(
-        ['update-file-legal-hold', not_lockable_file['fileId'], 'on'],
+        ['file', 'update', '--legal-hold', 'on', not_lockable_b2uri],
         r'ERROR: The bucket is not file lock enabled \(bucket_missing_file_lock\)'
     )
 
+    # deprecated command
+    update_file_legal_hold_deprecated_pattern = re.compile(
+        re.escape(
+            'WARNING: `update-file-legal-hold` command is deprecated. Use `file update` instead.'
+        )
+    )
     b2_tool.should_succeed(  # first let's try with a file name
         ['update-file-legal-hold', lockable_file['fileName'], lockable_file['fileId'], 'on'],
+        expected_stderr_pattern=update_file_legal_hold_deprecated_pattern,
     )
 
     _assert_file_lock_configuration(b2_tool, lockable_file['fileId'], legal_hold=LegalHold.ON)
 
     b2_tool.should_succeed(  # and now without a file name
-        ['update-file-legal-hold', lockable_file['fileId'], 'off'],
+        ['file', 'update', '--legal-hold', 'off', lockable_b2uri],
     )
 
     _assert_file_lock_configuration(b2_tool, lockable_file['fileId'], legal_hold=LegalHold.OFF)
@@ -2194,6 +2207,8 @@ def test_file_lock(
         lock_disabled_bucket_name,
         lockable_file['fileId'],
         not_lockable_file['fileId'],
+        lockable_b2uri,
+        not_lockable_b2uri,
         sample_file=sample_file
     )
 
@@ -2225,7 +2240,7 @@ def make_lock_disabled_key(b2_tool):
 
 def file_lock_without_perms_test(
     b2_tool, lock_enabled_bucket_name, lock_disabled_bucket_name, lockable_file_id,
-    not_lockable_file_id, sample_file
+    not_lockable_file_id, lockable_b2uri, not_lockable_b2uri, sample_file
 ):
 
     b2_tool.should_fail(
@@ -2245,8 +2260,8 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'update-file-retention', lockable_file_id, 'governance', '--retain-until',
-            str(current_time_millis() + 7 * ONE_DAY_MILLIS)
+            'file', 'update', '--file-retention-mode', 'governance', '--retain-until',
+            str(current_time_millis() + 7 * ONE_DAY_MILLIS), lockable_b2uri
         ],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
         "bypassGovernance=true parameter missing",
@@ -2254,21 +2269,21 @@ def file_lock_without_perms_test(
 
     b2_tool.should_fail(
         [
-            'update-file-retention', not_lockable_file_id, 'governance', '--retain-until',
-            str(current_time_millis() + 7 * ONE_DAY_MILLIS)
+            'file', 'update', '--file-retention-mode', 'governance', '--retain-until',
+            str(current_time_millis() + 7 * ONE_DAY_MILLIS), not_lockable_b2uri
         ],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
         "bypassGovernance=true parameter missing",
     )
 
     b2_tool.should_fail(
-        ['update-file-legal-hold', lockable_file_id, 'on'],
+        ['file', 'update', '--legal-hold', 'on', lockable_b2uri],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
         "bypassGovernance=true parameter missing",
     )
 
     b2_tool.should_fail(
-        ['update-file-legal-hold', not_lockable_file_id, 'on'],
+        ['file', 'update', '--legal-hold', 'on', not_lockable_b2uri],
         "ERROR: Auth token not authorized to write retention or file already in 'compliance' mode or "
         "bypassGovernance=true parameter missing",
     )
