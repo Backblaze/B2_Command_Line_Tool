@@ -2113,7 +2113,7 @@ class GetDownloadUrlWithAuth(Command):
         return 0
 
 
-class HideFile(Command):
+class FileHideBase(Command):
     """
     Uploads a new, hidden, version of the given file.
 
@@ -4925,6 +4925,12 @@ class FileCopyById(FileCopyByIdBase):
     COMMAND_NAME = 'CopyById'
 
 
+@File.subcommands_registry.register
+class FileHide(FileHideBase):
+    __doc__ = FileHideBase.__doc__
+    COMMAND_NAME = 'hide'
+
+
 class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
     replaced_by_cmd = (File, FileInfo)
@@ -4980,6 +4986,11 @@ class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileD
 class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
     __doc__ = FileCopyByIdBase.__doc__
     replaced_by_cmd = (File, FileCopyById)
+
+
+class HideFile(CmdReplacedByMixin, FileHideBase):
+    __doc__ = FileHideBase.__doc__
+    replaced_by_cmd = (File, FileHide)
 
 
 class ConsoleTool:

@@ -176,7 +176,7 @@ def test_complete_with_escaped_control_characters(
         store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
 
-    with autocomplete_runner(f'b2 hide-file {bucket} '):
+    with autocomplete_runner(f'b2 file hide {bucket} '):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert escaped_cc_file_name in argcomplete_output
@@ -200,7 +200,7 @@ def test_complete_with_file_suggestions(
         tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
-    with autocomplete_runner(f'b2 hide-file {bucket} '):
+    with autocomplete_runner(f'b2 file hide {bucket} '):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert file_name in argcomplete_output

@@ -350,7 +350,7 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
         ['file', 'download', '--quiet', f'b2://{bucket_name}/b/1', tmp_path / 'a']
     )
 
-    b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
+    b2_tool.should_succeed(['file', 'hide', bucket_name, 'c'])
 
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]

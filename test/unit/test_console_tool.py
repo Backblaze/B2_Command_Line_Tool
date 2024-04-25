@@ -1081,7 +1081,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['hide-file', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'my-bucket', 'file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1269,7 +1269,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['hide-file', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'my-bucket', 'file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1982,10 +1982,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden1'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden2'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden2'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden4'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
@@ -2043,13 +2043,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden2'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
