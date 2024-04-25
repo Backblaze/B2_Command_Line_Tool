@@ -1409,7 +1409,7 @@ class AccountClearBase(Command):
         return 0
 
 
-class CopyFileById(
+class FileCopyByIdBase(
     HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin,
     LegalHoldMixin, Command
 ):
@@ -4918,6 +4918,13 @@ class FileDownload(B2URIFileArgMixin, FileDownloadBase):
     COMMAND_NAME = 'download'
 
 
+@File.subcommands_registry.register
+class FileCopyById(FileCopyByIdBase):
+    __doc__ = FileCopyByIdBase.__doc__
+    # TODO we can't use 'copy-by-id', gets transformed to 'copy--by--id'
+    COMMAND_NAME = 'CopyById'
+
+
 class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
     replaced_by_cmd = (File, FileInfo)
@@ -4968,6 +4975,11 @@ class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, FileDownloadBase
 class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileDownloadBase):
     __doc__ = FileDownloadBase.__doc__
     replaced_by_cmd = (File, FileDownload)
+
+
+class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
+    __doc__ = FileCopyByIdBase.__doc__
+    replaced_by_cmd = (File, FileCopyById)
 
 
 class ConsoleTool:
