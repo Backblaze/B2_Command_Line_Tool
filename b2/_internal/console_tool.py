@@ -4645,7 +4645,7 @@ class Replication(Command):
     """
     Replication rule management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} replication SUBCOMMAND --help``.
 
     Examples:
 
@@ -4719,7 +4719,7 @@ class Account(Command):
     """
     Account management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} account SUBCOMMAND --help``.
 
     Examples:
 
@@ -4769,7 +4769,7 @@ class BucketCmd(Command):
     """
     Bucket management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} bucket SUBCOMMAND --help``.
 
     Examples:
 
