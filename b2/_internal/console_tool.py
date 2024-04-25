@@ -4951,6 +4951,7 @@ class File(Command):
         {NAME} file download
         {NAME} file copy-by-id
         {NAME} file hide
+        {NAME} file update
     """
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
