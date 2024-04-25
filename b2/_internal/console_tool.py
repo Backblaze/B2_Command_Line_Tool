@@ -1901,6 +1901,11 @@ class DownloadFileBase(
     - **readFiles**
     """
 
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('localFileName')
+
     def _run(self, args):
         progress_listener = self.make_progress_listener(
             args.localFileName, args.no_progress or args.quiet
@@ -1926,11 +1931,6 @@ class DownloadFileBase(
 class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        super()._setup_parser(parser)
-        parser.add_argument('localFileName')
-
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
         return args.B2_URI
 
@@ -1939,20 +1939,10 @@ class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase
     __doc__ = DownloadFileBase.__doc__
     replaced_by_cmd = DownloadFile
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        super()._setup_parser(parser)
-        parser.add_argument('localFileName')
-
 
 class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, DownloadFileBase):
     __doc__ = DownloadFileBase.__doc__
     replaced_by_cmd = DownloadFile
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        super()._setup_parser(parser)
-        parser.add_argument('localFileName')
 
 
 class FileCatBase(B2URIFileArgMixin, DownloadCommand):
