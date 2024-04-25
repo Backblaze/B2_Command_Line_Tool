@@ -3525,7 +3525,74 @@ class UploadUnboundStream(UploadFileMixin, Command):
         return file_version
 
 
-class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
+class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
+    """
+    {LegalHoldMixin}
+
+    Retention:
+
+      Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
+      with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires providing ``retainUntil``,
+      which has to be a future timestamp in the form of an integer representing milliseconds since epoch.
+
+      If a file already is in governance mode, disabling retention or shortening it's period requires providing
+      ``--bypass-governance``.
+
+      If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
+
+      In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
+
+      {FILE_RETENTION_COMPATIBILITY_WARNING}
+
+    Requires capability:
+
+    - **readFiles**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+
+        add_normalized_argument(
+            parser,
+            '--file-retention-mode',
+            default=None,
+            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value, 'none')
+        )
+        add_normalized_argument(
+            parser,
+            '--retain-until',
+            type=parse_millis_from_float_timestamp,
+            metavar='TIMESTAMP',
+            default=None
+        )
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
+
+    def _run(self, args):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        file_version = self.api.get_file_info_by_uri(b2_uri)
+
+        if args.legal_hold is not None:
+            self.api.update_file_legal_hold(
+                file_version.id_, file_version.file_name, LegalHold(args.legal_hold)
+            )
+
+        if args.file_retention_mode is not None:
+            if args.file_retention_mode == 'none':
+                file_retention = FileRetentionSetting(RetentionMode.NONE)
+            else:
+                file_retention = FileRetentionSetting(
+                    RetentionMode(args.file_retention_mode), args.retain_until
+                )
+
+            self.api.update_file_retention(
+                file_version.id_, file_version.file_name, file_retention, args.bypass_governance
+            )
+
+        return 0
+
+
+class UpdateFileLegalHoldBase(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true.
 
@@ -3550,7 +3617,7 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
+class UpdateFileRetentionBase(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
     providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
@@ -4931,6 +4998,12 @@ class FileHide(FileHideBase):
     COMMAND_NAME = 'hide'
 
 
+@File.subcommands_registry.register
+class FileUpdate(FileUpdateBase):
+    __doc__ = FileUpdateBase.__doc__
+    COMMAND_NAME = 'update'
+
+
 class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
     replaced_by_cmd = (File, FileInfo)
@@ -4991,6 +5064,16 @@ class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
 class HideFile(CmdReplacedByMixin, FileHideBase):
     __doc__ = FileHideBase.__doc__
     replaced_by_cmd = (File, FileHide)
+
+
+class UpdateFileLegalHold(CmdReplacedByMixin, UpdateFileLegalHoldBase):
+    __doc__ = UpdateFileLegalHoldBase.__doc__
+    replaced_by_cmd = (File, FileUpdate)
+
+
+class UpdateFileRetention(CmdReplacedByMixin, UpdateFileRetentionBase):
+    __doc__ = UpdateFileRetentionBase.__doc__
+    replaced_by_cmd = (File, FileUpdate)
 
 
 class ConsoleTool:

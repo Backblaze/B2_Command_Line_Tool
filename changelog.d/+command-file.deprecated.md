@@ -1,1 +1,1 @@
-Deprecated `file-info`, `get-url`, `cat`, `upload-file`, `download-file`, `copy-file-by-id` and `hide-file`, use `file {info|url|cat|upload|download|copy-by-id|hide}` instead.
+Deprecated `file-info`, `get-url`, `cat`, `upload-file`, `download-file`, `copy-file-by-id`, `hide-file`, `update-file-legal-hold` and `update-file-retention`, use `file {info|url|cat|upload|download|copy-by-id|hide|update}` instead.
