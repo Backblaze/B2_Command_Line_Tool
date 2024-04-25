@@ -140,7 +140,7 @@ def test_download_file_by_name__named_pipe(
 @pytest.fixture
 def uploaded_stdout_txt(b2_cli, bucket, local_file, tmp_path):
     local_file.write_text('non-mocked /dev/stdout test ignore me')
-    b2_cli.run(['upload-file', bucket, str(local_file), 'stdout.txt'])
+    b2_cli.run(['file', 'upload', bucket, str(local_file), 'stdout.txt'])
     return {
         'bucket': bucket,
         'fileName': 'stdout.txt',

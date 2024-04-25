@@ -3376,7 +3376,7 @@ class UploadFileMixin(
 
     def upload_file_kwargs_to_unbound_upload(self, **kwargs):
         """
-        Translate upload_file kwargs to unbound_upload equivalents
+        Translate `file upload` kwargs to unbound_upload equivalents
         """
         kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
         kwargs["buffers_count"] = kwargs["threads"] + 1
@@ -3420,7 +3420,7 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
 
     A FIFO file (such as named pipe) can be given instead of regular file.
 
-    By default, upload_file will compute the sha1 checksum of the file
+    By default, `file upload` will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
     on the command line to save a little time.
 
@@ -3481,7 +3481,7 @@ class UploadUnboundStream(UploadFileMixin, Command):
     {UploadFileMixin}
     {MinPartSizeMixin}
 
-    As opposed to ``b2 upload-file``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
+    As opposed to ``b2 file upload``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
     So on memory constrained system it is best to use ``--part-size`` option to set it manually.
     During upload of unbound stream ``--part-size`` as well as ``--threads`` determine the amount of memory used.
     The maximum memory use for the upload buffers can be estimated at ``partSize * threads``, that is ~1GB by default.
@@ -3540,7 +3540,7 @@ class UploadUnboundStream(UploadFileMixin, Command):
             self._print_stderr(
                 "WARNING: You are using a stream upload command to upload a regular file. "
                 "While it will work, it is inefficient. "
-                "Use of upload-file command is recommended."
+                "Use of `file upload` command is recommended."
             )
             input_stream = local_file
 

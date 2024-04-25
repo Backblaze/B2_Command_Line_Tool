@@ -303,9 +303,11 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
             bad_str = "\u009b2K\u009b7Gb\u009b24Gx\u009b4GH"
             escaped_bad_str = "\\x9b2K\\x9b7Gb\\x9b24Gx\\x9b4GH"
 
-            self._run_command(['upload-file', '--no-progress', 'my-bucket-cc', local_file, bad_str])
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, bad_str]
+            )
+            self._run_command(
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
             )
 
             self._run_command(
@@ -1029,7 +1031,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
+                    'file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
                     '--cache-control=private, max-age=3600'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1179,8 +1181,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', '--destination-server-side-encryption=SSE-B2',
-                    'my-bucket', local_file1, 'file1.txt'
+                    'file', 'upload', '--no-progress',
+                    '--destination-server-side-encryption=SSE-B2', 'my-bucket', local_file1,
+                    'file1.txt'
                 ],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
@@ -1344,7 +1347,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             local_file_content = self._read_file(local_file)
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket', local_file, source_filename],
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file, source_filename],
                 remove_version=True,
             )
 
@@ -1414,7 +1417,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -1645,7 +1648,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', '--threads', '5', 'my-bucket', file_path,
+                    'file', 'upload', '--no-progress', '--threads', '5', 'my-bucket', file_path,
                     'test.txt'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1689,8 +1692,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', '--destination-server-side-encryption=SSE-B2',
-                    '--threads', '5', 'my-bucket', file_path, 'test.txt'
+                    'file', 'upload', '--no-progress',
+                    '--destination-server-side-encryption=SSE-B2', '--threads', '5', 'my-bucket',
+                    file_path, 'test.txt'
                 ],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
@@ -1707,7 +1711,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             file_path = pathlib.Path(temp_dir) / 'test.txt'
 
             incremental_upload_params = [
-                'upload-file',
+                'file',
+                'upload',
                 '--no-progress',
                 '--threads',
                 '5',
@@ -1838,7 +1843,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5000
             }
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -2825,7 +2830,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             escaped_cc_filename = '\\x9bT\\x9bE\\x9bS\\x9bTtest.txt'
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket-0', local_file, cc_filename]
+                ['file', 'upload', '--no-progress', 'my-bucket-0', local_file, cc_filename]
             )
 
         self._run_command(
@@ -2852,10 +2857,12 @@ class TestConsoleTool(BaseConsoleToolTest):
             bad_str = "\u009b2K\u009b7Gb\u009b24Gx\u009b4GH"
             escaped_bad_str = "\\x9b2K\\x9b7Gb\\x9b24Gx\\x9b4GH"
 
-            self._run_command(['upload-file', '--no-progress', 'my-bucket-cc', local_file, bad_str])
+            self._run_command(
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, bad_str]
+            )
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
             )
 
             self._run_command(
