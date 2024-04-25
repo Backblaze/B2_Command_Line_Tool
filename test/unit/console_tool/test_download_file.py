@@ -40,7 +40,7 @@ def test_download_file_by_uri__flag_support(b2_cli, uploaded_file, tmp_path, fla
     output_path = tmp_path / 'output.txt'
 
     b2_cli.run(
-        ['download-file', flag, 'b2id://9999',
+        ['file', 'download', flag, 'b2id://9999',
          str(output_path)],
         expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve())
     )
@@ -55,7 +55,7 @@ def test_download_file_by_uri__b2_uri_support(b2_cli, uploaded_file, tmp_path, b
     output_path = tmp_path / 'output.txt'
 
     b2_cli.run(
-        ['download-file', b2_uri, str(output_path)],
+        ['file', 'download', b2_uri, str(output_path)],
         expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
             output_path=pathlib.Path(output_path).resolve()
         )
@@ -82,7 +82,7 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
             output_path=pathlib.Path(output_path).resolve()
         ),
         expected_stderr=
-        'WARNING: `download-file-by-name` command is deprecated. Use `download-file` instead.\n',
+        'WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -101,7 +101,7 @@ def test_download_file_by_id(b2_cli, uploaded_file, tmp_path, flag, expected_std
         ['download-file-by-id', flag, '9999', str(output_path)],
         expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
         expected_stderr=
-        'WARNING: `download-file-by-id` command is deprecated. Use `download-file` instead.\n',
+        'WARNING: `download-file-by-id` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -131,7 +131,7 @@ def test_download_file_by_name__named_pipe(
             output_path=pathlib.Path(output_path).resolve()
         ),
         expected_stderr=
-        'WARNING: `download-file-by-name` command is deprecated. Use `download-file` instead.\n',
+        'WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     reader_future.result(timeout=1)
     assert output_string == uploaded_file['content']
@@ -151,18 +151,17 @@ def uploaded_stdout_txt(b2_cli, bucket, local_file, tmp_path):
 def test_download_file_by_name__to_stdout_by_alias(
     b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd
 ):
-    """Test download_file_by_name stdout alias support"""
+    """Test download-file-by-name stdout alias support"""
     b2_cli.run(
         ['download-file-by-name', '--no-progress', bucket, uploaded_stdout_txt['fileName'], '-'],
         expected_stderr=
-        'WARNING: `download-file-by-name` command is deprecated. Use `download-file` instead.\n',
+        'WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
     assert not pathlib.Path('-').exists()
 
 
 def test_cat__b2_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
-    """Test download_file_by_name stdout alias support"""
     b2_cli.run(
         ['file', 'cat', '--no-progress', f"b2://{bucket}/{uploaded_stdout_txt['fileName']}"],
     )
@@ -189,7 +188,6 @@ def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
 
 
 def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
-    """Test download_file_by_name stdout alias support"""
     b2_cli.run(['file', 'cat', '--no-progress', "b2id://9999"],)
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
@@ -200,7 +198,7 @@ def test__download_file__threads(b2_cli, local_file, uploaded_file, tmp_path):
 
     b2_cli.run(
         [
-            'download-file', '--no-progress', '--threads',
+            'file', 'download', '--no-progress', '--threads',
             str(num_threads), 'b2://my-bucket/file1.txt',
             str(output_path)
         ]

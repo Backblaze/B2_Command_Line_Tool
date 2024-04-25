@@ -1881,7 +1881,7 @@ class DownloadCommand(
         return pathlib.Path(output_filepath_str)
 
 
-class DownloadFileBase(
+class FileDownloadBase(
     ThreadsMixin,
     MaxDownloadStreamsMixin,
     DownloadCommand,
@@ -1926,23 +1926,6 @@ class DownloadFileBase(
         self._print('Download finished')
 
         return 0
-
-
-class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
-    __doc__ = DownloadFileBase.__doc__
-
-    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
-        return args.B2_URI
-
-
-class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase):
-    __doc__ = DownloadFileBase.__doc__
-    replaced_by_cmd = DownloadFile
-
-
-class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, DownloadFileBase):
-    __doc__ = DownloadFileBase.__doc__
-    replaced_by_cmd = DownloadFile
 
 
 class FileCatBase(B2URIFileArgMixin, DownloadCommand):
@@ -4929,6 +4912,12 @@ class FileUpload(FileUploadBase):
     COMMAND_NAME = 'upload'
 
 
+@File.subcommands_registry.register
+class FileDownload(B2URIFileArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    COMMAND_NAME = 'download'
+
+
 class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
     replaced_by_cmd = (File, FileInfo)
@@ -4964,6 +4953,21 @@ class Cat(CmdReplacedByMixin, FileCatBase):
 class UploadFile(CmdReplacedByMixin, FileUploadBase):
     __doc__ = FileUploadBase.__doc__
     replaced_by_cmd = (File, FileUpload)
+
+
+class DownloadFile(CmdReplacedByMixin, B2URIFileArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    replaced_by_cmd = (File, FileDownload)
+
+
+class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    replaced_by_cmd = (File, FileDownload)
+
+
+class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    replaced_by_cmd = (File, FileDownload)
 
 
 class ConsoleTool:

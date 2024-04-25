@@ -227,7 +227,7 @@ def test_complete_with_file_uri_suggestions(
         tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
-    with autocomplete_runner(f'b2 download-file b2://{bucket}/'):
+    with autocomplete_runner(f'b2 file download b2://{bucket}/'):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert file_name in argcomplete_output

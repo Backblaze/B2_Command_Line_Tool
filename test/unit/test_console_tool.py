@@ -1237,7 +1237,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             self._run_command(
-                ['download-file', '--no-progress', 'b2://my-bucket/file1.txt', local_download1],
+                ['file', 'download', '--no-progress', 'b2://my-bucket/file1.txt', local_download1],
                 expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -1249,8 +1249,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 output_path=pathlib.Path(local_download2).resolve()
             )
             self._run_command(
-                ['download-file', '--no-progress', 'b2id://9999', local_download2], expected_stdout,
-                '', 0
+                ['file', 'download', '--no-progress', 'b2id://9999', local_download2],
+                expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
@@ -1353,7 +1353,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             b2uri = f'b2://my-bucket/{source_filename}' if download_by == 'name' else 'b2id://9999'
             command = [
-                'download-file',
+                'file',
+                'download',
                 '--no-progress',
                 b2uri,
             ]
@@ -1471,7 +1472,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             local_download1 = os.path.join(temp_dir, 'file1_copy.txt')
             self._run_command(
-                ['download-file', '-q', 'b2://my-bucket/file1_copy.txt', local_download1]
+                ['file', 'download', '-q', 'b2://my-bucket/file1_copy.txt', local_download1]
             )
             self.assertEqual(b'lo wo', self._read_file(local_download1))
 
@@ -1732,7 +1733,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
             self._run_command(
                 [
-                    'download-file',
+                    'file',
+                    'download',
                     '-q',
                     'b2://my-bucket/test.txt',
                     str(downloaded_path),

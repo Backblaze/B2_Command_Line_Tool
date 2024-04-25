@@ -282,7 +282,7 @@ def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, t
     output_a = tmp_path / 'a'
     b2_tool.should_succeed(
         [
-            'download-file', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}",
+            'file', 'download', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}",
             str(output_a)
         ]
     )
@@ -290,7 +290,7 @@ def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, t
 
     output_b = tmp_path / 'b'
     b2_tool.should_succeed(
-        ['download-file', '--quiet', f"b2id://{uploaded_sample_file['fileId']}",
+        ['file', 'download', '--quiet', f"b2id://{uploaded_sample_file['fileId']}",
          str(output_b)]
     )
     assert output_b.read_text() == sample_filepath.read_text()
@@ -346,7 +346,9 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
         ['rm', '--recursive', '--with-wildcard', *b2_uri_args(bucket_name, 'rm1')]
     )
 
-    b2_tool.should_succeed(['download-file', '--quiet', f'b2://{bucket_name}/b/1', tmp_path / 'a'])
+    b2_tool.should_succeed(
+        ['file', 'download', '--quiet', f'b2://{bucket_name}/b/1', tmp_path / 'a']
+    )
 
     b2_tool.should_succeed(['hide-file', bucket_name, 'c'])
 
@@ -1457,11 +1459,11 @@ def test_sse_b2(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     b2_tool.should_succeed(['file', 'upload', '--quiet', bucket_name, sample_file, 'not_encrypted'])
 
     b2_tool.should_succeed(
-        ['download-file', '--quiet', f'b2://{bucket_name}/encrypted', tmp_path / 'encrypted']
+        ['file', 'download', '--quiet', f'b2://{bucket_name}/encrypted', tmp_path / 'encrypted']
     )
     b2_tool.should_succeed(
         [
-            'download-file', '--quiet', f'b2://{bucket_name}/not_encrypted',
+            'file', 'download', '--quiet', f'b2://{bucket_name}/not_encrypted',
             tmp_path / 'not_encrypted'
         ]
     )
@@ -1561,13 +1563,16 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     should_equal(sse_c_key_id, file_version_info['fileInfo'][SSE_C_KEY_ID_FILE_INFO_KEY_NAME])
 
     b2_tool.should_fail(
-        ['download-file', '--quiet', f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'],
+        [
+            'file', 'download', '--quiet', f'b2://{bucket_name}/uploaded_encrypted',
+            'gonna_fail_anyway'
+        ],
         expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
         r'correct parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
         [
-            'download-file', '--quiet', '--source-server-side-encryption', 'SSE-C',
+            'file', 'download', '--quiet', '--source-server-side-encryption', 'SSE-C',
             f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
@@ -1575,7 +1580,7 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     )
     b2_tool.should_fail(
         [
-            'download-file', '--quiet', '--source-server-side-encryption', 'SSE-C',
+            'file', 'download', '--quiet', '--source-server-side-encryption', 'SSE-C',
             f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: Wrong or no SSE-C key provided when reading a file.',
@@ -1584,7 +1589,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
     with contextlib.nullcontext(tmp_path) as dir_path:
         b2_tool.should_succeed(
             [
-                'download-file',
+                'file',
+                'download',
                 '--no-progress',
                 '--quiet',
                 '--source-server-side-encryption',
@@ -1597,7 +1603,8 @@ def test_sse_c(b2_tool, bucket_name, is_running_on_docker, sample_file, tmp_path
         assert read_file(dir_path / 'a') == read_file(sample_file)
         b2_tool.should_succeed(
             [
-                'download-file',
+                'file',
+                'download',
                 '--no-progress',
                 '--quiet',
                 '--source-server-side-encryption',
@@ -3061,10 +3068,13 @@ def test_download_file_stdout(
     b2_tool, bucket_name, sample_filepath, tmp_path, uploaded_sample_file
 ):
     assert b2_tool.should_succeed(
-        ['download-file', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}", '-'],
+        [
+            'file', 'download', '--quiet', f"b2://{bucket_name}/{uploaded_sample_file['fileName']}",
+            '-'
+        ],
     ) == sample_filepath.read_text()
     assert b2_tool.should_succeed(
-        ['download-file', '--quiet', f"b2id://{uploaded_sample_file['fileId']}", '-'],
+        ['file', 'download', '--quiet', f"b2id://{uploaded_sample_file['fileId']}", '-'],
     ) == sample_filepath.read_text()
 
 
@@ -3079,7 +3089,8 @@ def test_download_file_to_directory(
     sample_file_content = sample_filepath.read_text()
     b2_tool.should_succeed(
         [
-            'download-file',
+            'file',
+            'download',
             '--quiet',
             f"b2://{bucket_name}/{uploaded_sample_file['fileName']}",
             str(target_directory),
@@ -3091,7 +3102,8 @@ def test_download_file_to_directory(
 
     b2_tool.should_succeed(
         [
-            'download-file',
+            'file',
+            'download',
             '--quiet',
             f"b2id://{uploaded_sample_file['fileId']}",
             str(target_directory),
@@ -3169,7 +3181,7 @@ def test_header_arguments(b2_tool, bucket_name, sample_filepath, tmp_path):
     assert_expected(copied_version['fileInfo'])
 
     download_output = b2_tool.should_succeed(
-        ['download-file', f"b2id://{file_version['fileId']}", tmp_path / 'downloaded_file']
+        ['file', 'download', f"b2id://{file_version['fileId']}", tmp_path / 'downloaded_file']
     )
     assert re.search(r'CacheControl: *max-age=3600', download_output)
     assert re.search(r'ContentDisposition: *attachment', download_output)
