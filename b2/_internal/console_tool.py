@@ -4941,39 +4941,39 @@ class FileUpload(FileUploadBase):
 
 class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileInfo)
     # TODO we can't use 'file-info', gets transformed to 'file--info'
     COMMAND_NAME = 'FileInfo'
 
 
 class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileInfo)
 
 
 class GetUrl(CmdReplacedByMixin, B2URIFileArgMixin, FileUrlBase):
     __doc__ = FileUrlBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileUrl)
 
 
 class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, FileUrlBase):
     __doc__ = FileUrlBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileUrl)
 
 
 class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileUrlBase):
     __doc__ = FileUrlBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileUrl)
 
 
 class Cat(CmdReplacedByMixin, FileCatBase):
     __doc__ = FileCatBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileCat)
 
 
 class UploadFile(CmdReplacedByMixin, FileUploadBase):
     __doc__ = FileUploadBase.__doc__
-    replaced_by_cmd = File
+    replaced_by_cmd = (File, FileUpload)
 
 
 class ConsoleTool:
