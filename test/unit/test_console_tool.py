@@ -660,7 +660,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Make a bucket with an illegal name
         expected_stderr = (
-            'WARNING: create-bucket command is deprecated. Use bucket instead.\n'
+            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n'
             'ERROR: Bad request: illegal bucket name: bad/bucket/name\n'
         )
         self._run_command(['create-bucket', 'bad/bucket/name', 'allPublic'], '', expected_stderr, 1)
@@ -668,11 +668,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Make two buckets
         self._run_command(
             ['create-bucket', 'my-bucket', 'allPrivate'], 'bucket_0\n',
-            'WARNING: create-bucket command is deprecated. Use bucket instead.\n', 0
+            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n', 0
         )
         self._run_command(
             ['create-bucket', 'your-bucket', 'allPrivate'], 'bucket_1\n',
-            'WARNING: create-bucket command is deprecated. Use bucket instead.\n', 0
+            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n', 0
         )
 
         # Update one of them
@@ -693,7 +693,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             ['update-bucket', 'my-bucket', 'allPublic'],
-            expected_stderr='WARNING: update-bucket command is deprecated. Use bucket instead.\n',
+            expected_stderr=
+            'WARNING: `update-bucket` command is deprecated. Use `bucket update` instead.\n',
             expected_json_in_stdout=expected_json
         )
 
@@ -705,7 +706,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             ['list-buckets'], expected_stdout,
-            'WARNING: list-buckets command is deprecated. Use bucket instead.\n', 0
+            'WARNING: `list-buckets` command is deprecated. Use `bucket list` instead.\n', 0
         )
 
         # Delete one
@@ -713,7 +714,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         self._run_command(
             ['delete-bucket', 'your-bucket'], expected_stdout,
-            'WARNING: delete-bucket command is deprecated. Use bucket instead.\n', 0
+            'WARNING: `delete-bucket` command is deprecated. Use `bucket delete` instead.\n', 0
         )
 
     def test_encrypted_buckets(self):
