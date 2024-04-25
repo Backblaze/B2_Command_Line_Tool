@@ -4871,7 +4871,7 @@ class File(Command):
     """
     File management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} file SUBCOMMAND --help``.
 
     Examples:
 
