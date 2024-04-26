@@ -3527,13 +3527,13 @@ class UploadUnboundStream(UploadFileMixin, Command):
 
 class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
     """
-    {LegalHoldMixin}
+    Setting legal holds only works in bucket with fileLockEnabled=true.
 
     Retention:
 
-      Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
-      with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires providing ``retainUntil``,
-      which has to be a future timestamp in the form of an integer representing milliseconds since epoch.
+      Only works in bucket with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
+      providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
+      since epoch.
 
       If a file already is in governance mode, disabling retention or shortening it's period requires providing
       ``--bypass-governance``.
@@ -3547,6 +3547,9 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
     Requires capability:
 
     - **readFiles**
+    - **writeFileLegalHolds** (if updating legal holds)
+    - **writeFileRetentions** (if updating retention)
+    - **bypassGovernance** (if --bypass-governance is used)
     """
 
     @classmethod
