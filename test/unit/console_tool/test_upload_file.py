@@ -127,6 +127,30 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     )
 
 
+def test_upload_file_deprecated__stdin(b2_cli, bucket, tmpdir, mock_stdin):
+    """Test `upload-file` stdin alias support"""
+    content = "stdin input deprecated"
+    filename = 'stdin-deprecated.txt'
+
+    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_json = {
+        "action": "upload",
+        "contentSha1": "fcaa935e050efe0b5d7b26e65162b32b5e40aa81",
+        "fileName": filename,
+        "size": len(content),
+    }
+    mock_stdin.write(content)
+    mock_stdin.close()
+
+    b2_cli.run(
+        ['upload-file', '--no-progress', 'my-bucket', '-', filename],
+        expected_stderr='WARNING: `upload-file` command is deprecated. Use `file upload` instead.\n',
+        expected_json_in_stdout=expected_json,
+        remove_version=True,
+        expected_part_of_stdout=expected_stdout,
+    )
+
+
 def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
     """Test `file upload` supports setting number of threads"""
     num_threads = 66

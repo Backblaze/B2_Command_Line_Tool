@@ -1216,6 +1216,20 @@ class TestConsoleTool(BaseConsoleToolTest):
                 expected_json_in_stdout=expected_json,
             )
 
+            self._run_command(
+                ['file-info', 'b2id://9999'],
+                expected_stderr=
+                'WARNING: `file-info` command is deprecated. Use `file info` instead.\n',
+                expected_json_in_stdout=expected_json,
+            )
+
+            self._run_command(
+                ['get-file-info', '9999'],
+                expected_stderr=
+                'WARNING: `get-file-info` command is deprecated. Use `file info` instead.\n',
+                expected_json_in_stdout=expected_json,
+            )
+
             # Download by name
             local_download1 = os.path.join(temp_dir, 'download1.txt')
             expected_stdout_template = '''
@@ -1573,6 +1587,30 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
             self._run_command(
                 ['file', 'copy-by-id', '9999', 'my-bucket1', 'file1_copy.txt'],
+                expected_json_in_stdout=expected_json,
+            )
+
+            expected_json = {
+                "accountId": self.account_id,
+                "action": "copy",
+                "bucketId": "bucket_1",
+                "size": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9993",
+                "fileInfo": {
+                    "src_last_modified_millis": "1500111222000"
+                },
+                "fileName": "file1_copy_2.txt",
+                "serverSideEncryption": {
+                    "mode": "none"
+                },
+                "uploadTimestamp": 5005
+            }
+            self._run_command(
+                ['copy-file-by-id', '9999', 'my-bucket1', 'file1_copy_2.txt'],
+                expected_stderr=
+                'WARNING: `copy-file-by-id` command is deprecated. Use `file copy-by-id` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1985,7 +2023,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden2'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden4'])
+        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {

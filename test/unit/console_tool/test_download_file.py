@@ -46,6 +46,15 @@ def test_download_file_by_uri__flag_support(b2_cli, uploaded_file, tmp_path, fla
     )
     assert output_path.read_text() == uploaded_file['content']
 
+    b2_cli.run(
+        ['download-file', flag, 'b2id://9999',
+         str(output_path)],
+        expected_stderr=
+        'WARNING: `download-file` command is deprecated. Use `file download` instead.\n',
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve())
+    )
+    assert output_path.read_text() == uploaded_file['content']
+
 
 @pytest.mark.parametrize('b2_uri', [
     'b2://my-bucket/file1.txt',
@@ -189,6 +198,12 @@ def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
 
 def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     b2_cli.run(['file', 'cat', '--no-progress', "b2id://9999"],)
+    assert capfd.readouterr().out == uploaded_stdout_txt['content']
+
+    b2_cli.run(
+        ['cat', '--no-progress', "b2id://9999"],
+        expected_stderr='WARNING: `cat` command is deprecated. Use `file cat` instead.\n'
+    )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
 
