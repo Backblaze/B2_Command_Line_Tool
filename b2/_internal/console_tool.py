@@ -901,7 +901,9 @@ class Command(Described, metaclass=ABCMeta):
 
     @classmethod
     def name_and_alias(cls):
-        name = mixed_case_to_hyphens(cls.COMMAND_NAME or cls.__name__)
+        name = cls.COMMAND_NAME or cls.__name__
+        if '-' not in name:
+            name = mixed_case_to_hyphens(name)
         alias = None
         if '-' in name:
             alias = name.replace('-', '_')
@@ -4891,15 +4893,13 @@ class BucketDelete(BucketDeleteBase):
 @BucketCmd.subcommands_registry.register
 class BucketGetDownloadAuth(BucketGetDownloadAuthBase):
     __doc__ = BucketGetDownloadAuthBase.__doc__
-    # TODO we can't use 'get-download-auth', gets transformed to 'get--download--auth'
-    COMMAND_NAME = 'GetDownloadAuth'
+    COMMAND_NAME = 'get-download-auth'
 
 
 @BucketCmd.subcommands_registry.register
 class BucketNotificationRule(BucketNotificationRuleBase):
     __doc__ = BucketNotificationRuleBase.__doc__
-    # TODO we can't use 'notification-rule', gets transformed to 'notification--rule'
-    COMMAND_NAME = 'NotificationRule'
+    COMMAND_NAME = 'notification-rule'
 
 
 class ListBuckets(CmdReplacedByMixin, BucketListBase):
@@ -4992,8 +4992,7 @@ class FileDownload(B2URIFileArgMixin, FileDownloadBase):
 @File.subcommands_registry.register
 class FileCopyById(FileCopyByIdBase):
     __doc__ = FileCopyByIdBase.__doc__
-    # TODO we can't use 'copy-by-id', gets transformed to 'copy--by--id'
-    COMMAND_NAME = 'CopyById'
+    COMMAND_NAME = 'copy-by-id'
 
 
 @File.subcommands_registry.register
@@ -5011,8 +5010,7 @@ class FileUpdate(FileUpdateBase):
 class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
     __doc__ = FileInfoBase.__doc__
     replaced_by_cmd = (File, FileInfo)
-    # TODO we can't use 'file-info', gets transformed to 'file--info'
-    COMMAND_NAME = 'FileInfo'
+    COMMAND_NAME = 'file-info'
 
 
 class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
