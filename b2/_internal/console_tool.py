@@ -4947,14 +4947,14 @@ class File(Command):
 
     .. code-block::
 
-        {NAME} file info
-        {NAME} file url
-        {NAME} file cat
-        {NAME} file upload
-        {NAME} file download
-        {NAME} file copy-by-id
-        {NAME} file hide
-        {NAME} file update
+        {NAME} file info b2://yourBucket/file.txt
+        {NAME} file url b2://yourBucket/file.txt
+        {NAME} file cat b2://yourBucket/file.txt
+        {NAME} file upload yourBucket localFile.txt file.txt
+        {NAME} file download b2://yourBucket/file.txt localFile.txt
+        {NAME} file copy-by-id sourceFileId yourBucket file.txt
+        {NAME} file hide yourBucket file.txt
+        {NAME} file update --legal-hold off b2://yourBucket/file.txt
     """
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
