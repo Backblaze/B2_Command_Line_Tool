@@ -5121,6 +5121,90 @@ class DeleteFileVersion(CmdReplacedByMixin, DeleteFileVersionBase):
     replaced_by_cmd = Rm
 
 
+@File.subcommands_registry.register
+class FileLarge(Command):
+    """
+    Large file uploads management subcommands.
+
+    For more information on each subcommand, use ``{NAME} file large SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} file large parts
+        {NAME} file large unfinished
+    """
+    COMMAND_NAME = 'large'
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@FileLarge.subcommands_registry.register
+class FileLargeParts(Command):
+    """
+    LARGE FILE parts
+
+    list-parts largeFileId
+    file large parts b2id://largeFileId
+    """
+    COMMAND_NAME = 'parts'
+
+    def _run(self, args):
+        print("parts")
+        return 0
+
+
+@FileLarge.subcommands_registry.register
+class FileLargeUnfinished(Command):
+    """
+    Large file unfinished uploads management subcommands.
+
+    For more information on each subcommand, use ``{NAME} file large unfinished SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} file large unfinished list
+        {NAME} file large unfinished cancel
+    """
+    COMMAND_NAME = 'unfinished'
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@FileLargeUnfinished.subcommands_registry.register
+class FileLargeUnfinishedList(Command):
+    """
+    LARGE FILE unfinished list
+
+    list-unfinished-large-files b2://bucketName
+    file large unfinished list b2://bucketName
+    """
+    COMMAND_NAME = 'list'
+
+    def _run(self, args):
+        print("list")
+        return 0
+
+
+@FileLargeUnfinished.subcommands_registry.register
+class FileLargeUnfinishedCancel(Command):
+    """
+    LARGE FILE unfinished cancel
+
+    cancel-all-unfinished-large-files bucketName
+    file large unfinished cancel b2://bucketName
+
+    cancel-large-file fileId
+    file large unfinished cancel b2id://fileId
+    """
+    COMMAND_NAME = 'cancel'
+
+    def _run(self, args):
+        print("cancel")
+        return 0
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
