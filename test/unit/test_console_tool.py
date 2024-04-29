@@ -994,6 +994,37 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json_in_stdout=expected_json,
         )
 
+    @pytest.mark.apiver(from_ver=4)
+    def test_rm_fileid_v4(self):
+
+        self._authorize_account()
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            # For this test, use a mod time without millis.  My mac truncates
+            # millis and just leaves seconds.
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # Upload a file
+            self._run_command(
+                [
+                    'file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
+                    '--cache-control=private, max-age=3600'
+                ],
+                remove_version=True,
+            )
+
+            # Hide file
+            self._run_command(['file', 'hide', 'my-bucket', 'file1.txt'],)
+
+            # Delete one file version
+            self._run_command(['rm', 'b2id://9998'])
+            # Delete one file version
+            self._run_command(['rm', 'b2id://9999'])
+
     def test_files(self):
 
         self._authorize_account()
@@ -1135,14 +1166,20 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json = {"action": "delete", "fileId": "9998", "fileName": "file1.txt"}
 
             self._run_command(
-                ['delete-file-version', 'file1.txt', '9998'], expected_json_in_stdout=expected_json
+                ['delete-file-version', 'file1.txt', '9998'],
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
+                expected_json_in_stdout=expected_json
             )
 
             # Delete one file version, not passing the name in
             expected_json = {"action": "delete", "fileId": "9999", "fileName": "file1.txt"}
 
             self._run_command(
-                ['delete-file-version', '9999'], expected_json_in_stdout=expected_json
+                ['delete-file-version', '9999'],
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
+                expected_json_in_stdout=expected_json
             )
 
     def test_files_encrypted(self):
@@ -1337,7 +1374,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 ['delete-file-version', 'file1.txt', '9998'],
-                expected_json_in_stdout=expected_json,
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
+                expected_json_in_stdout=expected_json
             )
 
             # Delete one file version, not passing the name in
@@ -1345,6 +1384,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 ['delete-file-version', '9999'],
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 

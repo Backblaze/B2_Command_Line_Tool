@@ -412,7 +412,12 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     }
     should_equal(expected_info, file_info['fileInfo'])
 
-    b2_tool.should_succeed(['delete-file-version', 'c', first_c_version['fileId']])
+    b2_tool.should_succeed(
+        ['delete-file-version', 'c', first_c_version['fileId']],
+        expected_stderr_pattern=re.compile(
+            re.escape('WARNING: `delete-file-version` command is deprecated. Use `rm` instead.')
+        )
+    )
     b2_tool.should_succeed(
         ['ls', *b2_uri_args(bucket_name)], f'^a{os.linesep}b/{os.linesep}c{os.linesep}d{os.linesep}'
     )
@@ -2392,11 +2397,14 @@ def deleting_locked_files(
         "ERROR: Access Denied for application key "
     )
     b2_tool.should_succeed([  # master key
-        'delete-file-version',
-        locked_file['fileName'],
-        locked_file['fileId'],
-        '--bypass-governance'
-    ])
+            'delete-file-version',
+            locked_file['fileName'],
+            locked_file['fileId'],
+            '--bypass-governance'
+        ], expected_stderr_pattern=re.compile(re.escape(
+            'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.'
+        ))
+    )
 
     locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name, sample_file)
 
@@ -2412,6 +2420,76 @@ def deleting_locked_files(
         locked_file['fileId'],
         '--bypass-governance',
     ], "ERROR: unauthorized for application key with capabilities '")
+
+
+@pytest.mark.apiver(from_ver=4)
+def test_deleting_locked_files_v4(b2_tool, sample_file, schedule_bucket_cleanup):
+    lock_enabled_bucket_name = b2_tool.generate_bucket_name()
+    schedule_bucket_cleanup(lock_enabled_bucket_name)
+    b2_tool.should_succeed(
+        [
+            'bucket',
+            'create',
+            lock_enabled_bucket_name,
+            'allPrivate',
+            '--file-lock-enabled',
+            *b2_tool.get_bucket_info_args(),
+        ],
+    )
+    updated_bucket = b2_tool.should_succeed_json(
+        [
+            'bucket',
+            'update',
+            lock_enabled_bucket_name,
+            'allPrivate',
+            '--default-retention-mode',
+            'governance',
+            '--default-retention-period',
+            '1 days',
+        ],
+    )
+    assert updated_bucket['defaultRetention'] == {
+        'mode': 'governance',
+        'period': {
+            'duration': 1,
+            'unit': 'days',
+        },
+    }
+
+    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name, sample_file)
+    b2_tool.should_fail(
+        [  # master key
+            'rm',
+            f"b2id://{locked_file['fileId']}",
+        ],
+        " failed: Access Denied for application key "
+    )
+    b2_tool.should_succeed(
+        [  # master key
+            'rm',
+            '--bypass-governance',
+            f"b2id://{locked_file['fileId']}",
+        ]
+    )
+
+    locked_file = upload_locked_file(b2_tool, lock_enabled_bucket_name, sample_file)
+
+    lock_disabled_key_id, lock_disabled_key = make_lock_disabled_key(b2_tool)
+    b2_tool.should_succeed(
+        [
+            'account', 'authorize', '--environment', b2_tool.realm, lock_disabled_key_id,
+            lock_disabled_key
+        ],
+    )
+
+    b2_tool.should_fail(
+        [  # lock disabled key
+            'rm',
+            '--bypass-governance',
+            f"b2id://{locked_file['fileId']}",
+        ],
+        " failed: unauthorized for application key with capabilities '"
+    )
 
 
 def test_profile_switch(b2_tool):
@@ -2864,7 +2942,12 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
     )
 
     # there is just one file, so clean after itself for faster execution
-    b2_tool.should_succeed(['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']])
+    b2_tool.should_succeed(
+        ['delete-file-version', uploaded_a['fileName'], uploaded_a['fileId']],
+        expected_stderr_pattern=re.compile(
+            re.escape('WARNING: `delete-file-version` command is deprecated. Use `rm` instead.')
+        )
+    )
 
     # run stats command
     replication_status_deprecated_pattern = re.compile(

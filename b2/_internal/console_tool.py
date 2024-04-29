@@ -1694,7 +1694,7 @@ class BucketDeleteBase(Command):
         return 0
 
 
-class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
+class DeleteFileVersionBase(FileIdAndOptionalFileNameMixin, Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
@@ -2535,7 +2535,8 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
         example if a file matching a pattern is uploaded during a run of ``rm`` command, it MIGHT
         be deleted (as "latest") instead of the one present when the ``rm`` run has started.
 
-    In order to safely delete a single file version, please use ``delete-file-version``.
+    If a file is in governance retention mode, and the retention period has not expired,
+    adding --bypass-governance is required.
 
     To list (but not remove) files to be deleted, use ``--dry-run``.  You can also
     list files via ``ls`` command - the listing behaviour is exactly the same.
@@ -2617,6 +2618,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
                     self.runner.api.delete_file_version,
                     file_version.id_,
                     file_version.file_name,
+                    self.args.bypass_governance,
                 )
                 with self.mapping_lock:
                     self.futures_mapping[future] = file_version
@@ -2649,6 +2651,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
     @classmethod
     def _setup_parser(cls, parser):
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
         add_normalized_argument(parser, '--dry-run', action='store_true')
         add_normalized_argument(parser,
             '--queue-size',
@@ -2738,6 +2741,7 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
 
     - **listFiles**
     - **deleteFiles**
+    - **bypassGovernance** (if --bypass-governance is used)
     """
 
 
@@ -5110,6 +5114,11 @@ class UpdateFileRetention(CmdReplacedByMixin, UpdateFileRetentionBase):
 class GetDownloadUrlWithAuth(CmdReplacedByMixin, GetDownloadUrlWithAuthBase):
     __doc__ = GetDownloadUrlWithAuthBase.__doc__
     replaced_by_cmd = (File, FileUrl)
+
+
+class DeleteFileVersion(CmdReplacedByMixin, DeleteFileVersionBase):
+    __doc__ = DeleteFileVersionBase.__doc__
+    replaced_by_cmd = Rm
 
 
 class ConsoleTool:
