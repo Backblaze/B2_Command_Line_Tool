@@ -2079,7 +2079,7 @@ class BucketGetDownloadAuthBase(Command):
         return 0
 
 
-class GetDownloadUrlWithAuth(Command):
+class GetDownloadUrlWithAuthBase(Command):
     """
     Prints a URL to download the given file.  The URL includes an authorization
     token that allows downloads from the given bucket for files whose names
@@ -2745,11 +2745,40 @@ class FileUrlBase(Command):
     """
     Prints an URL that can be used to download the given file, if
     it is public.
+
+    If it is private, you can use --with-auth to include an authorization
+    token in the URL that allows downloads from the given bucket for files
+    whose names start with the given file name.
+
+    The URL will work for the given file, but is not specific to that file.  Files
+    with longer names that start with the give file name can also be downloaded
+    with the same auth token.
+
+    The token is valid for the duration specified, which defaults
+    to 86400 seconds (one day).
+
+
+    Requires capability:
+
+    - **shareFiles** (if using --with-auth)
     """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_normalized_argument(parser, '--with-auth', action='store_true')
+        parser.add_argument('--duration', type=int, default=86400)
+        super()._setup_parser(parser)
 
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
-        self._print(self.api.get_download_url_by_uri(b2_uri))
+        url = self.api.get_download_url_by_uri(b2_uri)
+        if args.with_auth:
+            bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
+            auth_token = bucket.get_download_authorization(
+                file_name_prefix=b2_uri.path, valid_duration_in_seconds=args.duration
+            )
+            url += '?Authorization=' + auth_token
+        self._print(url)
         return 0
 
 
@@ -5076,6 +5105,11 @@ class UpdateFileLegalHold(CmdReplacedByMixin, UpdateFileLegalHoldBase):
 class UpdateFileRetention(CmdReplacedByMixin, UpdateFileRetentionBase):
     __doc__ = UpdateFileRetentionBase.__doc__
     replaced_by_cmd = (File, FileUpdate)
+
+
+class GetDownloadUrlWithAuth(CmdReplacedByMixin, GetDownloadUrlWithAuthBase):
+    __doc__ = GetDownloadUrlWithAuthBase.__doc__
+    replaced_by_cmd = (File, FileUrl)
 
 
 class ConsoleTool:

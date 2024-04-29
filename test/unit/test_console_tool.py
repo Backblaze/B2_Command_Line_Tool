@@ -1638,6 +1638,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', 'my-file'],
             'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
+            'WARNING: `get-download-url-with-auth` command is deprecated. Use `file url` instead.\n',
+            0
+        )
+        self._run_command(
+            ['file', 'url', '--with-auth', '--duration', '12345', 'b2://my-bucket/my-file'],
+            'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
             '', 0
         )
 
@@ -1646,6 +1652,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
         self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', '\u81ea'],
+            'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
+            'WARNING: `get-download-url-with-auth` command is deprecated. Use `file url` instead.\n',
+            0
+        )
+        self._run_command(
+            ['file', 'url', '--with-auth', '--duration', '12345', 'b2://my-bucket/\u81ea'],
             'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
             '', 0
         )
