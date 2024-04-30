@@ -3478,7 +3478,7 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
         return file_version
 
 
-class UploadUnboundStream(UploadFileMixin, Command):
+class UploadUnboundStreamBase(UploadFileMixin, Command):
     """
     Uploads an unbound stream to the given bucket.
 
@@ -5073,6 +5073,11 @@ class Cat(CmdReplacedByMixin, FileCatBase):
 
 class UploadFile(CmdReplacedByMixin, FileUploadBase):
     __doc__ = FileUploadBase.__doc__
+    replaced_by_cmd = (File, FileUpload)
+
+
+class UploadUnboundStream(CmdReplacedByMixin, UploadUnboundStreamBase):
+    __doc__ = UploadUnboundStreamBase.__doc__
     replaced_by_cmd = (File, FileUpload)
 
 
