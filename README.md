@@ -150,7 +150,7 @@ cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest b2v3 
 or by mounting local files in the docker container:
 
 ```bash
-docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest b2v3 upload-file bucket_name /data/source_file.txt target_file_name
+docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest b2v3 file upload bucket_name /data/source_file.txt target_file_name
 ```
 
 ## ApiVer CLI versions (`b2` vs `b2v3`, `b2v4`, etc.)

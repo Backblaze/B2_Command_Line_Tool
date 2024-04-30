@@ -97,7 +97,7 @@ def test_autocomplete_b2__download_file__b2uri(
     """Test that autocomplete suggests bucket names and file names."""
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
-    shell.send(f'{cli_version} download_file \t\t')
+    shell.send(f'{cli_version} file download \t\t')
     shell.expect_exact("b2://", timeout=TIMEOUT)
     shell.send('b2://\t\t')
     shell.expect_exact(bucket_name, timeout=TIMEOUT)

@@ -14,7 +14,7 @@ import b2
 
 
 def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, bucket, tmpdir):
-    """Test upload_file supports manually specifying file info src_last_modified_millis"""
+    """Test `file upload` supports manually specifying file info src_last_modified_millis"""
     filename = 'file1.txt'
     content = 'hello world'
     local_file1 = tmpdir.join('file1.txt')
@@ -37,7 +37,7 @@ def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, buc
     }
     b2_cli.run(
         [
-            'upload-file', '--no-progress', '--info=src_last_modified_millis=1', 'my-bucket',
+            'file', 'upload', '--no-progress', '--info=src_last_modified_millis=1', 'my-bucket',
             '--cache-control', 'max-age=3600', '--expires', 'Thu, 01 Dec 2050 16:00:00 GMT',
             '--content-language', 'en', '--content-disposition', 'attachment', '--content-encoding',
             'gzip',
@@ -50,7 +50,7 @@ def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, buc
 
 @skip_on_windows
 def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
-    """Test upload_file supports named pipes"""
+    """Test `file upload` supports named pipes"""
     filename = 'named_pipe.txt'
     content = 'hello world'
     local_file1 = tmpdir.join('file1.txt')
@@ -68,7 +68,7 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
         "size": len(content),
     }
     b2_cli.run(
-        ['upload-file', '--no-progress', 'my-bucket',
+        ['file', 'upload', '--no-progress', 'my-bucket',
          str(local_file1), filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
@@ -78,7 +78,7 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
 
 
 def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monkeypatch):
-    """Test upload_file will upload file named `-` instead of stdin by default"""
+    """Test `file upload` will upload file named `-` instead of stdin by default"""
     # TODO remove this in v4
     assert b2.__version__ < '4', "`-` filename should not be supported in next major version of CLI"
     filename = 'stdin.txt'
@@ -95,7 +95,7 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
         "size": len(content),
     }
     b2_cli.run(
-        ['upload-file', '--no-progress', 'my-bucket', '-', filename],
+        ['file', 'upload', '--no-progress', 'my-bucket', '-', filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -105,7 +105,7 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
 
 
 def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
-    """Test upload_file stdin alias support"""
+    """Test `file upload` stdin alias support"""
     content = "stdin input"
     filename = 'stdin.txt'
 
@@ -120,7 +120,31 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     mock_stdin.close()
 
     b2_cli.run(
+        ['file', 'upload', '--no-progress', 'my-bucket', '-', filename],
+        expected_json_in_stdout=expected_json,
+        remove_version=True,
+        expected_part_of_stdout=expected_stdout,
+    )
+
+
+def test_upload_file_deprecated__stdin(b2_cli, bucket, tmpdir, mock_stdin):
+    """Test `upload-file` stdin alias support"""
+    content = "stdin input deprecated"
+    filename = 'stdin-deprecated.txt'
+
+    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_json = {
+        "action": "upload",
+        "contentSha1": "fcaa935e050efe0b5d7b26e65162b32b5e40aa81",
+        "fileName": filename,
+        "size": len(content),
+    }
+    mock_stdin.write(content)
+    mock_stdin.close()
+
+    b2_cli.run(
         ['upload-file', '--no-progress', 'my-bucket', '-', filename],
+        expected_stderr='WARNING: `upload-file` command is deprecated. Use `file upload` instead.\n',
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -128,7 +152,7 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
 
 
 def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
-    """Test upload_file supports setting number of threads"""
+    """Test `file upload` supports setting number of threads"""
     num_threads = 66
     filename = 'file1.txt'
     content = 'hello world'
@@ -147,7 +171,7 @@ def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
 
     b2_cli.run(
         [
-            'upload-file', '--no-progress', 'my-bucket', '--threads',
+            'file', 'upload', '--no-progress', 'my-bucket', '--threads',
             str(num_threads),
             str(local_file1), 'file1.txt'
         ],

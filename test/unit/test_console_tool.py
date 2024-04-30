@@ -303,9 +303,11 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
             bad_str = "\u009b2K\u009b7Gb\u009b24Gx\u009b4GH"
             escaped_bad_str = "\\x9b2K\\x9b7Gb\\x9b24Gx\\x9b4GH"
 
-            self._run_command(['upload-file', '--no-progress', 'my-bucket-cc', local_file, bad_str])
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, bad_str]
+            )
+            self._run_command(
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
             )
 
             self._run_command(
@@ -992,6 +994,37 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json_in_stdout=expected_json,
         )
 
+    @pytest.mark.apiver(from_ver=4)
+    def test_rm_fileid_v4(self):
+
+        self._authorize_account()
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            # For this test, use a mod time without millis.  My mac truncates
+            # millis and just leaves seconds.
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # Upload a file
+            self._run_command(
+                [
+                    'file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
+                    '--cache-control=private, max-age=3600'
+                ],
+                remove_version=True,
+            )
+
+            # Hide file
+            self._run_command(['file', 'hide', 'my-bucket', 'file1.txt'],)
+
+            # Delete one file version
+            self._run_command(['rm', 'b2id://9998'])
+            # Delete one file version
+            self._run_command(['rm', 'b2id://9999'])
+
     def test_files(self):
 
         self._authorize_account()
@@ -1029,7 +1062,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
+                    'file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
                     '--cache-control=private, max-age=3600'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1060,7 +1093,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['file-info', 'b2id://9999'],
+                ['file', 'info', 'b2id://9999'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1079,7 +1112,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['hide-file', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'my-bucket', 'file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1133,14 +1166,20 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json = {"action": "delete", "fileId": "9998", "fileName": "file1.txt"}
 
             self._run_command(
-                ['delete-file-version', 'file1.txt', '9998'], expected_json_in_stdout=expected_json
+                ['delete-file-version', 'file1.txt', '9998'],
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
+                expected_json_in_stdout=expected_json
             )
 
             # Delete one file version, not passing the name in
             expected_json = {"action": "delete", "fileId": "9999", "fileName": "file1.txt"}
 
             self._run_command(
-                ['delete-file-version', '9999'], expected_json_in_stdout=expected_json
+                ['delete-file-version', '9999'],
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
+                expected_json_in_stdout=expected_json
             )
 
     def test_files_encrypted(self):
@@ -1179,8 +1218,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', '--destination-server-side-encryption=SSE-B2',
-                    'my-bucket', local_file1, 'file1.txt'
+                    'file', 'upload', '--no-progress',
+                    '--destination-server-side-encryption=SSE-B2', 'my-bucket', local_file1,
+                    'file1.txt'
                 ],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
@@ -1209,7 +1249,21 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
+                ['file', 'info', 'b2id://9999'],
+                expected_json_in_stdout=expected_json,
+            )
+
+            self._run_command(
                 ['file-info', 'b2id://9999'],
+                expected_stderr=
+                'WARNING: `file-info` command is deprecated. Use `file info` instead.\n',
+                expected_json_in_stdout=expected_json,
+            )
+
+            self._run_command(
+                ['get-file-info', '9999'],
+                expected_stderr=
+                'WARNING: `get-file-info` command is deprecated. Use `file info` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1234,7 +1288,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             self._run_command(
-                ['download-file', '--no-progress', 'b2://my-bucket/file1.txt', local_download1],
+                ['file', 'download', '--no-progress', 'b2://my-bucket/file1.txt', local_download1],
                 expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download1))
@@ -1246,8 +1300,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 output_path=pathlib.Path(local_download2).resolve()
             )
             self._run_command(
-                ['download-file', '--no-progress', 'b2id://9999', local_download2], expected_stdout,
-                '', 0
+                ['file', 'download', '--no-progress', 'b2id://9999', local_download2],
+                expected_stdout, '', 0
             )
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
@@ -1266,7 +1320,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['hide-file', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'my-bucket', 'file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1320,7 +1374,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 ['delete-file-version', 'file1.txt', '9998'],
-                expected_json_in_stdout=expected_json,
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
+                expected_json_in_stdout=expected_json
             )
 
             # Delete one file version, not passing the name in
@@ -1328,6 +1384,8 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 ['delete-file-version', '9999'],
+                expected_stderr=
+                'WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1344,13 +1402,14 @@ class TestConsoleTool(BaseConsoleToolTest):
             local_file_content = self._read_file(local_file)
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket', local_file, source_filename],
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file, source_filename],
                 remove_version=True,
             )
 
             b2uri = f'b2://my-bucket/{source_filename}' if download_by == 'name' else 'b2id://9999'
             command = [
-                'download-file',
+                'file',
+                'download',
                 '--no-progress',
                 b2uri,
             ]
@@ -1414,7 +1473,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -1439,7 +1498,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5001
             }
             self._run_command(
-                ['copy-file-by-id', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1462,13 +1521,13 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5002
             }
             self._run_command(
-                ['copy-file-by-id', '--range', '3,7', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '--range', '3,7', '9999', 'my-bucket', 'file1_copy.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
             local_download1 = os.path.join(temp_dir, 'file1_copy.txt')
             self._run_command(
-                ['download-file', '-q', 'b2://my-bucket/file1_copy.txt', local_download1]
+                ['file', 'download', '-q', 'b2://my-bucket/file1_copy.txt', local_download1]
             )
             self.assertEqual(b'lo wo', self._read_file(local_download1))
 
@@ -1476,7 +1535,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stderr = "ERROR: File info can be set only when content type is set\n"
             self._run_command(
                 [
-                    'copy-file-by-id',
+                    'file',
+                    'copy-by-id',
                     '--info',
                     'a=b',
                     '9999',
@@ -1492,7 +1552,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_stderr = "ERROR: File info can be not set only when content type is not set\n"
             self._run_command(
                 [
-                    'copy-file-by-id',
+                    'file',
+                    'copy-by-id',
                     '--content-type',
                     'text/plain',
                     '9999',
@@ -1524,7 +1585,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
             self._run_command(
                 [
-                    'copy-file-by-id',
+                    'file',
+                    'copy-by-id',
                     '--content-type',
                     'text/plain',
                     '--info',
@@ -1539,7 +1601,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             # UnsatisfiableRange
             expected_stderr = "ERROR: The range in the request is outside the size of the file\n"
             self._run_command(
-                ['copy-file-by-id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '--range', '12,20', '9999', 'my-bucket', 'file1_copy.txt'],
                 '',
                 expected_stderr,
                 1,
@@ -1565,7 +1627,31 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5004
             }
             self._run_command(
-                ['copy-file-by-id', '9999', 'my-bucket1', 'file1_copy.txt'],
+                ['file', 'copy-by-id', '9999', 'my-bucket1', 'file1_copy.txt'],
+                expected_json_in_stdout=expected_json,
+            )
+
+            expected_json = {
+                "accountId": self.account_id,
+                "action": "copy",
+                "bucketId": "bucket_1",
+                "size": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9993",
+                "fileInfo": {
+                    "src_last_modified_millis": "1500111222000"
+                },
+                "fileName": "file1_copy_2.txt",
+                "serverSideEncryption": {
+                    "mode": "none"
+                },
+                "uploadTimestamp": 5005
+            }
+            self._run_command(
+                ['copy-file-by-id', '9999', 'my-bucket1', 'file1_copy_2.txt'],
+                expected_stderr=
+                'WARNING: `copy-file-by-id` command is deprecated. Use `file copy-by-id` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1593,6 +1679,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', 'my-file'],
             'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
+            'WARNING: `get-download-url-with-auth` command is deprecated. Use `file url` instead.\n',
+            0
+        )
+        self._run_command(
+            ['file', 'url', '--with-auth', '--duration', '12345', 'b2://my-bucket/my-file'],
+            'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
             '', 0
         )
 
@@ -1601,6 +1693,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._create_my_bucket()
         self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', '\u81ea'],
+            'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
+            'WARNING: `get-download-url-with-auth` command is deprecated. Use `file url` instead.\n',
+            0
+        )
+        self._run_command(
+            ['file', 'url', '--with-auth', '--duration', '12345', 'b2://my-bucket/\u81ea'],
             'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
             '', 0
         )
@@ -1645,7 +1743,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', '--threads', '5', 'my-bucket', file_path,
+                    'file', 'upload', '--no-progress', '--threads', '5', 'my-bucket', file_path,
                     'test.txt'
                 ],
                 expected_json_in_stdout=expected_json,
@@ -1689,8 +1787,9 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             self._run_command(
                 [
-                    'upload-file', '--no-progress', '--destination-server-side-encryption=SSE-B2',
-                    '--threads', '5', 'my-bucket', file_path, 'test.txt'
+                    'file', 'upload', '--no-progress',
+                    '--destination-server-side-encryption=SSE-B2', '--threads', '5', 'my-bucket',
+                    file_path, 'test.txt'
                 ],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
@@ -1707,7 +1806,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             file_path = pathlib.Path(temp_dir) / 'test.txt'
 
             incremental_upload_params = [
-                'upload-file',
+                'file',
+                'upload',
                 '--no-progress',
                 '--threads',
                 '5',
@@ -1727,7 +1827,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
             self._run_command(
                 [
-                    'download-file',
+                    'file',
+                    'download',
                     '-q',
                     'b2://my-bucket/test.txt',
                     str(downloaded_path),
@@ -1838,7 +1939,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                 "uploadTimestamp": 5000
             }
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
                 expected_json_in_stdout=expected_json,
                 remove_version=True,
                 expected_part_of_stdout=expected_stdout,
@@ -1972,9 +2073,9 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden1'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden2'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden2'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
         # Now check the output of `bucket get` against the canon.
@@ -2033,13 +2134,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/hidden2'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
@@ -2825,7 +2926,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             escaped_cc_filename = '\\x9bT\\x9bE\\x9bS\\x9bTtest.txt'
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket-0', local_file, cc_filename]
+                ['file', 'upload', '--no-progress', 'my-bucket-0', local_file, cc_filename]
             )
 
         self._run_command(
@@ -2852,10 +2953,12 @@ class TestConsoleTool(BaseConsoleToolTest):
             bad_str = "\u009b2K\u009b7Gb\u009b24Gx\u009b4GH"
             escaped_bad_str = "\\x9b2K\\x9b7Gb\\x9b24Gx\\x9b4GH"
 
-            self._run_command(['upload-file', '--no-progress', 'my-bucket-cc', local_file, bad_str])
+            self._run_command(
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, bad_str]
+            )
 
             self._run_command(
-                ['upload-file', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
+                ['file', 'upload', '--no-progress', 'my-bucket-cc', local_file, "some_normal_text"]
             )
 
             self._run_command(

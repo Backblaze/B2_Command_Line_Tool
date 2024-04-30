@@ -125,5 +125,5 @@ def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
         expected_stderr=
-        "WARNING: You are using a stream upload command to upload a regular file. While it will work, it is inefficient. Use of upload-file command is recommended.\n",
+        "WARNING: You are using a stream upload command to upload a regular file. While it will work, it is inefficient. Use of `file upload` command is recommended.\n",
     )

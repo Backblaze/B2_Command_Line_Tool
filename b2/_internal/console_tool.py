@@ -901,7 +901,9 @@ class Command(Described, metaclass=ABCMeta):
 
     @classmethod
     def name_and_alias(cls):
-        name = mixed_case_to_hyphens(cls.COMMAND_NAME or cls.__name__)
+        name = cls.COMMAND_NAME or cls.__name__
+        if '-' not in name:
+            name = mixed_case_to_hyphens(name)
         alias = None
         if '-' in name:
             alias = name.replace('-', '_')
@@ -1409,7 +1411,7 @@ class AccountClearBase(Command):
         return 0
 
 
-class CopyFileById(
+class FileCopyByIdBase(
     HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin,
     LegalHoldMixin, Command
 ):
@@ -1692,7 +1694,7 @@ class BucketDeleteBase(Command):
         return 0
 
 
-class DeleteFileVersion(FileIdAndOptionalFileNameMixin, Command):
+class DeleteFileVersionBase(FileIdAndOptionalFileNameMixin, Command):
     """
     Permanently and irrevocably deletes one version of a file.
 
@@ -1881,7 +1883,7 @@ class DownloadCommand(
         return pathlib.Path(output_filepath_str)
 
 
-class DownloadFileBase(
+class FileDownloadBase(
     ThreadsMixin,
     MaxDownloadStreamsMixin,
     DownloadCommand,
@@ -1900,6 +1902,11 @@ class DownloadFileBase(
 
     - **readFiles**
     """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+        parser.add_argument('localFileName')
 
     def _run(self, args):
         progress_listener = self.make_progress_listener(
@@ -1923,39 +1930,7 @@ class DownloadFileBase(
         return 0
 
 
-class DownloadFile(B2URIFileArgMixin, DownloadFileBase):
-    __doc__ = DownloadFileBase.__doc__
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        super()._setup_parser(parser)
-        parser.add_argument('localFileName')
-
-    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
-        return args.B2_URI
-
-
-class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, DownloadFileBase):
-    __doc__ = DownloadFileBase.__doc__
-    replaced_by_cmd = DownloadFile
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        super()._setup_parser(parser)
-        parser.add_argument('localFileName')
-
-
-class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, DownloadFileBase):
-    __doc__ = DownloadFileBase.__doc__
-    replaced_by_cmd = DownloadFile
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        super()._setup_parser(parser)
-        parser.add_argument('localFileName')
-
-
-class Cat(B2URIFileArgMixin, DownloadCommand):
+class FileCatBase(B2URIFileArgMixin, DownloadCommand):
     """
     Download content of a file-like object identified by B2 URI directly to stdout.
 
@@ -2071,15 +2046,6 @@ class FileInfoBase(Command):
         return 0
 
 
-class FileInfo(B2URIFileArgMixin, FileInfoBase):
-    __doc__ = FileInfoBase.__doc__
-
-
-class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
-    __doc__ = FileInfoBase.__doc__
-    replaced_by_cmd = FileInfo
-
-
 class BucketGetDownloadAuthBase(Command):
     """
     Prints an authorization token that is valid only for downloading
@@ -2113,7 +2079,7 @@ class BucketGetDownloadAuthBase(Command):
         return 0
 
 
-class GetDownloadUrlWithAuth(Command):
+class GetDownloadUrlWithAuthBase(Command):
     """
     Prints a URL to download the given file.  The URL includes an authorization
     token that allows downloads from the given bucket for files whose names
@@ -2149,7 +2115,7 @@ class GetDownloadUrlWithAuth(Command):
         return 0
 
 
-class HideFile(Command):
+class FileHideBase(Command):
     """
     Uploads a new, hidden, version of the given file.
 
@@ -2569,7 +2535,8 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
         example if a file matching a pattern is uploaded during a run of ``rm`` command, it MIGHT
         be deleted (as "latest") instead of the one present when the ``rm`` run has started.
 
-    In order to safely delete a single file version, please use ``delete-file-version``.
+    If a file is in governance retention mode, and the retention period has not expired,
+    adding --bypass-governance is required.
 
     To list (but not remove) files to be deleted, use ``--dry-run``.  You can also
     list files via ``ls`` command - the listing behaviour is exactly the same.
@@ -2651,6 +2618,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
                     self.runner.api.delete_file_version,
                     file_version.id_,
                     file_version.file_name,
+                    self.args.bypass_governance,
                 )
                 with self.mapping_lock:
                     self.futures_mapping[future] = file_version
@@ -2683,6 +2651,7 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
 
     @classmethod
     def _setup_parser(cls, parser):
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
         add_normalized_argument(parser, '--dry-run', action='store_true')
         add_normalized_argument(parser,
             '--queue-size',
@@ -2772,33 +2741,49 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
 
     - **listFiles**
     - **deleteFiles**
+    - **bypassGovernance** (if --bypass-governance is used)
     """
 
 
-class GetUrlBase(Command):
+class FileUrlBase(Command):
     """
     Prints an URL that can be used to download the given file, if
     it is public.
+
+    If it is private, you can use --with-auth to include an authorization
+    token in the URL that allows downloads from the given bucket for files
+    whose names start with the given file name.
+
+    The URL will work for the given file, but is not specific to that file.  Files
+    with longer names that start with the give file name can also be downloaded
+    with the same auth token.
+
+    The token is valid for the duration specified, which defaults
+    to 86400 seconds (one day).
+
+
+    Requires capability:
+
+    - **shareFiles** (if using --with-auth)
     """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_normalized_argument(parser, '--with-auth', action='store_true')
+        parser.add_argument('--duration', type=int, default=86400)
+        super()._setup_parser(parser)
 
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
-        self._print(self.api.get_download_url_by_uri(b2_uri))
+        url = self.api.get_download_url_by_uri(b2_uri)
+        if args.with_auth:
+            bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
+            auth_token = bucket.get_download_authorization(
+                file_name_prefix=b2_uri.path, valid_duration_in_seconds=args.duration
+            )
+            url += '?Authorization=' + auth_token
+        self._print(url)
         return 0
-
-
-class GetUrl(B2URIFileArgMixin, GetUrlBase):
-    __doc__ = GetUrlBase.__doc__
-
-
-class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, GetUrlBase):
-    __doc__ = GetUrlBase.__doc__
-    replaced_by_cmd = GetUrl
-
-
-class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, GetUrlBase):
-    __doc__ = GetUrlBase.__doc__
-    replaced_by_cmd = GetUrl
 
 
 class Sync(
@@ -3399,7 +3384,7 @@ class UploadFileMixin(
 
     def upload_file_kwargs_to_unbound_upload(self, **kwargs):
         """
-        Translate upload_file kwargs to unbound_upload equivalents
+        Translate `file upload` kwargs to unbound_upload equivalents
         """
         kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
         kwargs["buffers_count"] = kwargs["threads"] + 1
@@ -3434,7 +3419,7 @@ class UploadFileMixin(
         pass
 
 
-class UploadFile(UploadFileMixin, UploadModeMixin, Command):
+class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     """
     Uploads one file to the given bucket.
 
@@ -3443,7 +3428,7 @@ class UploadFile(UploadFileMixin, UploadModeMixin, Command):
 
     A FIFO file (such as named pipe) can be given instead of regular file.
 
-    By default, upload_file will compute the sha1 checksum of the file
+    By default, `file upload` will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
     on the command line to save a little time.
 
@@ -3504,7 +3489,7 @@ class UploadUnboundStream(UploadFileMixin, Command):
     {UploadFileMixin}
     {MinPartSizeMixin}
 
-    As opposed to ``b2 upload-file``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
+    As opposed to ``b2 file upload``, ``b2 upload-unbound-stream`` cannot choose optimal `partSize` on its own.
     So on memory constrained system it is best to use ``--part-size`` option to set it manually.
     During upload of unbound stream ``--part-size`` as well as ``--threads`` determine the amount of memory used.
     The maximum memory use for the upload buffers can be estimated at ``partSize * threads``, that is ~1GB by default.
@@ -3563,7 +3548,7 @@ class UploadUnboundStream(UploadFileMixin, Command):
             self._print_stderr(
                 "WARNING: You are using a stream upload command to upload a regular file. "
                 "While it will work, it is inefficient. "
-                "Use of upload-file command is recommended."
+                "Use of `file upload` command is recommended."
             )
             input_stream = local_file
 
@@ -3575,7 +3560,77 @@ class UploadUnboundStream(UploadFileMixin, Command):
         return file_version
 
 
-class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
+class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
+    """
+    Setting legal holds only works in bucket with fileLockEnabled=true.
+
+    Retention:
+
+      Only works in bucket with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
+      providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
+      since epoch.
+
+      If a file already is in governance mode, disabling retention or shortening it's period requires providing
+      ``--bypass-governance``.
+
+      If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
+
+      In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
+
+      {FILE_RETENTION_COMPATIBILITY_WARNING}
+
+    Requires capability:
+
+    - **readFiles**
+    - **writeFileLegalHolds** (if updating legal holds)
+    - **writeFileRetentions** (if updating retention)
+    - **bypassGovernance** (if --bypass-governance is used)
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        super()._setup_parser(parser)
+
+        add_normalized_argument(
+            parser,
+            '--file-retention-mode',
+            default=None,
+            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value, 'none')
+        )
+        add_normalized_argument(
+            parser,
+            '--retain-until',
+            type=parse_millis_from_float_timestamp,
+            metavar='TIMESTAMP',
+            default=None
+        )
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
+
+    def _run(self, args):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        file_version = self.api.get_file_info_by_uri(b2_uri)
+
+        if args.legal_hold is not None:
+            self.api.update_file_legal_hold(
+                file_version.id_, file_version.file_name, LegalHold(args.legal_hold)
+            )
+
+        if args.file_retention_mode is not None:
+            if args.file_retention_mode == 'none':
+                file_retention = FileRetentionSetting(RetentionMode.NONE)
+            else:
+                file_retention = FileRetentionSetting(
+                    RetentionMode(args.file_retention_mode), args.retain_until
+                )
+
+            self.api.update_file_retention(
+                file_version.id_, file_version.file_name, file_retention, args.bypass_governance
+            )
+
+        return 0
+
+
+class UpdateFileLegalHoldBase(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true.
 
@@ -3600,7 +3655,7 @@ class UpdateFileLegalHold(FileIdAndOptionalFileNameMixin, Command):
         return 0
 
 
-class UpdateFileRetention(FileIdAndOptionalFileNameMixin, Command):
+class UpdateFileRetentionBase(FileIdAndOptionalFileNameMixin, Command):
     """
     Only works in buckets with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
     providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
@@ -4695,7 +4750,7 @@ class Replication(Command):
     """
     Replication rule management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} replication SUBCOMMAND --help``.
 
     Examples:
 
@@ -4769,7 +4824,7 @@ class Account(Command):
     """
     Account management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} account SUBCOMMAND --help``.
 
     Examples:
 
@@ -4819,7 +4874,7 @@ class BucketCmd(Command):
     """
     Bucket management subcommands.
 
-    For more information on each subcommand, use ``{NAME} key SUBCOMMAND --help``.
+    For more information on each subcommand, use ``{NAME} bucket SUBCOMMAND --help``.
 
     Examples:
 
@@ -4871,15 +4926,13 @@ class BucketDelete(BucketDeleteBase):
 @BucketCmd.subcommands_registry.register
 class BucketGetDownloadAuth(BucketGetDownloadAuthBase):
     __doc__ = BucketGetDownloadAuthBase.__doc__
-    # TODO we can't use 'get-download-auth', gets transformed to 'get--download--auth'
-    COMMAND_NAME = 'GetDownloadAuth'
+    COMMAND_NAME = 'get-download-auth'
 
 
 @BucketCmd.subcommands_registry.register
 class BucketNotificationRule(BucketNotificationRuleBase):
     __doc__ = BucketNotificationRuleBase.__doc__
-    # TODO we can't use 'notification-rule', gets transformed to 'notification--rule'
-    COMMAND_NAME = 'NotificationRule'
+    COMMAND_NAME = 'notification-rule'
 
 
 class ListBuckets(CmdReplacedByMixin, BucketListBase):
@@ -4915,6 +4968,157 @@ class GetDownloadAuth(CmdReplacedByMixin, BucketGetDownloadAuthBase):
 class NotificationRules(CmdReplacedByMixin, BucketNotificationRuleBase):
     __doc__ = BucketNotificationRuleBase.__doc__
     replaced_by_cmd = (BucketCmd, BucketNotificationRule)
+
+
+class File(Command):
+    """
+    File management subcommands.
+
+    For more information on each subcommand, use ``{NAME} file SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} file cat b2://yourBucket/file.txt
+        {NAME} file copy-by-id sourceFileId yourBucket file.txt
+        {NAME} file download b2://yourBucket/file.txt localFile.txt
+        {NAME} file hide yourBucket file.txt
+        {NAME} file info b2://yourBucket/file.txt
+        {NAME} file update --legal-hold off b2://yourBucket/file.txt
+        {NAME} file upload yourBucket localFile.txt file.txt
+        {NAME} file url b2://yourBucket/file.txt
+    """
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@File.subcommands_registry.register
+class FileInfo(B2URIFileArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    COMMAND_NAME = 'info'
+
+
+@File.subcommands_registry.register
+class FileUrl(B2URIFileArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    COMMAND_NAME = 'url'
+
+
+@File.subcommands_registry.register
+class FileCat(FileCatBase):
+    __doc__ = FileCatBase.__doc__
+    COMMAND_NAME = 'cat'
+
+
+@File.subcommands_registry.register
+class FileUpload(FileUploadBase):
+    __doc__ = FileUploadBase.__doc__
+    COMMAND_NAME = 'upload'
+
+
+@File.subcommands_registry.register
+class FileDownload(B2URIFileArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    COMMAND_NAME = 'download'
+
+
+@File.subcommands_registry.register
+class FileCopyById(FileCopyByIdBase):
+    __doc__ = FileCopyByIdBase.__doc__
+    COMMAND_NAME = 'copy-by-id'
+
+
+@File.subcommands_registry.register
+class FileHide(FileHideBase):
+    __doc__ = FileHideBase.__doc__
+    COMMAND_NAME = 'hide'
+
+
+@File.subcommands_registry.register
+class FileUpdate(FileUpdateBase):
+    __doc__ = FileUpdateBase.__doc__
+    COMMAND_NAME = 'update'
+
+
+class FileInfo2(CmdReplacedByMixin, B2URIFileArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    replaced_by_cmd = (File, FileInfo)
+    COMMAND_NAME = 'file-info'
+
+
+class GetFileInfo(CmdReplacedByMixin, B2URIFileIDArgMixin, FileInfoBase):
+    __doc__ = FileInfoBase.__doc__
+    replaced_by_cmd = (File, FileInfo)
+
+
+class GetUrl(CmdReplacedByMixin, B2URIFileArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    replaced_by_cmd = (File, FileUrl)
+
+
+class MakeUrl(CmdReplacedByMixin, B2URIFileIDArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    replaced_by_cmd = (File, FileUrl)
+
+
+class MakeFriendlyUrl(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileUrlBase):
+    __doc__ = FileUrlBase.__doc__
+    replaced_by_cmd = (File, FileUrl)
+
+
+class Cat(CmdReplacedByMixin, FileCatBase):
+    __doc__ = FileCatBase.__doc__
+    replaced_by_cmd = (File, FileCat)
+
+
+class UploadFile(CmdReplacedByMixin, FileUploadBase):
+    __doc__ = FileUploadBase.__doc__
+    replaced_by_cmd = (File, FileUpload)
+
+
+class DownloadFile(CmdReplacedByMixin, B2URIFileArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    replaced_by_cmd = (File, FileDownload)
+
+
+class DownloadFileById(CmdReplacedByMixin, B2URIFileIDArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    replaced_by_cmd = (File, FileDownload)
+
+
+class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileDownloadBase):
+    __doc__ = FileDownloadBase.__doc__
+    replaced_by_cmd = (File, FileDownload)
+
+
+class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
+    __doc__ = FileCopyByIdBase.__doc__
+    replaced_by_cmd = (File, FileCopyById)
+
+
+class HideFile(CmdReplacedByMixin, FileHideBase):
+    __doc__ = FileHideBase.__doc__
+    replaced_by_cmd = (File, FileHide)
+
+
+class UpdateFileLegalHold(CmdReplacedByMixin, UpdateFileLegalHoldBase):
+    __doc__ = UpdateFileLegalHoldBase.__doc__
+    replaced_by_cmd = (File, FileUpdate)
+
+
+class UpdateFileRetention(CmdReplacedByMixin, UpdateFileRetentionBase):
+    __doc__ = UpdateFileRetentionBase.__doc__
+    replaced_by_cmd = (File, FileUpdate)
+
+
+class GetDownloadUrlWithAuth(CmdReplacedByMixin, GetDownloadUrlWithAuthBase):
+    __doc__ = GetDownloadUrlWithAuthBase.__doc__
+    replaced_by_cmd = (File, FileUrl)
+
+
+class DeleteFileVersion(CmdReplacedByMixin, DeleteFileVersionBase):
+    __doc__ = DeleteFileVersionBase.__doc__
+    replaced_by_cmd = Rm
 
 
 class ConsoleTool:

@@ -56,4 +56,5 @@ class Rm(B2URIBucketNFolderNameArgMixin, BaseRm):
 
         - **listFiles**
         - **deleteFiles**
+        - **bypassGovernance** (if --bypass-governance is used)
         """

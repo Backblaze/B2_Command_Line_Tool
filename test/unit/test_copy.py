@@ -19,7 +19,7 @@ from b2sdk.v2 import (
     EncryptionSetting,
 )
 
-from b2._internal.console_tool import CopyFileById
+from b2._internal.console_tool import FileCopyById
 
 from .test_base import TestBase
 
@@ -29,7 +29,7 @@ class TestCopy(TestBase):
         mock_api = mock.MagicMock()
         mock_console_tool = mock.MagicMock()
         mock_console_tool.api = mock_api
-        copy_file_command = CopyFileById(mock_console_tool)
+        copy_file_command = FileCopyById(mock_console_tool)
 
         result = copy_file_command._determine_source_metadata(
             'id',

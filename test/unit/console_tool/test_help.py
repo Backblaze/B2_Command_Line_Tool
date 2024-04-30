@@ -16,8 +16,8 @@ import pytest
         # --help shouldn't show deprecated commands
         (
             "--help",
-            [" b2 download-file ", "-h", "--help-all"],
-            [" download-file-by-name ", "(DEPRECATED)"],
+            [" b2 file ", "-h", "--help-all"],
+            [" b2 download-file-by-name ", "(DEPRECATED)"],
         ),
         # --help-all should show deprecated commands, but marked as deprecated
         (

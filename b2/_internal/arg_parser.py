@@ -149,6 +149,31 @@ class B2ArgumentParser(argparse.ArgumentParser):
         ):
             super().print_help(*args, **kwargs)
 
+    def format_usage(self):
+        # TODO We don't want to list underscore aliases subcommands in the usage.
+        # Unfortunately the only way found was to temporarily remove the aliases,
+        # print the usage and then restore the aliases since the formatting is deep
+        # inside the Python argparse module.
+        # We restore the original dictionary which we don't modify, just in case
+        # someone else has taken a reference to it.
+        subparsers_action = None
+        original_choices = None
+        if self._subparsers is not None:
+            for action in self._subparsers._actions:
+                if isinstance(action, argparse._SubParsersAction):
+                    subparsers_action = action
+                    original_choices = action.choices
+                    action.choices = {
+                        key: choice
+                        for key, choice in action.choices.items() if "_" not in key
+                    }
+                    # only one subparser supported
+                    break
+        usage = super().format_usage()
+        if subparsers_action is not None:
+            subparsers_action.choices = original_choices
+        return usage
+
 
 SUPPORT_CAMEL_CASE_ARGUMENTS = False
 
