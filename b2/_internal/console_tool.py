@@ -135,9 +135,12 @@ from b2._internal._cli.autocomplete_install import (
 )
 from b2._internal._cli.b2api import _get_b2api_for_profile, _get_inmemory_b2api
 from b2._internal._cli.b2args import (
+    add_b2_bucket_uri_argument,
     add_b2_uri_argument,
+    add_b2id_or_b2_bucket_uri_argument,
     add_b2id_or_b2_uri_argument,
     add_b2id_or_file_like_b2_uri_argument,
+    add_b2id_uri_argument,
     add_bucket_name_argument,
     get_keyid_and_key_from_env_vars,
 )
@@ -759,6 +762,36 @@ class B2IDOrB2URIMixin:
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI | B2FileIdURI:
+        return args.B2_URI
+
+
+class B2IDOrB2BucketURIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2id_or_b2_bucket_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI | B2FileIdURI:
+        return args.B2_URI
+
+
+class B2BucketURIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_bucket_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+        return args.B2_URI
+
+
+class B2IDURIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2id_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2FileIdURI:
         return args.B2_URI
 
 
