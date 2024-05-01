@@ -1706,7 +1706,11 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_list_unfinished_large_files_with_none(self):
         self._authorize_account()
         self._create_my_bucket()
-        self._run_command(['list-unfinished-large-files', 'my-bucket'], '', '', 0)
+        self._run_command(
+            ['list-unfinished-large-files', 'my-bucket'], '',
+            'WARNING: `list-unfinished-large-files` command is deprecated. Use `file large unfinished list` instead.\n',
+            0
+        )
 
     def test_upload_large_file(self):
         self._authorize_account()
@@ -2992,7 +2996,18 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
 
     def test_cancel_large_file(self):
         file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
-        self._run_command(['cancel-large-file', file.file_id], '9999 canceled\n', '', 0)
+        self._run_command(
+            ['file', 'large', 'unfinished', 'cancel', f'b2id://{file.file_id}'], '9999 canceled\n',
+            '', 0
+        )
+
+    def test_cancel_large_file_deprecated(self):
+        file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        self._run_command(
+            ['cancel-large-file', file.file_id], '9999 canceled\n',
+            'WARNING: `cancel-large-file` command is deprecated. Use `file large unfinished cancel` instead.\n',
+            0
+        )
 
     def test_cancel_all_large_file(self):
         self.v1_bucket.start_large_file('file1', 'text/plain', {})
@@ -3003,15 +3018,35 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         '''
 
         self._run_command(
-            ['cancel-all-unfinished-large-files', 'my-v1-bucket'], expected_stdout, '', 0
+            ['file', 'large', 'unfinished', 'cancel', 'b2://my-v1-bucket'], expected_stdout, '', 0
+        )
+
+    def test_cancel_all_large_file_deprecated(self):
+        self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        self.v1_bucket.start_large_file('file2', 'text/plain', {})
+        expected_stdout = '''
+        9999 canceled
+        9998 canceled
+        '''
+
+        self._run_command(
+            ['cancel-all-unfinished-large-files', 'my-v1-bucket'], expected_stdout,
+            'WARNING: `cancel-all-unfinished-large-files` command is deprecated. Use `file large unfinished cancel` instead.\n',
+            0
         )
 
     def test_list_parts_with_none(self):
         file = self.v1_bucket.start_large_file('file', 'text/plain', {})
-        self._run_command(['list-parts', file.file_id], '', '', 0)
+        self._run_command(['file', 'large', 'parts', f'b2id://{file.file_id}'], '', '', 0)
+
+    def test_list_parts_with_none_deprecated(self):
+        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        self._run_command(
+            ['list-parts', file.file_id], '',
+            'WARNING: `list-parts` command is deprecated. Use `file large parts` instead.\n', 0
+        )
 
     def test_list_parts_with_parts(self):
-
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = self.v1_bucket.start_large_file('file', 'text/plain', {})
         content = b'hello world'
@@ -3030,7 +3065,33 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
             3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
         '''
 
-        self._run_command(['list-parts', file.file_id], expected_stdout, '', 0)
+        self._run_command(
+            ['file', 'large', 'parts', f'b2id://{file.file_id}'], expected_stdout, '', 0
+        )
+
+    def test_list_parts_with_parts_deprecated(self):
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        content = b'hello world'
+        large_file_upload_state = mock.MagicMock()
+        large_file_upload_state.has_error.return_value = False
+        bucket.api.services.upload_manager._upload_part(
+            bucket.id_, file.file_id, UploadSourceBytes(content), 1, large_file_upload_state, None,
+            None
+        )
+        bucket.api.services.upload_manager._upload_part(
+            bucket.id_, file.file_id, UploadSourceBytes(content), 3, large_file_upload_state, None,
+            None
+        )
+        expected_stdout = '''
+            1         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+            3         11  2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
+        '''
+
+        self._run_command(
+            ['list-parts', file.file_id], expected_stdout,
+            'WARNING: `list-parts` command is deprecated. Use `file large parts` instead.\n', 0
+        )
 
     def test_list_unfinished_large_files_with_some(self):
         api_url = self.account_info.get_api_url()
@@ -3048,7 +3109,31 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         9997 file3 application/json
         '''
 
-        self._run_command(['list-unfinished-large-files', 'my-bucket'], expected_stdout, '', 0)
+        self._run_command(
+            ['file', 'large', 'unfinished', 'list', 'b2://my-bucket'], expected_stdout, '', 0
+        )
+
+    def test_list_unfinished_large_files_with_some_deprecated(self):
+        api_url = self.account_info.get_api_url()
+        auth_token = self.account_info.get_account_auth_token()
+        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+        )
+        self.raw_api.start_large_file(
+            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
+        )
+        expected_stdout = '''
+        9999 file1 text/plain
+        9998 file2 text/plain color=blue
+        9997 file3 application/json
+        '''
+
+        self._run_command(
+            ['list-unfinished-large-files', 'my-bucket'], expected_stdout,
+            'WARNING: `list-unfinished-large-files` command is deprecated. Use `file large unfinished list` instead.\n',
+            0
+        )
 
 
 class TestRmConsoleTool(BaseConsoleToolTest):

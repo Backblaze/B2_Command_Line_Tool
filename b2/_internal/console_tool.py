@@ -135,9 +135,12 @@ from b2._internal._cli.autocomplete_install import (
 )
 from b2._internal._cli.b2api import _get_b2api_for_profile, _get_inmemory_b2api
 from b2._internal._cli.b2args import (
+    add_b2_bucket_uri_argument,
     add_b2_uri_argument,
+    add_b2id_or_b2_bucket_uri_argument,
     add_b2id_or_b2_uri_argument,
     add_b2id_or_file_like_b2_uri_argument,
+    add_b2id_uri_argument,
     add_bucket_name_argument,
     get_keyid_and_key_from_env_vars,
 )
@@ -762,6 +765,36 @@ class B2IDOrB2URIMixin:
         return args.B2_URI
 
 
+class B2IDOrB2BucketURIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2id_or_b2_bucket_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI | B2FileIdURI:
+        return args.B2_URI
+
+
+class B2BucketURIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2_bucket_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
+        return args.B2_URI
+
+
+class B2IDURIMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2id_uri_argument(parser)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2FileIdURI:
+        return args.B2_URI
+
+
 class UploadModeMixin(Described):
     """
     Use --incremental-mode to allow for incremental file uploads to safe bandwidth.  This will only affect files, which
@@ -1343,51 +1376,35 @@ class AccountAuthorizeBase(Command):
         return os.environ.get(B2_ENVIRONMENT_ENV_VAR)
 
 
-class CancelAllUnfinishedLargeFiles(Command):
+class FileLargeUnfinishedCancelBase(Command):
     """
-    Lists all large files that have been started but not
-    finished and cancels them.  Any parts that have been
-    uploaded will be deleted.
-
-    Requires capability:
-
-    - **listFiles**
-    - **writeFiles**
-    """
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        add_bucket_name_argument(parser)
-        super()._setup_parser(parser)
-
-    def _run(self, args):
-        bucket = self.api.get_bucket_by_name(args.bucketName)
-        for file_version in bucket.list_unfinished_large_files():
-            bucket.cancel_large_file(file_version.file_id)
-            self._print(file_version.file_id, 'canceled')
-        return 0
-
-
-class CancelLargeFile(Command):
-    """
-    Cancels a large file upload.  Used to undo a ``start-large-file``.
-
+    When used with a b2id://fileId, cancels a large file upload.
     Cannot be used once the file is finished.  After finishing,
-    using ``delete-file-version`` to delete the large file.
+    use ``rm`` to delete the large file.
+
+    When used with a b2://bucketName, lists all large files that
+    have been started but not finished and cancels them.  Any parts
+    that have been uploaded will be deleted.
 
     Requires capability:
 
+    - **listFiles** (if canceling unfinished large files in a bucket)
     - **writeFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('fileId')
-        super()._setup_parser(parser)
-
     def _run(self, args):
-        self.api.cancel_large_file(args.fileId)
-        self._print(args.fileId, 'canceled')
+        b2_uri = self.get_b2_uri_from_arg(args)
+        if isinstance(b2_uri, B2FileIdURI):
+            self.api.cancel_large_file(b2_uri.file_id)
+            self._print(b2_uri.file_id, 'canceled')
+        elif isinstance(b2_uri, B2URI):
+            bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
+            for file_version in bucket.list_unfinished_large_files():
+                bucket.cancel_large_file(file_version.file_id)
+                self._print(file_version.file_id, 'canceled')
+        else:
+            self._print_stderr(f'ERROR: unsupported URI "{b2_uri}"')
+            return 1
         return 0
 
 
@@ -2257,7 +2274,7 @@ class KeyListBase(Command):
             return dt.strftime('%Y-%m-%d'), dt.strftime('%H:%M:%S')
 
 
-class ListParts(Command):
+class FileLargePartsBase(Command):
     """
     Lists all of the parts that have been uploaded for the given
     large file, which must be a file that was started but not
@@ -2268,18 +2285,14 @@ class ListParts(Command):
     - **writeFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument('largeFileId')
-        super()._setup_parser(parser)
-
     def _run(self, args):
-        for part in self.api.list_parts(args.largeFileId):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        for part in self.api.list_parts(b2_uri.file_id):
             self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
         return 0
 
 
-class ListUnfinishedLargeFiles(Command):
+class FileLargeUnfinishedListBase(Command):
     """
     Lists all of the large files in the bucket that were started,
     but not finished or canceled.
@@ -2289,13 +2302,9 @@ class ListUnfinishedLargeFiles(Command):
     - **listFiles**
     """
 
-    @classmethod
-    def _setup_parser(cls, parser):
-        add_bucket_name_argument(parser)
-        super()._setup_parser(parser)
-
     def _run(self, args):
-        bucket = self.api.get_bucket_by_name(args.bucketName)
+        b2_uri = self.get_b2_uri_from_arg(args)
+        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
         for unfinished in bucket.list_unfinished_large_files():
             file_info_text = ' '.join(
                 f'{k}={unfinished.file_info[k]}' for k in sorted(unfinished.file_info)
@@ -5119,6 +5128,105 @@ class GetDownloadUrlWithAuth(CmdReplacedByMixin, GetDownloadUrlWithAuthBase):
 class DeleteFileVersion(CmdReplacedByMixin, DeleteFileVersionBase):
     __doc__ = DeleteFileVersionBase.__doc__
     replaced_by_cmd = Rm
+
+
+@File.subcommands_registry.register
+class FileLarge(Command):
+    """
+    Large file uploads management subcommands.
+
+    For more information on each subcommand, use ``{NAME} file large SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} file large parts b2id://yourFileId
+        {NAME} file large unfinished list b2://yourBucket
+        {NAME} file large unfinished cancel b2://yourBucket
+        {NAME} file large unfinished cancel b2id://yourFileId
+    """
+    COMMAND_NAME = 'large'
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@FileLarge.subcommands_registry.register
+class FileLargeParts(B2IDURIMixin, FileLargePartsBase):
+    __doc__ = FileLargePartsBase.__doc__
+    COMMAND_NAME = 'parts'
+
+
+@FileLarge.subcommands_registry.register
+class FileLargeUnfinished(Command):
+    """
+    Large file unfinished uploads management subcommands.
+
+    For more information on each subcommand, use ``{NAME} file large unfinished SUBCOMMAND --help``.
+
+    Examples:
+
+    .. code-block::
+
+        {NAME} file large unfinished list b2://yourBucket
+        {NAME} file large unfinished cancel b2://yourBucket
+        {NAME} file large unfinished cancel b2id://yourFileId
+    """
+    COMMAND_NAME = 'unfinished'
+    subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+
+@FileLargeUnfinished.subcommands_registry.register
+class FileLargeUnfinishedList(B2BucketURIMixin, FileLargeUnfinishedListBase):
+    __doc__ = FileLargePartsBase.__doc__
+    COMMAND_NAME = 'list'
+
+
+@FileLargeUnfinished.subcommands_registry.register
+class FileLargeUnfinishedCancel(B2IDOrB2BucketURIMixin, FileLargeUnfinishedCancelBase):
+    __doc__ = FileLargeUnfinishedCancelBase.__doc__
+    COMMAND_NAME = 'cancel'
+
+
+class ListParts(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargePartsBase):
+    __doc__ = FileLargePartsBase.__doc__
+    replaced_by_cmd = (File, FileLarge, FileLargeParts)
+
+
+class ListUnfinishedLargeFiles(
+    CmdReplacedByMixin, B2URIBucketArgMixin, FileLargeUnfinishedListBase
+):
+    __doc__ = FileLargeUnfinishedListBase.__doc__
+    replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedList)
+
+
+class CancelAllUnfinishedLargeFiles(
+    CmdReplacedByMixin, B2URIBucketArgMixin, FileLargeUnfinishedCancelBase
+):
+    """
+    Lists all large files that have been started but not
+    finished and cancels them.  Any parts that have been
+    uploaded will be deleted.
+
+    Requires capability:
+
+    - **listFiles**
+    - **writeFiles**
+    """
+    replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
+
+
+class CancelLargeFile(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargeUnfinishedCancelBase):
+    """
+    Cancels a large file upload.  Used to undo a ``start-large-file``.
+
+    Cannot be used once the file is finished.  After finishing,
+    using ``delete-file-version`` to delete the large file.
+
+    Requires capability:
+
+    - **writeFiles**
+    """
+    replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
 
 
 class ConsoleTool:
