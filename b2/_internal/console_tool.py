@@ -1388,7 +1388,7 @@ class FileLargeUnfinishedCancelBase(Command):
 
     Requires capability:
 
-    - **listFiles** (if canceling a bucket)
+    - **listFiles** (if canceling unfinished large files in a bucket)
     - **writeFiles**
     """
 
