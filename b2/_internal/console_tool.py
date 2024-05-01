@@ -5141,8 +5141,10 @@ class FileLarge(Command):
 
     .. code-block::
 
-        {NAME} file large parts
-        {NAME} file large unfinished
+        {NAME} file large parts b2id://yourFileId
+        {NAME} file large unfinished list b2://yourBucket
+        {NAME} file large unfinished cancel b2://yourBucket
+        {NAME} file large unfinished cancel b2id://yourFileId
     """
     COMMAND_NAME = 'large'
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
@@ -5165,8 +5167,9 @@ class FileLargeUnfinished(Command):
 
     .. code-block::
 
-        {NAME} file large unfinished list
-        {NAME} file large unfinished cancel
+        {NAME} file large unfinished list b2://yourBucket
+        {NAME} file large unfinished cancel b2://yourBucket
+        {NAME} file large unfinished cancel b2id://yourFileId
     """
     COMMAND_NAME = 'unfinished'
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
