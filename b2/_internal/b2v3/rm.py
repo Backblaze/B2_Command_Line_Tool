@@ -9,7 +9,7 @@
 ######################################################################
 from __future__ import annotations
 
-from b2._internal._b2v4.registry import B2URIBucketNFolderNameArgMixin, BaseRm
+from b2._internal.b2v4.registry import B2URIBucketNFolderNameArgMixin, BaseRm
 
 
 # NOTE: We need to keep v3 Rm in separate file, because we need to import it in

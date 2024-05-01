@@ -125,7 +125,7 @@ def cli_version(request) -> str:
     """
     Get CLI version name, i.e. b2v3, _b2v4, etc.
     """
-    # The default stable version could be provided directly as e.g.: b2v3, but also indirectly as b2.
+    # The default stable version could be provided directly as e.g.: b2v4, but also indirectly as b2.
     # In case there is no direct version, we return the default binary name instead.
     raw_cli_version = get_raw_cli_int_version(request.config)
     if raw_cli_version is None:

@@ -122,21 +122,21 @@ that command.
 
 Thanks to [ApiVer methodology](#apiver-cli-versions-b2-vs-b2v3-b2v4-etc),
 you should be perfectly fine using `b2:latest` version even in long-term support scripts,
-but make sure to explicitly use `b2v3` command from the docker image as shown below.
+but make sure to explicitly use `b2v4` command from the docker image as shown below.
 
 #### Authorization
 
 User can either authorize on each command (`bucket list` is just a example here)
 
 ```bash
-B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID backblazeit/b2:latest b2v3 bucket list
+B2_APPLICATION_KEY=<key> B2_APPLICATION_KEY_ID=<key-id> docker run --rm -e B2_APPLICATION_KEY -e B2_APPLICATION_KEY_ID backblazeit/b2:latest b2v4 bucket list
 ```
 
 or authorize once and keep the credentials persisted:
 
 ```bash
-docker run --rm -it -v b2:/root backblazeit/b2:latest b2v3 account authorize
-docker run --rm -v b2:/root backblazeit/b2:latest b2v3 bucket list  # remember to include `-v` - authorization details are there
+docker run --rm -it -v b2:/root backblazeit/b2:latest b2v4 account authorize
+docker run --rm -v b2:/root backblazeit/b2:latest b2v4 bucket list  # remember to include `-v` - authorization details are there
 ```
 
 #### Downloading and uploading
@@ -144,13 +144,13 @@ docker run --rm -v b2:/root backblazeit/b2:latest b2v3 bucket list  # remember t
 When uploading a single file, data can be passed to the container via a pipe:
 
 ```bash
-cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest b2v3 upload-unbound-stream bucket_name - target_file_name
+cat source_file.txt | docker run -i --rm -v b2:/root backblazeit/b2:latest b2v4 upload-unbound-stream bucket_name - target_file_name
 ```
 
 or by mounting local files in the docker container:
 
 ```bash
-docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest b2v3 file upload bucket_name /data/source_file.txt target_file_name
+docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:latest b2v4 file upload bucket_name /data/source_file.txt target_file_name
 ```
 
 ## ApiVer CLI versions (`b2` vs `b2v3`, `b2v4`, etc.)
@@ -158,7 +158,7 @@ docker run --rm -v b2:/root -v /home/user/path/to/data:/data backblazeit/b2:late
 Summary:
 
 * in terminal, for best UX, use the latest apiver interface provided by `b2` command
-* for long-term support, i.e. in scripts, use `b2v3` command
+* for long-term support, i.e. in scripts, use `b2v4` command
 
 Explanation:
 
@@ -170,13 +170,13 @@ It provides all the bells and whistles, latest features, and the best performanc
 While it's a great version to work with directly, but when writing a reliable, long-running script,
 you want to ensure that your script won't break when we release a new version of the `b2` command.
 
-In that case instead of using the `b2` command, you should use a version-bound interface e.g.: `b2v3`.
+In that case instead of using the `b2` command, you should use a version-bound interface e.g.: `b2v4`.
 This command will always provide the same ApiVer 3 interface, regardless of the semantic version of the `b2` command.
 Even if the `b2` command goes into the ApiVer `4`, `6` or even `10` with some major changes,
-`b2v3` will still provide the same interface, same commands, and same parameters, with all the security and bug fixes.
+`b2v4` will still provide the same interface, same commands, and same parameters, with all the security and bug fixes.
 Over time, it might get slower as we may need to emulate some older behaviors, but we'll ensure that it won't break.
 
-You may find the next interface under `_b2v4`, but please note, as suggested by `_` prefix,
+You may find the next interface under `_b2v5`, but please note, as suggested by `_` prefix,
 it is not yet stable and is not yet covered by guarantees listed above.
 
 ## Contrib

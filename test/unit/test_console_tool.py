@@ -35,13 +35,13 @@ from b2sdk.v2 import (
 from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
 from more_itertools import one
 
-from b2._internal._b2v4.registry import Rm as v4Rm
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
 )
 from b2._internal.b2v3.rm import Rm as v3Rm
+from b2._internal.b2v4.registry import Rm as v4Rm
 from b2._internal.version import VERSION
 
 from .test_base import TestBase
