@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import functools
 import locale
 import re
@@ -39,7 +40,7 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     def add_argument(self, action):
         if isinstance(action, argparse._SubParsersAction) and action.help is not argparse.SUPPRESS:
             usages = []
-            for choice in self._unique_choice_values(action):
+            for choice in action.choices.values():
                 deprecated = getattr(choice, 'deprecated', False)
                 if deprecated:
                     if self.show_all:
@@ -49,14 +50,6 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
             self.add_text(''.join(usages))
         else:
             super().add_argument(action)
-
-    @classmethod
-    def _unique_choice_values(cls, action):
-        seen = set()
-        seen_add = seen.add
-        for _, value in sorted(action.choices.items()):
-            if not (value in seen or seen_add(value)):
-                yield value
 
 
 class _HelpAllAction(argparse._HelpAction):
@@ -143,44 +136,44 @@ class B2ArgumentParser(argparse.ArgumentParser):
     def print_help(self, *args, show_all: bool = False, **kwargs):
         """
         Print help message.
+
+        All subcommands are sorted alphabetically.
+        Unless show_all is True, it hides deprecated options and subcommands.
+        In additional all subcommand aliases (such as `sub_command` alias for `sub-command) are hidden.
+
+        Due how deep changes are in argparse stack this is done through temporary patches.
         """
-        with unittest.mock.patch.object(
-            self, 'formatter_class', functools.partial(B2RawTextHelpFormatter, show_all=show_all)
-        ):
+        patches = [
+            unittest.mock.patch.object(
+                self, 'formatter_class',
+                functools.partial(B2RawTextHelpFormatter, show_all=show_all)
+            )
+        ]
+        if self._subparsers is not None and not show_all:
+            patches.extend(
+                [
+                    self._hide_duplicated_action_choices(action)
+                    for action in self._subparsers._actions
+                    if isinstance(action, argparse._SubParsersAction)
+                ]
+            )
+        with contextlib.ExitStack() as stack:
+            for patch in patches:
+                stack.enter_context(patch)
             super().print_help(*args, **kwargs)
 
-    def format_usage(self):
-        """
-        Format usage message.
-
-        Deduplicate subcommands aliases if they only differ by underscores.
-        """
-        # TODO We don't want to list underscore aliases subcommands in the usage.
-        # Unfortunately the only way found was to temporarily remove the aliases,
-        # print the usage and then restore the aliases since the formatting is deep
-        # inside the Python argparse module.
-        # We restore the original dictionary which we don't modify, just in case
-        # someone else has taken a reference to it.
-        subparsers_action = None
-        original_choices = None
-        if self._subparsers is not None:
-            for action in self._subparsers._actions:
-                if isinstance(action, argparse._SubParsersAction):
-                    subparsers_action = action
-                    original_choices = action.choices
-                    action.choices = {}
-                    choice_values = set()
-                    # sort alphabetically; this also makes `-` come before `_`
-                    for key, choice in sorted(original_choices.items()):
-                        if choice not in choice_values:
-                            action.choices[key] = choice
-                            choice_values.add(choice)
-                    # only one subparser supported
-                    break
-        usage = super().format_usage()
-        if subparsers_action is not None:
-            subparsers_action.choices = original_choices
-        return usage
+    @contextlib.contextmanager
+    def _hide_duplicated_action_choices(self, action):
+        original_choices = action.choices
+        seen_choices = set()
+        filtered_choices = {}
+        for name, choice in sorted(original_choices.items()):
+            if (not getattr(choice, 'deprecated', False)) and choice not in seen_choices:
+                filtered_choices[name] = choice
+                seen_choices.add(choice)
+        action.choices = filtered_choices
+        yield
+        action.choices = original_choices
 
 
 SUPPORT_CAMEL_CASE_ARGUMENTS = False
