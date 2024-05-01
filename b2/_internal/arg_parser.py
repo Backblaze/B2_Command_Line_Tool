@@ -54,7 +54,7 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     def _unique_choice_values(cls, action):
         seen = set()
         seen_add = seen.add
-        for value in action.choices.values():
+        for _, value in sorted(action.choices.items()):
             if not (value in seen or seen_add(value)):
                 yield value
 
@@ -150,6 +150,11 @@ class B2ArgumentParser(argparse.ArgumentParser):
             super().print_help(*args, **kwargs)
 
     def format_usage(self):
+        """
+        Format usage message.
+
+        Deduplicate subcommands aliases if they only differ by underscores.
+        """
         # TODO We don't want to list underscore aliases subcommands in the usage.
         # Unfortunately the only way found was to temporarily remove the aliases,
         # print the usage and then restore the aliases since the formatting is deep
@@ -163,10 +168,13 @@ class B2ArgumentParser(argparse.ArgumentParser):
                 if isinstance(action, argparse._SubParsersAction):
                     subparsers_action = action
                     original_choices = action.choices
-                    action.choices = {
-                        key: choice
-                        for key, choice in action.choices.items() if "_" not in key
-                    }
+                    action.choices = {}
+                    choice_values = set()
+                    # sort alphabetically; this also makes `-` come before `_`
+                    for key, choice in sorted(original_choices.items()):
+                        if choice not in choice_values:
+                            action.choices[key] = choice
+                            choice_values.add(choice)
                     # only one subparser supported
                     break
         usage = super().format_usage()

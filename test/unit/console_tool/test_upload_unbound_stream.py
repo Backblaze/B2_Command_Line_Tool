@@ -12,6 +12,8 @@ from test.helpers import skip_on_windows
 
 from b2sdk.v2 import DEFAULT_MIN_PART_SIZE
 
+UUS_DEPRECATION_WARNING = 'WARNING: `upload-unbound-stream` command is deprecated. Use `file upload` instead.\n'
+
 
 @skip_on_windows
 def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
@@ -35,6 +37,7 @@ def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
+        expected_stderr=UUS_DEPRECATION_WARNING,
     )
     writer.result(timeout=1)
 
@@ -59,6 +62,7 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
+        expected_stderr=UUS_DEPRECATION_WARNING,
     )
 
 
@@ -99,6 +103,7 @@ def test_upload_unbound_stream__with_part_size_options(
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
+        expected_stderr=UUS_DEPRECATION_WARNING,
     )
     writer.result(timeout=1)
 
@@ -124,6 +129,6 @@ def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
-        expected_stderr=
+        expected_stderr=f"{UUS_DEPRECATION_WARNING}"
         "WARNING: You are using a stream upload command to upload a regular file. While it will work, it is inefficient. Use of `file upload` command is recommended.\n",
     )
