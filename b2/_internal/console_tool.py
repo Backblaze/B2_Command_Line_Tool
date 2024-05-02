@@ -5375,12 +5375,13 @@ class ConsoleTool:
     def _setup_logging(cls, args, argv):
         if args.log_config and (args.verbose or args.debug_logs):
             raise ValueError('Please provide either --log-config or --verbose/--debug-logs')
+        errors_kwarg = {'errors': 'backslashreplace'} if sys.version_info >= (3, 9) else {}
         if args.log_config:
             logging.config.fileConfig(args.log_config)
         elif args.verbose or args.debug_logs:
             # set log level to DEBUG for ALL loggers (even those not belonging to B2), but without any handlers,
             # those will added as needed (file and/or stderr)
-            logging.basicConfig(level=logging.DEBUG, handlers=[])
+            logging.basicConfig(level=logging.DEBUG, handlers=[], **errors_kwarg)
         else:
             logger.setLevel(logging.CRITICAL + 1)  # No logs!
         if args.verbose:
@@ -5395,7 +5396,7 @@ class ConsoleTool:
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
-            handler = logging.FileHandler('b2_cli.log')
+            handler = logging.FileHandler('b2_cli.log', **errors_kwarg)
             handler.setFormatter(formatter)
 
             # logs from ALL loggers sent to the log file should be formatted this way
