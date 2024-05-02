@@ -147,6 +147,7 @@ from b2._internal._cli.b2args import (
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
+    B2_CLI_DOCKER_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
@@ -5406,6 +5407,8 @@ class ConsoleTool:
 
         logger.info(r'// %s %s %s \\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
+        if os.environ.get(B2_CLI_DOCKER_ENV_VAR) == "1":
+            logger.debug('running as a Docker container')
         logger.debug(
             'Python version is %s %s', platform.python_implementation(),
             sys.version.replace('\n', ' ')
@@ -5413,6 +5416,8 @@ class ConsoleTool:
         logger.debug('b2sdk version is %s', b2sdk_version)
         logger.debug('locale is %s', locale.getlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
+        logger.debug('default encoding is %s', sys.getdefaultencoding())
+        logger.debug('flags.utf8_mode is %s', sys.flags.utf8_mode)
 
 
 # used by Sphinx
