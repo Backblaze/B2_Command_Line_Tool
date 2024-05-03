@@ -1,0 +1,1 @@
+Escape invalid unicode characters in log messages.

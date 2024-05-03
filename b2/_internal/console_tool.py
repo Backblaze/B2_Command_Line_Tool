@@ -147,6 +147,7 @@ from b2._internal._cli.b2args import (
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
     B2_APPLICATION_KEY_ID_ENV_VAR,
+    B2_CLI_DOCKER_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR,
     B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
@@ -5374,12 +5375,13 @@ class ConsoleTool:
     def _setup_logging(cls, args, argv):
         if args.log_config and (args.verbose or args.debug_logs):
             raise ValueError('Please provide either --log-config or --verbose/--debug-logs')
+        errors_kwarg = {'errors': 'backslashreplace'} if sys.version_info >= (3, 9) else {}
         if args.log_config:
             logging.config.fileConfig(args.log_config)
         elif args.verbose or args.debug_logs:
             # set log level to DEBUG for ALL loggers (even those not belonging to B2), but without any handlers,
             # those will added as needed (file and/or stderr)
-            logging.basicConfig(level=logging.DEBUG, handlers=[])
+            logging.basicConfig(level=logging.DEBUG, handlers=[], **errors_kwarg)
         else:
             logger.setLevel(logging.CRITICAL + 1)  # No logs!
         if args.verbose:
@@ -5394,7 +5396,7 @@ class ConsoleTool:
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
-            handler = logging.FileHandler('b2_cli.log')
+            handler = logging.FileHandler('b2_cli.log', **errors_kwarg)
             handler.setFormatter(formatter)
 
             # logs from ALL loggers sent to the log file should be formatted this way
@@ -5406,6 +5408,8 @@ class ConsoleTool:
 
         logger.info(r'// %s %s %s \\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
+        if os.environ.get(B2_CLI_DOCKER_ENV_VAR) == "1":
+            logger.debug('running as a Docker container')
         logger.debug(
             'Python version is %s %s', platform.python_implementation(),
             sys.version.replace('\n', ' ')
@@ -5413,6 +5417,8 @@ class ConsoleTool:
         logger.debug('b2sdk version is %s', b2sdk_version)
         logger.debug('locale is %s', locale.getlocale())
         logger.debug('filesystem encoding is %s', sys.getfilesystemencoding())
+        logger.debug('default encoding is %s', sys.getdefaultencoding())
+        logger.debug('flags.utf8_mode is %s', sys.flags.utf8_mode)
 
 
 # used by Sphinx

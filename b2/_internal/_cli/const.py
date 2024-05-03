@@ -26,3 +26,6 @@ DEFAULT_THREADS = 10
 CREATE_BUCKET_TYPES = ('allPublic', 'allPrivate')
 
 B2_ESCAPE_CONTROL_CHARACTERS = 'B2_ESCAPE_CONTROL_CHARACTERS'
+
+# Set to 1 when running under B2 CLI as a Docker container
+B2_CLI_DOCKER_ENV_VAR = 'B2_CLI_DOCKER'

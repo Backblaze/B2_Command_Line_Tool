@@ -23,6 +23,7 @@ LABEL vcs-url="${vcs_url}"
 LABEL vcs-ref="${vcs_ref}"
 LABEL build-date-iso8601="${build_date}"
 
+ENV B2_CLI_DOCKER=1
 ENV PYTHONPATH=/opt/b2
 COPY ./docker/entrypoint.sh /entrypoint.sh
 COPY --from=builder /b2/__pypackages__/${python_version}/lib /opt/b2
