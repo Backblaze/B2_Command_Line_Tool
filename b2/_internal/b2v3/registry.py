@@ -13,6 +13,7 @@ from b2._internal.b2v4.registry import *  # noqa
 from b2._internal._cli.b2api import _get_b2api_for_profile
 from b2._internal.arg_parser import enable_camel_case_arguments
 from .rm import Rm
+from .sync import Sync
 
 enable_camel_case_arguments()
 

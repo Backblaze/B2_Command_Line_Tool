@@ -2972,6 +2972,8 @@ class Sync(
     DEFAULT_DOWNLOAD_THREADS = 10
     DEFAULT_UPLOAD_THREADS = 10
 
+    FAIL_ON_REPORTER_ERRORS_OR_WARNINGS = True
+
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--no-progress', action='store_true')
@@ -3089,6 +3091,8 @@ class Sync(
                 raise CommandError(f'{ex.path} is not a directory')
             except UnableToCreateDirectory as ex:
                 raise CommandError(f'unable to create directory {ex.path}')
+            if self.FAIL_ON_REPORTER_ERRORS_OR_WARNINGS and reporter.has_errors_or_warnings():
+                return 1
         return 0
 
     def get_policies_manager_from_args(self, args):
