@@ -40,13 +40,15 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     def add_argument(self, action):
         if isinstance(action, argparse._SubParsersAction) and action.help is not argparse.SUPPRESS:
             usages = []
+            col_length = max(len(choice.prog) for choice in action.choices.values())
+
             for choice in action.choices.values():
                 deprecated = getattr(choice, 'deprecated', False)
                 if deprecated:
                     if self.show_all:
                         usages.append(f'(DEPRECATED) {choice.format_usage()}')
                 else:
-                    usages.append(choice.format_usage(use_short_description=not self.show_all))
+                    usages.append(choice.format_usage(use_short_description=not self.show_all, col_length=col_length))
             self.add_text(''.join(usages))
         else:
             super().add_argument(action)
@@ -179,12 +181,12 @@ class B2ArgumentParser(argparse.ArgumentParser):
         yield
         action.choices = original_choices
 
-    def format_usage(self, use_short_description: bool = False):
+    def format_usage(self, use_short_description: bool = False, col_length: int = 16):
         if not use_short_description or not self.short_description:
             return super().format_usage()
 
         formatter = self._get_formatter()
-        formatter.add_text(f"{self.prog} {self.short_description}")
+        formatter.add_text(f"{self.prog:{col_length + 2}} {self.short_description}")
         return formatter.format_help()
 
 
