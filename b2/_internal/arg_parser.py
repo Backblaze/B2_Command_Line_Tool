@@ -46,7 +46,7 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
                     if self.show_all:
                         usages.append(f'(DEPRECATED) {choice.format_usage()}')
                 else:
-                    usages.append(choice.format_usage())
+                    usages.append(choice.format_usage(use_short_description=not self.show_all))
             self.add_text(''.join(usages))
         else:
             super().add_argument(action)
@@ -112,6 +112,10 @@ class B2ArgumentParser(argparse.ArgumentParser):
     def description(self, value):
         self._raw_description = value
 
+    @property
+    def short_description(self):
+        return self.usage or self.description.split('\n', 1)[0]
+
     def error(self, message):
         self.print_help()
 
@@ -174,6 +178,14 @@ class B2ArgumentParser(argparse.ArgumentParser):
         action.choices = filtered_choices
         yield
         action.choices = original_choices
+
+    def format_usage(self, use_short_description: bool = False):
+        if not use_short_description or not self.short_description:
+            return super().format_usage()
+
+        formatter = self._get_formatter()
+        formatter.add_text(f"{self.prog} {self.short_description}")
+        return formatter.format_help()
 
 
 SUPPORT_CAMEL_CASE_ARGUMENTS = False
