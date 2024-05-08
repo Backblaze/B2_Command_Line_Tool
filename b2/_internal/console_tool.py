@@ -1250,6 +1250,8 @@ class B2(Command):
 
 class AccountAuthorizeBase(Command):
     """
+    Authorize an account with credentials.
+
     Prompts for Backblaze ``applicationKeyId`` and ``applicationKey`` (unless they are given
     on the command line).
 
@@ -1411,7 +1413,7 @@ class FileLargeUnfinishedCancelBase(Command):
 
 class AccountClearBase(Command):
     """
-    Erases everything in local cache.
+    Erase everything in local cache.
 
     See
 
@@ -1435,6 +1437,7 @@ class FileCopyByIdBase(
 ):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
+
     Copies the contents of the source B2 file to destination bucket
     and assigns the given name to the new B2 file,
     possibly setting options like server-side encryption and retention.
@@ -1570,8 +1573,9 @@ class FileCopyByIdBase(
 
 class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
-    Creates a new bucket.  Prints the ID of the bucket created.
+    Create a new bucket.
 
+    Prints the ID of the bucket created.
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
@@ -1627,7 +1631,9 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
 
 class KeyCreateBase(Command):
     """
-    Creates a new application key.  Prints the application key information.  This is the only
+    Create a new application key.
+
+    Prints the application key information.  This is the only
     time the application key itself will be returned.  Listing application keys will show
     their IDs, but not the secret keys.
 
@@ -1694,7 +1700,7 @@ class KeyCreateBase(Command):
 
 class BucketDeleteBase(Command):
     """
-    Deletes the bucket with the given name.
+    Delete the bucket with the given name.
 
     Requires capability:
 
@@ -1714,7 +1720,7 @@ class BucketDeleteBase(Command):
 
 class DeleteFileVersionBase(FileIdAndOptionalFileNameMixin, Command):
     """
-    Permanently and irrevocably deletes one version of a file.
+    Permanently and irrevocably delete one version of a file.
 
     {FileIdAndOptionalFileNameMixin}
 
@@ -1745,7 +1751,7 @@ class DeleteFileVersionBase(FileIdAndOptionalFileNameMixin, Command):
 
 class KeyDeleteBase(Command):
     """
-    Deletes the specified application key by its ID.
+    Delete the specified application key by ID.
 
     Requires capability:
 
@@ -1907,7 +1913,7 @@ class FileDownloadBase(
     DownloadCommand,
 ):
     """
-    Downloads the given file-like object, and stores it in the given local file.
+    Download the given file-like object, and store it in the given local file.
 
     {ProgressMixin}
     {ThreadsMixin}
@@ -1978,7 +1984,9 @@ class FileCatBase(B2URIFileArgMixin, DownloadCommand):
 
 class AccountGetBase(Command):
     """
-    Shows the account ID, key, auth token, URLs, and what capabilities
+    Show current account info
+
+    Prints account ID, key, auth token, URLs, and what capabilities
     the current application keys has.
     """
 
@@ -1990,6 +1998,8 @@ class AccountGetBase(Command):
 
 class BucketGetBase(Command):
     """
+    Display bucket info
+
     Prints all of the information about the bucket, including
     bucket info, CORS rules and lifecycle rules.
 
@@ -2050,6 +2060,8 @@ class BucketGetBase(Command):
 
 class FileInfoBase(Command):
     """
+    Print file info
+
     Prints all of the information about the object, but not its contents.
 
     Requires capability:
@@ -2066,6 +2078,8 @@ class FileInfoBase(Command):
 
 class BucketGetDownloadAuthBase(Command):
     """
+    Display authorization token for downloading files
+
     Prints an authorization token that is valid only for downloading
     files from the given bucket.
 
@@ -2099,7 +2113,9 @@ class BucketGetDownloadAuthBase(Command):
 
 class GetDownloadUrlWithAuthBase(Command):
     """
-    Prints a URL to download the given file.  The URL includes an authorization
+    Print a URL to download the given file.
+
+    The URL includes an authorization
     token that allows downloads from the given bucket for files whose names
     start with the given file name.
 
@@ -2135,7 +2151,7 @@ class GetDownloadUrlWithAuthBase(Command):
 
 class FileHideBase(Command):
     """
-    Uploads a new, hidden, version of the given file.
+    Upload a new, hidden, version of the given file.
 
     Requires capability:
 
@@ -2157,7 +2173,7 @@ class FileHideBase(Command):
 
 class BucketListBase(Command):
     """
-    Lists all of the buckets in the current account.
+    List all of the buckets in the current account.
 
     Output lines list the bucket ID, bucket type, and bucket name,
     and look like this:
@@ -2196,7 +2212,7 @@ class BucketListBase(Command):
 
 class KeyListBase(Command):
     """
-    Lists the application keys for the current account.
+    List the application keys for the current account.
 
     The columns in the output are:
 
@@ -2385,6 +2401,8 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
 
 class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     """
+    List files in a given folder.
+
     Using the file naming convention that ``/`` separates folder
     names from their contents, returns a list of the files
     and folders in a given folder.  If no folder name is given,
@@ -2536,7 +2554,9 @@ class Ls(B2IDOrB2URIMixin, BaseLs):
 
 class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
     """
-    Removes a "folder" or a set of files matching a pattern.  Use with caution.
+    Remove a "folder" or a set of files matching a pattern.
+
+    Use with caution!
 
     .. note::
 
@@ -2757,6 +2777,8 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
 
 class FileUrlBase(Command):
     """
+    Display download URL for a file
+
     Prints an URL that can be used to download the given file, if
     it is public.
 
@@ -2807,8 +2829,9 @@ class Sync(
     Command,
 ):
     """
-    Copies multiple files from source to destination.  Optionally
-    deletes or hides destination files that the source does not have.
+    Copy multiple files from source to destination.
+
+    Optionally deletes or hides destination files that the source does not have.
 
     The synchronizer can copy files:
 
@@ -3154,9 +3177,9 @@ class Sync(
 
 class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
-    Updates the ``bucketType`` of an existing bucket.  Prints the ID
-    of the bucket updated.
+    Updates the ``bucketType`` of an existing bucket.
 
+    Prints the ID of the bucket updated.
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
@@ -3431,7 +3454,7 @@ class UploadFileMixin(
 
 class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     """
-    Uploads one file to the given bucket.
+    Upload single file to the given bucket.
 
     Uploads the contents of the local file, and assigns the given name to the B2 file,
     possibly setting options like server-side encryption and retention.
@@ -3572,6 +3595,8 @@ class UploadUnboundStreamBase(UploadFileMixin, Command):
 
 class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
     """
+    Update file settings.
+
     Setting legal holds only works in bucket with fileLockEnabled=true.
 
     Retention:
@@ -3726,6 +3751,8 @@ class UpdateFileRetentionBase(FileIdAndOptionalFileNameMixin, Command):
 
 class ReplicationSetupBase(Command):
     """
+    Set up replication between two buckets.
+
     Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
 
     Requires capabilities on both profiles:
@@ -3852,7 +3879,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
 
 class ReplicationDeleteBase(ReplicationRuleChanger):
     """
-    Deletes a replication rule
+    Delete a replication rule
 
     Requires capabilities:
 
@@ -3868,7 +3895,7 @@ class ReplicationDeleteBase(ReplicationRuleChanger):
 
 class ReplicationPauseBase(ReplicationRuleChanger):
     """
-    Pauses a replication rule
+    Pause a replication rule
 
     Requires capabilities:
 
@@ -3885,7 +3912,7 @@ class ReplicationPauseBase(ReplicationRuleChanger):
 
 class ReplicationUnpauseBase(ReplicationRuleChanger):
     """
-    Unpauses a replication rule
+    Unpause a replication rule
 
     Requires capabilities:
 
@@ -3902,6 +3929,8 @@ class ReplicationUnpauseBase(ReplicationRuleChanger):
 
 class ReplicationStatusBase(Command):
     """
+    Display detailed replication statistics
+
     Inspects files in only source or both source and destination buckets
     (potentially from different accounts) and provides detailed replication statistics.
 
@@ -4069,7 +4098,7 @@ class ReplicationStatusBase(Command):
 
 class Version(Command):
     """
-    Prints the version number of this tool.
+    Print the version number of this tool.
     """
 
     REQUIRES_AUTH = False
@@ -4089,7 +4118,9 @@ class Version(Command):
 
 class License(Command):  # pragma: no cover
     """
-    Prints the license of B2 Command line tool and all libraries shipped with it.
+    Print the license information for this tool.
+
+    Displays the license of B2 Command line tool and all libraries shipped with it.
     """
     LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent.parent / 'licenses_output.txt'
 
@@ -4279,7 +4310,7 @@ class License(Command):  # pragma: no cover
 
 class InstallAutocomplete(Command):
     """
-    Installs autocomplete for supported shells.
+    Install autocomplete for supported shells.
 
     Autocomplete is installed for the current user only and will become available after shell reload.
     Any existing autocomplete configuration for same executable name will be overwritten.
