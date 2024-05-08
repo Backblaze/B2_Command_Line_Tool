@@ -91,7 +91,9 @@ class B2ArgumentParser(argparse.ArgumentParser):
         self._description = None
         self._for_docs = for_docs
         self.deprecated = deprecated
-        self._short_description = self._make_short_description(kwargs.get('usage', ''), kwargs.get('description', ''))
+        self._short_description = self._make_short_description(
+            kwargs.get('usage', ''), kwargs.get('description', '')
+        )
         kwargs.setdefault('formatter_class', B2RawTextHelpFormatter)
         super().__init__(*args, **kwargs)
 
@@ -118,9 +120,7 @@ class B2ArgumentParser(argparse.ArgumentParser):
             return textwrap.dedent(value)
         else:
             encoding = self._get_encoding()
-            return rst2ansi(
-                value.encode(encoding), output_encoding=encoding
-            )
+            return rst2ansi(value.encode(encoding), output_encoding=encoding)
 
     def _make_short_description(self, usage: str, raw_description: str) -> str:
         if usage:
