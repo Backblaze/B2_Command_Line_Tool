@@ -48,7 +48,11 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
                     if self.show_all:
                         usages.append(f'(DEPRECATED) {choice.format_usage()}')
                 else:
-                    usages.append(choice.format_usage(use_short_description=not self.show_all, col_length=col_length))
+                    usages.append(
+                        choice.format_usage(
+                            use_short_description=not self.show_all, col_length=col_length
+                        )
+                    )
             self.add_text(''.join(usages))
         else:
             super().add_argument(action)
