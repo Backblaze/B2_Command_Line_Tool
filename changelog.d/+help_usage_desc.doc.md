@@ -1,1 +1,1 @@
-Display short descriptions instead of arguments in subcommands help messages
+Display short descriptions instead of arguments in subcommands help messages.
