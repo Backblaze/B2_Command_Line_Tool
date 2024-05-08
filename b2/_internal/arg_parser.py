@@ -91,8 +91,10 @@ class B2ArgumentParser(argparse.ArgumentParser):
         self._description = None
         self._for_docs = for_docs
         self.deprecated = deprecated
+        self._short_description = self._make_short_description(kwargs.get('usage', ''), kwargs.get('description', ''))
         kwargs.setdefault('formatter_class', B2RawTextHelpFormatter)
         super().__init__(*args, **kwargs)
+
         if add_help_all:
             self.register('action', 'help_all', _HelpAllAction)
             self.add_argument(
@@ -104,23 +106,34 @@ class B2ArgumentParser(argparse.ArgumentParser):
     @property
     def description(self):
         if self._description is None and self._raw_description is not None:
-            if self._for_docs:
-                self._description = textwrap.dedent(self._raw_description)
-            else:
-                encoding = self._get_encoding()
-                self._description = rst2ansi(
-                    self._raw_description.encode(encoding), output_encoding=encoding
-                )
-
+            self._description = self._encode_description(self._raw_description)
         return self._description
 
     @description.setter
     def description(self, value):
         self._raw_description = value
 
-    @property
-    def short_description(self):
-        return self.usage or self.description.split('\n', 1)[0]
+    def _encode_description(self, value: str):
+        if self._for_docs:
+            return textwrap.dedent(value)
+        else:
+            encoding = self._get_encoding()
+            return rst2ansi(
+                value.encode(encoding), output_encoding=encoding
+            )
+
+    def _make_short_description(self, usage: str, raw_description: str) -> str:
+        if usage:
+            return usage
+
+        if not raw_description:
+            return ""
+
+        for line in raw_description.splitlines():
+            if line.strip():
+                return self._encode_description(line.strip())
+
+        return ""
 
     def error(self, message):
         self.print_help()
@@ -186,11 +199,11 @@ class B2ArgumentParser(argparse.ArgumentParser):
         action.choices = original_choices
 
     def format_usage(self, use_short_description: bool = False, col_length: int = 16):
-        if not use_short_description or not self.short_description:
+        if not use_short_description or not self._short_description:
             return super().format_usage()
 
         formatter = self._get_formatter()
-        formatter.add_text(f"{self.prog:{col_length + 2}} {self.short_description}")
+        formatter.add_text(f"{self.prog:{col_length + 2}} {self._short_description}")
         return formatter.format_help()
 
 
