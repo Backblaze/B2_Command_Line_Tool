@@ -26,11 +26,17 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+from __future__ import annotations
+
+import tempfile
 
 import datetime
 import importlib
 import os
+import filecmp
+import pathlib
 import re
+import shutil
 import sys
 import textwrap
 from os import path
@@ -213,6 +219,7 @@ def setup(_):
     reasonable way to piggy back that behaviour. Checking if the new file contents would the same as the old one
     (if any) is important, so that the automatic file-watcher/doc-builder doesn't fall into an endless loop.
     """
+    regenerate_subcommands_help()
     main_help_text = str(B2.lazy_get_description(NAME='b2'))
     main_help_text = textwrap.dedent(main_help_text)
 
@@ -223,3 +230,59 @@ def setup(_):
                 return
     with open(main_help_path, 'w') as main_help_file:
         main_help_file.write(main_help_text)
+
+
+def regenerate_subcommands_help():
+    tmpl = textwrap.dedent("""\
+    .. _{slug}:
+
+    {HUMAN_NAME}
+    ************************************************
+
+    .. argparse::
+       :module: b2._internal.console_tool
+       :func: get_parser
+       :prog: b2
+       :path: {COMMAND}
+    """)
+
+    all_commands: list[tuple[tuple[str, ...], type]] = []
+
+    def _add_cmd(path, cmd_cls):
+        if getattr(cmd_cls, "deprecated", False):
+            return
+
+        registry = cmd_cls.subcommands_registry
+        subcommands = registry.values() if registry else None
+        if subcommands:
+            for subcommand in subcommands:
+                _add_cmd(path + (subcommand.name_and_alias()[0],), subcommand)
+        else:
+            all_commands.append((path, cmd_cls))
+
+    _add_cmd((), B2)
+
+    subcommands_dir_target = pathlib.Path(__file__).parent / "subcommands"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        subcommands_dir = pathlib.Path(temp_dir) / "subcommands"
+        subcommands_dir.mkdir()
+        for command_path, cmd_cls in sorted(all_commands):
+            full_command = " ".join(command_path)
+            slug = full_command.replace(" ", "_")
+            (subcommands_dir / f"{slug}.rst").write_text(
+                tmpl.format(
+                    HUMAN_NAME=full_command,
+                    COMMAND=full_command,
+                    slug=f"subcommand_{slug}",
+                )
+            )
+
+        # prevent infinite loop due sphinx autobuild file watcher
+        try:
+            dir_cmp = filecmp.dircmp(subcommands_dir_target, subcommands_dir)
+            is_diff = bool(dir_cmp.diff_files or dir_cmp.left_only or dir_cmp.right_only)
+        except FileNotFoundError:
+            is_diff = True
+        if is_diff:
+            shutil.rmtree(subcommands_dir_target, ignore_errors=True)
+            shutil.copytree(subcommands_dir, subcommands_dir_target)

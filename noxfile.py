@@ -475,7 +475,8 @@ def doc(session):
         # session.notify('doc_cover')  #  disabled due to https://github.com/sphinx-doc/sphinx/issues/11678
     else:
         sphinx_args[-2:-2] = [
-            '-E', '--open-browser', '--watch', '../b2', '--ignore', '*.pyc', '--ignore', '*~'
+            '-E', '--open-browser', '--watch', '../b2', '--ignore', '*.pyc', '--ignore', '*~',
+            '--ignore', 'source/subcommands/*'
         ]
         session.run('sphinx-autobuild', *sphinx_args)
 

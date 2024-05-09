@@ -14,6 +14,7 @@ coverage.xml
 dist
 venv
 doc/source/main_help.rst
+doc/source/subcommands
 Dockerfile
 b2/licenses_output.txt
 *.spec
