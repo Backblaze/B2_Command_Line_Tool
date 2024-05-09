@@ -63,46 +63,18 @@ If you wish to contribute to or otherwise modify source code, please see our [co
 
 ## Usage
 
-```bash
-b2 authorize-account [-h]  [applicationKeyId] [applicationKey]
-b2 cancel-all-unfinished-large-files [-h] bucketName
-b2 cancel-large-file [-h] fileId
-b2 clear-account [-h]
-b2 copy-file-by-id [-h] [--fetch-metadata] [--content-type CONTENTTYPE] [--range RANGE] [--info INFO | --no-info] [--destination-server-side-encryption {SSE-B2,SSE-C}] [--destination-server-side-encryption-algorithm {AES256}] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--file-retention-mode {compliance,governance}] [--retain-until TIMESTAMP] [--legal-hold {on,off}] sourceFileId destinationBucketName b2FileName
-b2 create-bucket [-h] [--bucket-info BUCKETINFO] [--cors-rules CORSRULES] [--file-lock-enabled] [--replication REPLICATION] [--default-server-side-encryption {SSE-B2,none}] [--default-server-side-encryption-algorithm {AES256}] [--lifecycle-rule LIFECYCLERULES | --lifecycle-rules LIFECYCLERULES] bucketName {allPublic,allPrivate}
-b2 create-key [-h] [--bucket BUCKET] [--name-prefix NAMEPREFIX] [--duration DURATION] [--all-capabilities] keyName [capabilities]
-b2 delete-bucket [-h] bucketName
-b2 delete-file-version [-h] [--bypass-governance] [fileName] fileId
-b2 delete-key [-h] applicationKeyId
-b2 download-file [-h] [--threads THREADS] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--no-progress] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] B2_URI localFileName
-b2 cat [-h] [--no-progress] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] B2_URI
-b2 get-account-info [-h]
-b2 get-bucket [-h] [--show-size] bucketName
-b2 file-info [-h] B2_URI
-b2 get-download-auth [-h] [--prefix PREFIX] [--duration DURATION] bucketName
-b2 get-download-url-with-auth [-h] [--duration DURATION] bucketName fileName
-b2 hide-file [-h] bucketName fileName
-b2 list-buckets [-h] [--json]
-b2 list-keys [-h] [--long]
-b2 list-parts [-h] largeFileId
-b2 list-unfinished-large-files [-h] bucketName
-b2 ls [-h] [--long] [--json] [--replication] [--versions] [-r] [--with-wildcard] bucketName [folderName]
-b2 rm [-h] [--dry-run] [--queue-size QUEUESIZE] [--no-progress] [--fail-fast] [--threads THREADS] [--versions] [-r] [--with-wildcard] bucketName [folderName]
-b2 get-url [-h] B2_URI
-b2 sync [-h] [--no-progress] [--dry-run] [--allow-empty-source] [--exclude-all-symlinks] [--sync-threads SYNCTHREADS] [--download-threads DOWNLOADTHREADS] [--upload-threads UPLOADTHREADS] [--compare-versions {none,modTime,size}] [--compare-threshold MILLIS] [--exclude-regex REGEX] [--include-regex REGEX] [--exclude-dir-regex REGEX] [--exclude-if-modified-after TIMESTAMP] [--threads THREADS] [--destination-server-side-encryption {SSE-B2,SSE-C}] [--destination-server-side-encryption-algorithm {AES256}] [--source-server-side-encryption {SSE-C}] [--source-server-side-encryption-algorithm {AES256}] [--write-buffer-size BYTES] [--skip-hash-verification] [--max-download-streams-per-file MAX_DOWNLOAD_STREAMS_PER_FILE] [--incremental-mode] [--skip-newer | --replace-newer] [--delete | --keep-days DAYS] source destination
-b2 update-bucket [-h] [--bucket-info BUCKETINFO] [--cors-rules CORSRULES] [--default-retention-mode {compliance,governance,none}] [--default-retention-period period] [--replication REPLICATION] [--file-lock-enabled] [--default-server-side-encryption {SSE-B2,none}] [--default-server-side-encryption-algorithm {AES256}] [--lifecycle-rule LIFECYCLERULES | --lifecycle-rules LIFECYCLERULES] bucketName [{allPublic,allPrivate}]
-b2 upload-file [-h] [--content-type CONTENTTYPE] [--sha1 SHA1] [--cache-control CACHE_CONTROL] [--info INFO] [--custom-upload-timestamp CUSTOM_UPLOAD_TIMESTAMP] [--min-part-size MINPARTSIZE] [--threads THREADS] [--no-progress] [--destination-server-side-encryption {SSE-B2,SSE-C}] [--destination-server-side-encryption-algorithm {AES256}] [--legal-hold {on,off}] [--file-retention-mode {compliance,governance}] [--retain-until TIMESTAMP] [--incremental-mode] bucketName localFilePath b2FileName
-b2 upload-unbound-stream [-h] [--part-size PARTSIZE] [--unused-buffer-timeout-seconds UNUSEDBUFFERTIMEOUTSECONDS] [--content-type CONTENTTYPE] [--sha1 SHA1] [--cache-control CACHE_CONTROL] [--info INFO] [--custom-upload-timestamp CUSTOM_UPLOAD_TIMESTAMP] [--min-part-size MINPARTSIZE] [--threads THREADS] [--no-progress] [--destination-server-side-encryption {SSE-B2,SSE-C}] [--destination-server-side-encryption-algorithm {AES256}] [--legal-hold {on,off}] [--file-retention-mode {compliance,governance}] [--retain-until TIMESTAMP] bucketName localFilePath b2FileName
-b2 update-file-legal-hold [-h] [fileName] fileId {on,off}
-b2 update-file-retention [-h] [--retain-until TIMESTAMP] [--bypass-governance] [fileName] fileId {governance,compliance,none}
-b2 replication-setup [-h] [--destination-profile DESTINATION_PROFILE] [--name NAME] [--priority PRIORITY] [--file-name-prefix PREFIX] [--include-existing-files] SOURCE_BUCKET_NAME DESTINATION_BUCKET_NAME
-b2 replication-delete [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication-pause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication-unpause [-h] SOURCE_BUCKET_NAME REPLICATION_RULE_NAME
-b2 replication-status [-h] [--rule REPLICATION_RULE_NAME] [--destination-profile DESTINATION_PROFILE] [--dont-scan-destination] [--output-format {console,json,csv}] [--no-progress] [--columns COLUMN ONE,COLUMN TWO] SOURCE_BUCKET_NAME
-b2 version [-h] [--short]
-b2 license [-h]
-b2 install-autocomplete [-h] [--shell {bash}]
+```
+b2 account                Account management subcommands.
+b2 bucket                 Bucket management subcommands.
+b2 file                   File management subcommands.
+b2 install-autocomplete   Install autocomplete for supported shells.
+b2 key                    Application keys management subcommands.
+b2 license                Print the license information for this tool.
+b2 ls                     List files in a given folder.
+b2 replication            Replication rule management subcommands.
+b2 rm                     Remove a "folder" or a set of files matching a pattern.
+b2 sync                   Copy multiple files from source to destination.
+b2 version                Print the version number of this tool.
 ```
 
 The environment variable `B2_ACCOUNT_INFO` specifies the SQLite
