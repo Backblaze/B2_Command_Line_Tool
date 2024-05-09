@@ -90,6 +90,8 @@ def pdm_install(
     for group in groups:
         args.extend(['--group', group])
     session.run('pdm', 'install', *args, external=True)
+    if INSTALL_SDK_FROM:
+        session.run('pip', 'install', INSTALL_SDK_FROM, external=True)
 
 
 def github_output(name, value, *, secret=False):
