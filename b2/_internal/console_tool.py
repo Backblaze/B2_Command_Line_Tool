@@ -221,6 +221,8 @@ def resolve_b2_bin_call_name(argv: list[str] | None = None) -> str:
     if call_name.endswith('.py'):
         version_name = re.search(r'[\\/]b2[\\/]_internal[\\/](_?b2v\d+)[\\/]__main__.py', call_name)
         call_name = version_name.group(1) if version_name else 'b2'
+    if 'b2' not in call_name:  # prevent silliness when calling b2 from under different process
+        return 'b2'
     return call_name
 
 
