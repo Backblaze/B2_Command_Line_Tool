@@ -467,15 +467,15 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
     b2_tool.should_succeed(['bucket', 'delete', to_be_removed_bucket_name],)
     b2_tool.should_fail(
         ['bucket', 'delete', to_be_removed_bucket_name],
-        re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+        re.compile(r'^ERROR: Bucket with id=\w* not found[^$]*$')
     )
     # Check logging settings
     if not is_running_on_docker:  # It's difficult to read the log in docker in CI
         b2_tool.should_fail(
             ['bucket', 'delete', to_be_removed_bucket_name, '--debug-logs'],
-            re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+            re.compile(r'^ERROR: Bucket with id=\w* not found[^$]*$')
         )
-        stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found'
+        stack_trace_in_log = r'Traceback \(most recent call last\):.*Bucket with id=\w* not found[^$]*'
 
         # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
         # check global logging settings
@@ -640,7 +640,8 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
 def test_delete_bucket(b2_tool, bucket_name):
     b2_tool.should_succeed(['bucket', 'delete', bucket_name])
     b2_tool.should_fail(
-        ['bucket', 'delete', bucket_name], re.compile(r'^ERROR: Bucket with id=\w* not found\s*$')
+        ['bucket', 'delete', bucket_name],
+        re.compile(r'^ERROR: Bucket with id=\w* not found[^$]*$')
     )
 
 
