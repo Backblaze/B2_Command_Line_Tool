@@ -796,23 +796,10 @@ def encryption_summary(sse_dict, file_info):
     return encryption
 
 
-def test_sync_up(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, 'sync')
-
-
-def test_sync_up_sse_b2(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_B2_AES)
-
-
-def test_sync_up_sse_c(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, 'sync', encryption=SSE_C_AES)
-
-
-def test_sync_up_no_prefix(b2_tool, bucket_name):
-    sync_up_helper(b2_tool, bucket_name, '')
-
-
-def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
+@pytest.mark.parametrize(
+    "dir_, encryption", [('sync', None), ('sync', SSE_B2_AES), ('sync', SSE_C_AES), ('', None)]
+)
+def test_sync_up(b2_tool, bucket_name, apiver_int, dir_, encryption):
     sync_point_parts = [bucket_name]
     if dir_:
         sync_point_parts.append(dir_)
@@ -843,7 +830,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         # but it didn't work for me, so I just ran it as admin. A guide that I've found
         # recommended to go to Control Panel, Administrative Tools, Local Security Policy,
         # Local Policies, User Rights Assignment and there you can find a permission to
-        # create symbilic links. Add your user to it (or a group that the user is in).
+        # create symbolic links. Add your user to it (or a group that the user is in).
         #
         # Finally in order to apply the new policy, run `cmd` and execute
         # ``gpupdate /force``.
@@ -884,9 +871,9 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         else:
             raise NotImplementedError('unsupported encryption mode: %s' % encryption)
 
-        b2_tool.should_succeed(
-            command, expected_pattern="d could not be accessed", additional_env=additional_env
-        )
+        status, stdout, stderr = b2_tool.execute(command, additional_env=additional_env)
+        assert re.search(r'd[\'"]? could not be accessed', stdout)
+        assert status == (1 if apiver_int >= 4 else 0)
         file_versions = b2_tool.list_file_versions(bucket_name)
 
         should_equal(
@@ -915,9 +902,11 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         os.unlink(dir_path / 'b')
         write_file(dir_path / 'c', b'hello world')
 
-        b2_tool.should_succeed(
+        status, stdout, stderr = b2_tool.execute(
             ['sync', '--no-progress', '--keep-days', '10', dir_path, b2_sync_point]
         )
+        assert re.search(r'd[\'"]? could not be accessed', stdout)
+        assert status == (1 if apiver_int >= 4 else 0)
         file_versions = b2_tool.list_file_versions(bucket_name)
         should_equal(
             [
@@ -930,6 +919,7 @@ def sync_up_helper(b2_tool, bucket_name, dir_, encryption=None):
         )
 
         os.unlink(dir_path / 'a')
+        os.unlink(dir_path / 'd')  # remove broken symlink to get status 0 on >=b2v4
 
         b2_tool.should_succeed(['sync', '--no-progress', '--delete', dir_path, b2_sync_point])
         file_versions = b2_tool.list_file_versions(bucket_name)
