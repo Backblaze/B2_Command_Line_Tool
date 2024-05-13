@@ -1,1 +1,0 @@
-Add `key {list|create|delete}` commands.

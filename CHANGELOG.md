@@ -9,6 +9,49 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.0) - 2024-05-13
+
+
+### Changed
+
+- CLI `b2` executable now points to the latest stable ApiVer version, `b2v4`, previously it pointed to `b2v3`.
+  See ApiVer section in the documentation for more details.
+- Changed `sync` command exit status code from 0 to 1 if any warnings or errors were encountered during the operation.
+
+### Fixed
+
+- Invalid unicode characters read from filesystem will no longer interrupt `b2 sync`
+
+### Deprecated
+
+- Deprecated `authorize-account`, `get-account-info` and `clear-account`, use `account {authorize|get|clear}` instead.
+- Deprecated `delete-file-version`, use `rm` instead. Added `--bypass-governance` option to `rm`.
+- Deprecated `file-info`, `get-url`, `cat`, `upload-file`, `download-file`, `copy-file-by-id`, `hide-file`, `update-file-legal-hold` and `update-file-retention`, use `file {info|url|cat|upload|download|copy-by-id|hide|update}` instead.
+- Deprecated `get-download-url-with-auth`, use `file url` instead. Added `--with-auth` and `--duration` options to `file url`.
+- Deprecated `list-buckets`, `get-bucket`, `create-bucket`, `update-bucket`, `delete-bucket`, `get-download-auth` and `notification-rules`, use `bucket {list|get|create|update|delete|get-download-auth|notification-rule}` instead.
+- Deprecated `list-keys`, `create-key` and `delete-key`, use `key {list|create|delete}` instead.
+- Deprecated `list-parts`, use `file large parts` instead.
+  Deprecated `list-unfinished-large-files`, use `file large unfinished list` instead.
+  Deprecated `cancel-large-file` amd `cancel-all-unfinished-large-files`, use `file large unfinished cancel` instead.
+- Deprecated `replication-{setup|delete|pause|unpause|status}`, use `replication {setup|delete|pause|unpause|status}` instead.
+
+### Added
+
+- Add `account {authorize|get|clear}` commands.
+- Add `bucket {list|get|create|update|delete|get-download-auth|notification-rule}` commands.
+- Add `file large {parts|unfinished list|unfinished cancel}` commands.
+- Add `file {info|url|cat|upload|download|copy-by-id|hide|update}` commands.
+- Add `key {list|create|delete}` commands.
+- Add `replication {setup|delete|pause|unpause|status}` commands.
+- Allow `b2v3` to be run in official Docker image without the need to change entrypoint.
+
+### Doc
+
+- Automate nested subcommand documentation generation.
+- Display short descriptions instead of arguments in subcommands help messages.
+- Sort subcommands in `--help` alphabetically for better readability.
+
+
 ## [3.19.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v3.19.1) - 2024-04-23
 
 

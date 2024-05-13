@@ -1,1 +1,0 @@
-Changed `sync` command exit status code from 0 to 1 if any warnings or errors were encountered during the operation.

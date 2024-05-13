@@ -1,1 +1,0 @@
-Deprecated `delete-file-version`, use `rm` instead. Added `--bypass-governance` option to `rm`.

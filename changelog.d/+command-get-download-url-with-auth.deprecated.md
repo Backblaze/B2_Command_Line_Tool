@@ -1,1 +1,0 @@
-Deprecated `get-download-url-with-auth`, use `file url` instead. Added `--with-auth` and `--duration` options to `file url`.

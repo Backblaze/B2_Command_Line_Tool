@@ -1,1 +1,0 @@
-Add `file {info|url|cat|upload|download|copy-by-id|hide|update}` commands.
