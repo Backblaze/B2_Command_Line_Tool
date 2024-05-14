@@ -296,7 +296,7 @@ def test_download(b2_tool, bucket_name, sample_filepath, uploaded_sample_file, t
     assert output_b.read_text() == sample_filepath.read_text()
 
 
-def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
+def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args, apiver_int):
 
     file_mod_time_str = str(file_mod_time_millis(sample_file))
 
@@ -373,7 +373,10 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args):
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', '--versions', *b2_uri_args(bucket_name, 'c')]
     )
-    should_equal([], [f['fileName'] for f in list_of_files])
+    if apiver_int >= 4:  # b2://bucketName/c should list all c versions on v4
+        should_equal(['c', 'c'], [f['fileName'] for f in list_of_files])
+    else:
+        should_equal([], [f['fileName'] for f in list_of_files])
 
     b2_tool.should_succeed(['file', 'copy-by-id', first_a_version['fileId'], bucket_name, 'x'])
 
