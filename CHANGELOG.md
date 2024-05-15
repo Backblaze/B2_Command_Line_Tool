@@ -9,6 +9,16 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.0.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.1) - 2024-05-15
+
+
+### Fixed
+
+- Fix `-` handling in file upload commands - even if file with `-` name exists, the stdin will be chosen over it.
+  This change affects `b2v4` (which is also aliased as `b2`), but not `b2v3` to keep backwards compatibility.
+- Fix `b2 ls b2://bucketName/fileName` and `b2 rm b2://bucketName/fileName` to respectively, list and remove file identified by supplied B2 URI.
+
+
 ## [4.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.0) - 2024-05-13
 
 
