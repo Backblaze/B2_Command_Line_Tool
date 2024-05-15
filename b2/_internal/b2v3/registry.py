@@ -92,6 +92,24 @@ class Ls(B2URIMustPointToFolderMixin, B2URIBucketNFolderNameArgMixin, BaseLs):
     ALLOW_ALL_BUCKETS = True
 
 
+class HyphenFilenameMixin:
+    def get_input_stream(self, filename):
+        if filename == '-' and os.path.exists('-'):
+            self._print_stderr(
+                "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias."
+            )
+            return '-'
+        return super().get_input_stream(filename)
+
+
+class UploadUnboundStream(HyphenFilenameMixin, UploadUnboundStream):
+    __doc__ = UploadUnboundStream.__doc__
+
+
+class UploadFile(HyphenFilenameMixin, UploadFile):
+    __doc__ = UploadFile.__doc__
+
+
 B2.register_subcommand(AuthorizeAccount)
 B2.register_subcommand(CancelAllUnfinishedLargeFiles)
 B2.register_subcommand(CancelLargeFile)

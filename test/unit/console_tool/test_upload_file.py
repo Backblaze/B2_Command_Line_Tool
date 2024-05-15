@@ -10,7 +10,7 @@
 import os
 from test.helpers import skip_on_windows
 
-import b2
+import pytest
 
 
 def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, bucket, tmpdir):
@@ -77,10 +77,9 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
     writer.result(timeout=1)
 
 
+@pytest.mark.apiver(to_ver=3)
 def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monkeypatch):
     """Test `file upload` will upload file named `-` instead of stdin by default"""
-    # TODO remove this in v4
-    assert b2.__version__ < '4', "`-` filename should not be supported in next major version of CLI"
     filename = 'stdin.txt'
     content = "I'm very rare creature, a file named '-'"
     monkeypatch.chdir(str(tmpdir))
@@ -95,12 +94,41 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
         "size": len(content),
     }
     b2_cli.run(
+        ['upload-file', '--no-progress', 'my-bucket', '-', filename],
+        expected_json_in_stdout=expected_json,
+        remove_version=True,
+        expected_part_of_stdout=expected_stdout,
+        expected_stderr="WARNING: `upload-file` command is deprecated. Use `file upload` instead.\n"
+        "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias.\n",
+    )
+
+
+@pytest.mark.apiver(from_ver=4)
+def test_upload_file__ignore_hyphen_file(b2_cli, bucket, tmpdir, monkeypatch, mock_stdin):
+    """Test `file upload` will upload stdin even when file named `-` is explicitly specified"""
+    content = "I'm very rare creature, a file named '-'"
+    monkeypatch.chdir(str(tmpdir))
+    source_file = tmpdir.join('-')
+    source_file.write(content)
+
+    content = "stdin input"
+    filename = 'stdin.txt'
+
+    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_json = {
+        "action": "upload",
+        "contentSha1": "2ce72aa159d1f190fddf295cc883f20c4787a751",
+        "fileName": filename,
+        "size": len(content),
+    }
+    mock_stdin.write(content)
+    mock_stdin.close()
+
+    b2_cli.run(
         ['file', 'upload', '--no-progress', 'my-bucket', '-', filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
-        expected_stderr=
-        "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias.\n",
     )
 
 

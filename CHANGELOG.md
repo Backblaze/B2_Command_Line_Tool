@@ -18,6 +18,7 @@ upcoming release can be found in [changelog.d](changelog.d).
   These means following breaking changes:
   - `b2` will no longer persists credentials and other secrets on disk if credentials were passed through `B2_*` environment variables. To explicitly persist them and keep using local cache for better performance, user can simply call `b2 account account`
   - `b2 ls` and `b2 rm` no longer accept two positional arguments, instead accepting only `B2 URI` (e.g. `b2://bucketName/path`)
+  - `-` is no longer supported as a valid filename, always being interpreted as standard input alias instead
 - Changed `sync` command exit status code from 0 to 1 if any warnings or errors were encountered during the operation.
 
 ### Fixed

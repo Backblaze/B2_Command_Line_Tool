@@ -3434,12 +3434,7 @@ class UploadFileMixin(
     def get_input_stream(self, filename: str) -> str | int | io.BinaryIO:
         """Get input stream IF filename points to a FIFO or stdin."""
         if filename == "-":
-            if os.path.exists('-'):
-                self._print_stderr(
-                    "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias."
-                )
-            else:
-                return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
+            return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
         elif points_to_fifo(pathlib.Path(filename)):
             return filename
 
