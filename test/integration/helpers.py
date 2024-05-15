@@ -61,8 +61,7 @@ from b2._internal.console_tool import Command, current_time_millis
 
 logger = logging.getLogger(__name__)
 
-# A large period is set here to avoid issues related to clock skew or other time-related issues under CI
-BUCKET_CLEANUP_PERIOD_MILLIS = timedelta(days=1).total_seconds() * 1000
+BUCKET_CLEANUP_PERIOD_MILLIS = timedelta(hours=3).total_seconds() * 1000
 ONE_HOUR_MILLIS = 60 * 60 * 1000
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
