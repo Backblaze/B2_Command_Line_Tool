@@ -194,10 +194,10 @@ class B2URIAdapter:
         return self.get_download_url_for_fileid(uri.file_id, *args, **kwargs)
 
     @singledispatchmethod
-    def list_file_versions_by_uri(self, uri, *args, **kwargs):
+    def ls(self, uri, *args, **kwargs):
         raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
 
-    @list_file_versions_by_uri.register
+    @ls.register
     def _(self, uri: B2URI, *args, filters: Sequence[Filter] = (), **kwargs):
         bucket = self.api.get_bucket_by_name(uri.bucket_name)
         try:
@@ -207,6 +207,6 @@ class B2URIAdapter:
             # exactly one – `with_wildcard` being passed without `recursive` option.
             raise B2Error(error.args[0])
 
-    @list_file_versions_by_uri.register
+    @ls.register
     def _(self, uri: B2FileIdURI, *args, **kwargs):
         yield self.get_file_info_by_uri(uri), None

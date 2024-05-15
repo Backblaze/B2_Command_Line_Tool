@@ -7,15 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-######################################################################
-#
-# File: test/unit/console_tool/test_download_file.py
-#
-# Copyright 2023 Backblaze Inc. All Rights Reserved.
-#
-# License https://www.backblaze.com/using_b2_code.html
-#
-######################################################################
+from __future__ import annotations
 
 import pytest
 
@@ -63,4 +55,35 @@ def test_ls__without_bucket_name__option_not_supported(b2_cli, bucket_info, flag
         ["ls", flag],
         expected_stderr=f"ERROR: Cannot use {flag} option without specifying a bucket name\n",
         expected_status=1,
+    )
+
+
+@pytest.mark.apiver(to_ver=3)
+def test_ls__pre_v4__should_not_return_exact_match_filename(b2_cli, uploaded_file):
+    """`b2v3 ls bucketName folderName` should not return files named `folderName` even if such exist"""
+    b2_cli.run(["ls", uploaded_file['bucket']], expected_stdout='file1.txt\n')  # sanity check
+    b2_cli.run(
+        ["ls", uploaded_file['bucket'], uploaded_file['fileName']],
+        expected_stdout='',
+    )
+
+
+@pytest.mark.apiver(from_ver=4)
+def test_ls__b2_uri__pointing_to_bucket(b2_cli, uploaded_file):
+    b2_cli.run(
+        ["ls", f"b2://{uploaded_file['bucket']}/"],
+        expected_stdout='file1.txt\n',
+    )
+
+
+@pytest.mark.apiver(from_ver=4)
+def test_ls__b2_uri__pointing_to_a_file(b2_cli, uploaded_file):
+    b2_cli.run(
+        ["ls", f"b2://{uploaded_file['bucket']}/{uploaded_file['fileName']}"],
+        expected_stdout='file1.txt\n',
+    )
+
+    b2_cli.run(
+        ["ls", f"b2://{uploaded_file['bucket']}/nonExistingFile"],
+        expected_stdout='',
     )

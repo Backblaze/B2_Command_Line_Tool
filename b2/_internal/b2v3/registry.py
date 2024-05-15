@@ -12,7 +12,7 @@
 from b2._internal.b2v4.registry import *  # noqa
 from b2._internal._cli.b2api import _get_b2api_for_profile
 from b2._internal.arg_parser import enable_camel_case_arguments
-from .rm import Rm
+from .rm import Rm, B2URIMustPointToFolderMixin
 from .sync import Sync
 
 enable_camel_case_arguments()
@@ -45,7 +45,7 @@ def main() -> None:
     os._exit(exit_status)
 
 
-class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):
+class Ls(B2URIMustPointToFolderMixin, B2URIBucketNFolderNameArgMixin, BaseLs):
     """
     {BaseLs}
 
@@ -90,6 +90,24 @@ class Ls(B2URIBucketNFolderNameArgMixin, BaseLs):
     - **listBuckets** (if bucket name is not provided)
     """
     ALLOW_ALL_BUCKETS = True
+
+
+class HyphenFilenameMixin:
+    def get_input_stream(self, filename):
+        if filename == '-' and os.path.exists('-'):
+            self._print_stderr(
+                "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias."
+            )
+            return '-'
+        return super().get_input_stream(filename)
+
+
+class UploadUnboundStream(HyphenFilenameMixin, UploadUnboundStream):
+    __doc__ = UploadUnboundStream.__doc__
+
+
+class UploadFile(HyphenFilenameMixin, UploadFile):
+    __doc__ = UploadFile.__doc__
 
 
 B2.register_subcommand(AuthorizeAccount)

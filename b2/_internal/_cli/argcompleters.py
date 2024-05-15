@@ -46,6 +46,7 @@ def file_name_completer(prefix, parsed_args, **kwargs):
         latest_only=True,
         recursive=False,
         fetch_count=LIST_FILE_NAMES_MAX_LIMIT,
+        folder_to_list_can_be_a_file=True,
     )
     return [
         unprintable_to_hex(folder_name or file_version.file_name)

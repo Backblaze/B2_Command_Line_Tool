@@ -2387,12 +2387,13 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
     def _get_ls_generator(self, args, b2_uri: B2URI | None = None):
         b2_uri = b2_uri or self.get_b2_uri_from_arg(args)
         try:
-            yield from self.api.list_file_versions_by_uri(
+            yield from self.api.ls(
                 b2_uri,
                 latest_only=not args.versions,
                 recursive=args.recursive,
                 with_wildcard=args.with_wildcard,
                 filters=args.filters,
+                folder_to_list_can_be_a_file=True,
             )
         except Exception as err:
             raise CommandError(unprintable_to_hex(str(err))) from err
@@ -3433,12 +3434,7 @@ class UploadFileMixin(
     def get_input_stream(self, filename: str) -> str | int | io.BinaryIO:
         """Get input stream IF filename points to a FIFO or stdin."""
         if filename == "-":
-            if os.path.exists('-'):
-                self._print_stderr(
-                    "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias."
-                )
-            else:
-                return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
+            return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
         elif points_to_fifo(pathlib.Path(filename)):
             return filename
 

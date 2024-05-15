@@ -141,6 +141,11 @@ def bucket(bucket_info):
 
 
 @pytest.fixture
+def api_bucket(bucket_info, b2_cli):
+    return b2_cli.b2_api.get_bucket_by_name(bucket_info['bucketName'])
+
+
+@pytest.fixture
 def local_file(tmp_path):
     """Set up a test file and return its path."""
     filename = 'file1.txt'
