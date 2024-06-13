@@ -13,6 +13,7 @@ import argparse
 import io
 import json
 import logging
+import sys
 from typing import TypeVar
 
 from b2sdk.v2 import get_b2sdk_doc_urls
@@ -20,6 +21,11 @@ from b2sdk.v2 import get_b2sdk_doc_urls
 try:
     import pydantic
     from pydantic import TypeAdapter, ValidationError
+
+    if sys.version_info < (3, 10):
+        raise ImportError('pydantic integration is not supported on python<3.10')
+        # we could support it partially with help of https://github.com/pydantic/pydantic/issues/7873
+        # but that creates yet another edge case, on old version of Python
 except ImportError:
     pydantic = None
 
@@ -50,6 +56,7 @@ _UNDEF = object()
 def validated_loads(data: str, expected_type: type[T] | None = None) -> T:
     val = _UNDEF
     if expected_type is not None and pydantic is not None:
+        expected_type = pydantic.with_config(pydantic.ConfigDict(extra="allow"))(expected_type)
         try:
             ta = TypeAdapter(expected_type)
         except TypeError:
