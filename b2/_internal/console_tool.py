@@ -835,8 +835,9 @@ class LifecycleRulesMixin(Described):
     """
     Use `--lifecycle-rule` to set lifecycle rule for the bucket.
     Multiple rules can be specified by repeating the option.
-
-    `--lifecycle-rules` option is deprecated and cannot be used together with --lifecycle-rule.
+    All bucket lifecycle rules are set at once, so if you want to add a new rule,
+    you need to provide all existing rules.
+    Example: :code:`--lifecycle-rule '{{"daysFromHidingToDeleting": 1, "daysFromUploadingToHiding": null, "fileNamePrefix": "documents/"}}' --lifecycle-rule '{{"daysFromHidingToDeleting": 1, "daysFromUploadingToHiding": 7, "fileNamePrefix": "temporary/"}}'`
     """
 
     @classmethod
