@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:ebe6f071ff22591549adda595b961246f8f9c6e6cde6fc5f63680741fc6bd810"
+content_hash = "sha256:a7be23a8a567b8b42f54eeb6f537d7237e072f28a2fef404923786f0c247d144"
 
 [[package]]
 name = "alabaster"
@@ -35,7 +35,7 @@ name = "annotated-types"
 version = "0.5.0"
 requires_python = ">=3.7"
 summary = "Reusable constraint types to use with typing.Annotated"
-groups = ["full"]
+groups = ["default", "full"]
 dependencies = [
     "typing-extensions>=4.0.0; python_version < \"3.9\"",
 ]
@@ -100,19 +100,20 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "2.3.0"
+version = "2.4.0"
 requires_python = ">=3.7"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
 dependencies = [
+    "annotated-types>=0.5.0",
     "importlib-metadata>=3.3.0; python_version < \"3.8\"",
     "logfury<2.0.0,>=1.0.1",
     "requests<3.0.0,>=2.9.1",
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-2.3.0-py3-none-any.whl", hash = "sha256:030696ef0ee8f958975e784c5a8248b91f222fc3c31ad24c5bb9ff6296135218"},
-    {file = "b2sdk-2.3.0.tar.gz", hash = "sha256:fc292fceb5ec35c0dfd681f23e76b4449b63bb82d00423fc54edc0f4363f53e1"},
+    {file = "b2sdk-2.4.0-py3-none-any.whl", hash = "sha256:fe53e53febd7a84aad67ae919fae4341d62ea799095f0f7d9c07e9a9ae2213b8"},
+    {file = "b2sdk-2.4.0.tar.gz", hash = "sha256:95122d163819c233e8b11b4a1d87fcd3b9c4eb62db78b69bd231e20aa91547fb"},
 ]
 
 [[package]]

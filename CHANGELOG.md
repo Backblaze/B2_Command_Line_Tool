@@ -9,6 +9,22 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.0.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.2) - 2024-06-17
+
+
+### Fixed
+
+- Fix `--lifecycle-rule` validation on `python<3.10`.
+- Update required `b2sdk` version which includes various fixes.
+  - Move scan filters before a read on filesystem access attempt. This will prevent unnecessary warnings and IO operations on paths that are not relevant to the operation.
+  - Fix & improve Lifecycle Rule validation.
+  - Don't retry on `NoPaymentHistory` exception.
+
+### Doc
+
+- Add `--lifecycle-rule` example to CLI `--help` and documentation. ([#432](https://github.com/Backblaze/B2_Command_Line_Tool/issues/432))
+
+
 ## [4.0.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.1) - 2024-05-15
 
 
