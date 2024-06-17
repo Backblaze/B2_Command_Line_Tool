@@ -15,8 +15,8 @@ upcoming release can be found in [changelog.d](changelog.d).
 ### Fixed
 
 - Fix `--lifecycle-rule` validation on `python<3.10`.
-- Update required `b2sdk` version which includes various fixes.
-  - Move scan filters before a read on filesystem access attempt. This will prevent unnecessary warnings and IO operations on paths that are not relevant to the operation.
+- Update required `b2sdk` to `2.4.0` which includes following fixes:
+  - Move scan filters before a read on filesystem access attempt.
   - Fix & improve Lifecycle Rule validation.
   - Don't retry on `NoPaymentHistory` exception.
 
