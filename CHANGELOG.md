@@ -9,6 +9,15 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.3) - 2024-06-19
+
+
+### Fixed
+
+- Fix `sync` reuploading files on re-run despite no changes in the source.
+  Fixed by updating `b2sdk` to `2.4.1`.
+
+
 ## [4.0.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.2) - 2024-06-17
 
 
