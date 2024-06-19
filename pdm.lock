@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:d4661295fda2da68e52ea109e14738a297d02b94c29b0759434201acf13e5665"
+content_hash = "sha256:5d1f8819c3c22b05f569213b507fa9c43bc13b67e6b2006478541b32945eefc9"
 
 [[package]]
 name = "alabaster"
