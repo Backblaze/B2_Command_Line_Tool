@@ -2190,33 +2190,33 @@ class FileUnhideBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_bucket_name_argument(parser)
-        parser.add_argument('fileName').completer = file_name_completer
         add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
         super()._setup_parser(parser)
 
     def _run(self, args):
-        bucket = self.api.get_bucket_by_name(args.bucketName)
+        b2_uri = self.get_b2_uri_from_arg(args)
+        file_name = b2_uri.path
+        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
         # get the latest file version
-        file_versions = bucket.list_file_versions(file_name=args.fileName, fetch_count=1)
+        file_versions = bucket.list_file_versions(file_name=file_name, fetch_count=1)
         latest_file_version = next(file_versions, None)
         if latest_file_version is None:
-            self._print_stderr(f'ERROR: File not present: "{args.fileName}"')
+            self._print_stderr(f'ERROR: File not present: "{file_name}"')
             return 1
 
         action = latest_file_version.action
         if action == "upload":
-            self._print_stderr(f'ERROR: File not currently hidden: "{args.fileName}"')
+            self._print_stderr(f'ERROR: File not currently hidden: "{file_name}"')
             return 1
         elif action == "delete":
-            self._print_stderr(f'ERROR: File deleted: "{args.fileName}"')
+            self._print_stderr(f'ERROR: File deleted: "{file_name}"')
             return 1
         elif action != "hide":
             self._print_stderr(f'ERROR: Unknown file version action: {action}')
             return 1
 
         file_id_and_name = bucket.delete_file_version(
-            latest_file_version.id_, args.fileName, args.bypass_governance
+            latest_file_version.id_, file_name, args.bypass_governance
         )
         self._print_json(file_id_and_name)
         return 0
@@ -5127,7 +5127,7 @@ class FileHide(FileHideBase):
 
 
 @File.subcommands_registry.register
-class FileUnhide(FileUnhideBase):
+class FileUnhide(B2URIFileArgMixin, FileUnhideBase):
     __doc__ = FileUnhideBase.__doc__
     COMMAND_NAME = 'unhide'
 
