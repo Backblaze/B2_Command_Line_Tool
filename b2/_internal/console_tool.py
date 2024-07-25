@@ -2195,29 +2195,8 @@ class FileUnhideBase(Command):
 
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
-        file_name = b2_uri.path
         bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
-        # get the latest file version
-        file_versions = bucket.list_file_versions(file_name=file_name, fetch_count=1)
-        latest_file_version = next(file_versions, None)
-        if latest_file_version is None:
-            self._print_stderr(f'ERROR: File not present: "{file_name}"')
-            return 1
-
-        action = latest_file_version.action
-        if action == "upload":
-            self._print_stderr(f'ERROR: File not currently hidden: "{file_name}"')
-            return 1
-        elif action == "delete":
-            self._print_stderr(f'ERROR: File deleted: "{file_name}"')
-            return 1
-        elif action != "hide":
-            self._print_stderr(f'ERROR: Unknown file version action: {action}')
-            return 1
-
-        file_id_and_name = bucket.delete_file_version(
-            latest_file_version.id_, file_name, args.bypass_governance
-        )
+        file_id_and_name = bucket.unhide_file(b2_uri.path, args.bypass_governance)
         self._print_json(file_id_and_name)
         return 0
 
