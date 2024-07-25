@@ -2082,6 +2082,9 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
+        # unhide one file
+        console_tool.run_command(['b2', 'file', 'unhide', 'my-bucket', 'hidden2'])
+
         # Now check the output of `bucket get` against the canon.
         expected_json = {
             "accountId": self.account_id,
@@ -2093,7 +2096,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "defaultServerSideEncryption": {
                 "mode": "none"
             },
-            "fileCount": 10,
+            "fileCount": 9,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
@@ -2146,6 +2149,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
 
+        # Unhide a file
+        console_tool.run_command(['b2', 'file', 'unhide', 'my-bucket', '1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'unhide', 'my-bucket', '1/hidden2'])
+
         # Now check the output of `bucket get` against the canon.
         expected_json = {
             "accountId": self.account_id,
@@ -2157,7 +2164,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "defaultServerSideEncryption": {
                 "mode": "none"
             },
-            "fileCount": 29,
+            "fileCount": 28,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,

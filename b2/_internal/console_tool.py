@@ -2174,6 +2174,54 @@ class FileHideBase(Command):
         return 0
 
 
+class FileUnhideBase(Command):
+    """
+    Delete the "hide marker" for a given file.
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+
+    and optionally:
+
+    - **bypassGovernance**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_bucket_name_argument(parser)
+        parser.add_argument('fileName').completer = file_name_completer
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
+        super()._setup_parser(parser)
+
+    def _run(self, args):
+        bucket = self.api.get_bucket_by_name(args.bucketName)
+        # get the latest file version
+        file_versions = bucket.list_file_versions(file_name=args.fileName, fetch_count=1)
+        latest_file_version = next(file_versions, None)
+        if latest_file_version is None:
+            self._print_stderr(f'ERROR: File not present: "{args.fileName}"')
+            return 1
+
+        action = latest_file_version.action
+        if action == "upload":
+            self._print_stderr(f'ERROR: File not currently hidden: "{args.fileName}"')
+            return 1
+        elif action == "delete":
+            self._print_stderr(f'ERROR: File deleted: "{args.fileName}"')
+            return 1
+        elif action != "hide":
+            self._print_stderr(f'ERROR: Unknown file version action: {action}')
+            return 1
+
+        file_id_and_name = bucket.delete_file_version(
+            latest_file_version.id_, args.fileName, args.bypass_governance
+        )
+        self._print_json(file_id_and_name)
+        return 0
+
+
 class BucketListBase(Command):
     """
     List all of the buckets in the current account.
@@ -5079,6 +5127,12 @@ class FileHide(FileHideBase):
 
 
 @File.subcommands_registry.register
+class FileUnhide(FileUnhideBase):
+    __doc__ = FileUnhideBase.__doc__
+    COMMAND_NAME = 'unhide'
+
+
+@File.subcommands_registry.register
 class FileUpdate(FileUpdateBase):
     __doc__ = FileUpdateBase.__doc__
     COMMAND_NAME = 'update'
@@ -5148,6 +5202,11 @@ class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
 class HideFile(CmdReplacedByMixin, FileHideBase):
     __doc__ = FileHideBase.__doc__
     replaced_by_cmd = (File, FileHide)
+
+
+class UnhideFile(CmdReplacedByMixin, FileUnhideBase):
+    __doc__ = FileUnhideBase.__doc__
+    replaced_by_cmd = (File, FileUnhide)
 
 
 class UpdateFileLegalHold(CmdReplacedByMixin, UpdateFileLegalHoldBase):
