@@ -2083,7 +2083,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
 
         # unhide one file
-        console_tool.run_command(['b2', 'file', 'unhide', f'b2://my-bucket/hidden2'])
+        console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/hidden2'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
@@ -2150,8 +2150,8 @@ class TestConsoleTool(BaseConsoleToolTest):
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
 
         # Unhide a file
-        console_tool.run_command(['b2', 'file', 'unhide', f'b2://my-bucket/1/hidden2'])
-        console_tool.run_command(['b2', 'file', 'unhide', f'b2://my-bucket/1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/1/hidden2'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
