@@ -713,10 +713,11 @@ class B2URIFileArgMixin:
         return args.B2_URI
 
 
-class B2URIFileOrBucketNameArgMixin:
+class B2URIFileOrBucketNameFileNameArgMixin:
     @classmethod
     def _setup_parser(cls, parser):
         add_b2id_or_file_like_b2_uri_or_bucket_name_argument(parser)
+        parser.add_argument('fileName', nargs='?', help=argparse.SUPPRESS)
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase | str:
@@ -2175,13 +2176,6 @@ class FileHideBase(Command):
 
     - **writeFiles**
     """
-
-    @classmethod
-    def _setup_parser(cls, parser):
-        parser.add_argument(
-            'fileName', nargs='?', help=argparse.SUPPRESS
-        ).completer = file_name_completer
-        super()._setup_parser(parser)
 
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
@@ -5138,7 +5132,7 @@ class FileCopyById(FileCopyByIdBase):
 
 
 @File.subcommands_registry.register
-class FileHide(B2URIFileOrBucketNameArgMixin, FileHideBase):
+class FileHide(B2URIFileOrBucketNameFileNameArgMixin, FileHideBase):
     __doc__ = FileHideBase.__doc__
     COMMAND_NAME = 'hide'
 
