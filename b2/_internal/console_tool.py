@@ -5204,11 +5204,6 @@ class HideFile(CmdReplacedByMixin, FileHideBase):
     replaced_by_cmd = (File, FileHide)
 
 
-class UnhideFile(CmdReplacedByMixin, FileUnhideBase):
-    __doc__ = FileUnhideBase.__doc__
-    replaced_by_cmd = (File, FileUnhide)
-
-
 class UpdateFileLegalHold(CmdReplacedByMixin, UpdateFileLegalHoldBase):
     __doc__ = UpdateFileLegalHoldBase.__doc__
     replaced_by_cmd = (File, FileUpdate)
