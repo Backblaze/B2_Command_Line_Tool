@@ -1,1 +1,1 @@
-Implement b2 file unhide command.
+Add `b2 file unhide` command.
