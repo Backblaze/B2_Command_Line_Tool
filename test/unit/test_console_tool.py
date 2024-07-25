@@ -2077,7 +2077,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden2'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
@@ -2141,7 +2141,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/1/hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden2'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
