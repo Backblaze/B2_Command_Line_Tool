@@ -9,6 +9,19 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.1.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.1.0) - 2024-07-31
+
+
+### Fixed
+
+- Update `b2sdk` to 2.5.0, to fix `TruncatedOutput` download errors when network is congested (e.g., due use of high downloader thread count). ([#554](https://github.com/Backblaze/B2_Command_Line_Tool/issues/554))
+
+### Added
+
+- Add `b2 file unhide` command.
+- Support both new `b2_uri` and deprecated `bucket_name file_name` arguments in `b2 file hide`.
+
+
 ## [4.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.0.3) - 2024-06-19
 
 
