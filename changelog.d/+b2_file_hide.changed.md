@@ -1,1 +1,0 @@
-`b2 file hide` supports both the new `b2_uri` and deprecated `bucket_name file_name` parameters syntax.
