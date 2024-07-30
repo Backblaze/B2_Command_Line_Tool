@@ -78,6 +78,14 @@ def parse_bucket_name(value: str, allow_all_buckets: bool = False) -> str:
     return str(value)
 
 
+def b2id_or_file_like_b2_uri_or_bucket_name(value: str) -> Union[B2URIBase, str]:
+    try:
+        bucket_name = parse_bucket_name(value)
+        return bucket_name
+    except ValueError:
+        return b2id_or_file_like_b2_uri(value)
+
+
 B2ID_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_uri)
 B2_BUCKET_URI_ARG_TYPE = wrap_with_argument_type_error(b2_bucket_uri)
 B2ID_OR_B2_URI_ARG_TYPE = wrap_with_argument_type_error(parse_b2_uri)
@@ -86,6 +94,9 @@ B2ID_OR_B2_URI_OR_ALL_BUCKETS_ARG_TYPE = wrap_with_argument_type_error(
     functools.partial(parse_b2_uri, allow_all_buckets=True)
 )
 B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_or_file_like_b2_uri)
+B2ID_OR_FILE_LIKE_B2_URI_OR_BUCKET_NAME_ARG_TYPE = wrap_with_argument_type_error(
+    b2id_or_file_like_b2_uri_or_bucket_name
+)
 
 
 def add_bucket_name_argument(
@@ -190,6 +201,19 @@ def add_b2id_or_file_like_b2_uri_argument(parser: argparse.ArgumentParser, name=
     parser.add_argument(
         name,
         type=B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE,
+        help="B2 URI pointing to a file, e.g. b2://yourBucket/file.txt or b2id://fileId",
+    ).completer = b2uri_file_completer
+
+
+def add_b2id_or_file_like_b2_uri_or_bucket_name_argument(
+    parser: argparse.ArgumentParser, name="B2_URI"
+):
+    """
+    Add a B2 URI pointing to a file as an argument to the parser.
+    """
+    parser.add_argument(
+        name,
+        type=B2ID_OR_FILE_LIKE_B2_URI_OR_BUCKET_NAME_ARG_TYPE,
         help="B2 URI pointing to a file, e.g. b2://yourBucket/file.txt or b2id://fileId",
     ).completer = b2uri_file_completer
 

@@ -140,6 +140,7 @@ from b2._internal._cli.b2args import (
     add_b2id_or_b2_bucket_uri_argument,
     add_b2id_or_b2_uri_argument,
     add_b2id_or_file_like_b2_uri_argument,
+    add_b2id_or_file_like_b2_uri_or_bucket_name_argument,
     add_b2id_uri_argument,
     add_bucket_name_argument,
     get_keyid_and_key_from_env_vars,
@@ -710,6 +711,21 @@ class B2URIFileArgMixin:
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
         return args.B2_URI
+
+
+class B2URIFileOrBucketNameFileNameArgMixin:
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2id_or_file_like_b2_uri_or_bucket_name_argument(parser)
+        parser.add_argument('fileName', nargs='?', help=argparse.SUPPRESS)
+        super()._setup_parser(parser)
+
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase | str:
+        if isinstance(args.B2_URI, B2URI):
+            return args.B2_URI
+
+        bucket_name = args.B2_URI
+        return bucket_name
 
 
 class B2URIFileIDArgMixin:
@@ -2161,6 +2177,22 @@ class FileHideBase(Command):
     - **writeFiles**
     """
 
+    def _run(self, args):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        if isinstance(b2_uri, B2URI):
+            bucket_name = b2_uri.bucket_name
+            file_name = b2_uri.path
+        else:
+            bucket_name = b2_uri
+            file_name = args.fileName
+
+        bucket = self.api.get_bucket_by_name(bucket_name)
+        file_info = bucket.hide_file(file_name)
+        self._print_json(file_info)
+        return 0
+
+
+class HideFileBase(Command):
     @classmethod
     def _setup_parser(cls, parser):
         add_bucket_name_argument(parser)
@@ -2171,6 +2203,33 @@ class FileHideBase(Command):
         bucket = self.api.get_bucket_by_name(args.bucketName)
         file_info = bucket.hide_file(args.fileName)
         self._print_json(file_info)
+        return 0
+
+
+class FileUnhideBase(Command):
+    """
+    Delete the "hide marker" for a given file.
+
+    Requires capability:
+
+    - **listFiles**
+    - **deleteFiles**
+
+    and optionally:
+
+    - **bypassGovernance**
+    """
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
+        super()._setup_parser(parser)
+
+    def _run(self, args):
+        b2_uri = self.get_b2_uri_from_arg(args)
+        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
+        file_id_and_name = bucket.unhide_file(b2_uri.path, args.bypass_governance)
+        self._print_json(file_id_and_name)
         return 0
 
 
@@ -5073,9 +5132,15 @@ class FileCopyById(FileCopyByIdBase):
 
 
 @File.subcommands_registry.register
-class FileHide(FileHideBase):
+class FileHide(B2URIFileOrBucketNameFileNameArgMixin, FileHideBase):
     __doc__ = FileHideBase.__doc__
     COMMAND_NAME = 'hide'
+
+
+@File.subcommands_registry.register
+class FileUnhide(B2URIFileArgMixin, FileUnhideBase):
+    __doc__ = FileUnhideBase.__doc__
+    COMMAND_NAME = 'unhide'
 
 
 @File.subcommands_registry.register
@@ -5145,7 +5210,7 @@ class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
     replaced_by_cmd = (File, FileCopyById)
 
 
-class HideFile(CmdReplacedByMixin, FileHideBase):
+class HideFile(CmdReplacedByMixin, HideFileBase):
     __doc__ = FileHideBase.__doc__
     replaced_by_cmd = (File, FileHide)
 

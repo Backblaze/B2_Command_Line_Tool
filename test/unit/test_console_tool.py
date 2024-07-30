@@ -1025,6 +1025,72 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Delete one file version
             self._run_command(['rm', 'b2id://9999'])
 
+    def test_hide_file_legacy_syntax(self):
+        self._authorize_account()
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            local_file1 = self._make_local_file(temp_dir, 'file1.txt')
+            # For this test, use a mod time without millis.  My mac truncates
+            # millis and just leaves seconds.
+            mod_time = 1500111222
+            os.utime(local_file1, (mod_time, mod_time))
+            self.assertEqual(1500111222, os.path.getmtime(local_file1))
+
+            # Upload a file
+            self._run_command(
+                [
+                    'file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt',
+                    '--cache-control=private, max-age=3600'
+                ],
+                remove_version=True,
+            )
+
+            # Get file info
+            expected_json = {
+                "accountId": self.account_id,
+                "action": "upload",
+                "bucketId": "bucket_0",
+                "size": 11,
+                "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
+                "contentType": "b2/x-auto",
+                "fileId": "9999",
+                "fileInfo":
+                    {
+                        "src_last_modified_millis": "1500111222000",
+                        "b2-cache-control": "private, max-age=3600"
+                    },
+                "fileName": "file1.txt",
+                "serverSideEncryption": {
+                    "mode": "none"
+                },
+                "uploadTimestamp": 5000
+            }
+
+            self._run_command(
+                ['file', 'info', 'b2id://9999'],
+                expected_json_in_stdout=expected_json,
+            )
+
+            # Hide the file
+            expected_json = {
+                "action": "hide",
+                "contentSha1": "none",
+                "fileId": "9998",
+                "fileInfo": {},
+                "fileName": "file1.txt",
+                "serverSideEncryption": {
+                    "mode": "none"
+                },
+                "size": 0,
+                "uploadTimestamp": 5001
+            }
+
+            self._run_command(
+                ['file', 'hide', 'my-bucket', 'file1.txt'],
+                expected_json_in_stdout=expected_json,
+            )
+
     def test_files(self):
 
         self._authorize_account()
@@ -2077,10 +2143,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden1'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden2'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
         console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
+
+        # unhide one file
+        console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/hidden2'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
@@ -2093,7 +2162,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "defaultServerSideEncryption": {
                 "mode": "none"
             },
-            "fileCount": 10,
+            "fileCount": 9,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,
@@ -2138,13 +2207,17 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/1/hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/1/hidden2'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
         console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+
+        # Unhide a file
+        console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/1/hidden2'])
+        console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/1/hidden2'])
 
         # Now check the output of `bucket get` against the canon.
         expected_json = {
@@ -2157,7 +2230,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             "defaultServerSideEncryption": {
                 "mode": "none"
             },
-            "fileCount": 29,
+            "fileCount": 28,
             "lifecycleRules": [],
             "options": [],
             "revision": 1,

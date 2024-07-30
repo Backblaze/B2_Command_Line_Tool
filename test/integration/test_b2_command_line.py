@@ -357,6 +357,20 @@ def test_basic(b2_tool, bucket_name, sample_file, tmp_path, b2_uri_args, apiver_
     )
     should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files])
 
+    b2_tool.should_succeed(['file', 'unhide', f'b2://{bucket_name}/c'])
+
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+    )
+    should_equal(['a', 'b/1', 'b/2', 'c', 'd'], [f['fileName'] for f in list_of_files])
+
+    b2_tool.should_succeed(['file', 'hide', bucket_name, 'c'])
+
+    list_of_files = b2_tool.should_succeed_json(
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+    )
+    should_equal(['a', 'b/1', 'b/2', 'd'], [f['fileName'] for f in list_of_files])
+
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', '--versions', *b2_uri_args(bucket_name)]
     )
