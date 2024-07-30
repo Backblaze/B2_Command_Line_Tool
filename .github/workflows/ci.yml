@@ -11,6 +11,7 @@ env:
 
 jobs:
   lint:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,6 +73,7 @@ jobs:
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
         run: nox -vs cleanup_buckets
   test:
+    timeout-minutes: 90
     needs: cleanup_buckets
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
@@ -131,6 +133,7 @@ jobs:
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.7", "pypy3.10", "3.12"]'), matrix.python-version) }}
         run: nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" --cleanup
   test-docker:
+    timeout-minutes: 90
     needs: cleanup_buckets
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
@@ -163,6 +166,7 @@ jobs:
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs docker_test -- backblazeit/b2:test
   test-linux-bundle:
+    timeout-minutes: 90
     needs: cleanup_buckets
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
@@ -201,6 +205,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   test-windows-bundle:
+    timeout-minutes: 90
     needs: cleanup_buckets
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
@@ -240,6 +245,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   doc:
+    timeout-minutes: 30
     needs: build
     runs-on: ubuntu-latest
     steps:
