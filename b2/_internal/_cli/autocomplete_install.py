@@ -27,8 +27,6 @@ from shlex import quote
 import argcomplete
 from class_registry import ClassRegistry, RegistryKeyError
 
-from b2._internal._utils.python_compat import shlex_join
-
 logger = logging.getLogger(__name__)
 
 SHELL_REGISTRY = ClassRegistry()
@@ -275,7 +273,7 @@ def _silent_success_run_with_pty(
     """
     import pexpect
 
-    command_str = shlex_join(cmd)
+    command_str = shlex.join(cmd)
 
     child = pexpect.spawn(command_str, timeout=timeout, env=env)
     output = io.BytesIO()

@@ -35,7 +35,6 @@ NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 PYTHON_VERSIONS = [
     'pypy3.9',
     'pypy3.10',
-    '3.7',
     '3.8',
     '3.9',
     '3.10',

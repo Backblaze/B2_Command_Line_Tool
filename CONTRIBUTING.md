@@ -63,7 +63,7 @@ With `nox`, you can run different sessions (default are `lint` and `test`):
 
 * `format` -> Format the code.
 * `lint` -> Run linters.
-* `test` (`test-3.7`, `test-3.8`, `test-3.9`, `test-3.10`, `test-3.11`) -> Run test suite.
+* `test` (`test-3.8`, `test-3.9`, `test-3.10`, `test-3.11`) -> Run test suite.
 * `cover` -> Perform coverage analysis.
 * `build` -> Build the distribution.
 * `generate_dockerfile` -> generate dockerfile
@@ -90,9 +90,9 @@ nox > Running session format
 ...
 ```
 
-Sessions `test` ,`unit`, and `integration` can run on many Python versions, 3.7-3.11 by default.
+Sessions `test` ,`unit`, and `integration` can run on many Python versions.
 
-Sessions other than that use the last given Python version, 3.11 by default.
+Sessions other than that use the last given Python version.
 
 You can change it:
 
