@@ -5,7 +5,7 @@ authors = [
     { name = "Backblaze Inc", email = "support@backblaze.com" },
 ]
 dynamic = ["version"]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 keywords = ["backblaze b2 cloud storage"]
 license = {text = "MIT"}
 readme = "README.md"
@@ -15,7 +15,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
@@ -110,7 +109,6 @@ dependencies = true
 optional_dependencies = ["doc", "full", "license"]
 
 [tool.ruff]
-target-version = "py37"  # to be replaced by project:requires-python when we will have that section in here
 
 # TODO add D
 select = ["E", "F", "I", "UP"]
