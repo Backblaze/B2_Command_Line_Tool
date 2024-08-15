@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.2"
-content_hash = "sha256:86f0f4c209c9369a41e4fed4cea47a8b305f1c51c832026cfe5752ee9956941e"
+content_hash = "sha256:21968e39f70fc3d735a43ff08a18447853e13cca6771f13a0360caadd4a16b71"
 
 [[package]]
 name = "alabaster"
@@ -112,7 +112,7 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "2.5.0"
+version = "2.5.1"
 requires_python = ">=3.7"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
@@ -123,8 +123,8 @@ dependencies = [
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-2.5.0-py3-none-any.whl", hash = "sha256:38bf80a6cd2bff5b104f7fd10023cf9e338c6f9d41da6108db5ad68f76f5abaa"},
-    {file = "b2sdk-2.5.0.tar.gz", hash = "sha256:d7c20125e64508a730e56307d75284790079cdb88e63851fff820a09b24fb1d9"},
+    {file = "b2sdk-2.5.1-py3-none-any.whl", hash = "sha256:71de4a24c113ea1836ba4aa4569e4e6374daeaa58272e342679070424440fee1"},
+    {file = "b2sdk-2.5.1.tar.gz", hash = "sha256:fb75c831d6ea875522e78f0c42b784771dc31e6bb64f3eb9f379bdc85eb35a3f"},
 ]
 
 [[package]]
