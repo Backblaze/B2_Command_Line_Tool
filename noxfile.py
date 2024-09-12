@@ -128,7 +128,7 @@ def get_versions() -> list[str]:
         path.name for path in sorted(
             (pathlib.Path(__file__).parent / 'b2' / '_internal').glob('*b2v*'),
             key=get_version_key,
-        )
+        ) if (path / '__init__.py').exists()
     ]
 
 
