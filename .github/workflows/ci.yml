@@ -195,11 +195,12 @@ jobs:
         run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ steps.bundle.outputs.asset_path }}
           if-no-files-found: warn
           retention-days: 7
+          overwrite: true
   test-windows-bundle:
     timeout-minutes: 90
     needs: cleanup_buckets
@@ -235,11 +236,12 @@ jobs:
         run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           path: ${{ steps.bundle.outputs.asset_path }}
           if-no-files-found: warn
           retention-days: 7
+          overwrite: true
   doc:
     timeout-minutes: 30
     needs: build
