@@ -188,7 +188,6 @@ class Api:
     def clean_buckets(self, quick=False):
         # even with use_cache=True, if cache is empty API call will be made
         buckets = self.api.list_buckets(use_cache=quick)
-        print('Total bucket count:', len(buckets))
         remaining_buckets = []
         for bucket in buckets:
             should_remove, why = self._should_remove_bucket(bucket)
@@ -539,9 +538,9 @@ class CommandLine:
             } - private_preview_caps - set(auth_dict['allowed']['capabilities'])
             assert not missing_capabilities, f'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {missing_capabilities}'
 
-    def list_file_versions(self, bucket_name):
+    def list_file_versions(self, bucket_name, path=''):
         return self.should_succeed_json(
-            ['ls', '--json', '--recursive', '--versions', *self.b2_uri_args(bucket_name)]
+            ['ls', '--json', '--recursive', '--versions', *self.b2_uri_args(bucket_name, path)]
         )
 
     def cleanup_buckets(self, buckets: dict[str, dict | None]) -> None:
