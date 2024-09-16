@@ -1156,8 +1156,8 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
     )
 
 
-def test_sync_down(b2_tool, persistent_bucket_aggregate, sample_file):
-    sync_down_helper(b2_tool, persistent_bucket_aggregate.bucket_name, 'sync', sample_file)
+def test_sync_down(b2_tool, bucket_name, sample_file):
+    sync_down_helper(b2_tool, bucket_name, 'sync', sample_file)
 
 
 def test_sync_down_no_prefix(b2_tool, bucket_name, sample_file):
@@ -1256,13 +1256,9 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryp
             )
 
 
-def test_sync_copy(bucket_factory, b2_tool, persistent_bucket_aggregate, sample_file):
+def test_sync_copy(bucket_factory, b2_tool, bucket_name, sample_file):
     prepare_and_run_sync_copy_tests(
-        bucket_factory,
-        b2_tool,
-        persistent_bucket_aggregate.bucket_name,
-        'sync',
-        sample_file=sample_file
+        bucket_factory, b2_tool, bucket_name, 'sync', sample_file=sample_file
     )
 
 
@@ -1656,6 +1652,7 @@ def test_sse_c(
     b2_tool, persistent_bucket_aggregate, is_running_on_docker, sample_file, tmp_path, b2_uri_args
 ):
     bucket_name = persistent_bucket_aggregate.bucket_name
+    subfolder = persistent_bucket_aggregate.subfolder
     sse_c_key_id = 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü'
     if is_running_on_docker:
         # TODO: fix this once we figure out how to pass env vars with \n in them to docker, docker-compose should work
@@ -1673,7 +1670,7 @@ def test_sse_c(
     file_version_info = b2_tool.should_succeed_json(
         [
             'file', 'upload', '--no-progress', '--quiet', '--destination-server-side-encryption',
-            'SSE-C', bucket_name, sample_file, 'uploaded_encrypted'
+            'SSE-C', bucket_name, sample_file, f'{subfolder}/uploaded_encrypted'
         ],
         additional_env={
             'B2_DESTINATION_SSE_C_KEY_B64': base64.b64encode(secret).decode(),
@@ -1692,7 +1689,7 @@ def test_sse_c(
 
     b2_tool.should_fail(
         [
-            'file', 'download', '--quiet', f'b2://{bucket_name}/uploaded_encrypted',
+            'file', 'download', '--quiet', f'b2://{bucket_name}/{subfolder}/uploaded_encrypted',
             'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: The object was stored using a form of Server Side Encryption. The '
@@ -1701,7 +1698,7 @@ def test_sse_c(
     b2_tool.should_fail(
         [
             'file', 'download', '--quiet', '--source-server-side-encryption', 'SSE-C',
-            f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'
+            f'b2://{bucket_name}/{subfolder}/uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var'
@@ -1709,7 +1706,7 @@ def test_sse_c(
     b2_tool.should_fail(
         [
             'file', 'download', '--quiet', '--source-server-side-encryption', 'SSE-C',
-            f'b2://{bucket_name}/uploaded_encrypted', 'gonna_fail_anyway'
+            f'b2://{bucket_name}/{subfolder}/uploaded_encrypted', 'gonna_fail_anyway'
         ],
         expected_pattern='ERROR: Wrong or no SSE-C key provided when reading a file.',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(os.urandom(32)).decode()}
@@ -1723,7 +1720,7 @@ def test_sse_c(
                 '--quiet',
                 '--source-server-side-encryption',
                 'SSE-C',
-                f'b2://{bucket_name}/uploaded_encrypted',
+                f'b2://{bucket_name}/{subfolder}/uploaded_encrypted',
                 dir_path / 'a',
             ],
             additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
@@ -1785,7 +1782,7 @@ def test_sse_c(
             '--source-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
-            'not_encrypted_copied_from_encrypted_metadata_replace',
+            f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace',
             '--info',
             'a=b',
             '--content-type',
@@ -1800,7 +1797,7 @@ def test_sse_c(
             '--source-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
-            'not_encrypted_copied_from_encrypted_metadata_replace_empty',
+            f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace_empty',
             '--no-info',
             '--content-type',
             'text/plain',
@@ -1814,7 +1811,7 @@ def test_sse_c(
             '--source-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
-            'not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+            f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
             '--fetch-metadata',
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
@@ -1827,7 +1824,7 @@ def test_sse_c(
             '--destination-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
-            'encrypted_no_id_copied_from_encrypted',
+            f'{subfolder}/encrypted_no_id_copied_from_encrypted',
             '--fetch-metadata',
         ],
         additional_env={
@@ -1843,7 +1840,7 @@ def test_sse_c(
             '--destination-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
-            'encrypted_with_id_copied_from_encrypted_metadata_replace',
+            f'{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_replace',
             '--no-info',
             '--content-type',
             'text/plain',
@@ -1862,7 +1859,7 @@ def test_sse_c(
             '--destination-server-side-encryption=SSE-C',
             file_version_info['fileId'],
             bucket_name,
-            'encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+            f'{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
             '--fetch-metadata',
         ],
         additional_env={
@@ -1872,12 +1869,14 @@ def test_sse_c(
         }
     )
     list_of_files = b2_tool.should_succeed_json(
-        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name)]
+        ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, subfolder)]
     )
+    print(list_of_files, flush=True, file=sys.stderr)
+
     should_equal(
         [
             {
-                'file_name': 'encrypted_no_id_copied_from_encrypted',
+                'file_name': f'{subfolder}/encrypted_no_id_copied_from_encrypted',
                 'sse_c_key_id': 'missing_key',
                 'serverSideEncryption':
                     {
@@ -1888,8 +1887,10 @@ def test_sse_c(
                     },
             },
             {
-                'file_name': 'encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
-                'sse_c_key_id': 'another-user-generated-key-id',
+                'file_name':
+                    f'{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+                'sse_c_key_id':
+                    'another-user-generated-key-id',
                 'serverSideEncryption':
                     {
                         'algorithm': 'AES256',
@@ -1899,8 +1900,10 @@ def test_sse_c(
                     },
             },
             {
-                'file_name': 'encrypted_with_id_copied_from_encrypted_metadata_replace',
-                'sse_c_key_id': 'another-user-generated-key-id',
+                'file_name':
+                    f'{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_replace',
+                'sse_c_key_id':
+                    'another-user-generated-key-id',
                 'serverSideEncryption':
                     {
                         'algorithm': 'AES256',
@@ -1910,28 +1913,32 @@ def test_sse_c(
                     },
             },
             {
-                'file_name': 'not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+                'file_name':
+                    f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+                'sse_c_key_id':
+                    'missing_key',
+                'serverSideEncryption': {
+                    'mode': 'none',
+                },
+            },
+            {
+                'file_name': f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace',
                 'sse_c_key_id': 'missing_key',
                 'serverSideEncryption': {
                     'mode': 'none',
                 },
             },
             {
-                'file_name': 'not_encrypted_copied_from_encrypted_metadata_replace',
-                'sse_c_key_id': 'missing_key',
+                'file_name':
+                    f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace_empty',
+                'sse_c_key_id':
+                    'missing_key',
                 'serverSideEncryption': {
                     'mode': 'none',
                 },
             },
             {
-                'file_name': 'not_encrypted_copied_from_encrypted_metadata_replace_empty',
-                'sse_c_key_id': 'missing_key',
-                'serverSideEncryption': {
-                    'mode': 'none',
-                },
-            },
-            {
-                'file_name': 'uploaded_encrypted',
+                'file_name': f'{subfolder}/uploaded_encrypted',
                 'sse_c_key_id': sse_c_key_id,
                 'serverSideEncryption':
                     {
@@ -3437,7 +3444,8 @@ def test_header_arguments(b2_tool, persistent_bucket_aggregate, sample_filepath,
     assert re.search(r'Expires: *Thu, 01 Dec 2050 16:00:00 GMT', download_output)
 
 
-def test_notification_rules(b2_tool, bucket_name):
+def test_notification_rules(b2_tool, persistent_bucket_aggregate):
+    bucket_name = persistent_bucket_aggregate.bucket_name
     auth_dict = b2_tool.should_succeed_json(['account', 'get'])
     if 'writeBucketNotifications' not in auth_dict['allowed']['capabilities']:
         pytest.skip('Test account does not have writeBucketNotifications capability')
