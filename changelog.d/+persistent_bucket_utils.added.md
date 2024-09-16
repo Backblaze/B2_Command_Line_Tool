@@ -1,1 +1,1 @@
-Add utility functions for managing persistent buckets
+Add utility functions for managing persistent buckets.

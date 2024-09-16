@@ -1,1 +1,1 @@
-Update integration tests to use persistent buckets
+Update integration tests to use persistent buckets.

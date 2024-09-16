@@ -1,1 +1,1 @@
-Add persistent bucket fixtures for integration tests
+Add persistent bucket fixtures for integration tests.
