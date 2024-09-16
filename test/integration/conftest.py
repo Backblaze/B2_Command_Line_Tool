@@ -412,8 +412,8 @@ def b2_uri_args(apiver_int):
 
 # -- Persistent bucket fixtures --
 @pytest.fixture
-def persistent_bucket(b2_api, account_info_file) -> Bucket:
-    return get_or_create_persistent_bucket(b2_api, account_info_file)
+def persistent_bucket(b2_api) -> Bucket:
+    return get_or_create_persistent_bucket(b2_api)
 
 
 @pytest.fixture

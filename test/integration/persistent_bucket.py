@@ -12,11 +12,10 @@ import os
 import sys
 from dataclasses import dataclass
 from functools import cached_property
-from pathlib import Path
 from test.integration.helpers import BUCKET_NAME_LENGTH, Api
 
 import backoff
-from b2sdk.v2 import Bucket, SqliteAccountInfo
+from b2sdk.v2 import Bucket
 from b2sdk.v2.exception import NonExistentBucket
 
 PERSISTENT_BUCKET_NAME_PREFIX = "constst"
@@ -53,7 +52,7 @@ def cleanup_persistent_bucket(b2_api: Api):
             delete_all_files(bucket)
 
 
-def get_persistent_bucket_name(b2_api: Api, account_info_file: Path) -> str:
+def get_persistent_bucket_name(b2_api: Api) -> str:
     if "CI" in os.environ:
         # CI environment
         repo_id = os.environ.get("GITHUB_REPOSITORY_ID")
@@ -62,14 +61,13 @@ def get_persistent_bucket_name(b2_api: Api, account_info_file: Path) -> str:
         bucket_hash = hashlib.sha256(repo_id.encode()).hexdigest()
     else:
         # Local development
-        account_info = SqliteAccountInfo(file_name=account_info_file)
-        bucket_hash = hashlib.sha256(account_info.get_account_id().encode()).hexdigest()
+        bucket_hash = hashlib.sha256(b2_api.account_id.encode()).hexdigest()
 
     return f"{PERSISTENT_BUCKET_NAME_PREFIX}-{bucket_hash}" [:BUCKET_NAME_LENGTH]
 
 
-def get_or_create_persistent_bucket(b2_api: Api, account_info_file: Path) -> Bucket:
-    bucket_name = get_persistent_bucket_name(b2_api, account_info_file)
+def get_or_create_persistent_bucket(b2_api: Api) -> Bucket:
+    bucket_name = get_persistent_bucket_name(b2_api)
     try:
         bucket = b2_api.api.get_bucket_by_name(bucket_name)
     except NonExistentBucket:
