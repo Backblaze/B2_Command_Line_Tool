@@ -2299,7 +2299,7 @@ class KeyListBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--long', action='store_true')
+        parser.add_argument('-l', '--long', action='store_true')
         super()._setup_parser(parser)
 
     def __init__(self, console_tool):
@@ -2491,7 +2491,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--long', action='store_true')
+        parser.add_argument('-l', '--long', action='store_true')
         parser.add_argument('--json', action='store_true')
         parser.add_argument('--replication', action='store_true')
         super()._setup_parser(parser)
