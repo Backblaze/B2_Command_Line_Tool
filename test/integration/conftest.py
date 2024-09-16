@@ -17,11 +17,13 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from contextlib import suppress
 from os import environ, path
 from tempfile import TemporaryDirectory
 
 import pytest
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
+from b2sdk.v2.exception import NonExistentBucket
 
 from b2._internal.version_listing import (
     CLI_VERSIONS,
@@ -437,12 +439,6 @@ def cleanup_persistent_bucket_subfolders(
 ):
     yield
     # Clean up all files in the persistent bucket after each test
-    bucket = b2_api.api.get_bucket_by_name(persistent_bucket_aggregate.bucket_name)
-    delete_files(bucket, persistent_bucket_aggregate.subfolder)
-
-
-# @pytest.fixture(scope="session", autouse=True)
-# def final_cleanup_persistent_buckets(b2_api, worker_id):
-#     yield
-#     if worker_id == "gw0":
-#         cleanup_persistent_bucket(b2_api)
+    with suppress(NonExistentBucket):
+        bucket = b2_api.api.get_bucket_by_name(persistent_bucket_aggregate.bucket_name)
+        delete_files(bucket, persistent_bucket_aggregate.subfolder)
