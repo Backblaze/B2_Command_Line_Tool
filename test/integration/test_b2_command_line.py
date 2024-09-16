@@ -1871,7 +1871,6 @@ def test_sse_c(
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, subfolder)]
     )
-    print(list_of_files, flush=True, file=sys.stderr)
 
     should_equal(
         [

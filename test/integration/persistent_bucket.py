@@ -9,7 +9,6 @@
 ######################################################################
 import hashlib
 import os
-import sys
 from dataclasses import dataclass
 from functools import cached_property
 from test.integration.helpers import BUCKET_NAME_LENGTH, Api
@@ -48,7 +47,7 @@ def cleanup_persistent_bucket(b2_api: Api):
     all_buckets = b2_api.api.list_buckets()
     for bucket in all_buckets:
         if bucket.name.startswith(PERSISTENT_BUCKET_NAME_PREFIX):
-            print(f"Deleting all files in bucket {bucket.name}", flush=True, file=sys.stderr)
+            print(f"Deleting all files in bucket {bucket.name}")
             delete_all_files(bucket)
 
 
