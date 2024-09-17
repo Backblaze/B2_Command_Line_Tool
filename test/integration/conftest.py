@@ -425,19 +425,17 @@ def unique_subfolder():
 
 
 @pytest.fixture
-def persistent_bucket_aggregate(persistent_bucket, unique_subfolder) -> PersistentBucketAggregate:
+def persistent_bucket_aggregate(
+    persistent_bucket, unique_subfolder, b2_api
+) -> PersistentBucketAggregate:
     """
     Since all consumers of the `bucket_name` fixture expect a new bucket to be created,
     we need to mirror this behavior by appending a unique subfolder to the persistent bucket name.
     """
-    yield PersistentBucketAggregate(persistent_bucket.name, unique_subfolder)
-
-
-@pytest.fixture(autouse=True)
-def cleanup_persistent_bucket_subfolders(
-    persistent_bucket_aggregate: PersistentBucketAggregate, b2_api: Api
-):
-    yield
+    persistent_bucket_aggregate = PersistentBucketAggregate(
+        persistent_bucket.name, unique_subfolder
+    )
+    yield persistent_bucket_aggregate
     # Clean up all files in the persistent bucket after each test
     with suppress(NonExistentBucket):
         bucket = b2_api.api.get_bucket_by_name(persistent_bucket_aggregate.bucket_name)
