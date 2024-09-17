@@ -15,7 +15,7 @@ from test.integration.helpers import BUCKET_NAME_LENGTH, Api
 
 import backoff
 from b2sdk.v2 import Bucket
-from b2sdk.v2.exception import NonExistentBucket
+from b2sdk.v2.exception import DuplicateBucketName, NonExistentBucket
 
 PERSISTENT_BUCKET_NAME_PREFIX = "constst"
 
@@ -65,6 +65,12 @@ def get_persistent_bucket_name(b2_api: Api) -> str:
     return f"{PERSISTENT_BUCKET_NAME_PREFIX}-{bucket_hash}" [:BUCKET_NAME_LENGTH]
 
 
+@backoff.on_exception(
+    backoff.expo,
+    DuplicateBucketName,
+    max_tries=3,
+    jitter=backoff.full_jitter,
+)
 def get_or_create_persistent_bucket(b2_api: Api) -> Bucket:
     bucket_name = get_persistent_bucket_name(b2_api)
     try:
