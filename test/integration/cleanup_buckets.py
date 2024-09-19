@@ -14,7 +14,6 @@ def test_cleanup_buckets(b2_api):
     # this is not a test, but it is intended to be called
     # via pytest because it reuses fixtures which have everything
     # set up.
-    pass
     # The persistent bucket is cleared manually now and not
     # when tests tear down, as otherwise we'd lose the main benefit
     # of a persistent bucket, whose identity is shared across tests.
