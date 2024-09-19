@@ -31,37 +31,14 @@ class PersistentBucketAggregate:
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=3, max_time=10)
-def delete_all_files(bucket: Bucket):
-    all_items = list(bucket.ls(recursive=True))
-    for item, _ in all_items:
-        bucket.delete_file_version(item.id_, item.file_name)
-
-
-@backoff.on_exception(backoff.expo, Exception, max_tries=3, max_time=10)
 def delete_files(bucket: Bucket, subfolder: str):
     for file_version, _ in bucket.ls(recursive=True, folder_to_list=subfolder):
         bucket.delete_file_version(file_version.id_, file_version.file_name)
 
 
-def cleanup_persistent_bucket(b2_api: Api):
-    all_buckets = b2_api.api.list_buckets()
-    for bucket in all_buckets:
-        if bucket.name.startswith(PERSISTENT_BUCKET_NAME_PREFIX):
-            print(f"Deleting all files in bucket {bucket.name}")
-            delete_all_files(bucket)
-
-
 def get_persistent_bucket_name(b2_api: Api) -> str:
-    if "CI" in os.environ:
-        # CI environment
-        repo_id = os.environ.get("GITHUB_REPOSITORY_ID")
-        if not repo_id:
-            raise ValueError("GITHUB_REPOSITORY_ID is not set")
-        bucket_hash = hashlib.sha256(repo_id.encode()).hexdigest()
-    else:
-        # Local development
-        bucket_hash = hashlib.sha256(b2_api.account_id.encode()).hexdigest()
-
+    bucket_base = os.environ.get("GITHUB_REPOSITORY_ID", b2_api.account_id)
+    bucket_hash = hashlib.sha256(bucket_base.encode()).hexdigest()
     return f"{PERSISTENT_BUCKET_NAME_PREFIX}-{bucket_hash}" [:BUCKET_NAME_LENGTH]
 
 
@@ -82,7 +59,7 @@ def get_or_create_persistent_bucket(b2_api: Api) -> Bucket:
             lifecycle_rules=[
                 {
                     "daysFromHidingToDeleting": 1,
-                    "daysFromUploadingToHiding": 14,
+                    "daysFromUploadingToHiding": 1,
                     "fileNamePrefix": "",
                 }
             ],

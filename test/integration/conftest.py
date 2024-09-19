@@ -17,13 +17,11 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from contextlib import suppress
 from os import environ, path
 from tempfile import TemporaryDirectory
 
 import pytest
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
-from b2sdk.v2.exception import NonExistentBucket
 
 from b2._internal.version_listing import (
     CLI_VERSIONS,
@@ -36,7 +34,6 @@ from ..helpers import b2_uri_args_v3, b2_uri_args_v4
 from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_part, random_token
 from .persistent_bucket import (
     PersistentBucketAggregate,
-    delete_files,
     get_or_create_persistent_bucket,
 )
 
@@ -414,29 +411,16 @@ def b2_uri_args(apiver_int):
 
 # -- Persistent bucket fixtures --
 @pytest.fixture
-def persistent_bucket(b2_api) -> Bucket:
-    return get_or_create_persistent_bucket(b2_api)
-
-
-@pytest.fixture
 def unique_subfolder():
     subfolder = f"test-{uuid.uuid4().hex[:8]}"
     yield subfolder
 
 
 @pytest.fixture
-def persistent_bucket_aggregate(
-    persistent_bucket, unique_subfolder, b2_api
-) -> PersistentBucketAggregate:
+def persistent_bucket(unique_subfolder, b2_api) -> PersistentBucketAggregate:
     """
     Since all consumers of the `bucket_name` fixture expect a new bucket to be created,
     we need to mirror this behavior by appending a unique subfolder to the persistent bucket name.
     """
-    persistent_bucket_aggregate = PersistentBucketAggregate(
-        persistent_bucket.name, unique_subfolder
-    )
-    yield persistent_bucket_aggregate
-    # Clean up all files in the persistent bucket after each test
-    with suppress(NonExistentBucket):
-        bucket = b2_api.api.get_bucket_by_name(persistent_bucket_aggregate.bucket_name)
-        delete_files(bucket, persistent_bucket_aggregate.subfolder)
+    persistent_bucket = get_or_create_persistent_bucket(b2_api)
+    yield PersistentBucketAggregate(persistent_bucket.name, unique_subfolder)
