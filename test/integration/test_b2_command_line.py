@@ -271,23 +271,21 @@ def test_command_with_env_vars_reusing_existing_account_info(
 
 
 @pytest.fixture
-def uploaded_sample_file(b2_tool, persistent_bucket_aggregate, sample_filepath):
+def uploaded_sample_file(b2_tool, persistent_bucket, sample_filepath):
     return b2_tool.should_succeed_json(
         [
-            'file', 'upload', '--quiet', persistent_bucket_aggregate.bucket_name,
-            str(sample_filepath), 'sample_file'
+            'file', 'upload', '--quiet', persistent_bucket.bucket_name,
+            str(sample_filepath), f'{persistent_bucket.subfolder}/sample_file'
         ]
     )
 
 
-def test_download(
-    b2_tool, persistent_bucket_aggregate, sample_filepath, uploaded_sample_file, tmp_path
-):
+def test_download(b2_tool, persistent_bucket, sample_filepath, uploaded_sample_file, tmp_path):
     output_a = tmp_path / 'a'
     b2_tool.should_succeed(
         [
             'file', 'download', '--quiet',
-            f"b2://{persistent_bucket_aggregate.bucket_name}/{uploaded_sample_file['fileName']}",
+            f"b2://{persistent_bucket.bucket_name}/{uploaded_sample_file['fileName']}",
             str(output_a)
         ]
     )
@@ -301,11 +299,9 @@ def test_download(
     assert output_b.read_text() == sample_filepath.read_text()
 
 
-def test_basic(
-    b2_tool, persistent_bucket_aggregate, sample_file, tmp_path, b2_uri_args, apiver_int
-):
-    bucket_name = persistent_bucket_aggregate.bucket_name
-    subfolder = f"{persistent_bucket_aggregate.subfolder}/"
+def test_basic(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args, apiver_int):
+    bucket_name = persistent_bucket.bucket_name
+    subfolder = f"{persistent_bucket.subfolder}/"
     file_mod_time_str = str(file_mod_time_millis(sample_file))
 
     file_data = read_file(sample_file)
@@ -385,9 +381,7 @@ def test_basic(
         ], [f['fileName'] for f in list_of_files]
     )
 
-    b2_tool.should_succeed(
-        ['file', 'unhide', f'b2://{persistent_bucket_aggregate.virtual_bucket_name}/c']
-    )
+    b2_tool.should_succeed(['file', 'unhide', f'b2://{persistent_bucket.virtual_bucket_name}/c'])
 
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, f'{subfolder}')]
@@ -509,9 +503,9 @@ def test_basic(
     b2_tool.should_succeed(['file', 'url', f"b2id://{second_c_version['fileId']}"])
 
     b2_tool.should_succeed(
-        ['file', 'url', f"b2://{persistent_bucket_aggregate.virtual_bucket_name}/any-file-name"],
+        ['file', 'url', f"b2://{persistent_bucket.virtual_bucket_name}/any-file-name"],
         '^https://.*/file/{}/{}\r?$'.format(
-            persistent_bucket_aggregate.virtual_bucket_name,
+            persistent_bucket.virtual_bucket_name,
             'any-file-name',
         ),
     )  # \r? is for Windows, as $ doesn't match \r\n
@@ -526,13 +520,13 @@ def test_ls_b2id(b2_tool, uploaded_sample_file):
 
 
 @pytest.mark.apiver(from_ver=4)
-def test_rm_b2id(b2_tool, persistent_bucket_aggregate, uploaded_sample_file):
+def test_rm_b2id(b2_tool, persistent_bucket, uploaded_sample_file):
     # remove the file by id
     b2_tool.should_succeed(['rm', f"b2id://{uploaded_sample_file['fileId']}"])
 
     # check that the file is gone
     b2_tool.should_succeed(
-        ['ls', f'b2://{persistent_bucket_aggregate.bucket_name}'],
+        ['ls', f'b2://{persistent_bucket.bucket_name}'],
         expected_pattern='^$',
     )
 
@@ -592,7 +586,7 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
             assert re.search(log_file_regex, log), log
 
 
-def test_bucket(b2_tool, persistent_bucket_aggregate):
+def test_bucket(b2_tool, persistent_bucket):
     rule = """{
         "daysFromHidingToDeleting": 1,
         "daysFromUploadingToHiding": null,
@@ -600,7 +594,7 @@ def test_bucket(b2_tool, persistent_bucket_aggregate):
     }"""
     output = b2_tool.should_succeed_json(
         [
-            'bucket', 'update', '--lifecycle-rule', rule, persistent_bucket_aggregate.bucket_name,
+            'bucket', 'update', '--lifecycle-rule', rule, persistent_bucket.bucket_name,
             'allPublic', *b2_tool.get_bucket_info_args()
         ],
     )
@@ -621,16 +615,9 @@ def test_bucket(b2_tool, persistent_bucket_aggregate):
     ]
 
 
-def test_key_restrictions(
-    b2_tool, persistent_bucket_aggregate, sample_file, bucket_factory, b2_uri_args
-):
+def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_uri_args):
     # A single file for rm to fail on.
-    b2_tool.should_succeed(
-        [
-            'file', 'upload', '--no-progress', persistent_bucket_aggregate.bucket_name, sample_file,
-            'test'
-        ]
-    )
+    b2_tool.should_succeed(['file', 'upload', '--no-progress', bucket_name, sample_file, 'test'])
 
     key_one_name = 'clt-testKey-01' + random_hex(6)
     created_key_stdout = b2_tool.should_succeed(
@@ -647,7 +634,7 @@ def test_key_restrictions(
         ['account', 'authorize', '--environment', b2_tool.realm, key_one_id, key_one],
     )
 
-    b2_tool.should_succeed(['bucket', 'get', persistent_bucket_aggregate.bucket_name],)
+    b2_tool.should_succeed(['bucket', 'get', bucket_name],)
     second_bucket_name = bucket_factory().name
     b2_tool.should_succeed(['bucket', 'get', second_bucket_name],)
 
@@ -657,7 +644,7 @@ def test_key_restrictions(
             'key',
             'create',
             '--bucket',
-            persistent_bucket_aggregate.bucket_name,
+            bucket_name,
             key_two_name,
             'listFiles,listBuckets,readFiles',
         ]
@@ -672,7 +659,7 @@ def test_key_restrictions(
         [
             'create-key',
             '--bucket',
-            persistent_bucket_aggregate.bucket_name,
+            bucket_name,
             key_three_name,
             'listFiles,listBuckets,readFiles',
         ],
@@ -683,8 +670,8 @@ def test_key_restrictions(
     b2_tool.should_succeed(
         ['account', 'authorize', '--environment', b2_tool.realm, key_two_id, key_two],
     )
-    b2_tool.should_succeed(['bucket', 'get', persistent_bucket_aggregate.bucket_name],)
-    b2_tool.should_succeed(['ls', *b2_uri_args(persistent_bucket_aggregate.bucket_name)],)
+    b2_tool.should_succeed(['bucket', 'get', bucket_name],)
+    b2_tool.should_succeed(['ls', *b2_uri_args(bucket_name)],)
 
     b2_tool.should_succeed(
         ['account', 'authorize', '--environment', b2_tool.realm, key_three_id, key_three],
@@ -695,21 +682,18 @@ def test_key_restrictions(
     failed_bucket_err = r'Deletion of file "test" \([^\)]+\) failed: unauthorized for ' \
                         r'application key with capabilities ' \
                         r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', " \
-                        r"restricted to bucket '%s' \(unauthorized\)" % persistent_bucket_aggregate.bucket_name
+                        r"restricted to bucket '%s' \(unauthorized\)" % bucket_name
     b2_tool.should_fail(
-        [
-            'rm', '--recursive', '--no-progress',
-            *b2_uri_args(persistent_bucket_aggregate.bucket_name)
-        ], failed_bucket_err
+        ['rm', '--recursive', '--no-progress', *b2_uri_args(bucket_name)], failed_bucket_err
     )
 
-    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + persistent_bucket_aggregate.bucket_name
+    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['bucket', 'get', second_bucket_name], failed_bucket_err)
 
-    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + persistent_bucket_aggregate.bucket_name
+    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['ls', *b2_uri_args(second_bucket_name)], failed_list_files_err)
 
-    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + persistent_bucket_aggregate.bucket_name
+    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
     b2_tool.should_fail(['rm', *b2_uri_args(second_bucket_name)], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up
@@ -894,21 +878,19 @@ def encryption_summary(sse_dict, file_info):
     "dir_, encryption",
     [('sync', None), ('sync', SSE_B2_AES), ('sync', SSE_C_AES), ('', None)],
 )
-def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir_, encryption):
-    # persistent_bucket_aggregate.subfolder = persistent_bucket_aggregate.subfolder + random_hex(6)
+def test_sync_up(tmp_path, b2_tool, persistent_bucket, apiver_int, dir_, encryption):
+    # persistent_bucket.subfolder = persistent_bucket.subfolder + random_hex(6)
 
-    sync_point_parts = [
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
-    ]
+    sync_point_parts = [persistent_bucket.bucket_name, persistent_bucket.subfolder]
     if dir_:
         sync_point_parts.append(dir_)
-        prefix = f'{persistent_bucket_aggregate.subfolder}/{dir_}/'
+        prefix = f'{persistent_bucket.subfolder}/{dir_}/'
     else:
-        prefix = persistent_bucket_aggregate.subfolder + '/'
+        prefix = persistent_bucket.subfolder + '/'
     b2_sync_point = 'b2:' + '/'.join(sync_point_parts)
 
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal([], file_version_summary(file_versions))
 
@@ -919,7 +901,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
     # simulate action (nothing should be uploaded)
     b2_tool.should_succeed(['sync', '--no-progress', '--dry-run', tmp_path, b2_sync_point])
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal([], file_version_summary(file_versions))
 
@@ -976,7 +958,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
     assert re.search(r'd[\'"]? could not be accessed', stdout)
     assert status == (1 if apiver_int >= 4 else 0)
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
 
     should_equal(
@@ -1009,7 +991,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
     assert re.search(r'd[\'"]? could not be accessed', stdout)
     assert status == (1 if apiver_int >= 4 else 0)
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal(
         [
@@ -1026,7 +1008,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
 
     b2_tool.should_succeed(['sync', '--no-progress', '--delete', tmp_path, b2_sync_point])
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal([
         '+ ' + prefix + 'c',
@@ -1043,7 +1025,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
         ]
     )
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal([
         '+ ' + prefix + 'c',
@@ -1057,7 +1039,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
         ]
     )
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal([
         '+ ' + prefix + 'c',
@@ -1075,7 +1057,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
         ]
     )
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal([
         '+ ' + prefix + 'c',
@@ -1090,7 +1072,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
         ]
     )
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal(
         [
@@ -1109,7 +1091,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
         ['sync', '--no-progress', '--exclude-if-modified-after', mod_time, tmp_path, b2_sync_point]
     )
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal(
         [
@@ -1127,7 +1109,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
         ['sync', '--no-progress', '--exclude-all-symlinks', tmp_path, b2_sync_point],
     )
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal(
         [
@@ -1142,7 +1124,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket_aggregate, apiver_int, dir
     # confirm symlink target is uploaded (with symlink's name)
     b2_tool.should_succeed(['sync', '--no-progress', tmp_path, b2_sync_point])
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal(
         [
@@ -1486,11 +1468,11 @@ def run_sync_copy_with_basic_checks(
         raise NotImplementedError(destination_encryption)
 
 
-def test_sync_long_path(tmp_path, b2_tool, persistent_bucket_aggregate):
+def test_sync_long_path(tmp_path, b2_tool, persistent_bucket):
     """
     test sync with very long path (overcome windows 260 character limit)
     """
-    b2_sync_point = f'b2://{persistent_bucket_aggregate.virtual_bucket_name}'
+    b2_sync_point = f'b2://{persistent_bucket.virtual_bucket_name}'
 
     long_path = '/'.join(
         (
@@ -1508,11 +1490,10 @@ def test_sync_long_path(tmp_path, b2_tool, persistent_bucket_aggregate):
 
     b2_tool.should_succeed(['sync', '--no-progress', '--delete', str(tmp_path), b2_sync_point])
     file_versions = b2_tool.list_file_versions(
-        persistent_bucket_aggregate.bucket_name, persistent_bucket_aggregate.subfolder
+        persistent_bucket.bucket_name, persistent_bucket.subfolder
     )
     should_equal(
-        [f'+ {persistent_bucket_aggregate.subfolder}/{long_path}'],
-        file_version_summary(file_versions)
+        [f'+ {persistent_bucket.subfolder}/{long_path}'], file_version_summary(file_versions)
     )
 
 
@@ -1561,9 +1542,9 @@ def test_default_sse_b2__create_bucket(b2_tool, schedule_bucket_cleanup):
     should_equal(second_bucket_default_sse, second_bucket_info['defaultServerSideEncryption'])
 
 
-def test_sse_b2(b2_tool, persistent_bucket_aggregate, sample_file, tmp_path, b2_uri_args):
-    bucket_name = persistent_bucket_aggregate.bucket_name
-    subfolder = persistent_bucket_aggregate.subfolder
+def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
+    bucket_name = persistent_bucket.bucket_name
+    subfolder = persistent_bucket.subfolder
     b2_tool.should_succeed(
         [
             'file', 'upload', '--destination-server-side-encryption=SSE-B2', '--quiet', bucket_name,
@@ -1649,10 +1630,10 @@ def test_sse_b2(b2_tool, persistent_bucket_aggregate, sample_file, tmp_path, b2_
 
 
 def test_sse_c(
-    b2_tool, persistent_bucket_aggregate, is_running_on_docker, sample_file, tmp_path, b2_uri_args
+    b2_tool, persistent_bucket, is_running_on_docker, sample_file, tmp_path, b2_uri_args
 ):
-    bucket_name = persistent_bucket_aggregate.bucket_name
-    subfolder = persistent_bucket_aggregate.subfolder
+    bucket_name = persistent_bucket.bucket_name
+    subfolder = persistent_bucket.subfolder
     sse_c_key_id = 'user-generated-key-id \nąóźćż\nœøΩ≈ç\nßäöü'
     if is_running_on_docker:
         # TODO: fix this once we figure out how to pass env vars with \n in them to docker, docker-compose should work
@@ -3241,11 +3222,9 @@ def _assert_file_lock_configuration(
         assert legal_hold == actual_legal_hold
 
 
-def test_upload_file__custom_upload_time(
-    b2_tool, persistent_bucket_aggregate, sample_file, b2_uri_args
-):
-    bucket_name = persistent_bucket_aggregate.bucket_name
-    subfolder = persistent_bucket_aggregate.subfolder
+def test_upload_file__custom_upload_time(b2_tool, persistent_bucket, sample_file, b2_uri_args):
+    bucket_name = persistent_bucket.bucket_name
+    subfolder = persistent_bucket.subfolder
     file_data = read_file(sample_file)
     cut = 12345
     cut_printable = '1970-01-01  00:00:12'
@@ -3280,12 +3259,10 @@ def test_upload_file__custom_upload_time(
 
 
 @skip_on_windows
-def test_upload_file__stdin_pipe_operator(
-    request, bash_runner, b2_tool, persistent_bucket_aggregate
-):
+def test_upload_file__stdin_pipe_operator(request, bash_runner, b2_tool, persistent_bucket):
     """Test `file upload` from stdin using pipe operator."""
-    bucket_name = persistent_bucket_aggregate.bucket_name
-    subfolder = persistent_bucket_aggregate.subfolder
+    bucket_name = persistent_bucket.bucket_name
+    subfolder = persistent_bucket.subfolder
     content = request.node.name
     run = bash_runner(
         f'echo -n {content!r} '
@@ -3297,11 +3274,11 @@ def test_upload_file__stdin_pipe_operator(
 
 @skip_on_windows
 def test_upload_unbound_stream__redirect_operator(
-    request, bash_runner, b2_tool, persistent_bucket_aggregate, is_running_on_docker
+    request, bash_runner, b2_tool, persistent_bucket, is_running_on_docker
 ):
     """Test upload-unbound-stream from stdin using redirect operator."""
-    bucket_name = persistent_bucket_aggregate.bucket_name
-    subfolder = persistent_bucket_aggregate.subfolder
+    bucket_name = persistent_bucket.bucket_name
+    subfolder = persistent_bucket.subfolder
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
     content = request.node.name
@@ -3313,13 +3290,12 @@ def test_upload_unbound_stream__redirect_operator(
 
 
 def test_download_file_stdout(
-    b2_tool, persistent_bucket_aggregate, sample_filepath, tmp_path, uploaded_sample_file
+    b2_tool, persistent_bucket, sample_filepath, tmp_path, uploaded_sample_file
 ):
     assert b2_tool.should_succeed(
         [
             'file', 'download', '--quiet',
-            f"b2://{persistent_bucket_aggregate.bucket_name}/{uploaded_sample_file['fileName']}",
-            '-'
+            f"b2://{persistent_bucket.bucket_name}/{uploaded_sample_file['fileName']}", '-'
         ],
     ) == sample_filepath.read_text()
     assert b2_tool.should_succeed(
@@ -3328,11 +3304,12 @@ def test_download_file_stdout(
 
 
 def test_download_file_to_directory(
-    b2_tool, persistent_bucket_aggregate, sample_filepath, tmp_path, uploaded_sample_file
+    b2_tool, persistent_bucket, sample_filepath, tmp_path, uploaded_sample_file
 ):
-    downloads_directory = 'downloads'
+    downloads_directory = 'downloads/'
     target_directory = tmp_path / downloads_directory
     target_directory.mkdir()
+    (target_directory / persistent_bucket.subfolder).mkdir()
     filename_as_path = pathlib.Path(uploaded_sample_file['fileName'])
 
     sample_file_content = sample_filepath.read_text()
@@ -3341,7 +3318,7 @@ def test_download_file_to_directory(
             'file',
             'download',
             '--quiet',
-            f"b2://{persistent_bucket_aggregate.bucket_name}/{uploaded_sample_file['fileName']}",
+            f"b2://{persistent_bucket.bucket_name}/{uploaded_sample_file['fileName']}",
             str(target_directory),
         ],
     )
@@ -3369,19 +3346,16 @@ def test_download_file_to_directory(
         f'{new_files}, {new_files[0].read_text()}, {sample_file_content}'
 
 
-def test_cat(b2_tool, persistent_bucket_aggregate, sample_filepath, tmp_path, uploaded_sample_file):
+def test_cat(b2_tool, persistent_bucket, sample_filepath, tmp_path, uploaded_sample_file):
     assert b2_tool.should_succeed(
-        [
-            'file', 'cat',
-            f"b2://{persistent_bucket_aggregate.bucket_name}/{uploaded_sample_file['fileName']}"
-        ],
+        ['file', 'cat', f"b2://{persistent_bucket.bucket_name}/{uploaded_sample_file['fileName']}"],
     ) == sample_filepath.read_text()
     assert b2_tool.should_succeed(['file', 'cat', f"b2id://{uploaded_sample_file['fileId']}"]
                                  ) == sample_filepath.read_text()
 
 
-def test_header_arguments(b2_tool, persistent_bucket_aggregate, sample_filepath, tmp_path):
-    bucket_name = persistent_bucket_aggregate.bucket_name
+def test_header_arguments(b2_tool, persistent_bucket, sample_filepath, tmp_path):
+    bucket_name = persistent_bucket.bucket_name
     # yapf: disable
     args = [
         '--cache-control', 'max-age=3600',
@@ -3411,7 +3385,7 @@ def test_header_arguments(b2_tool, persistent_bucket_aggregate, sample_filepath,
             '--no-progress',
             bucket_name,
             str(sample_filepath),
-            f'{persistent_bucket_aggregate.subfolder}/sample_file',
+            f'{persistent_bucket.subfolder}/sample_file',
             *args,
             '--info',
             'b2-content-disposition=will-be-overwritten',
@@ -3428,7 +3402,7 @@ def test_header_arguments(b2_tool, persistent_bucket_aggregate, sample_filepath,
     copied_version = b2_tool.should_succeed_json(
         [
             'file', 'copy-by-id', '--quiet', *args, '--content-type', 'text/plain',
-            file_version['fileId'], bucket_name, 'copied_file'
+            file_version['fileId'], bucket_name, f'{persistent_bucket.subfolder}/copied_file'
         ]
     )
     assert_expected(copied_version['fileInfo'])
@@ -3443,8 +3417,7 @@ def test_header_arguments(b2_tool, persistent_bucket_aggregate, sample_filepath,
     assert re.search(r'Expires: *Thu, 01 Dec 2050 16:00:00 GMT', download_output)
 
 
-def test_notification_rules(b2_tool, persistent_bucket_aggregate):
-    bucket_name = persistent_bucket_aggregate.bucket_name
+def test_notification_rules(b2_tool, bucket_name):
     auth_dict = b2_tool.should_succeed_json(['account', 'get'])
     if 'writeBucketNotifications' not in auth_dict['allowed']['capabilities']:
         pytest.skip('Test account does not have writeBucketNotifications capability')
