@@ -37,7 +37,7 @@ def delete_files(bucket: Bucket, subfolder: str):
 
 
 def get_persistent_bucket_name(b2_api: Api) -> str:
-    bucket_base = os.environ.get("GITHUB_REPOSITORY_ID", b2_api.account_id)
+    bucket_base = os.environ.get("GITHUB_REPOSITORY_ID", b2_api.api.get_account_id())
     bucket_hash = hashlib.sha256(bucket_base.encode()).hexdigest()
     return f"{PERSISTENT_BUCKET_NAME_PREFIX}-{bucket_hash}" [:BUCKET_NAME_LENGTH]
 
