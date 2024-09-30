@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import uuid
 from os import environ, path
 from tempfile import TemporaryDirectory
 
@@ -31,6 +32,10 @@ from b2._internal.version_listing import (
 
 from ..helpers import b2_uri_args_v3, b2_uri_args_v4
 from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_part, random_token
+from .persistent_bucket import (
+    PersistentBucketAggregate,
+    get_or_create_persistent_bucket,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -402,3 +407,20 @@ def b2_uri_args(apiver_int):
         return b2_uri_args_v4
     else:
         return b2_uri_args_v3
+
+
+# -- Persistent bucket fixtures --
+@pytest.fixture
+def unique_subfolder():
+    subfolder = f"test-{uuid.uuid4().hex[:8]}"
+    yield subfolder
+
+
+@pytest.fixture
+def persistent_bucket(unique_subfolder, b2_api) -> PersistentBucketAggregate:
+    """
+    Since all consumers of the `bucket_name` fixture expect a new bucket to be created,
+    we need to mirror this behavior by appending a unique subfolder to the persistent bucket name.
+    """
+    persistent_bucket = get_or_create_persistent_bucket(b2_api)
+    yield PersistentBucketAggregate(persistent_bucket.name, unique_subfolder)
