@@ -30,12 +30,6 @@ class PersistentBucketAggregate:
         return f"{self.bucket_name}/{self.subfolder}"
 
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=3, max_time=10)
-def delete_files(bucket: Bucket, subfolder: str):
-    for file_version, _ in bucket.ls(recursive=True, folder_to_list=subfolder):
-        bucket.delete_file_version(file_version.id_, file_version.file_name)
-
-
 def get_persistent_bucket_name(b2_api: Api) -> str:
     bucket_base = os.environ.get("GITHUB_REPOSITORY_ID", b2_api.api.get_account_id())
     bucket_hash = hashlib.sha256(bucket_base.encode()).hexdigest()
