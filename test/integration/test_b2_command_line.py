@@ -3245,7 +3245,7 @@ def test_upload_file__custom_upload_time(b2_tool, persistent_bucket, sample_file
     else:
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
-            ['1ls', '--long', *b2_uri_args(bucket_name, subfolder)],
+            ['ls', '--long', *b2_uri_args(bucket_name, subfolder)],
             f'^4_z.*  upload  {cut_printable} +{len(file_data)}  {subfolder}/a',
         )
         # file_id, action, date, time, size(, replication), name
