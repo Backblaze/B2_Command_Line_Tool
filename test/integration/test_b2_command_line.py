@@ -526,7 +526,7 @@ def test_rm_b2id(b2_tool, persistent_bucket, uploaded_sample_file):
 
     # check that the file is gone
     b2_tool.should_succeed(
-        ['ls', f'b2://{persistent_bucket.bucket_name}'],
+        ['ls', f'b2://{persistent_bucket.bucket_name}/{persistent_bucket.subfolder}/'],
         expected_pattern='^$',
     )
 
@@ -3245,16 +3245,13 @@ def test_upload_file__custom_upload_time(b2_tool, persistent_bucket, sample_file
     else:
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
-            ['ls', '--long', *b2_uri_args(bucket_name, subfolder)],
-            '^4_z.*  upload  {} +{}  a'.format(
-                cut_printable,
-                len(file_data),
-            )
+            ['1ls', '--long', *b2_uri_args(bucket_name, subfolder)],
+            f'^4_z.*  upload  {cut_printable} +{len(file_data)}  {subfolder}/a',
         )
         # file_id, action, date, time, size(, replication), name
         b2_tool.should_succeed(
             ['ls', '--long', '--replication', *b2_uri_args(bucket_name, subfolder)],
-            f'^4_z.*  upload  {cut_printable} +{len(file_data)}  -  a'
+            f'^4_z.*  upload  {cut_printable} +{len(file_data)}  -  {subfolder}/a'
         )
 
 
