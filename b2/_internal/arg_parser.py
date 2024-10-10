@@ -20,6 +20,13 @@ import unittest.mock
 
 from rst2ansi import rst2ansi
 
+try:
+    getencoding = locale.getencoding
+except AttributeError:  # Python <=3.10
+
+    def getencoding():
+        return locale.getdefaultlocale()[1]
+
 
 class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
     """
@@ -142,7 +149,7 @@ class B2ArgumentParser(argparse.ArgumentParser):
 
     @classmethod
     def _get_encoding(cls):
-        _, locale_encoding = locale.getdefaultlocale()
+        locale_encoding = getencoding()
 
         # Check if the stdout is properly set
         if sys.stdout.encoding is not None:
