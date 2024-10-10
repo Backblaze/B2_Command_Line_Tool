@@ -55,7 +55,7 @@ def b2id_or_b2_bucket_uri(value: str) -> Union[B2URI, B2FileIdURI]:
     return b2_uri
 
 
-def b2id_or_file_like_b2_uri(value: str) -> B2URIBase:
+def b2id_or_file_like_b2_uri(value: str, *, by_id: Optional[bool] = None) -> B2URIBase:
     b2_uri = parse_b2_uri(value)
     if isinstance(b2_uri, B2URI):
         if b2_uri.is_dir():
@@ -63,6 +63,12 @@ def b2id_or_file_like_b2_uri(value: str) -> B2URIBase:
                 f"B2 URI pointing to a file-like object is required, but {value} was provided"
             )
         return b2_uri
+    elif isinstance(b2_uri, B2FileIdURI):
+        if by_id is False:
+            raise ValueError(
+                f"B2 URI pointing to file-like object by name is required (e.g. b2://bucketName/fileName),"
+                f" but {value} was provided"
+            )
 
     return b2_uri
 
@@ -78,12 +84,17 @@ def parse_bucket_name(value: str, allow_all_buckets: bool = False) -> str:
     return str(value)
 
 
-def b2id_or_file_like_b2_uri_or_bucket_name(value: str) -> Union[B2URIBase, str]:
-    try:
-        bucket_name = parse_bucket_name(value)
-        return bucket_name
-    except ValueError:
-        return b2id_or_file_like_b2_uri(value)
+def b2id_or_file_like_b2_uri_or_bucket_name(value: str, *,
+                                            by_id: Optional[bool] = None) -> Union[B2URIBase, str]:
+    if "://" not in value:
+        return value
+    else:
+        b2_uri = b2id_or_file_like_b2_uri(value, by_id=by_id)
+        if isinstance(b2_uri, B2FileIdURI) and by_id is False:
+            raise ValueError(
+                "This command doesn't support file id as an argument, use b2://bucketName/fileName instead"
+            )
+        return b2_uri
 
 
 B2ID_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_uri)
@@ -94,9 +105,6 @@ B2ID_OR_B2_URI_OR_ALL_BUCKETS_ARG_TYPE = wrap_with_argument_type_error(
     functools.partial(parse_b2_uri, allow_all_buckets=True)
 )
 B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_or_file_like_b2_uri)
-B2ID_OR_FILE_LIKE_B2_URI_OR_BUCKET_NAME_ARG_TYPE = wrap_with_argument_type_error(
-    b2id_or_file_like_b2_uri_or_bucket_name
-)
 
 
 def add_bucket_name_argument(
@@ -187,35 +195,46 @@ def add_b2id_or_b2_uri_argument(
 
 
 def add_b2id_or_b2_bucket_uri_argument(parser: argparse.ArgumentParser, name="B2_URI"):
-    parser.add_argument(
+    arg = parser.add_argument(
         name,
         type=B2ID_OR_B2_BUCKET_URI_ARG_TYPE,
         help="B2 URI pointing to a bucket, or a file id. e.g. b2://yourBucket, or b2id://fileId",
-    ).completer = b2uri_file_completer
+    )
+    arg.completer = b2uri_file_completer
+    return arg
 
 
 def add_b2id_or_file_like_b2_uri_argument(parser: argparse.ArgumentParser, name="B2_URI"):
     """
     Add a B2 URI pointing to a file as an argument to the parser.
     """
-    parser.add_argument(
+    arg = parser.add_argument(
         name,
         type=B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE,
         help="B2 URI pointing to a file, e.g. b2://yourBucket/file.txt or b2id://fileId",
-    ).completer = b2uri_file_completer
+    )
+    arg.completer = b2uri_file_completer
+    return arg
 
 
 def add_b2id_or_file_like_b2_uri_or_bucket_name_argument(
-    parser: argparse.ArgumentParser, name="B2_URI"
+    parser: argparse.ArgumentParser, name="B2_URI", by_id: Optional[bool] = None
 ):
     """
     Add a B2 URI pointing to a file as an argument to the parser.
     """
-    parser.add_argument(
+    help_ = "B2 URI pointing to a file, e.g. b2://yourBucket/file.txt"
+    if by_id is not False:
+        help_ += " or b2id://fileId"
+    arg = parser.add_argument(
         name,
-        type=B2ID_OR_FILE_LIKE_B2_URI_OR_BUCKET_NAME_ARG_TYPE,
-        help="B2 URI pointing to a file, e.g. b2://yourBucket/file.txt or b2id://fileId",
-    ).completer = b2uri_file_completer
+        type=wrap_with_argument_type_error(
+            functools.partial(b2id_or_file_like_b2_uri_or_bucket_name, by_id=by_id)
+        ),
+        help=help_,
+    )
+    arg.completer = b2uri_file_completer
+    return arg
 
 
 def get_keyid_and_key_from_env_vars() -> Tuple[Optional[str], Optional[str]]:

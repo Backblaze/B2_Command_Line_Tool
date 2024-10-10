@@ -1018,7 +1018,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             # Hide file
-            self._run_command(['file', 'hide', 'my-bucket', 'file1.txt'],)
+            self._run_command(['file', 'hide', 'b2://my-bucket/file1.txt'],)
 
             # Delete one file version
             self._run_command(['rm', 'b2id://9998'])
@@ -1087,7 +1087,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['file', 'hide', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'b2://my-bucket/file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1178,7 +1178,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['file', 'hide', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'b2://my-bucket/file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -1386,7 +1386,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             }
 
             self._run_command(
-                ['file', 'hide', 'my-bucket', 'file1.txt'],
+                ['file', 'hide', 'b2://my-bucket/file1.txt'],
                 expected_json_in_stdout=expected_json,
             )
 
@@ -2144,9 +2144,9 @@ class TestConsoleTool(BaseConsoleToolTest):
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
         console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden1'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden2'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', 'hidden3'])
-        console_tool.run_command(['b2', 'hide-file', 'my-bucket', 'hidden4'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden2'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden3'])
+        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden4'])
 
         # unhide one file
         console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/hidden2'])
@@ -2207,13 +2207,11 @@ class TestConsoleTool(BaseConsoleToolTest):
         # something has failed if the output of 'bucket get' does not match the canon.
         stdout, stderr = self._get_stdouterr()
         console_tool = self.console_tool_class(stdout, stderr)
-        console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/1/hidden1'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/hidden1'])
+        for _ in range(2):
+            console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/hidden1'])
         console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/1/hidden2'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
-        console_tool.run_command(['b2', 'file', 'hide', 'my-bucket', '1/2/hidden3'])
+        for _ in range(4):
+            console_tool.run_command(['b2', 'file', 'hide', 'b2://my-bucket/1/2/hidden3'])
 
         # Unhide a file
         console_tool.run_command(['b2', 'file', 'unhide', 'b2://my-bucket/1/hidden2'])

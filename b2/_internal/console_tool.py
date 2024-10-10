@@ -714,18 +714,34 @@ class B2URIFileArgMixin:
 
 
 class B2URIFileOrBucketNameFileNameArgMixin:
+    SUPPORTS_B2_ID: bool = True
+
     @classmethod
     def _setup_parser(cls, parser):
-        add_b2id_or_file_like_b2_uri_or_bucket_name_argument(parser)
+        cls._b2_uri_arg = add_b2id_or_file_like_b2_uri_or_bucket_name_argument(
+            parser, by_id=cls.SUPPORTS_B2_ID
+        )
         parser.add_argument('fileName', nargs='?', help=argparse.SUPPRESS)
         super()._setup_parser(parser)
 
-    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase | str:
-        if isinstance(args.B2_URI, B2URI):
+    def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
+        if isinstance(args.B2_URI, B2URIBase):
+            if args.fileName:
+                raise argparse.ArgumentError(
+                    self._b2_uri_arg,
+                    "Both B2 URI and file name were provided, but only one is expected"
+                )
             return args.B2_URI
 
-        bucket_name = args.B2_URI
-        return bucket_name
+        if not args.fileName:
+            raise argparse.ArgumentError(
+                self._b2_uri_arg,
+                f"Incorrect B2 URI was provided, expected `b2://bucketName/fileName`, but got {args.B2_URI!r}"
+            )
+        self._print_stderr(
+            'WARNING: "bucketName fileName" arguments syntax is deprecated, use "b2://bucketName/fileName" instead'
+        )
+        return B2URI(args.B2_URI, args.fileName)
 
 
 class B2URIFileIDArgMixin:
@@ -2179,15 +2195,9 @@ class FileHideBase(Command):
 
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
-        if isinstance(b2_uri, B2URI):
-            bucket_name = b2_uri.bucket_name
-            file_name = b2_uri.path
-        else:
-            bucket_name = b2_uri
-            file_name = args.fileName
 
-        bucket = self.api.get_bucket_by_name(bucket_name)
-        file_info = bucket.hide_file(file_name)
+        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
+        file_info = bucket.hide_file(b2_uri.path)
         self._print_json(file_info)
         return 0
 
@@ -5086,7 +5096,7 @@ class File(Command):
         {NAME} file cat b2://yourBucket/file.txt
         {NAME} file copy-by-id sourceFileId yourBucket file.txt
         {NAME} file download b2://yourBucket/file.txt localFile.txt
-        {NAME} file hide yourBucket file.txt
+        {NAME} file hide b2://yourBucket/file.txt
         {NAME} file info b2://yourBucket/file.txt
         {NAME} file update --legal-hold off b2://yourBucket/file.txt
         {NAME} file upload yourBucket localFile.txt file.txt
@@ -5135,6 +5145,7 @@ class FileCopyById(FileCopyByIdBase):
 class FileHide(B2URIFileOrBucketNameFileNameArgMixin, FileHideBase):
     __doc__ = FileHideBase.__doc__
     COMMAND_NAME = 'hide'
+    SUPPORTS_B2_ID = False
 
 
 @File.subcommands_registry.register
