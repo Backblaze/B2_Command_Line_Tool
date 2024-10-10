@@ -367,7 +367,7 @@ def test_basic(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args, a
         ['file', 'download', '--quiet', f'b2://{bucket_name}/{subfolder}b/1', tmp_path / 'a']
     )
 
-    b2_tool.should_succeed(['file', 'hide', bucket_name, f'{subfolder}c'])
+    b2_tool.should_succeed(['file', 'hide', f'b2://{bucket_name}/{subfolder}c'])
 
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, f'{subfolder}')]
@@ -396,7 +396,7 @@ def test_basic(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args, a
         ], [f['fileName'] for f in list_of_files]
     )
 
-    b2_tool.should_succeed(['file', 'hide', bucket_name, f'{subfolder}c'])
+    b2_tool.should_succeed(['file', 'hide', f'b2://{bucket_name}/{subfolder}c'])
 
     list_of_files = b2_tool.should_succeed_json(
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, f'{subfolder}')]
