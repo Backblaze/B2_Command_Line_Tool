@@ -445,7 +445,10 @@ def test_basic(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args, a
         should_equal([], [f['fileName'] for f in list_of_files])
 
     b2_tool.should_succeed(
-        ['file', 'copy-by-id', first_a_version['fileId'], bucket_name, f'{subfolder}x']
+        [
+            'file', 'server-side-copy', f'b2id://{first_a_version["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}x'
+        ]
     )
 
     b2_tool.should_succeed(
@@ -1593,14 +1596,19 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
 
     b2_tool.should_succeed(
         [
-            'file', 'copy-by-id', '--destination-server-side-encryption=SSE-B2',
-            encrypted_version['fileId'], bucket_name, f'{subfolder}/copied_encrypted'
+            'file',
+            'server-side-copy',
+            '--destination-server-side-encryption=SSE-B2',
+            f"b2id://{encrypted_version['fileId']}",
+            f"b2://{bucket_name}/{subfolder}/copied_encrypted",
         ]
     )
     b2_tool.should_succeed(
         [
-            'file', 'copy-by-id', not_encrypted_version['fileId'], bucket_name,
-            f'{subfolder}/copied_not_encrypted'
+            'file',
+            'server-side-copy',
+            f"b2id://{not_encrypted_version['fileId']}",
+            f"b2://{bucket_name}/{subfolder}/copied_not_encrypted",
         ]
     )
 
@@ -1723,24 +1731,27 @@ def test_sse_c(
         assert read_file(dir_path / 'b') == read_file(sample_file)
 
     b2_tool.should_fail(
-        ['file', 'copy-by-id', file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'],
+        [
+            'file', 'server-side-copy', f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/gonna-fail-anyway'
+        ],
         expected_pattern=
         'ERROR: The object was stored using a form of Server Side Encryption. The correct '
         r'parameters must be provided to retrieve the object. \(bad_request\)'
     )
     b2_tool.should_fail(
         [
-            'file', 'copy-by-id', '--source-server-side-encryption=SSE-C',
-            file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'
+            'file', 'server-side-copy', '--source-server-side-encryption=SSE-C',
+            f'b2id://{file_version_info["fileId"]}', f'b2://{bucket_name}/gonna-fail-anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var'
     )
     b2_tool.should_fail(
         [
-            'file', 'copy-by-id', '--source-server-side-encryption=SSE-C',
-            '--destination-server-side-encryption=SSE-C', file_version_info['fileId'], bucket_name,
-            'gonna-fail-anyway'
+            'file', 'server-side-copy', '--source-server-side-encryption=SSE-C',
+            '--destination-server-side-encryption=SSE-C', f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/gonna-fail-anyway'
         ],
         expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
         'B2_DESTINATION_SSE_C_KEY_B64 env var',
@@ -1748,8 +1759,11 @@ def test_sse_c(
     )
     b2_tool.should_fail(
         [
-            'file', 'copy-by-id', '--source-server-side-encryption=SSE-C',
-            file_version_info['fileId'], bucket_name, 'gonna-fail-anyway'
+            'file',
+            'server-side-copy',
+            '--source-server-side-encryption=SSE-C',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/gonna-fail-anyway',
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
         expected_pattern=
@@ -1759,11 +1773,10 @@ def test_sse_c(
     b2_tool.should_succeed(
         [
             'file',
-            'copy-by-id',
+            'server-side-copy',
             '--source-server-side-encryption=SSE-C',
-            file_version_info['fileId'],
-            bucket_name,
-            f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace',
             '--info',
             'a=b',
             '--content-type',
@@ -1774,11 +1787,10 @@ def test_sse_c(
     b2_tool.should_succeed(
         [
             'file',
-            'copy-by-id',
+            'server-side-copy',
             '--source-server-side-encryption=SSE-C',
-            file_version_info['fileId'],
-            bucket_name,
-            f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace_empty',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace_empty',
             '--no-info',
             '--content-type',
             'text/plain',
@@ -1788,11 +1800,10 @@ def test_sse_c(
     b2_tool.should_succeed(
         [
             'file',
-            'copy-by-id',
+            'server-side-copy',
             '--source-server-side-encryption=SSE-C',
-            file_version_info['fileId'],
-            bucket_name,
-            f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}/not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
             '--fetch-metadata',
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()}
@@ -1800,12 +1811,11 @@ def test_sse_c(
     b2_tool.should_succeed(
         [
             'file',
-            'copy-by-id',
+            'server-side-copy',
             '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C',
-            file_version_info['fileId'],
-            bucket_name,
-            f'{subfolder}/encrypted_no_id_copied_from_encrypted',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}/encrypted_no_id_copied_from_encrypted',
             '--fetch-metadata',
         ],
         additional_env={
@@ -1816,12 +1826,11 @@ def test_sse_c(
     b2_tool.should_succeed(
         [
             'file',
-            'copy-by-id',
+            'server-side-copy',
             '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C',
-            file_version_info['fileId'],
-            bucket_name,
-            f'{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_replace',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_replace',
             '--no-info',
             '--content-type',
             'text/plain',
@@ -1835,12 +1844,11 @@ def test_sse_c(
     b2_tool.should_succeed(
         [
             'file',
-            'copy-by-id',
+            'server-side-copy',
             '--source-server-side-encryption=SSE-C',
             '--destination-server-side-encryption=SSE-C',
-            file_version_info['fileId'],
-            bucket_name,
-            f'{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
+            f'b2id://{file_version_info["fileId"]}',
+            f'b2://{bucket_name}/{subfolder}/encrypted_with_id_copied_from_encrypted_metadata_pseudo_copy',
             '--fetch-metadata',
         ],
         additional_env={
@@ -2268,10 +2276,9 @@ def test_file_lock(
     b2_tool.should_fail(
         [
             'file',
-            'copy-by-id',
-            lockable_file['fileId'],
-            lock_disabled_bucket_name,
-            'copied',
+            'server-side-copy',
+            f'b2id://{lockable_file["fileId"]}',
+            f'b2://{lock_disabled_bucket_name}/copied',
             '--file-retention-mode',
             'governance',
             '--retain-until',
@@ -2284,10 +2291,9 @@ def test_file_lock(
     copied_file = b2_tool.should_succeed_json(
         [
             'file',
-            'copy-by-id',
-            lockable_file['fileId'],
-            lock_enabled_bucket_name,
-            'copied',
+            'server-side-copy',
+            f"b2id://{lockable_file['fileId']}",
+            f'b2://{lock_enabled_bucket_name}/copied',
             '--file-retention-mode',
             'governance',
             '--retain-until',
@@ -2441,10 +2447,9 @@ def file_lock_without_perms_test(
     b2_tool.should_fail(
         [
             'file',
-            'copy-by-id',
-            lockable_file_id,
-            lock_enabled_bucket_name,
-            'copied',
+            'server-side-copy',
+            f'b2id://{lockable_file_id}',
+            f'b2://{lock_enabled_bucket_name}/copied',
             '--file-retention-mode',
             'governance',
             '--retain-until',
@@ -2458,10 +2463,9 @@ def file_lock_without_perms_test(
     b2_tool.should_fail(
         [
             'file',
-            'copy-by-id',
-            lockable_file_id,
-            lock_disabled_bucket_name,
-            'copied',
+            'server-side-copy',
+            f'b2id://{lockable_file_id}',
+            f'b2://{lock_disabled_bucket_name}/copied',
             '--file-retention-mode',
             'governance',
             '--retain-until',
@@ -3398,8 +3402,14 @@ def test_header_arguments(b2_tool, persistent_bucket, sample_filepath, tmp_path)
 
     copied_version = b2_tool.should_succeed_json(
         [
-            'file', 'copy-by-id', '--quiet', *args, '--content-type', 'text/plain',
-            file_version['fileId'], bucket_name, f'{persistent_bucket.subfolder}/copied_file'
+            'file',
+            'server-side-copy',
+            '--quiet',
+            *args,
+            '--content-type',
+            'text/plain',
+            f"b2id://{file_version['fileId']}",
+            f'b2://{bucket_name}/{persistent_bucket.subfolder}/copied_file',
         ]
     )
     assert_expected(copied_version['fileInfo'])

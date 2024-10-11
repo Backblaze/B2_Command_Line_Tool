@@ -1466,7 +1466,7 @@ class AccountClearBase(Command):
         return 0
 
 
-class FileCopyByIdBase(
+class FileServerSideCopyBase(
     HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin,
     LegalHoldMixin, Command
 ):
@@ -1520,11 +1520,13 @@ class FileCopyByIdBase(
         add_normalized_argument(info_group, '--info', action='append')
         add_normalized_argument(info_group, '--no-info', action='store_true', default=False)
 
-        parser.add_argument('sourceFileId')
-        parser.add_argument('destinationBucketName')
-        parser.add_argument('b2FileName')
-
         super()._setup_parser(parser)  # add parameters from the mixins
+
+    def get_source_b2_uri(self, args) -> B2URIBase:
+        raise NotImplementedError
+
+    def get_destination_b2_uri(self, args) -> B2URI:
+        raise NotImplementedError
 
     def _run(self, args):
         file_infos = None
@@ -1540,7 +1542,9 @@ class FileCopyByIdBase(
                 '--content-type and --info.'
             )
 
-        bucket = self.api.get_bucket_by_name(args.destinationBucketName)
+        source_b2_uri = self.get_source_b2_uri(args)
+        destination_b2_uri = self.get_destination_b2_uri(args)
+
         destination_encryption_setting = self._get_destination_sse_setting(args)
         source_encryption_setting = self._get_source_sse_setting(args)
         legal_hold = self._get_legal_hold_setting(args)
@@ -1553,16 +1557,16 @@ class FileCopyByIdBase(
         else:
             range_args = {}
         source_file_info, source_content_type = self._determine_source_metadata(
-            source_file_id=args.sourceFileId,
+            source_b2_uri=source_b2_uri,
             source_encryption=source_encryption_setting,
             destination_encryption=destination_encryption_setting,
             target_content_type=args.content_type,
             target_file_info=file_infos,
             fetch_if_necessary=args.fetch_metadata,
         )
-        file_version = bucket.copy(
-            args.sourceFileId,
-            args.b2FileName,
+        file_version = self.api.copy_by_uri(
+            source_b2_uri,
+            destination_b2_uri,
             **range_args,
             content_type=args.content_type,
             file_info=file_infos,
@@ -1583,7 +1587,7 @@ class FileCopyByIdBase(
 
     def _determine_source_metadata(
         self,
-        source_file_id: str,
+        source_b2_uri: B2URIBase,
         destination_encryption: EncryptionSetting | None,
         source_encryption: EncryptionSetting | None,
         target_file_info: dict | None,
@@ -1602,8 +1606,23 @@ class FileCopyByIdBase(
                 'Attempting to copy file with metadata while either source or destination uses '
                 'SSE-C. Use --fetch-metadata to fetch source file metadata before copying.'
             )
-        source_file_version = self.api.get_file_info(source_file_id)
+        source_file_version = self.api.get_file_info_by_uri(source_b2_uri)
         return source_file_version.file_info, source_file_version.content_type
+
+
+class FileServerSideCopyLegacyBase(FileServerSideCopyBase):
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('sourceFileId')
+        parser.add_argument('destinationBucketName')
+        parser.add_argument('b2FileName')
+        super()._setup_parser(parser)
+
+    def get_source_b2_uri(self, args) -> B2URIBase:
+        return B2FileIdURI(args.sourceFileId)
+
+    def get_destination_b2_uri(self, args) -> B2URI:
+        return B2URI(args.destinationBucketName, args.b2FileName)
 
 
 class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
@@ -5094,10 +5113,10 @@ class File(Command):
     .. code-block::
 
         {NAME} file cat b2://yourBucket/file.txt
-        {NAME} file copy-by-id sourceFileId yourBucket file.txt
         {NAME} file download b2://yourBucket/file.txt localFile.txt
         {NAME} file hide b2://yourBucket/file.txt
         {NAME} file info b2://yourBucket/file.txt
+        {NAME} file server-side-copy b2://yourBucket/file.txt b2://otherBucket/file2.txt
         {NAME} file update --legal-hold off b2://yourBucket/file.txt
         {NAME} file upload yourBucket localFile.txt file.txt
         {NAME} file url b2://yourBucket/file.txt
@@ -5136,9 +5155,28 @@ class FileDownload(B2URIFileArgMixin, FileDownloadBase):
 
 
 @File.subcommands_registry.register
-class FileCopyById(FileCopyByIdBase):
-    __doc__ = FileCopyByIdBase.__doc__
+class FileServerSideCopy(FileServerSideCopyBase):
+    __doc__ = FileServerSideCopyBase.__doc__
+    COMMAND_NAME = 'server-side-copy'
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        add_b2id_or_file_like_b2_uri_argument(parser, "sourceB2Uri")
+        add_b2id_or_file_like_b2_uri_argument(parser, "destinationB2Uri", by_id=False)
+        super()._setup_parser(parser)
+
+    def get_source_b2_uri(self, args) -> B2URIBase:
+        return args.sourceB2Uri
+
+    def get_destination_b2_uri(self, args) -> B2URI:
+        return args.destinationB2Uri
+
+
+@File.subcommands_registry.register
+class FileCopyById(CmdReplacedByMixin, FileServerSideCopyLegacyBase):
+    __doc__ = FileServerSideCopyBase.__doc__
     COMMAND_NAME = 'copy-by-id'
+    replaced_by_cmd = (File, FileServerSideCopy)
 
 
 @File.subcommands_registry.register
@@ -5216,9 +5254,9 @@ class DownloadFileByName(CmdReplacedByMixin, B2URIBucketNFilenameArgMixin, FileD
     replaced_by_cmd = (File, FileDownload)
 
 
-class CopyFileById(CmdReplacedByMixin, FileCopyByIdBase):
-    __doc__ = FileCopyByIdBase.__doc__
-    replaced_by_cmd = (File, FileCopyById)
+class CopyFileById(CmdReplacedByMixin, FileServerSideCopyLegacyBase):
+    __doc__ = FileServerSideCopyBase.__doc__
+    replaced_by_cmd = (File, FileServerSideCopy)
 
 
 class HideFile(CmdReplacedByMixin, HideFileBase):

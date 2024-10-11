@@ -104,7 +104,6 @@ B2ID_OR_B2_BUCKET_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_or_b2_bucket
 B2ID_OR_B2_URI_OR_ALL_BUCKETS_ARG_TYPE = wrap_with_argument_type_error(
     functools.partial(parse_b2_uri, allow_all_buckets=True)
 )
-B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE = wrap_with_argument_type_error(b2id_or_file_like_b2_uri)
 
 
 def add_bucket_name_argument(
@@ -204,13 +203,17 @@ def add_b2id_or_b2_bucket_uri_argument(parser: argparse.ArgumentParser, name="B2
     return arg
 
 
-def add_b2id_or_file_like_b2_uri_argument(parser: argparse.ArgumentParser, name="B2_URI"):
+def add_b2id_or_file_like_b2_uri_argument(
+    parser: argparse.ArgumentParser, name="B2_URI", *, by_id: Optional[bool] = None
+):
     """
     Add a B2 URI pointing to a file as an argument to the parser.
     """
     arg = parser.add_argument(
         name,
-        type=B2ID_OR_FILE_LIKE_B2_URI_ARG_TYPE,
+        type=wrap_with_argument_type_error(
+            functools.partial(b2id_or_file_like_b2_uri, by_id=by_id)
+        ),
         help="B2 URI pointing to a file, e.g. b2://yourBucket/file.txt or b2id://fileId",
     )
     arg.completer = b2uri_file_completer

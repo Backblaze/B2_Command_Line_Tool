@@ -211,3 +211,17 @@ class B2URIAdapter:
     @ls.register
     def _(self, uri: B2FileIdURI, *args, **kwargs):
         yield self.get_file_info_by_uri(uri), None
+
+    @singledispatchmethod
+    def copy_by_uri(self, uri, *args, **kwargs):
+        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+
+    @copy_by_uri.register
+    def _(self, source: B2FileIdURI, destination: B2URI, *args, **kwargs):
+        destination_bucket = self.get_bucket_by_name(destination.bucket_name)
+        return destination_bucket.copy(source.file_id, destination.path, *args, **kwargs)
+
+    @copy_by_uri.register
+    def _(self, source: B2URI, destination: B2URI, *args, **kwargs):
+        file_info = self.get_file_info_by_uri(source)
+        return self.copy_by_uri(B2FileIdURI(file_info.id_), destination, *args, **kwargs)
