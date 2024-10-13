@@ -19,6 +19,7 @@ from b2sdk.v2 import (
     EncryptionSetting,
 )
 
+from b2._internal._utils.uri import B2FileIdURI
 from b2._internal.console_tool import FileCopyById
 
 from .test_base import TestBase
@@ -32,7 +33,7 @@ class TestCopy(TestBase):
         copy_file_command = FileCopyById(mock_console_tool)
 
         result = copy_file_command._determine_source_metadata(
-            'id',
+            B2FileIdURI('id'),
             destination_encryption=None,
             source_encryption=None,
             target_file_info=None,
@@ -43,7 +44,7 @@ class TestCopy(TestBase):
         assert len(mock_api.method_calls) == 0
 
         result = copy_file_command._determine_source_metadata(
-            'id',
+            B2FileIdURI('id'),
             destination_encryption=SSE_B2_AES,
             source_encryption=SSE_B2_AES,
             target_file_info={},
@@ -54,7 +55,7 @@ class TestCopy(TestBase):
         assert len(mock_api.method_calls) == 0
 
         result = copy_file_command._determine_source_metadata(
-            'id',
+            B2FileIdURI('id'),
             destination_encryption=SSE_B2_AES,
             source_encryption=SSE_B2_AES,
             target_file_info={},
@@ -74,7 +75,7 @@ class TestCopy(TestBase):
         )
 
         result = copy_file_command._determine_source_metadata(
-            'id',
+            B2FileIdURI('id'),
             destination_encryption=destination_sse_c,
             source_encryption=source_sse_c,
             target_file_info={},
@@ -90,7 +91,7 @@ class TestCopy(TestBase):
             'file metadata before copying.'
         ):
             copy_file_command._determine_source_metadata(
-                'id',
+                B2FileIdURI('id'),
                 destination_encryption=destination_sse_c,
                 source_encryption=source_sse_c,
                 target_file_info=None,
@@ -100,7 +101,7 @@ class TestCopy(TestBase):
         assert len(mock_api.method_calls) == 0
 
         result = copy_file_command._determine_source_metadata(
-            'id',
+            B2FileIdURI('id'),
             destination_encryption=destination_sse_c,
             source_encryption=source_sse_c,
             target_file_info=None,
