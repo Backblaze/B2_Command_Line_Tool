@@ -25,4 +25,4 @@ def test_help(cli_version):
     if platform.system() == 'Windows':
         expected_name += '.exe'
     assert re.match(r"^_?b2(v\d+)?(\.exe)?$", expected_name)  # test sanity check
-    assert f" {expected_name} <command> --help" in p.stdout
+    assert f"{expected_name} <command> --help" in p.stdout
