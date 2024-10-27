@@ -50,7 +50,7 @@ class B2RawTextHelpFormatter(argparse.RawTextHelpFormatter):
             col_length = max(len(choice.prog) for choice in action.choices.values())
 
             for choice in action.choices.values():
-                deprecated = getattr(choice, 'deprecated', False)
+                deprecated = getattr(choice, 'deprecated', None)
                 if deprecated:
                     if self.show_all:
                         usages.append(f'(DEPRECATED) {choice.format_usage()}')
@@ -86,18 +86,21 @@ class B2ArgumentParser(argparse.ArgumentParser):
         *args,
         add_help_all: bool = True,
         for_docs: bool = False,
-        deprecated: bool = False,
+        custom_deprecated: bool = False,
         **kwargs
     ):
         """
 
+        Parameter `deprecated` was renamed to `custom_deprecated` to avoid conflict with `deprecated` parameter
+        introduced in Python 3.13.
+
         :param for_docs: is this parser used for generating docs
-        :param deprecated: is this option deprecated
+        :param custom_deprecated: is this command deprecated?
         """
         self._raw_description = None
         self._description = None
         self._for_docs = for_docs
-        self.deprecated = deprecated
+        self.deprecated = custom_deprecated
         self._short_description = self._make_short_description(
             kwargs.get('usage', ''), kwargs.get('description', '')
         )
