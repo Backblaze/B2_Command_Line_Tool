@@ -1954,7 +1954,7 @@ def test_sse_c(
 
 
 @pytest.mark.skipif(
-    (sys.version_info.major, sys.version_info.minor) < (3, 8),
+    (sys.version_info.major, sys.version_info.minor) < (3, 9),
     reason="License extraction doesn't work on older versions, and we're only "
     "obliged to provide this "
     "data in bundled and built packages."
