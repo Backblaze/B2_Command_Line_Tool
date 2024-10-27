@@ -248,12 +248,12 @@ def test_pickle_store(tmp_path):
     store.set_pickle('test_1', b'test_data_1')
     assert store.get_pickle('test_1') == b'test_data_1'
     assert store.get_pickle('test_2') is None
-    assert len(list(dir.glob('**'))) == 1
+    assert len(list(dir.rglob('*.pickle'))) == 1
 
     store.set_pickle('test_2', b'test_data_2')
     assert store.get_pickle('test_2') == b'test_data_2'
     assert store.get_pickle('test_1') is None
-    assert len(list(dir.glob('**'))) == 1
+    assert len(list(dir.rglob('*.pickle'))) == 1
 
 
 class Unpickler(pickle.Unpickler):
