@@ -1019,7 +1019,7 @@ class Command(Described, metaclass=ABCMeta):
             description=description,
             parents=parents,
             for_docs=for_docs,
-            deprecated=cls.deprecated,
+            custom_deprecated=cls.deprecated,
         )
 
         if subparsers is None:
