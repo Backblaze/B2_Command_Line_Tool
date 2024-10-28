@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:3080aa411dc92055a480fb734b99d2990fee6761f8146090111a0c1a25161e17"
+content_hash = "sha256:01aceb6402a19765910d29acc1e2d4076f45d7b4c272b3eb3a277e8116194806"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -137,8 +137,8 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "2.5.1"
-requires_python = ">=3.7"
+version = "2.6.0"
+requires_python = ">=3.8"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
 dependencies = [
@@ -149,8 +149,8 @@ dependencies = [
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-2.5.1-py3-none-any.whl", hash = "sha256:71de4a24c113ea1836ba4aa4569e4e6374daeaa58272e342679070424440fee1"},
-    {file = "b2sdk-2.5.1.tar.gz", hash = "sha256:fb75c831d6ea875522e78f0c42b784771dc31e6bb64f3eb9f379bdc85eb35a3f"},
+    {file = "b2sdk-2.6.0-py3-none-any.whl", hash = "sha256:b72e9b9dd19f3a6c8b5586b81f4dfa91dc1225610192e5c2afbbbfa1cf3f66a0"},
+    {file = "b2sdk-2.6.0.tar.gz", hash = "sha256:626ef3a81989479a7b1371c8cd868c95e21cc5e0b074647443a43895325bb9e2"},
 ]
 
 [[package]]
@@ -822,13 +822,13 @@ files = [
 
 [[package]]
 name = "pip"
-version = "24.2"
+version = "24.3.1"
 requires_python = ">=3.8"
 summary = "The PyPA recommended tool for installing Python packages."
 groups = ["license"]
 files = [
-    {file = "pip-24.2-py3-none-any.whl", hash = "sha256:2cd581cf58ab7fcfca4ce8efa6dcacd0de5bf8d0a3eb9ec927e07405f4d9e2a2"},
-    {file = "pip-24.2.tar.gz", hash = "sha256:5b5e490b5e9cb275c879595064adce9ebd31b854e3e803740b72f9ccf34a45b8"},
+    {file = "pip-24.3.1-py3-none-any.whl", hash = "sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed"},
+    {file = "pip-24.3.1.tar.gz", hash = "sha256:ebcb60557f2aefabc2e0f918751cd24ea0d56d8ec5445fe1807f1d2109660b99"},
 ]
 
 [[package]]
@@ -1650,7 +1650,7 @@ files = [
 
 [[package]]
 name = "tqdm"
-version = "4.66.5"
+version = "4.66.6"
 requires_python = ">=3.7"
 summary = "Fast, Extensible Progress Meter"
 groups = ["default"]
@@ -1658,8 +1658,8 @@ dependencies = [
     "colorama; platform_system == \"Windows\"",
 ]
 files = [
-    {file = "tqdm-4.66.5-py3-none-any.whl", hash = "sha256:90279a3770753eafc9194a0364852159802111925aa30eb3f9d85b0e805ac7cd"},
-    {file = "tqdm-4.66.5.tar.gz", hash = "sha256:e1020aef2e5096702d8a025ac7d16b1577279c9d63f8375b63083e9a5f0fcbad"},
+    {file = "tqdm-4.66.6-py3-none-any.whl", hash = "sha256:223e8b5359c2efc4b30555531f09e9f2f3589bcd7fdd389271191031b49b7a63"},
+    {file = "tqdm-4.66.6.tar.gz", hash = "sha256:4bdd694238bef1485ce839d67967ab50af8f9272aab687c0d7702a01da0be090"},
 ]
 
 [[package]]
