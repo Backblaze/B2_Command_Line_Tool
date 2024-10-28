@@ -1,1 +1,0 @@
-Improve internal testing infrastructure by updating integration tests to use persistent buckets.

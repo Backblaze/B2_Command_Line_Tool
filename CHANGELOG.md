@@ -9,6 +9,36 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.2.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.2.0) - 2024-10-29
+
+
+### Changed
+
+- Remove Python 3.7 support in new releases.
+  Under Python 3.7 `pip` will keep resolving the latest version of the package that supports active interpreter.
+  This change comes at benefit of using newer versions of B2 CLI dependencies in `b2` standalone binary as well as in the official docker image.
+  Python 3.8 is now the minimum supported version, [until it reaches EOL in October 2024](https://devguide.python.org/versions/).
+  We encourage use of latest stable Python release.
+  If Python interpreter upgrade from 3.7 is not an option, please use provided standalone binaries or official docker image.
+
+### Fixed
+
+- Update to b2sdk 2.5.1 to fix `b2 sync` stopping when encountering inaccessible directory. ([#1040](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1040))
+- Fix `b2 file hide b2://bucket/file` handling and test coverage.
+- Fix `getdefaultlocale` deprecation warning on Python 3.11+.
+
+### Added
+
+- Add `b2 file server-side-copy b2id://XXX` (also accepts `b2://bucket/objectName` syntax).
+  Add deprecation notice to `b2 file copy-by-id` - use `b2 file server-side-copy` instead in new scripts.
+- Declare official support for Python 3.13 in `b2` CLI.
+  Test `b2` CLI against Python 3.13 in CI.
+
+### Infrastructure
+
+- Integration tests now use reuse test buckets whenever possible to speed up test execution and prevent bucket limit exhaustion.
+
+
 ## [4.1.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.1.0) - 2024-07-31
 
 
