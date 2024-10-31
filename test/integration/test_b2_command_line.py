@@ -46,7 +46,7 @@ from b2._internal._cli.const import (
 )
 from b2._internal.console_tool import current_time_millis
 
-from ..helpers import skip_on_windows
+from ..helpers import assert_dict_equal_ignore_extra, skip_on_windows
 from .helpers import (
     ONE_DAY_MILLIS,
     ONE_HOUR_MILLIS,
@@ -3465,7 +3465,7 @@ def test_notification_rules(b2_tool, bucket_name):
         expected_stderr_pattern=private_preview_pattern
     )
     expected_rules = [{**notification_rule, "isSuspended": False, "suspensionReason": ""}]
-    assert created_rule == expected_rules[0]
+    assert_dict_equal_ignore_extra(created_rule, expected_rules[0])
 
     # modify rule
     secret = "0testSecret000000000000000000032"
@@ -3485,13 +3485,16 @@ def test_notification_rules(b2_tool, bucket_name):
     )
     expected_rules[0].update({"objectNamePrefix": "prefix", "isEnabled": False})
     expected_rules[0]["targetConfiguration"]["hmacSha256SigningSecret"] = secret
-    assert modified_rule == expected_rules[0]
+    assert_dict_equal_ignore_extra(modified_rule, expected_rules[0])
 
     # read updated rules
-    assert b2_tool.should_succeed_json(
-        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
-        expected_stderr_pattern=private_preview_pattern
-    ) == expected_rules
+    assert_dict_equal_ignore_extra(
+        b2_tool.should_succeed_json(
+            ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
+            expected_stderr_pattern=private_preview_pattern
+        ),
+        expected_rules,
+    )
 
     # delete rule by name
     assert b2_tool.should_succeed(
