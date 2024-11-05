@@ -1,5 +1,7 @@
 # B2 Command Line Tool
 
+Don't merge this awesome PR; just checking Snyk.
+
 [![CI](https://github.com/Backblaze/B2_Command_Line_Tool/actions/workflows/ci.yml/badge.svg)](https://github.com/Backblaze/B2_Command_Line_Tool/actions/workflows/ci.yml)&nbsp;[![License](https://img.shields.io/pypi/l/b2.svg?label=License)](https://pypi.python.org/pypi/b2)&nbsp;[![python versions](https://img.shields.io/pypi/pyversions/b2.svg?label=python%20versions)](https://pypi.python.org/pypi/b2)&nbsp;[![PyPI version](https://img.shields.io/pypi/v/b2.svg?label=PyPI%20version)](https://pypi.python.org/pypi/b2)&nbsp;[![Docs](https://readthedocs.org/projects/b2-command-line-tool/badge/?version=master)](https://b2-command-line-tool.readthedocs.io/en/master/?badge=master)
 
 The command-line tool that gives easy access to all of the capabilities of B2 Cloud Storage.
@@ -43,7 +45,7 @@ You can install the `b2` without them:
 
 ### Docker
 
-For a truly platform independent solution, use the official docker image: 
+For a truly platform independent solution, use the official docker image:
 
 ```bash
 docker run backblazeit/b2:latest  ...
