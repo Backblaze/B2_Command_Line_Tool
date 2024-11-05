@@ -1913,20 +1913,6 @@ class DownloadCommand(
         raise ValueError(f'Unsupported legal hold: {legal_hold}')
 
     def _print_file_attribute(self, label, value):
-
-        # This chunk of code seems to trigger a Snyk issue.
-        fd_handle, output_filepath_str = tempfile.mkstemp(
-            prefix='prefix',
-            suffix='file_extension',
-            dir='output_directory',
-        )
-        # Close the handle, so the file is not locked.
-        # This file is no longer 100% "safe", but that's acceptable.
-        os.close(fd_handle)
-
-        # "Normal" file created by Python has readable for everyone, writable for user only.
-        # We change the permissions, to match the default ones.
-        os.chmod(output_filepath_str, 0o644)
         self._print((label + ':').ljust(20) + ' ' + value)
 
     def get_local_output_filepath(
