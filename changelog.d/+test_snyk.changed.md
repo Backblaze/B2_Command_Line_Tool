@@ -1,1 +1,1 @@
-Test Snyk
+Test Snyk.
