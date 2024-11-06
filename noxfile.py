@@ -363,9 +363,9 @@ def sign(session):
                 '/tr',
                 WINDOWS_TIMESTAMP_SERVER,
                 '/td',
-                'sha256',
+                'sha384',
                 '/fd',
-                'sha256',
+                'sha384',
                 f'dist/{binary_name}.exe',
                 external=True,
             )
