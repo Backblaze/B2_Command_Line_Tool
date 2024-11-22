@@ -15,12 +15,9 @@
 from __future__ import annotations
 
 import contextlib
-import importlib
 import io
 import os
-import pickle
 import sys
-from typing import Any
 
 import argcomplete
 import pytest
@@ -29,6 +26,8 @@ import b2._internal._cli.argcompleters
 import b2._internal.arg_parser
 import b2._internal.console_tool
 from b2._internal._cli import autocomplete_cache
+
+from .unpickle import unpickle
 
 # We can't use pytest.mark.skipif to skip forked tests because with pytest-forked,
 # there is an attempt to fork even if the test is marked as skipped.
@@ -239,65 +238,6 @@ def test_complete_with_file_uri_suggestions(
         exit, output = cached_complete_result(cache)
         assert exit == 0
         assert output == argcomplete_output
-
-
-def test_pickle_store(tmp_path):
-    dir = tmp_path
-    store = autocomplete_cache.HomeCachePickleStore(dir)
-
-    store.set_pickle('test_1', b'test_data_1')
-    assert store.get_pickle('test_1') == b'test_data_1'
-    assert store.get_pickle('test_2') is None
-    assert len(list(dir.rglob('*.pickle'))) == 1
-
-    store.set_pickle('test_2', b'test_data_2')
-    assert store.get_pickle('test_2') == b'test_data_2'
-    assert store.get_pickle('test_1') is None
-    assert len(list(dir.rglob('*.pickle'))) == 1
-
-
-class Unpickler(pickle.Unpickler):
-    """This Unpickler will raise an exception if loading the pickled object
-    imports any b2sdk module."""
-
-    _modules_to_load: set[str]
-
-    def load(self):
-        self._modules_to_load = set()
-
-        b2_modules = [module for module in sys.modules if 'b2sdk' in module]
-        for key in b2_modules:
-            del sys.modules[key]
-
-        result = super().load()
-
-        for module in self._modules_to_load:
-            importlib.import_module(module)
-            importlib.reload(sys.modules[module])
-
-        if any('b2sdk' in module for module in sys.modules):
-            raise RuntimeError("Loading the pickled object imported b2sdk module")
-        return result
-
-    def find_class(self, module: str, name: str) -> Any:
-        self._modules_to_load.add(module)
-        return super().find_class(module, name)
-
-
-def unpickle(data: bytes) -> Any:
-    """Unpickling function that raises RuntimeError if unpickled
-    object depends on b2sdk."""
-    return Unpickler(io.BytesIO(data)).load()
-
-
-def test_unpickle():
-    """This tests ensures that Unpickler works as expected:
-    prevents successful unpickling of objects that depend on loading
-    modules from b2sdk."""
-    from .fixtures.module_loading_b2sdk import function
-    pickled = pickle.dumps(function)
-    with pytest.raises(RuntimeError):
-        unpickle(pickled)
 
 
 @forked
