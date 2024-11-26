@@ -78,6 +78,7 @@ jobs:
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
       B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      INSTALL_SDK_FROM: "git+https://github.com/Backblaze/b2-sdk-python.git@fix-win-perm-handling"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
