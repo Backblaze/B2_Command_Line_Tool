@@ -226,8 +226,14 @@ def auto_change_account_info_dir(monkeysession) -> str:
     monkeysession.delenv('B2_APPLICATION_KEY_ID', raising=False)
     monkeysession.delenv('B2_APPLICATION_KEY', raising=False)
 
+    # Ignore occasional PermissionError on Windows
+    if sys.platform == 'win32' and (sys.version_info.major, sys.version_info.minor) > (3, 9):
+        kwargs = dict(ignore_cleanup_errors=True)
+    else:
+        kwargs = {}
+
     # make b2sdk use temp dir for storing default & per-profile account information
-    with TemporaryDirectory() as temp_dir:
+    with TemporaryDirectory(**kwargs) as temp_dir:
         monkeysession.setenv(B2_ACCOUNT_INFO_ENV_VAR, path.join(temp_dir, '.b2_account_info'))
         monkeysession.setenv(XDG_CONFIG_HOME_ENV_VAR, temp_dir)
         yield temp_dir

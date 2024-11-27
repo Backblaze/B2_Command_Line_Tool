@@ -3429,10 +3429,8 @@ def test_notification_rules(b2_tool, bucket_name):
     if 'writeBucketNotifications' not in auth_dict['allowed']['capabilities']:
         pytest.skip('Test account does not have writeBucketNotifications capability')
 
-    private_preview_pattern = re.compile(r'FeaturePreviewWarning')
     assert b2_tool.should_succeed_json(
-        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
-        expected_stderr_pattern=private_preview_pattern
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"]
     ) == []
 
     notification_rule = {
@@ -3461,8 +3459,7 @@ def test_notification_rules(b2_tool, bucket_name):
             "https://example.com/webhook",
             "--event-type",
             "b2:ObjectCreated:*",
-        ],
-        expected_stderr_pattern=private_preview_pattern
+        ]
     )
     expected_rules = [{**notification_rule, "isSuspended": False, "suspensionReason": ""}]
     assert_dict_equal_ignore_extra(created_rule, expected_rules[0])
@@ -3480,8 +3477,7 @@ def test_notification_rules(b2_tool, bucket_name):
             "--disable",
             "--sign-secret",
             secret,
-        ],
-        expected_stderr_pattern=private_preview_pattern
+        ]
     )
     expected_rules[0].update({"objectNamePrefix": "prefix", "isEnabled": False})
     expected_rules[0]["targetConfiguration"]["hmacSha256SigningSecret"] = secret
@@ -3490,18 +3486,15 @@ def test_notification_rules(b2_tool, bucket_name):
     # read updated rules
     assert_dict_equal_ignore_extra(
         b2_tool.should_succeed_json(
-            ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
-            expected_stderr_pattern=private_preview_pattern
+            ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"]
         ),
         expected_rules,
     )
 
     # delete rule by name
     assert b2_tool.should_succeed(
-        ["bucket", "notification-rule", "delete", f"b2://{bucket_name}", "test-rule"],
-        expected_stderr_pattern=private_preview_pattern
+        ["bucket", "notification-rule", "delete", f"b2://{bucket_name}", "test-rule"]
     ) == f"Rule 'test-rule' has been deleted from b2://{bucket_name}/\n"
     assert b2_tool.should_succeed_json(
-        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"],
-        expected_stderr_pattern=private_preview_pattern
+        ["bucket", "notification-rule", "list", f"b2://{bucket_name}", "--json"]
     ) == []
