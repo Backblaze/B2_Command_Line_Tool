@@ -3579,8 +3579,6 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
     of preserving retention policies after migration of data from other storage.
-    The access to this feature is restricted - if you really need it, you'll
-    need to contact customer support to enable it temporarily for your account.
 
     Requires capability:
 
@@ -3639,8 +3637,6 @@ class UploadUnboundStreamBase(UploadFileMixin, Command):
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
     of preserving retention policies after migration of data from other storage.
-    The access to this feature is restricted - if you really need it, you'll
-    need to contact customer support to enable it temporarily for your account.
 
     Requires capability:
 
