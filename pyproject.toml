@@ -23,7 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "argcomplete>=2,<4",
+    "argcomplete>=3.5.2,<4",
     "arrow>=1.0.2,<2.0.0",
     "b2sdk>=2.6.0,<3",
     "docutils>=0.18.1",
@@ -200,7 +200,7 @@ release = [
 ]
 test = [
     "coverage==7.2.7",
-    "pexpect==4.8.0",
+    "pexpect==4.9.0",
     "pytest==8.3.3",
     "pytest-cov==3.0.0",
     "pytest-forked==1.6.0",
