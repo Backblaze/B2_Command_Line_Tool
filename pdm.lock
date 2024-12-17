@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:a280055f603cde69f5a2733cd5424bc8e7429427ca2a240f5c3181aabe36bbcf"
+content_hash = "sha256:32a637f18021696e03c7a15877cdff64660fb5a71fc3bd55c252da52b8e227b7"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -86,13 +86,13 @@ files = [
 
 [[package]]
 name = "argcomplete"
-version = "3.5.1"
+version = "3.5.2"
 requires_python = ">=3.8"
 summary = "Bash tab completion for argparse"
 groups = ["default"]
 files = [
-    {file = "argcomplete-3.5.1-py3-none-any.whl", hash = "sha256:1a1d148bdaa3e3b93454900163403df41448a248af01b6e849edc5ac08e6c363"},
-    {file = "argcomplete-3.5.1.tar.gz", hash = "sha256:eb1ee355aa2557bd3d0145de7b06b2a45b0ce461e1e7813f5d066039ab4177b4"},
+    {file = "argcomplete-3.5.2-py3-none-any.whl", hash = "sha256:036d020d79048a5d525bc63880d7a4b8d1668566b8a76daf1144c0bbe0f63472"},
+    {file = "argcomplete-3.5.2.tar.gz", hash = "sha256:23146ed7ac4403b70bd6026402468942ceba34a6732255b9edf5b7354f68a6bb"},
 ]
 
 [[package]]
@@ -112,7 +112,7 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "2.6.0"
+version = "2.7.0"
 requires_python = ">=3.8"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
@@ -124,8 +124,8 @@ dependencies = [
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-2.6.0-py3-none-any.whl", hash = "sha256:b72e9b9dd19f3a6c8b5586b81f4dfa91dc1225610192e5c2afbbbfa1cf3f66a0"},
-    {file = "b2sdk-2.6.0.tar.gz", hash = "sha256:626ef3a81989479a7b1371c8cd868c95e21cc5e0b074647443a43895325bb9e2"},
+    {file = "b2sdk-2.7.0-py3-none-any.whl", hash = "sha256:9875b73e16ab5240c8544bd79d6f23c319679b1769bc64d7f5401a8b0d489fb1"},
+    {file = "b2sdk-2.7.0.tar.gz", hash = "sha256:efd9a5c59dcddfe626a7860caa7f420ec4b1c50b0ad30972ccebf17392795cf9"},
 ]
 
 [[package]]
@@ -815,15 +815,15 @@ files = [
 
 [[package]]
 name = "pexpect"
-version = "4.8.0"
+version = "4.9.0"
 summary = "Pexpect allows easy control of interactive console applications."
 groups = ["test"]
 dependencies = [
     "ptyprocess>=0.5",
 ]
 files = [
-    {file = "pexpect-4.8.0-py2.py3-none-any.whl", hash = "sha256:0b48a55dcb3c05f3329815901ea4fc1537514d6ba867a152b581d69ae3710937"},
-    {file = "pexpect-4.8.0.tar.gz", hash = "sha256:fc65a43959d153d0114afe13997d439c22823a27cefceb5ff35c2178c6784c0c"},
+    {file = "pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523"},
+    {file = "pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f"},
 ]
 
 [[package]]
