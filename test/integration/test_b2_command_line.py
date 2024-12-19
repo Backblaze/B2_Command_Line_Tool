@@ -1197,12 +1197,15 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryp
             upload_encryption_args,
             additional_env=upload_additional_env,
         )
+
+        # Sync all the files
         b2_tool.should_succeed(
             ['sync', b2_sync_point, local_path] + sync_encryption_args,
             additional_env=sync_additional_env,
         )
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
 
+        # Put another file in B2
         b2_tool.should_succeed(
             ['file', 'upload', '--no-progress', bucket_name, sample_file, b2_file_prefix + 'c'] +
             upload_encryption_args,
@@ -1219,14 +1222,35 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryp
             additional_env=sync_additional_env,
         )
         should_equal(['a', 'b'], sorted(os.listdir(local_path)))
+
+        # Put another file in B2 with a custom upload timestamp
+        b2_tool.should_succeed(
+            [
+                'file', 'upload', '--no-progress', '--custom-upload-timestamp', '1367900664152',
+                bucket_name, sample_file, b2_file_prefix + 'd'
+            ] + upload_encryption_args,
+            additional_env=upload_additional_env,
+        )
+
+        # Sync the files with one file being excluded because of upload timestamp
+        b2_tool.should_succeed(
+            [
+                'sync', '--no-progress', '--exclude-if-uploaded-after', '1367900664142',
+                b2_sync_point, local_path
+            ] + sync_encryption_args,
+            additional_env=sync_additional_env,
+        )
+        should_equal(['a', 'b'], sorted(os.listdir(local_path)))
+
         # Sync all the files
         b2_tool.should_succeed(
             ['sync', '--no-progress', b2_sync_point, local_path] + sync_encryption_args,
             additional_env=sync_additional_env,
         )
-        should_equal(['a', 'b', 'c'], sorted(os.listdir(local_path)))
-    with TempDir() as new_local_path:
-        if encryption and encryption.mode == EncryptionMode.SSE_C:
+        should_equal(['a', 'b', 'c', 'd'], sorted(os.listdir(local_path)))
+
+    if encryption and encryption.mode == EncryptionMode.SSE_C:
+        with TempDir() as new_local_path:
             b2_tool.should_fail(
                 ['sync', '--no-progress', b2_sync_point, new_local_path] + sync_encryption_args,
                 expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '

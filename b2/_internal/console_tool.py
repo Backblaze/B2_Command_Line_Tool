@@ -3007,6 +3007,8 @@ class Sync(
     Ignored files or file versions will not be taken for consideration during sync.
     The time should be given as a seconds timestamp (e.g. "1367900664")
     If you need milliseconds precision, put it after the comma (e.g. "1367900664.152")
+    Alternatively you can specify ``--exclude-if-uploaded-after`` to use the server-side
+    object creation timestamp rather than the modification time declared by the client.
 
     Files are considered to be the same if they have the same name
     and modification time.  This behaviour can be changed using the
@@ -3124,6 +3126,13 @@ class Sync(
             default=None,
             metavar='TIMESTAMP'
         )
+        add_normalized_argument(
+            parser,
+            '--exclude-if-uploaded-after',
+            type=parse_millis_from_float_timestamp,
+            default=None,
+            metavar='TIMESTAMP'
+        )
         super()._setup_parser(parser)  # add parameters from the mixins, and the parent class
         parser.add_argument('source')
         parser.add_argument('destination')
@@ -3217,6 +3226,7 @@ class Sync(
             include_file_regexes=args.include_regex,
             exclude_all_symlinks=args.exclude_all_symlinks,
             exclude_modified_after=args.exclude_if_modified_after,
+            exclude_uploaded_after=args.exclude_if_uploaded_after,
         )
 
     def get_synchronizer_from_args(

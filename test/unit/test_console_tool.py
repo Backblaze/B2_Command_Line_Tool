@@ -15,6 +15,7 @@ import re
 from functools import lru_cache
 from io import StringIO
 from itertools import chain, product
+from tempfile import TemporaryDirectory
 from test.helpers import skip_on_windows
 from typing import List, Optional
 from unittest import mock
@@ -2208,6 +2209,52 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'sync', '--no-progress', '--exclude-if-modified-after', '1367600664.152', temp_dir,
                 'b2://my-bucket'
             ]
+            self._run_command(command, expected_stdout, '', 0)
+
+    def test_sync_exclude_if_uploaded_after_in_range(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TemporaryDirectory() as temp_dir:
+            for file, utime in (('test.txt', 1367900664152), ('test2.txt', 1367600664152)):
+                file_path = self._make_local_file(temp_dir, file)
+                command = [
+                    'file', 'upload', '--no-progress', '--custom-upload-timestamp',
+                    str(utime), 'my-bucket', file_path, file
+                ]
+                self._run_command(command, expected_status=0)
+
+        with TemporaryDirectory() as temp_dir:
+            command = [
+                'sync', '--no-progress', '--exclude-if-uploaded-after', '1367700664.152',
+                'b2://my-bucket', temp_dir
+            ]
+            expected_stdout = '''
+            dnload test2.txt
+            '''
+            self._run_command(command, expected_stdout, '', 0)
+
+    def test_sync_exclude_if_uploaded_after_exact(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        with TemporaryDirectory() as temp_dir:
+            for file, utime in (('test.txt', 1367900664152), ('test2.txt', 1367600664152)):
+                file_path = self._make_local_file(temp_dir, file)
+                command = [
+                    'file', 'upload', '--no-progress', '--custom-upload-timestamp',
+                    str(utime), 'my-bucket', file_path, file
+                ]
+                self._run_command(command, expected_status=0)
+
+        with TemporaryDirectory() as temp_dir:
+            command = [
+                'sync', '--no-progress', '--exclude-if-uploaded-after', '1367600664.152',
+                'b2://my-bucket', temp_dir
+            ]
+            expected_stdout = '''
+            dnload test2.txt
+            '''
             self._run_command(command, expected_stdout, '', 0)
 
     def _test_sync_threads(
