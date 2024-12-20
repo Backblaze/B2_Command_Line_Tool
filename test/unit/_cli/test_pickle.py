@@ -36,6 +36,7 @@ def test_unpickle():
     prevents successful unpickling of objects that depend on loading
     modules from b2sdk."""
     from .fixtures.module_loading_b2sdk import function
+
     pickled = pickle.dumps(function)
     with pytest.raises(RuntimeError):
         unpickle(pickled)

@@ -11,13 +11,14 @@ import hashlib
 import os
 from dataclasses import dataclass
 from functools import cached_property
-from test.integration.helpers import BUCKET_NAME_LENGTH, Api
 
 import backoff
 from b2sdk.v2 import Bucket
 from b2sdk.v2.exception import DuplicateBucketName, NonExistentBucket
 
-PERSISTENT_BUCKET_NAME_PREFIX = "constst"
+from test.integration.helpers import BUCKET_NAME_LENGTH, Api
+
+PERSISTENT_BUCKET_NAME_PREFIX = 'constst'
 
 
 @dataclass
@@ -27,13 +28,13 @@ class PersistentBucketAggregate:
 
     @cached_property
     def virtual_bucket_name(self):
-        return f"{self.bucket_name}/{self.subfolder}"
+        return f'{self.bucket_name}/{self.subfolder}'
 
 
 def get_persistent_bucket_name(b2_api: Api) -> str:
-    bucket_base = os.environ.get("GITHUB_REPOSITORY_ID", b2_api.api.get_account_id())
+    bucket_base = os.environ.get('GITHUB_REPOSITORY_ID', b2_api.api.get_account_id())
     bucket_hash = hashlib.sha256(bucket_base.encode()).hexdigest()
-    return f"{PERSISTENT_BUCKET_NAME_PREFIX}-{bucket_hash}" [:BUCKET_NAME_LENGTH]
+    return f'{PERSISTENT_BUCKET_NAME_PREFIX}-{bucket_hash}'[:BUCKET_NAME_LENGTH]
 
 
 @backoff.on_exception(
@@ -49,12 +50,12 @@ def get_or_create_persistent_bucket(b2_api: Api) -> Bucket:
     except NonExistentBucket:
         bucket = b2_api.api.create_bucket(
             bucket_name,
-            bucket_type="allPublic",
+            bucket_type='allPublic',
             lifecycle_rules=[
                 {
-                    "daysFromHidingToDeleting": 1,
-                    "daysFromUploadingToHiding": 1,
-                    "fileNamePrefix": "",
+                    'daysFromHidingToDeleting': 1,
+                    'daysFromUploadingToHiding': 1,
+                    'fileNamePrefix': '',
                 }
             ],
         )

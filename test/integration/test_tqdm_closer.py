@@ -20,11 +20,13 @@ import pytest
 def test_tqdm_closer(b2_tool, bucket, file_name):
     # test that stderr doesn't contain any warning, in particular warnings about multiprocessing resource tracker
     # leaking semaphores
-    b2_tool.should_succeed([
-        'file',
-        'cat',
-        f'b2://{bucket.name}/{file_name}',
-    ])
+    b2_tool.should_succeed(
+        [
+            'file',
+            'cat',
+            f'b2://{bucket.name}/{file_name}',
+        ]
+    )
 
     # test that disabling _TqdmCloser does produce a resource tracker warning. Should the following check ever fail,
     # that would mean that either Tqdm or python fixed the issue and _TqdmCloser can be disabled for fixed versions

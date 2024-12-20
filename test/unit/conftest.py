@@ -35,7 +35,7 @@ def pytest_addoption(parser):
 @pytest.hookimpl
 def pytest_report_header(config):
     int_version = get_int_version(config.getoption('--cli'))
-    return f"b2 apiver: {int_version}"
+    return f'b2 apiver: {int_version}'
 
 
 @pytest.fixture(scope='session')
@@ -45,17 +45,17 @@ def cli_version(request) -> str:
 
 @pytest.fixture
 def homedir(tmp_path_factory):
-    yield tmp_path_factory.mktemp("test_homedir")
+    yield tmp_path_factory.mktemp('test_homedir')
 
 
 @pytest.fixture
 def env(homedir, monkeypatch):
     """Get ENV for running b2 command from shell level."""
-    monkeypatch.setenv("HOME", str(homedir))
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.setenv("SHELL", "/bin/bash")  # fix for running under github actions
-    if "TERM" not in os.environ:
-        monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setenv('HOME', str(homedir))
+    monkeypatch.delenv('XDG_CONFIG_HOME', raising=False)
+    monkeypatch.setenv('SHELL', '/bin/bash')  # fix for running under github actions
+    if 'TERM' not in os.environ:
+        monkeypatch.setenv('TERM', 'xterm')
     yield os.environ
 
 
@@ -99,7 +99,7 @@ class ConsoleToolTester(BaseConsoleToolTest):
         return self._run_command(*args, **kwargs)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def mock_signal():
     with mock.patch('signal.signal'):
         yield
@@ -126,8 +126,8 @@ def authorized_b2_cli(b2_cli):
 
 @pytest.fixture
 def bucket_info(b2_cli, authorized_b2_cli):
-    bucket_name = "my-bucket"
-    bucket_id = "bucket_0"
+    bucket_name = 'my-bucket'
+    bucket_id = 'bucket_0'
     b2_cli.run(['bucket', 'create', bucket_name, 'allPublic'], expected_stdout=f'{bucket_id}\n')
     return {
         'bucketName': bucket_name,
@@ -162,10 +162,10 @@ def local_file(tmp_path):
 @pytest.fixture
 def uploaded_file_with_control_chars(b2_cli, bucket_info, local_file):
     filename = '\u009bC\u009bC\u009bIfile.txt'
-    b2_cli.run(['file', 'upload', bucket_info["bucketName"], str(local_file), filename])
+    b2_cli.run(['file', 'upload', bucket_info['bucketName'], str(local_file), filename])
     return {
-        'bucket': bucket_info["bucketName"],
-        'bucketId': bucket_info["bucketId"],
+        'bucket': bucket_info['bucketName'],
+        'bucketId': bucket_info['bucketId'],
         'fileName': filename,
         'escapedFileName': '\\\\x9bC\\\\x9bC\\\\x9bIfile.txt',
         'fileId': '1111',
@@ -176,10 +176,10 @@ def uploaded_file_with_control_chars(b2_cli, bucket_info, local_file):
 @pytest.fixture
 def uploaded_file(b2_cli, bucket_info, local_file):
     filename = 'file1.txt'
-    b2_cli.run(['file', 'upload', '--quiet', bucket_info["bucketName"], str(local_file), filename])
+    b2_cli.run(['file', 'upload', '--quiet', bucket_info['bucketName'], str(local_file), filename])
     return {
-        'bucket': bucket_info["bucketName"],
-        'bucketId': bucket_info["bucketId"],
+        'bucket': bucket_info['bucketName'],
+        'bucketId': bucket_info['bucketId'],
         'fileName': filename,
         'fileId': '9999',
         'content': local_file.read_text(),

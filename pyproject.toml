@@ -118,6 +118,7 @@ ignore = [
     "D100", "D105", "D107", "D200", "D202", "D203", "D205", "D212", "D400", "D401", "D415",
     "D101", "D102", "D103", "D104", # TODO remove once we have docstring for all public methods
     "E501", # TODO: remove E501 once docstrings are formatted
+    "UP031",
 ]
 line-length = 100
 target-version = "py38"

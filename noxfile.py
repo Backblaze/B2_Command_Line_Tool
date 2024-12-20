@@ -21,8 +21,8 @@ import subprocess
 import nox
 
 # Required for PDM to use nox's virtualenvs
-os.environ["PDM_IGNORE_SAVED_PYTHON"] = "1"
-os.environ["PDM_NO_LOCK"] = "1"
+os.environ['PDM_IGNORE_SAVED_PYTHON'] = '1'
+os.environ['PDM_NO_LOCK'] = '1'
 
 UPSTREAM_REPO_URL = 'git@github.com:Backblaze/B2_Command_Line_Tool.git'
 
@@ -32,30 +32,34 @@ INSTALL_SDK_FROM = os.environ.get('INSTALL_SDK_FROM')
 NO_STATICX = os.environ.get('NO_STATICX') is not None
 NOX_PYTHONS = os.environ.get('NOX_PYTHONS')
 
-PYTHON_VERSIONS = [
-    'pypy3.9',
-    'pypy3.10',
-    '3.8',
-    '3.9',
-    '3.10',
-    '3.11',
-    '3.12',
-    '3.13',
-] if NOX_PYTHONS is None else NOX_PYTHONS.split(',')
+PYTHON_VERSIONS = (
+    [
+        'pypy3.9',
+        'pypy3.10',
+        '3.8',
+        '3.9',
+        '3.10',
+        '3.11',
+        '3.12',
+        '3.13',
+    ]
+    if NOX_PYTHONS is None
+    else NOX_PYTHONS.split(',')
+)
 
 
 def _detect_python_nox_id() -> str:
     major, minor, *_ = platform.python_version_tuple()
-    python_nox_id = f"{major}.{minor}"
+    python_nox_id = f'{major}.{minor}'
     if platform.python_implementation() == 'PyPy':
-        python_nox_id = f"pypy{python_nox_id}"
+        python_nox_id = f'pypy{python_nox_id}'
     return python_nox_id
 
 
 if CI and not NOX_PYTHONS:
     # this is done to allow it to work even if `nox -p` was passed to nox
     PYTHON_VERSIONS = [_detect_python_nox_id()]
-    print(f"CI job mode; using provided interpreter only; PYTHON_VERSIONS={PYTHON_VERSIONS!r}")
+    print(f'CI job mode; using provided interpreter only; PYTHON_VERSIONS={PYTHON_VERSIONS!r}')
 
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-2] if len(PYTHON_VERSIONS) > 1 else PYTHON_VERSIONS[0]
 
@@ -76,7 +80,7 @@ nox.options.sessions = [
 
 PYTEST_GLOBAL_ARGS = []
 if CI:
-    PYTEST_GLOBAL_ARGS.append("-vv")
+    PYTEST_GLOBAL_ARGS.append('-vv')
 
 
 def pdm_install(
@@ -97,10 +101,10 @@ def pdm_install(
 def github_output(name, value, *, secret=False):
     gh_output_path = os.environ.get('GITHUB_OUTPUT')
     if secret:
-        print(f"::add-mask::{value}")
+        print(f'::add-mask::{value}')
     if gh_output_path:
-        with open(gh_output_path, "a") as file:
-            file.write(f"{name}={value}\n")
+        with open(gh_output_path, 'a') as file:
+            file.write(f'{name}={value}\n')
     else:
         print(f"github_output {name}={'******' if secret else value}")
 
@@ -126,10 +130,12 @@ def get_versions() -> list[str]:
     # - the first element is the latest unstable version (starts with an underscore)
     # - the last element is the latest stable version (highest version number)
     return [
-        path.name for path in sorted(
+        path.name
+        for path in sorted(
             (pathlib.Path(__file__).parent / 'b2' / '_internal').glob('*b2v*'),
             key=get_version_key,
-        ) if (path / '__init__.py').exists()
+        )
+        if (path / '__init__.py').exists()
     ]
 
 
@@ -256,8 +262,12 @@ def cleanup_buckets(session):
     """Remove buckets from previous test runs."""
     pdm_install(session, 'test')
     session.run(
-        'pytest', '-s', '-x', *PYTEST_GLOBAL_ARGS, *session.posargs,
-        'test/integration/cleanup_buckets.py'
+        'pytest',
+        '-s',
+        '-x',
+        *PYTEST_GLOBAL_ARGS,
+        *session.posargs,
+        'test/integration/cleanup_buckets.py',
     )
 
 
@@ -309,18 +319,25 @@ def bundle(session: nox.Session):
 
     # It is assumed that the last element will be the "latest stable".
     for binary_name, version in [('b2', versions[-1])] + list(zip(versions, versions)):
-        spec = template_spec.safe_substitute({
-            'VERSION': version,
-            'NAME': binary_name,
-        })
+        spec = template_spec.safe_substitute(
+            {
+                'VERSION': version,
+                'NAME': binary_name,
+            }
+        )
         pathlib.Path(f'{binary_name}.spec').write_text(spec)
 
         session.run('pyinstaller', *session.posargs, f'{binary_name}.spec')
 
         if SYSTEM == 'linux' and not NO_STATICX:
             session.run(
-                'staticx', '--no-compress', '--strip', '--loglevel', 'INFO', f'dist/{binary_name}',
-                f'dist/{binary_name}-static'
+                'staticx',
+                '--no-compress',
+                '--strip',
+                '--loglevel',
+                'INFO',
+                f'dist/{binary_name}',
+                f'dist/{binary_name}-static',
             )
             session.run(
                 'mv',
@@ -474,8 +491,16 @@ def doc(session):
         # session.notify('doc_cover')  #  disabled due to https://github.com/sphinx-doc/sphinx/issues/11678
     else:
         sphinx_args[-2:-2] = [
-            '-E', '--open-browser', '--watch', '../b2', '--ignore', '*.pyc', '--ignore', '*~',
-            '--ignore', 'source/subcommands/*'
+            '-E',
+            '--open-browser',
+            '--watch',
+            '../b2',
+            '--ignore',
+            '*.pyc',
+            '--ignore',
+            '*~',
+            '--ignore',
+            'source/subcommands/*',
         ]
         session.run('sphinx-autobuild', *sphinx_args)
 
@@ -555,7 +580,7 @@ def generate_dockerfile(session):
     dist_path = 'dist'
 
     full_name, description = _read_readme_name_and_description()
-    vcs_ref = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
+    vcs_ref = session.run('git', 'rev-parse', 'HEAD', external=True, silent=True).strip()
     built_distribution = list(pathlib.Path('.').glob(f'{dist_path}/*'))[0]
 
     template_mapping = dict(
@@ -583,23 +608,25 @@ def run_docker_tests(session, image_tag):
     """Run unittests against a docker image."""
     user_id = session.run('id', '-u', silent=True, external=True).strip()
     group_id = session.run('id', '-g', silent=True, external=True).strip()
-    docker_run_cmd = f"docker run -i --user {user_id}:{group_id} -v /tmp:/tmp:rw --env-file ENVFILE"
+    docker_run_cmd = f'docker run -i --user {user_id}:{group_id} -v /tmp:/tmp:rw --env-file ENVFILE'
     run_integration_test(
-        session, [
-            "--sut",
-            f"{docker_run_cmd} {image_tag}",
-            "--env-file-cmd-placeholder",
-            "ENVFILE",
-        ]
+        session,
+        [
+            '--sut',
+            f'{docker_run_cmd} {image_tag}',
+            '--env-file-cmd-placeholder',
+            'ENVFILE',
+        ],
     )
     for binary_name in get_versions():
         run_integration_test(
-            session, [
-                "--sut",
-                f"{docker_run_cmd} {image_tag} {binary_name}",
-                "--env-file-cmd-placeholder",
-                "ENVFILE",
-            ]
+            session,
+            [
+                '--sut',
+                f'{docker_run_cmd} {image_tag} {binary_name}',
+                '--env-file-cmd-placeholder',
+                'ENVFILE',
+            ],
         )
 
 
@@ -667,12 +694,14 @@ def make_release_commit(session):
     )
 
 
-def load_allowed_change_types(project_toml: pathlib.Path = pathlib.Path('./pyproject.toml')
-                             ) -> set[str]:
+def load_allowed_change_types(
+    project_toml: pathlib.Path = pathlib.Path('./pyproject.toml'),
+) -> set[str]:
     """
     Load the list of allowed change types from the pyproject.toml file.
     """
     import tomllib
+
     configuration = tomllib.loads(project_toml.read_text())
     return set(entry['directory'] for entry in configuration['tool']['towncrier']['type'])
 
@@ -689,7 +718,7 @@ def is_changelog_filename_valid(filename: str, allowed_change_types: set[str]) -
         description, change_type, extension = filename.rsplit('.', maxsplit=2)
     except ValueError:
         # Not enough values to unpack.
-        return False, "Doesn't follow the \"<description>.<change_type>.md\" pattern."
+        return False, 'Doesn\'t follow the "<description>.<change_type>.md" pattern.'
 
     # Check whether the filename ends with .md.
     if extension != wanted_extension:

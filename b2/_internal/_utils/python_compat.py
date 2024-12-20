@@ -10,12 +10,13 @@
 """
 Utilities for compatibility with older Python versions.
 """
+
 import sys
 
 if sys.version_info < (3, 9):
 
     def removeprefix(s: str, prefix: str) -> str:
-        return s[len(prefix):] if s.startswith(prefix) else s
+        return s[len(prefix) :] if s.startswith(prefix) else s
 
 else:
     removeprefix = str.removeprefix

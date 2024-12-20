@@ -57,13 +57,14 @@ class HomeCachePickleStore(PickleStore):
 
     def _cache_dir(self) -> pathlib.Path:
         if not self._dir:
-            self._dir = pathlib.Path(
-                platformdirs.user_cache_dir(appname='b2', appauthor='backblaze')
-            ) / 'autocomplete'
+            self._dir = (
+                pathlib.Path(platformdirs.user_cache_dir(appname='b2', appauthor='backblaze'))
+                / 'autocomplete'
+            )
         return self._dir
 
     def _fname(self, identifier: str) -> str:
-        return f"b2-autocomplete-cache-{identifier}.pickle"
+        return f'b2-autocomplete-cache-{identifier}.pickle'
 
     def get_pickle(self, identifier: str) -> bytes | None:
         path = self._cache_dir() / self._fname(identifier)
@@ -93,7 +94,7 @@ class AutocompleteCache:
         self,
         tracker: StateTracker,
         store: PickleStore,
-        unpickle: Callable[[bytes], argparse.ArgumentParser] | None = None
+        unpickle: Callable[[bytes], argparse.ArgumentParser] | None = None,
     ):
         self._tracker = tracker
         self._store = store

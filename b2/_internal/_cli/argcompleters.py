@@ -19,11 +19,12 @@ def bucket_name_completer(prefix, parsed_args, **kwargs):
     from b2sdk.v2 import unprintable_to_hex
 
     from b2._internal._cli.b2api import _get_b2api_for_profile
+
     api = _get_b2api_for_profile(getattr(parsed_args, 'profile', None))
     res = [
         unprintable_to_hex(bucket_name_alias)
         for bucket_name_alias in itertools.chain.from_iterable(
-            (bucket.name, f"b2://{bucket.name}") for bucket in api.list_buckets(use_cache=True)
+            (bucket.name, f'b2://{bucket.name}') for bucket in api.list_buckets(use_cache=True)
         )
     ]
     return res
@@ -69,29 +70,29 @@ def b2uri_file_completer(prefix: str, parsed_args, **kwargs):
         prefix_without_scheme = removeprefix(prefix, 'b2://')
         if '/' not in prefix_without_scheme:
             return [
-                f"b2://{unprintable_to_hex(bucket.name)}/"
+                f'b2://{unprintable_to_hex(bucket.name)}/'
                 for bucket in api.list_buckets(use_cache=True)
             ]
 
         b2_uri = parse_b2_uri(prefix)
         bucket = api.get_bucket_by_name(b2_uri.bucket_name)
         file_versions = bucket.ls(
-            f"{b2_uri.path}*",
+            f'{b2_uri.path}*',
             latest_only=True,
             recursive=True,
             fetch_count=LIST_FILE_NAMES_MAX_LIMIT,
             with_wildcard=True,
         )
         return [
-            unprintable_to_hex(f"b2://{bucket.name}/{file_version.file_name}")
+            unprintable_to_hex(f'b2://{bucket.name}/{file_version.file_name}')
             for file_version, folder_name in islice(file_versions, LIST_FILE_NAMES_MAX_LIMIT)
             if file_version
         ]
     elif prefix.startswith('b2id://'):
         # listing all files from all buckets is unreasonably expensive
-        return ["b2id://"]
+        return ['b2id://']
     else:
         return [
-            "b2://",
-            "b2id://",
+            'b2://',
+            'b2id://',
         ]

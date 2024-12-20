@@ -9,10 +9,11 @@
 ######################################################################
 
 import sys
-from test.helpers import skip_on_windows
 
 import pexpect
 import pytest
+
+from test.helpers import skip_on_windows
 
 TIMEOUT = 120  # CI can be slow at times when parallelization is extreme
 
@@ -26,19 +27,19 @@ echo "Just testing if we don't replace existing script" > /dev/null
 """
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def bashrc(homedir):
-    bashrc_path = (homedir / '.bashrc')
+    bashrc_path = homedir / '.bashrc'
     bashrc_path.write_text(BASHRC_CONTENT)
     yield bashrc_path
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def cli_command(request) -> str:
     return request.config.getoption('--sut')
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def autocomplete_installed(env, homedir, bashrc, cli_version, cli_command, is_running_on_docker):
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
@@ -68,7 +69,7 @@ def test_autocomplete_b2_commands(autocomplete_installed, is_running_on_docker, 
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
     shell.send(f'{cli_version} \t\t')
-    shell.expect_exact(["authorize-account", "download-file", "get-bucket"], timeout=TIMEOUT)
+    shell.expect_exact(['authorize-account', 'download-file', 'get-bucket'], timeout=TIMEOUT)
 
 
 @skip_on_windows
@@ -79,9 +80,9 @@ def test_autocomplete_b2_only_matching_commands(
         pytest.skip('Not supported on Docker')
     shell.send(f'{cli_version} delete-\t\t')
 
-    shell.expect_exact("file", timeout=TIMEOUT)  # common part of remaining cmds is autocompleted
+    shell.expect_exact('file', timeout=TIMEOUT)  # common part of remaining cmds is autocompleted
     with pytest.raises(pexpect.exceptions.TIMEOUT):  # no other commands are suggested
-        shell.expect_exact("get-bucket", timeout=0.5)
+        shell.expect_exact('get-bucket', timeout=0.5)
 
 
 @skip_on_windows
@@ -98,7 +99,7 @@ def test_autocomplete_b2__download_file__b2uri(
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
     shell.send(f'{cli_version} file download \t\t')
-    shell.expect_exact("b2://", timeout=TIMEOUT)
+    shell.expect_exact('b2://', timeout=TIMEOUT)
     shell.send('b2://\t\t')
     shell.expect_exact(bucket_name, timeout=TIMEOUT)
     shell.send(f'{bucket_name}/\t\t')

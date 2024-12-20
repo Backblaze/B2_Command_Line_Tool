@@ -66,12 +66,14 @@ class TestCopy(TestBase):
         assert len(mock_api.method_calls) == 0
 
         source_sse_c = EncryptionSetting(
-            EncryptionMode.SSE_C, EncryptionAlgorithm.AES256,
-            EncryptionKey(b'some_key', UNKNOWN_KEY_ID)
+            EncryptionMode.SSE_C,
+            EncryptionAlgorithm.AES256,
+            EncryptionKey(b'some_key', UNKNOWN_KEY_ID),
         )
         destination_sse_c = EncryptionSetting(
-            EncryptionMode.SSE_C, EncryptionAlgorithm.AES256,
-            EncryptionKey(b'some_other_key', 'key_id')
+            EncryptionMode.SSE_C,
+            EncryptionAlgorithm.AES256,
+            EncryptionKey(b'some_other_key', 'key_id'),
         )
 
         result = copy_file_command._determine_source_metadata(
@@ -86,9 +88,10 @@ class TestCopy(TestBase):
         assert len(mock_api.method_calls) == 0
 
         with self.assertRaises(
-            ValueError, 'Attempting to copy file with metadata while either source or '
+            ValueError,
+            'Attempting to copy file with metadata while either source or '
             'destination uses SSE-C. Use --fetch-metadata to fetch source '
-            'file metadata before copying.'
+            'file metadata before copying.',
         ):
             copy_file_command._determine_source_metadata(
                 B2FileIdURI('id'),
