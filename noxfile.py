@@ -137,9 +137,8 @@ def get_versions() -> list[str]:
 def format_(session):
     """Lint the code and apply fixes in-place whenever possible."""
     pdm_install(session, 'format')
-    # TODO: incremental mode for yapf
-    session.run('yapf', '--in-place', '--parallel', '--recursive', *PY_PATHS)
     session.run('ruff', 'check', '--fix', *PY_PATHS)
+    session.run('ruff', 'format', *PY_PATHS)
     # session.run(
     #     'docformatter',
     #     '--in-place',
@@ -154,8 +153,8 @@ def format_(session):
 def lint(session):
     """Run linters in readonly mode."""
     pdm_install(session, 'lint', 'doc', 'full', 'license')
-    session.run('yapf', '--diff', '--parallel', '--recursive', *PY_PATHS)
     session.run('ruff', 'check', *PY_PATHS)
+    session.run('ruff', 'format', *PY_PATHS)
     # session.run(
     #     'docformatter',
     #     '--check',
