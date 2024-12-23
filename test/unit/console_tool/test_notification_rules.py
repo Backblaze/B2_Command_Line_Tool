@@ -15,29 +15,29 @@ import pytest
 @pytest.fixture()
 def bucket_notification_rule(b2_cli, bucket):
     rule = {
-        "eventTypes": ["b2:ObjectCreated:*"],
-        "isEnabled": True,
-        "isSuspended": False,
-        "name": "test-rule",
-        "objectNamePrefix": "",
-        "suspensionReason": "",
-        "targetConfiguration": {
-            "targetType": "webhook",
-            "url": "https://example.com/webhook",
+        'eventTypes': ['b2:ObjectCreated:*'],
+        'isEnabled': True,
+        'isSuspended': False,
+        'name': 'test-rule',
+        'objectNamePrefix': '',
+        'suspensionReason': '',
+        'targetConfiguration': {
+            'targetType': 'webhook',
+            'url': 'https://example.com/webhook',
         },
     }
     _, stdout, _ = b2_cli.run(
         [
-            "bucket",
-            "notification-rule",
-            "create",
-            "--json",
-            f"b2://{bucket}",
-            "test-rule",
-            "--webhook-url",
-            "https://example.com/webhook",
-            "--event-type",
-            "b2:ObjectCreated:*",
+            'bucket',
+            'notification-rule',
+            'create',
+            '--json',
+            f'b2://{bucket}',
+            'test-rule',
+            '--webhook-url',
+            'https://example.com/webhook',
+            '--event-type',
+            'b2:ObjectCreated:*',
         ],
     )
     actual_rule = json.loads(stdout)
@@ -45,15 +45,18 @@ def bucket_notification_rule(b2_cli, bucket):
     return actual_rule
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__list_all(b2_cli, bucket, bucket_notification_rule, command):
-    _, stdout, _ = b2_cli.run([
-        *command,
-        "list",
-        f"b2://{bucket}",
-    ])
+    _, stdout, _ = b2_cli.run(
+        [
+            *command,
+            'list',
+            f'b2://{bucket}',
+        ]
+    )
     assert (
-        stdout == f"""\
+        stdout
+        == f"""\
 Notification rules for b2://{bucket}/ :
 - name: test-rule
   eventTypes:
@@ -69,49 +72,51 @@ Notification rules for b2://{bucket}/ :
     )
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__list_all_json(b2_cli, bucket, bucket_notification_rule, command):
-    _, stdout, _ = b2_cli.run([
-        *command,
-        "list",
-        "--json",
-        f"b2://{bucket}",
-    ])
-    assert json.loads(stdout) == [bucket_notification_rule]
-
-
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
-def test_notification_rules__update(b2_cli, bucket, bucket_notification_rule, command):
-    bucket_notification_rule["isEnabled"] = False
     _, stdout, _ = b2_cli.run(
         [
             *command,
-            "update",
-            "--json",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
-            "--disable",
-            "--custom-header",
-            "X-Custom-Header=value=1",
+            'list',
+            '--json',
+            f'b2://{bucket}',
+        ]
+    )
+    assert json.loads(stdout) == [bucket_notification_rule]
+
+
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
+def test_notification_rules__update(b2_cli, bucket, bucket_notification_rule, command):
+    bucket_notification_rule['isEnabled'] = False
+    _, stdout, _ = b2_cli.run(
+        [
+            *command,
+            'update',
+            '--json',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
+            '--disable',
+            '--custom-header',
+            'X-Custom-Header=value=1',
         ],
     )
-    bucket_notification_rule["targetConfiguration"]["customHeaders"] = {
-        "X-Custom-Header": "value=1"
+    bucket_notification_rule['targetConfiguration']['customHeaders'] = {
+        'X-Custom-Header': 'value=1'
     }
     assert json.loads(stdout) == bucket_notification_rule
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__update__no_such_rule(
     b2_cli, bucket, bucket_notification_rule, command
 ):
     b2_cli.run(
         [
             *command,
-            "update",
-            f"b2://{bucket}",
+            'update',
+            f'b2://{bucket}',
             f'{bucket_notification_rule["name"]}-unexisting',
-            "--disable",
+            '--disable',
         ],
         expected_stderr=(
             "ERROR: rule with name 'test-rule-unexisting' does not exist on bucket "
@@ -121,25 +126,25 @@ def test_notification_rules__update__no_such_rule(
     )
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__update__custom_header_malformed(
     b2_cli, bucket, bucket_notification_rule, command
 ):
-    bucket_notification_rule["isEnabled"] = False
+    bucket_notification_rule['isEnabled'] = False
     _, stdout, _ = b2_cli.run(
         [
             *command,
-            "update",
-            "--json",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
-            "--disable",
-            "--custom-header",
-            "X-Custom-Header: value",
+            'update',
+            '--json',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
+            '--disable',
+            '--custom-header',
+            'X-Custom-Header: value',
         ],
     )
-    bucket_notification_rule["targetConfiguration"]["customHeaders"] = {
-        "X-Custom-Header: value": ""
+    bucket_notification_rule['targetConfiguration']['customHeaders'] = {
+        'X-Custom-Header: value': ''
     }
     assert json.loads(stdout) == bucket_notification_rule
 
@@ -147,76 +152,76 @@ def test_notification_rules__update__custom_header_malformed(
 def test_notification_rules__delete(b2_cli, bucket, bucket_notification_rule):
     _, stdout, _ = b2_cli.run(
         [
-            "bucket",
-            "notification-rule",
-            "delete",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
+            'bucket',
+            'notification-rule',
+            'delete',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
         ],
     )
     assert stdout == "Rule 'test-rule' has been deleted from b2://my-bucket/\n"
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__delete_no_such_rule(b2_cli, bucket, bucket_notification_rule, command):
     b2_cli.run(
         [
             *command,
-            "delete",
-            f"b2://{bucket}",
+            'delete',
+            f'b2://{bucket}',
             f'{bucket_notification_rule["name"]}-unexisting',
         ],
         expected_stderr=(
             "ERROR: no such rule to delete: 'test-rule-unexisting', available rules: ['test-rule'];"
-            " No rules have been deleted.\n"
+            ' No rules have been deleted.\n'
         ),
         expected_status=1,
     )
 
 
 @pytest.mark.parametrize(
-    "args,expected_stdout",
+    'args,expected_stdout',
     [
-        (["-q"], ""),
-        ([], "No notification rules for b2://my-bucket/\n"),
-        (["--json"], "[]\n"),
+        (['-q'], ''),
+        ([], 'No notification rules for b2://my-bucket/\n'),
+        (['--json'], '[]\n'),
     ],
 )
 def test_notification_rules__no_rules(b2_cli, bucket, args, expected_stdout):
     b2_cli.run(
-        ["bucket", "notification-rule", "list", f"b2://{bucket}", *args],
+        ['bucket', 'notification-rule', 'list', f'b2://{bucket}', *args],
         expected_stdout=expected_stdout,
     )
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__disable_enable(b2_cli, bucket, bucket_notification_rule, command):
     _, stdout, _ = b2_cli.run(
         [
             *command,
-            "disable",
-            "--json",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
+            'disable',
+            '--json',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
         ],
     )
-    assert json.loads(stdout) == {**bucket_notification_rule, "isEnabled": False}
+    assert json.loads(stdout) == {**bucket_notification_rule, 'isEnabled': False}
 
     _, stdout, _ = b2_cli.run(
         [
             *command,
-            "enable",
-            "--json",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
+            'enable',
+            '--json',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
         ],
     )
-    assert json.loads(stdout) == {**bucket_notification_rule, "isEnabled": True}
+    assert json.loads(stdout) == {**bucket_notification_rule, 'isEnabled': True}
 
 
 @pytest.mark.parametrize(
-    "subcommand",
-    ["disable", "enable"],
+    'subcommand',
+    ['disable', 'enable'],
 )
 def test_notification_rules__disable_enable__no_such_rule(
     b2_cli,
@@ -226,10 +231,10 @@ def test_notification_rules__disable_enable__no_such_rule(
 ):
     b2_cli.run(
         [
-            "bucket",
-            "notification-rule",
+            'bucket',
+            'notification-rule',
             subcommand,
-            f"b2://{bucket}",
+            f'b2://{bucket}',
             f'{bucket_notification_rule["name"]}-unexisting',
         ],
         expected_stderr=(
@@ -240,17 +245,17 @@ def test_notification_rules__disable_enable__no_such_rule(
     )
 
 
-@pytest.mark.parametrize("command", [["bucket", "notification-rule"], ["notification-rules"]])
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rule, command):
     b2_cli.run(
         [
             *command,
-            "update",
-            "--json",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
-            "--sign-secret",
-            "new-secret",
+            'update',
+            '--json',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
+            '--sign-secret',
+            'new-secret',
         ],
         expected_status=2,
     )
@@ -258,17 +263,19 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
     _, stdout, _ = b2_cli.run(
         [
             *command,
-            "update",
-            "--json",
-            f"b2://{bucket}",
-            bucket_notification_rule["name"],
-            "--sign-secret",
-            "7" * 32,
+            'update',
+            '--json',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
+            '--sign-secret',
+            '7' * 32,
         ],
     )
-    bucket_notification_rule["targetConfiguration"]["hmacSha256SigningSecret"] = "7" * 32
+    bucket_notification_rule['targetConfiguration']['hmacSha256SigningSecret'] = '7' * 32
     assert json.loads(stdout) == bucket_notification_rule
 
-    assert json.loads(b2_cli.run([*command, "list", "--json", f"b2://{bucket}"],)[1]) == [
-        bucket_notification_rule
-    ]
+    assert json.loads(
+        b2_cli.run(
+            [*command, 'list', '--json', f'b2://{bucket}'],
+        )[1]
+    ) == [bucket_notification_rule]

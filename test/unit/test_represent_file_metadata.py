@@ -51,7 +51,8 @@ class TestReprentFileMetadata(TestBase):
                 'listBuckets',
                 'listFiles',
                 'readFiles',
-            ], 'restricted'
+            ],
+            'restricted',
         )
         self.restricted_key_id, self.restricted_key = new_key.id_, new_key.application_key
 
@@ -87,9 +88,10 @@ class TestReprentFileMetadata(TestBase):
 
     def assertEncryptionRepr(self, file_id: str, expected_repr: str):
         file_version = self.master_b2_api.get_file_info(file_id)
-        assert DownloadCommand._represent_encryption(
-            file_version.server_side_encryption
-        ) == expected_repr
+        assert (
+            DownloadCommand._represent_encryption(file_version.server_side_encryption)
+            == expected_repr
+        )
 
     def test_file_retention(self):
         file = self.lock_disabled_bucket.upload_bytes(b'insignificant', 'file')
@@ -104,8 +106,9 @@ class TestReprentFileMetadata(TestBase):
             file.id_, file.file_name, FileRetentionSetting(RetentionMode.GOVERNANCE, 1500)
         )
         self.assertRetentionRepr(
-            file.id_, self.master_b2_api,
-            'mode=governance, retainUntil=1970-01-01 00:00:01.500000+00:00'
+            file.id_,
+            self.master_b2_api,
+            'mode=governance, retainUntil=1970-01-01 00:00:01.500000+00:00',
         )
         self.assertRetentionRepr(file.id_, self.restricted_b2_api, '<unauthorized to read>')
 
@@ -151,7 +154,7 @@ class TestReprentFileMetadata(TestBase):
                 EncryptionMode.SSE_C,
                 algorithm=EncryptionAlgorithm.AES256,
                 key=EncryptionKey(b'', key_id=None),
-            )
+            ),
         )
         self.assertEncryptionRepr(file.id_, 'mode=SSE-C, algorithm=AES256')
 
@@ -162,6 +165,6 @@ class TestReprentFileMetadata(TestBase):
                 EncryptionMode.SSE_C,
                 algorithm=EncryptionAlgorithm.AES256,
                 key=EncryptionKey(b'', key_id='some_id'),
-            )
+            ),
         )
         self.assertEncryptionRepr(file.id_, 'mode=SSE-C, algorithm=AES256, key_id=some_id')

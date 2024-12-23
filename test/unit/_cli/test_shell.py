@@ -14,6 +14,6 @@ from unittest import mock
 from b2._internal._cli import shell
 
 
-@mock.patch.dict(os.environ, {"SHELL": "/bin/bash"})
+@mock.patch.dict(os.environ, {'SHELL': '/bin/bash'})
 def test_detect_shell():
     assert shell.detect_shell() == 'bash'

@@ -18,15 +18,15 @@ from b2._internal._utils.python_compat import removeprefix
 @pytest.hookimpl
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers",
-        "apiver(from_ver, to_ver): run tests only on certain apiver versions",
+        'markers',
+        'apiver(from_ver, to_ver): run tests only on certain apiver versions',
     )
 
 
 @pytest.fixture(scope='session')
 def apiver(request):
     """Get apiver as a v-prefixed string, e.g. "v2"."""
-    return removeprefix(request.config.getoption('--cli', '').lstrip('_'), "b2") or None
+    return removeprefix(request.config.getoption('--cli', '').lstrip('_'), 'b2') or None
 
 
 @pytest.fixture(scope='session')

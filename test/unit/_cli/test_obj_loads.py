@@ -22,21 +22,12 @@ from b2._internal._cli.obj_loads import pydantic, validated_loads
 
 
 @pytest.mark.parametrize(
-    "input_, expected_val",
+    'input_, expected_val',
     [
         # json
-        ('{"a": 1}', {
-            "a": 1
-        }),
-        ('{"a": 1, "b": 2}', {
-            "a": 1,
-            "b": 2
-        }),
-        ('{"a": 1, "b": 2, "c": 3}', {
-            "a": 1,
-            "b": 2,
-            "c": 3
-        }),
+        ('{"a": 1}', {'a': 1}),
+        ('{"a": 1, "b": 2}', {'a': 1, 'b': 2}),
+        ('{"a": 1, "b": 2, "c": 3}', {'a': 1, 'b': 2, 'c': 3}),
     ],
 )
 def test_validated_loads(input_, expected_val):
@@ -44,10 +35,10 @@ def test_validated_loads(input_, expected_val):
 
 
 @pytest.mark.parametrize(
-    "input_, error_msg",
+    'input_, error_msg',
     [
         # not valid json nor yaml
-        ("{", "'{' is not a valid JSON value"),
+        ('{', "'{' is not a valid JSON value"),
     ],
 )
 def test_validated_loads__invalid_syntax(input_, error_msg):
@@ -66,11 +57,11 @@ def typed_dict_cls():
 
 def test_validated_loads__typed_dict(typed_dict_cls):
     input_ = '{"a": 1, "b": "2", "extra": null}'
-    expected_val = {"a": 1, "b": "2", "extra": None}
+    expected_val = {'a': 1, 'b': '2', 'extra': None}
     assert validated_loads(input_, typed_dict_cls) == expected_val
 
 
-@pytest.mark.skipif(pydantic is None, reason="pydantic is not enabled")
+@pytest.mark.skipif(pydantic is None, reason='pydantic is not enabled')
 def test_validated_loads__typed_dict_types_validation(typed_dict_cls):
     input_ = '{"a": "abc", "b": 2}'
     with pytest.raises(argparse.ArgumentTypeError):

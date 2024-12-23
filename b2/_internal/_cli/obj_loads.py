@@ -67,7 +67,7 @@ def type_with_config(type_: type[T], config: pydantic.ConfigDict) -> type[T]:
 def validated_loads(data: str, expected_type: type[T] | None = None) -> T:
     val = _UNDEF
     if expected_type is not None and pydantic is not None:
-        expected_type = type_with_config(expected_type, pydantic.ConfigDict(extra="allow"))
+        expected_type = type_with_config(expected_type, pydantic.ConfigDict(extra='allow'))
         try:
             ta = TypeAdapter(expected_type)
         except TypeError:
@@ -75,7 +75,7 @@ def validated_loads(data: str, expected_type: type[T] | None = None) -> T:
             # This is thrown on python<3.10 even with eval_type_backport
             logger.debug(
                 f'Failed to create TypeAdapter for {expected_type!r} using pydantic, falling back to json.loads',
-                exc_info=True
+                exc_info=True,
             )
             val = _UNDEF
         else:

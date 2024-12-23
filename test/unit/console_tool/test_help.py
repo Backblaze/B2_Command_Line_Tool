@@ -11,18 +11,18 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    "flag, included, excluded",
+    'flag, included, excluded',
     [
         # --help shouldn't show deprecated commands
         (
-            "--help",
-            [" b2 file ", "-h", "--help-all"],
-            [" b2 download-file-by-name ", "(DEPRECATED)"],
+            '--help',
+            [' b2 file ', '-h', '--help-all'],
+            [' b2 download-file-by-name ', '(DEPRECATED)'],
         ),
         # --help-all should show deprecated commands, but marked as deprecated
         (
-            "--help-all",
-            ["(DEPRECATED) b2 download-file-by-name ", "-h", "--help-all"],
+            '--help-all',
+            ['(DEPRECATED) b2 download-file-by-name ', '-h', '--help-all'],
             [],
         ),
     ],
@@ -39,5 +39,5 @@ def test_help(b2_cli, flag, included, excluded, capsys):
     for e in excluded:
         if e in out:
             found.add(e)
-    assert found.issuperset(included), f"expected {included!r} in {out!r}"
-    assert found.isdisjoint(excluded), f"expected {excluded!r} not in {out!r}"
+    assert found.issuperset(included), f'expected {included!r} in {out!r}'
+    assert found.isdisjoint(excluded), f'expected {excluded!r} not in {out!r}'

@@ -14,7 +14,7 @@ import subprocess
 
 def test_help(cli_version):
     p = subprocess.run(
-        [cli_version, "--help"],
+        [cli_version, '--help'],
         check=True,
         capture_output=True,
         text=True,
@@ -24,5 +24,5 @@ def test_help(cli_version):
     expected_name = cli_version
     if platform.system() == 'Windows':
         expected_name += '.exe'
-    assert re.match(r"^_?b2(v\d+)?(\.exe)?$", expected_name)  # test sanity check
-    assert f"{expected_name} <command> --help" in p.stdout
+    assert re.match(r'^_?b2(v\d+)?(\.exe)?$', expected_name)  # test sanity check
+    assert f'{expected_name} <command> --help' in p.stdout

@@ -8,7 +8,7 @@ In order to make it easier to contribute, core developers of this project:
 * maintain a set of unit tests
 * maintain a set of integration tests (run with a production cloud)
 * maintain development automation tools using [nox](https://github.com/theacodes/nox) that can easily:
-  * format the code using [yapf](https://github.com/google/yapf) and [ruff](https://github.com/astral-sh/ruff)
+  * format the code using [ruff](https://github.com/astral-sh/ruff)
   * run linters to find subtle/potential issues with maintainability
   * run the test suite on multiple Python versions using [pytest](https://github.com/pytest-dev/pytest)
 * maintain Continuous Integration (by using GitHub Actions) that:

@@ -45,10 +45,10 @@ class B2URI(B2URIBase):
     """
 
     bucket_name: str
-    path: str = ""
+    path: str = ''
 
     def __str__(self) -> str:
-        return f"b2://{self.bucket_name}/{self.path}"
+        return f'b2://{self.bucket_name}/{self.path}'
 
     def is_dir(self) -> bool | None:
         """
@@ -66,7 +66,7 @@ class B2URI(B2URIBase):
 
         :return: True if the path is a directory, None if it is unknown
         """
-        return not self.path or self.path.endswith("/") or None
+        return not self.path or self.path.endswith('/') or None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -78,7 +78,7 @@ class B2FileIdURI(B2URIBase):
     file_id: str
 
     def __str__(self) -> str:
-        return f"b2id://{self.file_id}"
+        return f'b2id://{self.file_id}'
 
 
 def parse_uri(uri: str, *, allow_all_buckets: bool = False) -> Path | B2URI | B2FileIdURI:
@@ -91,9 +91,9 @@ def parse_uri(uri: str, *, allow_all_buckets: bool = False) -> Path | B2URI | B2
     :raises ValueError: if the URI is invalid
     """
     if not uri:
-        raise ValueError("URI cannot be empty")
+        raise ValueError('URI cannot be empty')
     parsed = urllib.parse.urlsplit(uri)
-    if parsed.scheme == "":
+    if parsed.scheme == '':
         return pathlib.Path(uri)
     return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets)
 
@@ -119,29 +119,29 @@ def _parse_b2_uri(
     parsed: urllib.parse.SplitResult,
     *,
     allow_all_buckets: bool = False,
-    allow_b2id: bool = True
+    allow_b2id: bool = True,
 ) -> B2URI | B2FileIdURI:
-    if parsed.scheme in ("b2", "b2id"):
-        path = urllib.parse.urlunsplit(parsed._replace(scheme="", netloc=""))
+    if parsed.scheme in ('b2', 'b2id'):
+        path = urllib.parse.urlunsplit(parsed._replace(scheme='', netloc=''))
         if not parsed.netloc:
             if allow_all_buckets:
                 if path:
                     raise ValueError(
                         f"Invalid B2 URI: all buckets URI doesn't allow non-empty path, but {path!r} was provided"
                     )
-                return B2URI(bucket_name="")
-            raise ValueError(f"Invalid B2 URI: {uri!r}")
+                return B2URI(bucket_name='')
+            raise ValueError(f'Invalid B2 URI: {uri!r}')
         elif parsed.password or parsed.username:
             raise ValueError(
-                "Invalid B2 URI: credentials passed using `user@password:` syntax is not supported in URI"
+                'Invalid B2 URI: credentials passed using `user@password:` syntax is not supported in URI'
             )
 
-        if parsed.scheme == "b2":
-            return B2URI(bucket_name=parsed.netloc, path=removeprefix(path, "/"))
-        elif parsed.scheme == "b2id" and allow_b2id:
+        if parsed.scheme == 'b2':
+            return B2URI(bucket_name=parsed.netloc, path=removeprefix(path, '/'))
+        elif parsed.scheme == 'b2id' and allow_b2id:
             return B2FileIdURI(file_id=parsed.netloc)
     else:
-        raise ValueError(f"Unsupported URI scheme: {parsed.scheme!r}")
+        raise ValueError(f'Unsupported URI scheme: {parsed.scheme!r}')
 
 
 class B2URIAdapter:
@@ -159,7 +159,7 @@ class B2URIAdapter:
 
     @singledispatchmethod
     def download_file_by_uri(self, uri, *args, **kwargs):
-        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+        raise NotImplementedError(f'Unsupported URI type: {type(uri)}')
 
     @download_file_by_uri.register
     def _(self, uri: B2URI, *args, **kwargs):
@@ -172,7 +172,7 @@ class B2URIAdapter:
 
     @singledispatchmethod
     def get_file_info_by_uri(self, uri, *args, **kwargs):
-        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+        raise NotImplementedError(f'Unsupported URI type: {type(uri)}')
 
     @get_file_info_by_uri.register
     def _(self, uri: B2URI, *args, **kwargs) -> DownloadVersion:
@@ -184,7 +184,7 @@ class B2URIAdapter:
 
     @singledispatchmethod
     def get_download_url_by_uri(self, uri, *args, **kwargs):
-        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+        raise NotImplementedError(f'Unsupported URI type: {type(uri)}')
 
     @get_download_url_by_uri.register
     def _(self, uri: B2URI, *args, **kwargs) -> str:
@@ -196,7 +196,7 @@ class B2URIAdapter:
 
     @singledispatchmethod
     def ls(self, uri, *args, **kwargs):
-        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+        raise NotImplementedError(f'Unsupported URI type: {type(uri)}')
 
     @ls.register
     def _(self, uri: B2URI, *args, filters: Sequence[Filter] = (), **kwargs):
@@ -214,7 +214,7 @@ class B2URIAdapter:
 
     @singledispatchmethod
     def copy_by_uri(self, uri, *args, **kwargs):
-        raise NotImplementedError(f"Unsupported URI type: {type(uri)}")
+        raise NotImplementedError(f'Unsupported URI type: {type(uri)}')
 
     @copy_by_uri.register
     def _(self, source: B2FileIdURI, destination: B2URI, *args, **kwargs):

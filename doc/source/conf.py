@@ -58,8 +58,12 @@ B2 = importlib.import_module(f'b2._internal.{LATEST_STABLE_VERSION}.registry').B
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.ifconfig', 'sphinx.ext.viewcode',
-    'sphinx.ext.coverage', 'sphinxarg.ext'
+    'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.ifconfig',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.coverage',
+    'sphinxarg.ext',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -77,7 +81,7 @@ master_doc = 'index'
 # General information about the project.
 project = 'B2_Command_Line_Tool'
 
-year = datetime.date.today().strftime("%Y")
+year = datetime.date.today().strftime('%Y')
 author = 'Backblaze'
 copyright = f'{year}, {author}'
 
@@ -95,7 +99,7 @@ release = VERSION
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = "en"
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -129,12 +133,12 @@ autodoc_default_options = {
     'exclude-members': '__weakref__, _abc_cache, _abc_negative_cache, _abc_negative_cache_version, _abc_registry, _abc_impl',
     'members': True,
     'undoc-members': True,
-}  # yapf: disable
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-#html_static_path = ['_static']
+# html_static_path = ['_static']
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -142,14 +146,13 @@ autodoc_default_options = {
 # This is required for the alabaster theme
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 html_sidebars = {
-    '**':
-        [
-            'about.html',
-            'navigation.html',
-            'relations.html',  # needs 'show_related': True theme option to display
-            'searchbox.html',
-            'donate.html',
-        ]
+    '**': [
+        'about.html',
+        'navigation.html',
+        'relations.html',  # needs 'show_related': True theme option to display
+        'searchbox.html',
+        'donate.html',
+    ]
 }
 
 # -- Options for HTMLHelp output ------------------------------------------
@@ -163,15 +166,12 @@ latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     #
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     #
     # 'preamble': '',
-
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
@@ -182,8 +182,11 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (
-        master_doc, 'B2_Command_Line_Tool.tex', 'B2\\_Command\\_Line\\_Tool Documentation',
-        'Backblaze', 'manual'
+        master_doc,
+        'B2_Command_Line_Tool.tex',
+        'B2\\_Command\\_Line\\_Tool Documentation',
+        'Backblaze',
+        'manual',
     ),
 ]
 
@@ -202,8 +205,13 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (
-        master_doc, 'B2_Command_Line_Tool', 'B2_Command_Line_Tool Documentation', author,
-        'B2_Command_Line_Tool', 'One line description of project.', 'Miscellaneous'
+        master_doc,
+        'B2_Command_Line_Tool',
+        'B2_Command_Line_Tool Documentation',
+        author,
+        'B2_Command_Line_Tool',
+        'One line description of project.',
+        'Miscellaneous',
     ),
 ]
 
@@ -249,7 +257,7 @@ def regenerate_subcommands_help():
     all_commands: list[tuple[tuple[str, ...], type]] = []
 
     def _add_cmd(path, cmd_cls):
-        if getattr(cmd_cls, "deprecated", False):
+        if getattr(cmd_cls, 'deprecated', False):
             return
 
         registry = cmd_cls.subcommands_registry
@@ -262,18 +270,18 @@ def regenerate_subcommands_help():
 
     _add_cmd((), B2)
 
-    subcommands_dir_target = pathlib.Path(__file__).parent / "subcommands"
+    subcommands_dir_target = pathlib.Path(__file__).parent / 'subcommands'
     with tempfile.TemporaryDirectory() as temp_dir:
-        subcommands_dir = pathlib.Path(temp_dir) / "subcommands"
+        subcommands_dir = pathlib.Path(temp_dir) / 'subcommands'
         subcommands_dir.mkdir()
         for command_path, cmd_cls in sorted(all_commands):
-            full_command = " ".join(command_path)
-            slug = full_command.replace(" ", "_")
-            (subcommands_dir / f"{slug}.rst").write_text(
+            full_command = ' '.join(command_path)
+            slug = full_command.replace(' ', '_')
+            (subcommands_dir / f'{slug}.rst').write_text(
                 tmpl.format(
                     HUMAN_NAME=full_command,
                     COMMAND=full_command,
-                    slug=f"subcommand_{slug}",
+                    slug=f'subcommand_{slug}',
                 )
             )
 
