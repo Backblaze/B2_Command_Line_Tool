@@ -8,9 +8,10 @@
 #
 ######################################################################
 import os
-from test.helpers import skip_on_windows
 
 import pytest
+
+from test.helpers import skip_on_windows
 
 
 def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, bucket, tmpdir):
@@ -21,27 +22,38 @@ def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, buc
     local_file1.write(content)
 
     expected_json = {
-        "action": "upload",
-        "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-        "fileInfo":
-            {
-                "b2-cache-control": "max-age=3600",
-                "b2-expires": "Thu, 01 Dec 2050 16:00:00 GMT",
-                "b2-content-language": "en",
-                "b2-content-disposition": "attachment",
-                "b2-content-encoding": "gzip",
-                "src_last_modified_millis": "1"
-            },
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
+        'fileInfo': {
+            'b2-cache-control': 'max-age=3600',
+            'b2-expires': 'Thu, 01 Dec 2050 16:00:00 GMT',
+            'b2-content-language': 'en',
+            'b2-content-disposition': 'attachment',
+            'b2-content-encoding': 'gzip',
+            'src_last_modified_millis': '1',
+        },
+        'fileName': filename,
+        'size': len(content),
     }
     b2_cli.run(
         [
-            'file', 'upload', '--no-progress', '--info=src_last_modified_millis=1', 'my-bucket',
-            '--cache-control', 'max-age=3600', '--expires', 'Thu, 01 Dec 2050 16:00:00 GMT',
-            '--content-language', 'en', '--content-disposition', 'attachment', '--content-encoding',
+            'file',
+            'upload',
+            '--no-progress',
+            '--info=src_last_modified_millis=1',
+            'my-bucket',
+            '--cache-control',
+            'max-age=3600',
+            '--expires',
+            'Thu, 01 Dec 2050 16:00:00 GMT',
+            '--content-language',
+            'en',
+            '--content-disposition',
+            'attachment',
+            '--content-encoding',
             'gzip',
-            str(local_file1), 'file1.txt'
+            str(local_file1),
+            'file1.txt',
         ],
         expected_json_in_stdout=expected_json,
         remove_version=True,
@@ -61,15 +73,14 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
-        "action": "upload",
-        "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-        "contentType": "b2/x-auto",
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
+        'contentType': 'b2/x-auto',
+        'fileName': filename,
+        'size': len(content),
     }
     b2_cli.run(
-        ['file', 'upload', '--no-progress', 'my-bucket',
-         str(local_file1), filename],
+        ['file', 'upload', '--no-progress', 'my-bucket', str(local_file1), filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
@@ -88,17 +99,17 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
-        "action": "upload",
-        "contentSha1": "ab467567b98216a255f77aef08aa2c418073d974",
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': 'ab467567b98216a255f77aef08aa2c418073d974',
+        'fileName': filename,
+        'size': len(content),
     }
     b2_cli.run(
         ['upload-file', '--no-progress', 'my-bucket', '-', filename],
         expected_json_in_stdout=expected_json,
         remove_version=True,
         expected_part_of_stdout=expected_stdout,
-        expected_stderr="WARNING: `upload-file` command is deprecated. Use `file upload` instead.\n"
+        expected_stderr='WARNING: `upload-file` command is deprecated. Use `file upload` instead.\n'
         "WARNING: Filename `-` won't be supported in the future and will always be treated as stdin alias.\n",
     )
 
@@ -111,15 +122,15 @@ def test_upload_file__ignore_hyphen_file(b2_cli, bucket, tmpdir, monkeypatch, mo
     source_file = tmpdir.join('-')
     source_file.write(content)
 
-    content = "stdin input"
+    content = 'stdin input'
     filename = 'stdin.txt'
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
-        "action": "upload",
-        "contentSha1": "2ce72aa159d1f190fddf295cc883f20c4787a751",
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': '2ce72aa159d1f190fddf295cc883f20c4787a751',
+        'fileName': filename,
+        'size': len(content),
     }
     mock_stdin.write(content)
     mock_stdin.close()
@@ -134,15 +145,15 @@ def test_upload_file__ignore_hyphen_file(b2_cli, bucket, tmpdir, monkeypatch, mo
 
 def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     """Test `file upload` stdin alias support"""
-    content = "stdin input"
+    content = 'stdin input'
     filename = 'stdin.txt'
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
-        "action": "upload",
-        "contentSha1": "2ce72aa159d1f190fddf295cc883f20c4787a751",
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': '2ce72aa159d1f190fddf295cc883f20c4787a751',
+        'fileName': filename,
+        'size': len(content),
     }
     mock_stdin.write(content)
     mock_stdin.close()
@@ -157,15 +168,15 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
 
 def test_upload_file_deprecated__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     """Test `upload-file` stdin alias support"""
-    content = "stdin input deprecated"
+    content = 'stdin input deprecated'
     filename = 'stdin-deprecated.txt'
 
     expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
     expected_json = {
-        "action": "upload",
-        "contentSha1": "fcaa935e050efe0b5d7b26e65162b32b5e40aa81",
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': 'fcaa935e050efe0b5d7b26e65162b32b5e40aa81',
+        'fileName': filename,
+        'size': len(content),
     }
     mock_stdin.write(content)
     mock_stdin.close()
@@ -188,20 +199,23 @@ def test_upload_file__threads_setting(b2_cli, bucket, tmp_path):
     local_file1.write_text(content)
 
     expected_json = {
-        "action": "upload",
-        "contentSha1": "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-        "fileInfo": {
-            "src_last_modified_millis": f"{local_file1.stat().st_mtime_ns // 1000000}"
-        },
-        "fileName": filename,
-        "size": len(content),
+        'action': 'upload',
+        'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
+        'fileInfo': {'src_last_modified_millis': f'{local_file1.stat().st_mtime_ns // 1000000}'},
+        'fileName': filename,
+        'size': len(content),
     }
 
     b2_cli.run(
         [
-            'file', 'upload', '--no-progress', 'my-bucket', '--threads',
+            'file',
+            'upload',
+            '--no-progress',
+            'my-bucket',
+            '--threads',
             str(num_threads),
-            str(local_file1), 'file1.txt'
+            str(local_file1),
+            'file1.txt',
         ],
         expected_json_in_stdout=expected_json,
         remove_version=True,

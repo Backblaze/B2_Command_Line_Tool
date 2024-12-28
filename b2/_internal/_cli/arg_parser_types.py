@@ -15,14 +15,14 @@ import re
 import arrow
 from b2sdk.v2 import RetentionPeriod
 
-_arrow_version = tuple(int(p) for p in arrow.__version__.split("."))
+_arrow_version = tuple(int(p) for p in arrow.__version__.split('.'))
 
 
 def parse_comma_separated_list(s):
     """
     Parse comma-separated list.
     """
-    return [word.strip() for word in s.split(",")]
+    return [word.strip() for word in s.split(',')]
 
 
 def parse_millis_from_float_timestamp(s):
@@ -31,9 +31,9 @@ def parse_millis_from_float_timestamp(s):
     """
     parsed = arrow.get(float(s))
     if _arrow_version < (1, 0, 0):
-        return int(parsed.format("XSSS"))
+        return int(parsed.format('XSSS'))
     else:
-        return int(parsed.format("x")[:13])
+        return int(parsed.format('x')[:13])
 
 
 def parse_range(s):

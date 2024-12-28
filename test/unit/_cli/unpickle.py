@@ -34,7 +34,7 @@ class Unpickler(pickle.Unpickler):
             importlib.reload(sys.modules[module])
 
         if any('b2sdk' in module for module in sys.modules):
-            raise RuntimeError("Loading the pickled object imported b2sdk module")
+            raise RuntimeError('Loading the pickled object imported b2sdk module')
         return result
 
     def find_class(self, module: str, name: str) -> Any:

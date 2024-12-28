@@ -89,6 +89,7 @@ class Ls(B2URIMustPointToFolderMixin, B2URIBucketNFolderNameArgMixin, BaseLs):
     - **listFiles**
     - **listBuckets** (if bucket name is not provided)
     """
+
     ALLOW_ALL_BUCKETS = True
 
 

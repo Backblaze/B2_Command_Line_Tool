@@ -14,11 +14,11 @@ from b2sdk.v2 import (
 )
 
 _simple_repr_map = {
-    False: "false",
-    None: "null",
-    True: "true",
+    False: 'false',
+    None: 'null',
+    True: 'true',
 }
-_simple_repr_map_values = set(_simple_repr_map.values()) | {"yes", "no"}
+_simple_repr_map_values = set(_simple_repr_map.values()) | {'yes', 'no'}
 
 
 def _yaml_simple_repr(obj):
@@ -31,27 +31,27 @@ def _yaml_simple_repr(obj):
     if simple_repr:
         return simple_repr
     obj_repr = unprintable_to_hex(str(obj))
-    if isinstance(
-        obj, str
-    ) and (obj == "" or obj_repr.lower() in _simple_repr_map_values or obj_repr.isdigit()):
+    if isinstance(obj, str) and (
+        obj == '' or obj_repr.lower() in _simple_repr_map_values or obj_repr.isdigit()
+    ):
         obj_repr = repr(obj)  # add quotes to distinguish from numbers and booleans
     return obj_repr
 
 
 def _id_name_first_key(item):
     try:
-        return ("id", "name").index(str(item[0]).lower()), item[0], item[1]
+        return ('id', 'name').index(str(item[0]).lower()), item[0], item[1]
     except ValueError:
         return 2, item[0], item[1]
 
 
 def _dump(data, indent=0, skip=False, *, output):
-    prefix = " " * indent
+    prefix = ' ' * indent
     if isinstance(data, dict):
         for idx, (key, value) in enumerate(sorted(data.items(), key=_id_name_first_key)):
             output.write(f"{'' if skip and idx == 0 else prefix}{_yaml_simple_repr(key)}: ")
             if isinstance(value, (dict, list)):
-                output.write("\n")
+                output.write('\n')
                 _dump(value, indent + 2, output=output)
             else:
                 _dump(value, 0, True, output=output)

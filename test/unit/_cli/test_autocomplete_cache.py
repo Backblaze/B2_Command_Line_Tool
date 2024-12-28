@@ -32,7 +32,7 @@ from .unpickle import unpickle
 # We can't use pytest.mark.skipif to skip forked tests because with pytest-forked,
 # there is an attempt to fork even if the test is marked as skipped.
 # See https://github.com/pytest-dev/pytest-forked/issues/44
-if sys.platform == "win32":
+if sys.platform == 'win32':
     forked = pytest.mark.skip(reason="Tests can't be run forked on windows")
 else:
     forked = pytest.mark.forked
@@ -96,10 +96,7 @@ def argcomplete_result():
 def cached_complete_result(cache: autocomplete_cache.AutocompleteCache, raise_exc: bool = True):
     exit, output = Exit(), io.StringIO()
     cache.autocomplete_from_cache(
-        uncached_args={
-            'exit_method': exit,
-            'output_stream': output
-        }, raise_exc=raise_exc
+        uncached_args={'exit_method': exit, 'output_stream': output}, raise_exc=raise_exc
     )
     return exit.code, output.getvalue()
 
@@ -108,10 +105,7 @@ def uncached_complete_result(cache: autocomplete_cache.AutocompleteCache):
     exit, output = Exit(), io.StringIO()
     parser = b2._internal.console_tool.B2.create_parser()
     cache.cache_and_autocomplete(
-        parser, uncached_args={
-            'exit_method': exit,
-            'output_stream': output
-        }
+        parser, uncached_args={'exit_method': exit, 'output_stream': output}
     )
     return exit.code, output.getvalue()
 

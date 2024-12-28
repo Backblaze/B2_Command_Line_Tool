@@ -32,8 +32,8 @@ class B2URIMustPointToFolderMixin:
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
         b2_uri = super().get_b2_uri_from_arg(args)
-        if b2_uri.path and not args.with_wildcard and not b2_uri.path.endswith("/"):
-            b2_uri = dataclasses.replace(b2_uri, path=b2_uri.path + "/")
+        if b2_uri.path and not args.with_wildcard and not b2_uri.path.endswith('/'):
+            b2_uri = dataclasses.replace(b2_uri, path=b2_uri.path + '/')
         return b2_uri
 
 

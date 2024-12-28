@@ -46,7 +46,7 @@ ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
 
 @pytest.fixture(scope='session', autouse=True)
 def summary_notes(request, worker_id):
-    capmanager = request.config.pluginmanager.getplugin("capturemanager")
+    capmanager = request.config.pluginmanager.getplugin('capturemanager')
     with capmanager.global_and_fixture_disabled():
         log_handler = logging.StreamHandler(sys.stderr)
     log_fmt = logging.Formatter(f'{worker_id} %(asctime)s %(levelname).1s %(message)s')
@@ -62,7 +62,7 @@ def summary_notes(request, worker_id):
 
 @pytest.fixture(scope='session', autouse=True)
 def node_stats(summary_notes):
-    summary_notes.append(f"NODE={NODE_DESCRIPTION} seed={RNG_SEED}")
+    summary_notes.append(f'NODE={NODE_DESCRIPTION} seed={RNG_SEED}')
 
 
 @pytest.hookimpl
@@ -79,7 +79,7 @@ def pytest_addoption(parser):
             'If specified, all occurrences of this string in `--sut` will be substituted with a '
             'path to a tmp file containing env vars to be used when running commands in tests. Useful '
             'for docker.'
-        )
+        ),
     )
     parser.addoption(
         '--as_version',
@@ -116,7 +116,7 @@ def apiver_int(request):
 
 @pytest.fixture(scope='session')
 def apiver(apiver_int):
-    return f"v{apiver_int}"
+    return f'v{apiver_int}'
 
 
 @pytest.hookimpl
@@ -258,14 +258,20 @@ def b2_api(
     yield api
     api.clean_buckets()
     # showing account_id in the logs is safe; so we explicitly prevent it from being redacted
-    summary_notes.append(f"B2 Account ID: {api.account_id[:1]!r}{api.account_id[1:]!r}")
-    summary_notes.append(f"Buckets names used during this tests: {api.bucket_name_log!r}")
+    summary_notes.append(f'B2 Account ID: {api.account_id[:1]!r}{api.account_id[1:]!r}')
+    summary_notes.append(f'Buckets names used during this tests: {api.bucket_name_log!r}')
 
 
 @pytest.fixture(scope='module')
 def global_b2_tool(
-    request, application_key_id, application_key, realm, this_run_bucket_name_prefix, b2_api,
-    auto_change_account_info_dir, b2_uri_args
+    request,
+    application_key_id,
+    application_key,
+    realm,
+    this_run_bucket_name_prefix,
+    b2_api,
+    auto_change_account_info_dir,
+    b2_uri_args,
 ) -> CommandLine:
     tool = CommandLine(
         request.config.getoption('--sut'),
@@ -335,12 +341,12 @@ def is_running_on_docker(pytestconfig):
 SECRET_FIXTURES = {'application_key', 'application_key_id'}
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def homedir(tmp_path_factory):
-    yield tmp_path_factory.mktemp("test_homedir")
+    yield tmp_path_factory.mktemp('test_homedir')
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def b2_in_path(tmp_path_factory):
     """
     Create a dummy b2 executable in a temporary directory and add it to PATH.
@@ -348,31 +354,31 @@ def b2_in_path(tmp_path_factory):
     This allows us to test the b2 command from shell level even if tested `b2` package was not installed.
     """
 
-    tempdir = tmp_path_factory.mktemp("temp_bin")
-    temp_executable = tempdir / "b2"
-    with open(temp_executable, "w") as f:
+    tempdir = tmp_path_factory.mktemp('temp_bin')
+    temp_executable = tempdir / 'b2'
+    with open(temp_executable, 'w') as f:
         f.write(
-            f"#!{sys.executable}\n"
-            "import sys\n"
-            f"sys.path.insert(0, {os.getcwd()!r})\n"  # ensure relative imports work even if command is run in different directory
-            "from b2.console_tool import main\n"
-            "main()\n"
+            f'#!{sys.executable}\n'
+            'import sys\n'
+            f'sys.path.insert(0, {os.getcwd()!r})\n'  # ensure relative imports work even if command is run in different directory
+            'from b2.console_tool import main\n'
+            'main()\n'
         )
 
     temp_executable.chmod(0o700)
 
-    original_path = os.environ["PATH"]
-    new_path = f"{tempdir}:{original_path}"
+    original_path = os.environ['PATH']
+    new_path = f'{tempdir}:{original_path}'
     yield new_path
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def env(b2_in_path, homedir, monkeysession, is_running_on_docker):
     """Get ENV for running b2 command from shell level."""
     if not is_running_on_docker:
         monkeysession.setenv('PATH', b2_in_path)
     monkeysession.setenv('HOME', str(homedir))
-    monkeysession.setenv('SHELL', "/bin/bash")  # fix for running under github actions
+    monkeysession.setenv('SHELL', '/bin/bash')  # fix for running under github actions
     yield os.environ
 
 
@@ -383,14 +389,14 @@ def bash_runner(env):
     def run_command(command: str):
         try:
             return subprocess.run(
-                ["/bin/bash", "-c", command],
+                ['/bin/bash', '-c', command],
                 capture_output=True,
                 check=True,
                 env=env,
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            print(f"Command {command!r} failed with exit code {e.returncode}")
+            print(f'Command {command!r} failed with exit code {e.returncode}')
             print(e.stdout)
             print(e.stderr, file=sys.stderr)
             raise
@@ -418,7 +424,7 @@ def b2_uri_args(apiver_int):
 # -- Persistent bucket fixtures --
 @pytest.fixture
 def unique_subfolder():
-    subfolder = f"test-{uuid.uuid4().hex[:8]}"
+    subfolder = f'test-{uuid.uuid4().hex[:8]}'
     yield subfolder
 
 

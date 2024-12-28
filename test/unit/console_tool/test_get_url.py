@@ -12,7 +12,9 @@ import pytest
 
 @pytest.fixture
 def uploaded_file_url(bucket_info, uploaded_file):
-    return f"http://download.example.com/file/{bucket_info['bucketName']}/{uploaded_file['fileName']}"
+    return (
+        f"http://download.example.com/file/{bucket_info['bucketName']}/{uploaded_file['fileName']}"
+    )
 
 
 @pytest.fixture
@@ -22,42 +24,41 @@ def uploaded_file_url_by_id(uploaded_file):
 
 def test_get_url(b2_cli, uploaded_file, uploaded_file_url_by_id):
     b2_cli.run(
-        ["get-url", f"b2id://{uploaded_file['fileId']}"],
-        expected_stdout=f"{uploaded_file_url_by_id}\n",
+        ['get-url', f"b2id://{uploaded_file['fileId']}"],
+        expected_stdout=f'{uploaded_file_url_by_id}\n',
         expected_stderr='WARNING: `get-url` command is deprecated. Use `file url` instead.\n',
     )
 
 
 def test_make_url(b2_cli, uploaded_file, uploaded_file_url_by_id):
     b2_cli.run(
-        ["make-url", uploaded_file["fileId"]],
-        expected_stdout=f"{uploaded_file_url_by_id}\n",
+        ['make-url', uploaded_file['fileId']],
+        expected_stdout=f'{uploaded_file_url_by_id}\n',
         expected_stderr='WARNING: `make-url` command is deprecated. Use `file url` instead.\n',
     )
 
 
 def test_make_friendly_url(b2_cli, bucket, uploaded_file, uploaded_file_url):
     b2_cli.run(
-        ["make-friendly-url", bucket, uploaded_file["fileName"]],
-        expected_stdout=f"{uploaded_file_url}\n",
-        expected_stderr=
-        'WARNING: `make-friendly-url` command is deprecated. Use `file url` instead.\n',
+        ['make-friendly-url', bucket, uploaded_file['fileName']],
+        expected_stdout=f'{uploaded_file_url}\n',
+        expected_stderr='WARNING: `make-friendly-url` command is deprecated. Use `file url` instead.\n',
     )
 
 
 def test_get_url__b2_uri(b2_cli, bucket, uploaded_file, uploaded_file_url):
     b2_cli.run(
         [
-            "file",
-            "url",
+            'file',
+            'url',
             f'b2://{bucket}/{uploaded_file["fileName"]}',
         ],
-        expected_stdout=f"{uploaded_file_url}\n",
+        expected_stdout=f'{uploaded_file_url}\n',
     )
 
 
 def test_get_url__b2id_uri(b2_cli, uploaded_file, uploaded_file_url_by_id):
     b2_cli.run(
-        ["file", "url", f'b2id://{uploaded_file["fileId"]}'],
-        expected_stdout=f"{uploaded_file_url_by_id}\n",
+        ['file', 'url', f'b2id://{uploaded_file["fileId"]}'],
+        expected_stdout=f'{uploaded_file_url_by_id}\n',
     )

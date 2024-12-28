@@ -29,7 +29,6 @@ def _get_b2api_for_profile(
     raise_if_does_not_exist: bool = False,
     **kwargs,
 ) -> B2Api:
-
     if raise_if_does_not_exist:
         account_info_file = SqliteAccountInfo.get_user_account_info_path(profile=profile)
         if not os.path.exists(account_info_file):
@@ -64,4 +63,6 @@ def _get_inmemory_b2api(**kwargs) -> B2Api:
 
 
 def _get_b2httpapiconfig():
-    return B2HttpApiConfig(user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR),)
+    return B2HttpApiConfig(
+        user_agent_append=os.environ.get(B2_USER_AGENT_APPEND_ENV_VAR),
+    )

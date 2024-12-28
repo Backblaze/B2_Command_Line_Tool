@@ -227,12 +227,12 @@ def resolve_b2_bin_call_name(argv: list[str] | None = None) -> str:
     return call_name
 
 
-FILE_RETENTION_COMPATIBILITY_WARNING = """
+FILE_RETENTION_COMPATIBILITY_WARNING = f"""
     .. warning::
-       Setting file retention mode to '{}' is irreversible - such files can only be ever deleted after their retention
+       Setting file retention mode to '{RetentionMode.COMPLIANCE.value}' is irreversible - such files can only be ever deleted after their retention
        period passes, regardless of keys (master or not) used. This is especially dangerous when setting bucket default
        retention, as it may lead to high storage costs.
-""".format(RetentionMode.COMPLIANCE.value)
+"""
 
 # Strings available to use when formatting doc strings.
 DOC_STRING_DATA = dict(
@@ -391,7 +391,7 @@ class DefaultSseMixin(Described):
             parser,
             '--default-server-side-encryption-algorithm',
             default='AES256',
-            choices=('AES256',)
+            choices=('AES256',),
         )
 
         super()._setup_parser(parser)  # noqa
@@ -430,13 +430,13 @@ class DestinationSseMixin(Described):
             parser,
             '--destination-server-side-encryption',
             default=None,
-            choices=('SSE-B2', 'SSE-C')
+            choices=('SSE-B2', 'SSE-C'),
         )
         add_normalized_argument(
             parser,
             '--destination-server-side-encryption-algorithm',
             default='AES256',
-            choices=('AES256',)
+            choices=('AES256',),
         )
 
         super()._setup_parser(parser)  # noqa
@@ -453,8 +453,8 @@ class DestinationSseMixin(Described):
                 encryption_key_b64 = os.environ.get(B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
                     raise ValueError(
-                        'Using SSE-C requires providing an encryption key via %s env var' %
-                        B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
+                        'Using SSE-C requires providing an encryption key via %s env var'
+                        % B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
                     )
                 key_id = os.environ.get(B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR)
                 if key_id is None:
@@ -484,7 +484,7 @@ class FileRetentionSettingMixin(Described):
             parser,
             '--file-retention-mode',
             default=None,
-            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value)
+            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value),
         )
 
         add_normalized_argument(
@@ -492,7 +492,7 @@ class FileRetentionSettingMixin(Described):
             '--retain-until',
             type=parse_millis_from_float_timestamp,
             default=None,
-            metavar='TIMESTAMP'
+            metavar='TIMESTAMP',
         )
         super()._setup_parser(parser)  # noqa
 
@@ -516,37 +516,33 @@ class HeaderFlagsMixin(Described):
         add_normalized_argument(
             parser,
             '--cache-control',
-            help=
-            "optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')"
+            help="optional Cache-Control header, value based on RFC 2616 section 14.9, example: 'public, max-age=86400')",
         )
         add_normalized_argument(
             parser,
             '--content-disposition',
-            help=
-            "optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: 'attachment; filename=\"fname.ext\"'"
+            help='optional Content-Disposition header, value based on RFC 2616 section 19.5.1, example: \'attachment; filename="fname.ext"\'',
         )
         add_normalized_argument(
             parser,
             '--content-encoding',
-            help=
-            "optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'"
+            help="optional Content-Encoding header, value based on RFC 2616 section 14.11, example: 'gzip'",
         )
         add_normalized_argument(
             parser,
             '--content-language',
-            help=
-            "optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'"
+            help="optional Content-Language header, value based on RFC 2616 section 14.12, example: 'mi, en'",
         )
         add_normalized_argument(
             parser,
             '--expires',
-            help=
-            "optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'"
+            help="optional Expires header, value based on RFC 2616 section 14.21, example: 'Thu, 01 Dec 2050 16:00:00 GMT'",
         )
         super()._setup_parser(parser)
 
-    def _file_info_with_header_args(self, args,
-                                    file_info: dict[str, str] | None) -> dict[str, str] | None:
+    def _file_info_with_header_args(
+        self, args, file_info: dict[str, str] | None
+    ) -> dict[str, str] | None:
         """Construct an updated file_info dictionary.
         Print a warning if any of file_info items will be overwritten by explicit header arguments.
         """
@@ -569,8 +565,8 @@ class HeaderFlagsMixin(Described):
 
         if overwritten:
             self._print_stderr(
-                'The following file info items will be overwritten by explicit arguments:\n    ' +
-                '\n    '.join(f'{key} = {add_file_info[key]}' for key in overwritten)
+                'The following file info items will be overwritten by explicit arguments:\n    '
+                + '\n    '.join(f'{key} = {add_file_info[key]}' for key in overwritten)
             )
 
         if add_file_info:
@@ -615,7 +611,7 @@ class SourceSseMixin(Described):
             parser,
             '--source-server-side-encryption-algorithm',
             default='AES256',
-            choices=('AES256',)
+            choices=('AES256',),
         )
 
         super()._setup_parser(parser)  # noqa
@@ -632,8 +628,8 @@ class SourceSseMixin(Described):
                 encryption_key_b64 = os.environ.get(B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
                     raise ValueError(
-                        'Using SSE-C requires providing an encryption key via %s env var' %
-                        B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
+                        'Using SSE-C requires providing an encryption key via %s env var'
+                        % B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
                     )
                 key = EncryptionKey(
                     secret=base64.b64decode(encryption_key_b64), key_id=UNKNOWN_KEY_ID
@@ -729,14 +725,14 @@ class B2URIFileOrBucketNameFileNameArgMixin:
             if args.fileName:
                 raise argparse.ArgumentError(
                     self._b2_uri_arg,
-                    "Both B2 URI and file name were provided, but only one is expected"
+                    'Both B2 URI and file name were provided, but only one is expected',
                 )
             return args.B2_URI
 
         if not args.fileName:
             raise argparse.ArgumentError(
                 self._b2_uri_arg,
-                f"Incorrect B2 URI was provided, expected `b2://bucketName/fileName`, but got {args.B2_URI!r}"
+                f'Incorrect B2 URI was provided, expected `b2://bucketName/fileName`, but got {args.B2_URI!r}',
             )
         self._print_stderr(
             'WARNING: "bucketName fileName" arguments syntax is deprecated, use "b2://bucketName/fileName" instead'
@@ -785,7 +781,7 @@ class B2URIBucketNFolderNameArgMixin:
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
-        return B2URI(removeprefix(args.bucketName or '', "b2://"), args.folderName or '')
+        return B2URI(removeprefix(args.bucketName or '', 'b2://'), args.folderName or '')
 
 
 class B2IDOrB2URIMixin:
@@ -858,7 +854,7 @@ class ProgressMixin(Described):
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(
-            parser, '--no-progress', action='store_true', help="progress will not be reported"
+            parser, '--no-progress', action='store_true', help='progress will not be reported'
         )
         super()._setup_parser(parser)  # noqa
 
@@ -882,14 +878,13 @@ class LifecycleRulesMixin(Described):
             default=None,
             type=functools.partial(validated_loads, expected_type=LifecycleRule),
             dest='lifecycle_rules',
-            help="Lifecycle rule in JSON format. Can be supplied multiple times.",
+            help='Lifecycle rule in JSON format. Can be supplied multiple times.',
         )
         add_normalized_argument(
             lifecycle_group,
             '--lifecycle-rules',
             type=functools.partial(validated_loads, expected_type=List[LifecycleRule]),
-            help=
-            "(deprecated; use --lifecycle-rule instead) List of lifecycle rules in JSON format.",
+            help='(deprecated; use --lifecycle-rule instead) List of lifecycle rules in JSON format.',
         )
 
         super()._setup_parser(parser)  # noqa
@@ -928,10 +923,11 @@ class _TqdmCloser:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if sys.platform != "darwin" or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER'):
+        if sys.platform != 'darwin' or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER'):
             return
         try:
             from multiprocessing.synchronize import SemLock
+
             tqdm_lock = self.progress_listener.tqdm.get_lock()
             if tqdm_lock.mp_lock._semlock.name is not None:
                 SemLock._cleanup(tqdm_lock.mp_lock._semlock.name)
@@ -1056,7 +1052,7 @@ class Command(Described, metaclass=ABCMeta):
                     '--no-escape-control-characters',
                     dest='escape_control_characters',
                     action='store_false',
-                    help=argparse.SUPPRESS
+                    help=argparse.SUPPRESS,
                 )
 
                 common_parser.set_defaults(escape_control_characters=None)
@@ -1074,7 +1070,7 @@ class Command(Described, metaclass=ABCMeta):
                     subparsers=subparsers,
                     parents=parents,
                     for_docs=for_docs,
-                    b2_binary_name=b2_binary_name
+                    b2_binary_name=b2_binary_name,
                 )
 
         return parser
@@ -1086,8 +1082,7 @@ class Command(Described, metaclass=ABCMeta):
             return self._run(args)
 
     @abstractmethod
-    def _run(self, args) -> int:
-        ...
+    def _run(self, args) -> int: ...
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1106,7 +1101,7 @@ class Command(Described, metaclass=ABCMeta):
     def _print_json(self, data) -> None:
         return self._print(
             json.dumps(data, indent=4, sort_keys=True, ensure_ascii=True, cls=B2CliJsonEncoder),
-            enforce_output=True
+            enforce_output=True,
         )
 
     def _print_human_readable_structure(self, data) -> None:
@@ -1122,7 +1117,7 @@ class Command(Described, metaclass=ABCMeta):
     ) -> None:
         return self._print_standard_descriptor(
             self.stdout,
-            "stdout",
+            'stdout',
             *args,
             enforce_output=enforce_output,
             end=end,
@@ -1130,7 +1125,7 @@ class Command(Described, metaclass=ABCMeta):
 
     def _print_stderr(self, *args, end: str | None = None) -> None:
         return self._print_standard_descriptor(
-            self.stderr, "stderr", *args, enforce_output=True, end=end
+            self.stderr, 'stderr', *args, enforce_output=True, end=end
         )
 
     def _print_standard_descriptor(
@@ -1157,7 +1152,7 @@ class Command(Described, metaclass=ABCMeta):
                 descriptor_name,
                 *args,
                 end=end,
-                sanitize=self.escape_control_characters
+                sanitize=self.escape_control_characters,
             )
 
     @classmethod
@@ -1168,7 +1163,7 @@ class Command(Described, metaclass=ABCMeta):
         descriptor_name: str,
         *args,
         sanitize: bool = True,
-        end: str | None = None
+        end: str | None = None,
     ):
         if sanitize:
             args = tuple(unprintable_to_hex(arg) or '' for arg in args)
@@ -1176,15 +1171,12 @@ class Command(Described, metaclass=ABCMeta):
             descriptor.write(' '.join(args))
         except UnicodeEncodeError:
             sys.stderr.write(
-                "\nWARNING: Unable to print unicode.  Encoding for {} is: '{}'\n".format(
-                    descriptor_name,
-                    descriptor_encoding,
-                )
+                f"\nWARNING: Unable to print unicode.  Encoding for {descriptor_name} is: '{descriptor_encoding}'\n"
             )
             args = [arg.encode('ascii', 'backslashreplace').decode() for arg in args]
-            sys.stderr.write("Trying to print: %s\n" % args)
+            sys.stderr.write('Trying to print: %s\n' % args)
             descriptor.write(' '.join(args))
-        descriptor.write("\n" if end is None else end)
+        descriptor.write('\n' if end is None else end)
 
     def __str__(self):
         return f'{self.__class__.__module__}.{self.__class__.__name__}'
@@ -1340,15 +1332,13 @@ class AccountAuthorizeBase(Command):
         realm = self._get_user_requested_realm(args)
 
         if args.applicationKeyId is None:
-            args.applicationKeyId = (
-                os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR) or
-                input('Backblaze application key ID: ')
+            args.applicationKeyId = os.environ.get(B2_APPLICATION_KEY_ID_ENV_VAR) or input(
+                'Backblaze application key ID: '
             )
 
         if args.applicationKey is None:
-            args.applicationKey = (
-                os.environ.get(B2_APPLICATION_KEY_ENV_VAR) or
-                getpass.getpass('Backblaze application key: ')
+            args.applicationKey = os.environ.get(B2_APPLICATION_KEY_ENV_VAR) or getpass.getpass(
+                'Backblaze application key: '
             )
 
         status = self.authorize(args.applicationKeyId, args.applicationKey, realm)
@@ -1369,7 +1359,7 @@ class AccountAuthorizeBase(Command):
         verbose_realm = bool(realm)
         realm = realm or 'production'
         url = REALM_URLS.get(realm, realm)
-        logger.info(f"Using {url}")
+        logger.info(f'Using {url}')
         if verbose_realm:
             self._print_stderr(f'Using {url}')
         try:
@@ -1388,8 +1378,9 @@ class AccountAuthorizeBase(Command):
             if allowed['bucketId'] is not None and allowed['bucketName'] is None:
                 logger.error('ConsoleTool has bucket-restricted key and the bucket does not exist')
                 self._print_stderr(
-                    "ERROR: application key is restricted to bucket id '{}', which no longer exists"
-                    .format(allowed['bucketId'])
+                    "ERROR: application key is restricted to bucket id '{}', which no longer exists".format(
+                        allowed['bucketId']
+                    )
                 )
                 self.api.account_info.clear()
                 return 1
@@ -1467,8 +1458,12 @@ class AccountClearBase(Command):
 
 
 class FileServerSideCopyBase(
-    HeaderFlagsMixin, DestinationSseMixin, SourceSseMixin, FileRetentionSettingMixin,
-    LegalHoldMixin, Command
+    HeaderFlagsMixin,
+    DestinationSseMixin,
+    SourceSseMixin,
+    FileRetentionSettingMixin,
+    LegalHoldMixin,
+    Command,
 ):
     """
     Copy a file version to the given bucket (server-side, **not** via download+upload).
@@ -1599,7 +1594,9 @@ class FileServerSideCopyBase(
             destination_encryption
         ):  # no sse-c, no problem
             return None, None
-        if target_file_info is not None or target_content_type is not None:  # metadataDirective=REPLACE, no problem
+        if (
+            target_file_info is not None or target_content_type is not None
+        ):  # metadataDirective=REPLACE, no problem
             return None, None
         if not fetch_if_necessary:
             raise ValueError(
@@ -1651,15 +1648,13 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             parser,
             '--cors-rules',
             type=validated_loads,
-            help=
-            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
+            help="If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string.",
         )
         add_normalized_argument(
             parser,
             '--file-lock-enabled',
             action='store_true',
-            help=
-            "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation."
+            help='If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation.',
         )
         parser.add_argument('--replication', type=validated_loads)
         add_bucket_name_argument(parser)
@@ -1745,7 +1740,7 @@ class KeyCreateBase(Command):
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
             bucket_id=bucket_id_or_none,
-            name_prefix=args.name_prefix
+            name_prefix=args.name_prefix,
         )
 
         self._print(f'{application_key.id_} {application_key.application_key}')
@@ -1829,16 +1824,16 @@ class DownloadCommand(
     WriteBufferSizeMixin,
     SkipHashVerificationMixin,
     Command,
-    metaclass=ABCMeta
+    metaclass=ABCMeta,
 ):
-    """ helper methods for returning results from download commands """
+    """helper methods for returning results from download commands"""
 
     def _print_download_info(
         self, downloaded_file: DownloadedFile, output_filepath: pathlib.Path
     ) -> None:
         download_version = downloaded_file.download_version
-        output_filepath_string = 'stdout' if output_filepath == STDOUT_FILEPATH else str(
-            output_filepath.resolve()
+        output_filepath_string = (
+            'stdout' if output_filepath == STDOUT_FILEPATH else str(output_filepath.resolve())
         )
         self._print_file_attribute('File name', download_version.file_name)
         self._print_file_attribute('File id', download_version.id_)
@@ -1898,7 +1893,7 @@ class DownloadCommand(
                 retention.mode.value,
                 datetime.datetime.fromtimestamp(
                     retention.retain_until / 1000, datetime.timezone.utc
-                )
+                ),
             )
         raise ValueError(f'Unsupported retention mode: {retention.mode}')
 
@@ -2094,7 +2089,7 @@ class BucketGetBase(Command):
                 result = b.as_dict()
                 # `files` is a generator. We don't want to collect all of the values from the
                 # generator, as there many be billions of files in a large bucket.
-                files = b.ls("", latest_only=False, recursive=True)
+                files = b.ls('', latest_only=False, recursive=True)
                 # `files` yields tuples of (file_version, folder_name). We don't care about
                 # `folder_name`, so just access the first slot of the tuple directly in the
                 # reducer. We can't ask a generator for its size, as the elements are yielded
@@ -2530,7 +2525,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if args.long and args.json:
             raise CommandError('Cannot use --long and --json options together')
 
-        if not b2_uri or b2_uri == B2URI(""):
+        if not b2_uri or b2_uri == B2URI(''):
             for option_name in ('long', 'recursive', 'replication'):
                 if getattr(args, option_name, False):
                     raise CommandError(
@@ -2641,6 +2636,7 @@ class Ls(B2IDOrB2URIMixin, BaseLs):
     - **listFiles**
     - **listBuckets** (if bucket name is not provided)
     """
+
     ALLOW_ALL_BUCKETS = True
 
 
@@ -2775,12 +2771,13 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
         add_normalized_argument(parser, '--dry-run', action='store_true')
-        add_normalized_argument(parser,
+        add_normalized_argument(
+            parser,
             '--queue-size',
             type=int,
             default=None,
-            help='max elements fetched at once for removal, ' \
-                 'if left unset defaults to twice the number of threads.',
+            help='max elements fetched at once for removal, '
+            'if left unset defaults to twice the number of threads.',
         )
         add_normalized_argument(parser, '--no-progress', action='store_true')
         add_normalized_argument(parser, '--fail-fast', action='store_true')
@@ -2807,8 +2804,10 @@ class BaseRm(ThreadsMixin, AbstractLsCommand, metaclass=ABCMeta):
                 event_type, *data = queue_entry
                 if event_type == submit_thread.ERROR_TAG:
                     file_version, error = data
-                    message = f'Deletion of file "{file_version.file_name}" ' \
-                              f'({file_version.id_}) failed: {str(error)}'
+                    message = (
+                        f'Deletion of file "{file_version.file_name}" '
+                        f'({file_version.id_}) failed: {str(error)}'
+                    )
                     reporter.print_completion(message)
 
                     failed_on_any_file = True
@@ -3124,14 +3123,14 @@ class Sync(
             '--exclude-if-modified-after',
             type=parse_millis_from_float_timestamp,
             default=None,
-            metavar='TIMESTAMP'
+            metavar='TIMESTAMP',
         )
         add_normalized_argument(
             parser,
             '--exclude-if-uploaded-after',
             type=parse_millis_from_float_timestamp,
             default=None,
-            metavar='TIMESTAMP'
+            metavar='TIMESTAMP',
         )
         super()._setup_parser(parser)  # add parameters from the mixins, and the parent class
         parser.add_argument('source')
@@ -3149,10 +3148,12 @@ class Sync(
         policies_manager = self.get_policies_manager_from_args(args)
 
         if args.threads is not None:
-            if args.sync_threads != self.DEFAULT_SYNC_THREADS \
-                    or args.upload_threads != self.DEFAULT_UPLOAD_THREADS \
-                    or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS:
-                raise ValueError("--threads cannot be used with other thread options")
+            if (
+                args.sync_threads != self.DEFAULT_SYNC_THREADS
+                or args.upload_threads != self.DEFAULT_UPLOAD_THREADS
+                or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS
+            ):
+                raise ValueError('--threads cannot be used with other thread options')
             sync_threads = upload_threads = download_threads = args.threads
         else:
             sync_threads = args.sync_threads
@@ -3205,7 +3206,7 @@ class Sync(
                     dest_folder=destination,
                     now_millis=current_time_millis(),
                     reporter=reporter,
-                    **kwargs
+                    **kwargs,
                 )
             except EmptyDirectory as ex:
                 raise CommandError(
@@ -3329,8 +3330,7 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             parser,
             '--cors-rules',
             type=validated_loads,
-            help=
-            "If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string."
+            help="If given, the bucket will have a 'custom' CORS configuration. Accepts a JSON string.",
         )
         add_normalized_argument(
             parser,
@@ -3354,8 +3354,7 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             '--file-lock-enabled',
             action='store_true',
             default=None,
-            help=
-            "If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed back."
+            help='If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed back.',
         )
         add_bucket_name_argument(parser)
         parser.add_argument('bucketType', nargs='?', choices=CREATE_BUCKET_TYPES)
@@ -3406,7 +3405,7 @@ class MinPartSizeMixin(Described):
             parser,
             '--min-part-size',
             type=int,
-            help="minimum part size in bytes",
+            help='minimum part size in bytes',
             default=None,
         )
         super()._setup_parser(parser)  # noqa
@@ -3420,7 +3419,7 @@ class UploadFileMixin(
     DestinationSseMixin,
     LegalHoldMixin,
     FileRetentionSettingMixin,
-    metaclass=ABCMeta
+    metaclass=ABCMeta,
 ):
     """
     Content type is optional.
@@ -3437,27 +3436,26 @@ class UploadFileMixin(
         add_normalized_argument(
             parser,
             '--content-type',
-            help="MIME type of the file being uploaded. If not set it will be guessed."
+            help='MIME type of the file being uploaded. If not set it will be guessed.',
         )
         parser.add_argument(
-            '--sha1', help="SHA-1 of the data being uploaded for verifying file integrity"
+            '--sha1', help='SHA-1 of the data being uploaded for verifying file integrity'
         )
         parser.add_argument(
             '--info',
             action='append',
             default=[],
-            help=
-            "additional file info to be stored with the file. Can be used multiple times for different information."
+            help='additional file info to be stored with the file. Can be used multiple times for different information.',
         )
         add_normalized_argument(
             parser,
             '--custom-upload-timestamp',
             type=int,
-            help="overrides object creation date. Expressed as a number of milliseconds since epoch."
+            help='overrides object creation date. Expressed as a number of milliseconds since epoch.',
         )
-        add_bucket_name_argument(parser, help="name of the bucket where the file will be stored")
-        parser.add_argument('localFilePath', help="path of the local file or stream to be uploaded")
-        parser.add_argument('b2FileName', help="name file will be given when stored in B2")
+        add_bucket_name_argument(parser, help='name of the bucket where the file will be stored')
+        parser.add_argument('localFilePath', help='path of the local file or stream to be uploaded')
+        parser.add_argument('b2FileName', help='name file will be given when stored in B2')
 
         super()._setup_parser(parser)  # add parameters from the mixins
 
@@ -3465,9 +3463,9 @@ class UploadFileMixin(
         self._set_threads_from_args(args)
         upload_kwargs = self.get_execute_kwargs(args)
         file_info = self.execute_operation(**upload_kwargs)
-        bucket = upload_kwargs["bucket"]
-        self._print("URL by file name: " + bucket.get_download_url(file_info.file_name))
-        self._print("URL by fileId: " + self.api.get_download_url_for_fileid(file_info.id_))
+        bucket = upload_kwargs['bucket']
+        self._print('URL by file name: ' + bucket.get_download_url(file_info.file_name))
+        self._print('URL by fileId: ' + self.api.get_download_url_for_fileid(file_info.id_))
         self._print_json(file_info)
         return 0
 
@@ -3480,7 +3478,7 @@ class UploadFileMixin(
             except OSError:
                 if not points_to_fifo(pathlib.Path(args.localFilePath)):
                     self._print_stderr(
-                        "WARNING: Unable to determine file modification timestamp. "
+                        'WARNING: Unable to determine file modification timestamp. '
                         f"{SRC_LAST_MODIFIED_MILLIS!r} file info won't be set."
                     )
             else:
@@ -3489,32 +3487,21 @@ class UploadFileMixin(
         file_infos = self._file_info_with_header_args(args, file_infos)
 
         return {
-            "bucket":
-                self.api.get_bucket_by_name(args.bucketName),
-            "content_type":
-                args.content_type,
-            "custom_upload_timestamp":
-                args.custom_upload_timestamp,
-            "encryption":
-                self._get_destination_sse_setting(args),
-            "file_info":
-                file_infos,
-            "file_name":
-                args.b2FileName,
-            "file_retention":
-                self._get_file_retention_setting(args),
-            "legal_hold":
-                self._get_legal_hold_setting(args),
-            "local_file":
-                args.localFilePath,
-            "min_part_size":
-                args.min_part_size,
-            "progress_listener":
-                self.make_progress_listener(args.localFilePath, args.no_progress or args.quiet),
-            "sha1_sum":
-                args.sha1,
-            "threads":
-                self._get_threads_from_args(args),
+            'bucket': self.api.get_bucket_by_name(args.bucketName),
+            'content_type': args.content_type,
+            'custom_upload_timestamp': args.custom_upload_timestamp,
+            'encryption': self._get_destination_sse_setting(args),
+            'file_info': file_infos,
+            'file_name': args.b2FileName,
+            'file_retention': self._get_file_retention_setting(args),
+            'legal_hold': self._get_legal_hold_setting(args),
+            'local_file': args.localFilePath,
+            'min_part_size': args.min_part_size,
+            'progress_listener': self.make_progress_listener(
+                args.localFilePath, args.no_progress or args.quiet
+            ),
+            'sha1_sum': args.sha1,
+            'threads': self._get_threads_from_args(args),
         }
 
     @abstractmethod
@@ -3525,15 +3512,15 @@ class UploadFileMixin(
         """
         Translate `file upload` kwargs to unbound_upload equivalents
         """
-        kwargs["large_file_sha1"] = kwargs.pop("sha1_sum", None)
-        kwargs["buffers_count"] = kwargs["threads"] + 1
-        kwargs["read_size"] = kwargs["min_part_size"] or DEFAULT_MIN_PART_SIZE
+        kwargs['large_file_sha1'] = kwargs.pop('sha1_sum', None)
+        kwargs['buffers_count'] = kwargs['threads'] + 1
+        kwargs['read_size'] = kwargs['min_part_size'] or DEFAULT_MIN_PART_SIZE
         return kwargs
 
     def get_input_stream(self, filename: str) -> str | int | io.BinaryIO:
         """Get input stream IF filename points to a FIFO or stdin."""
-        if filename == "-":
-            return sys.stdin.buffer if platform.system() == "Windows" else sys.stdin.fileno()
+        if filename == '-':
+            return sys.stdin.buffer if platform.system() == 'Windows' else sys.stdin.fileno()
         elif points_to_fifo(pathlib.Path(filename)):
             return filename
 
@@ -3543,7 +3530,7 @@ class UploadFileMixin(
         if isinstance(file_id, (str, int)):
             return open(
                 file_id,
-                mode="rb",
+                mode='rb',
                 closefd=not isinstance(file_id, int),
                 buffering=buffering,
             )
@@ -3589,7 +3576,7 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
 
     def get_execute_kwargs(self, args) -> dict:
         kwargs = super().get_execute_kwargs(args)
-        kwargs["upload_mode"] = self._get_upload_mode_from_args(args)
+        kwargs['upload_mode'] = self._get_upload_mode_from_args(args)
         return kwargs
 
     def execute_operation(self, local_file, bucket, threads, **kwargs):
@@ -3598,14 +3585,14 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
         except self.NotAnInputStream:  # it is a regular file
             file_version = bucket.upload_local_file(local_file=local_file, **kwargs)
         else:
-            if kwargs.pop("upload_mode", None) != UploadMode.FULL:
+            if kwargs.pop('upload_mode', None) != UploadMode.FULL:
                 self._print_stderr(
-                    "WARNING: Ignoring upload mode setting as we are uploading a stream."
+                    'WARNING: Ignoring upload mode setting as we are uploading a stream.'
                 )
             kwargs = self.upload_file_kwargs_to_unbound_upload(threads=threads, **kwargs)
-            del kwargs["threads"]
+            del kwargs['threads']
             input_stream = self.file_identifier_to_read_stream(
-                input_stream, kwargs["min_part_size"] or DEFAULT_MIN_PART_SIZE
+                input_stream, kwargs['min_part_size'] or DEFAULT_MIN_PART_SIZE
             )
             with input_stream:
                 file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
@@ -3654,7 +3641,7 @@ class UploadUnboundStreamBase(UploadFileMixin, Command):
             '--part-size',
             type=int,
             default=None,
-            help=("part size in bytes. Must be in range of <minPartSize, 5GB>"),
+            help=('part size in bytes. Must be in range of <minPartSize, 5GB>'),
         )
         add_normalized_argument(
             parser,
@@ -3662,8 +3649,8 @@ class UploadUnboundStreamBase(UploadFileMixin, Command):
             type=float,
             default=3600.0,
             help=(
-                "maximum time in seconds that not a single part may sit in the queue,"
-                " waiting to be uploaded, before an error is returned"
+                'maximum time in seconds that not a single part may sit in the queue,'
+                ' waiting to be uploaded, before an error is returned'
             ),
         )
         super()._setup_parser(parser)
@@ -3671,8 +3658,8 @@ class UploadUnboundStreamBase(UploadFileMixin, Command):
     def get_execute_kwargs(self, args) -> dict:
         kwargs = super().get_execute_kwargs(args)
         kwargs = self.upload_file_kwargs_to_unbound_upload(**kwargs)
-        kwargs["recommended_upload_part_size"] = args.part_size
-        kwargs["unused_buffer_timeout_seconds"] = args.unused_buffer_timeout_seconds
+        kwargs['recommended_upload_part_size'] = args.part_size
+        kwargs['unused_buffer_timeout_seconds'] = args.unused_buffer_timeout_seconds
         return kwargs
 
     def execute_operation(self, local_file, bucket, threads, **kwargs):
@@ -3680,14 +3667,14 @@ class UploadUnboundStreamBase(UploadFileMixin, Command):
             input_stream = self.get_input_stream(local_file)
         except self.NotAnInputStream:  # it is a regular file
             self._print_stderr(
-                "WARNING: You are using a stream upload command to upload a regular file. "
-                "While it will work, it is inefficient. "
-                "Use of `file upload` command is recommended."
+                'WARNING: You are using a stream upload command to upload a regular file. '
+                'While it will work, it is inefficient. '
+                'Use of `file upload` command is recommended.'
             )
             input_stream = local_file
 
         input_stream = self.file_identifier_to_read_stream(
-            input_stream, kwargs["min_part_size"] or DEFAULT_MIN_PART_SIZE
+            input_stream, kwargs['min_part_size'] or DEFAULT_MIN_PART_SIZE
         )
         with input_stream:
             file_version = bucket.upload_unbound_stream(read_only_object=input_stream, **kwargs)
@@ -3731,14 +3718,14 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
             parser,
             '--file-retention-mode',
             default=None,
-            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value, 'none')
+            choices=(RetentionMode.COMPLIANCE.value, RetentionMode.GOVERNANCE.value, 'none'),
         )
         add_normalized_argument(
             parser,
             '--retain-until',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
-            default=None
+            default=None,
         )
         add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
 
@@ -3823,14 +3810,14 @@ class UpdateFileRetentionBase(FileIdAndOptionalFileNameMixin, Command):
         super()._setup_parser(parser)
         parser.add_argument(
             'retentionMode',
-            choices=(RetentionMode.GOVERNANCE.value, RetentionMode.COMPLIANCE.value, 'none')
+            choices=(RetentionMode.GOVERNANCE.value, RetentionMode.COMPLIANCE.value, 'none'),
         )
         add_normalized_argument(
             parser,
             '--retain-until',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
-            default=None
+            default=None,
         )
         add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
 
@@ -3876,8 +3863,7 @@ class ReplicationSetupBase(Command):
         add_normalized_argument(
             parser,
             '--priority',
-            help=
-            'priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.'
+            help='priority for the new replication rule on the source side [%d-%d]. Will be set automatically when not specified.'
             % (
                 ReplicationRule.MIN_PRIORITY,
                 ReplicationRule.MAX_PRIORITY,
@@ -3889,13 +3875,13 @@ class ReplicationSetupBase(Command):
             parser,
             '--file-name-prefix',
             metavar='PREFIX',
-            help='only replicate files starting with PREFIX'
+            help='only replicate files starting with PREFIX',
         )
         add_normalized_argument(
             parser,
             '--include-existing-files',
             action='store_true',
-            help='if given, also replicates files uploaded prior to creation of the replication rule'
+            help='if given, also replicates files uploaded prior to creation of the replication rule',
         )
 
     def _run(self, args):
@@ -3907,8 +3893,9 @@ class ReplicationSetupBase(Command):
         helper = ReplicationSetupHelper()
         helper.setup_both(
             source_bucket=self.api.get_bucket_by_name(args.source).get_fresh_state(),
-            destination_bucket=destination_api.get_bucket_by_name(args.destination
-                                                                 ).get_fresh_state(),
+            destination_bucket=destination_api.get_bucket_by_name(
+                args.destination
+            ).get_fresh_state(),
             name=args.name,
             priority=args.priority,
             prefix=args.file_name_prefix,
@@ -3937,7 +3924,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
 
     @classmethod
     def alter_rule_by_name(cls, bucket: Bucket, name: str) -> tuple[bool, bool]:
-        """ returns False if rule could not be found """
+        """returns False if rule could not be found"""
         if not bucket.replication or not bucket.replication.rules:
             return False, False
 
@@ -3974,7 +3961,7 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> ReplicationRule | None:
-        """ return None to delete a rule """
+        """return None to delete a rule"""
         pass
 
 
@@ -3990,7 +3977,7 @@ class ReplicationDeleteBase(ReplicationRuleChanger):
 
     @classmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> ReplicationRule | None:
-        """ return None to delete rule """
+        """return None to delete rule"""
         return None
 
 
@@ -4006,7 +3993,7 @@ class ReplicationPauseBase(ReplicationRuleChanger):
 
     @classmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> ReplicationRule | None:
-        """ return None to delete rule """
+        """return None to delete rule"""
         rule.is_enabled = False
         return rule
 
@@ -4023,7 +4010,7 @@ class ReplicationUnpauseBase(ReplicationRuleChanger):
 
     @classmethod
     def alter_one_rule(cls, rule: ReplicationRule) -> ReplicationRule | None:
-        """ return None to delete rule """
+        """return None to delete rule"""
         rule.is_enabled = True
         return rule
 
@@ -4066,7 +4053,7 @@ class ReplicationStatusBase(Command):
             '--columns',
             default=['all'],
             type=lambda value: re.split(r', ?', value),
-            metavar='COLUMN ONE,COLUMN TWO'
+            metavar='COLUMN ONE,COLUMN TWO',
         )
 
     def _run(self, args):
@@ -4104,7 +4091,8 @@ class ReplicationStatusBase(Command):
             results = {
                 rule_name: self.filter_results_columns(
                     rule_results,
-                    [column.replace(' ', '_') for column in args.columns
+                    [
+                        column.replace(' ', '_') for column in args.columns
                     ],  # allow users to use spaces instead of underscores
                 )
                 for rule_name, rule_results in results.items()
@@ -4123,8 +4111,12 @@ class ReplicationStatusBase(Command):
 
     @classmethod
     def get_results_for_rule(
-        cls, bucket: Bucket, rule: ReplicationRule, destination_api: B2Api | None,
-        scan_destination: bool, quiet: bool
+        cls,
+        bucket: Bucket,
+        rule: ReplicationRule,
+        destination_api: B2Api | None,
+        scan_destination: bool,
+        quiet: bool,
     ) -> list[dict]:
         monitor = ReplicationMonitor(
             bucket=bucket,
@@ -4138,7 +4130,8 @@ class ReplicationStatusBase(Command):
             {
                 **dataclasses.asdict(result),
                 'count': count,
-            } for result, count in report.counter_by_status.items()
+            }
+            for result, count in report.counter_by_status.items()
         ]
 
     @classmethod
@@ -4169,12 +4162,12 @@ class ReplicationStatusBase(Command):
                     key.replace('_', '\n'):  # split key to minimize column size
                     self.to_human_readable(value)
                     for key, value in result.items()
-                } for result in rule_results
+                }
+                for result in rule_results
             ]
             self._print(tabulate(rule_results, headers='keys', tablefmt='grid'))
 
     def output_csv(self, results: dict[str, list[dict]]) -> None:
-
         rows = []
 
         for rule_name, rule_results in results.items():
@@ -4186,7 +4179,8 @@ class ReplicationStatusBase(Command):
                         self.to_human_readable(value)
                         for key, value in result.items()
                     },
-                } for result in rule_results
+                }
+                for result in rule_results
             ]
 
         if not rows:
@@ -4223,6 +4217,7 @@ class License(Command):  # pragma: no cover
 
     Displays the license of B2 Command line tool and all libraries shipped with it.
     """
+
     LICENSE_OUTPUT_FILE = pathlib.Path(__file__).parent.parent / 'licenses_output.txt'
 
     REQUIRES_AUTH = False
@@ -4236,24 +4231,15 @@ class License(Command):  # pragma: no cover
     MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
 
     LICENSES = {
-        'argcomplete':
-            'https://raw.githubusercontent.com/kislyuk/argcomplete/develop/LICENSE.rst',
-        'atomicwrites':
-            'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
-        'platformdirs':
-            'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt',
-        'PTable':
-            'https://raw.githubusercontent.com/jazzband/prettytable/main/LICENSE',
-        'pipx':
-            'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
-        'userpath':
-            'https://raw.githubusercontent.com/ofek/userpath/master/LICENSE.txt',
-        'future':
-            'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
-        'pefile':
-            'https://raw.githubusercontent.com/erocarrera/pefile/master/LICENSE',
-        'https://github.com/python/typeshed':
-            'https://raw.githubusercontent.com/python/typeshed/main/LICENSE',
+        'argcomplete': 'https://raw.githubusercontent.com/kislyuk/argcomplete/develop/LICENSE.rst',
+        'atomicwrites': 'https://raw.githubusercontent.com/untitaker/python-atomicwrites/master/LICENSE',
+        'platformdirs': 'https://raw.githubusercontent.com/platformdirs/platformdirs/main/LICENSE.txt',
+        'PTable': 'https://raw.githubusercontent.com/jazzband/prettytable/main/LICENSE',
+        'pipx': 'https://raw.githubusercontent.com/pypa/pipx/main/LICENSE',
+        'userpath': 'https://raw.githubusercontent.com/ofek/userpath/master/LICENSE.txt',
+        'future': 'https://raw.githubusercontent.com/PythonCharmers/python-future/master/LICENSE.txt',
+        'pefile': 'https://raw.githubusercontent.com/erocarrera/pefile/master/LICENSE',
+        'https://github.com/python/typeshed': 'https://raw.githubusercontent.com/python/typeshed/main/LICENSE',
     }
 
     class NormalizingStringIO(io.StringIO):
@@ -4313,8 +4299,9 @@ class License(Command):  # pragma: no cover
                 files_table.add_row([file_name, file_content])
             stream.write(str(files_table))
         stream.write(f'\n\n{b2_call_name} license:\n')
-        b2_license_file_text = (pathlib.Path(__file__).parent.parent /
-                                'LICENSE').read_text(encoding='utf8')
+        b2_license_file_text = (pathlib.Path(__file__).parent.parent / 'LICENSE').read_text(
+            encoding='utf8'
+        )
         stream.write(b2_license_file_text)
 
     def _put_license_text_for_packages(self, stream: io.StringIO):
@@ -4357,13 +4344,13 @@ class License(Command):  # pragma: no cover
     def _get_licenses_dicts(cls) -> list[dict]:
         assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
         pipdeptree_run = subprocess.run(
-            ["pipdeptree", "--json", "-p", "b2"],
+            ['pipdeptree', '--json', '-p', 'b2'],
             capture_output=True,
             text=True,
             check=True,
         )
         pipdeptree = json.loads(pipdeptree_run.stdout)
-        used_packages = [dep["package"]['package_name'] for dep in pipdeptree]
+        used_packages = [dep['package']['package_name'] for dep in pipdeptree]
 
         parser = piplicenses.create_parser()
         args = parser.parse_args(
@@ -4477,6 +4464,7 @@ class BucketNotificationRuleBase(BucketNotificationRuleWarningMixin, Command):
         {NAME} bucket notification-rule update b2://bucketName/newPath/ ruleName --disable --event-type "b2:ObjectCreated:*" --event-type "b2:ObjectHidden:*"
         {NAME} bucket notification-rule delete b2://bucketName ruleName
     """
+
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
@@ -4500,14 +4488,14 @@ class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningM
 
     - **readBucketNotifications**
     """
+
     COMMAND_NAME = 'list'
 
     @classmethod
     def _setup_parser(cls, parser):
         add_b2_uri_argument(
             parser,
-            help=
-            "B2 URI of the bucket with optional path prefix, e.g. b2://bucketName or b2://bucketName/optionalSubPath/"
+            help='B2 URI of the bucket with optional path prefix, e.g. b2://bucketName or b2://bucketName/optionalSubPath/',
         )
         super()._setup_parser(parser)
 
@@ -4515,10 +4503,11 @@ class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningM
         bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
         rules = sorted(
             (
-                rule for rule in bucket.get_notification_rules()
-                if rule["objectNamePrefix"].startswith(args.B2_URI.path)
+                rule
+                for rule in bucket.get_notification_rules()
+                if rule['objectNamePrefix'].startswith(args.B2_URI.path)
             ),
-            key=lambda rule: rule["name"]
+            key=lambda rule: rule['name'],
         )
         if args.json:
             self._print_json(rules)
@@ -4546,43 +4535,40 @@ class BucketNotificationRuleCreateBase(
     def setup_rule_fields_parser(cls, parser, creation: bool):
         add_b2_uri_argument(
             parser,
-            help=
-            "B2 URI of the bucket with optional path prefix, e.g. b2://bucketName or b2://bucketName/optionalSubPath/"
+            help='B2 URI of the bucket with optional path prefix, e.g. b2://bucketName or b2://bucketName/optionalSubPath/',
         )
-        parser.add_argument('ruleName', help="Name of the rule")
+        parser.add_argument('ruleName', help='Name of the rule')
         parser.add_argument(
             '--event-type',
             action='append',
-            help=
-            "Events scope, e.g., 'b2:ObjectCreated:*'. Can be used multiple times to set multiple scopes.",
-            required=creation
+            help="Events scope, e.g., 'b2:ObjectCreated:*'. Can be used multiple times to set multiple scopes.",
+            required=creation,
         )
         parser.add_argument(
-            '--webhook-url', help="URL to send the notification to", required=creation
+            '--webhook-url', help='URL to send the notification to', required=creation
         )
         parser.add_argument(
             '--sign-secret',
-            help="optional signature key consisting of 32 alphanumeric characters ",
+            help='optional signature key consisting of 32 alphanumeric characters ',
             type=cls._validate_secret,
             default=None,
         )
         parser.add_argument(
             '--custom-header',
             action='append',
-            help=
-            "Custom header to be sent with the notification. Can be used multiple times to set multiple headers. Format: HEADER_NAME=VALUE"
+            help='Custom header to be sent with the notification. Can be used multiple times to set multiple headers. Format: HEADER_NAME=VALUE',
         )
         parser.add_argument(
             '--enable',
             action='store_true',
-            help="Flag to enable the notification rule",
-            default=None
+            help='Flag to enable the notification rule',
+            default=None,
         )
         parser.add_argument(
             '--disable',
             action='store_false',
-            help="Flag to disable the notification rule",
-            dest='enable'
+            help='Flag to disable the notification rule',
+            dest='enable',
         )
 
     def get_rule_from_args(self, args):
@@ -4601,12 +4587,11 @@ class BucketNotificationRuleCreateBase(
             'eventTypes': args.event_type,
             'isEnabled': args.enable,
             'objectNamePrefix': args.B2_URI.path,
-            'targetConfiguration':
-                {
-                    'url': args.webhook_url,
-                    'customHeaders': custom_headers,
-                    'hmacSha256SigningSecret': args.sign_secret,
-                },
+            'targetConfiguration': {
+                'url': args.webhook_url,
+                'customHeaders': custom_headers,
+                'hmacSha256SigningSecret': args.sign_secret,
+            },
         }
         return filter_out_empty_values(rule)
 
@@ -4620,7 +4605,7 @@ class BucketNotificationRuleCreateBase(
 class BucketNotificationRuleUpdateBase(BucketNotificationRuleCreateBase):
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
-        rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
+        rules_by_name = {rule['name']: rule for rule in bucket.get_notification_rules()}
         rule = rules_by_name.get(args.ruleName)
         if not rule:
             raise CommandError(
@@ -4636,7 +4621,7 @@ class BucketNotificationRuleUpdateBase(BucketNotificationRuleCreateBase):
         rules = bucket.set_notification_rules(
             [notification_rule_response_to_request(rule) for rule in rules_by_name.values()]
         )
-        rule = next(rule for rule in rules if rule["name"] == args.ruleName)
+        rule = next(rule for rule in rules if rule['name'] == args.ruleName)
         self.print_rule(args=args, rule=rule)
         return 0
 
@@ -4660,6 +4645,7 @@ class BucketNotificationRuleCreate(BucketNotificationRuleCreateBase):
     - **readBucketNotifications**
     - **writeBucketNotifications**
     """
+
     COMMAND_NAME = 'create'
 
     NEW_RULE_DEFAULTS = {
@@ -4677,7 +4663,7 @@ class BucketNotificationRuleCreate(BucketNotificationRuleCreateBase):
 
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
-        rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
+        rules_by_name = {rule['name']: rule for rule in bucket.get_notification_rules()}
         if args.ruleName in rules_by_name:
             raise CommandError(
                 f'rule with name {args.ruleName!r} already exists on bucket {bucket.name!r}'
@@ -4692,10 +4678,10 @@ class BucketNotificationRuleCreate(BucketNotificationRuleCreateBase):
         rules = bucket.set_notification_rules(
             [
                 notification_rule_response_to_request(rule)
-                for rule in sorted(rules_by_name.values(), key=lambda r: r["name"])
+                for rule in sorted(rules_by_name.values(), key=lambda r: r['name'])
             ]
         )
-        rule = next(rule for rule in rules if rule["name"] == args.ruleName)
+        rule = next(rule for rule in rules if rule['name'] == args.ruleName)
         self.print_rule(args=args, rule=rule)
         return 0
 
@@ -4754,13 +4740,13 @@ class BucketNotificationRuleEnable(BucketNotificationRuleUpdateBase):
     @classmethod
     def _setup_parser(cls, parser):
         add_b2_uri_argument(
-            parser, help="B2 URI of the bucket to enable the rule for, e.g. b2://bucketName"
+            parser, help='B2 URI of the bucket to enable the rule for, e.g. b2://bucketName'
         )
-        parser.add_argument('ruleName', help="Name of the rule to enable")
+        parser.add_argument('ruleName', help='Name of the rule to enable')
         super()._setup_parser(parser)
 
     def get_rule_from_args(self, args):
-        logger.warning("WARNING: ignoring path from %r", args.B2_URI)
+        logger.warning('WARNING: ignoring path from %r', args.B2_URI)
         return {'name': args.ruleName, 'isEnabled': True}
 
 
@@ -4789,13 +4775,13 @@ class BucketNotificationRuleDisable(BucketNotificationRuleUpdateBase):
     @classmethod
     def _setup_parser(cls, parser):
         add_b2_uri_argument(
-            parser, help="B2 URI of the bucket to enable the rule for, e.g. b2://bucketName"
+            parser, help='B2 URI of the bucket to enable the rule for, e.g. b2://bucketName'
         )
-        parser.add_argument('ruleName', help="Name of the rule to enable")
+        parser.add_argument('ruleName', help='Name of the rule to enable')
         super()._setup_parser(parser)
 
     def get_rule_from_args(self, args):
-        logger.warning("WARNING: ignoring path from %r", args.B2_URI)
+        logger.warning('WARNING: ignoring path from %r', args.B2_URI)
         return {'name': args.ruleName, 'isEnabled': False}
 
 
@@ -4815,14 +4801,14 @@ class BucketNotificationRuleDelete(Command):
     @classmethod
     def _setup_parser(cls, parser):
         add_b2_uri_argument(
-            parser, help="B2 URI of the bucket to delete the rule from, e.g. b2://bucketName"
+            parser, help='B2 URI of the bucket to delete the rule from, e.g. b2://bucketName'
         )
-        parser.add_argument('ruleName', help="Name of the rule to delete")
+        parser.add_argument('ruleName', help='Name of the rule to delete')
         super()._setup_parser(parser)
 
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.B2_URI.bucket_name)
-        rules_by_name = {rule["name"]: rule for rule in bucket.get_notification_rules()}
+        rules_by_name = {rule['name']: rule for rule in bucket.get_notification_rules()}
 
         try:
             del rules_by_name[args.ruleName]
@@ -4852,6 +4838,7 @@ class Key(Command):
         {NAME} key create my-key listFiles,deleteFiles
         {NAME} key delete 005c398ac3212400000000010
     """
+
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
@@ -4904,6 +4891,7 @@ class Replication(Command):
         {NAME} replication unpause src-bucket my-repl-rule
         {NAME} replication delete src-bucket my-repl-rule
     """
+
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
@@ -4976,6 +4964,7 @@ class Account(Command):
         {NAME} account get
         {NAME} account clear
     """
+
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
@@ -5029,8 +5018,9 @@ class BucketCmd(Command):
         {NAME} bucket delete
         {NAME} bucket get-download-auth
     """
+
     # to avoid conflicts with the Bucket class this class is named BucketCmd
-    COMMAND_NAME = "bucket"
+    COMMAND_NAME = 'bucket'
 
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
@@ -5131,6 +5121,7 @@ class File(Command):
         {NAME} file upload yourBucket localFile.txt file.txt
         {NAME} file url b2://yourBucket/file.txt
     """
+
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
 
@@ -5171,8 +5162,8 @@ class FileServerSideCopy(FileServerSideCopyBase):
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_b2id_or_file_like_b2_uri_argument(parser, "sourceB2Uri")
-        add_b2id_or_file_like_b2_uri_argument(parser, "destinationB2Uri", by_id=False)
+        add_b2id_or_file_like_b2_uri_argument(parser, 'sourceB2Uri')
+        add_b2id_or_file_like_b2_uri_argument(parser, 'destinationB2Uri', by_id=False)
         super()._setup_parser(parser)
 
     def get_source_b2_uri(self, args) -> B2URIBase:
@@ -5310,6 +5301,7 @@ class FileLarge(Command):
         {NAME} file large unfinished cancel b2://yourBucket
         {NAME} file large unfinished cancel b2id://yourFileId
     """
+
     COMMAND_NAME = 'large'
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
@@ -5335,6 +5327,7 @@ class FileLargeUnfinished(Command):
         {NAME} file large unfinished cancel b2://yourBucket
         {NAME} file large unfinished cancel b2id://yourFileId
     """
+
     COMMAND_NAME = 'unfinished'
     subcommands_registry = ClassRegistry(attr_name='COMMAND_NAME')
 
@@ -5376,6 +5369,7 @@ class CancelAllUnfinishedLargeFiles(
     - **listFiles**
     - **writeFiles**
     """
+
     replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
 
 
@@ -5390,6 +5384,7 @@ class CancelLargeFile(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargeUnfinish
 
     - **writeFiles**
     """
+
     replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
 
 
@@ -5414,7 +5409,7 @@ class ConsoleTool:
                 return int(escape_cc_env_var) == 1
             else:
                 logger.warning(
-                    "WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set"
+                    'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
                 )
         return self.stdout.isatty()
 
@@ -5462,7 +5457,7 @@ class ConsoleTool:
         except MissingAccountData as e:
             logger.exception('ConsoleTool missing account data error')
             self._print_stderr(
-                f'ERROR: {e}  Use: \'{self.b2_binary_name} account authorize\' or provide auth data with '
+                f"ERROR: {e}  Use: '{self.b2_binary_name} account authorize' or provide auth data with "
                 f'{B2_APPLICATION_KEY_ID_ENV_VAR!r} and {B2_APPLICATION_KEY_ENV_VAR!r} environment variables'
             )
             return 1
@@ -5504,7 +5499,6 @@ class ConsoleTool:
         return b2_api or _get_b2api_for_profile(profile=args.profile, **kwargs)
 
     def authorize_from_env(self) -> int:
-
         key_id, key = get_keyid_and_key_from_env_vars()
 
         if key_id is None and key is None:
@@ -5566,11 +5560,12 @@ class ConsoleTool:
 
         logger.info(r'// %s %s %s \\', SEPARATOR, VERSION.center(8), SEPARATOR)
         logger.debug('platform is %s', platform.platform())
-        if os.environ.get(B2_CLI_DOCKER_ENV_VAR) == "1":
+        if os.environ.get(B2_CLI_DOCKER_ENV_VAR) == '1':
             logger.debug('running as a Docker container')
         logger.debug(
-            'Python version is %s %s', platform.python_implementation(),
-            sys.version.replace('\n', ' ')
+            'Python version is %s %s',
+            platform.python_implementation(),
+            sys.version.replace('\n', ' '),
         )
         logger.debug('b2sdk version is %s', b2sdk_version)
         logger.debug('locale is %s', locale.getlocale())

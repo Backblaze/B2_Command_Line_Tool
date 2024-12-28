@@ -13,7 +13,7 @@ from itertools import islice
 
 import pytest
 
-FIXER_CMD = "python test/static/test_licenses.py"
+FIXER_CMD = 'python test/static/test_licenses.py'
 LICENSE_HEADER_TMPL = """\
 ######################################################################
 #
@@ -56,10 +56,12 @@ def insert_header(file_path: str):
     with open(file_path, 'r+') as fd:
         content = fd.read()
         fd.seek(0)
-        fd.write(LICENSE_HEADER_TMPL.format(
-            path=file_path,
-            year=datetime.now().year,
-        ))
+        fd.write(
+            LICENSE_HEADER_TMPL.format(
+                path=file_path,
+                year=datetime.now().year,
+            )
+        )
         fd.write(content)
 
 

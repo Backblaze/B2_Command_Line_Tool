@@ -68,7 +68,7 @@ ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 BUCKET_NAME_LENGTH = BUCKET_NAME_LENGTH_RANGE[1]
 BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 
-NODE_DESCRIPTION = f"{platform.node()}: {platform.platform()}"
+NODE_DESCRIPTION = f'{platform.node()}: {platform.platform()}'
 
 
 def get_seed():
@@ -83,8 +83,9 @@ def get_seed():
             str(time.time_ns()).encode(),
             NODE_DESCRIPTION.encode(),
             str(os.getpid()).encode(),  # needed due to pytest-xdist
-            str(environ).encode('utf8', errors='ignore'
-                               ),  # especially helpful under GitHub (and similar) CI
+            str(environ).encode(
+                'utf8', errors='ignore'
+            ),  # especially helpful under GitHub (and similar) CI
         )
     )
 
@@ -96,7 +97,9 @@ RNG_COUNTER = 0
 if sys.version_info < (3, 9):
     RNG.randbytes = lambda n: RNG.getrandbits(n * 8).to_bytes(n, 'little')
 
-SSE_NONE = EncryptionSetting(mode=EncryptionMode.NONE,)
+SSE_NONE = EncryptionSetting(
+    mode=EncryptionMode.NONE,
+)
 SSE_B2_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_B2,
     algorithm=EncryptionAlgorithm.AES256,
@@ -105,12 +108,12 @@ _SSE_KEY = RNG.randbytes(32)
 SSE_C_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_C,
     algorithm=EncryptionAlgorithm.AES256,
-    key=EncryptionKey(secret=_SSE_KEY, key_id='user-generated-key-id')
+    key=EncryptionKey(secret=_SSE_KEY, key_id='user-generated-key-id'),
 )
 SSE_C_AES_2 = EncryptionSetting(
     mode=EncryptionMode.SSE_C,
     algorithm=EncryptionAlgorithm.AES256,
-    key=EncryptionKey(secret=_SSE_KEY, key_id='another-user-generated-key-id')
+    key=EncryptionKey(secret=_SSE_KEY, key_id='another-user-generated-key-id'),
 )
 
 
@@ -145,9 +148,9 @@ class Api:
         cache = InMemoryCache()
         self.api = B2Api(info, cache=cache)
         self.api.authorize_account(self.realm, self.account_id, self.application_key)
-        assert BUCKET_NAME_LENGTH - len(
-            self.this_run_bucket_name_prefix
-        ) > 5, self.this_run_bucket_name_prefix
+        assert (
+            BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix) > 5
+        ), self.this_run_bucket_name_prefix
 
     def new_bucket_name(self) -> str:
         bucket_name = self.this_run_bucket_name_prefix + bucket_name_part(
@@ -159,7 +162,7 @@ class Api:
     def new_bucket_info(self) -> dict:
         return {
             BUCKET_CREATED_AT_MILLIS: str(current_time_millis()),
-            "created_by": NODE_DESCRIPTION,
+            'created_by': NODE_DESCRIPTION,
         }
 
     def create_bucket(self, bucket_type: str = 'allPublic', **kwargs) -> Bucket:
@@ -179,8 +182,14 @@ class Api:
                 delete_older_than = current_time_millis() - BUCKET_CLEANUP_PERIOD_MILLIS
                 this_bucket_creation_time = int(bucket.bucket_info[BUCKET_CREATED_AT_MILLIS])
                 if this_bucket_creation_time < delete_older_than:
-                    return True, f"this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}"
-                return False, f"this_bucket_creation_time={this_bucket_creation_time} >= delete_older_than={delete_older_than}"
+                    return (
+                        True,
+                        f'this_bucket_creation_time={this_bucket_creation_time} < delete_older_than={delete_older_than}',
+                    )
+                return (
+                    False,
+                    f'this_bucket_creation_time={this_bucket_creation_time} >= delete_older_than={delete_older_than}',
+                )
             else:
                 return True, 'undefined ' + BUCKET_CREATED_AT_MILLIS
         return False, f'does not start with {self.general_bucket_name_prefix!r}'
@@ -230,11 +239,13 @@ class Api:
                 if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
                     print('Removing retention from file version:', file_version_info.id_)
                     self.api.update_file_retention(
-                        file_version_info.id_, file_version_info.file_name,
-                        NO_RETENTION_FILE_SETTING, True
+                        file_version_info.id_,
+                        file_version_info.file_name,
+                        NO_RETENTION_FILE_SETTING,
+                        True,
                     )
                 elif file_version_info.file_retention.mode == RetentionMode.COMPLIANCE:
-                    if file_version_info.file_retention.retain_until > current_time_millis():  # yapf: disable
+                    if file_version_info.file_retention.retain_until > current_time_millis():
                         print(
                             f'File version: {file_version_info.id_} cannot be removed due to compliance mode retention'
                         )
@@ -343,7 +354,6 @@ def should_equal(expected, actual):
 
 
 class CommandLine:
-
     EXPECTED_STDERR_PATTERNS = [
         re.compile(r'^Using https?://[\w.]+$'),  # account auth
         re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
@@ -353,8 +363,7 @@ class CommandLine:
             r'Set B2_DESTINATION_SSE_C_KEY_ID to allow key identification'
         ),
         re.compile(
-            r'WARNING: Unable to print unicode.  Encoding for stdout is: '
-            r'\'[a-zA-Z0-9]+\''
+            r'WARNING: Unable to print unicode.  Encoding for stdout is: ' r'\'[a-zA-Z0-9]+\''
         ),  # windows-bundle tests on CI use cp1252
         re.compile(r'Trying to print: .*'),
     ]
@@ -409,16 +418,19 @@ class CommandLine:
         assert status == 0, f'FAILED with status {status}, stderr={stderr}'
 
         if expected_stderr_pattern:
-            assert expected_stderr_pattern.search(stderr), \
-                f'stderr did not match pattern="{expected_stderr_pattern}", stderr="{stderr}"'
+            assert expected_stderr_pattern.search(
+                stderr
+            ), f'stderr did not match pattern="{expected_stderr_pattern}", stderr="{stderr}"'
         elif stderr != '':
             for line in (s.strip() for s in stderr.split(os.linesep)):
-                assert any(p.match(line) for p in self.EXPECTED_STDERR_PATTERNS), \
-                    f'Unexpected stderr line: {repr(line)}'
+                assert any(
+                    p.match(line) for p in self.EXPECTED_STDERR_PATTERNS
+                ), f'Unexpected stderr line: {repr(line)}'
 
         if expected_pattern is not None:
-            assert re.search(expected_pattern, stdout), \
-            f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
+            assert re.search(
+                expected_pattern, stdout
+            ), f'did not match pattern="{expected_pattern}", stdout="{stdout}"'
 
         return stdout.replace(os.linesep, '\n')
 
@@ -515,16 +527,21 @@ class CommandLine:
         status, stdout, stderr = self.execute(args, additional_env)
         assert status != 0, 'ERROR: should have failed'
 
-        assert re.search(expected_pattern, stdout + stderr), \
-            f'did not match pattern="{expected_pattern}", stdout="{stdout}", stderr="{stderr}"'
+        assert re.search(
+            expected_pattern, stdout + stderr
+        ), f'did not match pattern="{expected_pattern}", stdout="{stdout}", stderr="{stderr}"'
 
     def reauthorize(self, check_key_capabilities=False):
         """Clear and authorize again to the account."""
         self.should_succeed(['account', 'clear'])
         self.should_succeed(
             [
-                'account', 'authorize', '--environment', self.realm, self.account_id,
-                self.application_key
+                'account',
+                'authorize',
+                '--environment',
+                self.realm,
+                self.account_id,
+                self.application_key,
             ]
         )
         if check_key_capabilities:
@@ -533,9 +550,12 @@ class CommandLine:
                 'readBucketNotifications',
                 'writeBucketNotifications',
             }
-            missing_capabilities = set(ALL_CAPABILITIES) - {
-                'readBuckets', 'listAllBucketNames'
-            } - private_preview_caps - set(auth_dict['allowed']['capabilities'])
+            missing_capabilities = (
+                set(ALL_CAPABILITIES)
+                - {'readBuckets', 'listAllBucketNames'}
+                - private_preview_caps
+                - set(auth_dict['allowed']['capabilities'])
+            )
             assert not missing_capabilities, f'it appears that the raw_api integration test is being run with a non-full key. Missing capabilities: {missing_capabilities}'
 
     def list_file_versions(self, bucket_name, path=''):

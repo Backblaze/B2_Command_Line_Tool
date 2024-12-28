@@ -87,7 +87,7 @@ class B2ArgumentParser(argparse.ArgumentParser):
         add_help_all: bool = True,
         for_docs: bool = False,
         custom_deprecated: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """
 
@@ -137,13 +137,13 @@ class B2ArgumentParser(argparse.ArgumentParser):
             return usage
 
         if not raw_description:
-            return ""
+            return ''
 
         for line in raw_description.splitlines():
             if line.strip():
                 return self._encode_description(line.strip())
 
-        return ""
+        return ''
 
     def error(self, message):
         self.print_help()
@@ -178,8 +178,9 @@ class B2ArgumentParser(argparse.ArgumentParser):
         """
         patches = [
             unittest.mock.patch.object(
-                self, 'formatter_class',
-                functools.partial(B2RawTextHelpFormatter, show_all=show_all)
+                self,
+                'formatter_class',
+                functools.partial(B2RawTextHelpFormatter, show_all=show_all),
             )
         ]
         if self._subparsers is not None and not show_all:
@@ -213,7 +214,7 @@ class B2ArgumentParser(argparse.ArgumentParser):
             return super().format_usage()
 
         formatter = self._get_formatter()
-        formatter.add_text(f"{self.prog:{col_length + 2}} {self._short_description}")
+        formatter.add_text(f'{self.prog:{col_length + 2}} {self._short_description}')
         return formatter.format_help()
 
 
@@ -232,7 +233,7 @@ def make_deprecated_action_call(action):
             kebab_option_string = _camel_to_kebab(option_string)
             print(
                 f"The '{option_string}' argument is deprecated. Use '{kebab_option_string}' instead.",
-                file=sys.stderr
+                file=sys.stderr,
             )
 
     return deprecated_action_call
@@ -248,7 +249,7 @@ def _camel_to_kebab(s: str):
 
 
 def _kebab_to_camel(s: str):
-    return "--" + _kebab_to_camel_pattern.sub(lambda m: m.group(1).upper(), s[2:])
+    return '--' + _kebab_to_camel_pattern.sub(lambda m: m.group(1).upper(), s[2:])
 
 
 def _kebab_to_snake(s: str):
@@ -280,8 +281,9 @@ def add_normalized_argument(parser, param_name, *args, **kwargs):
         action = argparse._StoreAction
 
     kwargs_camel['action'] = type(
-        'DeprecatedAction', (action, DeprecatedActionMarker),
-        {'__call__': make_deprecated_action_call(action)}
+        'DeprecatedAction',
+        (action, DeprecatedActionMarker),
+        {'__call__': make_deprecated_action_call(action)},
     )
 
     parser.add_argument(f'{param_name_kebab}', *args, **kwargs_kebab)
