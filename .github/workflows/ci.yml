@@ -11,7 +11,7 @@ env:
 
 jobs:
   lint:
-    timeout-minutes: 60
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +35,7 @@ jobs:
       - name: Changelog validation
         run: nox -vs towncrier_check
   build:
+    timeout-minutes: 30
     needs: lint
     runs-on: ubuntu-latest
     steps:
@@ -50,6 +51,7 @@ jobs:
       - name: Build the distribution
         run: nox -vs build
   cleanup_buckets:
+    timeout-minutes: 30
     needs: lint
     env:
       B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
