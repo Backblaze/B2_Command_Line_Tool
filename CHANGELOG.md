@@ -9,6 +9,27 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.3.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.0) - 2025-01-07
+
+
+### Fixed
+
+- Fix shell autocompletion for Python >=3.12.8 and >=3.13.1.
+- Update to b2sdk 2.7.0 to fix integration tests on Windows.
+
+### Added
+
+- Add `--exclude-if-uploaded-after` to `sync`.
+- Add `-l` as an alias for `--long` argument.
+
+### Infrastructure
+
+- Fix event notification tests when introducing new keys in API outputs.
+- Remove yapf in favor of ruff.
+- Upgraded to pytest 8.
+- Use SHA384 for Windows signing instead of expired SHA256withRSA.
+
+
 ## [4.2.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.2.0) - 2024-10-29
 
 

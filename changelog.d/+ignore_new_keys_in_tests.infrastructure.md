@@ -1,1 +1,0 @@
-Fix event notification tests when introducing new keys in API outputs.
