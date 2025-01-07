@@ -688,9 +688,11 @@ def make_release_commit(session):
         f'CHANGELOG updated, changes ready to commit and push\n'
         f'    git remote add upstream {UPSTREAM_REPO_URL!r} 2>/dev/null || git remote get-url upstream\n'
         f'    git commit -m "release {version}"\n'
+        f'    git push upstream {current_branch}\n'
+        f'Wait for a CI workflow to complete successfully, before triggering CD by pushing a tag.\n'
         f'    git tag v{version}\n'
         f'    git push upstream v{version}\n'
-        f'    git push upstream {current_branch}'
+        f'Wait for a CD workflow to complete successfully, indicates the release is done.'
     )
 
 
