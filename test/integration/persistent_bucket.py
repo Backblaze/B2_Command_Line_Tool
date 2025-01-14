@@ -62,3 +62,6 @@ def get_or_create_persistent_bucket(b2_api: Api) -> Bucket:
     # add the new bucket name to the list of bucket names
     b2_api.bucket_name_log.append(bucket_name)
     return bucket
+
+def prune_used_files(b2_api: Api, bucket: Bucket, folders: list[str]):
+    b2_api.clean_bucket(bucket_object=bucket, only_files=True, only_folders=folders,ignore_retentions=True)

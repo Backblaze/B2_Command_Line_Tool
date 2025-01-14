@@ -19,6 +19,7 @@ import tempfile
 import uuid
 from os import environ, path
 from tempfile import TemporaryDirectory
+from typing import Generator
 
 import pytest
 from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
@@ -35,6 +36,7 @@ from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_p
 from .persistent_bucket import (
     PersistentBucketAggregate,
     get_or_create_persistent_bucket,
+    prune_used_files,
 )
 
 logger = logging.getLogger(__name__)
@@ -421,18 +423,32 @@ def b2_uri_args(apiver_int):
         return b2_uri_args_v3
 
 
-# -- Persistent bucket fixtures --
+# -- Persistent bucket code --
+
+subfolder_list: list[str] = []
+
+@pytest.fixture(scope="session")
+def base_persistent_bucket(b2_api):
+    bucket = get_or_create_persistent_bucket(b2_api)
+    yield bucket
+    prune_used_files(b2_api=b2_api,bucket=bucket, folders=subfolder_list)
+
+
 @pytest.fixture
 def unique_subfolder():
     subfolder = f'test-{uuid.uuid4().hex[:8]}'
+    subfolder_list.append(subfolder)
     yield subfolder
 
 
 @pytest.fixture
-def persistent_bucket(unique_subfolder, b2_api) -> PersistentBucketAggregate:
+def persistent_bucket(unique_subfolder,
+                      base_persistent_bucket) -> Generator[PersistentBucketAggregate]:
     """
     Since all consumers of the `bucket_name` fixture expect a new bucket to be created,
     we need to mirror this behavior by appending a unique subfolder to the persistent bucket name.
     """
-    persistent_bucket = get_or_create_persistent_bucket(b2_api)
-    yield PersistentBucketAggregate(persistent_bucket.name, unique_subfolder)
+    yield PersistentBucketAggregate(base_persistent_bucket.name,
+                                    unique_subfolder)
+
+    logger.info("Persistent bucket aggregate finished completion.")
