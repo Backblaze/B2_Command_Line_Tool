@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from os import environ, linesep
 from pathlib import Path
 from tempfile import mkdtemp, mktemp
+from typing import Any, Iterable, TypeVar
 
 import backoff
 from b2sdk.v2 import (
@@ -131,6 +132,10 @@ def bucket_name_part(length: int) -> str:
     logger.info('name_part: %s', name_part)
     return name_part
 
+T = TypeVar('T')
+def wrap_iterables(generators: list[Iterable[T]]):
+    for g in generators:
+        yield from g
 
 @dataclass
 class Api:
@@ -219,23 +224,41 @@ class Api:
         TooManyRequests,
         max_tries=8,
     )
-    def clean_bucket(self, bucket: Bucket | str):
-        if isinstance(bucket, str):
-            bucket = self.api.get_bucket_by_name(bucket)
+    def clean_bucket(self, bucket_object: Bucket | str, only_files: bool = False, only_folders: list[str] | None = None, ignore_retentions: bool = False):
+        """
+        Clean contents of bucket, by default also deleting the bucket.
 
-        # try optimistic bucket removal first, since it is completely free (as opposed to `ls` call)
-        try:
-            return self.api.delete_bucket(bucket)
-        except (BucketIdNotFound, v3BucketIdNotFound):
-            return  # bucket was already removed
-        except BadRequest as exc:
-            assert exc.code == 'cannot_delete_non_empty_bucket'
+        Args: 
+            bucket (Bucket | str): Bucket object or name 
+            only_files (bool): If to only delete files and not the bucket 
+            only_folders (list[str] | None): If not None, filter to only files in given folders.
+            ignore_retentions (bool): If deletion should happen regardless of files' retention mode.
+        """
+        bucket: Bucket
+        if isinstance(bucket_object, str):
+            bucket = self.api.get_bucket_by_name(bucket_object)
+        else: 
+            bucket = bucket_object
+
+        if not only_files:
+            # try optimistic bucket removal first, since it is completely free (as opposed to `ls` call)
+            try:
+                return self.api.delete_bucket(bucket)
+            except (BucketIdNotFound, v3BucketIdNotFound):
+                return  # bucket was already removed
+            except BadRequest as exc:
+                assert exc.code == 'cannot_delete_non_empty_bucket'
 
         files_leftover = False
-        file_versions = bucket.ls(latest_only=False, recursive=True)
+
+        file_versions: Iterable[Any]
+        if only_folders:
+            file_versions = wrap_iterables([bucket.ls(latest_only=False, recursive=True, folder_to_list=folder,) for folder in only_folders])
+        else:
+            file_versions = bucket.ls(latest_only=False, recursive=True)
 
         for file_version_info, _ in file_versions:
-            if file_version_info.file_retention:
+            if file_version_info.file_retention and not ignore_retentions:
                 if file_version_info.file_retention.mode == RetentionMode.GOVERNANCE:
                     print('Removing retention from file version:', file_version_info.id_)
                     self.api.update_file_retention(
@@ -272,7 +295,7 @@ class Api:
 
         if files_leftover:
             print('Unable to remove bucket because some retained files remain')
-        else:
+        elif not only_files:
             print('Removing bucket:', bucket.name)
             try:
                 self.api.delete_bucket(bucket)
