@@ -423,7 +423,7 @@ def b2_uri_args(apiver_int):
         return b2_uri_args_v3
 
 
-# -- Persistent bucket code --
+# -- Persistent bucket code ---
 
 subfolder_list: list[str] = []
 
