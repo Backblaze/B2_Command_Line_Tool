@@ -62,3 +62,11 @@ def test_get_url__b2id_uri(b2_cli, uploaded_file, uploaded_file_url_by_id):
         ['file', 'url', f'b2id://{uploaded_file["fileId"]}'],
         expected_stdout=f'{uploaded_file_url_by_id}\n',
     )
+
+
+def test_get_url__b2id_uri__with_auth__error(b2_cli, uploaded_file):
+    b2_cli.run(
+        ['file', 'url', '--with-auth', f'b2id://{uploaded_file["fileId"]}'],
+        expected_stderr='ERROR: --with-auth param cannot be used with `b2id://` urls. Please, use `b2://bucket/filename` url format instead\n',
+        expected_status=1,
+    )
