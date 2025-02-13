@@ -2875,7 +2875,8 @@ class FileUrlBase(Command):
 
     If it is private, you can use --with-auth to include an authorization
     token in the URL that allows downloads from the given bucket for files
-    whose names start with the given file name.
+    whose names start with the given file name. NOTE: This param can only be used with
+    filename urls.
 
     The URL will work for the given file, but is not specific to that file.  Files
     with longer names that start with the give file name can also be downloaded
@@ -2900,6 +2901,11 @@ class FileUrlBase(Command):
         b2_uri = self.get_b2_uri_from_arg(args)
         url = self.api.get_download_url_by_uri(b2_uri)
         if args.with_auth:
+            if isinstance(b2_uri, B2FileIdURI):
+                raise CommandError(
+                    '--with-auth param cannot be used with `b2id://` urls. Please, use `b2://bucket/filename` url format instead'
+                )
+
             bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
             auth_token = bucket.get_download_authorization(
                 file_name_prefix=b2_uri.path, valid_duration_in_seconds=args.duration
