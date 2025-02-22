@@ -9,6 +9,19 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.3.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.1) - 2025-02-22
+
+
+### Fixed
+
+- Avoid failing on BrokenPipeError when running commands. ([#1071](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1071))
+- Display error message when trying to use `--with-auth` param for `b2id://` urls in the `file url` command.
+
+### Infrastructure
+
+- Deleting used files by integration tests right away.
+
+
 ## [4.3.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.0) - 2025-01-07
 
 
