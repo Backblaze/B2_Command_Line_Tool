@@ -5475,6 +5475,10 @@ class ConsoleTool:
             logger.exception('ConsoleTool command interrupt')
             self._print_stderr('\nInterrupted.  Shutting down...\n')
             return 1
+        except BrokenPipeError:
+            # The command output has been likely piped in a shell
+            logger.debug('ConsoleTool broken pipe error', exc_info=True)
+            return 0
         except Exception:
             logger.exception('ConsoleTool unexpected exception')
             raise
