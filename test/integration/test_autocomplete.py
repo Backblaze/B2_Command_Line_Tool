@@ -59,7 +59,7 @@ def autocomplete_installed(env, homedir, bashrc, cli_version, cli_command, is_ru
 @pytest.fixture
 def shell(env):
     shell = pexpect.spawn('bash -i', env=env, maxread=1000)
-    shell.setwinsize(100, 100)  # required to see all suggestions in tests
+    shell.setwinsize(100, 1000)  # required to see all suggestions in tests
     yield shell
     shell.close()
 
