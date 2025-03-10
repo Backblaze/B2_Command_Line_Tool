@@ -132,10 +132,14 @@ def bucket_name_part(length: int) -> str:
     logger.info('name_part: %s', name_part)
     return name_part
 
+
 T = TypeVar('T')
+
+
 def wrap_iterables(generators: list[Iterable[T]]):
     for g in generators:
         yield from g
+
 
 @dataclass
 class Api:
@@ -224,20 +228,26 @@ class Api:
         TooManyRequests,
         max_tries=8,
     )
-    def clean_bucket(self, bucket_object: Bucket | str, only_files: bool = False, only_folders: list[str] | None = None, ignore_retentions: bool = False):
+    def clean_bucket(
+        self,
+        bucket_object: Bucket | str,
+        only_files: bool = False,
+        only_folders: list[str] | None = None,
+        ignore_retentions: bool = False,
+    ):
         """
         Clean contents of bucket, by default also deleting the bucket.
 
-        Args: 
-            bucket (Bucket | str): Bucket object or name 
-            only_files (bool): If to only delete files and not the bucket 
+        Args:
+            bucket (Bucket | str): Bucket object or name
+            only_files (bool): If to only delete files and not the bucket
             only_folders (list[str] | None): If not None, filter to only files in given folders.
             ignore_retentions (bool): If deletion should happen regardless of files' retention mode.
         """
         bucket: Bucket
         if isinstance(bucket_object, str):
             bucket = self.api.get_bucket_by_name(bucket_object)
-        else: 
+        else:
             bucket = bucket_object
 
         if not only_files:
@@ -253,7 +263,16 @@ class Api:
 
         file_versions: Iterable[Any]
         if only_folders:
-            file_versions = wrap_iterables([bucket.ls(latest_only=False, recursive=True, folder_to_list=folder,) for folder in only_folders])
+            file_versions = wrap_iterables(
+                [
+                    bucket.ls(
+                        latest_only=False,
+                        recursive=True,
+                        folder_to_list=folder,
+                    )
+                    for folder in only_folders
+                ]
+            )
         else:
             file_versions = bucket.ls(latest_only=False, recursive=True)
 

@@ -427,11 +427,12 @@ def b2_uri_args(apiver_int):
 
 subfolder_list: list[str] = []
 
-@pytest.fixture(scope="session")
+
+@pytest.fixture(scope='session')
 def base_persistent_bucket(b2_api):
     bucket = get_or_create_persistent_bucket(b2_api)
     yield bucket
-    prune_used_files(b2_api=b2_api,bucket=bucket, folders=subfolder_list)
+    prune_used_files(b2_api=b2_api, bucket=bucket, folders=subfolder_list)
 
 
 @pytest.fixture
@@ -442,13 +443,13 @@ def unique_subfolder():
 
 
 @pytest.fixture
-def persistent_bucket(unique_subfolder,
-                      base_persistent_bucket) -> Generator[PersistentBucketAggregate]:
+def persistent_bucket(
+    unique_subfolder, base_persistent_bucket
+) -> Generator[PersistentBucketAggregate]:
     """
     Since all consumers of the `bucket_name` fixture expect a new bucket to be created,
     we need to mirror this behavior by appending a unique subfolder to the persistent bucket name.
     """
-    yield PersistentBucketAggregate(base_persistent_bucket.name,
-                                    unique_subfolder)
+    yield PersistentBucketAggregate(base_persistent_bucket.name, unique_subfolder)
 
-    logger.info("Persistent bucket aggregate finished completion.")
+    logger.info('Persistent bucket aggregate finished completion.')

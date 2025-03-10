@@ -13,6 +13,7 @@ build
 coverage.xml
 dist
 venv
+.venv
 doc/source/main_help.rst
 doc/source/subcommands
 Dockerfile
