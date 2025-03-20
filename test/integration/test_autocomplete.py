@@ -27,6 +27,41 @@ echo "Just testing if we don't replace existing script" > /dev/null
 """
 
 
+def patched_spawn(*args, **kwargs):
+    """
+    Patch pexpect.spawn to improve error messages
+    """
+
+    instance = pexpect.spawn(*args, **kwargs)
+
+    def _patch_expect(func):
+        def _wrapper(pattern_list, **kwargs):
+            try:
+                return func(pattern_list, **kwargs)
+            except pexpect.exceptions.TIMEOUT as exc:
+                raise pexpect.exceptions.TIMEOUT(
+                    f'Timeout reached waiting for `{pattern_list}` to be autocompleted'
+                ) from exc
+            except pexpect.exceptions.EOF as exc:
+                raise pexpect.exceptions.EOF(
+                    f'Received EOF waiting for `{pattern_list}` to be autocompleted'
+                ) from exc
+            except Exception as exc:
+                raise RuntimeError(
+                    f'Unexpected error waiting for `{pattern_list}` to be autocompleted'
+                ) from exc
+
+        return _wrapper
+
+    instance.expect = _patch_expect(instance.expect)
+    instance.expect_exact = _patch_expect(instance.expect_exact)
+
+    # capture child shell's output for debugging
+    instance.logfile = sys.stdout.buffer
+
+    return instance
+
+
 @pytest.fixture(scope='session')
 def bashrc(homedir):
     bashrc_path = homedir / '.bashrc'
@@ -44,7 +79,7 @@ def autocomplete_installed(env, homedir, bashrc, cli_version, cli_command, is_ru
     if is_running_on_docker:
         pytest.skip('Not supported on Docker')
 
-    shell = pexpect.spawn(
+    shell = patched_spawn(
         f'bash -i -c "{cli_command} install-autocomplete"', env=env, logfile=sys.stderr.buffer
     )
     try:
@@ -58,7 +93,7 @@ def autocomplete_installed(env, homedir, bashrc, cli_version, cli_command, is_ru
 
 @pytest.fixture
 def shell(env):
-    shell = pexpect.spawn('bash -i', env=env, maxread=1000)
+    shell = patched_spawn('bash -i', env=env, maxread=1000)
     shell.setwinsize(100, 1000)  # required to see all suggestions in tests
     yield shell
     shell.close()
