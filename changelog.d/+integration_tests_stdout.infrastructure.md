@@ -1,0 +1,1 @@
+Capture stdout in integration tests.
