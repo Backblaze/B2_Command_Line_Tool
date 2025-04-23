@@ -610,12 +610,12 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
         # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
         # check global logging settings
         stderr_regex = re.compile(
-            r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v2/b2_delete_bucket HTTP'
+            r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v3/b2_delete_bucket HTTP'
             r'.*' + stack_trace_in_log,
             re.DOTALL,
         )
         log_file_regex = re.compile(
-            r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v2/b2_delete_bucket HTTP'
+            r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v3/b2_delete_bucket HTTP'
             r'.*' + stack_trace_in_log,
             re.DOTALL,
         )
