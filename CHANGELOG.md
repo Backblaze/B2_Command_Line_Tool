@@ -9,6 +9,20 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.3.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.2) - 2025-04-24
+
+
+### Fixed
+
+- Bump `b2sdk` to `v2.8.1` to fix TimeoutError handling.
+
+### Infrastructure
+
+- Capture stdout in integration tests.
+- Improve error messaging in autocomplete integration tests.
+- Increase terminal size window in autocomplete integration tests.
+
+
 ## [4.3.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.1) - 2025-02-22
 
 
