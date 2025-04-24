@@ -2102,6 +2102,18 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json_in_stdout=expected_json,
         )
 
+    def test_non_existent_bucket(self):
+        self._authorize_account()
+
+        bucket_name = 'nonexistent'
+        expected_stderr = f'Bucket not found: {bucket_name}. If you believe it exists, run `b2 bucket list` to reset cache, then try again.\n'
+
+        self._run_command(
+            ['bucket', 'get', bucket_name],
+            expected_stderr=expected_stderr,
+            expected_status=1,
+        )
+
     def test_sync(self):
         self._authorize_account()
         self._create_my_bucket()

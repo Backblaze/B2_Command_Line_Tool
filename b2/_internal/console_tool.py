@@ -114,6 +114,7 @@ from b2sdk.v2.exception import (
     EmptyDirectory,
     FileNotPresent,
     MissingAccountData,
+    NonExistentBucket,
     NotADirectory,
     UnableToCreateDirectory,
 )
@@ -2103,8 +2104,8 @@ class BucketGetBase(Command):
                 result['totalSize'] = count_size_tuple[1]
                 self._print_json(result)
                 return 0
-        self._print_stderr('bucket not found: ' + args.bucketName)
-        return 1
+
+        raise NonExistentBucket(args.bucketName)
 
 
 class FileInfoBase(Command):
@@ -5469,7 +5470,12 @@ class ConsoleTool:
             return 1
         except B2Error as e:
             logger.exception('ConsoleTool command error')
-            self._print_stderr(f'ERROR: {e}')
+            if isinstance(e, NonExistentBucket):
+                self._print_stderr(
+                    f'Bucket not found: {e.bucket_name}. If you believe it exists, run `{self.b2_binary_name} bucket list` to reset cache, then try again.'
+                )
+            else:
+                self._print_stderr(f'ERROR: {e}')
             return 1
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')
