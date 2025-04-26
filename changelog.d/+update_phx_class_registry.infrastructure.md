@@ -1,0 +1,1 @@
+Bump phx-class-registry version.
