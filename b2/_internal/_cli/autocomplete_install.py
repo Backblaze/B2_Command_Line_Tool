@@ -171,7 +171,7 @@ class ZshAutocompleteInstaller(BashLikeAutocompleteInstaller):
         if not rc_path.exists():
             # if zshrc is missing `zshrc -i` may hang on creation wizard when emulating tty
             rc_path.touch(mode=0o750)
-        _silent_success_run_with_pty(
+        _silent_success_run_with_tty(
             [self.shell_exec, '-c', 'autoload -Uz compaudit; echo AUDIT; compaudit']
         )
 
