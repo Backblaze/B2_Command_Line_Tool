@@ -9,6 +9,18 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.3.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.3) - 2025-06-04
+
+
+### Fixed
+
+- Fix autocomplete install for `zsh`. ([#1086](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1086))
+
+### Added
+
+- Suggest running `b2 bucket list` on `NonExistentBucket` errors.
+
+
 ## [4.3.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.2) - 2025-04-24
 
 

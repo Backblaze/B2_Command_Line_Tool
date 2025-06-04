@@ -1,1 +1,0 @@
-Suggest running `b2 bucket list` on `NonExistentBucket` errors.
