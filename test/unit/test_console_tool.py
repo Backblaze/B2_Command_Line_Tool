@@ -20,7 +20,6 @@ from typing import List, Optional
 from unittest import mock
 
 import pytest
-from b2sdk import v1
 from b2sdk.v2 import TempDir
 from b2sdk.v3 import (
     ALL_CAPABILITIES,
@@ -3015,22 +3014,19 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
 
-class TestConsoleToolWithV1(BaseConsoleToolTest):
-    """These tests use v1 interface to perform various setups before running CLI commands"""
+class TestConsoleToolWithBucket(BaseConsoleToolTest):
+    """These tests create a bucket during setUp before running CLI commands"""
 
     def setUp(self):
         super().setUp()
-        self.v1_account_info = v1.StubAccountInfo()
-
-        self.v1_b2_api = v1.B2Api(self.v1_account_info, None)
-        self.v1_b2_api.session.raw_api = self.raw_api
-        self.v1_b2_api.authorize_account('production', self.account_id, self.master_key)
         self._authorize_account()
         self._create_my_bucket()
-        self.v1_bucket = self.v1_b2_api.create_bucket('my-v1-bucket', 'allPrivate')
 
     def test_cancel_large_file(self):
-        file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
+
         self._run_command(
             ['file', 'large', 'unfinished', 'cancel', f'b2id://{file.file_id}'],
             '9999 canceled\n',
@@ -3039,7 +3035,10 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         )
 
     def test_cancel_large_file_deprecated(self):
-        file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
+
         self._run_command(
             ['cancel-large-file', file.file_id],
             '9999 canceled\n',
@@ -3048,38 +3047,43 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         )
 
     def test_cancel_all_large_file(self):
-        self.v1_bucket.start_large_file('file1', 'text/plain', {})
-        self.v1_bucket.start_large_file('file2', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file1', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file2', 'text/plain', {})
+
         expected_stdout = """
         9999 canceled
         9998 canceled
         """
 
         self._run_command(
-            ['file', 'large', 'unfinished', 'cancel', 'b2://my-v1-bucket'], expected_stdout, '', 0
+            ['file', 'large', 'unfinished', 'cancel', 'b2://my-bucket'], expected_stdout, '', 0
         )
 
     def test_cancel_all_large_file_deprecated(self):
-        self.v1_bucket.start_large_file('file1', 'text/plain', {})
-        self.v1_bucket.start_large_file('file2', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file1', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file2', 'text/plain', {})
         expected_stdout = """
         9999 canceled
         9998 canceled
         """
 
         self._run_command(
-            ['cancel-all-unfinished-large-files', 'my-v1-bucket'],
+            ['cancel-all-unfinished-large-files', 'my-bucket'],
             expected_stdout,
             'WARNING: `cancel-all-unfinished-large-files` command is deprecated. Use `file large unfinished cancel` instead.\n',
             0,
         )
 
     def test_list_parts_with_none(self):
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
         self._run_command(['file', 'large', 'parts', f'b2id://{file.file_id}'], '', '', 0)
 
     def test_list_parts_with_none_deprecated(self):
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
         self._run_command(
             ['list-parts', file.file_id],
             '',
@@ -3089,7 +3093,9 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
 
     def test_list_parts_with_parts(self):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file', 'text/plain', {}
+        )
         content = b'hello world'
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False
@@ -3122,7 +3128,9 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
 
     def test_list_parts_with_parts_deprecated(self):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file', 'text/plain', {}
+        )
         content = b'hello world'
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False

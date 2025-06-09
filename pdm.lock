@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:161f3a9c45f9ef34a9f7006344a6cc33c67669a427bfcc7e49d6e6c74711b7f9"
+content_hash = "sha256:7e59c9b087e928b53e5556d69583d7565ba54d4a742d9dfd81a4bf51cd68e1f0"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
