@@ -83,6 +83,7 @@ authorized_licenses = [
     "bsd-3-clause",
     "apache",
     "apache 2.0",
+    "apache-2.0",
     "apache software",
     "apache software license",
     "lgpl",
@@ -113,7 +114,10 @@ dependencies = true
 optional_dependencies = ["doc", "full", "license"]
 
 [tool.ruff]
+line-length = 100
+target-version = "py38"
 
+[tool.ruff.lint]
 # TODO add D
 select = ["E", "F", "I", "UP"]
 # TODO: remove E501 once docstrings are formatted
@@ -123,16 +127,14 @@ ignore = [
     "E501", # TODO: remove E501 once docstrings are formatted
     "UP031",
 ]
-line-length = 100
-target-version = "py38"
 
-[tool.ruff.format]
-quote-style = "single"
-
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "test/**" = ["D", "F403", "F405"]
 "b2/console_tool.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "single"
 
 [tool.towncrier]
 directory = "changelog.d"
@@ -212,7 +214,7 @@ test = [
     "pytest-forked==1.6.0",
     "pytest-xdist==2.5.0",
     "pytest-watcher==0.4.3",
-    "backoff==2.1.2",
+    "tenacity>=8.2.3,<9",
     "more-itertools==8.13.0",
 ]
 bundle = [
