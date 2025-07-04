@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:2cc00073ee139760744649dd5ae846896bad894e3784509184cbbdfdc1ef94a5"
+content_hash = "sha256:99bf15d3aeac6a50e9d2606cb3e08ed1aff0825addb4c8389f84e543f7111d5b"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -112,7 +112,7 @@ files = [
 
 [[package]]
 name = "b2sdk"
-version = "2.9.4"
+version = "2.8.1"
 requires_python = ">=3.8"
 summary = "Backblaze B2 SDK"
 groups = ["default"]
@@ -124,8 +124,8 @@ dependencies = [
     "typing-extensions>=4.7.1; python_version < \"3.12\"",
 ]
 files = [
-    {file = "b2sdk-2.9.4-py3-none-any.whl", hash = "sha256:60d9a144da8cd7e3e432e7d7a95e8b92d3be82e1921270b1108ab947d5bfeaad"},
-    {file = "b2sdk-2.9.4.tar.gz", hash = "sha256:7e47ec9538c8cb483a91ee9e6e38dd0d93319b815aa0c4e8cd4cf8def8f2c8e6"},
+    {file = "b2sdk-2.8.1-py3-none-any.whl", hash = "sha256:0fac6559f9b8ac0bc603b86ae5367724099cde8975efd7a3dd3fb33e21085eb4"},
+    {file = "b2sdk-2.8.1.tar.gz", hash = "sha256:f75d9980259a42915228c3deee475b2b7d5bc252d8c3228a8c3727ad9c68a343"},
 ]
 
 [[package]]
