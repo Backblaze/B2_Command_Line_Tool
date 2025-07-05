@@ -32,7 +32,7 @@ from pathlib import Path
 from tempfile import mkdtemp, mktemp
 from typing import Any, Iterable, TypeVar
 
-import backoff
+import tenacity
 from b2sdk.v2 import (
     ALL_CAPABILITIES,
     BUCKET_NAME_CHARS_UNIQ,
@@ -223,10 +223,10 @@ class Api:
         for bucket in remaining_buckets:
             print(bucket)
 
-    @backoff.on_exception(
-        backoff.expo,
-        TooManyRequests,
-        max_tries=8,
+    @tenacity.retry(
+        retry=tenacity.retry_if_exception_type(TooManyRequests),
+        wait=tenacity.wait_exponential(),
+        stop=tenacity.stop_after_attempt(8),
     )
     def clean_bucket(
         self,
