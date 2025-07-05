@@ -10,7 +10,7 @@
 
 # This is a helper module for test_autocomplete_cache.py
 
-from b2sdk.v2 import B2Api  # noqa
+from b2sdk.v3 import B2Api  # noqa
 
 
 def function():

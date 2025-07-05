@@ -22,7 +22,7 @@ from tempfile import TemporaryDirectory
 from typing import Generator
 
 import pytest
-from b2sdk.v2 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
+from b2sdk.v3 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
 
 from b2._internal.version_listing import (
     CLI_VERSIONS,

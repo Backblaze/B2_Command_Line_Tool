@@ -17,7 +17,7 @@ import logging
 import sys
 from typing import TypeVar
 
-from b2sdk.v2 import get_b2sdk_doc_urls
+from b2sdk.v3 import get_b2sdk_doc_urls
 
 try:
     import pydantic

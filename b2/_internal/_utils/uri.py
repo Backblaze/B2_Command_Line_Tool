@@ -16,13 +16,13 @@ from functools import singledispatchmethod
 from pathlib import Path
 from typing import Sequence
 
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     B2Api,
     DownloadVersion,
     FileVersion,
     Filter,
 )
-from b2sdk.v2.exception import B2Error
+from b2sdk.v3.exception import B2Error
 
 from b2._internal._utils.python_compat import removeprefix
 
