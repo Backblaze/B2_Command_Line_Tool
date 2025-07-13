@@ -16,7 +16,7 @@ from itertools import islice
 
 
 def bucket_name_completer(prefix, parsed_args, **kwargs):
-    from b2sdk.v2 import unprintable_to_hex
+    from b2sdk.v3 import unprintable_to_hex
 
     from b2._internal._cli.b2api import _get_b2api_for_profile
 
@@ -36,7 +36,7 @@ def file_name_completer(prefix, parsed_args, **kwargs):
 
     To limit delay & cost only lists files returned from by single call to b2_list_file_names
     """
-    from b2sdk.v2 import LIST_FILE_NAMES_MAX_LIMIT, unprintable_to_hex
+    from b2sdk.v3 import LIST_FILE_NAMES_MAX_LIMIT, unprintable_to_hex
 
     from b2._internal._cli.b2api import _get_b2api_for_profile
 
@@ -47,7 +47,6 @@ def file_name_completer(prefix, parsed_args, **kwargs):
         latest_only=True,
         recursive=False,
         fetch_count=LIST_FILE_NAMES_MAX_LIMIT,
-        folder_to_list_can_be_a_file=True,
     )
     return [
         unprintable_to_hex(folder_name or file_version.file_name)
@@ -59,7 +58,7 @@ def b2uri_file_completer(prefix: str, parsed_args, **kwargs):
     """
     Complete B2 URI pointing to a file-like object in a bucket.
     """
-    from b2sdk.v2 import LIST_FILE_NAMES_MAX_LIMIT, unprintable_to_hex
+    from b2sdk.v3 import LIST_FILE_NAMES_MAX_LIMIT, unprintable_to_hex
 
     from b2._internal._cli.b2api import _get_b2api_for_profile
     from b2._internal._utils.python_compat import removeprefix

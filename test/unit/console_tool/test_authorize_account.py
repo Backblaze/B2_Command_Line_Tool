@@ -10,7 +10,7 @@
 from unittest import mock
 
 import pytest
-from b2sdk.v2 import ALL_CAPABILITIES
+from b2sdk.v3 import ALL_CAPABILITIES
 
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
@@ -147,8 +147,7 @@ def test_authorize_account_prints_account_info(b2_cli):
         'accountFilePath': None,
         'accountId': 'account-0',
         'allowed': {
-            'bucketId': None,
-            'bucketName': None,
+            'buckets': None,
             'capabilities': sorted(ALL_CAPABILITIES),
             'namePrefix': None,
         },

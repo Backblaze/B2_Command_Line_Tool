@@ -33,7 +33,7 @@ from tempfile import mkdtemp, mktemp
 from typing import Any, Iterable, TypeVar
 
 import tenacity
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     ALL_CAPABILITIES,
     BUCKET_NAME_CHARS_UNIQ,
     BUCKET_NAME_LENGTH_RANGE,
@@ -50,12 +50,11 @@ from b2sdk.v2 import (
     RetentionMode,
     fix_windows_path_limit,
 )
-from b2sdk.v2.exception import (
+from b2sdk.v3.exception import (
     BadRequest,
     BucketIdNotFound,
     FileNotPresent,
     TooManyRequests,
-    v3BucketIdNotFound,
 )
 
 from b2._internal.console_tool import Command, current_time_millis
@@ -156,7 +155,7 @@ class Api:
         info = InMemoryAccountInfo()
         cache = InMemoryCache()
         self.api = B2Api(info, cache=cache)
-        self.api.authorize_account(self.realm, self.account_id, self.application_key)
+        self.api.authorize_account(self.account_id, self.application_key, realm=self.realm)
         assert (
             BUCKET_NAME_LENGTH - len(self.this_run_bucket_name_prefix) > 5
         ), self.this_run_bucket_name_prefix
@@ -254,7 +253,7 @@ class Api:
             # try optimistic bucket removal first, since it is completely free (as opposed to `ls` call)
             try:
                 return self.api.delete_bucket(bucket)
-            except (BucketIdNotFound, v3BucketIdNotFound):
+            except BucketIdNotFound:
                 return  # bucket was already removed
             except BadRequest as exc:
                 assert exc.code == 'cannot_delete_non_empty_bucket'
@@ -266,9 +265,9 @@ class Api:
             file_versions = wrap_iterables(
                 [
                     bucket.ls(
+                        path=folder,
                         latest_only=False,
                         recursive=True,
-                        folder_to_list=folder,
                     )
                     for folder in only_folders
                 ]

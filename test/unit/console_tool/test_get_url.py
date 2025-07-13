@@ -19,7 +19,7 @@ def uploaded_file_url(bucket_info, uploaded_file):
 
 @pytest.fixture
 def uploaded_file_url_by_id(uploaded_file):
-    return f"http://download.example.com/b2api/v3/b2_download_file_by_id?fileId={uploaded_file['fileId']}"
+    return f"http://download.example.com/b2api/v4/b2_download_file_by_id?fileId={uploaded_file['fileId']}"
 
 
 def test_get_url(b2_cli, uploaded_file, uploaded_file_url_by_id):

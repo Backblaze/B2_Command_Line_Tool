@@ -11,7 +11,7 @@
 from io import StringIO
 
 import pytest
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     SSE_B2_AES,
     B2Api,
     B2HttpApiConfig,
@@ -38,7 +38,9 @@ class TestReprentFileMetadata(TestBase):
         )
         self.raw_api = self.master_b2_api.session.raw_api
         (self.master_account_id, self.master_key) = self.raw_api.create_account()
-        self.master_b2_api.authorize_account('production', self.master_account_id, self.master_key)
+        self.master_b2_api.authorize_account(
+            self.master_account_id, self.master_key, realm='production'
+        )
         self.lock_enabled_bucket = self.master_b2_api.create_bucket(
             'lock-enabled-bucket', 'allPrivate', is_file_lock_enabled=True
         )
@@ -59,7 +61,7 @@ class TestReprentFileMetadata(TestBase):
         self.restricted_b2_api = B2Api(StubAccountInfo(), None)
         self.restricted_b2_api.session.raw_api = self.raw_api
         self.restricted_b2_api.authorize_account(
-            'production', self.restricted_key_id, self.restricted_key
+            self.restricted_key_id, self.restricted_key, realm='production'
         )
 
         def _get_b2api(**kwargs) -> B2Api:

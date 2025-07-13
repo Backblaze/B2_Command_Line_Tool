@@ -11,7 +11,7 @@
 import os
 from typing import Optional
 
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     AuthInfoCache,
     B2Api,
     B2HttpApiConfig,
@@ -19,7 +19,7 @@ from b2sdk.v2 import (
     InMemoryCache,
     SqliteAccountInfo,
 )
-from b2sdk.v2.exception import MissingAccountData
+from b2sdk.v3.exception import MissingAccountData
 
 from b2._internal._cli.const import B2_USER_AGENT_APPEND_ENV_VAR
 
