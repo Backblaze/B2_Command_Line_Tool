@@ -10,7 +10,7 @@
 
 from unittest import mock
 
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     SSE_B2_AES,
     UNKNOWN_KEY_ID,
     EncryptionAlgorithm,

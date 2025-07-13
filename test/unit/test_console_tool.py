@@ -20,19 +20,18 @@ from typing import List, Optional
 from unittest import mock
 
 import pytest
-from b2sdk import v1
-from b2sdk.v2 import (
+from b2sdk.v2 import TempDir
+from b2sdk.v3 import (
     ALL_CAPABILITIES,
     B2Api,
     B2HttpApiConfig,
     ProgressReport,
     RawSimulator,
     StubAccountInfo,
-    TempDir,
     UploadSourceBytes,
     fix_windows_path_limit,
 )
-from b2sdk.v2.exception import Conflict  # Any error for testing fast-fail of the rm command.
+from b2sdk.v3.exception import Conflict  # Any error for testing fast-fail of the rm command.
 from more_itertools import one
 
 from b2._internal._cli.const import (
@@ -998,13 +997,13 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['bucket', 'list'],
             '',
-            'ERROR: Application key is restricted to bucket: my-bucket-a\n',
+            "ERROR: Application key is restricted to buckets: ['my-bucket-a']\n",
             1,
         )
         self._run_command(
             ['bucket', 'get', 'my-bucket-c'],
             '',
-            'ERROR: Application key is restricted to bucket: my-bucket-a\n',
+            "ERROR: Application key is restricted to buckets: ['my-bucket-a']\n",
             1,
         )
 
@@ -1025,7 +1024,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['ls', '--json', *self.b2_uri_args('my-bucket-c')],
             '',
-            'ERROR: Application key is restricted to bucket: my-bucket-a\n',
+            "ERROR: Application key is restricted to buckets: ['my-bucket-a']\n",
             1,
         )
 
@@ -1763,8 +1762,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ),  # missing in StubAccountInfo in tests
             'accountId': self.account_id,
             'allowed': {
-                'bucketId': None,
-                'bucketName': None,
+                'buckets': None,
                 'capabilities': sorted(ALL_CAPABILITIES),
                 'namePrefix': None,
             },
@@ -2596,8 +2594,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Assertions that the restrictions not only are saved but what they are supposed to be
         self.assertEqual(
             dict(
-                bucketId=bucket_id,
-                bucketName=bucket_name,
+                buckets=[{'id': bucket_id, 'name': bucket_name}],
                 capabilities=[
                     'listBuckets',
                     'readFiles',
@@ -2611,7 +2608,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         expected_create_key_stderr = (
             'ERROR: unauthorized for application key '
             "with capabilities 'listBuckets,readFiles', "
-            "restricted to bucket 'restrictedBucket', "
+            "restricted to buckets ['restrictedBucket'], "
             "restricted to files that start with 'some/file/prefix/' (unauthorized)\n"
         )
         self._run_command(
@@ -2918,7 +2915,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
         self._run_command(['bucket', 'create', 'my-bucket-0', 'allPublic'], 'bucket_0\n', '', 0)
         cc_name = "$'\x1b[31mC\x1b[32mC\x1b[33mI\x1b[0m'"
-        escaped_error = "ERROR: unauthorized for application key with capabilities 'listBuckets,listKeys', restricted to bucket 'my-bucket-0', restricted to files that start with '$'\\x1b[31mC\\x1b[32mC\\x1b[33mI\\x1b[0m'' (unauthorized)\n"
+        escaped_error = "ERROR: unauthorized for application key with capabilities 'listBuckets,listKeys', restricted to buckets ['my-bucket-0'], restricted to files that start with '$'\\x1b[31mC\\x1b[32mC\\x1b[33mI\\x1b[0m'' (unauthorized)\n"
 
         # Create a key
         self._run_command(
@@ -3017,22 +3014,19 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
 
-class TestConsoleToolWithV1(BaseConsoleToolTest):
-    """These tests use v1 interface to perform various setups before running CLI commands"""
+class TestConsoleToolWithBucket(BaseConsoleToolTest):
+    """These tests create a bucket during setUp before running CLI commands"""
 
     def setUp(self):
         super().setUp()
-        self.v1_account_info = v1.StubAccountInfo()
-
-        self.v1_b2_api = v1.B2Api(self.v1_account_info, None)
-        self.v1_b2_api.session.raw_api = self.raw_api
-        self.v1_b2_api.authorize_account('production', self.account_id, self.master_key)
         self._authorize_account()
         self._create_my_bucket()
-        self.v1_bucket = self.v1_b2_api.create_bucket('my-v1-bucket', 'allPrivate')
 
     def test_cancel_large_file(self):
-        file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
+
         self._run_command(
             ['file', 'large', 'unfinished', 'cancel', f'b2id://{file.file_id}'],
             '9999 canceled\n',
@@ -3041,7 +3035,10 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         )
 
     def test_cancel_large_file_deprecated(self):
-        file = self.v1_bucket.start_large_file('file1', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
+
         self._run_command(
             ['cancel-large-file', file.file_id],
             '9999 canceled\n',
@@ -3050,38 +3047,43 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
         )
 
     def test_cancel_all_large_file(self):
-        self.v1_bucket.start_large_file('file1', 'text/plain', {})
-        self.v1_bucket.start_large_file('file2', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file1', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file2', 'text/plain', {})
+
         expected_stdout = """
         9999 canceled
         9998 canceled
         """
 
         self._run_command(
-            ['file', 'large', 'unfinished', 'cancel', 'b2://my-v1-bucket'], expected_stdout, '', 0
+            ['file', 'large', 'unfinished', 'cancel', 'b2://my-bucket'], expected_stdout, '', 0
         )
 
     def test_cancel_all_large_file_deprecated(self):
-        self.v1_bucket.start_large_file('file1', 'text/plain', {})
-        self.v1_bucket.start_large_file('file2', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file1', 'text/plain', {})
+        self.b2_api.services.large_file.start_large_file('bucket_0', 'file2', 'text/plain', {})
         expected_stdout = """
         9999 canceled
         9998 canceled
         """
 
         self._run_command(
-            ['cancel-all-unfinished-large-files', 'my-v1-bucket'],
+            ['cancel-all-unfinished-large-files', 'my-bucket'],
             expected_stdout,
             'WARNING: `cancel-all-unfinished-large-files` command is deprecated. Use `file large unfinished cancel` instead.\n',
             0,
         )
 
     def test_list_parts_with_none(self):
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
         self._run_command(['file', 'large', 'parts', f'b2id://{file.file_id}'], '', '', 0)
 
     def test_list_parts_with_none_deprecated(self):
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file1', 'text/plain', {}
+        )
         self._run_command(
             ['list-parts', file.file_id],
             '',
@@ -3091,7 +3093,9 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
 
     def test_list_parts_with_parts(self):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file', 'text/plain', {}
+        )
         content = b'hello world'
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False
@@ -3124,7 +3128,9 @@ class TestConsoleToolWithV1(BaseConsoleToolTest):
 
     def test_list_parts_with_parts_deprecated(self):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        file = self.v1_bucket.start_large_file('file', 'text/plain', {})
+        file = self.b2_api.services.large_file.start_large_file(
+            'bucket_0', 'file', 'text/plain', {}
+        )
         content = b'hello world'
         large_file_upload_state = mock.MagicMock()
         large_file_upload_state.has_error.return_value = False

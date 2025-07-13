@@ -9,7 +9,7 @@
 ######################################################################
 import os
 
-from b2sdk.v2 import DEFAULT_MIN_PART_SIZE
+from b2sdk.v3 import DEFAULT_MIN_PART_SIZE
 
 from test.helpers import skip_on_windows
 

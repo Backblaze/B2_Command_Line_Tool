@@ -9,7 +9,7 @@
 ######################################################################
 import io
 
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     unprintable_to_hex,
 )
 

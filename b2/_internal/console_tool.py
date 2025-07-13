@@ -54,7 +54,7 @@ from typing import Any, BinaryIO, List
 import b2sdk
 import requests
 import rst2ansi
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
     B2_ACCOUNT_INFO_ENV_VAR,
@@ -103,12 +103,12 @@ from b2sdk.v2 import (
     get_included_sources,
     make_progress_listener,
     notification_rule_response_to_request,
-    parse_sync_folder,
+    parse_folder,
     points_to_fifo,
     substitute_control_chars,
     unprintable_to_hex,
 )
-from b2sdk.v2.exception import (
+from b2sdk.v3.exception import (
     B2Error,
     BadFileInfo,
     EmptyDirectory,
@@ -1364,7 +1364,7 @@ class AccountAuthorizeBase(Command):
         if verbose_realm:
             self._print_stderr(f'Using {url}')
         try:
-            self.api.authorize_account(realm, application_key_id, application_key)
+            self.api.authorize_account(application_key_id, application_key, realm=realm)
 
             allowed = self.api.account_info.get_allowed()
             if 'listBuckets' not in allowed['capabilities']:
@@ -1376,15 +1376,26 @@ class AccountAuthorizeBase(Command):
                 )
                 self.api.account_info.clear()
                 return 1
-            if allowed['bucketId'] is not None and allowed['bucketName'] is None:
-                logger.error('ConsoleTool has bucket-restricted key and the bucket does not exist')
-                self._print_stderr(
-                    "ERROR: application key is restricted to bucket id '{}', which no longer exists".format(
-                        allowed['bucketId']
+            buckets = allowed['buckets']
+            if buckets:
+                existing_bucket_present = False
+
+                for item in buckets:
+                    if item['name'] is not None:
+                        existing_bucket_present = True
+                        break
+
+                if not existing_bucket_present:
+                    logger.error(
+                        'ConsoleTool has bucket-restricted key and the bucket does not exist'
                     )
-                )
-                self.api.account_info.clear()
-                return 1
+                    self._print_stderr(
+                        "ERROR: application key is restricted to bucket id '{}', which no longer exists".format(
+                            allowed['bucketId']
+                        )
+                    )
+                    self.api.account_info.clear()
+                    return 1
             return 0
         except B2Error as e:
             logger.exception('ConsoleTool account authorization error')
@@ -1736,11 +1747,13 @@ class KeyCreateBase(Command):
                 set(ALL_CAPABILITIES) - preview_feature_caps | current_key_caps
             )
 
+        buckets_ids = [bucket_id_or_none] if bucket_id_or_none else None
+
         application_key = self.api.create_key(
             capabilities=args.capabilities,
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
-            bucket_id=bucket_id_or_none,
+            bucket_ids=buckets_ids,
             name_prefix=args.name_prefix,
         )
 
@@ -2344,10 +2357,13 @@ class KeyListBase(Command):
             format_str = '{keyId}   {keyName:20s}'
         timestamp_or_none = apply_or_none(int, key.expiration_timestamp_millis)
         (date_str, time_str) = self.timestamp_display(timestamp_or_none)
+
+        bucket_id = key.bucket_ids[0] if key.bucket_ids else None
+
         key_str = format_str.format(
             keyId=key.id_,
             keyName=key.key_name,
-            bucketName=self.bucket_display_name(key.bucket_id),
+            bucketName=self.bucket_display_name(bucket_id),
             namePrefix=(key.name_prefix or ''),
             capabilities=','.join(key.capabilities),
             dateStr=date_str,
@@ -2478,7 +2494,6 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
                 recursive=args.recursive,
                 with_wildcard=args.with_wildcard,
                 filters=args.filters,
-                folder_to_list_can_be_a_file=True,
             )
         except Exception as err:
             raise CommandError(unprintable_to_hex(str(err))) from err
@@ -3170,8 +3185,8 @@ class Sync(
         self.api.services.upload_manager.set_thread_pool_size(upload_threads)
         self.api.services.download_manager.set_thread_pool_size(download_threads)
 
-        source = parse_sync_folder(args.source, self.console_tool.api)
-        destination = parse_sync_folder(args.destination, self.console_tool.api)
+        source = parse_folder(args.source, self.console_tool.api)
+        destination = parse_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allow_empty_source or VERSION_0_COMPATIBILITY
 
         synchronizer = self.get_synchronizer_from_args(

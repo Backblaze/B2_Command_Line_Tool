@@ -25,7 +25,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 import pytest
-from b2sdk.v2 import (
+from b2sdk.v3 import (
     B2_ACCOUNT_INFO_ENV_VAR,
     SSE_C_KEY_ID_FILE_INFO_KEY_NAME,
     UNKNOWN_FILE_RETENTION_SETTING,
@@ -37,7 +37,7 @@ from b2sdk.v2 import (
     SqliteAccountInfo,
     fix_windows_path_limit,
 )
-from b2sdk.v2.exception import MissingAccountData
+from b2sdk.v3.exception import MissingAccountData
 
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
@@ -610,12 +610,12 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
         # the two regexes below depend on log message from urllib3, which is not perfect, but this test needs to
         # check global logging settings
         stderr_regex = re.compile(
-            r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v3/b2_delete_bucket HTTP'
+            r'DEBUG:urllib3.connectionpool:.* "POST /b2api/v4/b2_delete_bucket HTTP'
             r'.*' + stack_trace_in_log,
             re.DOTALL,
         )
         log_file_regex = re.compile(
-            r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v3/b2_delete_bucket HTTP'
+            r'urllib3.connectionpool\tDEBUG\t.* "POST /b2api/v4/b2_delete_bucket HTTP'
             r'.*' + stack_trace_in_log,
             re.DOTALL,
         )
@@ -744,19 +744,19 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
         r'Deletion of file "test" \([^\)]+\) failed: unauthorized for '
         r'application key with capabilities '
         r"'(.*listFiles.*|.*listBuckets.*|.*readFiles.*){3}', "
-        r"restricted to bucket '%s' \(unauthorized\)" % bucket_name
+        r"restricted to buckets \['%s'\] \(unauthorized\)" % bucket_name
     )
     b2_tool.should_fail(
         ['rm', '--recursive', '--no-progress', *b2_uri_args(bucket_name)], failed_bucket_err
     )
 
-    failed_bucket_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    failed_bucket_err = rf"ERROR: Application key is restricted to buckets: \['{bucket_name}'\]"
     b2_tool.should_fail(['bucket', 'get', second_bucket_name], failed_bucket_err)
 
-    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    failed_list_files_err = rf"ERROR: Application key is restricted to buckets: \['{bucket_name}'\]"
     b2_tool.should_fail(['ls', *b2_uri_args(second_bucket_name)], failed_list_files_err)
 
-    failed_list_files_err = r'ERROR: Application key is restricted to bucket: ' + bucket_name
+    failed_list_files_err = rf"ERROR: Application key is restricted to buckets: \['{bucket_name}'\]"
     b2_tool.should_fail(['rm', *b2_uri_args(second_bucket_name)], failed_list_files_err)
 
     # reauthorize with more capabilities for clean up

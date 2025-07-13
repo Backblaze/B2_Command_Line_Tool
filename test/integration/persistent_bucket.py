@@ -14,8 +14,8 @@ from functools import cached_property
 from typing import List
 
 import tenacity
-from b2sdk.v2 import Bucket
-from b2sdk.v2.exception import DuplicateBucketName, NonExistentBucket
+from b2sdk.v3 import Bucket
+from b2sdk.v3.exception import DuplicateBucketName, NonExistentBucket
 
 from test.integration.helpers import BUCKET_NAME_LENGTH, Api
 

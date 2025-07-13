@@ -13,7 +13,7 @@ import functools
 import re
 
 import arrow
-from b2sdk.v2 import RetentionPeriod
+from b2sdk.v3 import RetentionPeriod
 
 _arrow_version = tuple(int(p) for p in arrow.__version__.split('.'))
 
