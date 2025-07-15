@@ -581,6 +581,62 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+    def test_create_multi_bucket_key_and_authorize_with_it(self):
+        # Start with authorizing with the master key
+        self._authorize_account()
+
+        # Make two buckets
+        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-1', 'allPrivate'], 'bucket_1\n', '', 0)
+
+        # Create a key restricted to those buckets
+        self._run_command(
+            [
+                'key',
+                'create',
+                '--bucket',
+                'my-bucket-0',
+                '--bucket',
+                'my-bucket-1',
+                'key1',
+                'listKeys,listBuckets',
+            ],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # test deprecated command
+        self._run_command(
+            [
+                'create-key',
+                '--bucket',
+                'my-bucket-0',
+                '--bucket',
+                'my-bucket-1',
+                'key2',
+                'listKeys,listBuckets',
+            ],
+            'appKeyId1 appKey1\n',
+            'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
+            0,
+        )
+
+        # Authorize with the key
+        self._run_command(
+            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            None,
+            '',
+            0,
+        )
+
+        self._run_command(
+            ['account', 'authorize', 'appKeyId1', 'appKey1'],
+            None,
+            '',
+            0,
+        )
+
     def test_update_bucket_without_lifecycle(self):
         # Start with authorizing with the master key
         self._authorize_account()
@@ -1025,6 +1081,99 @@ class TestConsoleTool(BaseConsoleToolTest):
             ['ls', '--json', *self.b2_uri_args('my-bucket-c')],
             '',
             "ERROR: Application key is restricted to buckets: ['my-bucket-a']\n",
+            1,
+        )
+
+    def test_multi_bucket_keys(self):
+        self._authorize_account()
+
+        self._run_command(['bucket', 'create', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
+        self._run_command(['bucket', 'create', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
+
+        capabilities = ['readFiles', 'listBuckets']
+        capabilities_with_commas = ','.join(capabilities)
+
+        # Create a multi-bucket key with one of the buckets having invalid name
+        expected_stderr = 'Bucket not found: invalid. If you believe it exists, run `b2 bucket list` to reset cache, then try again.\n'
+
+        self._run_command(
+            [
+                'key',
+                'create',
+                '--bucket',
+                'my-bucket-a',
+                '--bucket',
+                'invalid',
+                'goodKeyName',
+                capabilities_with_commas,
+            ],
+            '',
+            expected_stderr,
+            1,
+        )
+
+        # Create a multi-bucket key
+        self._run_command(
+            [
+                'key',
+                'create',
+                '--bucket',
+                'my-bucket-a',
+                '--bucket',
+                'my-bucket-b',
+                'goodKeyName',
+                capabilities_with_commas,
+            ],
+            'appKeyId0 appKey0\n',
+            '',
+            0,
+        )
+
+        # authorize and make calls using an application key with bucket restrictions
+        self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], None, '', 0)
+
+        self._run_command(
+            ['bucket', 'list'],
+            '',
+            "ERROR: Application key is restricted to buckets: ['my-bucket-a', 'my-bucket-b']\n",
+            1,
+        )
+        self._run_command(
+            ['bucket', 'get', 'my-bucket-c'],
+            '',
+            "ERROR: Application key is restricted to buckets: ['my-bucket-a', 'my-bucket-b']\n",
+            1,
+        )
+
+        def _get_expected_json(bucket_id: str, bucket_name: str):
+            return {
+                'accountId': self.account_id,
+                'bucketId': bucket_id,
+                'bucketInfo': {},
+                'bucketName': bucket_name,
+                'bucketType': 'allPublic',
+                'corsRules': [],
+                'defaultServerSideEncryption': {'mode': None},
+                'lifecycleRules': [],
+                'options': [],
+                'revision': 1,
+            }
+
+        self._run_command(
+            ['bucket', 'get', 'my-bucket-a'],
+            expected_json_in_stdout=_get_expected_json('bucket_0', 'my-bucket-a'),
+        )
+
+        self._run_command(
+            ['bucket', 'get', 'my-bucket-b'],
+            expected_json_in_stdout=_get_expected_json('bucket_1', 'my-bucket-b'),
+        )
+
+        self._run_command(
+            ['ls', '--json', *self.b2_uri_args('my-bucket-c')],
+            '',
+            "ERROR: Application key is restricted to buckets: ['my-bucket-a', 'my-bucket-b']\n",
             1,
         )
 

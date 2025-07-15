@@ -1706,7 +1706,8 @@ class KeyCreateBase(Command):
     specified, the key will not expire.
 
     The ``bucket`` is the name of a bucket in the account.  When specified, the key
-    will only allow access to that bucket.
+    will only allow access to that bucket. You can specify multiple buckets by repeating 
+    the option, e.g. ``--bucket bucket1 --bucket bucket2``
 
     The ``namePrefix`` restricts file access to files whose names start with the prefix.
 
@@ -1720,7 +1721,7 @@ class KeyCreateBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucket')
+        parser.add_argument('--bucket', action='append')
         add_normalized_argument(parser, '--name-prefix')
         parser.add_argument('--duration', type=int)
         parser.add_argument('keyName')
@@ -1731,11 +1732,21 @@ class KeyCreateBase(Command):
         super()._setup_parser(parser)
 
     def _run(self, args):
-        # Translate the bucket name into a bucketId
-        if args.bucket is None:
-            bucket_id_or_none = None
+        # Translate a list of bucket names into a list of bucketIds
+        if not args.bucket:
+            bucket_ids_or_none = None
+        elif len(args.bucket) == 1:
+            bucket_ids_or_none = [self.api.get_bucket_by_name(args.bucket[0]).id_]
         else:
-            bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
+            names_seeking = set(args.bucket)
+            bucket_ids_or_none = []
+            for bucket in self.api.list_buckets(use_cache=True):
+                if bucket.name in names_seeking:
+                    names_seeking.remove(bucket.name)
+                    bucket_ids_or_none.append(bucket.id_)
+
+            if names_seeking:
+                raise NonExistentBucket('; '.join(names_seeking))
 
         if args.all_capabilities:
             current_key_caps = set(self.api.account_info.get_allowed()['capabilities'])
@@ -1747,13 +1758,11 @@ class KeyCreateBase(Command):
                 set(ALL_CAPABILITIES) - preview_feature_caps | current_key_caps
             )
 
-        buckets_ids = [bucket_id_or_none] if bucket_id_or_none else None
-
         application_key = self.api.create_key(
             capabilities=args.capabilities,
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
-            bucket_ids=buckets_ids,
+            bucket_ids=bucket_ids_or_none,
             name_prefix=args.name_prefix,
         )
 

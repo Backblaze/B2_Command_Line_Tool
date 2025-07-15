@@ -782,6 +782,45 @@ def test_key_restrictions(b2_tool, bucket_name, sample_file, bucket_factory, b2_
     )
 
 
+def test_multi_bucket_key_restrictions(b2_tool, bucket_factory):
+    bucket_a = bucket_factory()
+    bucket_b = bucket_factory()
+    bucket_c = bucket_factory()
+
+    key_name = 'clt-testKey-01' + random_hex(6)
+
+    created_key_stdout = b2_tool.should_succeed(
+        [
+            'key',
+            'create',
+            '--bucket',
+            bucket_a.name,
+            '--bucket',
+            bucket_b.name,
+            key_name,
+            'listFiles,listBuckets,readFiles',
+        ]
+    )
+
+    mb_key_id, mb_key = created_key_stdout.split()
+
+    b2_tool.should_succeed(
+        ['account', 'authorize', '--environment', b2_tool.realm, mb_key_id, mb_key],
+    )
+
+    b2_tool.should_succeed(
+        ['bucket', 'get', bucket_a.name],
+    )
+    b2_tool.should_succeed(
+        ['bucket', 'get', bucket_b.name],
+    )
+
+    failed_bucket_err = rf"ERROR: Application key is restricted to buckets: \['{bucket_a.name}', '{bucket_b.name}'\]"
+    b2_tool.should_fail(['bucket', 'get', bucket_c.name], failed_bucket_err)
+
+    b2_tool.should_succeed(['key', 'delete', mb_key_id])
+
+
 def test_delete_bucket(b2_tool, bucket_name):
     b2_tool.should_succeed(['bucket', 'delete', bucket_name])
     b2_tool.should_fail(
