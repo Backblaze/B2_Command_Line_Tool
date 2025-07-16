@@ -1130,6 +1130,16 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+        # List keys
+        expected_list_keys_out = 'appKeyId0   goodKeyName\n'
+
+        expected_list_keys_out_long = """
+            appKeyId0   goodKeyName            my-bucket-a, my-bucket-b   -            -          ''   readFiles,listBuckets
+            """
+
+        self._run_command(['key', 'list'], expected_list_keys_out, '', 0)
+        self._run_command(['key', 'list', '--long'], expected_list_keys_out_long, '', 0)
+
         # authorize and make calls using an application key with bucket restrictions
         self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], None, '', 0)
 
