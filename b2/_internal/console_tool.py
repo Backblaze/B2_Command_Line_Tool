@@ -1706,7 +1706,8 @@ class KeyCreateBase(Command):
     specified, the key will not expire.
 
     The ``bucket`` is the name of a bucket in the account.  When specified, the key
-    will only allow access to that bucket.
+    will only allow access to that bucket. You can specify multiple buckets by repeating
+    the option, e.g. ``--bucket bucket1 --bucket bucket2``
 
     The ``namePrefix`` restricts file access to files whose names start with the prefix.
 
@@ -1720,7 +1721,7 @@ class KeyCreateBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucket')
+        parser.add_argument('--bucket', action='append')
         add_normalized_argument(parser, '--name-prefix')
         parser.add_argument('--duration', type=int)
         parser.add_argument('keyName')
@@ -1731,11 +1732,21 @@ class KeyCreateBase(Command):
         super()._setup_parser(parser)
 
     def _run(self, args):
-        # Translate the bucket name into a bucketId
-        if args.bucket is None:
-            bucket_id_or_none = None
+        # Translate a list of bucket names into a list of bucketIds
+        if not args.bucket:
+            bucket_ids_or_none = None
+        elif len(args.bucket) == 1:
+            bucket_ids_or_none = [self.api.get_bucket_by_name(args.bucket[0]).id_]
         else:
-            bucket_id_or_none = self.api.get_bucket_by_name(args.bucket).id_
+            names_seeking = set(args.bucket)
+            bucket_ids_or_none = []
+            for bucket in self.api.list_buckets(use_cache=True):
+                if bucket.name in names_seeking:
+                    names_seeking.remove(bucket.name)
+                    bucket_ids_or_none.append(bucket.id_)
+
+            if names_seeking:
+                raise NonExistentBucket('; '.join(names_seeking))
 
         if args.all_capabilities:
             current_key_caps = set(self.api.account_info.get_allowed()['capabilities'])
@@ -1747,13 +1758,11 @@ class KeyCreateBase(Command):
                 set(ALL_CAPABILITIES) - preview_feature_caps | current_key_caps
             )
 
-        buckets_ids = [bucket_id_or_none] if bucket_id_or_none else None
-
         application_key = self.api.create_key(
             capabilities=args.capabilities,
             key_name=args.keyName,
             valid_duration_seconds=args.duration,
-            bucket_ids=buckets_ids,
+            bucket_ids=bucket_ids_or_none,
             name_prefix=args.name_prefix,
         )
 
@@ -2318,7 +2327,7 @@ class KeyListBase(Command):
 
     - ID of the application key
     - Name of the application key
-    - Name of the bucket the key is restricted to, or ``-`` for no restriction
+    - Name of the bucket(s) the key is restricted to, or ``-`` for no restriction
     - Date of expiration, or ``-``
     - Time of expiration, or ``-``
     - File name prefix, in single quotes
@@ -2352,18 +2361,16 @@ class KeyListBase(Command):
 
     def print_key(self, key: ApplicationKey, is_long_format: bool):
         if is_long_format:
-            format_str = "{keyId}   {keyName:20s}   {bucketName:20s}   {dateStr:10s}   {timeStr:8s}   '{namePrefix}'   {capabilities}"
+            format_str = "{keyId}   {keyName:20s}   {bucketNames:20s}   {dateStr:10s}   {timeStr:8s}   '{namePrefix}'   {capabilities}"
         else:
             format_str = '{keyId}   {keyName:20s}'
         timestamp_or_none = apply_or_none(int, key.expiration_timestamp_millis)
         (date_str, time_str) = self.timestamp_display(timestamp_or_none)
 
-        bucket_id = key.bucket_ids[0] if key.bucket_ids else None
-
         key_str = format_str.format(
             keyId=key.id_,
             keyName=key.key_name,
-            bucketName=self.bucket_display_name(bucket_id),
+            bucketNames=self.bucket_display_names(key.bucket_ids),
             namePrefix=(key.name_prefix or ''),
             capabilities=','.join(key.capabilities),
             dateStr=date_str,
@@ -2371,16 +2378,18 @@ class KeyListBase(Command):
         )
         self._print(key_str)
 
-    def bucket_display_name(self, bucket_id):
-        # Special case for no bucket ID
-        if bucket_id is None:
+    def bucket_display_names(self, bucket_ids):
+        # Special case for no bucket IDs
+        if not bucket_ids:
             return '-'
 
         # Make sure we have the map
         if self.bucket_id_to_bucket_name is None:
             self.bucket_id_to_bucket_name = dict((b.id_, b.name) for b in self.api.list_buckets())
 
-        return self.bucket_id_to_bucket_name.get(bucket_id, 'id=' + bucket_id)
+        display_names = [self.bucket_id_to_bucket_name.get(id_, f'id={id_}') for id_ in bucket_ids]
+
+        return ', '.join(display_names)
 
     def timestamp_display(self, timestamp_or_none):
         """
