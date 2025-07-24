@@ -815,8 +815,21 @@ def test_multi_bucket_key_restrictions(b2_tool, bucket_factory):
         ['bucket', 'get', bucket_b.name],
     )
 
-    failed_bucket_err = rf"ERROR: Application key is restricted to buckets: \['{bucket_a.name}', '{bucket_b.name}'\]"
+    failed_bucket_err = rf"ERROR: Application key is restricted to buckets: \['{bucket_a.name}', '{bucket_b.name}'|'{bucket_b.name}', '{bucket_a.name}'\]"
+
     b2_tool.should_fail(['bucket', 'get', bucket_c.name], failed_bucket_err)
+
+    # reauthorize with more capabilities for clean up
+    b2_tool.should_succeed(
+        [
+            'account',
+            'authorize',
+            '--environment',
+            b2_tool.realm,
+            b2_tool.account_id,
+            b2_tool.application_key,
+        ]
+    )
 
     b2_tool.should_succeed(['key', 'delete', mb_key_id])
 
