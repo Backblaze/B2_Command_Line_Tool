@@ -1,1 +1,1 @@
-Switched to cloud-based signing using DigiCert KeyLocker
+Switched to cloud-based signing using DigiCert KeyLocker.
