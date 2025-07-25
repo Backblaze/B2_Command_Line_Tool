@@ -99,7 +99,7 @@ jobs:
       SM_API_KEY: ${{ secrets.SM_API_KEY }}
       SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets. SM_CLIENT_CERT_PASSWORD }}
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
         with:
