@@ -365,42 +365,41 @@ def bundle(session: nox.Session):
 def sign(session):
     """Sign the bundled distribution (macOS and Windows only)."""
 
-    def sign_windows(cert_file, cert_password):
-        session.run('certutil', '-f', '-p', cert_password, '-importpfx', cert_file)
+    def sign_windows(keypair_alias, cert_fingerprint):
         for binary_name in ['b2'] + get_versions():
+            binary_path = f'dist/{binary_name}.exe'
+
+            # Sign the binary
             session.run(
-                WINDOWS_SIGNTOOL_PATH,
+                'smctl',
                 'sign',
-                '/f',
-                cert_file,
-                '/p',
-                cert_password,
-                '/tr',
-                WINDOWS_TIMESTAMP_SERVER,
-                '/td',
-                'sha256',
-                '/fd',
-                'sha256',
-                f'dist/{binary_name}.exe',
+                '--keypair-alias',
+                keypair_alias,
+                '--input',
+                binary_path,
                 external=True,
             )
+
+            # Verify the signature
             session.run(
-                WINDOWS_SIGNTOOL_PATH,
+                'smctl',
+                'sign',
                 'verify',
-                '/pa',
-                '/all',
-                f'dist/{binary_name}.exe',
+                '--fingerprint',
+                cert_fingerprint,
+                '--input',
+                binary_path,
                 external=True,
             )
 
     if SYSTEM == 'windows':
         try:
-            certificate_file, certificate_password = session.posargs
+            sm_keypair_alias, sm_cert_fingerprint = session.posargs
         except ValueError:
-            session.error('pass the certificate file and the password as positional arguments')
+            session.error('pass the keypair alias and the cert fingerprint as positional arguments')
             return
 
-        sign_windows(certificate_file, certificate_password)
+        sign_windows(sm_keypair_alias, sm_cert_fingerprint)
     elif SYSTEM == 'linux':
         session.log('signing is not supported for Linux')
     else:

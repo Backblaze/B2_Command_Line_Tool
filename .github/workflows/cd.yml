@@ -95,9 +95,11 @@ jobs:
   deploy-windows-bundle:
     needs: deploy
     env:
-      B2_WINDOWS_CODE_SIGNING_CERTIFICATE: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
-      B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}
-    runs-on: windows-2019
+      SM_HOST: ${{ secrets.SM_HOST }}
+      SM_API_KEY: ${{ secrets.SM_API_KEY }}
+      SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
+      SM_CLIENT_CERT_PASSWORD: ${{ secrets. SM_CLIENT_CERT_PASSWORD }}
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,18 +114,19 @@ jobs:
         id: bundle
         shell: bash
         run: nox -vs bundle
-      - name: Import certificate
-        id: windows_import_cert
-        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' }}
-        uses: timheuer/base64-to-file@v1
-        with:
-          fileName: 'cert.pfx'
-          encodedString: ${{ secrets.B2_WINDOWS_CODE_SIGNING_CERTIFICATE }}
-      - name: Sign the bundle
-        if: ${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE != '' }}
-        id: sign
+      - name: Install client for code signing with Software Trust Manager
+        uses: digicert/ssm-code-signing@v1.1.0
+        env:
+          FORCE_DOWNLOAD_TOOLS: 'true'
+      - name: Set up client authentication certificate
+        id: client_cert
+        run: |
+          echo "${{ env.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /d/Certificate_pkcs12.p12
+          echo "SM_CLIENT_CERT_FILE=D:\\Certificate_pkcs12.p12" >> "$GITHUB_ENV"
         shell: bash
-        run: nox -vs sign -- '${{ steps.windows_import_cert.outputs.filePath }}' '${{ env.B2_WINDOWS_CODE_SIGNING_CERTIFICATE_PASSWORD }}'
+      - name: Sign the bundle using a keypair alias
+        id: sign
+        run: nox -vs sign -- '${{ secrets.SM_KEYPAIR_ALIAS }}' '${{ secrets.SM_CERT_FINGERPRINT }}'
       - name: Generate hashes
         id: hashes
         run: nox -vs make_dist_digest
