@@ -124,7 +124,7 @@ jobs:
           echo "${{ env.SM_CLIENT_CERT_FILE_B64 }}" | base64 --decode > /d/Certificate_pkcs12.p12
           echo "SM_CLIENT_CERT_FILE=D:\\Certificate_pkcs12.p12" >> "$GITHUB_ENV"
         shell: bash
-      - name: Sign the bundle using a keypair alais
+      - name: Sign the bundle using a keypair alias
         id: sign
         run: nox -vs sign -- '${{ secrets.SM_KEYPAIR_ALIAS }}' '${{ secrets.SM_CERT_FINGERPRINT }}'
       - name: Generate hashes
