@@ -61,6 +61,7 @@ def test_b2fileuri_str():
     [
         ('some/local/path', Path('some/local/path')),
         ('./some/local/path', Path('some/local/path')),
+        ('.', Path('')),
         ('b2://bucket', B2URI(bucket_name='bucket')),
         ('b2://bucket/', B2URI(bucket_name='bucket')),
         ('b2://bucket/path/to/dir/', B2URI(bucket_name='bucket', path='path/to/dir/')),
@@ -68,6 +69,9 @@ def test_b2fileuri_str():
         ('b2://bucket/wild[card]', B2URI(bucket_name='bucket', path='wild[card]')),
         ('b2://bucket/wild?card', B2URI(bucket_name='bucket', path='wild?card')),
         ('b2://bucket/special#char', B2URI(bucket_name='bucket', path='special#char')),
+        ('b2://bucket/special#', B2URI(bucket_name='bucket', path='special#')),
+        ('b2://bucket/special?', B2URI(bucket_name='bucket', path='special?')),
+        ('b2://bucket//special', B2URI(bucket_name='bucket', path='/special')),
     ],
 )
 def test_parse_uri(uri, expected):
@@ -94,11 +98,11 @@ def test_parse_uri__allow_all_buckets():
         # Test cases for B2 URIs with credentials
         (
             'b2://user@password:bucket/path',
-            'Invalid B2 URI: credentials passed using `user@password:` syntax is not supported in URI',
+            "Invalid B2 URI: 'b2://user@password:bucket/path'",
         ),
         (
             'b2id://user@password:file123',
-            'Invalid B2 URI: credentials passed using `user@password:` syntax is not supported in URI',
+            "Invalid B2 URI: 'b2id://user@password:file123'",
         ),
         # Test cases for unsupported URI schemes
         ('unknown://bucket/path', "Unsupported URI scheme: 'unknown'"),
