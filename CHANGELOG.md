@@ -9,6 +9,27 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.4.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.4.0) - 2025-07-30
+
+
+### Changed
+
+- Migrate to b2sdk.v3.
+- Switched to cloud-based signing using DigiCert KeyLocker.
+
+### Added
+
+- Add multi-bucket keys support to the `key create` subcommand. ([#1083](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1083))
+- Support multi-bucket keys in `key list` subcommand.
+
+### Infrastructure
+
+- Replace backoff with tenacity for handling retries in tests. ([#1088](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1088))
+- Fix flaky integration test for multi-bucket key restrictions.
+- Redesign console tools tests using b2sdk.v1 to use b2sdk.v3.
+- Replace deprecated windows-2019 ci runner image with windows-2025.
+
+
 ## [4.3.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.3.3) - 2025-06-04
 
 
