@@ -163,47 +163,7 @@ jobs:
       - name: Run tests with docker
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: nox -vs docker_test -- backblazeit/b2:test
-  test-linux-bundle:
-    timeout-minutes: 90
-    needs: cleanup_buckets
-    env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
-    runs-on: ubuntu-latest
-    container:
-      image: "python:3.12"  # can not use ${{ env.PYTHON_DEFAULT_VERSION }} here
-      env:
-        DEBIAN_FRONTEND: noninteractive
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install dependencies
-        run: |
-          apt-get -y update
-          apt-get -y install patchelf
-          python -m pip install --upgrade nox pdm
-          git config --global --add safe.directory '*'
-      - name: Bundle the distribution
-        id: bundle
-        run: nox -vs bundle
-      - name: Generate hashes
-        id: hashes
-        run: nox -vs make_dist_digest
-      - name: Run integration tests (without secrets)
-        run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
-      - name: Run integration tests (with secrets)
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
-        run: nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
-      - name: Upload assets
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          path: ${{ steps.bundle.outputs.asset_path }}
-          if-no-files-found: warn
-          retention-days: 7
-          overwrite: true
-  test-windows-bundle:
+  test-bundle:
     timeout-minutes: 90
     needs: cleanup_buckets
     env:
@@ -213,16 +173,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, windows-2025]
+        os: ["ubuntu-22.04", "ubuntu-22.04-arm", "windows-2022"]  # keep the versions aligned with cd.yml
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }} (deadsnakes)
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: deadsnakes/action@v3.2.0  # staticx doesn't work with python installed by setup-python action
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }} (setup-python)
+        if: (!startsWith(matrix.os, 'ubuntu'))
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - name: Install dependencies
+      - name: Install OS dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install patchelf
+          git config --global --add safe.directory '*'
+      - name: Install python dependencies
         run: python -m pip install --upgrade nox pdm
       - name: Bundle the distribution
         id: bundle

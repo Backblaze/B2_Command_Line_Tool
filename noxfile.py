@@ -68,6 +68,7 @@ PY_PATHS = ['b2', 'test', 'noxfile.py']
 DOCKER_TEMPLATE = pathlib.Path('docker/Dockerfile.template')
 
 SYSTEM = platform.system().lower()
+MACHINE = platform.machine().lower()
 
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
@@ -328,7 +329,7 @@ def bundle(session: nox.Session):
 
         session.run('pyinstaller', *session.posargs, f'{binary_name}.spec')
 
-        if SYSTEM == 'linux' and not NO_STATICX:
+        if SYSTEM == 'linux' and MACHINE == "x86_64" and not NO_STATICX:
             session.run(
                 'staticx',
                 '--no-compress',

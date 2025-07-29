@@ -3,9 +3,9 @@
 
 [metadata]
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
-strategy = ["cross_platform", "inherit_metadata"]
+strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:7e59c9b087e928b53e5556d69583d7565ba54d4a742d9dfd81a4bf51cd68e1f0"
+content_hash = "sha256:d73337b9d14f3967a6f14081f4f6e719ae99af6ac240ce8d9d644cc66879a7ba"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -1204,7 +1204,7 @@ name = "pyelftools"
 version = "0.32"
 summary = "Library for analyzing ELF files and DWARF debugging information"
 groups = ["bundle"]
-marker = "platform_system == \"Linux\""
+marker = "platform_system == \"Linux\" and platform_machine == \"x86_64\""
 files = [
     {file = "pyelftools-0.32-py3-none-any.whl", hash = "sha256:013df952a006db5e138b1edf6d8a68ecc50630adbd0d83a2d41e7f846163d738"},
     {file = "pyelftools-0.32.tar.gz", hash = "sha256:6de90ee7b8263e740c8715a925382d4099b354f29ac48ea40d840cf7aa14ace5"},
@@ -1776,7 +1776,7 @@ version = "0.13.9"
 requires_python = ">=3.5"
 summary = "Build static self-extracting app from dynamic executable"
 groups = ["bundle"]
-marker = "platform_system == \"Linux\""
+marker = "platform_system == \"Linux\" and platform_machine == \"x86_64\""
 dependencies = [
     "pyelftools",
 ]
