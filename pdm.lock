@@ -5,7 +5,7 @@
 groups = ["default", "bundle", "doc", "format", "full", "license", "lint", "release", "test"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:e72251b3a127fbb59e8a1264d8538ca6312511888f63c84018fef4cb6bbfc8a1"
+content_hash = "sha256:e1d038a0b19e93fa03527a3d9515e91fc04449568cbbb6655c06a864fdf1dac8"
 
 [[metadata.targets]]
 requires_python = ">=3.9"
@@ -1772,8 +1772,8 @@ files = [
 
 [[package]]
 name = "staticx"
-version = "0.13.9"
-requires_python = ">=3.5"
+version = "0.14.1"
+requires_python = ">=3.7"
 summary = "Build static self-extracting app from dynamic executable"
 groups = ["bundle"]
 marker = "platform_system == \"Linux\""
@@ -1781,8 +1781,8 @@ dependencies = [
     "pyelftools",
 ]
 files = [
-    {file = "staticx-0.13.9-py3-none-manylinux1_x86_64.whl", hash = "sha256:4fade92c50bc0208571ac2a0742235c0522f6c3a7ccf3f329eb0b986d830043a"},
-    {file = "staticx-0.13.9.tar.gz", hash = "sha256:002cfa1869125997564b938ddefff32bdfa455c9f04635e49f87b6a96219d2d5"},
+    {file = "staticx-0.14.1-py3-none-manylinux1_x86_64.whl", hash = "sha256:bd34ee12e2d97d9c88970855817a70750745ce6bddc616c42fb318bb5a422e89"},
+    {file = "staticx-0.14.1.tar.gz", hash = "sha256:dbf18c1016b0be4000f480095ed3ef335b512a7d992b469cb094fbc40921a218"},
 ]
 
 [[package]]
