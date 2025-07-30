@@ -9,6 +9,14 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.4.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.4.1) - 2025-07-30
+
+
+### Fixed
+
+- Pin `docutils` version to avoid breaking the dependent `rst2ansi` library. ([#1101](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1101))
+
+
 ## [4.4.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.4.0) - 2025-07-30
 
 
