@@ -187,7 +187,7 @@ def test_cat__b2_uri__invalid(b2_cli, capfd):
         expected_stderr=None,
         expected_status=2,
     )
-    assert "argument B2_URI: Unsupported URI scheme: ''" in capfd.readouterr().err
+    assert "argument B2_URI: Invalid B2 URI: 'nothing/meaningful'" in capfd.readouterr().err
 
 
 def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
