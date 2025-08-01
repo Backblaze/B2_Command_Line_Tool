@@ -27,6 +27,7 @@ import time
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from hashlib import sha256
 from os import environ, linesep
 from pathlib import Path
 from tempfile import mkdtemp, mktemp
@@ -68,30 +69,29 @@ ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 BUCKET_NAME_LENGTH = BUCKET_NAME_LENGTH_RANGE[1]
 BUCKET_CREATED_AT_MILLIS = 'created_at_millis'
 
-NODE_DESCRIPTION = f'{platform.node()}: {platform.platform()}'
+NODE_DESCRIPTION = f'{platform.node()}: {platform.platform()} {platform.python_version()}'
 
 
-def get_seed():
+def get_seed() -> str:
     """
     Get seed for random number generator.
 
-    GH Actions machines seem to offer a very limited entropy pool
+    The `WORKFLOW_ID` variable has to be set in the CI to uniquely identify
+    the current workflow (including the attempt)
     """
-    return b''.join(
+    seed = ''.join(
         (
-            secrets.token_bytes(32),
-            str(time.time_ns()).encode(),
-            NODE_DESCRIPTION.encode(),
-            str(os.getpid()).encode(),  # needed due to pytest-xdist
-            str(environ).encode(
-                'utf8', errors='ignore'
-            ),  # especially helpful under GitHub (and similar) CI
+            os.getenv('WORKFLOW_ID', secrets.token_hex(8)),
+            NODE_DESCRIPTION,
+            str(time.time_ns()),
+            os.getenv('PYTEST_XDIST_WORKER', 'gw0'),
         )
     )
+    return sha256(seed.encode()).hexdigest()[:16]
 
 
-RNG = random.Random(get_seed())
-RNG_SEED = RNG.randint(0, 2 << 31)
+RNG_SEED = get_seed()
+RNG = random.Random(RNG_SEED)
 RNG_COUNTER = 0
 
 if sys.version_info < (3, 9):
@@ -129,6 +129,7 @@ def bucket_name_part(length: int) -> str:
     logger.info('RNG_SEED: %s', RNG_SEED)
     logger.info('RNG_COUNTER: %i, length: %i', RNG_COUNTER, length)
     logger.info('name_part: %s', name_part)
+    logger.info('WORKFLOW_ID: %s', os.getenv('WORKFLOW_ID'))
     return name_part
 
 
@@ -256,7 +257,7 @@ class Api:
             except BucketIdNotFound:
                 return  # bucket was already removed
             except BadRequest as exc:
-                assert exc.code == 'cannot_delete_non_empty_bucket'
+                assert exc.code == 'cannot_delete_non_empty_bucket', exc.code
 
         files_leftover = False
 
