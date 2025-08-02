@@ -9,7 +9,7 @@
 ######################################################################
 
 
-def test_cleanup_buckets(b2_api):
+def test_cleanup_buckets(bucket_manager):
     # this is not a test, but it is intended to be called
     # via pytest because it reuses fixtures which have everything
     # set up
