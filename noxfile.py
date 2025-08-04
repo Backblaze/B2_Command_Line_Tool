@@ -68,6 +68,7 @@ PY_PATHS = ['b2', 'test', 'noxfile.py']
 DOCKER_TEMPLATE = pathlib.Path('docker/Dockerfile.template')
 
 SYSTEM = platform.system().lower()
+MACHINE = platform.machine().lower()
 
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
@@ -84,13 +85,19 @@ if CI:
 
 
 def pdm_install(
-    session: nox.Session, *groups: str, dev: bool = True, editable: bool = False
+    session: nox.Session,
+    *groups: str,
+    dev: bool = True,
+    editable: bool = False,
+    no_isolation: bool = False,
 ) -> None:
     args = []
     if not dev:
         args.append('--prod')
     if not editable:
         args.append('--no-editable')
+    if no_isolation:
+        args.extend(['--no-isolation', '--no-self'])
     for group in groups:
         args.extend(['--group', group])
     session.run('pdm', 'install', *args, external=True)
@@ -137,6 +144,18 @@ def get_versions() -> list[str]:
         )
         if (path / '__init__.py').exists()
     ]
+
+
+def is_x86_64_architecture():
+    """
+    Determines if the machine's architecture is x86-based.
+
+    This function checks the current machine's architecture and returns
+    whether it belongs to the x86 64-bit family (including x86_64 or amd64).
+    """
+    if MACHINE in ('x86_64', 'amd64'):
+        return True
+    return False
 
 
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
@@ -298,7 +317,7 @@ def build(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def dump_license(session: nox.Session):
-    pdm_install(session, 'license', editable=True)
+    pdm_install(session, 'license', editable=True, dev=False)
     session.run('b2', 'license', '--dump', '--with-packages')
 
 
@@ -311,7 +330,10 @@ def bundle(session: nox.Session):
     # 2. We don't want to install b2 as editable module in the current session
     #    because that would make `b2 versions` show the versions as editable.
     session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True)
-    pdm_install(session, 'bundle', 'full')
+
+    # We need no isolated mode to be able to compile staticx, particularly on ARM machines.
+    pdm_install(session, 'bundle', no_isolation=not is_x86_64_architecture())
+    pdm_install(session, 'full')
 
     template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
     versions = get_versions()
@@ -405,11 +427,15 @@ def sign(session):
     else:
         session.error(f'unrecognized platform: {SYSTEM}')
 
-    # Append OS name to all the binaries.
+    # Append OS name and optionally an architecture to all the binaries.
     for asset in pathlib.Path('dist').glob('*'):
         name = asset.stem
         ext = asset.suffix
-        asset_path = f'dist/{name}-{SYSTEM}{ext}'
+        if is_x86_64_architecture():
+            asset_path = f'dist/{name}-{SYSTEM}{ext}'
+        else:
+            asset_path = f'dist/{name}-{SYSTEM}-{MACHINE}{ext}'
+
         session.run('mv', '-f', asset, asset_path, external=True)
 
     # Path have to be specified with unix style slashes even for windows,
