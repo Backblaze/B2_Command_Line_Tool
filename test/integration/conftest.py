@@ -17,9 +17,9 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from collections.abc import Generator
 from os import environ, path
 from tempfile import TemporaryDirectory
-from typing import Generator
 
 import pytest
 from b2sdk.v3 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR

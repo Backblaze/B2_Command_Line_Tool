@@ -22,10 +22,11 @@ import sys
 import threading
 import time
 import warnings
+from collections.abc import Iterable
 from os import environ, linesep
 from pathlib import Path
 from tempfile import mkdtemp, mktemp
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 from b2sdk.v3 import (
     ALL_CAPABILITIES,
@@ -67,9 +68,6 @@ def get_seed():
 
 RNG_SEED = RNG.randint(0, 2 << 31)
 RNG_COUNTER = 0
-
-if sys.version_info < (3, 9):
-    RNG.randbytes = lambda n: RNG.getrandbits(n * 8).to_bytes(n, 'little')
 
 SSE_NONE = EncryptionSetting(
     mode=EncryptionMode.NONE,

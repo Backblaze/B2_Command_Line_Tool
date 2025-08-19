@@ -11,7 +11,6 @@ import hashlib
 import os
 from dataclasses import dataclass
 from functools import cached_property
-from typing import List
 
 import tenacity
 from b2sdk.v3 import Bucket
@@ -63,7 +62,7 @@ def get_or_create_persistent_bucket(bucket_manager: BucketManager) -> Bucket:
     return bucket
 
 
-def prune_used_files(bucket_manager: BucketManager, bucket: Bucket, folders: List[str]):
+def prune_used_files(bucket_manager: BucketManager, bucket: Bucket, folders: list[str]):
     bucket_manager.clean_bucket(
         bucket=bucket, only_files=True, only_folders=folders, ignore_retentions=True
     )

@@ -12,9 +12,9 @@ from __future__ import annotations
 import dataclasses
 import pathlib
 import urllib.parse
+from collections.abc import Sequence
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import Sequence
 
 from b2sdk.v3 import (
     B2Api,
@@ -23,8 +23,6 @@ from b2sdk.v3 import (
     Filter,
 )
 from b2sdk.v3.exception import B2Error
-
-from b2._internal._utils.python_compat import removeprefix
 
 
 class B2URIBase:
@@ -137,7 +135,7 @@ def _parse_b2_uri(
             )
 
         if parsed.scheme == 'b2':
-            return B2URI(bucket_name=parsed.netloc, path=removeprefix(path, '/'))
+            return B2URI(bucket_name=parsed.netloc, path=path.removeprefix('/'))
         elif parsed.scheme == 'b2id' and allow_b2id:
             return B2FileIdURI(file_id=parsed.netloc)
     else:

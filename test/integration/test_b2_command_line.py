@@ -2295,7 +2295,7 @@ class TestFileLock(IntegrationTestBase):
         sample_file,
         schedule_bucket_cleanup,
     ):
-        lock_disabled_bucket_name = self.create_bucket(bucket_type='allPrivate').name
+        lock_disabled_bucket_name = self.create_bucket().name
 
         now_millis = current_time_millis()
 

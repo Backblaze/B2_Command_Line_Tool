@@ -17,7 +17,6 @@ import tempfile
 import warnings
 
 from b2._internal._cli.autocomplete_cache import AUTOCOMPLETE  # noqa
-from b2._internal._utils.python_compat import removeprefix
 
 AUTOCOMPLETE.autocomplete_from_cache()
 
@@ -49,7 +48,7 @@ from abc import ABCMeta, abstractmethod
 from concurrent.futures import Executor, Future, ThreadPoolExecutor
 from contextlib import suppress
 from enum import Enum
-from typing import Any, BinaryIO, List
+from typing import Any, BinaryIO
 
 import b2sdk
 import requests
@@ -782,7 +781,7 @@ class B2URIBucketNFolderNameArgMixin:
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
-        return B2URI(removeprefix(args.bucketName or '', 'b2://'), args.folderName or '')
+        return B2URI((args.bucketName or '').removeprefix('b2://'), args.folderName or '')
 
 
 class B2IDOrB2URIMixin:
@@ -884,7 +883,7 @@ class LifecycleRulesMixin(Described):
         add_normalized_argument(
             lifecycle_group,
             '--lifecycle-rules',
-            type=functools.partial(validated_loads, expected_type=List[LifecycleRule]),
+            type=functools.partial(validated_loads, expected_type=list[LifecycleRule]),
             help='(deprecated; use --lifecycle-rule instead) List of lifecycle rules in JSON format.',
         )
 
