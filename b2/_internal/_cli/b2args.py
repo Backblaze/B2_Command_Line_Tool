@@ -14,7 +14,7 @@ Utility functions for adding b2-specific arguments to an argparse parser.
 import argparse
 import functools
 from os import environ
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 from b2._internal._cli.arg_parser_types import wrap_with_argument_type_error
 from b2._internal._cli.argcompleters import b2uri_file_completer, bucket_name_completer
@@ -242,5 +242,5 @@ def add_b2id_or_file_like_b2_uri_or_bucket_name_argument(
     return arg
 
 
-def get_keyid_and_key_from_env_vars() -> Tuple[Optional[str], Optional[str]]:
+def get_keyid_and_key_from_env_vars() -> tuple[Optional[str], Optional[str]]:
     return environ.get(B2_APPLICATION_KEY_ID_ENV_VAR), environ.get(B2_APPLICATION_KEY_ENV_VAR)

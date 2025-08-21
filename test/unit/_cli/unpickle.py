@@ -11,14 +11,14 @@ import importlib
 import io
 import pickle
 import sys
-from typing import Any, Set
+from typing import Any
 
 
 class Unpickler(pickle.Unpickler):
     """This Unpickler will raise an exception if loading the pickled object
     imports any b2sdk module."""
 
-    _modules_to_load: Set[str]
+    _modules_to_load: set[str]
 
     def load(self):
         self._modules_to_load = set()
