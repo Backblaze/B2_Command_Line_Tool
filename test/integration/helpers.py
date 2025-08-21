@@ -14,15 +14,18 @@ import logging
 import os
 import pathlib
 import platform
+import random
 import re
 import secrets
 import shutil
+import string
 import subprocess
 import sys
 import threading
 import time
 import warnings
 from collections.abc import Iterable
+from hashlib import sha256
 from os import environ, linesep
 from pathlib import Path
 from tempfile import mkdtemp, mktemp
@@ -30,13 +33,14 @@ from typing import TypeVar
 
 from b2sdk.v3 import (
     ALL_CAPABILITIES,
+    BUCKET_NAME_CHARS_UNIQ,
     EncryptionAlgorithm,
     EncryptionKey,
     EncryptionMode,
     EncryptionSetting,
     fix_windows_path_limit,
 )
-from b2sdk.v3.testing import ONE_HOUR_MILLIS, RNG, BucketManager
+from b2sdk.v3.testing import ONE_HOUR_MILLIS, BucketManager
 
 from b2._internal.console_tool import Command
 
@@ -44,29 +48,29 @@ logger = logging.getLogger(__name__)
 
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
-NODE_DESCRIPTION = f'{platform.node()}: {platform.platform()}'
+NODE_DESCRIPTION = f'{platform.node()}: {platform.platform()} {platform.python_version()}'
 
 
-def get_seed():
+def get_seed() -> str:
     """
     Get seed for random number generator.
 
-    GH Actions machines seem to offer a very limited entropy pool
+    The `WORKFLOW_ID` variable has to be set in the CI to uniquely identify
+    the current workflow (including the attempt)
     """
-    return b''.join(
+    seed = ''.join(
         (
-            secrets.token_bytes(32),
-            str(time.time_ns()).encode(),
-            NODE_DESCRIPTION.encode(),
-            str(os.getpid()).encode(),  # needed due to pytest-xdist
-            str(environ).encode(
-                'utf8', errors='ignore'
-            ),  # especially helpful under GitHub (and similar) CI
+            os.getenv('WORKFLOW_ID', secrets.token_hex(8)),
+            NODE_DESCRIPTION,
+            str(time.time_ns()),
+            os.getenv('PYTEST_XDIST_WORKER', 'gw0'),
         )
     )
+    return sha256(seed.encode()).hexdigest()[:16]
 
 
-RNG_SEED = RNG.randint(0, 2 << 31)
+RNG_SEED = get_seed()
+RNG = random.Random(RNG_SEED)
 RNG_COUNTER = 0
 
 SSE_NONE = EncryptionSetting(
@@ -87,6 +91,22 @@ SSE_C_AES_2 = EncryptionSetting(
     algorithm=EncryptionAlgorithm.AES256,
     key=EncryptionKey(secret=_SSE_KEY, key_id='another-user-generated-key-id'),
 )
+
+
+def random_token(length: int, chars=string.ascii_letters) -> str:
+    return ''.join(RNG.choice(chars) for _ in range(length))
+
+
+def bucket_name_part(length: int) -> str:
+    assert length >= 1
+    global RNG_COUNTER
+    RNG_COUNTER += 1
+    name_part = random_token(length, BUCKET_NAME_CHARS_UNIQ)
+    logger.info('RNG_SEED: %s', RNG_SEED)
+    logger.info('RNG_COUNTER: %i, length: %i', RNG_COUNTER, length)
+    logger.info('name_part: %s', name_part)
+    logger.info('WORKFLOW_ID: %s', os.getenv('WORKFLOW_ID'))
+    return name_part
 
 
 T = TypeVar('T')

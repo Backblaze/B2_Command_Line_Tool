@@ -10,8 +10,7 @@
 from __future__ import annotations
 
 import dataclasses
-import pathlib
-import urllib.parse
+import re
 from collections.abc import Sequence
 from functools import singledispatchmethod
 from pathlib import Path
@@ -23,6 +22,11 @@ from b2sdk.v3 import (
     Filter,
 )
 from b2sdk.v3.exception import B2Error
+
+_B2ID_PATTERN = re.compile(r'^b2id://(?P<file_id>[a-zA-Z0-9:_-]+)$', re.IGNORECASE)
+_B2_PATTERN = re.compile(r'^b2://(?P<bucket>[a-z0-9-]*)(?P<path>/.*)?$', re.IGNORECASE)
+_SCHEME_PATTERN = re.compile(r'(?P<scheme>[a-z0-9]*)://.*', re.IGNORECASE)
+_CONTROL_CHARACTERS_AND_SPACE = '\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f '
 
 
 class B2URIBase:
@@ -90,10 +94,10 @@ def parse_uri(uri: str, *, allow_all_buckets: bool = False) -> Path | B2URI | B2
     """
     if not uri:
         raise ValueError('URI cannot be empty')
-    parsed = urllib.parse.urlsplit(uri)
-    if parsed.scheme == '':
-        return pathlib.Path(uri)
-    return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets)
+
+    if _SCHEME_PATTERN.fullmatch(_clean_uri(uri)):
+        return _parse_b2_uri(uri, allow_all_buckets=allow_all_buckets)
+    return Path(uri)
 
 
 def parse_b2_uri(
@@ -108,38 +112,48 @@ def parse_b2_uri(
     :return: B2 URI
     :raises ValueError: if the URI is invalid
     """
-    parsed = urllib.parse.urlsplit(uri)
-    return _parse_b2_uri(uri, parsed, allow_all_buckets=allow_all_buckets, allow_b2id=allow_b2id)
+    return _parse_b2_uri(uri, allow_all_buckets=allow_all_buckets, allow_b2id=allow_b2id)
+
+
+def _clean_uri(uri: str) -> str:
+    # Clean URI
+    uri = uri.lstrip(_CONTROL_CHARACTERS_AND_SPACE)
+    for i in ('\n', '\r', '\t'):
+        uri = uri.replace(i, '')
+    return uri
 
 
 def _parse_b2_uri(
     uri,
-    parsed: urllib.parse.SplitResult,
     *,
     allow_all_buckets: bool = False,
     allow_b2id: bool = True,
 ) -> B2URI | B2FileIdURI:
-    if parsed.scheme in ('b2', 'b2id'):
-        path = urllib.parse.urlunsplit(parsed._replace(scheme='', netloc=''))
-        if not parsed.netloc:
+    uri = _clean_uri(uri)
+    if uri.lower().startswith('b2://'):
+        match = _B2_PATTERN.fullmatch(uri)
+        if not match:
+            raise ValueError(f'Invalid B2 URI: {uri!r}')
+
+        bucket = match.group('bucket')
+        path = match.group('path')
+        if not bucket:
             if allow_all_buckets:
                 if path:
                     raise ValueError(
                         f"Invalid B2 URI: all buckets URI doesn't allow non-empty path, but {path!r} was provided"
                     )
                 return B2URI(bucket_name='')
-            raise ValueError(f'Invalid B2 URI: {uri!r}')
-        elif parsed.password or parsed.username:
-            raise ValueError(
-                'Invalid B2 URI: credentials passed using `user@password:` syntax is not supported in URI'
-            )
+        else:
+            return B2URI(bucket_name=bucket, path=path[1:] if path else '')
+    elif allow_b2id and uri.lower().startswith('b2id://'):
+        match = _B2ID_PATTERN.fullmatch(uri)
+        if match:
+            return B2FileIdURI(file_id=match.group('file_id'))
+    elif match := _SCHEME_PATTERN.fullmatch(uri):
+        raise ValueError(f'Unsupported URI scheme: {match.group("scheme")!r}')
 
-        if parsed.scheme == 'b2':
-            return B2URI(bucket_name=parsed.netloc, path=path.removeprefix('/'))
-        elif parsed.scheme == 'b2id' and allow_b2id:
-            return B2FileIdURI(file_id=parsed.netloc)
-    else:
-        raise ValueError(f'Unsupported URI scheme: {parsed.scheme!r}')
+    raise ValueError(f'Invalid B2 URI: {uri!r}')
 
 
 class B2URIAdapter:

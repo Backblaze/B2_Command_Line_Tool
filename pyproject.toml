@@ -25,7 +25,7 @@ dependencies = [
     "argcomplete>=3.5.2,<4",
     "arrow>=1.0.2,<2.0.0",
     "b2sdk>=2.10.0,<3",
-    "docutils>=0.18.1",
+    "docutils>=0.18.1,<0.22",
     "idna~=3.4; platform_system == 'Java'",
     "phx-class-registry>=4.0,<5",
     "rst2ansi==0.1.5",
@@ -217,5 +217,5 @@ bundle = [
     "pyinstaller<6,>=5.13; python_version < \"3.13\"",
     "pyinstaller-hooks-contrib>=2023.6",
     "patchelf-wrapper==1.2.0; platform_system == \"Linux\"",
-    "staticx~=0.13.9; platform_system == \"Linux\"",
+    "staticx~=0.14.1; platform_system == \"Linux\"",
 ]

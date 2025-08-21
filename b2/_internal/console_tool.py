@@ -4296,6 +4296,11 @@ class License(Command):  # pragma: no cover
             self._print(self.LICENSE_OUTPUT_FILE.read_text(encoding='utf8'))
             return 0
 
+        if not (piplicenses and prettytable):
+            raise CommandError(
+                'In order to run this command, you need to install the `license` extra: pip install b2[license]'
+            )
+
         if args.dump:
             with self.LICENSE_OUTPUT_FILE.open('w', encoding='utf8') as file:
                 self._put_license_text(file, with_packages=args.with_packages)
@@ -4372,7 +4377,6 @@ class License(Command):  # pragma: no cover
 
     @classmethod
     def _get_licenses_dicts(cls) -> list[dict]:
-        assert piplicenses, 'In order to run this command, you need to install the `license` extra: pip install b2[license]'
         pipdeptree_run = subprocess.run(
             ['pipdeptree', '--json', '-p', 'b2'],
             capture_output=True,

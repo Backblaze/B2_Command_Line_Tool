@@ -33,7 +33,7 @@ from b2._internal.version_listing import (
 )
 
 from ..helpers import b2_uri_args_v3, b2_uri_args_v4
-from .helpers import NODE_DESCRIPTION, RNG_SEED, CommandLine
+from .helpers import NODE_DESCRIPTION, RNG_SEED, CommandLine, bucket_name_part
 from .persistent_bucket import (
     PersistentBucketAggregate,
     get_or_create_persistent_bucket,
@@ -213,6 +213,11 @@ def auto_change_account_info_dir(monkeysession) -> str:
         monkeysession.setenv(B2_ACCOUNT_INFO_ENV_VAR, path.join(temp_dir, '.b2_account_info'))
         monkeysession.setenv(XDG_CONFIG_HOME_ENV_VAR, temp_dir)
         yield temp_dir
+
+
+@pytest.fixture(scope='session')
+def bucket_name_prefix():
+    return bucket_name_part(8)
 
 
 @pytest.fixture(scope='session')
