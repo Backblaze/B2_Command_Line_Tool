@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 TEMPDIR = tempfile.gettempdir()
 ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
+GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 
 
 pytest_plugins = ['b2sdk.v3.testing']
@@ -216,8 +217,13 @@ def auto_change_account_info_dir(monkeysession) -> str:
 
 
 @pytest.fixture(scope='session')
-def bucket_name_prefix():
-    return bucket_name_part(8)
+def general_bucket_name_prefix():
+    return GENERAL_BUCKET_NAME_PREFIX
+
+
+@pytest.fixture(scope='session')
+def bucket_name_prefix(general_bucket_name_prefix):
+    return f'{general_bucket_name_prefix}{bucket_name_part(8)}'
 
 
 @pytest.fixture(scope='session')
