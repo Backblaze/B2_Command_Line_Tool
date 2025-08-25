@@ -63,7 +63,7 @@ With `nox`, you can run different sessions (default are `lint` and `test`):
 
 * `format` -> Format the code.
 * `lint` -> Run linters.
-* `test` (`test-3.8`, `test-3.9`, `test-3.10`, `test-3.11`) -> Run test suite.
+* `test` (`test-3.9`, `test-3.10`, `test-3.11`) -> Run test suite.
 * `cover` -> Perform coverage analysis.
 * `build` -> Build the distribution.
 * `generate_dockerfile` -> generate dockerfile

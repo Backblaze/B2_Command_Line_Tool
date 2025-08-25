@@ -10,12 +10,11 @@
 
 import pathlib
 import re
-from typing import List
 
 RE_VERSION = re.compile(r'[_]*b2v(\d+)')
 
 
-def get_versions() -> List[str]:
+def get_versions() -> list[str]:
     return [path.name for path in sorted(pathlib.Path(__file__).parent.glob('*b2v*'))]
 
 

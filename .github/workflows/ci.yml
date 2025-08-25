@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "ubuntu-24.04-arm", "macos-latest", "windows-latest"]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "pypy3.9", "pypy3.10"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "pypy3.9", "pypy3.10"]
         exclude:
           - os: "macos-latest"
             python-version: "pypy3.10"
@@ -94,13 +94,9 @@ jobs:
             python-version: "pypy3.10"
           # Workaround for https://github.com/actions/setup-python/issues/696
           - os: "macos-latest"
-            python-version: 3.8
-          - os: "macos-latest"
             python-version: 3.9
         include:
           # Workaround for https://github.com/actions/setup-python/issues/696
-          - os: "macos-13"
-            python-version: 3.8
           - os: "macos-13"
             python-version: 3.9
     steps:
@@ -129,7 +125,7 @@ jobs:
         run: nox -vs integration -p ${{ matrix.python-version }} -- -m "not require_secrets"
       - name: Run integration tests (with secrets)
         # Limit CI workload by running integration tests with secrets only on edge Python versions.
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.8", "pypy3.10", "3.13"]'), matrix.python-version) }}
+        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.9", "pypy3.10", "3.13"]'), matrix.python-version) }}
         run: nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" --cleanup
   test-docker:
     timeout-minutes: 90

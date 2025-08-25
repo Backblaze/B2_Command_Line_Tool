@@ -19,3 +19,4 @@ doc/source/subcommands
 Dockerfile
 b2/licenses_output.txt
 *.spec
+.env
