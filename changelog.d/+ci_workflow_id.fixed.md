@@ -1,0 +1,1 @@
+Use `matrix.os` variable instead of `github.job` to uniquely identify workflow in integration tests.
