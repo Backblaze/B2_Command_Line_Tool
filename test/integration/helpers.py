@@ -81,9 +81,10 @@ def get_seed() -> str:
     """
     seed = ''.join(
         (
-            os.getenv('WORKFLOW_ID', secrets.token_hex(8)),
-            NODE_DESCRIPTION,
+            secrets.token_hex(),
             str(time.time_ns()),
+            os.getenv('WORKFLOW_ID', ''),
+            NODE_DESCRIPTION,
             os.getenv('PYTEST_XDIST_WORKER', 'gw0'),
         )
     )
