@@ -56,7 +56,7 @@ jobs:
           files: ${{ steps.build.outputs.asset_path }}
       - name: Upload the distribution to PyPI
         if: ${{ env.B2_PYPI_PASSWORD != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
-        uses: pypa/gh-action-pypi-publish@v1.3.1
+        uses: pypa/gh-action-pypi-publish@v1.13.0
         with:
           user: __token__
           password: ${{ secrets.B2_PYPI_PASSWORD }}
