@@ -61,12 +61,11 @@ def b2uri_file_completer(prefix: str, parsed_args, **kwargs):
     from b2sdk.v3 import LIST_FILE_NAMES_MAX_LIMIT, unprintable_to_hex
 
     from b2._internal._cli.b2api import _get_b2api_for_profile
-    from b2._internal._utils.python_compat import removeprefix
     from b2._internal._utils.uri import parse_b2_uri
 
     api = _get_b2api_for_profile(getattr(parsed_args, 'profile', None))
     if prefix.startswith('b2://'):
-        prefix_without_scheme = removeprefix(prefix, 'b2://')
+        prefix_without_scheme = prefix.removeprefix('b2://')
         if '/' not in prefix_without_scheme:
             return [
                 f'b2://{unprintable_to_hex(bucket.name)}/'
