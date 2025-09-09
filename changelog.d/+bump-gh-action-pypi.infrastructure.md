@@ -1,1 +1,0 @@
-Bump pypa/gh-action-pypi-publish from 1.3.1 to 1.13.0 in /.github/workflows.
