@@ -23,7 +23,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 from b2sdk.v3 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
-from b2sdk.v3.testing import random_token
+from b2sdk.v3.testing import NODE_DESCRIPTION, RNG_SEED, random_token
 
 from b2._internal.version_listing import (
     CLI_VERSIONS,
@@ -33,7 +33,7 @@ from b2._internal.version_listing import (
 )
 
 from ..helpers import b2_uri_args_v3, b2_uri_args_v4
-from .helpers import NODE_DESCRIPTION, RNG_SEED, CommandLine, bucket_name_part
+from .helpers import CommandLine
 from .persistent_bucket import (
     PersistentBucketAggregate,
     get_or_create_persistent_bucket,
@@ -219,11 +219,6 @@ def auto_change_account_info_dir(monkeysession) -> str:
 @pytest.fixture(scope='session')
 def general_bucket_name_prefix():
     return GENERAL_BUCKET_NAME_PREFIX
-
-
-@pytest.fixture(scope='session')
-def bucket_name_prefix(general_bucket_name_prefix):
-    return f'{general_bucket_name_prefix}{bucket_name_part(8)}'
 
 
 @pytest.fixture(scope='session')
