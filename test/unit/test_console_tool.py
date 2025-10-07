@@ -2161,6 +2161,39 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json_in_stdout=expected_json,
         )
 
+    @pytest.mark.apiver(from_ver=4)
+    def test_unhide_b2id(self):
+        self._authorize_account()
+        self._create_my_bucket()
+
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        stdout, stderr = self._get_stdouterr()
+        console_tool = self.console_tool_class(stdout, stderr)
+
+        file_version = bucket.upload(UploadSourceBytes(b'test'), 'test.txt')
+        bucket.hide_file('test.txt')
+
+        console_tool.run_command(['b2', 'file', 'unhide', f'b2id://{file_version.id_}'])
+
+        expected_json = {
+            'accountId': self.account_id,
+            'bucketId': 'bucket_0',
+            'bucketInfo': {},
+            'bucketName': 'my-bucket',
+            'bucketType': 'allPublic',
+            'corsRules': [],
+            'defaultServerSideEncryption': {'mode': 'none'},
+            'fileCount': 1,
+            'lifecycleRules': [],
+            'options': [],
+            'revision': 1,
+            'totalSize': 4,
+        }
+        self._run_command(
+            ['bucket', 'get', '--show-size', 'my-bucket'],
+            expected_json_in_stdout=expected_json,
+        )
+
     def test_get_bucket_complex(self):
         self._authorize_account()
         self._create_my_bucket()

@@ -9,6 +9,22 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.4.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.4.2) - 2025-09-10
+
+
+### Fixed
+
+- Handle filenames starting with / or ending with # or ?. ([#1090](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1090))
+- Avoid failing on missing extra dependencies in `b2 license` command. ([#1106](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1106))
+- Fix `b2id://` uri support in `file unhide` command. ([#1114](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1114))
+
+### Infrastructure
+
+- Prepare Linux binary for ARM. ([#1099](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1099))
+- Address duplicate bucket names issue in integration tests by redesigning the seed generation mechanism.
+- Bump pypa/gh-action-pypi-publish from 1.3.1 to 1.13.0 in /.github/workflows.
+
+
 ## [4.4.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.4.1) - 2025-07-30
 
 

@@ -2273,8 +2273,16 @@ class FileUnhideBase(Command):
 
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
-        bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
-        file_id_and_name = bucket.unhide_file(b2_uri.path, args.bypass_governance)
+
+        if isinstance(b2_uri, B2FileIdURI):
+            file_version = self.api.get_file_info_by_uri(b2_uri)
+            bucket = self.api.get_bucket_by_id(file_version.bucket_id)
+            file_name = file_version.file_name
+        else:
+            bucket = self.api.get_bucket_by_name(b2_uri.bucket_name)
+            file_name = b2_uri.path
+
+        file_id_and_name = bucket.unhide_file(file_name, args.bypass_governance)
         self._print_json(file_id_and_name)
         return 0
 
