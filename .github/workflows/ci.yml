@@ -21,7 +21,7 @@ jobs:
         with:
           ignore_words_list: datas re-use
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -43,7 +43,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -64,7 +64,7 @@ jobs:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
           cache: "pip"
@@ -92,23 +92,12 @@ jobs:
             python-version: "pypy3.10"
           - os: "windows-latest"
             python-version: "pypy3.10"
-          # Workaround for https://github.com/actions/setup-python/issues/696
-          - os: "macos-latest"
-            python-version: 3.8
-          - os: "macos-latest"
-            python-version: 3.9
-        include:
-          # Workaround for https://github.com/actions/setup-python/issues/696
-          - os: "macos-13"
-            python-version: 3.8
-          - os: "macos-13"
-            python-version: 3.9
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install test binary dependencies
@@ -144,7 +133,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -224,7 +213,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -258,7 +247,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
