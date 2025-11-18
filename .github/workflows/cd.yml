@@ -2,7 +2,7 @@ name: Continuous Delivery
 
 on:
   push:
-    tags: 'v*'  # push events to matching v*, i.e. v1.0, v20.15.10
+    tags: ['v*']  # push events to matching v*, i.e. v1.0, v20.15.10
 
 env:
   CD: "true"
@@ -32,7 +32,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -110,7 +110,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
@@ -155,7 +155,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
