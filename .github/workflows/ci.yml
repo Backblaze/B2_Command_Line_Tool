@@ -117,7 +117,7 @@ jobs:
       - name: Run integration tests (without secrets)
         run: nox -vs integration -p ${{ matrix.python-version }} -- -m "not require_secrets"
       - name: Run PTY integration test (Python 3.14 only, no xdist)
-        if: matrix.python-version == '3.14' && startsWith(matrix.os, 'ubuntu')
+        if: ${{ matrix.python-version == '3.14' && startsWith(matrix.os, 'ubuntu') }}
         run: |
           source .nox/integration-${{ matrix.python-version }}/bin/activate
           pytest test/integration/test_help.py::test_help_with_tty -v --sut=$(which b2v4)
