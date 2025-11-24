@@ -265,42 +265,6 @@ def integration(session):
     run_integration_test(session, session.posargs)
 
 
-@nox.session(python=PYTHON_VERSIONS, name='integration_pty')
-def integration_pty(session):
-    """
-    Run PTY-dependent integration tests without pytest-xdist parallelization.
-
-    This session is specifically for tests that require real pseudo-terminal (PTY)
-    behavior, such as the buffer overflow test for Python 3.14+. Due to pytest-xdist
-    limitations, these tests must run serially to maintain proper PTY state.
-
-    Example usage:
-        nox -s integration_pty-3.14
-        nox -s integration_pty-3.11
-    """
-    pdm_install(session, 'license', 'test')
-
-    # Run the PTY test without -n flag to avoid pytest-xdist
-    command = [
-        'pytest',
-        'test/integration/test_help.py::test_help_with_tty',
-        '--log-level',
-        'INFO',
-        '-W',
-        'ignore::DeprecationWarning:rst2ansi.visitor:',
-        *PYTEST_GLOBAL_ARGS,
-        *session.posargs,
-    ]
-
-    # Get the executable path for the sut
-    versions = get_versions()
-    for cli_version in versions:
-        exe_path = session.run(
-            'python', '-c', f'import shutil; print(shutil.which("{cli_version}"))', silent=True
-        ).strip()
-        session.run(*command, '--sut', exe_path)
-
-
 @nox.session(python=PYTHON_VERSIONS)
 def test(session):
     """Run all tests."""

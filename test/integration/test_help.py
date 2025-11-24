@@ -50,14 +50,8 @@ def test_help_with_tty(cli_version):
 
     NOTE: This test uses pexpect to create a real PTY. Due to pytest-xdist
     limitations, this test may not correctly detect the buffer overflow when
-    run with parallelization (-n auto). For accurate testing on Python 3.14,
-    run without xdist:
-
-        pytest test/integration/test_help.py::test_help_with_tty -v
-
-    Or use the dedicated nox session:
-
-        nox -s integration_pty-3.14
+    run with parallelization. CI runs this test separately without xdist on
+    Python 3.14.
     """
     pexpect = pytest.importorskip('pexpect')
 
