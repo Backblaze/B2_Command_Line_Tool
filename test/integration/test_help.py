@@ -48,10 +48,11 @@ def test_help_with_tty(cli_version):
 
     See: https://github.com/Backblaze/B2_Command_Line_Tool/issues/1119
 
-    NOTE: This test uses pexpect to create a real PTY. Due to pytest-xdist
-    limitations, this test may not correctly detect the buffer overflow when
-    run with parallelization. CI runs this test separately without xdist on
-    Python 3.14.
+    NOTE: This test uses pexpect to spawn a subprocess with a real PTY.
+    It works correctly in CI even with pytest-xdist parallelization.
+    However, when run locally with nox, the test environment may not properly
+    trigger the buffer overflow, causing the test to pass even without the fix.
+    This is due to differences in how PTY state is managed in local vs CI environments.
     """
     pexpect = pytest.importorskip('pexpect')
 
