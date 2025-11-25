@@ -14,11 +14,6 @@ import subprocess
 
 import pytest
 
-skip_on_windows = pytest.mark.skipif(
-    platform.system() == 'Windows',
-    reason='PTY tests require Unix-like system',
-)
-
 
 def test_help(cli_version):
     p = subprocess.run(
@@ -36,7 +31,10 @@ def test_help(cli_version):
     assert f'{expected_name} <command> --help' in p.stdout
 
 
-@skip_on_windows
+@pytest.mark.skipif(
+    platform.system() == 'Windows',
+    reason='PTY tests require Unix-like system',
+)
 def test_help_with_tty(cli_version):
     """
     Test that B2 CLI works correctly with a real TTY (pseudo-terminal).
