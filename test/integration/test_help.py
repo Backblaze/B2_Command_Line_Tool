@@ -37,20 +37,12 @@ def test_help(cli_version):
 )
 def test_help_with_tty(cli_version):
     """
-    Test that B2 CLI works correctly with a real TTY (pseudo-terminal).
+    Test that B2 CLI --help works correctly with a real PTY.
 
-    This test specifically verifies that the rst2ansi buffer overflow bug
-    on Python 3.14+ is properly handled. The bug occurs when rst2ansi's
-    get_terminal_size() function passes a 4-byte buffer to TIOCGWINSZ ioctl
-    which expects 8 bytes.
-
+    Verifies fix for rst2ansi buffer overflow on Python 3.14+.
     See: https://github.com/Backblaze/B2_Command_Line_Tool/issues/1119
 
-    NOTE: This test uses pexpect to spawn a subprocess with a real PTY.
-    It works correctly in CI even with pytest-xdist parallelization.
-    However, when run locally with nox, the test environment may not properly
-    trigger the buffer overflow, causing the test to pass even without the fix.
-    This is due to differences in how PTY state is managed in local vs CI environments.
+    NOTE: Works in CI with pytest-xdist, but may not trigger the bug locally.
     """
     pexpect = pytest.importorskip('pexpect')
 
