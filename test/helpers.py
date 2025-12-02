@@ -8,7 +8,9 @@
 #
 ######################################################################
 import platform
+import sys
 
+import pexpect
 import pytest
 
 _MISSING = object()
@@ -19,6 +21,40 @@ def skip_on_windows(*args, reason='Not supported on Windows', **kwargs):
         platform.system() == 'Windows',
         reason=reason,
     )(*args, **kwargs)
+
+
+def patched_spawn(*args, **kwargs):
+    """
+    Wrapper around pexpect.spawn with improved error messages.
+
+    pexpect's errors are confusing to interpret when things go wrong,
+    because it doesn't output the actual stdout by default. This wrapper
+    addresses that inconvenience.
+    """
+    instance = pexpect.spawn(*args, **kwargs)
+
+    def _patch_expect(func):
+        def _wrapper(pattern_list, **kwargs):
+            try:
+                return func(pattern_list, **kwargs)
+            except pexpect.exceptions.TIMEOUT as exc:
+                raise pexpect.exceptions.TIMEOUT(
+                    f'Timeout reached waiting for `{pattern_list}`'
+                ) from exc
+            except pexpect.exceptions.EOF as exc:
+                raise pexpect.exceptions.EOF(f'Received EOF waiting for `{pattern_list}`') from exc
+            except Exception as exc:
+                raise RuntimeError(f'Unexpected error waiting for `{pattern_list}`') from exc
+
+        return _wrapper
+
+    instance.expect = _patch_expect(instance.expect)
+    instance.expect_exact = _patch_expect(instance.expect_exact)
+
+    # capture child shell's output for debugging
+    instance.logfile = sys.stdout.buffer
+
+    return instance
 
 
 def b2_uri_args_v3(bucket_name, path=_MISSING):

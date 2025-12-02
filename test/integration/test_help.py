@@ -12,7 +12,10 @@ import platform
 import re
 import subprocess
 
+import pexpect
 import pytest
+
+from test.helpers import patched_spawn
 
 
 def test_help(cli_version):
@@ -44,8 +47,6 @@ def test_help_with_tty(cli_version):
 
     NOTE: Works in CI with pytest-xdist, but may not trigger the bug locally.
     """
-    pexpect = pytest.importorskip('pexpect')
-
     # Set up environment - remove LINES/COLUMNS to ensure ioctl is called
     env = os.environ.copy()
     env.pop('LINES', None)
@@ -53,7 +54,7 @@ def test_help_with_tty(cli_version):
 
     # Spawn b2 --help with pexpect to create a real PTY
     # This is where the bug would trigger on Python 3.14 without our fix
-    child = pexpect.spawn(
+    child = patched_spawn(
         cli_version,
         ['--help'],
         env=env,
@@ -79,7 +80,6 @@ def test_help_with_tty(cli_version):
     )
 
     # Verify help output contains expected content
-    assert 'b2 <command>' in output or cli_version in output, (
-        f'Help output does not contain expected content.\n'
-        f'Output: {output}'
-    )
+    assert (
+        'b2 <command>' in output or cli_version in output
+    ), f'Help output does not contain expected content.\nOutput: {output}'
