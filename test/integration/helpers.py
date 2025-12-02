@@ -368,7 +368,15 @@ def print_json_indented(value):
 
 
 def remove_warnings(text):
-    return linesep.join(line for line in text.split(linesep) if 'DeprecationWarning' not in line)
+    """Filter out Python warnings from command output."""
+    return linesep.join(
+        line
+        for line in text.split(linesep)
+        if 'DeprecationWarning' not in line
+        and 'resource_tracker' not in line  # Python 3.14+ multiprocessing warnings
+        and 'UserWarning' not in line  # Python 3.14+ shows more warning details
+        and 'warnings.warn(' not in line  # Python 3.14+ shows source line in warnings
+    )
 
 
 class StringReader:
