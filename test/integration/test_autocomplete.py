@@ -13,7 +13,7 @@ import sys
 import pexpect
 import pytest
 
-from test.helpers import skip_on_windows
+from test.helpers import patched_spawn, skip_on_windows
 
 TIMEOUT = 120  # CI can be slow at times when parallelization is extreme
 
@@ -25,41 +25,6 @@ echo "Just testing if we don't replace existing script" > /dev/null
 # regardless what is in there already
 # <<< just a test section <<<
 """
-
-
-def patched_spawn(*args, **kwargs):
-    """
-    Patch pexpect.spawn to improve error messages
-    """
-
-    instance = pexpect.spawn(*args, **kwargs)
-
-    def _patch_expect(func):
-        def _wrapper(pattern_list, **kwargs):
-            try:
-                return func(pattern_list, **kwargs)
-            except pexpect.exceptions.TIMEOUT as exc:
-                raise pexpect.exceptions.TIMEOUT(
-                    f'Timeout reached waiting for `{pattern_list}` to be autocompleted'
-                ) from exc
-            except pexpect.exceptions.EOF as exc:
-                raise pexpect.exceptions.EOF(
-                    f'Received EOF waiting for `{pattern_list}` to be autocompleted'
-                ) from exc
-            except Exception as exc:
-                raise RuntimeError(
-                    f'Unexpected error waiting for `{pattern_list}` to be autocompleted'
-                ) from exc
-
-        return _wrapper
-
-    instance.expect = _patch_expect(instance.expect)
-    instance.expect_exact = _patch_expect(instance.expect_exact)
-
-    # capture child shell's output for debugging
-    instance.logfile = sys.stdout.buffer
-
-    return instance
 
 
 @pytest.fixture(scope='session')

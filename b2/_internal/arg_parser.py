@@ -130,7 +130,14 @@ class B2ArgumentParser(argparse.ArgumentParser):
             return textwrap.dedent(value)
         else:
             encoding = self._get_encoding()
-            return rst2ansi(value.encode(encoding), output_encoding=encoding)
+            try:
+                return rst2ansi(value.encode(encoding), output_encoding=encoding)
+            except SystemError:
+                # FALLBACK(PARSER): rst2ansi can raise SystemError on Python 3.14+ due to
+                # buffer overflow bug in get_terminal_size ioctl call.
+                # See: https://github.com/Backblaze/B2_Command_Line_Tool/issues/1119
+                # TODO-REMOVE-BY: When rst2ansi is updated or replaced
+                return textwrap.dedent(value)
 
     def _make_short_description(self, usage: str, raw_description: str) -> str:
         if usage:

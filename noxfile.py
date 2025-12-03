@@ -42,6 +42,7 @@ PYTHON_VERSIONS = (
         '3.11',
         '3.12',
         '3.13',
+        '3.14',
     ]
     if NOX_PYTHONS is None
     else NOX_PYTHONS.split(',')
