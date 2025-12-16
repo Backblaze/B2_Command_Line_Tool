@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import dataclasses
 import re
+from collections.abc import Sequence
 from functools import singledispatchmethod
 from pathlib import Path
-from typing import Sequence
 
 from b2sdk.v3 import (
     B2Api,
