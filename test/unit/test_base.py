@@ -11,14 +11,13 @@
 import re
 import unittest
 from contextlib import contextmanager
-from typing import Type
 
 import pytest
 
 
 @pytest.mark.usefixtures('unit_test_console_tool_class', 'b2_uri_args')
 class TestBase(unittest.TestCase):
-    console_tool_class: Type
+    console_tool_class: type
 
     @contextmanager
     def assertRaises(self, exc, msg=None):

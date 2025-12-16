@@ -12,8 +12,6 @@ import sys
 
 import pytest
 
-from b2._internal._utils.python_compat import removeprefix
-
 
 @pytest.hookimpl
 def pytest_configure(config):
@@ -26,7 +24,7 @@ def pytest_configure(config):
 @pytest.fixture(scope='session')
 def apiver(request):
     """Get apiver as a v-prefixed string, e.g. "v2"."""
-    return removeprefix(request.config.getoption('--cli', '').lstrip('_'), 'b2') or None
+    return request.config.getoption('--cli', '').lstrip('_').removeprefix('b2') or None
 
 
 @pytest.fixture(scope='session')

@@ -5,7 +5,7 @@ authors = [
     { name = "Backblaze Inc", email = "support@backblaze.com" },
 ]
 dynamic = ["version"]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["backblaze b2 cloud storage"]
 license = {text = "MIT"}
 readme = "README.md"
@@ -15,7 +15,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -26,10 +25,9 @@ classifiers = [
 dependencies = [
     "argcomplete>=3.5.2,<4",
     "arrow>=1.0.2,<2.0.0",
-    "b2sdk>=2.9.4,<3",
+    "b2sdk>=2.10.1,<3",
     "docutils>=0.18.1,<0.22",
     "idna~=3.4; platform_system == 'Java'",
-    "importlib-metadata>=3.3; python_version < '3.8'",
     "phx-class-registry>=4.0,<5",
     "rst2ansi==0.1.5",
     "tabulate==0.9.0",
@@ -43,20 +41,18 @@ dependencies = [
 # requirements. They should be removed from this section when
 # a breaking version is released.
 doc = [
-    "sadisplay>=0.4.9; python_version >= '3.9'",
-    "sphinx>=7.2,<8; python_version >= '3.9'",
-    "sphinx-argparse; python_version >= '3.9'",
-    "sphinx-autobuild; python_version >= '3.9'",
-    "sphinx-rtd-theme>=1.3,<2; python_version >= '3.9'",
-    "sphinxcontrib-plantuml; python_version >= '3.9'"
+    "sadisplay>=0.4.9",
+    "sphinx>=7.2,<8",
+    "sphinx-argparse",
+    "sphinx-autobuild",
+    "sphinx-rtd-theme>=1.3,<2",
+    "sphinxcontrib-plantuml"
 ]
 license = [
     "pip>=23.1.0",
-    "pip-licenses==3.5.5; python_version < '3.9'",
-    "pip-licenses~=5.0; python_version >= '3.9'",
-    "pipdeptree>=2.9,<3; python_version >= '3.9'",
-    "prettytable~=3.7; python_version < '3.9'",
-    "prettytable~=3.9; python_version >= '3.9'",
+    "pip-licenses~=5.0",
+    "pipdeptree>=2.9,<3",
+    "prettytable~=3.9",
 ]
 full = [
     "pydantic>=2.0.1,<3"
@@ -116,7 +112,7 @@ optional_dependencies = ["doc", "full", "license"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.lint]
 # TODO add D
@@ -205,7 +201,7 @@ lint = [
     "setuptools>=60,<80",  # required by liccheck
 ]
 release = [
-    "towncrier==23.11.0; python_version >= '3.8'",
+    "towncrier==23.11.0",
 ]
 test = [
     "coverage==7.2.7",

@@ -12,11 +12,11 @@ import json
 import os
 import pathlib
 import re
-from functools import lru_cache
+from functools import cache
 from io import StringIO
 from itertools import chain, product
 from tempfile import TemporaryDirectory
-from typing import List, Optional
+from typing import Optional
 from unittest import mock
 
 import pytest
@@ -64,7 +64,7 @@ class BaseConsoleToolTest(TestBase):
         self.raw_simulator = RawSimulator()
         self.api_config = B2HttpApiConfig(_raw_api_class=lambda *args, **kwargs: self.raw_simulator)
 
-        @lru_cache(maxsize=None)
+        @cache
         def _get_b2api(**kwargs) -> B2Api:
             kwargs.pop('profile', None)
             return B2Api(
@@ -3586,7 +3586,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     def _run_problematic_removal(
         self,
-        additional_parameters: Optional[List[str]] = None,
+        additional_parameters: Optional[list[str]] = None,
         expected_in_stdout: Optional[str] = None,
         unexpected_in_stdout: Optional[str] = None,
     ):
@@ -3677,7 +3677,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         """
         self._run_command(['ls', '--recursive', 'b2://my-bucket'], expected_stdout)
 
-    def rm_filters_helper(self, rm_args: List[str], expected_ls_stdout: str):
+    def rm_filters_helper(self, rm_args: list[str], expected_ls_stdout: str):
         self._authorize_account()
         self._run_command(['bucket', 'create', 'my-rm-bucket', 'allPublic'], 'bucket_1\n', '', 0)
         bucket = self.b2_api.get_bucket_by_name('my-rm-bucket')

@@ -17,12 +17,13 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from collections.abc import Generator
 from os import environ, path
 from tempfile import TemporaryDirectory
-from typing import Generator
 
 import pytest
-from b2sdk.v3 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR, Bucket
+from b2sdk.v3 import B2_ACCOUNT_INFO_ENV_VAR, XDG_CONFIG_HOME_ENV_VAR
+from b2sdk.v3.testing import NODE_DESCRIPTION, RNG_SEED, random_token
 
 from b2._internal.version_listing import (
     CLI_VERSIONS,
@@ -32,7 +33,7 @@ from b2._internal.version_listing import (
 )
 
 from ..helpers import b2_uri_args_v3, b2_uri_args_v4
-from .helpers import NODE_DESCRIPTION, RNG_SEED, Api, CommandLine, bucket_name_part, random_token
+from .helpers import CommandLine
 from .persistent_bucket import (
     PersistentBucketAggregate,
     get_or_create_persistent_bucket,
@@ -41,9 +42,12 @@ from .persistent_bucket import (
 
 logger = logging.getLogger(__name__)
 
-GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 TEMPDIR = tempfile.gettempdir()
 ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
+GENERAL_BUCKET_NAME_PREFIX = 'clitst'
+
+
+pytest_plugins = ['b2sdk.v3.testing']
 
 
 @pytest.fixture(scope='session', autouse=True)
@@ -145,37 +149,13 @@ def cli_version(request) -> str:
 
 
 @pytest.fixture(scope='session')
-def application_key() -> str:
-    key = environ.get('B2_TEST_APPLICATION_KEY')
-    assert application_key, 'B2_TEST_APPLICATION_KEY is not set'
-    yield key
+def application_key(b2_auth_data) -> str:
+    yield b2_auth_data[1]
 
 
 @pytest.fixture(scope='session')
-def application_key_id() -> str:
-    key_id = environ.get('B2_TEST_APPLICATION_KEY_ID')
-    assert key_id, 'B2_TEST_APPLICATION_KEY_ID is not set'
-    yield key_id
-
-
-@pytest.fixture(scope='session')
-def realm() -> str:
-    yield environ.get('B2_TEST_ENVIRONMENT', 'production')
-
-
-@pytest.fixture
-def bucket(bucket_factory) -> Bucket:
-    return bucket_factory()
-
-
-@pytest.fixture
-def bucket_factory(b2_api, schedule_bucket_cleanup):
-    def create_bucket(**kwargs):
-        new_bucket = b2_api.create_bucket(**kwargs)
-        schedule_bucket_cleanup(new_bucket.name, new_bucket.bucket_dict)
-        return new_bucket
-
-    yield create_bucket
+def application_key_id(b2_auth_data) -> str:
+    yield b2_auth_data[0]
 
 
 @pytest.fixture(scope='function')
@@ -190,24 +170,19 @@ def file_name(bucket) -> str:
 
 
 @pytest.fixture(scope='function')  # , autouse=True)
-def debug_print_buckets(b2_api):
+def debug_print_buckets(bucket_manager):
     print('-' * 30)
     print('Buckets before test ' + environ['PYTEST_CURRENT_TEST'])
-    num_buckets = b2_api.count_and_print_buckets()
+    num_buckets = bucket_manager.count_and_print_buckets()
     print('-' * 30)
     try:
         yield
     finally:
         print('-' * 30)
         print('Buckets after test ' + environ['PYTEST_CURRENT_TEST'])
-        delta = b2_api.count_and_print_buckets() - num_buckets
+        delta = bucket_manager.count_and_print_buckets() - num_buckets
         print(f'DELTA: {delta}')
         print('-' * 30)
-
-
-@pytest.fixture(scope='session')
-def this_run_bucket_name_prefix() -> str:
-    yield GENERAL_BUCKET_NAME_PREFIX + bucket_name_part(8)
 
 
 @pytest.fixture(scope='session')
@@ -242,26 +217,25 @@ def auto_change_account_info_dir(monkeysession) -> str:
 
 
 @pytest.fixture(scope='session')
-def b2_api(
+def general_bucket_name_prefix():
+    return GENERAL_BUCKET_NAME_PREFIX
+
+
+@pytest.fixture(scope='session')
+def bucket_manager(
+    bucket_manager,
     application_key_id,
     application_key,
     realm,
-    this_run_bucket_name_prefix,
     auto_change_account_info_dir,
     summary_notes,
-) -> Api:
-    api = Api(
-        application_key_id,
-        application_key,
-        realm,
-        general_bucket_name_prefix=GENERAL_BUCKET_NAME_PREFIX,
-        this_run_bucket_name_prefix=this_run_bucket_name_prefix,
-    )
-    yield api
-    api.clean_buckets()
+):
+    yield bucket_manager
     # showing account_id in the logs is safe; so we explicitly prevent it from being redacted
-    summary_notes.append(f'B2 Account ID: {api.account_id[:1]!r}{api.account_id[1:]!r}')
-    summary_notes.append(f'Buckets names used during this tests: {api.bucket_name_log!r}')
+    summary_notes.append(f'B2 Account ID: {application_key_id[:1]!r}{application_key_id[1:]!r}')
+    summary_notes.append(
+        f'Buckets names used during this tests: {bucket_manager.bucket_name_log!r}'
+    )
 
 
 @pytest.fixture(scope='module')
@@ -270,8 +244,8 @@ def global_b2_tool(
     application_key_id,
     application_key,
     realm,
-    this_run_bucket_name_prefix,
-    b2_api,
+    bucket_name_prefix,
+    bucket_manager,
     auto_change_account_info_dir,
     b2_uri_args,
 ) -> CommandLine:
@@ -280,9 +254,9 @@ def global_b2_tool(
         application_key_id,
         application_key,
         realm,
-        this_run_bucket_name_prefix,
+        bucket_name_prefix,
         request.config.getoption('--env-file-cmd-placeholder'),
-        api_wrapper=b2_api,
+        bucket_manager=bucket_manager,
         b2_uri_args=b2_uri_args,
     )
     tool.reauthorize(check_key_capabilities=True)  # reauthorize for the first time (with check)
@@ -306,7 +280,8 @@ def schedule_bucket_cleanup(global_b2_tool):
     """
     Explicitly ask for buckets cleanup after the test
 
-    This should be only used when testing `bucket create` command; otherwise use `bucket_factory` fixture.
+    This should be only used when testing `bucket create` command;
+    otherwise use `b2sdk.v3.testing.IntegrationTestBase.create_bucket()`.
     """
     buckets_to_clean = {}
 
@@ -429,10 +404,10 @@ subfolder_list: list[str] = []
 
 
 @pytest.fixture(scope='session')
-def base_persistent_bucket(b2_api):
-    bucket = get_or_create_persistent_bucket(b2_api)
+def base_persistent_bucket(bucket_manager):
+    bucket = get_or_create_persistent_bucket(bucket_manager)
     yield bucket
-    prune_used_files(b2_api=b2_api, bucket=bucket, folders=subfolder_list)
+    prune_used_files(bucket_manager=bucket_manager, bucket=bucket, folders=subfolder_list)
 
 
 @pytest.fixture
