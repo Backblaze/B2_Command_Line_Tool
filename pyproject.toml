@@ -5,7 +5,7 @@ authors = [
     { name = "Backblaze Inc", email = "support@backblaze.com" },
 ]
 dynamic = ["version"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["backblaze b2 cloud storage"]
 license = {text = "MIT"}
 readme = "README.md"
@@ -15,7 +15,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -33,7 +32,7 @@ dependencies = [
     "tabulate==0.9.0",
     "tqdm>=4.65.0,<5",
     "platformdirs>=3.11.0,<5",
-    "setuptools>=60,<80; python_version < '3.10'",  # required by phx-class-registry<4.1
+    "setuptools>=60,<80",  # required by phx-class-registry<4.1
 ]
 
 [project.optional-dependencies]
@@ -109,6 +108,10 @@ unauthorized_licences = [
 ]
 dependencies = true
 optional_dependencies = ["doc", "full", "license"]
+
+[tool.liccheck.authorized_packages]
+# MIT: https://github.com/pypa/setuptools/blob/main/LICENSE
+setuptools = ">=60,<80"
 
 [tool.ruff]
 line-length = 100
