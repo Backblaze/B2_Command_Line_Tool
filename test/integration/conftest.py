@@ -234,7 +234,7 @@ def bucket_manager(
     # showing account_id in the logs is safe; so we explicitly prevent it from being redacted
     summary_notes.append(f'B2 Account ID: {application_key_id[:1]!r}{application_key_id[1:]!r}')
     summary_notes.append(
-        f'Buckets names used during this tests: {bucket_manager.bucket_name_log!r}'
+        f'Buckets names used during this tests: {bucket_manager.bucket_name_mapping!r}'
     )
 
 

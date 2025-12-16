@@ -57,8 +57,6 @@ def get_or_create_persistent_bucket(bucket_manager: BucketManager) -> Bucket:
                 }
             ],
         )
-    # add the new bucket name to the list of bucket names
-    bucket_manager.bucket_name_log.append(bucket_name)
     return bucket
 
 
