@@ -1,0 +1,1 @@
+Disable Tqdm semaphore leak workaround for Python >=3.14.2, as apparently it is no longer an issue in newer versions.

@@ -14,8 +14,8 @@ import pytest
 
 
 @pytest.mark.skipif(
-    (sys.platform != 'darwin') or ((sys.version_info.major, sys.version_info.minor) < (3, 11)),
-    reason='Tqdm closing error only occurs on OSX and python 3.11 or newer',
+    (sys.platform != 'darwin') or (sys.version_info < (3, 11)) or (sys.version_info > (3, 14, 1)),
+    reason='Tqdm closing error only occurs on OSX and python >=3.11 up to 3.14.2',
 )
 def test_tqdm_closer(b2_tool, bucket, file_name):
     # test that stderr doesn't contain any warning, in particular warnings about multiprocessing resource tracker

@@ -923,7 +923,12 @@ class _TqdmCloser:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if sys.platform != 'darwin' or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER'):
+        if (
+            sys.platform != 'darwin'
+            or sys.version_info < (3, 11)
+            or sys.version_info > (3, 14, 1)
+            or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER')
+        ):
             return
         try:
             from multiprocessing.synchronize import SemLock
