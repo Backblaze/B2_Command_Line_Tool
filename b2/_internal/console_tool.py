@@ -923,8 +923,24 @@ class _TqdmCloser:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if sys.platform != 'darwin' or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER'):
+        if (
+            sys.platform != 'darwin'
+            or sys.version_info < (3, 11)
+            or os.environ.get('B2_TEST_DISABLE_TQDM_CLOSER')
+        ):
             return
+
+        # Tqdm sempaphore leaks do not seem to happen in MacOS 15.7.2,
+        # so we can skip the workaround starting from this version
+        try:
+            macos_version = platform.mac_ver()[0]
+            version_tuple = tuple(int(v) for v in macos_version.split('.'))
+        except (KeyError, ValueError):
+            pass
+        else:
+            if version_tuple and version_tuple >= (15, 7, 2):
+                return
+
         try:
             from multiprocessing.synchronize import SemLock
 
