@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pdm
+        run: python -m pip install --upgrade nox pdm==2.26.2
       - name: Run linters
         run: nox -vs lint
       - name: Validate new changelog entries
@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pdm
+        run: python -m pip install --upgrade nox pdm==2.26.2
       - name: Build the distribution
         run: nox -vs build
   cleanup_buckets:
@@ -70,7 +70,7 @@ jobs:
           cache: "pip"
       - name: Install dependencies
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
-        run: python -m pip install --upgrade nox pdm
+        run: python -m pip install --upgrade nox pdm==2.26.2
       - name: Find and remove old buckets
         if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
         run: nox -vs cleanup_buckets
@@ -111,7 +111,7 @@ jobs:
         run: |
           brew install fish
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pdm
+        run: python -m pip install --upgrade nox pdm==2.26.2
       - name: Run unit tests
         run: nox -vs unit -p ${{ matrix.python-version }}
       - name: Run integration tests (without secrets)
@@ -137,7 +137,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pdm
+        run: python -m pip install --upgrade nox pdm==2.26.2
       - name: Generate Dockerfile
         run: nox -vs generate_dockerfile
       - name: Set up QEMU
@@ -178,7 +178,7 @@ jobs:
         run: |
           sudo apt-get -y update
           sudo apt-get -y install patchelf scons
-          python -m pip install --upgrade nox pdm
+          python -m pip install --upgrade nox pdm==2.26.2
           git config --global --add safe.directory '*'
       - name: Bundle the distribution
         id: bundle
@@ -217,7 +217,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
       - name: Install dependencies
-        run: python -m pip install --upgrade nox pdm
+        run: python -m pip install --upgrade nox pdm==2.26.2
       - name: Bundle the distribution
         id: bundle
         shell: bash
@@ -256,6 +256,6 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y graphviz plantuml
-          python -m pip install --upgrade nox pdm
+          python -m pip install --upgrade nox pdm==2.26.2
       - name: Build the docs
         run: nox --non-interactive -vs doc
