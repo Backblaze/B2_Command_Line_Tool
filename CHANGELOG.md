@@ -9,6 +9,25 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.5.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.5.0) - 2026-01-08
+
+
+### Removed
+
+- Dropped support for python 3.8.
+
+### Fixed
+
+- Fixed SystemError buffer overflow crash on Python 3.14+ caused by rst2ansi's terminal size detection bug. The CLI now gracefully handles this error and continues to function normally. ([#1119](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1119))
+- Disable Tqdm semaphore leak workaround for MacOS >= 15.7.2, as apparently it is no longer an issue in newer versions.
+
+### Infrastructure
+
+- Added Python 3.14 support to CI/CD pipeline and test matrix.
+- Update CI to not use deprecated `macos-13` runner.
+- Use b2sdk pytest plugin and utilities in tests.
+
+
 ## [4.4.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.4.2) - 2025-09-10
 
 
