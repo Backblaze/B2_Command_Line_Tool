@@ -132,6 +132,7 @@ lint = [
     { name = "pytest" },
     { name = "ruff" },
     { name = "setuptools" },
+    { name = "tenacity" },
 ]
 nox = [
     { name = "nox" },
@@ -191,6 +192,7 @@ lint = [
     { name = "pytest", specifier = "==8.3.3" },
     { name = "ruff", specifier = "~=0.8.4" },
     { name = "setuptools", specifier = ">=60,<80" },
+    { name = "tenacity", specifier = ">=8.2.3,<9" },
 ]
 nox = [{ name = "nox", specifier = ">=2025.11.12" }]
 release = [{ name = "towncrier", specifier = "==23.11.0" }]
