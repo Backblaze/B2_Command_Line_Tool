@@ -20,10 +20,6 @@ import subprocess
 
 import nox
 
-# Required for PDM to use nox's virtualenvs
-os.environ['PDM_IGNORE_SAVED_PYTHON'] = '1'
-os.environ['PDM_NO_LOCK'] = '1'
-
 UPSTREAM_REPO_URL = 'git@github.com:Backblaze/B2_Command_Line_Tool.git'
 
 CI = os.environ.get('CI') is not None
@@ -73,6 +69,7 @@ MACHINE = platform.machine().lower()
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
+nox.options.default_venv_backend = 'uv'
 nox.options.reuse_existing_virtualenvs = not CI
 nox.options.sessions = [
     'lint',
@@ -84,25 +81,32 @@ if CI:
     PYTEST_GLOBAL_ARGS.append('-vv')
 
 
-def pdm_install(
+def uv_install(
     session: nox.Session,
-    *groups: str,
-    dev: bool = True,
+    *,
+    groups: tuple[str, ...] = (),
+    extras: tuple[str, ...] = (),
     editable: bool = False,
-    no_isolation: bool = False,
 ) -> None:
-    args = []
-    if not dev:
-        args.append('--prod')
+    args = ['sync', '--locked']
     if not editable:
         args.append('--no-editable')
-    if no_isolation:
-        args.extend(['--no-isolation', '--no-self'])
     for group in groups:
-        args.extend(['--group', group])
-    session.run('pdm', 'install', *args, external=True)
+        if group:
+            args.extend(['--group', group])
+    for extra in extras:
+        if extra:
+            args.extend(['--extra', extra])
+    uv_env = getattr(session.virtualenv, 'location', os.getenv('VIRTUAL_ENV'))
+    session.run_install('uv', *args, env={'UV_PROJECT_ENVIRONMENT': uv_env})
     if INSTALL_SDK_FROM:
-        session.run('pip', 'install', INSTALL_SDK_FROM, external=True)
+        session.run_install(
+            'uv',
+            'pip',
+            'install',
+            INSTALL_SDK_FROM,
+            env={'UV_PROJECT_ENVIRONMENT': uv_env},
+        )
 
 
 def github_output(name, value, *, secret=False):
@@ -113,7 +117,7 @@ def github_output(name, value, *, secret=False):
         with open(gh_output_path, 'a') as file:
             file.write(f'{name}={value}\n')
     else:
-        print(f"github_output {name}={'******' if secret else value}")
+        print(f'github_output {name}={"******" if secret else value}')
 
 
 def get_version_key(path: pathlib.Path) -> int:
@@ -161,7 +165,7 @@ def is_x86_64_architecture():
 @nox.session(name='format', python=PYTHON_DEFAULT_VERSION)
 def format_(session):
     """Lint the code and apply fixes in-place whenever possible."""
-    pdm_install(session, 'format')
+    uv_install(session, groups=('format',))
     session.run('ruff', 'check', '--fix', *PY_PATHS)
     session.run('ruff', 'format', *PY_PATHS)
     # session.run(
@@ -177,7 +181,7 @@ def format_(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def lint(session):
     """Run linters in readonly mode."""
-    pdm_install(session, 'lint', 'doc', 'full', 'license')
+    uv_install(session, groups=('lint', 'doc'), extras=('full', 'license'))
     session.run('ruff', 'check', *PY_PATHS)
     session.run('ruff', 'format', *PY_PATHS)
     # session.run(
@@ -191,13 +195,13 @@ def lint(session):
 
     session.run('pytest', 'test/static', *PYTEST_GLOBAL_ARGS)
     session.run('liccheck', '-s', 'pyproject.toml')
-    session.run('pdm', 'lock', '--check', external=True)
+    session.run('uv', 'lock', '--check', external=True)
 
 
 @nox.session(python=PYTHON_VERSIONS)
 def unit(session):
     """Run unit tests."""
-    pdm_install(session, 'test')
+    uv_install(session, groups=('test',))
 
     command = [
         'pytest',
@@ -224,7 +228,7 @@ def unit(session):
 
 def run_integration_test(session, pytest_posargs):
     """Run integration tests."""
-    pdm_install(session, 'license', 'test')
+    uv_install(session, groups=('test',), extras=('license',))
 
     command = [
         'pytest',
@@ -278,7 +282,7 @@ def test(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def cleanup_buckets(session):
     """Remove buckets from previous test runs."""
-    pdm_install(session, 'test')
+    uv_install(session, groups=('test',))
     session.run(
         'pytest',
         '-s',
@@ -292,7 +296,7 @@ def cleanup_buckets(session):
 @nox.session
 def cover(session):
     """Perform coverage analysis."""
-    pdm_install(session, 'test')
+    uv_install(session, groups=('test',))
     session.run('coverage', 'report', '--fail-under=75', '--show-missing', '--skip-covered')
     session.run('coverage', 'erase')
 
@@ -301,7 +305,7 @@ def cover(session):
 def build(session):
     """Build the distribution."""
     session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True)
-    session.run('pdm', 'build', external=True)
+    session.run('uv', 'build', external=True)
 
     # Path have to be specified with unix style slashes even for windows,
     # otherwise glob won't find files on windows in action-gh-release.
@@ -317,7 +321,7 @@ def build(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def dump_license(session: nox.Session):
-    pdm_install(session, 'license', editable=True, dev=False)
+    uv_install(session, extras=('license',), editable=True)
     session.run('b2', 'license', '--dump', '--with-packages')
 
 
@@ -326,14 +330,16 @@ def bundle(session: nox.Session):
     """Bundle the distribution."""
 
     # We're running dump_license in another session because:
-    # 1. `b2 license --dump` dumps the licence where the module is installed.
+    # 1. `b2 license --dump` dumps the license where the module is installed.
     # 2. We don't want to install b2 as editable module in the current session
     #    because that would make `b2 versions` show the versions as editable.
     session.run('nox', '-s', 'dump_license', '-fb', 'venv', external=True)
 
-    # We need no isolated mode to be able to compile staticx, particularly on ARM machines.
-    pdm_install(session, 'bundle', no_isolation=not is_x86_64_architecture())
-    pdm_install(session, 'full')
+    uv_install(
+        session,
+        groups=('bundle',),
+        extras=('full',),
+    )
 
     template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
     versions = get_versions()
@@ -505,7 +511,7 @@ def make_dist_digest(_session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def doc(session):
     """Build the documentation."""
-    pdm_install(session, 'doc')
+    uv_install(session, groups=('doc',))
     session.cd('doc')
     sphinx_args = ['-b', 'html', '-T', '-W', 'source', 'build/html']
     session.run('rm', '-rf', 'build', external=True)
@@ -537,7 +543,7 @@ def doc_cover(session):
     At the time of writing B2 CLI does not have object documentation, hence this always returns 0 out 0 objects.
     Which errors out in Sphinx 7.2 (https://github.com/sphinx-doc/sphinx/issues/11678).
     """
-    pdm_install(session, 'doc')
+    uv_install(session, groups=('doc',))
     session.cd('doc')
     sphinx_args = ['-b', 'coverage', '-T', '-W', 'source', 'build/coverage']
     session.run('sphinx-build', *sphinx_args)
@@ -596,7 +602,7 @@ def _read_readme_name_and_description() -> tuple[str, str]:
 def generate_dockerfile(session):
     """Generate Dockerfile from Dockerfile.template"""
     build(session)
-    pdm_install(session)
+    uv_install(session)
 
     # This string is like `b2 command line tool, version <sem-ver-string>`
     version = session.run('b2', 'version', '--short', silent=True).strip()
@@ -685,7 +691,7 @@ def make_release_commit(session):
     else:
         session.error('Provide -- {release_version} (X.Y.Z - without leading "v")')
 
-    requirements = session.run('pdm', 'export', '--no-hashes', silent=True)
+    requirements = session.run('uv', 'export', '--no-hashes', silent=True)
     # if b2sdk requirement points to git, it won't have a version definition b2sdk==
     assert ('b2sdk==' in requirements) and (
         'git+' not in requirements
@@ -705,7 +711,7 @@ def make_release_commit(session):
     if current_branch != 'master':
         session.log('WARNING: releasing from a branch different than master')
 
-    pdm_install(session, 'release')
+    uv_install(session, groups=('release',))
     session.run('towncrier', 'build', '--yes', '--version', version)
 
     session.log(

@@ -1,16 +1,17 @@
 FROM python:${python_version}-slim as builder
 
-RUN apt-get update -y && apt-get install git patchelf -y && pip install -U pdm
+RUN apt-get update -y && apt-get install git patchelf -y && pip install -U uv==0.8.24
 
 WORKDIR /b2
 COPY ./b2 /b2/b2
-COPY pyproject.toml pdm.lock LICENSE README.md /b2/
+COPY pyproject.toml uv.lock LICENSE README.md /b2/
 
-ENV PDM_BUILD_SCM_VERSION=${version}
-RUN pdm install --prod --group license
-RUN pdm run b2 license --dump --with-packages
-# Run pdm in PEP 582 mode, install packaged to __pypackages__, not virtualenv
-RUN rm -r .venv && mkdir __pypackages__ && pdm install --prod --group full --no-editable
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${version}
+RUN uv sync --locked --no-dev --extra license
+RUN uv run b2 license --dump --with-packages
+RUN rm -r .venv && mkdir __pypackages__
+RUN uv export --locked --no-dev --extra full --no-hashes --no-editable -o requirements.txt
+RUN uv pip install --compile-bytecode --python /usr/local/bin/python --prefix __pypackages__ -r requirements.txt
 
 FROM python:${python_version}-slim
 
@@ -26,8 +27,8 @@ LABEL build-date-iso8601="${build_date}"
 ENV B2_CLI_DOCKER=1
 ENV PYTHONPATH=/opt/b2
 COPY ./docker/entrypoint.sh /entrypoint.sh
-COPY --from=builder /b2/__pypackages__/${python_version}/lib /opt/b2
-COPY --from=builder /b2/__pypackages__/${python_version}/bin/* /bin/
+COPY --from=builder /b2/__pypackages__/lib/python${python_version}/site-packages /opt/b2
+COPY --from=builder /b2/__pypackages__/bin/* /bin/
 
 WORKDIR /root
 ENTRYPOINT ["/entrypoint.sh"]
