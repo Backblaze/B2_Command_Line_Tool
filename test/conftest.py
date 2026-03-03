@@ -12,6 +12,8 @@ import sys
 
 import pytest
 
+pytest_plugins = ['b2sdk.v3.testing']
+
 
 @pytest.hookimpl
 def pytest_configure(config):

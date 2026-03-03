@@ -47,9 +47,6 @@ ROOT_PATH = pathlib.Path(__file__).parent.parent.parent
 GENERAL_BUCKET_NAME_PREFIX = 'clitst'
 
 
-pytest_plugins = ['b2sdk.v3.testing']
-
-
 @pytest.fixture(scope='session', autouse=True)
 def summary_notes(request, worker_id):
     capmanager = request.config.pluginmanager.getplugin('capturemanager')
