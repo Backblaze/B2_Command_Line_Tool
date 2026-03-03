@@ -55,9 +55,9 @@ for a given github issue).
  
 ## Developer Info
 
-You'll need to have [nox](https://github.com/theacodes/nox) and [pdm](https://pdm-project.org/) installed:
+You'll need to have [nox](https://github.com/theacodes/nox) and [uv](https://docs.astral.sh/uv/) installed:
 
-* `pip install nox pdm`
+* `pip install nox uv`
 
 With `nox`, you can run different sessions (default are `lint` and `test`):
 
@@ -106,10 +106,10 @@ Given Python interpreters should be installed in the operating system or via [py
 
 ## Managing dependencies
 
-We use [pdm](https://pdm-project.org/) for managing dependencies and developing locally.
+We use [uv](https://docs.astral.sh/uv/) for managing dependencies and developing locally.
 If you want to change any of the project requirements (or requirement bounds) in `pyproject.toml`,
-make sure that `pdm.lock` file reflects those changes by using `pdm add`, `pdm update` or other
-commands - see [documentation](https://pdm-project.org/latest/). You can verify that lock file
+make sure that `uv.lock` file reflects those changes by using `uv add`, `uv lock` or other
+commands - see [documentation](https://docs.astral.sh/uv/). You can verify that lock file
 is up to date by running the linter.
 
 ## Linting
