@@ -176,7 +176,7 @@ def test_download_file_by_name__to_stdout_by_alias(
 
 def test_cat__b2_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
     b2_cli.run(
-        ['file', 'cat', '--no-progress', f"b2://{bucket}/{uploaded_stdout_txt['fileName']}"],
+        ['file', 'cat', '--no-progress', f'b2://{bucket}/{uploaded_stdout_txt["fileName"]}'],
     )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
@@ -233,3 +233,52 @@ def test__download_file__threads(b2_cli, local_file, uploaded_file, tmp_path):
 
     assert output_path.read_text() == uploaded_file['content']
     assert b2_cli.console_tool.api.services.download_manager.get_thread_pool_size() == num_threads
+
+
+@pytest.mark.parametrize(
+    'remote_name',
+    [
+        '../escape.txt',
+        'foo/../bar.txt',
+    ],
+)
+def test_download_file_by_uri__directory_rejects_unsupported_server_name(
+    b2_cli, api_bucket, tmp_path, remote_name
+):
+    uploaded_file = api_bucket.upload_bytes(b'hello world', remote_name)
+    output_directory = tmp_path / 'downloads'
+    output_directory.mkdir()
+
+    b2_cli.run(
+        [
+            'file',
+            'download',
+            '--no-progress',
+            f'b2id://{uploaded_file.id_}',
+            str(output_directory),
+        ],
+        expected_status=1,
+    )
+
+    local_path = (output_directory / remote_name).resolve()
+    assert not local_path.exists()
+
+
+def test_download_file_by_uri__explicit_file_target_allows_unsupported_server_name(
+    b2_cli, api_bucket, tmp_path
+):
+    uploaded_file = api_bucket.upload_bytes(b'hello world', '../escape.txt')
+    output_path = tmp_path / 'output.txt'
+
+    b2_cli.run(
+        [
+            'file',
+            'download',
+            '--no-progress',
+            f'b2id://{uploaded_file.id_}',
+            str(output_path),
+        ],
+        expected_stderr=None,
+    )
+
+    assert output_path.read_text() == 'hello world'
