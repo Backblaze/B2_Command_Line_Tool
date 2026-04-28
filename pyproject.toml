@@ -61,7 +61,7 @@ format = [
 ]
 lint = [
     "ruff~=0.8.4",
-    "pytest==8.3.3",
+    "pytest>=9,<10",
     "tenacity>=8.2.3,<9",
     "liccheck>=0.9.2",
     "setuptools>=60,<80",  # required by liccheck
@@ -72,11 +72,11 @@ release = [
 test = [
     "coverage==7.2.7",
     "pexpect==4.9.0",
-    "pytest==8.3.3",
+    "pytest>=9,<10",
     "pytest-cov==3.0.0",
     "pytest-forked==1.6.0",
     "pytest-xdist==2.5.0",
-    "pytest-watcher==0.4.3",
+    "pytest-watcher>=0.6.0",
     "tenacity>=8.2.3,<9",
     "more-itertools==8.13.0",
 ]

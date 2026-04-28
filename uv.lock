@@ -187,7 +187,7 @@ doc = [
 format = [{ name = "ruff", specifier = "~=0.8.4" }]
 lint = [
     { name = "liccheck", specifier = ">=0.9.2" },
-    { name = "pytest", specifier = "==8.3.3" },
+    { name = "pytest", specifier = ">=9,<10" },
     { name = "ruff", specifier = "~=0.8.4" },
     { name = "setuptools", specifier = ">=60,<80" },
     { name = "tenacity", specifier = ">=8.2.3,<9" },
@@ -198,10 +198,10 @@ test = [
     { name = "coverage", specifier = "==7.2.7" },
     { name = "more-itertools", specifier = "==8.13.0" },
     { name = "pexpect", specifier = "==4.9.0" },
-    { name = "pytest", specifier = "==8.3.3" },
+    { name = "pytest", specifier = ">=9,<10" },
     { name = "pytest-cov", specifier = "==3.0.0" },
     { name = "pytest-forked", specifier = "==1.6.0" },
-    { name = "pytest-watcher", specifier = "==0.4.3" },
+    { name = "pytest-watcher", specifier = ">=0.6.0" },
     { name = "pytest-xdist", specifier = "==2.5.0" },
     { name = "tenacity", specifier = ">=8.2.3,<9" },
 ]
@@ -1048,7 +1048,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "8.3.3"
+version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
@@ -1056,11 +1056,12 @@ dependencies = [
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
+    { name = "pygments" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/6c/62bbd536103af674e227c41a8f3dcd022d591f6eed5facb5a0f31ee33bbc/pytest-8.3.3.tar.gz", hash = "sha256:70b98107bd648308a7952b06e6ca9a50bc660be218d53c257cc1fc94fda10181", size = 1442487, upload-time = "2024-09-10T10:52:15.003Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6b/77/7440a06a8ead44c7757a64362dd22df5760f9b12dc5f11b6188cd2fc27a0/pytest-8.3.3-py3-none-any.whl", hash = "sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2", size = 342341, upload-time = "2024-09-10T10:52:12.54Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
 ]
 
 [[package]]
@@ -1091,15 +1092,15 @@ wheels = [
 
 [[package]]
 name = "pytest-watcher"
-version = "0.4.3"
+version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/72/a2a1e81f1b272ddd9a1848af4959c87c39aa95c0bbfb3007cacb86c47fa9/pytest_watcher-0.4.3.tar.gz", hash = "sha256:0cb0e4661648c8c0ff2b2d25efa5a8e421784b9e4c60fcecbf9b7c30b2d731b3", size = 10386, upload-time = "2024-08-28T17:37:46.662Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/d2/80606077b7fa8784417687f494ff801d7ab817d9a17fc94305811d5919bb/pytest_watcher-0.6.3.tar.gz", hash = "sha256:842dc904264df0ad2d5264153a66bb452fccfa46598cd6e0a5ef1d19afed9b13", size = 601878, upload-time = "2026-01-10T23:28:18.805Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5b/3a/c44a76c6bb5e9e896d9707fb1c704a31a0136950dec9514373ced0684d56/pytest_watcher-0.4.3-py3-none-any.whl", hash = "sha256:d59b1e1396f33a65ea4949b713d6884637755d641646960056a90b267c3460f9", size = 11852, upload-time = "2024-08-28T17:37:45.731Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/3f/172d73600ad2771774cda108efb813fc724fc345e5240a81a1085f1ade5d/pytest_watcher-0.6.3-py3-none-any.whl", hash = "sha256:83e7748c933087e8276edb6078663e6afa9926434b4fd8b85cf6b32b1d5bec89", size = 12431, upload-time = "2026-01-10T23:28:17.64Z" },
 ]
 
 [[package]]
