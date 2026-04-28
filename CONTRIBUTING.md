@@ -63,7 +63,7 @@ With `nox`, you can run different sessions (default are `lint` and `test`):
 
 * `format` -> Format the code.
 * `lint` -> Run linters.
-* `test` (`test-3.9`, `test-3.10`, `test-3.11`) -> Run test suite.
+* `test` (`test-3.10`, `test-3.11`) -> Run test suite.
 * `cover` -> Perform coverage analysis.
 * `build` -> Build the distribution.
 * `generate_dockerfile` -> generate dockerfile
@@ -97,7 +97,7 @@ Sessions other than that use the last given Python version.
 You can change it:
 
 ```bash
-export NOX_PYTHONS=3.9,3.10
+export NOX_PYTHONS=3.10,3.13
 ```
 
 With the above setting, session `test` will run on Python 3.9 and 3.10, and all other sessions on Python 3.10.
