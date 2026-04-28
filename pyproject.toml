@@ -82,7 +82,7 @@ test = [
     "more-itertools==8.13.0",
 ]
 bundle = [
-    "pyinstaller<6,>=5.13; python_version < \"3.13\"",
+    "pyinstaller>=6.15,<7",
     "pyinstaller-hooks-contrib>=2023.6",
     "patchelf-wrapper==1.2.0; platform_system == \"Linux\"",
     "staticx~=0.14.1; platform_system == \"Linux\"",
