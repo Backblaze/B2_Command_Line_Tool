@@ -11,6 +11,8 @@
 import argparse
 import sys
 
+import pytest
+
 from b2._internal._cli.arg_parser_types import (
     parse_comma_separated_list,
     parse_millis_from_float_timestamp,
@@ -43,48 +45,54 @@ class TestCustomArgTypes(TestBase):
             parse_range('!@#,%^&')
 
 
-class TestNonUTF8TerminalSupport(TestBase):
-    class ASCIIEncodedStream:
-        def __init__(self, original_stream):
-            self.original_stream = original_stream
-            self.encoding = 'ascii'
+class _ASCIIEncodedStream:
+    def __init__(self, original_stream):
+        self.original_stream = original_stream
+        self.encoding = 'ascii'
 
-        def write(self, data):
-            if isinstance(data, str):
-                data = data.encode(self.encoding, 'strict')
-            self.original_stream.buffer.write(data)
+    def write(self, data):
+        if isinstance(data, str):
+            data = data.encode(self.encoding, 'strict')
+        self.original_stream.buffer.write(data)
 
-        def flush(self):
-            self.original_stream.flush()
+    def flush(self):
+        self.original_stream.flush()
 
-    def check_help_string(self, command_class, command_name):
-        help_string = command_class.__doc__
 
-        # create a parser with a help message that is based on the command_class.__doc__ string
-        parser = B2ArgumentParser(description=help_string)
+def _build_command_names_classes_mapping() -> dict[str, type]:
+    """
+    Recursively build a dictionary of all command names and corresponding classes, including all level subcommands
+    """
 
-        try:
-            old_stdout = sys.stdout
-            old_stderr = sys.stderr
-            sys.stdout = TestNonUTF8TerminalSupport.ASCIIEncodedStream(sys.stdout)
-            sys.stderr = TestNonUTF8TerminalSupport.ASCIIEncodedStream(sys.stderr)
+    command_classes = {}
 
-            parser.print_help()
+    def _walk_command_classes(command_name: str, command_class: type) -> None:
+        assert command_name not in command_classes
+        command_classes[command_name] = command_class
 
-        except UnicodeEncodeError as e:
-            self.fail(
-                f'Failed to encode help message for command "{command_name}" on a non-UTF-8 terminal: {e}'
-            )
+        registry = getattr(command_class, 'subcommands_registry', None)
+        if registry:
+            for subcommand_name, subcommand_class in registry.items():
+                _walk_command_classes(f'{command_name} {subcommand_name}', subcommand_class)
 
-        finally:
-            # Restore original stdout and stderr
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
+    _walk_command_classes('b2', B2)
+    return command_classes
 
-    def test_help_in_non_utf8_terminal(self):
-        command_classes = dict(B2.subcommands_registry.items())
-        command_classes['b2'] = B2
 
-        for command_name, command_class in command_classes.items():
-            with self.subTest(command_class=command_class, command_name=command_name):
-                self.check_help_string(command_class, command_name)
+COMMAND_NAMES_CLASSES_MAPPING = _build_command_names_classes_mapping()
+
+
+@pytest.mark.parametrize('command_name', COMMAND_NAMES_CLASSES_MAPPING)
+def test_help_in_non_utf8_terminal(command_name: str, monkeypatch):
+    command_class = COMMAND_NAMES_CLASSES_MAPPING[command_name]
+    parser = B2ArgumentParser(description=command_class.__doc__)
+
+    monkeypatch.setattr(sys, 'stdout', _ASCIIEncodedStream(sys.stdout))
+    monkeypatch.setattr(sys, 'stderr', _ASCIIEncodedStream(sys.stderr))
+
+    try:
+        parser.print_help()
+    except UnicodeEncodeError as e:
+        pytest.fail(
+            f'Failed to encode help message for command "{command_name}" on a non-UTF-8 terminal: {e}'
+        )
