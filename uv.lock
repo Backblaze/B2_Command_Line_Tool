@@ -153,7 +153,7 @@ test = [
 requires-dist = [
     { name = "argcomplete", specifier = ">=3.5.2,<4" },
     { name = "arrow", specifier = ">=1.0.2,<2.0.0" },
-    { name = "b2sdk", specifier = ">=2.10.3,<3" },
+    { name = "b2sdk", specifier = ">=2.12.0,<3" },
     { name = "docutils", specifier = ">=0.18.1,<0.22" },
     { name = "idna", marker = "platform_system == 'Java'", specifier = "~=3.4" },
     { name = "pip", marker = "extra == 'license'", specifier = ">=26.1" },
@@ -208,7 +208,7 @@ test = [
 
 [[package]]
 name = "b2sdk"
-version = "2.10.3"
+version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-types" },
@@ -216,9 +216,9 @@ dependencies = [
     { name = "requests" },
     { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7e/de/cf0ad74801eda05b39b121acc8c1625af0aca2e9a7851b1b823942b03d5f/b2sdk-2.10.3.tar.gz", hash = "sha256:aec069860587990a88e3504ed09c7f48f20fb156f8dd3b01fb36a869fd6ed772", size = 553611, upload-time = "2026-02-22T21:23:17.863Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/d8/45bc23014df0d263d2bda904bcb993f3771f7b2dbd40f06fdcbe910271ac/b2sdk-2.12.0.tar.gz", hash = "sha256:da7b65e1af4f59c7de7d079c1e25de6b033aa45090fded4caefe52ded9b13ee6", size = 209696, upload-time = "2026-05-05T15:42:16.04Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/0e/114502f1cb4a22c96cc2aaecb56e09898b51de594cd7e831bb728c9c6c5e/b2sdk-2.10.3-py3-none-any.whl", hash = "sha256:62351893bd4098d71cc703f1f4a23fe23ed8f609f509e8662297db10bffa4322", size = 300648, upload-time = "2026-02-22T21:23:16.512Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/06/ba5d1fa6170651197fe1eed9d70884517f4df6f264a4647f23e61bb21b46/b2sdk-2.12.0-py3-none-any.whl", hash = "sha256:58af4e925b2ed0422b4f2f26ee3f53c7045520ae6ddcbe65b5bc9e4b99725bce", size = 300909, upload-time = "2026-05-05T15:42:14.574Z" },
 ]
 
 [[package]]
