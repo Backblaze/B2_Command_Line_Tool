@@ -9,6 +9,27 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.7.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.7.0) - 2026-05-05
+
+
+### Removed
+
+- Drop support for Python 3.9 and PyPy 3.9.
+
+### Fixed
+
+- Reject unsafe remote filenames in the Download command.
+
+### Infrastructure
+
+- Bump PyInstaller version and remove obsolete hidden imports from the PyInstaller spec file.
+- Bump pytest and other test dependencies versions.
+- Bump sdk version to v2.12.0.
+- Fix tests with pytest 9.0.
+- Migrate from pdm to uv.
+- Rewrite the test case verifying non-UTF-8 help rendering, replacing subtests with parametrization, cover nested commands.
+
+
 ## [4.6.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.6.0) - 2026-02-25
 
 
