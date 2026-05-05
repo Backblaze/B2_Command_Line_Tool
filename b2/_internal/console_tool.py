@@ -106,6 +106,7 @@ from b2sdk.v3 import (
     points_to_fifo,
     substitute_control_chars,
     unprintable_to_hex,
+    validate_b2_file_name_as_path,
 )
 from b2sdk.v3.exception import (
     B2Error,
@@ -1959,6 +1960,13 @@ class DownloadCommand(
         # As longs as it's not a directory, we're overwriting everything.
         if not output_filepath.is_dir():
             return output_filepath
+
+        # Make sure the remote filename is safe to interpret as a local path
+        try:
+            validate_b2_file_name_as_path(str(file_request.download_version.file_name))
+        except ValueError as exc:
+            err_msg = unprintable_to_hex(f'{exc}: {output_filepath}')
+            raise CommandError(err_msg) from exc
 
         # If the output is directory, we're expected to download the file right there.
         # Normally, we overwrite the target without asking any questions, but in this case
