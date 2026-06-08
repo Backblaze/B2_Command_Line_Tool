@@ -9,6 +9,18 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.7.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.7.1) - 2026-06-08
+
+
+### Fixed
+
+- Fix `b2://` URI parsing to accept bucket names containing periods.
+
+### Infrastructure
+
+- Bump urllib3 from 2.6.3 to 2.7.0.
+
+
 ## [4.7.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.7.0) - 2026-05-05
 
 
