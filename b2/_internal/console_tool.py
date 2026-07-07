@@ -52,7 +52,6 @@ from typing import Any, BinaryIO
 
 import b2sdk
 import requests
-import rst2ansi
 from b2sdk.v3 import (
     ALL_CAPABILITIES,
     B2_ACCOUNT_INFO_DEFAULT_FILE,
@@ -421,7 +420,7 @@ class DestinationSseMixin(Described):
     Using SSE-C requires providing ``{B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR}`` environment variable,
     containing the base64 encoded encryption key.
     If ``{B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR}`` environment variable is provided,
-    it's value will be saved as ``{SSE_C_KEY_ID_FILE_INFO_KEY_NAME}`` in the
+    its value will be saved as ``{SSE_C_KEY_ID_FILE_INFO_KEY_NAME}`` in the
     uploaded file's fileInfo.
     """
 
@@ -4292,7 +4291,7 @@ class License(Command):  # pragma: no cover
     # overrides to the license text extracted by piplicenses.
     # Thanks to this set, we make sure the module is still used
     # PTable is used on versions below Python 3.11
-    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'rst2ansi', 'b2sdk'}
+    MODULES_TO_OVERRIDE_LICENSE_TEXT = {'b2sdk'}
 
     LICENSES = {
         'argcomplete': 'https://raw.githubusercontent.com/kislyuk/argcomplete/develop/LICENSE.rst',
@@ -4445,12 +4444,7 @@ class License(Command):  # pragma: no cover
     def _get_single_license(self, module_dict: dict):
         license_ = module_dict['LicenseText']
         module_name = module_dict['Name']
-        if module_name == 'rst2ansi':
-            # this one module is problematic, we need to extract the license text from its docstring
-            assert license_ == piplicenses.LICENSE_UNKNOWN  # let's make sure they didn't fix it
-            license_ = rst2ansi.__doc__
-            assert 'MIT License' in license_  # let's make sure the license is still there
-        elif module_name == 'b2sdk':
+        if module_name == 'b2sdk':
             license_ = (pathlib.Path(b2sdk.__file__).parent / 'LICENSE').read_text()
         else:
             license_url = self.LICENSES.get(module_name) or self.LICENSES.get(
