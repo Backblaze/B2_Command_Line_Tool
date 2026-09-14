@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_internal/_b2v5/__main__.py
+# File: b2/_internal/b2v5/__main__.py
 #
 # Copyright 2026 Backblaze Inc. All Rights Reserved.
 #
@@ -8,6 +8,6 @@
 #
 ######################################################################
 
-from b2._internal._b2v5.registry import main
+from b2._internal.b2v5.registry import main
 
 main()

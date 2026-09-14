@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_internal/_b2v5/__init__.py
+# File: b2/_internal/b2v5/__init__.py
 #
 # Copyright 2026 Backblaze Inc. All Rights Reserved.
 #

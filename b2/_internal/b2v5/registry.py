@@ -1,6 +1,6 @@
 ######################################################################
 #
-# File: b2/_internal/_b2v5/registry.py
+# File: b2/_internal/b2v5/registry.py
 #
 # Copyright 2026 Backblaze Inc. All Rights Reserved.
 #
