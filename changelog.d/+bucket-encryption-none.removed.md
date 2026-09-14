@@ -1,1 +1,0 @@
-B2 now applies SSE-B2 (AES256) as the default server-side encryption to every bucket and no longer accepts `none`. `--default-server-side-encryption none` on `bucket create` and `bucket update` now fails with a message explaining that the option should be omitted. Omitting the option uses the server default.

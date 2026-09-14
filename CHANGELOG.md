@@ -9,6 +9,19 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [4.8.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.8.0) - 2026-09-14
+
+
+### Removed
+
+- B2 now applies SSE-B2 (AES256) as the default server-side encryption to every bucket and no longer accepts `none`. `--default-server-side-encryption none` on `bucket create` and `bucket update` now fails with a message explaining that the option should be omitted. Omitting the option uses the server default.
+
+### Infrastructure
+
+- Fix Read the Docs builds by migrating the config from the removed pdm setup to `uv sync`.
+- Skip changelog requirement for PRs that only modify `uv.lock`.
+
+
 ## [4.7.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.7.1) - 2026-06-08
 
 
