@@ -29,7 +29,7 @@ def test_ls__without_bucket_name__json(b2_cli, bucket_info):
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultRetention': {'mode': None},
-            'defaultServerSideEncryption': {'mode': 'none'},
+            'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'isFileLockEnabled': False,
             'lifecycleRules': [],
             'options': [],

@@ -29,6 +29,10 @@ class UnitTestClass(unittest.TestCase):
     def test_passes_above_and_on_v4(self):
         assert self.apiver_int >= 4
 
+    @pytest.mark.apiver(from_ver=5)
+    def test_passes_above_and_on_v5(self):
+        assert self.apiver_int >= 5
+
     @pytest.mark.apiver(3)
     def test_passes_only_on_v3(self):
         assert self.apiver_int == 3
@@ -36,6 +40,10 @@ class UnitTestClass(unittest.TestCase):
     @pytest.mark.apiver(4)
     def test_passes_only_on_v4(self):
         assert self.apiver_int == 4
+
+    @pytest.mark.apiver(5)
+    def test_passes_only_on_v5(self):
+        assert self.apiver_int == 5
 
     @pytest.mark.apiver(3, 4)
     def test_passes_on_both_v3_and_v4(self):
@@ -52,6 +60,11 @@ def test_passes_above_and_on_v4(apiver_int):
     assert apiver_int >= 4
 
 
+@pytest.mark.apiver(from_ver=5)
+def test_passes_above_and_on_v5(apiver_int):
+    assert apiver_int >= 5
+
+
 @pytest.mark.apiver(3)
 def test_passes_only_on_v3(apiver_int):
     assert apiver_int == 3
@@ -60,6 +73,11 @@ def test_passes_only_on_v3(apiver_int):
 @pytest.mark.apiver(4)
 def test_passes_only_on_v4(apiver_int):
     assert apiver_int == 4
+
+
+@pytest.mark.apiver(5)
+def test_passes_only_on_v5(apiver_int):
+    assert apiver_int == 5
 
 
 @pytest.mark.apiver(3, 4)

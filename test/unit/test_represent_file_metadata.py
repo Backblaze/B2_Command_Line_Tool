@@ -142,7 +142,7 @@ class TestReprentFileMetadata(TestBase):
 
     def test_encryption(self):
         file = self.lock_enabled_bucket.upload_bytes(b'insignificant', 'file')
-        self.assertEncryptionRepr(file.id_, 'none')
+        self.assertEncryptionRepr(file.id_, 'mode=SSE-B2, algorithm=AES256')
 
         file = self.lock_enabled_bucket.upload_bytes(
             b'insignificant', 'file', encryption=SSE_B2_AES

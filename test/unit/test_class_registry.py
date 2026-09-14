@@ -101,3 +101,27 @@ def test_empty_key_is_rejected():
         @registry.register('')
         class EmptyKey:
             pass
+
+
+def test_copy_has_independent_registrations_and_same_configuration():
+    registry = ClassRegistry(attr_name='COMMAND_NAME', unique=True)
+
+    @registry.register
+    class First:
+        COMMAND_NAME = 'first'
+
+    copied_registry = registry.copy()
+
+    assert copied_registry is not registry
+    assert list(copied_registry.items()) == list(registry.items())
+
+    @copied_registry.register
+    class Second:
+        COMMAND_NAME = 'second'
+
+    copied_registry.unregister('first')
+
+    assert 'first' in registry
+    assert 'first' not in copied_registry
+    assert 'second' in copied_registry
+    assert 'second' not in registry

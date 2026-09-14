@@ -54,7 +54,6 @@ from .helpers import (
     SSE_B2_AES,
     SSE_C_AES,
     SSE_C_AES_2,
-    SSE_NONE,
     TempDir,
     file_mod_time_millis,
     random_hex,
@@ -305,9 +304,11 @@ def test_download(b2_tool, persistent_bucket, sample_filepath, uploaded_sample_f
     assert output_b.read_text() == sample_filepath.read_text()
 
 
-def test_download__period_in_bucket_name(b2_tool, schedule_bucket_cleanup, sample_filepath, tmp_path):
+def test_download__period_in_bucket_name(
+    b2_tool, schedule_bucket_cleanup, sample_filepath, tmp_path
+):
     bucket_name = b2_tool.generate_bucket_name()
-    bucket_name = bucket_name[:-2] + ".x"
+    bucket_name = bucket_name[:-2] + '.x'
     schedule_bucket_cleanup(bucket_name)
     b2_tool.should_succeed(
         ['bucket', 'create', bucket_name, 'allPrivate', *b2_tool.get_bucket_info_args()]
@@ -1072,7 +1073,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket, apiver_int, dir_, encrypt
     # now upload
     if encryption is None:
         command = ['sync', '--no-progress', tmp_path, b2_sync_point]
-        expected_encryption = SSE_NONE
+        expected_encryption = SSE_B2_AES
         expected_encryption_str = encryption_summary(expected_encryption.as_dict(), {})
     elif encryption == SSE_B2_AES:
         command = [
@@ -1351,7 +1352,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryp
     else:
         b2_file_prefix = ''
 
-    if encryption is None or encryption.mode in (EncryptionMode.NONE, EncryptionMode.SSE_B2):
+    if encryption is None or encryption.mode == EncryptionMode.SSE_B2:
         upload_encryption_args = []
         upload_additional_env = {}
         sync_encryption_args = []
@@ -1481,17 +1482,7 @@ class TestSyncCopy(IntegrationTestBase):
             '',
             sample_file=sample_file,
             destination_encryption=None,
-            expected_encryption=SSE_NONE,
-        )
-
-    def test_sync_copy_no_prefix_no_encryption(self, b2_tool, bucket_name, sample_file):
-        self.prepare_and_run_sync_copy_tests(
-            b2_tool,
-            bucket_name,
-            '',
-            sample_file=sample_file,
-            destination_encryption=SSE_NONE,
-            expected_encryption=SSE_NONE,
+            expected_encryption=SSE_B2_AES,
         )
 
     def test_sync_copy_no_prefix_sse_b2(self, b2_tool, bucket_name, sample_file):
@@ -1553,7 +1544,7 @@ class TestSyncCopy(IntegrationTestBase):
         folder_in_bucket,
         sample_file,
         destination_encryption=None,
-        expected_encryption=SSE_NONE,
+        expected_encryption=SSE_B2_AES,
         source_encryption=None,
     ):
         b2_sync_point = f'b2:{bucket_name}'
@@ -1580,7 +1571,7 @@ class TestSyncCopy(IntegrationTestBase):
             sample_file=sample_file,
         )
 
-        if destination_encryption is None or destination_encryption in (SSE_NONE, SSE_B2_AES):
+        if destination_encryption is None or destination_encryption == SSE_B2_AES:
             encryption_file_info = {}
         elif destination_encryption.mode == EncryptionMode.SSE_C:
             encryption_file_info = {
@@ -1613,10 +1604,7 @@ class TestSyncCopy(IntegrationTestBase):
         sample_file,
     ):
         # Put a couple files in B2
-        if source_encryption is None or source_encryption.mode in (
-            EncryptionMode.NONE,
-            EncryptionMode.SSE_B2,
-        ):
+        if source_encryption is None or source_encryption.mode == EncryptionMode.SSE_B2:
             b2_tool.should_succeed(
                 [
                     'file',
@@ -1656,7 +1644,7 @@ class TestSyncCopy(IntegrationTestBase):
             raise NotImplementedError(source_encryption)
 
         # Sync all the files
-        if destination_encryption is None or destination_encryption == SSE_NONE:
+        if destination_encryption is None:
             b2_tool.should_succeed(['sync', '--no-progress', b2_sync_point, other_b2_sync_point])
         elif destination_encryption == SSE_B2_AES:
             b2_tool.should_succeed(
@@ -1747,7 +1735,10 @@ class TestSyncCopy(IntegrationTestBase):
 def test_default_sse_b2__update_bucket(b2_tool, bucket_name, schedule_bucket_cleanup):
     # Set default encryption via `bucket update`
     bucket_info = b2_tool.should_succeed_json(['bucket', 'get', bucket_name])
-    bucket_default_sse = {'mode': 'none'}
+    bucket_default_sse = {
+        'algorithm': 'AES256',
+        'mode': 'SSE-B2',
+    }
     should_equal(bucket_default_sse, bucket_info['defaultServerSideEncryption'])
 
     bucket_info = b2_tool.should_succeed_json(
@@ -1804,7 +1795,14 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
         ]
     )
     b2_tool.should_succeed(
-        ['file', 'upload', '--quiet', bucket_name, sample_file, f'{subfolder}/not_encrypted']
+        [
+            'file',
+            'upload',
+            '--quiet',
+            bucket_name,
+            sample_file,
+            f'{subfolder}/inherited_encryption',
+        ]
     )
 
     b2_tool.should_succeed(
@@ -1821,8 +1819,8 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
             'file',
             'download',
             '--quiet',
-            f'b2://{bucket_name}/{subfolder}/not_encrypted',
-            tmp_path / 'not_encrypted',
+            f'b2://{bucket_name}/{subfolder}/inherited_encryption',
+            tmp_path / 'inherited_encryption',
         ]
     )
 
@@ -1830,7 +1828,7 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, subfolder)]
     )
     should_equal(
-        [{'algorithm': 'AES256', 'mode': 'SSE-B2'}, {'mode': 'none'}],
+        [{'algorithm': 'AES256', 'mode': 'SSE-B2'}] * 2,
         [f['serverSideEncryption'] for f in list_of_files],
     )
 
@@ -1839,11 +1837,11 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
         ['file', 'info', f"b2id://{encrypted_version['fileId']}"]
     )
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
-    not_encrypted_version = list_of_files[1]
+    inherited_encryption_version = list_of_files[1]
     file_info = b2_tool.should_succeed_json(
-        ['file', 'info', f"b2id://{not_encrypted_version['fileId']}"]
+        ['file', 'info', f"b2id://{inherited_encryption_version['fileId']}"]
     )
-    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
+    should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
 
     b2_tool.should_succeed(
         [
@@ -1858,8 +1856,8 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
         [
             'file',
             'server-side-copy',
-            f"b2id://{not_encrypted_version['fileId']}",
-            f'b2://{bucket_name}/{subfolder}/copied_not_encrypted',
+            f"b2id://{inherited_encryption_version['fileId']}",
+            f'b2://{bucket_name}/{subfolder}/copied_inherited_encryption',
         ]
     )
 
@@ -1867,7 +1865,7 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
         ['ls', '--json', '--recursive', *b2_uri_args(bucket_name, subfolder)]
     )
     should_equal(
-        [{'algorithm': 'AES256', 'mode': 'SSE-B2'}, {'mode': 'none'}] * 2,
+        [{'algorithm': 'AES256', 'mode': 'SSE-B2'}] * 4,
         [f['serverSideEncryption'] for f in list_of_files],
     )
 
@@ -1877,11 +1875,11 @@ def test_sse_b2(b2_tool, persistent_bucket, sample_file, tmp_path, b2_uri_args):
     )
     should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
 
-    copied_not_encrypted_version = list_of_files[3]
+    copied_inherited_encryption_version = list_of_files[3]
     file_info = b2_tool.should_succeed_json(
-        ['file', 'info', f"b2id://{copied_not_encrypted_version['fileId']}"]
+        ['file', 'info', f"b2id://{copied_inherited_encryption_version['fileId']}"]
     )
-    should_equal({'mode': 'none'}, file_info['serverSideEncryption'])
+    should_equal({'algorithm': 'AES256', 'mode': 'SSE-B2'}, file_info['serverSideEncryption'])
 
 
 def test_sse_c(
@@ -2057,7 +2055,7 @@ def test_sse_c(
             'server-side-copy',
             '--source-server-side-encryption=SSE-C',
             f'b2id://{file_version_info["fileId"]}',
-            f'b2://{bucket_name}/{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace',
+            f'b2://{bucket_name}/{subfolder}/sse_b2_copied_from_encrypted_metadata_replace',
             '--info',
             'a=b',
             '--content-type',
@@ -2071,7 +2069,7 @@ def test_sse_c(
             'server-side-copy',
             '--source-server-side-encryption=SSE-C',
             f'b2id://{file_version_info["fileId"]}',
-            f'b2://{bucket_name}/{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace_empty',
+            f'b2://{bucket_name}/{subfolder}/sse_b2_copied_from_encrypted_metadata_replace_empty',
             '--no-info',
             '--content-type',
             'text/plain',
@@ -2084,7 +2082,7 @@ def test_sse_c(
             'server-side-copy',
             '--source-server-side-encryption=SSE-C',
             f'b2id://{file_version_info["fileId"]}',
-            f'b2://{bucket_name}/{subfolder}/not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+            f'b2://{bucket_name}/{subfolder}/sse_b2_copied_from_encrypted_metadata_pseudo_copy',
             '--fetch-metadata',
         ],
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
@@ -2175,24 +2173,27 @@ def test_sse_c(
                 },
             },
             {
-                'file_name': f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_pseudo_copy',
+                'file_name': f'{subfolder}/sse_b2_copied_from_encrypted_metadata_pseudo_copy',
                 'sse_c_key_id': 'missing_key',
                 'serverSideEncryption': {
-                    'mode': 'none',
+                    'algorithm': 'AES256',
+                    'mode': 'SSE-B2',
                 },
             },
             {
-                'file_name': f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace',
+                'file_name': f'{subfolder}/sse_b2_copied_from_encrypted_metadata_replace',
                 'sse_c_key_id': 'missing_key',
                 'serverSideEncryption': {
-                    'mode': 'none',
+                    'algorithm': 'AES256',
+                    'mode': 'SSE-B2',
                 },
             },
             {
-                'file_name': f'{subfolder}/not_encrypted_copied_from_encrypted_metadata_replace_empty',
+                'file_name': f'{subfolder}/sse_b2_copied_from_encrypted_metadata_replace_empty',
                 'sse_c_key_id': 'missing_key',
                 'serverSideEncryption': {
-                    'mode': 'none',
+                    'algorithm': 'AES256',
+                    'mode': 'SSE-B2',
                 },
             },
             {
@@ -3509,7 +3510,7 @@ def test_replication_monitoring(b2_tool, bucket_name, sample_file, schedule_buck
                     'source_has_hide_marker': False,
                     'source_has_large_metadata': False,
                     'source_has_legal_hold': True,
-                    'source_encryption_mode': 'none',
+                    'source_encryption_mode': 'SSE-B2',
                     'source_replication_status': first,
                 },
                 {
