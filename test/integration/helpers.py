@@ -42,9 +42,6 @@ logger = logging.getLogger(__name__)
 
 ONE_DAY_MILLIS = ONE_HOUR_MILLIS * 24
 
-SSE_NONE = EncryptionSetting(
-    mode=EncryptionMode.NONE,
-)
 SSE_B2_AES = EncryptionSetting(
     mode=EncryptionMode.SSE_B2,
     algorithm=EncryptionAlgorithm.AES256,

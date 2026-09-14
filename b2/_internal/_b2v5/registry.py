@@ -1,8 +1,8 @@
 ######################################################################
 #
-# File: b2/_internal/b2v4/registry.py
+# File: b2/_internal/_b2v5/registry.py
 #
-# Copyright 2023 Backblaze Inc. All Rights Reserved.
+# Copyright 2026 Backblaze Inc. All Rights Reserved.
 #
 # License https://www.backblaze.com/using_b2_code.html
 #
@@ -10,64 +10,6 @@
 
 # ruff: noqa: F405
 from b2._internal.console_tool import *  # noqa
-
-_SharedBucketCmd = BucketCmd
-_SharedBucketCreate = BucketCreate
-_SharedBucketUpdate = BucketUpdate
-_SharedCreateBucket = CreateBucket
-_SharedUpdateBucket = UpdateBucket
-
-LEGACY_DEFAULT_SSE_WARNING = """
-    .. warning::
-
-        ``b2v3`` and ``b2v4`` still accept ``none`` as a value only so that existing
-        scripts get a clear error. It cannot be used to disable bucket encryption.
-"""
-
-LEGACY_DEFAULT_SSE_ERROR = (
-    "'none' is no longer supported for --default-server-side-encryption because "
-    'Backblaze B2 now requires bucket default encryption. Remove this option to use '
-    'SSE-B2 with AES256.'
-)
-
-
-class LegacyDefaultSseMixin:
-    DEFAULT_SERVER_SIDE_ENCRYPTION_CHOICES = ('SSE-B2', 'none')
-
-    @classmethod
-    def _get_default_sse_setting(cls, args):
-        mode = apply_or_none(EncryptionMode, args.default_server_side_encryption)
-        if mode is EncryptionMode.NONE:
-            raise CommandError(LEGACY_DEFAULT_SSE_ERROR)
-        return super()._get_default_sse_setting(args)
-
-
-class BucketCreate(LegacyDefaultSseMixin, _SharedBucketCreate):
-    __doc__ = f'{_SharedBucketCreate.__doc__}\n{LEGACY_DEFAULT_SSE_WARNING}'
-
-
-class BucketUpdate(LegacyDefaultSseMixin, _SharedBucketUpdate):
-    __doc__ = f'{_SharedBucketUpdate.__doc__}\n{LEGACY_DEFAULT_SSE_WARNING}'
-
-
-class BucketCmd(_SharedBucketCmd):
-    __doc__ = _SharedBucketCmd.__doc__
-    subcommands_registry = _SharedBucketCmd.subcommands_registry.copy()
-
-
-BucketCmd.register_subcommand(BucketCreate)
-BucketCmd.register_subcommand(BucketUpdate)
-
-
-class CreateBucket(LegacyDefaultSseMixin, _SharedCreateBucket):
-    __doc__ = f'{_SharedCreateBucket.__doc__}\n{LEGACY_DEFAULT_SSE_WARNING}'
-    replaced_by_cmd = (BucketCmd, BucketCreate)
-
-
-class UpdateBucket(LegacyDefaultSseMixin, _SharedUpdateBucket):
-    __doc__ = f'{_SharedUpdateBucket.__doc__}\n{LEGACY_DEFAULT_SSE_WARNING}'
-    replaced_by_cmd = (BucketCmd, BucketUpdate)
-
 
 B2.register_subcommand(AuthorizeAccount)
 B2.register_subcommand(CancelAllUnfinishedLargeFiles)

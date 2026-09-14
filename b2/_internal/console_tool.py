@@ -365,34 +365,32 @@ class JSONOptionMixin(Described):
 
 class DefaultSseMixin(Described):
     """
-    If you want server-side encryption for all of the files that are uploaded to a bucket,
-    you can enable SSE-B2 encryption as a default setting for the bucket.
-    In order to do that pass ``--default-server-side-encryption=SSE-B2``.
-    The default algorithm is set to AES256 which can by changed
-    with ``--default-server-side-encryption-algorithm`` parameter.
-    All uploads to that bucket, from the time default encryption is enabled onward,
-    will then be encrypted with SSE-B2 by default.
-
-    To disable default bucket encryption, use ``--default-server-side-encryption=none``.
-
-    If ``--default-server-side-encryption`` is not provided,
-    default server side encryption is determined by the server.
+    SSE-B2 is currently the only supported bucket default server-side encryption mode,
+    and AES256 is the only supported algorithm. When creating a bucket, omitting
+    ``--default-server-side-encryption`` applies the current B2 default. When updating a
+    bucket, omitting it leaves the bucket's default server-side encryption unchanged.
 
     .. note::
 
         Note that existing files in the bucket are not affected by default bucket encryption settings.
     """
 
+    DEFAULT_SERVER_SIDE_ENCRYPTION_CHOICES = ('SSE-B2',)
+    DEFAULT_SERVER_SIDE_ENCRYPTION_ALGORITHM_CHOICES = ('AES256',)
+
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(
-            parser, '--default-server-side-encryption', default=None, choices=('SSE-B2', 'none')
+            parser,
+            '--default-server-side-encryption',
+            default=None,
+            choices=cls.DEFAULT_SERVER_SIDE_ENCRYPTION_CHOICES,
         )
         add_normalized_argument(
             parser,
             '--default-server-side-encryption-algorithm',
             default='AES256',
-            choices=('AES256',),
+            choices=cls.DEFAULT_SERVER_SIDE_ENCRYPTION_ALGORITHM_CHOICES,
         )
 
         super()._setup_parser(parser)  # noqa
@@ -401,9 +399,6 @@ class DefaultSseMixin(Described):
     def _get_default_sse_setting(cls, args):
         mode = apply_or_none(EncryptionMode, args.default_server_side_encryption)
         if mode is not None:
-            if mode == EncryptionMode.NONE:
-                args.default_server_side_encryption_algorithm = None
-
             algorithm = apply_or_none(
                 EncryptionAlgorithm, args.default_server_side_encryption_algorithm
             )
@@ -416,6 +411,8 @@ class DestinationSseMixin(Described):
     """
     To request SSE-B2 or SSE-C encryption for destination files,
     please set ``--destination-server-side-encryption=SSE-B2/SSE-C``.
+    If this option is omitted, B2 applies the destination bucket's default encryption;
+    omission does not disable encryption.
     The default algorithm is set to AES256 which can be changed
     with ``--destination-server-side-encryption-algorithm`` parameter.
     Using SSE-C requires providing ``{B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR}`` environment variable,

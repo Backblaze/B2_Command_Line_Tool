@@ -21,7 +21,7 @@ Output file path:    {output_path}
 File size:           11
 Content type:        b2/x-auto
 Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
-Encryption:          none
+Encryption:          mode=SSE-B2, algorithm=AES256
 Retention:           none
 Legal hold:          <unset>
 INFO src_last_modified_millis: 1500111222000

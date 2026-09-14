@@ -24,7 +24,7 @@ def test_copy_file_by_id(b2_cli, api_bucket, uploaded_file):
         'fileId': '9998',
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy.txt',
-        'serverSideEncryption': {'mode': 'none'},
+        'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'uploadTimestamp': 5001,
     }
     b2_cli.run(
@@ -46,7 +46,7 @@ def test_file_server_side_copy__with_range(b2_cli, api_bucket, uploaded_file):
         'fileId': '9998',
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy.txt',
-        'serverSideEncryption': {'mode': 'none'},
+        'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'uploadTimestamp': 5001,
     }
     b2_cli.run(
@@ -110,7 +110,7 @@ def test_file_server_side_copy__invalid_metadata_replace_file_info(
         'fileId': '9998',
         'fileInfo': {'a': 'b'},
         'fileName': 'file1_copy.txt',
-        'serverSideEncryption': {'mode': 'none'},
+        'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'uploadTimestamp': 5001,
     }
     b2_cli.run(
@@ -157,7 +157,7 @@ def test_file_server_side_copy__unsatisfied_range(b2_cli, api_bucket, uploaded_f
         'fileId': '9997',
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy.txt',
-        'serverSideEncryption': {'mode': 'none'},
+        'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'uploadTimestamp': 5001,
     }
     b2_cli.run(
@@ -178,7 +178,7 @@ def test_copy_file_by_id__deprecated(b2_cli, api_bucket, uploaded_file):
         'fileId': '9998',
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy_2.txt',
-        'serverSideEncryption': {'mode': 'none'},
+        'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'uploadTimestamp': 5001,
     }
     b2_cli.run(

@@ -18,7 +18,7 @@ def uploaded_download_version(b2_cli, bucket_info, uploaded_file):
         'fileId': uploaded_file['fileId'],
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1.txt',
-        'serverSideEncryption': {'mode': 'none'},
+        'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'size': 11,
         'uploadTimestamp': 5000,
     }

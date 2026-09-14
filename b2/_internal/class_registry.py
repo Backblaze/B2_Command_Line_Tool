@@ -45,6 +45,12 @@ class ClassRegistry:
     def __repr__(self) -> str:
         return f'{type(self).__name__}(attr_name={self.attr_name!r}, unique={self.unique!r})'
 
+    def copy(self) -> ClassRegistry:
+        """Return a registry with the same configuration and registrations."""
+        copied_registry = ClassRegistry(attr_name=self.attr_name, unique=self.unique)
+        copied_registry._registry = self._registry.copy()
+        return copied_registry
+
     def __setitem__(self, key: Hashable, class_: type) -> None:
         self._register(key, class_)
 
