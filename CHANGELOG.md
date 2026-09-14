@@ -9,6 +9,14 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [5.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.0) - 2026-09-14
+
+
+### Changed
+
+- The `b2` command now runs CLI v5, which no longer offers `none` for `--default-server-side-encryption`; the version-bound `b2v5` command is available alongside `b2v3` and `b2v4`.
+
+
 ## [4.8.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v4.8.0) - 2026-09-14
 
 
