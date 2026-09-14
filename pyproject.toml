@@ -95,10 +95,10 @@ no-build-isolation-package = ["patchelf-wrapper", "staticx"]
 Homepage = "https://github.com/Backblaze/B2_Command_Line_Tool"
 
 [project.scripts]
-b2 = "b2._internal.b2v4.__main__:main"
+b2 = "b2._internal.b2v5.__main__:main"
 b2v3 = "b2._internal.b2v3.__main__:main"
 b2v4 = "b2._internal.b2v4.__main__:main"
-_b2v5 = "b2._internal._b2v5.__main__:main"
+b2v5 = "b2._internal.b2v5.__main__:main"
 
 [build-system]
 requires = ["hatchling>=1.24.2", "hatch-vcs>=0.4"]
