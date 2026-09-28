@@ -235,8 +235,6 @@ def run_integration_test(session, pytest_posargs):
         '2' if CI else 'auto',
         '--log-level',
         'INFO',
-        '-W',
-        'ignore::DeprecationWarning:rst2ansi.visitor:',
         *PYTEST_GLOBAL_ARGS,
         *pytest_posargs,
     ]
