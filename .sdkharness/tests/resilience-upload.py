@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from collections.abc import Mapping
 
@@ -25,6 +26,63 @@ SCENARIOS = {
     'upload.get_url_503': ('b2_get_upload_url', 503, 'service_unavailable'),
     'upload.cap_exceeded_403': ('b2_upload_file', 403, 'cap_exceeded'),
 }
+WIRE_SCENARIOS = {
+    'upload.reset_before_response': 'reset-before-response',
+    'upload.reset_mid_request': 'reset-mid-request',
+    'upload.stall': 'stall',
+}
+API_SCENARIOS = {
+    'auth.expired_401': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 401,
+            'code': 'expired_auth_token',
+            'count': 1,
+        },
+    },
+    'auth.clock_expiry': {
+        'arm': '/clock',
+        'fault': {'advanceMs': 86400001},
+    },
+    'api.retry_after_429': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 429,
+            'code': 'too_many_requests',
+            'count': 1,
+            'retryAfter': 2,
+        },
+        'floor': 2.0,
+    },
+    'api.retry_after_503': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 503,
+            'code': 'service_unavailable',
+            'count': 1,
+            'retryAfter': 2,
+        },
+        'floor': 2.0,
+    },
+    'api.backoff_503': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 503,
+            'code': 'service_unavailable',
+            'count': 1,
+        },
+        'floor': 1.0,
+    },
+}
+TRANSFER_SCENARIOS = {
+    'download.retry_503': ('b2_download_file_by_id', 503, 'service_unavailable'),
+    'part.retry_503': ('b2_upload_part', 503, 'service_unavailable'),
+}
+ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS, *API_SCENARIOS, *TRANSFER_SCENARIOS}
 SCENARIO = ''
 OBJECT_NAME = ''
 FAULT: dict[str, object] = {}
@@ -35,6 +93,12 @@ ARM_PATH = '/faults'
 class Failure(Exception):
     def __init__(self, step: str, detail: str) -> None:
         self.step = step
+        self.detail = detail
+
+
+class Skip(Exception):
+    def __init__(self, reason: str, detail: str) -> None:
+        self.reason = reason
         self.detail = detail
 
 
@@ -235,6 +299,11 @@ def round_trip(cli, source, payload):
             raise Failure('round trip', 'downloaded bytes differ from what was uploaded')
 
 
+def listed(cli, bucket):
+    proc = cli.must('list', 'ls', '--recursive', f'b2://{bucket}')
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
 CLEANUP = []
 
 
@@ -242,7 +311,7 @@ def validate_environment(environment: Mapping[str, str]) -> str:
     if environment.get('SDKHARNESS_TEST_LEVEL') != LEVEL:
         raise Failure('configuration', 'unexpected test level')
     scenario = environment.get('SDKHARNESS_SCENARIO', '')
-    if scenario not in SCENARIOS:
+    if scenario not in ALL_SCENARIOS:
         raise Failure('configuration', 'unexpected scenario')
     for name in ('SDKHARNESS_SIMULATOR_URL', 'SDKHARNESS_SIMULATOR_CONTROL_URL'):
         loopback_port(environment, name)
@@ -297,15 +366,215 @@ def run_retry() -> None:
         raise Failure('recovery path', 'no b2_get_upload_url after the 401')
 
 
+def run_wire_fault() -> None:
+    kind = WIRE_SCENARIOS[SCENARIO]
+    if kind == 'stall':
+        raise Skip(
+            'no-client-option',
+            'the CLI exposes no supported per-request timeout shorter than the controlled stall',
+        )
+
+    cli, bucket = setup()
+    payload = (b'sdkharness resilience wire fault ' * 64)[:1024]
+    arm()
+    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+    round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
+
+    entries = journal()
+    uploads = [entry for entry in entries if entry['endpoint'] == 'b2_upload_file']
+    faulted = [entry for entry in uploads if entry['fault'] == kind]
+    if len(faulted) != 1:
+        raise Failure('journal', f'{len(faulted)} {kind} faults on b2_upload_file, expected 1')
+    recovered = after(entries, faulted[0]['seq'], 'b2_upload_file', 200)
+    if not recovered:
+        raise Failure('journal', f'no successful b2_upload_file after the {kind}')
+    if recovered[0]['uploadUrlId'] in (None, faulted[0]['uploadUrlId']):
+        raise Failure('recovery path', f'the retry reused the upload URL that got the {kind}')
+
+    if kind != 'reset-before-response':
+        return
+
+    # The server may have committed the first attempt before its response was
+    # reset. One or two versions are valid, but every committed version must
+    # contain the complete payload.
+    proc = cli.must('list versions', 'ls', '--json', '--versions', '--recursive', f'b2://{bucket}')
+    mine = [item for item in json_of(proc.stdout) if item.get('fileName') == OBJECT_NAME]
+    if not 1 <= len(mine) <= 2:
+        raise Failure('end state', f'{len(mine)} versions of the object, expected 1 or 2')
+    for version in mine:
+        file_id = version.get('fileId')
+        if not file_id:
+            raise Failure('end state', 'a stored version has no fileId')
+        round_trip(cli, f'b2id://{file_id}', payload)
+    note(f'{len(mine)} complete version(s) after the reset-before-response')
+
+
+def run_api_fault() -> None:
+    config = API_SCENARIOS[SCENARIO]
+    cli, bucket = setup()
+    payload = b'sdkharness resilience listing'
+    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+    round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
+
+    baseline = None
+    before = None
+    floor = config.get('floor')
+    if floor is not None:
+        started = time.monotonic()
+        listed(cli, bucket)
+        baseline = time.monotonic() - started
+    if SCENARIO == 'auth.clock_expiry':
+        before = max(entry['seq'] for entry in journal())
+
+    arm()
+    started = time.monotonic()
+    names = listed(cli, bucket)
+    elapsed = time.monotonic() - started
+    if names != [OBJECT_NAME]:
+        raise Failure('listing', f'listed {len(names)} names, expected exactly the fixture')
+
+    entries = journal()
+    if before is not None:
+        entries = [entry for entry in entries if entry['seq'] > before]
+        if any(entry['fault'] is not None for entry in entries):
+            raise Failure(
+                'journal', 'a fault was injected; clock expiry must see only real answers'
+            )
+        expired = [entry for entry in entries if entry['status'] == 401 and entry['fault'] is None]
+        if not expired:
+            raise Failure('journal', 'the advanced clock produced no real expired-token 401')
+        faulted = expired[0]
+        note(f"the real 401 came from {faulted['endpoint']}")
+    else:
+        status = config['fault']['status']
+        faulted_entries = [
+            entry
+            for entry in entries
+            if entry['endpoint'] == 'b2_list_file_names'
+            and entry['fault'] == 'injected'
+            and entry['status'] == status
+        ]
+        if len(faulted_entries) != 1:
+            raise Failure(
+                'journal',
+                f'{len(faulted_entries)} injected {status} responses on b2_list_file_names, expected 1',
+            )
+        faulted = faulted_entries[0]
+
+    if SCENARIO.startswith('auth.'):
+        reauthorized = after(entries, faulted['seq'], 'b2_authorize_account', 200)
+        if not reauthorized:
+            raise Failure('recovery path', 'the CLI did not reauthorize after token expiry')
+        if not after(entries, reauthorized[0]['seq'], 'b2_list_file_names', 200):
+            raise Failure('recovery path', 'no successful listing after reauthorization')
+        return
+
+    if not after(entries, faulted['seq'], 'b2_list_file_names', 200):
+        raise Failure('journal', 'no successful listing after the injected response')
+    note(
+        f'the whole b2 ls process took {elapsed:.2f} s against a floor of {floor:.1f} s; '
+        f'an unfaulted b2 ls took {baseline:.2f} s'
+    )
+    if elapsed < floor:
+        raise Failure('recovery path', f'retried after {elapsed:.2f} s, sooner than {floor:.1f} s')
+
+
+def run_transfer_fault() -> None:
+    cli, bucket = setup()
+    endpoint, status, _code = TRANSFER_SCENARIOS[SCENARIO]
+    if SCENARIO == 'download.retry_503':
+        payload = bytes(index % 251 for index in range(4096))
+        meta = uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+        file_id = meta.get('fileId')
+        if not file_id:
+            raise Failure('upload fixture', 'b2 file upload reported no fileId')
+        arm()
+        round_trip(cli, f'b2id://{file_id}', payload)
+    else:
+        part_size = 5000
+        part_count = 3
+        payload = bytes(index % 251 for index in range(part_size * part_count))
+        arm()
+        uploaded_or_fail(
+            put(
+                cli,
+                bucket,
+                OBJECT_NAME,
+                payload,
+                '--threads',
+                '1',
+                '--min-part-size',
+                str(part_size),
+            ),
+            endpoint,
+        )
+        round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
+
+    entries = journal()
+    faulted_entries = [
+        entry
+        for entry in entries
+        if entry['endpoint'] == endpoint
+        and entry['fault'] == 'injected'
+        and entry['status'] == status
+    ]
+    if len(faulted_entries) != 1:
+        raise Failure('journal', f'{len(faulted_entries)} injected 503s on {endpoint}, expected 1')
+    faulted = faulted_entries[0]
+    retries = after(entries, faulted['seq'], endpoint, 200)
+    if not retries:
+        raise Failure('recovery path', f'{endpoint} was not retried after the 503')
+    if SCENARIO == 'download.retry_503':
+        return
+
+    if not after(entries, faulted['seq'], 'b2_get_upload_part_url', 200):
+        raise Failure('recovery path', 'no b2_get_upload_part_url after the 503')
+    if retries[0]['uploadUrlId'] in (None, faulted['uploadUrlId']):
+        raise Failure('recovery path', 'the retried part reused the failed part URL')
+    if (
+        len(
+            [
+                entry
+                for entry in entries
+                if entry['endpoint'] == 'b2_upload_part' and entry['status'] == 200
+            ]
+        )
+        < part_count
+    ):
+        raise Failure('journal', f'fewer than {part_count} successful b2_upload_part calls')
+    if not after(entries, faulted['seq'], 'b2_finish_large_file', 200):
+        raise Failure('journal', 'the large file was never finished after the retried part')
+
+
 def main() -> int:
-    global SCENARIO, OBJECT_NAME, FAULT
+    global SCENARIO, OBJECT_NAME, FAULT, ARM_PATH
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         SCENARIO = validate_environment(os.environ)
-        endpoint, status, code = SCENARIOS[SCENARIO]
         OBJECT_NAME = f"res/{SCENARIO.replace('.', '-')}.bin"
-        FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}
-        run_retry()
+        if SCENARIO in WIRE_SCENARIOS:
+            kind = WIRE_SCENARIOS[SCENARIO]
+            FAULT = {'on': 'b2_upload_file', 'kind': kind, 'count': 1}
+            if kind == 'stall':
+                FAULT['ms'] = 60000
+            ARM_PATH = '/wire-faults'
+            run_wire_fault()
+        elif SCENARIO in API_SCENARIOS:
+            config = API_SCENARIOS[SCENARIO]
+            ARM_PATH = config['arm']
+            FAULT = config['fault']
+            run_api_fault()
+        elif SCENARIO in TRANSFER_SCENARIOS:
+            endpoint, status, code = TRANSFER_SCENARIOS[SCENARIO]
+            FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}
+            run_transfer_fault()
+        else:
+            endpoint, status, code = SCENARIOS[SCENARIO]
+            FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}
+            run_retry()
+    except Skip as skipped:
+        result('SKIP', f'{skipped.reason}: {skipped.detail}')
+        return 0
     except Failure as failure:
         result('FAIL', f'{failure.step}: {failure.detail}')
         return 1

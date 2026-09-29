@@ -25,6 +25,16 @@ SCENARIOS = {
     'upload.expired_token_401',
     'upload.get_url_503',
     'upload.cap_exceeded_403',
+    'upload.reset_before_response',
+    'upload.reset_mid_request',
+    'upload.stall',
+    'auth.expired_401',
+    'auth.clock_expiry',
+    'api.retry_after_429',
+    'api.retry_after_503',
+    'api.backoff_503',
+    'download.retry_503',
+    'part.retry_503',
 }
 
 
@@ -50,7 +60,7 @@ def environment(scenario: str = 'upload.retry_503', **overrides: str) -> dict[st
 
 def test_contract_rows_point_to_one_tracked_executable():
     check = load_check()
-    assert set(check.SCENARIOS) == SCENARIOS
+    assert check.ALL_SCENARIOS == SCENARIOS
     rows = set((REPOSITORY_ROOT / '.sdkharness/tests.tsv').read_text().splitlines())
     for scenario in SCENARIOS:
         assert (
@@ -66,6 +76,19 @@ def test_contract_rows_point_to_one_tracked_executable():
     assert tracked.stdout.split(maxsplit=1)[0] == '100755'
 
 
+def test_scenario_groups_partition_the_registered_contract():
+    check = load_check()
+    groups = [
+        set(check.SCENARIOS),
+        set(check.WIRE_SCENARIOS),
+        set(check.API_SCENARIOS),
+        set(check.TRANSFER_SCENARIOS),
+    ]
+    assert set().union(*groups) == SCENARIOS
+    for index, group in enumerate(groups):
+        assert group.isdisjoint(set().union(*groups[index + 1 :]))
+
+
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))
 def test_environment_accepts_each_owned_scenario(scenario):
     check = load_check()
@@ -76,7 +99,7 @@ def test_environment_accepts_each_owned_scenario(scenario):
     ('overrides', 'expected'),
     [
         ({'SDKHARNESS_TEST_LEVEL': 'conformance'}, 'unexpected test level'),
-        ({'SDKHARNESS_SCENARIO': 'upload.stall'}, 'unexpected scenario'),
+        ({'SDKHARNESS_SCENARIO': 'bucket.crud'}, 'unexpected scenario'),
         (
             {'SDKHARNESS_SIMULATOR_URL': 'https://api.backblazeb2.com'},
             'bare IPv4 loopback HTTP origin',
