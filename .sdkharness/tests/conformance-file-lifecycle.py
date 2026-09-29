@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -34,6 +35,10 @@ SCENARIOS = {
     'bucket.replication_helper',
     'enc.sse_b2',
     'enc.sse_c',
+    'lock.bucket_default',
+    'lock.bypass_governance',
+    'lock.legal_hold',
+    'lock.per_file_retention',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',
@@ -299,6 +304,25 @@ class Lifecycle:
         if len(matches) != 1 or not matches[0].get('fileId'):
             raise CheckFailure(step, 'payload version was not listed exactly once')
         return matches[0]
+
+    @staticmethod
+    def retention_value(version: Mapping[str, object]) -> dict[str, object]:
+        retention = version.get('fileRetention') or {}
+        if isinstance(retention, dict) and isinstance(retention.get('value'), dict):
+            retention = retention['value']
+        return retention if isinstance(retention, dict) else {}
+
+    @staticmethod
+    def legal_hold_value(version: Mapping[str, object]) -> object:
+        hold = version.get('legalHold')
+        if isinstance(hold, dict):
+            hold = hold.get('value')
+        return hold
+
+    def assert_version_absent(self, bucket_name: str, name: str, file_id: str, step: str) -> None:
+        versions = self.list_versions_for_bucket(bucket_name, name, step)
+        if any(str(item.get('fileId', '')) == file_id for item in versions):
+            raise CheckFailure(step, 'deleted version is still listed')
 
     def files_list(self) -> None:
         payload = b'l' * 256
@@ -805,6 +829,179 @@ class Lifecycle:
             str(self.scratch / 'should-not-exist'),
         )
 
+    def lock_bucket_default(self) -> None:
+        bucket_name = self.new_bucket('create lock-enabled bucket', '--file-lock-enabled')
+        self.invoke(
+            'set bucket default retention',
+            'bucket',
+            'update',
+            bucket_name,
+            '--default-retention-mode',
+            'governance',
+            '--default-retention-period',
+            '1 days',
+        )
+        bucket = self.bucket_named(bucket_name, 'read bucket default retention')
+        if bucket is None or bucket.get('isFileLockEnabled') is not True:
+            raise CheckFailure('bucket default retention', 'file lock is not enabled')
+        default = bucket.get('defaultRetention') or {}
+        if isinstance(default, dict) and isinstance(default.get('value'), dict):
+            default = default['value']
+        if not isinstance(default, dict):
+            raise CheckFailure('bucket default retention', 'default retention is missing')
+        period = default.get('period') or {}
+        if (
+            default.get('mode') != 'governance'
+            or not isinstance(period, dict)
+            or period.get('duration') != 1
+            or period.get('unit') != 'days'
+        ):
+            raise CheckFailure('bucket default retention', 'default retention did not round-trip')
+
+        payload = b'lock-default-' * 40
+        name = 'st/inherits.txt'
+        uploaded_at = int(time.time() * 1000)
+        self.upload_to_bucket('upload object', bucket_name, payload, name)
+        version = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, name, 'read inherited retention'),
+            payload,
+            'read inherited retention',
+        )
+        retention = self.retention_value(version)
+        retain_until = retention.get('retainUntilTimestamp')
+        expected = uploaded_at + 24 * 60 * 60 * 1000
+        if (
+            retention.get('mode') != 'governance'
+            or not isinstance(retain_until, int)
+            or abs(retain_until - expected) > 12 * 60 * 60 * 1000
+        ):
+            raise CheckFailure('inherited retention', 'object did not inherit the one-day default')
+
+    def lock_bypass_governance(self) -> None:
+        bucket_name = self.new_bucket('create lock-enabled bucket', '--file-lock-enabled')
+        payload = b'bypass-' * 73
+        name = 'st/bypass.txt'
+        self.upload_to_bucket('upload fixture', bucket_name, payload, name)
+        retain_until = int(time.time() * 1000) + 2 * 24 * 60 * 60 * 1000
+        self.invoke(
+            'set governance retention',
+            'file',
+            'update',
+            f'b2://{bucket_name}/{name}',
+            '--file-retention-mode',
+            'governance',
+            '--retain-until',
+            str(retain_until),
+        )
+        version = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, name, 'read governance retention'),
+            payload,
+            'read governance retention',
+        )
+        if self.retention_value(version).get('mode') != 'governance':
+            raise CheckFailure('governance retention', 'retention did not round-trip')
+        file_id = str(version['fileId'])
+        self.invoke_expect_failure(
+            'delete retained version without bypass',
+            'rm',
+            '--no-progress',
+            '--fail-fast',
+            f'b2id://{file_id}',
+        )
+        self.invoke(
+            'delete retained version with bypass',
+            'rm',
+            '--no-progress',
+            '--fail-fast',
+            '--bypass-governance',
+            f'b2id://{file_id}',
+        )
+        self.assert_version_absent(bucket_name, name, file_id, 'confirm bypassed delete')
+
+    def lock_legal_hold(self) -> None:
+        bucket_name = self.new_bucket('create lock-enabled bucket', '--file-lock-enabled')
+        payload = b'legal-hold-' * 47
+        name = 'st/held.txt'
+        self.upload_to_bucket('upload fixture', bucket_name, payload, name)
+        version = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, name, 'locate fixture'),
+            payload,
+            'locate fixture',
+        )
+        file_id = str(version['fileId'])
+        self.invoke(
+            'set legal hold', 'file', 'update', f'b2://{bucket_name}/{name}', '--legal-hold', 'on'
+        )
+        held = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, name, 'read legal hold'),
+            payload,
+            'read legal hold',
+        )
+        if self.legal_hold_value(held) != 'on':
+            raise CheckFailure('legal hold', 'enabled hold did not round-trip')
+        self.invoke_expect_failure(
+            'delete version under legal hold',
+            'rm',
+            '--no-progress',
+            '--fail-fast',
+            f'b2id://{file_id}',
+        )
+        self.invoke(
+            'clear legal hold',
+            'file',
+            'update',
+            f'b2://{bucket_name}/{name}',
+            '--legal-hold',
+            'off',
+        )
+        cleared = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, name, 'read cleared legal hold'),
+            payload,
+            'read cleared legal hold',
+        )
+        if self.legal_hold_value(cleared) != 'off':
+            raise CheckFailure('legal hold', 'cleared hold did not round-trip')
+        self.invoke(
+            'delete unheld version', 'rm', '--no-progress', '--fail-fast', f'b2id://{file_id}'
+        )
+        self.assert_version_absent(bucket_name, name, file_id, 'confirm unheld delete')
+
+    def lock_per_file_retention(self) -> None:
+        bucket_name = self.new_bucket('create lock-enabled bucket', '--file-lock-enabled')
+        payload = b'per-file-' * 64
+        name = 'st/retained.txt'
+        self.upload_to_bucket('upload fixture', bucket_name, payload, name)
+        retain_until = int(time.time() * 1000) + 2 * 24 * 60 * 60 * 1000
+        self.invoke(
+            'set per-file retention',
+            'file',
+            'update',
+            f'b2://{bucket_name}/{name}',
+            '--file-retention-mode',
+            'governance',
+            '--retain-until',
+            str(retain_until),
+        )
+        version = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, name, 'read per-file retention'),
+            payload,
+            'read per-file retention',
+        )
+        retention = self.retention_value(version)
+        if (
+            retention.get('mode') != 'governance'
+            or retention.get('retainUntilTimestamp') != retain_until
+        ):
+            raise CheckFailure('per-file retention', 'retention did not round-trip')
+        file_id = str(version['fileId'])
+        self.invoke_expect_failure(
+            'delete retained version without bypass',
+            'rm',
+            '--no-progress',
+            '--fail-fast',
+            f'b2id://{file_id}',
+        )
+
     def run(self) -> None:
         with tempfile.TemporaryDirectory(dir=self.scratch_root) as scratch_name:
             self.scratch = Path(scratch_name)
@@ -852,6 +1049,7 @@ class Lifecycle:
                             '--recursive',
                             '--no-progress',
                             '--fail-fast',
+                            '--bypass-governance',
                             f'b2://{bucket_name}',
                         )
                     except CheckFailure:
