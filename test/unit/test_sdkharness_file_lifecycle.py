@@ -60,6 +60,8 @@ def simulator_environment(scenario: str = 'files.list', **overrides: str) -> dic
 
 
 def test_contract_rows_point_to_one_tracked_executable():
+    check = load_check()
+    assert check.SCENARIOS == SCENARIOS
     rows = set((REPOSITORY_ROOT / '.sdkharness/tests.tsv').read_text().splitlines())
     for scenario in SCENARIOS:
         assert (
