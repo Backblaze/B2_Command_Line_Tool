@@ -126,6 +126,25 @@ def test_file_lock_metadata_helpers_accept_cli_wrapper_shapes():
     assert check.Lifecycle.legal_hold_value({'legalHold': {'value': 'off'}}) == 'off'
 
 
+def test_process_probe_preserves_nonzero_status_and_captured_output():
+    check = load_check()
+    lifecycle = check.Lifecycle(
+        simulator_environment(),
+        cli_prefix=[
+            sys.executable,
+            '-c',
+            "import sys; print('probe-out'); print('probe-err', file=sys.stderr); sys.exit(7)",
+        ],
+        run_command=lambda *_args: '',
+        object_prefix='sdkharness-conformance/fixed',
+        scratch_root=None,
+    )
+    completed = lifecycle.invoke_process('probe', environment={})
+    assert completed.returncode == 7
+    assert completed.stdout == 'probe-out\n'
+    assert completed.stderr == 'probe-err\n'
+
+
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))
 def test_run_check_dispatches_scenario_and_always_cleans_up(tmp_path, scenario):
     check = load_check()
