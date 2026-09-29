@@ -20,6 +20,14 @@ import pytest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CHECK = REPOSITORY_ROOT / '.sdkharness/tests/conformance-file-lifecycle.py'
 SCENARIOS = {
+    'bucket.cors',
+    'bucket.crud',
+    'bucket.lifecycle',
+    'bucket.notification_rules',
+    'bucket.replication_config',
+    'bucket.replication_helper',
+    'enc.sse_b2',
+    'enc.sse_c',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',

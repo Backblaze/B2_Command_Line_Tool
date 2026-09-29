@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -31,6 +32,8 @@ SCENARIOS = {
     'bucket.notification_rules',
     'bucket.replication_config',
     'bucket.replication_helper',
+    'enc.sse_b2',
+    'enc.sse_c',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',
@@ -191,11 +194,27 @@ class Lifecycle:
             raise CheckFailure(step, 'bucket was listed more than once')
         return matches[0] if matches else None
 
-    def new_bucket(self, step: str = 'create bucket') -> str:
+    def new_bucket(self, step: str = 'create bucket', *options: str) -> str:
         name = f'sdkharness-conf-{uuid.uuid4().hex[:16]}'
         self.created_buckets.append(name)
-        self.invoke(step, 'bucket', 'create', name, 'allPrivate')
+        self.invoke(step, 'bucket', 'create', *options, name, 'allPrivate')
         return name
+
+    def invoke_expect_failure(self, step: str, *arguments: str) -> None:
+        try:
+            completed = subprocess.run(
+                [*self.prefix, *arguments],
+                cwd=REPOSITORY_ROOT,
+                env=self.child_environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except OSError as error:
+            raise CheckFailure(step, error) from error
+        if completed.returncode == 0:
+            raise CheckFailure(step, 'command unexpectedly succeeded')
 
     def delete_bucket(self, name: str, step: str = 'delete bucket') -> None:
         self.invoke(step, 'bucket', 'delete', name)
@@ -212,6 +231,11 @@ class Lifecycle:
         return f'{self.object_prefix}/{leaf}'
 
     def upload(self, step: str, payload: bytes, name: str, *options: str) -> None:
+        self.upload_to_bucket(step, self.bucket_name, payload, name, *options)
+
+    def upload_to_bucket(
+        self, step: str, bucket_name: str, payload: bytes, name: str, *options: str
+    ) -> None:
         local_path = self.scratch / f'upload-{uuid.uuid4().hex}.bin'
         local_path.write_bytes(payload)
         self.invoke(
@@ -220,25 +244,45 @@ class Lifecycle:
             'upload',
             '--no-progress',
             *options,
-            self.bucket_name,
+            bucket_name,
             str(local_path),
             name,
         )
 
     def list_versions(self, name: str, step: str = 'list versions') -> list[dict[str, object]]:
+        return self.list_versions_for_bucket(self.bucket_name, name, step)
+
+    def list_versions_for_bucket(
+        self, bucket_name: str, name: str, step: str = 'list versions'
+    ) -> list[dict[str, object]]:
         raw = self.invoke(
             step,
             'ls',
             '--json',
             '--recursive',
             '--versions',
-            f'b2://{self.bucket_name}/{name}',
+            f'b2://{bucket_name}/{name}',
         )
         return [item for item in versions_from(raw, step) if item.get('fileName') == name]
 
     def download(self, step: str, remote: str) -> bytes:
         local_path = self.scratch / f'download-{uuid.uuid4().hex}.bin'
         self.invoke(step, 'file', 'download', '--no-progress', remote, str(local_path))
+        if not local_path.is_file():
+            raise CheckFailure(step, 'download wrote no local file')
+        return local_path.read_bytes()
+
+    def download_from_bucket(self, step: str, bucket_name: str, name: str, *options: str) -> bytes:
+        local_path = self.scratch / f'download-{uuid.uuid4().hex}.bin'
+        self.invoke(
+            step,
+            'file',
+            'download',
+            '--no-progress',
+            *options,
+            f'b2://{bucket_name}/{name}',
+            str(local_path),
+        )
         if not local_path.is_file():
             raise CheckFailure(step, 'download wrote no local file')
         return local_path.read_bytes()
@@ -673,6 +717,93 @@ class Lifecycle:
         )
         if count <= 0:
             raise CheckFailure('replication status', 'uploaded file was not counted')
+
+    def enc_sse_b2(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = (b'sse-b2-' * 256)[:2048]
+        name = 'st/sse-b2.bin'
+        self.upload_to_bucket(
+            'upload with SSE-B2',
+            bucket_name,
+            payload,
+            name,
+            '--destination-server-side-encryption',
+            'SSE-B2',
+            '--destination-server-side-encryption-algorithm',
+            'AES256',
+        )
+        versions = self.list_versions_for_bucket(bucket_name, name, 'read SSE-B2 metadata')
+        version = self.select_payload_version(versions, payload, 'read SSE-B2 metadata')
+        encryption = version.get('serverSideEncryption') or {}
+        if (
+            not isinstance(encryption, dict)
+            or encryption.get('mode') != 'SSE-B2'
+            or encryption.get('algorithm') != 'AES256'
+        ):
+            raise CheckFailure('SSE-B2', 'encryption metadata did not round-trip')
+        downloaded = self.download_from_bucket('download SSE-B2 object', bucket_name, name)
+        if downloaded != payload:
+            raise CheckFailure('SSE-B2', 'downloaded plaintext differs from upload')
+
+    def enc_sse_c(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = (b'sse-c-' * 300)[:2048]
+        name = 'st/sse-c.bin'
+        key = os.urandom(32)
+        encoded_key = base64.b64encode(key).decode()
+        key_id = 'sdkharness-conf-ssec'
+        self.child_environment['B2_DESTINATION_SSE_C_KEY_B64'] = encoded_key
+        self.child_environment['B2_DESTINATION_SSE_C_KEY_ID'] = key_id
+        try:
+            self.upload_to_bucket(
+                'upload with SSE-C',
+                bucket_name,
+                payload,
+                name,
+                '--destination-server-side-encryption',
+                'SSE-C',
+                '--destination-server-side-encryption-algorithm',
+                'AES256',
+            )
+        finally:
+            self.child_environment.pop('B2_DESTINATION_SSE_C_KEY_B64', None)
+            self.child_environment.pop('B2_DESTINATION_SSE_C_KEY_ID', None)
+
+        versions = self.list_versions_for_bucket(bucket_name, name, 'read SSE-C metadata')
+        version = self.select_payload_version(versions, payload, 'read SSE-C metadata')
+        encryption = version.get('serverSideEncryption') or {}
+        info = version.get('fileInfo') or {}
+        if (
+            not isinstance(encryption, dict)
+            or encryption.get('mode') != 'SSE-C'
+            or not isinstance(info, dict)
+            or info.get('sse_c_key_id') != key_id
+        ):
+            raise CheckFailure('SSE-C', 'encryption metadata did not round-trip')
+
+        self.child_environment['B2_SOURCE_SSE_C_KEY_B64'] = encoded_key
+        try:
+            downloaded = self.download_from_bucket(
+                'download SSE-C object',
+                bucket_name,
+                name,
+                '--source-server-side-encryption',
+                'SSE-C',
+                '--source-server-side-encryption-algorithm',
+                'AES256',
+            )
+        finally:
+            self.child_environment.pop('B2_SOURCE_SSE_C_KEY_B64', None)
+        if downloaded != payload:
+            raise CheckFailure('SSE-C', 'downloaded plaintext differs from upload')
+        self.invoke_expect_failure(
+            'download SSE-C object without key',
+            'file',
+            'download',
+            '--no-progress',
+            f'b2://{bucket_name}/{name}',
+            str(self.scratch / 'should-not-exist'),
+        )
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory(dir=self.scratch_root) as scratch_name:
