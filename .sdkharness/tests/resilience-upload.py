@@ -25,6 +25,12 @@ SCENARIOS = {
     'upload.get_url_503': ('b2_get_upload_url', 503, 'service_unavailable'),
     'upload.cap_exceeded_403': ('b2_upload_file', 403, 'cap_exceeded'),
 }
+WIRE_SCENARIOS = {
+    'upload.reset_before_response': 'reset-before-response',
+    'upload.reset_mid_request': 'reset-mid-request',
+    'upload.stall': 'stall',
+}
+ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS}
 SCENARIO = ''
 OBJECT_NAME = ''
 FAULT: dict[str, object] = {}
@@ -35,6 +41,12 @@ ARM_PATH = '/faults'
 class Failure(Exception):
     def __init__(self, step: str, detail: str) -> None:
         self.step = step
+        self.detail = detail
+
+
+class Skip(Exception):
+    def __init__(self, reason: str, detail: str) -> None:
+        self.reason = reason
         self.detail = detail
 
 
@@ -242,7 +254,7 @@ def validate_environment(environment: Mapping[str, str]) -> str:
     if environment.get('SDKHARNESS_TEST_LEVEL') != LEVEL:
         raise Failure('configuration', 'unexpected test level')
     scenario = environment.get('SDKHARNESS_SCENARIO', '')
-    if scenario not in SCENARIOS:
+    if scenario not in ALL_SCENARIOS:
         raise Failure('configuration', 'unexpected scenario')
     for name in ('SDKHARNESS_SIMULATOR_URL', 'SDKHARNESS_SIMULATOR_CONTROL_URL'):
         loopback_port(environment, name)
@@ -297,15 +309,69 @@ def run_retry() -> None:
         raise Failure('recovery path', 'no b2_get_upload_url after the 401')
 
 
+def run_wire_fault() -> None:
+    kind = WIRE_SCENARIOS[SCENARIO]
+    if kind == 'stall':
+        raise Skip(
+            'no-client-option',
+            'the CLI exposes no supported per-request timeout shorter than the controlled stall',
+        )
+
+    cli, bucket = setup()
+    payload = (b'sdkharness resilience wire fault ' * 64)[:1024]
+    arm()
+    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+    round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
+
+    entries = journal()
+    uploads = [entry for entry in entries if entry['endpoint'] == 'b2_upload_file']
+    faulted = [entry for entry in uploads if entry['fault'] == kind]
+    if len(faulted) != 1:
+        raise Failure('journal', f'{len(faulted)} {kind} faults on b2_upload_file, expected 1')
+    recovered = after(entries, faulted[0]['seq'], 'b2_upload_file', 200)
+    if not recovered:
+        raise Failure('journal', f'no successful b2_upload_file after the {kind}')
+    if recovered[0]['uploadUrlId'] in (None, faulted[0]['uploadUrlId']):
+        raise Failure('recovery path', f'the retry reused the upload URL that got the {kind}')
+
+    if kind != 'reset-before-response':
+        return
+
+    # The server may have committed the first attempt before its response was
+    # reset. One or two versions are valid, but every committed version must
+    # contain the complete payload.
+    proc = cli.must('list versions', 'ls', '--json', '--versions', '--recursive', f'b2://{bucket}')
+    mine = [item for item in json_of(proc.stdout) if item.get('fileName') == OBJECT_NAME]
+    if not 1 <= len(mine) <= 2:
+        raise Failure('end state', f'{len(mine)} versions of the object, expected 1 or 2')
+    for version in mine:
+        file_id = version.get('fileId')
+        if not file_id:
+            raise Failure('end state', 'a stored version has no fileId')
+        round_trip(cli, f'b2id://{file_id}', payload)
+    note(f'{len(mine)} complete version(s) after the reset-before-response')
+
+
 def main() -> int:
-    global SCENARIO, OBJECT_NAME, FAULT
+    global SCENARIO, OBJECT_NAME, FAULT, ARM_PATH
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         SCENARIO = validate_environment(os.environ)
-        endpoint, status, code = SCENARIOS[SCENARIO]
         OBJECT_NAME = f"res/{SCENARIO.replace('.', '-')}.bin"
-        FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}
-        run_retry()
+        if SCENARIO in WIRE_SCENARIOS:
+            kind = WIRE_SCENARIOS[SCENARIO]
+            FAULT = {'on': 'b2_upload_file', 'kind': kind, 'count': 1}
+            if kind == 'stall':
+                FAULT['ms'] = 60000
+            ARM_PATH = '/wire-faults'
+            run_wire_fault()
+        else:
+            endpoint, status, code = SCENARIOS[SCENARIO]
+            FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}
+            run_retry()
+    except Skip as skipped:
+        result('SKIP', f'{skipped.reason}: {skipped.detail}')
+        return 0
     except Failure as failure:
         result('FAIL', f'{failure.step}: {failure.detail}')
         return 1
