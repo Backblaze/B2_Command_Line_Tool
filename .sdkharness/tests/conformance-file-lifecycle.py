@@ -584,6 +584,8 @@ class Lifecycle:
         source = self.bucket_named(source_name, 'read replication source')
         value = self.replication_value(source or {})
         source_side = value.get('asReplicationSource') or {}
+        if not isinstance(source_side, dict):
+            raise CheckFailure('replication config', 'source configuration is not an object')
         rules = source_side.get('replicationRules', []) if isinstance(source_side, dict) else []
         matches = [
             item
