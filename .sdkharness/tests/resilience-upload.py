@@ -5,7 +5,6 @@ Each scenario runs the CLI implementation from this checkout against the
 harness-provided loopback simulator and its private fault-control listener.
 """
 
-import hashlib
 import http.client
 import json
 import os
@@ -206,8 +205,13 @@ def put(cli, bucket, name, payload, *flags):
         raise Failure('upload', type(error).__name__) from error
 
 
-def uploaded_or_fail(proc, payload, endpoint='b2_upload_file'):
-    """An upload process that must have recovered: exit 0 and the right sha1."""
+def uploaded_or_fail(proc, endpoint='b2_upload_file'):
+    """An upload process that must have recovered and returned a file record.
+
+    The caller proves byte integrity by downloading the resulting object. That
+    is stronger than trusting the response's B2 protocol checksum and avoids
+    treating SHA-1 as a security primitive in this test.
+    """
     if proc.returncode != 0:
         error_note(proc)
         raise Failure(
@@ -219,9 +223,6 @@ def uploaded_or_fail(proc, payload, endpoint='b2_upload_file'):
         meta = json_of(proc.stdout)
     except Exception as error:  # noqa: BLE001
         raise Failure('upload', 'b2 file upload printed no JSON file record') from error
-    got = (meta.get('contentSha1') or '').split(':')[-1]
-    if got not in ('none', hashlib.sha1(payload).hexdigest()):
-        raise Failure('upload', 'the returned contentSha1 does not match the bytes sent')
     return meta
 
 
@@ -269,7 +270,7 @@ def run_retry() -> None:
             )
         return
 
-    uploaded_or_fail(proc, payload, endpoint)
+    uploaded_or_fail(proc, endpoint)
     round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
     entries = journal()
     faulted_entries = [entry for entry in entries if is_faulted(entry)]
