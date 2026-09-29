@@ -159,15 +159,17 @@ def test_process_probe_reports_timeout_as_scenario_failure():
     check = load_check()
     lifecycle = check.Lifecycle(
         simulator_environment(),
-        cli_prefix=[sys.executable, '-c', 'import time; time.sleep(1)'],
+        cli_prefix=[sys.executable, '-c', 'import time; time.sleep(10)'],
         run_command=lambda *_args: '',
         object_prefix='sdkharness-conformance/fixed',
         scratch_root=None,
     )
-    lifecycle.child_environment = simulator_environment()
+    lifecycle.child_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith('B2_')
+    }
 
     with pytest.raises(check.CheckFailure, match='TimeoutExpired'):
-        lifecycle.invoke_process('probe timeout', timeout=0.01)
+        lifecycle.invoke_process('probe timeout', timeout=0.2)
 
 
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))
