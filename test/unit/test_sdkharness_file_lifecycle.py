@@ -20,6 +20,14 @@ import pytest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CHECK = REPOSITORY_ROOT / '.sdkharness/tests/conformance-file-lifecycle.py'
 SCENARIOS = {
+    'bucket.cors',
+    'bucket.crud',
+    'bucket.lifecycle',
+    'bucket.notification_rules',
+    'bucket.replication_config',
+    'bucket.replication_helper',
+    'enc.sse_b2',
+    'enc.sse_c',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',
@@ -52,6 +60,8 @@ def simulator_environment(scenario: str = 'files.list', **overrides: str) -> dic
 
 
 def test_contract_rows_point_to_one_tracked_executable():
+    check = load_check()
+    assert check.SCENARIOS == SCENARIOS
     rows = set((REPOSITORY_ROOT / '.sdkharness/tests.tsv').read_text().splitlines())
     for scenario in SCENARIOS:
         assert (

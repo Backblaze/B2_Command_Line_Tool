@@ -13,3 +13,5 @@ conformance	bucket.lifecycle	simulator	./.sdkharness/tests/conformance-file-life
 conformance	bucket.notification_rules	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	bucket.replication_config	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	bucket.replication_helper	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	enc.sse_b2	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	enc.sse_c	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
