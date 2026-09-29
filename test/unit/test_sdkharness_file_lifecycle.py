@@ -112,6 +112,15 @@ def test_versions_parser_accepts_cli_list_and_envelope_shapes():
         check.versions_from(json.dumps('not-a-list'), 'list')
 
 
+def test_file_lock_metadata_helpers_accept_cli_wrapper_shapes():
+    check = load_check()
+    retention = {'mode': 'governance', 'retainUntilTimestamp': 123}
+    assert check.Lifecycle.retention_value({'fileRetention': retention}) == retention
+    assert check.Lifecycle.retention_value({'fileRetention': {'value': retention}}) == retention
+    assert check.Lifecycle.legal_hold_value({'legalHold': 'on'}) == 'on'
+    assert check.Lifecycle.legal_hold_value({'legalHold': {'value': 'off'}}) == 'off'
+
+
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))
 def test_run_check_dispatches_scenario_and_always_cleans_up(tmp_path, scenario):
     check = load_check()
