@@ -44,3 +44,5 @@ resilience	auth.clock_expiry	simulator	./.sdkharness/tests/resilience-upload.py
 resilience	api.retry_after_429	simulator	./.sdkharness/tests/resilience-upload.py
 resilience	api.retry_after_503	simulator	./.sdkharness/tests/resilience-upload.py
 resilience	api.backoff_503	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	download.retry_503	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	part.retry_503	simulator	./.sdkharness/tests/resilience-upload.py

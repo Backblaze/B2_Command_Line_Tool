@@ -78,7 +78,11 @@ API_SCENARIOS = {
         'floor': 1.0,
     },
 }
-ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS, *API_SCENARIOS}
+TRANSFER_SCENARIOS = {
+    'download.retry_503': ('b2_download_file_by_id', 503, 'service_unavailable'),
+    'part.retry_503': ('b2_upload_part', 503, 'service_unavailable'),
+}
+ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS, *API_SCENARIOS, *TRANSFER_SCENARIOS}
 SCENARIO = ''
 OBJECT_NAME = ''
 FAULT: dict[str, object] = {}
@@ -475,6 +479,73 @@ def run_api_fault() -> None:
         raise Failure('recovery path', f'retried after {elapsed:.2f} s, sooner than {floor:.1f} s')
 
 
+def run_transfer_fault() -> None:
+    cli, bucket = setup()
+    endpoint, status, _code = TRANSFER_SCENARIOS[SCENARIO]
+    if SCENARIO == 'download.retry_503':
+        payload = bytes(index % 251 for index in range(4096))
+        meta = uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+        file_id = meta.get('fileId')
+        if not file_id:
+            raise Failure('upload fixture', 'b2 file upload reported no fileId')
+        arm()
+        round_trip(cli, f'b2id://{file_id}', payload)
+    else:
+        part_size = 5000
+        part_count = 3
+        payload = bytes(index % 251 for index in range(part_size * part_count))
+        arm()
+        uploaded_or_fail(
+            put(
+                cli,
+                bucket,
+                OBJECT_NAME,
+                payload,
+                '--threads',
+                '1',
+                '--min-part-size',
+                str(part_size),
+            ),
+            endpoint,
+        )
+        round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
+
+    entries = journal()
+    faulted_entries = [
+        entry
+        for entry in entries
+        if entry['endpoint'] == endpoint
+        and entry['fault'] == 'injected'
+        and entry['status'] == status
+    ]
+    if len(faulted_entries) != 1:
+        raise Failure('journal', f'{len(faulted_entries)} injected 503s on {endpoint}, expected 1')
+    faulted = faulted_entries[0]
+    retries = after(entries, faulted['seq'], endpoint, 200)
+    if not retries:
+        raise Failure('recovery path', f'{endpoint} was not retried after the 503')
+    if SCENARIO == 'download.retry_503':
+        return
+
+    if not after(entries, faulted['seq'], 'b2_get_upload_part_url', 200):
+        raise Failure('recovery path', 'no b2_get_upload_part_url after the 503')
+    if retries[0]['uploadUrlId'] in (None, faulted['uploadUrlId']):
+        raise Failure('recovery path', 'the retried part reused the failed part URL')
+    if (
+        len(
+            [
+                entry
+                for entry in entries
+                if entry['endpoint'] == 'b2_upload_part' and entry['status'] == 200
+            ]
+        )
+        < part_count
+    ):
+        raise Failure('journal', f'fewer than {part_count} successful b2_upload_part calls')
+    if not after(entries, faulted['seq'], 'b2_finish_large_file', 200):
+        raise Failure('journal', 'the large file was never finished after the retried part')
+
+
 def main() -> int:
     global SCENARIO, OBJECT_NAME, FAULT, ARM_PATH
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
@@ -493,6 +564,10 @@ def main() -> int:
             ARM_PATH = config['arm']
             FAULT = config['fault']
             run_api_fault()
+        elif SCENARIO in TRANSFER_SCENARIOS:
+            endpoint, status, code = TRANSFER_SCENARIOS[SCENARIO]
+            FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}
+            run_transfer_fault()
         else:
             endpoint, status, code = SCENARIOS[SCENARIO]
             FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}

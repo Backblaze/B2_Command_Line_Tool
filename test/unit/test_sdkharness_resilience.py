@@ -33,6 +33,8 @@ SCENARIOS = {
     'api.retry_after_429',
     'api.retry_after_503',
     'api.backoff_503',
+    'download.retry_503',
+    'part.retry_503',
 }
 
 
@@ -84,7 +86,7 @@ def test_environment_accepts_each_owned_scenario(scenario):
     ('overrides', 'expected'),
     [
         ({'SDKHARNESS_TEST_LEVEL': 'conformance'}, 'unexpected test level'),
-        ({'SDKHARNESS_SCENARIO': 'download.retry_503'}, 'unexpected scenario'),
+        ({'SDKHARNESS_SCENARIO': 'bucket.crud'}, 'unexpected scenario'),
         (
             {'SDKHARNESS_SIMULATOR_URL': 'https://api.backblazeb2.com'},
             'bare IPv4 loopback HTTP origin',
