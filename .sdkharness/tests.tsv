@@ -30,3 +30,9 @@ conformance	large.multipart	simulator	./.sdkharness/tests/conformance-file-lifec
 conformance	large.parallel_download	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	large.unbound_incremental	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	urls.native_download	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+resilience	upload.retry_503	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	upload.retry_500	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	upload.retry_408	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	upload.expired_token_401	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	upload.get_url_503	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	upload.cap_exceeded_403	simulator	./.sdkharness/tests/resilience-upload.py
