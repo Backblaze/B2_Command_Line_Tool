@@ -28,6 +28,10 @@ SCENARIOS = {
     'bucket.replication_helper',
     'enc.sse_b2',
     'enc.sse_c',
+    'lock.bucket_default',
+    'lock.bypass_governance',
+    'lock.legal_hold',
+    'lock.per_file_retention',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',
@@ -106,6 +110,15 @@ def test_versions_parser_accepts_cli_list_and_envelope_shapes():
     assert check.versions_from(json.dumps({'files': [version]}), 'list') == [version]
     with pytest.raises(check.CheckFailure, match='no file list'):
         check.versions_from(json.dumps('not-a-list'), 'list')
+
+
+def test_file_lock_metadata_helpers_accept_cli_wrapper_shapes():
+    check = load_check()
+    retention = {'mode': 'governance', 'retainUntilTimestamp': 123}
+    assert check.Lifecycle.retention_value({'fileRetention': retention}) == retention
+    assert check.Lifecycle.retention_value({'fileRetention': {'value': retention}}) == retention
+    assert check.Lifecycle.legal_hold_value({'legalHold': 'on'}) == 'on'
+    assert check.Lifecycle.legal_hold_value({'legalHold': {'value': 'off'}}) == 'off'
 
 
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))

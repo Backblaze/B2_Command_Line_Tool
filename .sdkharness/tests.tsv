@@ -15,3 +15,7 @@ conformance	bucket.replication_config	simulator	./.sdkharness/tests/conformance-
 conformance	bucket.replication_helper	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	enc.sse_b2	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	enc.sse_c	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	lock.bucket_default	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	lock.bypass_governance	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	lock.legal_hold	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	lock.per_file_retention	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
