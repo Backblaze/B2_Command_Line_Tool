@@ -16,6 +16,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -33,12 +34,17 @@ SCENARIOS = {
     'bucket.notification_rules',
     'bucket.replication_config',
     'bucket.replication_helper',
+    'client.auth_persistence',
+    'client.progress',
+    'client.sync',
     'enc.sse_b2',
     'enc.sse_c',
     'lock.bucket_default',
     'lock.bypass_governance',
     'lock.legal_hold',
     'lock.per_file_retention',
+    'keys.crud',
+    'keys.multi_bucket',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',
@@ -206,20 +212,29 @@ class Lifecycle:
         return name
 
     def invoke_expect_failure(self, step: str, *arguments: str) -> None:
+        completed = self.invoke_process(step, *arguments)
+        if completed.returncode == 0:
+            raise CheckFailure(step, 'command unexpectedly succeeded')
+
+    def invoke_process(
+        self,
+        step: str,
+        *arguments: str,
+        environment: Mapping[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         try:
             completed = subprocess.run(
                 [*self.prefix, *arguments],
                 cwd=REPOSITORY_ROOT,
-                env=self.child_environment,
+                env=dict(environment) if environment is not None else self.child_environment,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
                 check=False,
             )
         except OSError as error:
             raise CheckFailure(step, error) from error
-        if completed.returncode == 0:
-            raise CheckFailure(step, 'command unexpectedly succeeded')
+        return completed
 
     def delete_bucket(self, name: str, step: str = 'delete bucket') -> None:
         self.invoke(step, 'bucket', 'delete', name)
@@ -1001,6 +1016,228 @@ class Lifecycle:
             '--fail-fast',
             f'b2id://{file_id}',
         )
+
+    def client_auth_persistence(self) -> None:
+        empty_environment = dict(self.child_environment)
+        empty_environment.pop('B2_APPLICATION_KEY_ID', None)
+        empty_environment.pop('B2_APPLICATION_KEY', None)
+        empty_environment['B2_ACCOUNT_INFO'] = str(self.scratch / 'empty-account-info')
+        control = self.invoke_process(
+            'uncached process without credentials',
+            'bucket',
+            'list',
+            environment=empty_environment,
+        )
+        if control.returncode == 0:
+            raise CheckFailure('auth persistence control', 'uncached process was authorized')
+
+        persisted_environment = dict(empty_environment)
+        persisted_environment['B2_ACCOUNT_INFO'] = self.child_environment['B2_ACCOUNT_INFO']
+        persisted = self.invoke_process(
+            'authorized call in second process',
+            'bucket',
+            'list',
+            environment=persisted_environment,
+        )
+        if persisted.returncode != 0:
+            raise CheckFailure('auth persistence', 'cached authorization was not reused')
+        if 'Using ' in persisted.stderr:
+            raise CheckFailure('auth persistence', 'second process re-authorized')
+
+    def client_progress(self) -> None:
+        bucket_name = self.new_bucket()
+        size = 16 * 1024 * 1024
+        payload = (b'progress-sdkharness-' * (size // 20 + 1))[:size]
+        local_path = self.scratch / 'progress.bin'
+        local_path.write_bytes(payload)
+        completed = self.invoke_process(
+            'upload with progress reporting',
+            'file',
+            'upload',
+            '--min-part-size',
+            '5000000',
+            bucket_name,
+            str(local_path),
+            'st/progress.bin',
+        )
+        if completed.returncode != 0:
+            raise CheckFailure('upload with progress reporting', 'command failed')
+        output = (completed.stdout + '\n' + completed.stderr).replace('\r', '\n')
+        pairs = re.findall(
+            r'\|\s*([0-9]+(?:\.[0-9]+)?)\s*([kKMGT]?)B?/\s*'
+            r'([0-9]+(?:\.[0-9]+)?)\s*([kKMGT]?)B?\s*\[',
+            output,
+        )
+        units = {'': 1, 'k': 1e3, 'K': 1e3, 'M': 1e6, 'G': 1e9, 'T': 1e12}
+        if pairs:
+            samples = [
+                (float(done) * units[done_unit], float(total) * units[total_unit])
+                for done, done_unit, total, total_unit in pairs
+            ]
+            done_values = [sample[0] for sample in samples]
+            if len(samples) < 2 or any(
+                done_values[index] > done_values[index + 1] + 1
+                for index in range(len(done_values) - 1)
+            ):
+                raise CheckFailure('progress', 'byte progress was missing or went backwards')
+            if abs(samples[-1][0] - size) > max(size * 0.01, 1024):
+                raise CheckFailure('progress', 'final byte progress did not reach the payload size')
+        else:
+            percentages = [
+                int(value) for value in re.findall(r'^\s*([0-9]{1,3})%\s*$', output, re.M)
+            ]
+            if not percentages or any(
+                percentages[index] > percentages[index + 1] for index in range(len(percentages) - 1)
+            ):
+                raise CheckFailure('progress', 'upload reported no monotonic progress')
+        versions = self.list_versions_for_bucket(
+            bucket_name, 'st/progress.bin', 'read progress upload'
+        )
+        matches = [item for item in versions if metadata_size(item) == size and item.get('fileId')]
+        if len(matches) != 1:
+            raise CheckFailure('progress', 'uploaded size differs from progress payload')
+
+    def client_sync(self) -> None:
+        bucket_name = self.new_bucket()
+        source = self.scratch / 'sync-source'
+        destination = self.scratch / 'sync-destination'
+        source.mkdir()
+        destination.mkdir()
+        initial = {
+            'a.txt': b'a' * 512,
+            'b.txt': b'b' * 512,
+            'c.txt': b'c' * 512,
+        }
+        for name, payload in initial.items():
+            (source / name).write_bytes(payload)
+        self.invoke('sync up', 'sync', '--no-progress', str(source), f'b2://{bucket_name}/st/sync')
+        listed = self.invoke(
+            'list first sync', 'ls', '--json', '--recursive', f'b2://{bucket_name}/st/sync/'
+        )
+        first_names = {item.get('fileName') for item in versions_from(listed, 'list first sync')}
+        expected_first = {f'st/sync/{name}' for name in initial}
+        if first_names != expected_first:
+            raise CheckFailure('sync up', 'remote names differ from local source')
+
+        changed = b'A' * 1024
+        (source / 'a.txt').write_bytes(changed)
+        (source / 'b.txt').unlink()
+        self.invoke(
+            'sync up with delete',
+            'sync',
+            '--no-progress',
+            '--delete',
+            str(source),
+            f'b2://{bucket_name}/st/sync',
+        )
+        listed = self.invoke(
+            'list second sync', 'ls', '--json', '--recursive', f'b2://{bucket_name}/st/sync/'
+        )
+        second = versions_from(listed, 'list second sync')
+        second_names = {item.get('fileName') for item in second}
+        if second_names != {'st/sync/a.txt', 'st/sync/c.txt'}:
+            raise CheckFailure('sync delete', 'remote names do not reflect deletion')
+        a_version = next(item for item in second if item.get('fileName') == 'st/sync/a.txt')
+        if metadata_size(a_version) != len(changed) or metadata_sha1(a_version) != sha1_bytes(
+            changed
+        ):
+            raise CheckFailure('sync update', 'modified file metadata did not round-trip')
+
+        self.invoke(
+            'sync down', 'sync', '--no-progress', f'b2://{bucket_name}/st/sync', str(destination)
+        )
+        if (destination / 'a.txt').read_bytes() != changed:
+            raise CheckFailure('sync down', 'modified file bytes differ')
+        if (destination / 'c.txt').read_bytes() != initial['c.txt']:
+            raise CheckFailure('sync down', 'unchanged file bytes differ')
+        if (destination / 'b.txt').exists():
+            raise CheckFailure('sync down', 'deleted file returned')
+
+    def keys_crud(self) -> None:
+        bucket_name = self.new_bucket()
+        key_name = f'sdkharness-conf-{uuid.uuid4().hex[:16]}'
+        raw = self.invoke(
+            'create key',
+            'key',
+            'create',
+            '--bucket',
+            bucket_name,
+            key_name,
+            'listBuckets,listFiles,readFiles',
+        )
+        fields = raw.strip().split()
+        if len(fields) != 2:
+            raise CheckFailure('create key', 'expected key id and secret')
+        key_id, secret = fields
+        self.created_keys.append(key_id)
+        listing = self.invoke('list keys', 'key', 'list', '-l')
+        if key_id not in listing or key_name not in listing or secret in listing:
+            raise CheckFailure('list keys', 'key metadata or secret exposure is wrong')
+        self.invoke('delete key', 'key', 'delete', key_id)
+        self.created_keys.remove(key_id)
+        if key_id in self.invoke('list keys after delete', 'key', 'list', '-l'):
+            raise CheckFailure('delete key', 'deleted key is still listed')
+
+    def keys_multi_bucket(self) -> None:
+        buckets = [self.new_bucket() for _ in range(3)]
+        key_name = f'sdkharness-conf-{uuid.uuid4().hex[:16]}'
+        raw = self.invoke(
+            'create multi-bucket key',
+            'key',
+            'create',
+            '--bucket',
+            buckets[0],
+            '--bucket',
+            buckets[1],
+            key_name,
+            'listBuckets,listFiles,readFiles',
+        )
+        fields = raw.strip().split()
+        if len(fields) != 2:
+            raise CheckFailure('create multi-bucket key', 'expected key id and secret')
+        key_id, secret = fields
+        self.created_keys.append(key_id)
+        listing = self.invoke('read multi-bucket key', 'key', 'list', '-l')
+        row = next((line for line in listing.splitlines() if key_id in line), '')
+        if not row or buckets[0] not in row or buckets[1] not in row:
+            raise CheckFailure('multi-bucket key', 'bucket restrictions did not round-trip')
+
+        restricted = dict(self.child_environment)
+        restricted.update(
+            {
+                'B2_ACCOUNT_INFO': str(self.scratch / 'restricted-account-info'),
+                'B2_APPLICATION_KEY_ID': key_id,
+                'B2_APPLICATION_KEY': secret,
+            }
+        )
+        authorized = self.invoke_process(
+            'authorize restricted key', 'account', 'authorize', environment=restricted
+        )
+        if authorized.returncode != 0:
+            raise CheckFailure('multi-bucket key', 'restricted key did not authorize')
+        restricted.pop('B2_APPLICATION_KEY_ID', None)
+        restricted.pop('B2_APPLICATION_KEY', None)
+        for bucket_name in buckets[:2]:
+            listed = self.invoke_process(
+                'list allowed bucket',
+                'ls',
+                '--json',
+                '--recursive',
+                f'b2://{bucket_name}',
+                environment=restricted,
+            )
+            if listed.returncode != 0:
+                raise CheckFailure('multi-bucket key', 'allowed bucket was refused')
+        denied = self.invoke_process(
+            'list denied bucket',
+            'ls',
+            '--json',
+            '--recursive',
+            f'b2://{buckets[2]}',
+            environment=restricted,
+        )
+        if denied.returncode == 0:
+            raise CheckFailure('multi-bucket key', 'unscoped bucket was accessible')
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory(dir=self.scratch_root) as scratch_name:

@@ -19,3 +19,8 @@ conformance	lock.bucket_default	simulator	./.sdkharness/tests/conformance-file-l
 conformance	lock.bypass_governance	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	lock.legal_hold	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	lock.per_file_retention	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	client.auth_persistence	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	client.progress	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	client.sync	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	keys.crud	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	keys.multi_bucket	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
