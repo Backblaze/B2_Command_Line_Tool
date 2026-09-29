@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 
@@ -48,7 +49,14 @@ def test_contract_is_simulator_only_and_points_to_the_executable():
         'test_level\tscenario\ttarget\texecutable',
         'health\tgolden-path\tsimulator\t./.sdkharness/tests/health-golden-path.py',
     ]
-    assert HEALTH_CHECK.stat().st_mode & 0o111
+    tracked = subprocess.run(
+        ['git', 'ls-files', '-s', '--', HEALTH_CHECK.relative_to(REPOSITORY_ROOT)],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert tracked.stdout.split(maxsplit=1)[0] == '100755'
 
 
 @pytest.mark.parametrize(
