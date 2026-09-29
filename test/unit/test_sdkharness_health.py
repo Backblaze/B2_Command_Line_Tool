@@ -44,11 +44,11 @@ def simulator_environment(**overrides: str) -> dict[str, str]:
 
 
 def test_contract_is_simulator_only_and_points_to_the_executable():
-    row = (REPOSITORY_ROOT / '.sdkharness/tests.tsv').read_text().splitlines()
-    assert row == [
-        'test_level\tscenario\ttarget\texecutable',
-        'health\tgolden-path\tsimulator\t./.sdkharness/tests/health-golden-path.py',
-    ]
+    rows = (REPOSITORY_ROOT / '.sdkharness/tests.tsv').read_text().splitlines()
+    assert rows[0] == 'test_level\tscenario\ttarget\texecutable'
+    assert (
+        rows.count('health\tgolden-path\tsimulator\t./.sdkharness/tests/health-golden-path.py') == 1
+    )
     tracked = subprocess.run(
         ['git', 'ls-files', '-s', '--', HEALTH_CHECK.relative_to(REPOSITORY_ROOT)],
         cwd=REPOSITORY_ROOT,

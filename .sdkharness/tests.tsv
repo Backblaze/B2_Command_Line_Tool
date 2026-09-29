@@ -1,2 +1,3 @@
 test_level	scenario	target	executable
 health	golden-path	simulator	./.sdkharness/tests/health-golden-path.py
+conformance	files.upload	simulator	./.sdkharness/tests/conformance-files-upload.py
