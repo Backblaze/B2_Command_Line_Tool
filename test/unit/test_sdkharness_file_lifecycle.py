@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -145,7 +146,10 @@ def test_process_probe_preserves_nonzero_status_and_captured_output():
         object_prefix='sdkharness-conformance/fixed',
         scratch_root=None,
     )
-    completed = lifecycle.invoke_process('probe', environment={})
+    probe_environment = {
+        key: value for key, value in os.environ.items() if not key.startswith('B2_')
+    }
+    completed = lifecycle.invoke_process('probe', environment=probe_environment)
     assert completed.returncode == 7
     assert completed.stdout == 'probe-out\n'
     assert completed.stderr == 'probe-err\n'
