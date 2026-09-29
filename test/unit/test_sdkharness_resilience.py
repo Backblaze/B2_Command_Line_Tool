@@ -76,6 +76,19 @@ def test_contract_rows_point_to_one_tracked_executable():
     assert tracked.stdout.split(maxsplit=1)[0] == '100755'
 
 
+def test_scenario_groups_partition_the_registered_contract():
+    check = load_check()
+    groups = [
+        set(check.SCENARIOS),
+        set(check.WIRE_SCENARIOS),
+        set(check.API_SCENARIOS),
+        set(check.TRANSFER_SCENARIOS),
+    ]
+    assert set().union(*groups) == SCENARIOS
+    for index, group in enumerate(groups):
+        assert group.isdisjoint(set().union(*groups[index + 1 :]))
+
+
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))
 def test_environment_accepts_each_owned_scenario(scenario):
     check = load_check()
