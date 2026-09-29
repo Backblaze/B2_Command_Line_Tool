@@ -43,6 +43,12 @@ SCENARIOS = {
     'files.hide',
     'files.list',
     'files.metadata',
+    'files.server_side_copy',
+    'large.concurrent_parts',
+    'large.multipart',
+    'large.parallel_download',
+    'large.unbound_incremental',
+    'urls.native_download',
 }
 
 
@@ -143,6 +149,21 @@ def test_process_probe_preserves_nonzero_status_and_captured_output():
     assert completed.returncode == 7
     assert completed.stdout == 'probe-out\n'
     assert completed.stderr == 'probe-err\n'
+
+
+def test_process_probe_reports_timeout_as_scenario_failure():
+    check = load_check()
+    lifecycle = check.Lifecycle(
+        simulator_environment(),
+        cli_prefix=[sys.executable, '-c', 'import time; time.sleep(1)'],
+        run_command=lambda *_args: '',
+        object_prefix='sdkharness-conformance/fixed',
+        scratch_root=None,
+    )
+    lifecycle.child_environment = simulator_environment()
+
+    with pytest.raises(check.CheckFailure, match='TimeoutExpired'):
+        lifecycle.invoke_process('probe timeout', timeout=0.01)
 
 
 @pytest.mark.parametrize('scenario', sorted(SCENARIOS))
