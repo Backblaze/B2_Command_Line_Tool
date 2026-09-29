@@ -77,8 +77,22 @@ def test_environment_accepts_each_owned_scenario(scenario):
     [
         ({'SDKHARNESS_TEST_LEVEL': 'conformance'}, 'unexpected test level'),
         ({'SDKHARNESS_SCENARIO': 'upload.stall'}, 'unexpected scenario'),
-        ({'SDKHARNESS_SIMULATOR_URL': 'https://api.backblazeb2.com'}, 'loopback HTTP'),
-        ({'SDKHARNESS_SIMULATOR_CONTROL_URL': 'http://example.com'}, 'loopback HTTP'),
+        (
+            {'SDKHARNESS_SIMULATOR_URL': 'https://api.backblazeb2.com'},
+            'bare IPv4 loopback HTTP origin',
+        ),
+        (
+            {'SDKHARNESS_SIMULATOR_CONTROL_URL': 'http://example.com'},
+            'bare IPv4 loopback HTTP origin',
+        ),
+        (
+            {'SDKHARNESS_SIMULATOR_CONTROL_URL': 'http://127.0.0.1:8124/redirect'},
+            'bare IPv4 loopback HTTP origin',
+        ),
+        (
+            {'SDKHARNESS_SIMULATOR_CONTROL_URL': 'http://user@127.0.0.1:8124'},
+            'bare IPv4 loopback HTTP origin',
+        ),
     ],
 )
 def test_environment_rejects_wrong_identity_or_unsafe_inputs(overrides, expected):

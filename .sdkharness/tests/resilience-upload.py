@@ -6,6 +6,7 @@ harness-provided loopback simulator and its private fault-control listener.
 """
 
 import hashlib
+import http.client
 import json
 import os
 import shutil
@@ -13,7 +14,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import urllib.request
 import uuid
 from collections.abc import Mapping
 
@@ -47,16 +47,37 @@ def note(text: str) -> None:
     print(f'NOTE B2_Command_Line_Tool {SCENARIO}: {text}', flush=True)
 
 
+def loopback_port(environment: Mapping[str, str], name: str) -> int:
+    from urllib.parse import urlsplit
+
+    parsed = urlsplit(environment.get(name, ''))
+    if (
+        parsed.scheme != 'http'
+        or parsed.hostname != '127.0.0.1'
+        or parsed.port is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in ('', '/')
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise Failure('configuration', f'{name} must be a bare IPv4 loopback HTTP origin')
+    return parsed.port
+
+
 def control(method: str, path: str, body=None):
     data = None if body is None else json.dumps(body).encode()
-    req = urllib.request.Request(
-        os.environ['SDKHARNESS_SIMULATOR_CONTROL_URL'] + path,
-        data=data,
-        method=method,
-        headers={'content-type': 'application/json'},
+    connection = http.client.HTTPConnection(
+        '127.0.0.1', loopback_port(os.environ, 'SDKHARNESS_SIMULATOR_CONTROL_URL'), timeout=10
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.load(resp)
+    try:
+        connection.request(method, path, body=data, headers={'content-type': 'application/json'})
+        response = connection.getresponse()
+        if response.status < 200 or response.status >= 300:
+            raise Failure('control request', f'{method} {path} returned HTTP {response.status}')
+        return json.load(response)
+    finally:
+        connection.close()
 
 
 def journal():
@@ -111,7 +132,7 @@ class Cli:
         self.env.update(
             B2_APPLICATION_KEY_ID='test-key-id',
             B2_APPLICATION_KEY='test-key',
-            B2_ENVIRONMENT=os.environ['SDKHARNESS_SIMULATOR_URL'],
+            B2_ENVIRONMENT=f"http://127.0.0.1:{loopback_port(os.environ, 'SDKHARNESS_SIMULATOR_URL')}",
             B2_ACCOUNT_INFO=os.path.join(scratch, 'account-info'),
             XDG_CONFIG_HOME=os.path.join(scratch, 'xdg'),
         )
@@ -217,21 +238,13 @@ CLEANUP = []
 
 
 def validate_environment(environment: Mapping[str, str]) -> str:
-    from urllib.parse import urlsplit
-
     if environment.get('SDKHARNESS_TEST_LEVEL') != LEVEL:
         raise Failure('configuration', 'unexpected test level')
     scenario = environment.get('SDKHARNESS_SCENARIO', '')
     if scenario not in SCENARIOS:
         raise Failure('configuration', 'unexpected scenario')
     for name in ('SDKHARNESS_SIMULATOR_URL', 'SDKHARNESS_SIMULATOR_CONTROL_URL'):
-        parsed = urlsplit(environment.get(name, ''))
-        if (
-            parsed.scheme != 'http'
-            or parsed.hostname not in {'127.0.0.1', '::1'}
-            or parsed.port is None
-        ):
-            raise Failure('configuration', f'{name} must be loopback HTTP')
+        loopback_port(environment, name)
     return scenario
 
 
