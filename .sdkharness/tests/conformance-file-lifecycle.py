@@ -8,7 +8,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-"""Repository-owned sdkharness conformance checks for basic file lifecycle operations."""
+"""Repository-owned sdkharness conformance checks for files and buckets."""
 
 from __future__ import annotations
 
@@ -25,6 +25,12 @@ from urllib.parse import urlsplit
 
 LEVEL = 'conformance'
 SCENARIOS = {
+    'bucket.cors',
+    'bucket.crud',
+    'bucket.lifecycle',
+    'bucket.notification_rules',
+    'bucket.replication_config',
+    'bucket.replication_helper',
     'files.delete_version',
     'files.download_by_id',
     'files.download_content',
@@ -171,6 +177,36 @@ class Lifecycle:
 
     def invoke(self, step: str, *arguments: str) -> str:
         return self.run_command(step, [*self.prefix, *arguments], self.child_environment)
+
+    def bucket_listing(self, step: str = 'list buckets') -> list[dict[str, object]]:
+        document = json_document(self.invoke(step, 'bucket', 'list', '--json'), step)
+        buckets = document.get('buckets', []) if isinstance(document, dict) else document
+        if not isinstance(buckets, list) or any(not isinstance(item, dict) for item in buckets):
+            raise CheckFailure(step, 'CLI output has no bucket list')
+        return buckets
+
+    def bucket_named(self, name: str, step: str = 'list buckets') -> dict[str, object] | None:
+        matches = [item for item in self.bucket_listing(step) if item.get('bucketName') == name]
+        if len(matches) > 1:
+            raise CheckFailure(step, 'bucket was listed more than once')
+        return matches[0] if matches else None
+
+    def new_bucket(self, step: str = 'create bucket') -> str:
+        name = f'sdkharness-conf-{uuid.uuid4().hex[:16]}'
+        self.created_buckets.append(name)
+        self.invoke(step, 'bucket', 'create', name, 'allPrivate')
+        return name
+
+    def delete_bucket(self, name: str, step: str = 'delete bucket') -> None:
+        self.invoke(step, 'bucket', 'delete', name)
+        self.created_buckets.remove(name)
+
+    @staticmethod
+    def replication_value(bucket: Mapping[str, object]) -> dict[str, object]:
+        value = bucket.get('replication') or {}
+        if isinstance(value, dict) and isinstance(value.get('value'), dict):
+            value = value['value']
+        return value if isinstance(value, dict) else {}
 
     def object_name(self, leaf: str) -> str:
         return f'{self.object_prefix}/{leaf}'
@@ -357,9 +393,290 @@ class Lifecycle:
         if self.download('download survivor', f'b2id://{first_id}') != first:
             raise CheckFailure('delete version', 'surviving version bytes changed')
 
+    def bucket_crud(self) -> None:
+        name = self.new_bucket()
+        created = self.bucket_named(name, 'read new bucket')
+        if created is None or created.get('bucketType') != 'allPrivate':
+            raise CheckFailure('create bucket', 'new bucket did not report allPrivate')
+
+        self.invoke('update bucket type', 'bucket', 'update', name, 'allPublic')
+        updated = self.bucket_named(name, 'read updated bucket')
+        if updated is None or updated.get('bucketType') != 'allPublic':
+            raise CheckFailure('update bucket', 'updated bucket did not report allPublic')
+
+        self.delete_bucket(name)
+        if self.bucket_named(name, 'read deleted bucket') is not None:
+            raise CheckFailure('delete bucket', 'deleted bucket remains in listing')
+
+    def bucket_cors(self) -> None:
+        name = self.new_bucket()
+        rules = [
+            {
+                'corsRuleName': 'sdkharnessconf',
+                'allowedOrigins': ['https://example.com'],
+                'allowedOperations': [
+                    'b2_download_file_by_id',
+                    'b2_download_file_by_name',
+                ],
+                'allowedHeaders': ['range'],
+                'exposeHeaders': ['x-bz-content-sha1'],
+                'maxAgeSeconds': 3600,
+            }
+        ]
+        self.invoke('set CORS rules', 'bucket', 'update', name, '--cors-rules', json.dumps(rules))
+        bucket = self.bucket_named(name, 'read CORS rules')
+        got = bucket.get('corsRules', []) if bucket else []
+        if not isinstance(got, list) or len(got) != 1:
+            raise CheckFailure('CORS rules', 'expected one rule after update')
+        for key, value in rules[0].items():
+            if not isinstance(got[0], dict) or got[0].get(key) != value:
+                raise CheckFailure('CORS rules', f'{key} did not round-trip')
+
+    def bucket_lifecycle(self) -> None:
+        name = self.new_bucket()
+        rule = {
+            'daysFromHidingToDeleting': 1,
+            'daysFromUploadingToHiding': None,
+            'fileNamePrefix': 'st/',
+        }
+        self.invoke(
+            'set lifecycle rule',
+            'bucket',
+            'update',
+            name,
+            '--lifecycle-rule',
+            json.dumps(rule),
+        )
+        bucket = self.bucket_named(name, 'read lifecycle rule')
+        got = bucket.get('lifecycleRules', []) if bucket else []
+        if not isinstance(got, list) or len(got) != 1:
+            raise CheckFailure('lifecycle rule', 'expected one rule after update')
+        for key, value in rule.items():
+            if not isinstance(got[0], dict) or got[0].get(key) != value:
+                raise CheckFailure('lifecycle rule', f'{key} did not round-trip')
+
+    def bucket_notification_rules(self) -> None:
+        name = self.new_bucket()
+        rule_name = f'sdkharness-conf-{uuid.uuid4().hex[:8]}'
+        webhook_url = 'https://example.com/sdkharness-conformance'
+        signing_secret = uuid.uuid4().hex
+        self.invoke(
+            'create notification rule',
+            'bucket',
+            'notification-rule',
+            'create',
+            '--json',
+            '--event-type',
+            'b2:ObjectCreated:*',
+            '--webhook-url',
+            webhook_url,
+            '--sign-secret',
+            signing_secret,
+            f'b2://{name}',
+            rule_name,
+        )
+        document = json_document(
+            self.invoke(
+                'list notification rules',
+                'bucket',
+                'notification-rule',
+                'list',
+                '--json',
+                f'b2://{name}',
+            ),
+            'list notification rules',
+        )
+        rules = document.get('rules', []) if isinstance(document, dict) else document
+        matches = [
+            rule for rule in rules if isinstance(rule, dict) and rule.get('name') == rule_name
+        ]
+        if len(matches) != 1:
+            raise CheckFailure('notification rule', 'created rule was not listed exactly once')
+        rule = matches[0]
+        target = rule.get('targetConfiguration') or {}
+        if (
+            'b2:ObjectCreated:*' not in (rule.get('eventTypes') or [])
+            or not isinstance(target, dict)
+            or (target.get('url') or target.get('webhookUrl')) != webhook_url
+            or target.get('hmacSha256SigningSecret') != signing_secret
+        ):
+            raise CheckFailure('notification rule', 'created fields did not round-trip')
+        self.invoke(
+            'delete notification rule',
+            'bucket',
+            'notification-rule',
+            'delete',
+            f'b2://{name}',
+            rule_name,
+        )
+        after = json_document(
+            self.invoke(
+                'confirm notification deletion',
+                'bucket',
+                'notification-rule',
+                'list',
+                '--json',
+                f'b2://{name}',
+            ),
+            'confirm notification deletion',
+        )
+        remaining = after.get('rules', []) if isinstance(after, dict) else after
+        if any(isinstance(rule, dict) and rule.get('name') == rule_name for rule in remaining):
+            raise CheckFailure('notification rule', 'deleted rule remains listed')
+
+    def bucket_replication_config(self) -> None:
+        source_name = self.new_bucket('create source bucket')
+        destination_name = self.new_bucket('create destination bucket')
+        destination = self.bucket_named(destination_name, 'read destination bucket')
+        destination_id = destination.get('bucketId') if destination else None
+        if not isinstance(destination_id, str) or not destination_id:
+            raise CheckFailure('replication setup', 'destination has no bucketId')
+
+        key_name = f'sdkharness-conf-{uuid.uuid4().hex[:12]}'
+        key_output = self.invoke(
+            'create replication key',
+            'key',
+            'create',
+            key_name,
+            'listBuckets,listFiles,readFiles,writeFiles,readFileLegalHolds,readFileRetentions',
+        )
+        source_key_id = key_output.split()[0] if key_output.split() else ''
+        if not source_key_id:
+            raise CheckFailure('replication setup', 'key creation returned no key id')
+        self.created_keys.append(source_key_id)
+        rule_name = f'sdkharness-conf-{uuid.uuid4().hex[:8]}'
+        mapping = {
+            'asReplicationDestination': {
+                'sourceToDestinationKeyMapping': {source_key_id: source_key_id}
+            }
+        }
+        replication = {
+            'asReplicationSource': {
+                'replicationRules': [
+                    {
+                        'destinationBucketId': destination_id,
+                        'fileNamePrefix': 'st/',
+                        'includeExistingFiles': False,
+                        'isEnabled': True,
+                        'priority': 128,
+                        'replicationRuleName': rule_name,
+                    }
+                ],
+                'sourceApplicationKeyId': source_key_id,
+            }
+        }
+        self.invoke(
+            'set destination key mapping',
+            'bucket',
+            'update',
+            destination_name,
+            '--replication',
+            json.dumps(mapping),
+        )
+        self.invoke(
+            'set replication source',
+            'bucket',
+            'update',
+            source_name,
+            '--replication',
+            json.dumps(replication),
+        )
+        source = self.bucket_named(source_name, 'read replication source')
+        value = self.replication_value(source or {})
+        source_side = value.get('asReplicationSource') or {}
+        rules = source_side.get('replicationRules', []) if isinstance(source_side, dict) else []
+        matches = [
+            item
+            for item in rules
+            if isinstance(item, dict) and item.get('replicationRuleName') == rule_name
+        ]
+        expected_rule = replication['asReplicationSource']['replicationRules'][0]
+        if len(matches) != 1 or any(matches[0].get(k) != v for k, v in expected_rule.items()):
+            raise CheckFailure('replication config', 'replication rule did not round-trip')
+        if source_side.get('sourceApplicationKeyId') != source_key_id:
+            raise CheckFailure('replication config', 'source key id did not round-trip')
+
+    def bucket_replication_helper(self) -> None:
+        source_name = self.new_bucket('create source bucket')
+        destination_name = self.new_bucket('create destination bucket')
+        rule_name = f'sdkharness-conf-{uuid.uuid4().hex[:8]}'
+        self.invoke(
+            'run replication setup helper',
+            'replication',
+            'setup',
+            '--name',
+            rule_name,
+            '--file-name-prefix',
+            'st/',
+            source_name,
+            destination_name,
+        )
+        key_output = self.invoke('list helper keys', 'key', 'list')
+        for line in key_output.splitlines():
+            fields = line.split()
+            if len(fields) >= 2 and (source_name in fields[1] or destination_name in fields[1]):
+                self.created_keys.append(fields[0])
+
+        source = self.bucket_named(source_name, 'read source bucket')
+        destination = self.bucket_named(destination_name, 'read destination bucket')
+        source_side = self.replication_value(source or {}).get('asReplicationSource') or {}
+        destination_side = (
+            self.replication_value(destination or {}).get('asReplicationDestination') or {}
+        )
+        if (
+            not isinstance(source_side, dict)
+            or not source_side.get('replicationRules')
+            or not source_side.get('sourceApplicationKeyId')
+            or not isinstance(destination_side, dict)
+            or not destination_side.get('sourceToDestinationKeyMapping')
+        ):
+            raise CheckFailure('replication helper', 'helper did not configure both buckets')
+
+        payload = b'replication-' * 43
+        local_path = self.scratch / 'replication-payload.bin'
+        local_path.write_bytes(payload)
+        self.invoke(
+            'upload replication fixture',
+            'file',
+            'upload',
+            '--no-progress',
+            source_name,
+            str(local_path),
+            'st/replicate.txt',
+        )
+        status = json_document(
+            self.invoke(
+                'read replication status',
+                'replication',
+                'status',
+                source_name,
+                '--output-format',
+                'json',
+                '--no-progress',
+                '--dont-scan-destination',
+            ),
+            'read replication status',
+        )
+        rows: list[object] = []
+        if isinstance(status, list):
+            rows = status
+        elif isinstance(status, dict):
+            for value in status.values():
+                if isinstance(value, list):
+                    rows.extend(value)
+        count = sum(
+            item.get('count', 0)
+            for item in rows
+            if isinstance(item, dict) and isinstance(item.get('count'), int)
+        )
+        if count <= 0:
+            raise CheckFailure('replication status', 'uploaded file was not counted')
+
     def run(self) -> None:
         with tempfile.TemporaryDirectory(dir=self.scratch_root) as scratch_name:
             self.scratch = Path(scratch_name)
+            self.created_buckets: list[str] = []
+            self.created_keys: list[str] = []
             self.child_environment = dict(self.environment)
             self.child_environment.update(
                 {
@@ -393,6 +710,41 @@ class Lifecycle:
                 except CheckFailure as error:
                     if failure is None:
                         failure = error
+                for bucket_name in reversed(self.created_buckets):
+                    try:
+                        self.invoke(
+                            'cleanup bucket files',
+                            'rm',
+                            '--versions',
+                            '--recursive',
+                            '--no-progress',
+                            '--fail-fast',
+                            f'b2://{bucket_name}',
+                        )
+                    except CheckFailure:
+                        pass
+                    try:
+                        self.invoke(
+                            'cleanup replication',
+                            'bucket',
+                            'update',
+                            bucket_name,
+                            '--replication',
+                            '{}',
+                        )
+                    except CheckFailure:
+                        pass
+                    try:
+                        self.invoke('cleanup bucket', 'bucket', 'delete', bucket_name)
+                    except CheckFailure as error:
+                        if failure is None:
+                            failure = error
+                for key_id in reversed(self.created_keys):
+                    try:
+                        self.invoke('cleanup key', 'key', 'delete', key_id)
+                    except CheckFailure as error:
+                        if failure is None:
+                            failure = error
             if failure is not None:
                 raise failure
 

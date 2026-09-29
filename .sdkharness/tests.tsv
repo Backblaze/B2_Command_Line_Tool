@@ -7,3 +7,9 @@ conformance	files.download_content	simulator	./.sdkharness/tests/conformance-fil
 conformance	files.download_by_id	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	files.hide	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	files.delete_version	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	bucket.crud	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	bucket.cors	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	bucket.lifecycle	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	bucket.notification_rules	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	bucket.replication_config	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	bucket.replication_helper	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
