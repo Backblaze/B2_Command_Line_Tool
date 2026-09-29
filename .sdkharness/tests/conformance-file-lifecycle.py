@@ -24,7 +24,9 @@ import time
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
+from urllib.request import urlopen
 
 LEVEL = 'conformance'
 SCENARIOS = {
@@ -51,6 +53,12 @@ SCENARIOS = {
     'files.hide',
     'files.list',
     'files.metadata',
+    'files.server_side_copy',
+    'large.concurrent_parts',
+    'large.multipart',
+    'large.parallel_download',
+    'large.unbound_incremental',
+    'urls.native_download',
 }
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
@@ -221,6 +229,7 @@ class Lifecycle:
         step: str,
         *arguments: str,
         environment: Mapping[str, str] | None = None,
+        timeout: float | None = None,
     ) -> subprocess.CompletedProcess[str]:
         try:
             completed = subprocess.run(
@@ -231,8 +240,9 @@ class Lifecycle:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=timeout,
             )
-        except OSError as error:
+        except (OSError, subprocess.TimeoutExpired) as error:
             raise CheckFailure(step, error) from error
         return completed
 
@@ -1238,6 +1248,250 @@ class Lifecycle:
         )
         if denied.returncode == 0:
             raise CheckFailure('multi-bucket key', 'unscoped bucket was accessible')
+
+    @staticmethod
+    def large_payload() -> bytes:
+        size = 16 * 1024 * 1024
+        return (b'large-sdkharness-' * (size // 17 + 1))[:size]
+
+    def assert_large_version(
+        self, bucket_name: str, name: str, payload: bytes, step: str
+    ) -> Mapping[str, object]:
+        versions = self.list_versions_for_bucket(bucket_name, name, step)
+        matches = [
+            item for item in versions if metadata_size(item) == len(payload) and item.get('fileId')
+        ]
+        if len(matches) != 1:
+            raise CheckFailure(step, 'large version was not listed exactly once')
+        version = matches[0]
+        info = version.get('fileInfo') or {}
+        if (
+            metadata_sha1(version) != 'none'
+            or not isinstance(info, dict)
+            or info.get('large_file_sha1') != sha1_bytes(payload)
+        ):
+            raise CheckFailure(step, 'multipart digest metadata did not round-trip')
+        return version
+
+    def upload_large(
+        self, bucket_name: str, name: str, payload: bytes, threads: int, step: str
+    ) -> None:
+        path = self.scratch / f'large-{uuid.uuid4().hex}.bin'
+        path.write_bytes(payload)
+        self.invoke(
+            step,
+            'file',
+            'upload',
+            '--no-progress',
+            '--min-part-size',
+            '5000000',
+            '--threads',
+            str(threads),
+            bucket_name,
+            str(path),
+            name,
+        )
+
+    def files_server_side_copy(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = b'copy-' * 103
+        source_name = 'st/copy-src.bin'
+        destination_name = 'st/copy-dst.bin'
+        self.upload_to_bucket('upload copy source', bucket_name, payload, source_name)
+        source = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, source_name, 'locate copy source'),
+            payload,
+            'locate copy source',
+        )
+        self.invoke(
+            'server-side copy',
+            'file',
+            'server-side-copy',
+            f'b2://{bucket_name}/{source_name}',
+            f'b2://{bucket_name}/{destination_name}',
+        )
+        destination = self.select_payload_version(
+            self.list_versions_for_bucket(bucket_name, destination_name, 'locate copied file'),
+            payload,
+            'locate copied file',
+        )
+        if destination['fileId'] == source['fileId']:
+            raise CheckFailure('server-side copy', 'destination reused source file id')
+        downloaded = self.download_from_bucket(
+            'download copied file', bucket_name, destination_name
+        )
+        if downloaded != payload:
+            raise CheckFailure('server-side copy', 'copied bytes differ from source')
+
+    def large_multipart(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = self.large_payload()
+        name = 'st/multipart.bin'
+        self.upload_large(bucket_name, name, payload, 4, 'multipart upload')
+        self.assert_large_version(bucket_name, name, payload, 'read multipart metadata')
+        if self.download_from_bucket('download multipart file', bucket_name, name) != payload:
+            raise CheckFailure('multipart round trip', 'downloaded bytes differ from upload')
+
+    def large_concurrent_parts(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = self.large_payload()
+        for threads, name in ((1, 'st/threads-1.bin'), (4, 'st/threads-4.bin')):
+            self.upload_large(bucket_name, name, payload, threads, f'upload with {threads} threads')
+            self.assert_large_version(bucket_name, name, payload, f'read {threads}-thread metadata')
+
+    def large_parallel_download(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = self.large_payload()
+        name = 'st/parallel-download.bin'
+        self.upload_large(bucket_name, name, payload, 4, 'upload parallel-download fixture')
+        self.assert_large_version(bucket_name, name, payload, 'read parallel-download metadata')
+        for threads in (1, 4):
+            path = self.scratch / f'download-{threads}.bin'
+            self.invoke(
+                f'download with {threads} threads',
+                'file',
+                'download',
+                '--no-progress',
+                '--threads',
+                str(threads),
+                f'b2://{bucket_name}/{name}',
+                str(path),
+            )
+            if path.read_bytes() != payload:
+                raise CheckFailure('parallel download', f'{threads}-thread bytes differ')
+
+    def upload_fifo(
+        self, step: str, bucket_name: str, name: str, payload: bytes, *, incremental: bool
+    ) -> subprocess.CompletedProcess[str]:
+        fifo = self.scratch / f'fifo-{uuid.uuid4().hex}'
+        payload_path = self.scratch / f'fifo-payload-{uuid.uuid4().hex}'
+        payload_path.write_bytes(payload)
+        os.mkfifo(fifo)
+        writer = subprocess.Popen(
+            [
+                sys.executable,
+                '-c',
+                (
+                    'import pathlib, sys, time\n'
+                    'fifo, payload = map(pathlib.Path, sys.argv[1:])\n'
+                    'data = payload.read_bytes()\n'
+                    'while True:\n'
+                    '    try:\n'
+                    '        fifo.write_bytes(data)\n'
+                    '    except BrokenPipeError:\n'
+                    '        pass\n'
+                    '    time.sleep(0.1)\n'
+                ),
+                str(fifo),
+                str(payload_path),
+            ],
+            cwd=REPOSITORY_ROOT,
+            env=self.child_environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        arguments = ['file', 'upload', '--no-progress']
+        if incremental:
+            arguments.append('--incremental-mode')
+        try:
+            completed = self.invoke_process(
+                step, *arguments, bucket_name, str(fifo), name, timeout=30
+            )
+        finally:
+            if writer.poll() is None:
+                writer.terminate()
+            writer.wait(timeout=5)
+        return completed
+
+    def large_unbound_incremental(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = b'unbound-' * 512
+        name = 'st/unbound.bin'
+        uploaded = self.upload_fifo(
+            'upload unbound stream', bucket_name, name, payload, incremental=False
+        )
+        if uploaded.returncode != 0:
+            raise CheckFailure('upload unbound stream', 'command failed')
+        versions = self.list_versions_for_bucket(bucket_name, name, 'read unbound metadata')
+        matches = [item for item in versions if metadata_size(item) == len(payload)]
+        if len(matches) != 1:
+            raise CheckFailure('unbound stream', 'uploaded stream size did not round-trip')
+        version = matches[0]
+        info = version.get('fileInfo') or {}
+        digest = metadata_sha1(version)
+        if digest == 'none':
+            digest = str(info.get('large_file_sha1', '')) if isinstance(info, dict) else ''
+        if digest != sha1_bytes(payload):
+            raise CheckFailure('unbound stream', 'uploaded stream digest did not round-trip')
+        if self.download_from_bucket('download unbound stream', bucket_name, name) != payload:
+            raise CheckFailure('unbound stream', 'downloaded stream bytes differ')
+
+        incremental = self.upload_fifo(
+            'upload incremental unbound stream',
+            bucket_name,
+            'st/unbound-incremental.bin',
+            payload,
+            incremental=True,
+        )
+        if incremental.returncode == 0:
+            raise CheckFailure(
+                'incremental boundary',
+                '--incremental-mode accepted an unbound stream; Backblaze/B2_Command_Line_Tool#1164',
+            )
+
+    def urls_native_download(self) -> None:
+        bucket_name = self.new_bucket()
+        payload = b'native-url-' * 94
+        name = 'st/url.txt'
+        self.upload_to_bucket('upload URL fixture', bucket_name, payload, name)
+        authorized_url = self.invoke(
+            'build authorized URL',
+            'file',
+            'url',
+            '--with-auth',
+            '--duration',
+            '60',
+            f'b2://{bucket_name}/{name}',
+        ).splitlines()[0]
+        query = parse_qs(urlsplit(authorized_url).query)
+        if 'Authorization' not in query or any(key.lower().startswith('x-amz-') for key in query):
+            raise CheckFailure('native URL', 'authorized URL is not B2-native token shape')
+        prefix_token = self.invoke(
+            'get prefix authorization',
+            'bucket',
+            'get-download-auth',
+            bucket_name,
+            '--prefix',
+            'st/',
+            '--duration',
+            '60',
+        ).strip()
+        if not prefix_token or '?' in prefix_token or 'x-amz-' in prefix_token.lower():
+            raise CheckFailure('native URL', 'prefix authorization is not a bare token')
+        with urlopen(authorized_url, timeout=10) as response:
+            if response.status != 200 or response.read() != payload:
+                raise CheckFailure('authorized fetch', 'response did not return fixture bytes')
+
+        short_url = self.invoke(
+            'build expiring URL',
+            'file',
+            'url',
+            '--with-auth',
+            '--duration',
+            '1',
+            f'b2://{bucket_name}/{name}',
+        ).splitlines()[0]
+        time.sleep(5)
+        try:
+            urlopen(short_url, timeout=10)
+        except HTTPError as error:
+            if error.code != 401:
+                raise CheckFailure(
+                    'URL expiry', f'expired URL returned HTTP {error.code}'
+                ) from error
+        else:
+            raise CheckFailure('URL expiry', 'expired URL still returned 200')
 
     def run(self) -> None:
         with tempfile.TemporaryDirectory(dir=self.scratch_root) as scratch_name:

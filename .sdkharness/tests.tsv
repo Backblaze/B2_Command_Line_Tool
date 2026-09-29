@@ -24,3 +24,9 @@ conformance	client.progress	simulator	./.sdkharness/tests/conformance-file-lifec
 conformance	client.sync	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	keys.crud	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
 conformance	keys.multi_bucket	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	files.server_side_copy	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	large.concurrent_parts	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	large.multipart	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	large.parallel_download	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	large.unbound_incremental	simulator	./.sdkharness/tests/conformance-file-lifecycle.py
+conformance	urls.native_download	simulator	./.sdkharness/tests/conformance-file-lifecycle.py

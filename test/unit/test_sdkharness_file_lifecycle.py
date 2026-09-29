@@ -43,6 +43,12 @@ SCENARIOS = {
     'files.hide',
     'files.list',
     'files.metadata',
+    'files.server_side_copy',
+    'large.concurrent_parts',
+    'large.multipart',
+    'large.parallel_download',
+    'large.unbound_incremental',
+    'urls.native_download',
 }
 
 
