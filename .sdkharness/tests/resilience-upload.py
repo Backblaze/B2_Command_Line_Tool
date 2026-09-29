@@ -13,6 +13,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from collections.abc import Mapping
 
@@ -30,7 +31,54 @@ WIRE_SCENARIOS = {
     'upload.reset_mid_request': 'reset-mid-request',
     'upload.stall': 'stall',
 }
-ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS}
+API_SCENARIOS = {
+    'auth.expired_401': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 401,
+            'code': 'expired_auth_token',
+            'count': 1,
+        },
+    },
+    'auth.clock_expiry': {
+        'arm': '/clock',
+        'fault': {'advanceMs': 86400001},
+    },
+    'api.retry_after_429': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 429,
+            'code': 'too_many_requests',
+            'count': 1,
+            'retryAfter': 2,
+        },
+        'floor': 2.0,
+    },
+    'api.retry_after_503': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 503,
+            'code': 'service_unavailable',
+            'count': 1,
+            'retryAfter': 2,
+        },
+        'floor': 2.0,
+    },
+    'api.backoff_503': {
+        'arm': '/faults',
+        'fault': {
+            'on': 'b2_list_file_names',
+            'status': 503,
+            'code': 'service_unavailable',
+            'count': 1,
+        },
+        'floor': 1.0,
+    },
+}
+ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS, *API_SCENARIOS}
 SCENARIO = ''
 OBJECT_NAME = ''
 FAULT: dict[str, object] = {}
@@ -247,6 +295,11 @@ def round_trip(cli, source, payload):
             raise Failure('round trip', 'downloaded bytes differ from what was uploaded')
 
 
+def listed(cli, bucket):
+    proc = cli.must('list', 'ls', '--recursive', f'b2://{bucket}')
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
 CLEANUP = []
 
 
@@ -352,6 +405,76 @@ def run_wire_fault() -> None:
     note(f'{len(mine)} complete version(s) after the reset-before-response')
 
 
+def run_api_fault() -> None:
+    config = API_SCENARIOS[SCENARIO]
+    cli, bucket = setup()
+    payload = b'sdkharness resilience listing'
+    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+    round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
+
+    baseline = None
+    before = None
+    floor = config.get('floor')
+    if floor is not None:
+        started = time.monotonic()
+        listed(cli, bucket)
+        baseline = time.monotonic() - started
+    if SCENARIO == 'auth.clock_expiry':
+        before = max(entry['seq'] for entry in journal())
+
+    arm()
+    started = time.monotonic()
+    names = listed(cli, bucket)
+    elapsed = time.monotonic() - started
+    if names != [OBJECT_NAME]:
+        raise Failure('listing', f'listed {len(names)} names, expected exactly the fixture')
+
+    entries = journal()
+    if before is not None:
+        entries = [entry for entry in entries if entry['seq'] > before]
+        if any(entry['fault'] is not None for entry in entries):
+            raise Failure(
+                'journal', 'a fault was injected; clock expiry must see only real answers'
+            )
+        expired = [entry for entry in entries if entry['status'] == 401 and entry['fault'] is None]
+        if not expired:
+            raise Failure('journal', 'the advanced clock produced no real expired-token 401')
+        faulted = expired[0]
+        note(f"the real 401 came from {faulted['endpoint']}")
+    else:
+        status = config['fault']['status']
+        faulted_entries = [
+            entry
+            for entry in entries
+            if entry['endpoint'] == 'b2_list_file_names'
+            and entry['fault'] == 'injected'
+            and entry['status'] == status
+        ]
+        if len(faulted_entries) != 1:
+            raise Failure(
+                'journal',
+                f'{len(faulted_entries)} injected {status} responses on b2_list_file_names, expected 1',
+            )
+        faulted = faulted_entries[0]
+
+    if SCENARIO.startswith('auth.'):
+        reauthorized = after(entries, faulted['seq'], 'b2_authorize_account', 200)
+        if not reauthorized:
+            raise Failure('recovery path', 'the CLI did not reauthorize after token expiry')
+        if not after(entries, reauthorized[0]['seq'], 'b2_list_file_names', 200):
+            raise Failure('recovery path', 'no successful listing after reauthorization')
+        return
+
+    if not after(entries, faulted['seq'], 'b2_list_file_names', 200):
+        raise Failure('journal', 'no successful listing after the injected response')
+    note(
+        f'the whole b2 ls process took {elapsed:.2f} s against a floor of {floor:.1f} s; '
+        f'an unfaulted b2 ls took {baseline:.2f} s'
+    )
+    if elapsed < floor:
+        raise Failure('recovery path', f'retried after {elapsed:.2f} s, sooner than {floor:.1f} s')
+
+
 def main() -> int:
     global SCENARIO, OBJECT_NAME, FAULT, ARM_PATH
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
@@ -365,6 +488,11 @@ def main() -> int:
                 FAULT['ms'] = 60000
             ARM_PATH = '/wire-faults'
             run_wire_fault()
+        elif SCENARIO in API_SCENARIOS:
+            config = API_SCENARIOS[SCENARIO]
+            ARM_PATH = config['arm']
+            FAULT = config['fault']
+            run_api_fault()
         else:
             endpoint, status, code = SCENARIOS[SCENARIO]
             FAULT = {'on': endpoint, 'status': status, 'code': code, 'count': 1}

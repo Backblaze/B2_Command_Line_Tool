@@ -39,3 +39,8 @@ resilience	upload.cap_exceeded_403	simulator	./.sdkharness/tests/resilience-uplo
 resilience	upload.reset_before_response	simulator	./.sdkharness/tests/resilience-upload.py
 resilience	upload.reset_mid_request	simulator	./.sdkharness/tests/resilience-upload.py
 resilience	upload.stall	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	auth.expired_401	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	auth.clock_expiry	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	api.retry_after_429	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	api.retry_after_503	simulator	./.sdkharness/tests/resilience-upload.py
+resilience	api.backoff_503	simulator	./.sdkharness/tests/resilience-upload.py

@@ -28,6 +28,11 @@ SCENARIOS = {
     'upload.reset_before_response',
     'upload.reset_mid_request',
     'upload.stall',
+    'auth.expired_401',
+    'auth.clock_expiry',
+    'api.retry_after_429',
+    'api.retry_after_503',
+    'api.backoff_503',
 }
 
 
