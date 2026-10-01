@@ -13,9 +13,13 @@ Executables print one five-field, tab-separated result:
 SDKHARNESS_RESULT	health	golden-path	PASS	-
 ```
 
-The customer-health executable accepts only a literal loopback HTTP simulator
-URL. It invokes the latest stable CLI module from this checkout and never uses
-a production B2 endpoint or real credentials.
+The customer-health, conformance, and resilience executables accept only a
+literal IPv4 loopback HTTP simulator URL (`http://127.0.0.1:<port>`; `localhost`,
+`::1` and DNS names are refused). They invoke the latest stable CLI module from
+this checkout and never use a production B2 endpoint or real credentials: the
+only credential they accept is the simulator's fixed `test-key-id` / `test-key`
+pair (anything else is refused before the CLI runs), and the CLI child process
+inherits no ambient `B2_*` values.
 
 ## Run one check locally
 
@@ -27,10 +31,16 @@ python -m venv .venv && . .venv/bin/activate && pip install -e .
 
 # 2. A local simulator (any one of these; it needs access to backblaze-labs/b2-simulator)
 git clone https://github.com/backblaze-labs/b2-simulator /tmp/b2-simulator
-node /tmp/b2-simulator/bin/simulator/serve.mjs --control > /tmp/sim.out &    # prints the URLs
+node /tmp/b2-simulator/bin/simulator/serve.mjs --control > /tmp/sim.out 2>&1 &    # prints the URLs
+SIM_PID=$!
 # ...or use the simulator embedded in the harness: sdkharness/bin/simulator/serve.mjs
 
-# 3. Read the URLs it printed
+# 3. Wait until it has printed all three listener lines (http, https, control), then read them
+for _ in $(seq 100); do
+  [ "$(grep -c '^SIMULATOR-' /tmp/sim.out)" -ge 3 ] && break
+  kill -0 "$SIM_PID" 2>/dev/null || { echo 'simulator exited:'; cat /tmp/sim.out; break; }
+  sleep 0.1
+done
 export SDKHARNESS_SIMULATOR_URL=$(sed -n 's/^SIMULATOR-LISTENING \(http:.*\)/\1/p' /tmp/sim.out)
 export SDKHARNESS_SIMULATOR_CONTROL_URL=$(sed -n 's/^SIMULATOR-CONTROL \(.*\)/\1/p' /tmp/sim.out)
 
@@ -65,6 +75,8 @@ HEALTHCHECK_REALM_URL=$SDKHARNESS_SIMULATOR_URL B2_TEST_APPLICATION_KEY_ID=test-
   B2_TEST_APPLICATION_KEY=test-key B2_BUCKET_NAME=sdkharness-conformance \
   .sdkharness/tests/health-golden-path.py
 ```
+
+When you are done, stop the simulator with `kill "$SIM_PID"`.
 
 Each prints one `SDKHARNESS_RESULT` line and refuses any simulator URL that is not
 `http://127.0.0.1:<port>`. Use a fresh simulator per resilience scenario: an

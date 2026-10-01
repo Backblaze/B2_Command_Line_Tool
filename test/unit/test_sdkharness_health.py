@@ -151,3 +151,66 @@ def test_golden_path_attempts_cleanup_after_a_failure(tmp_path):
         )
 
     assert calls[-1] == 'cleanup'
+
+
+def forbidden_run(step, _command, _environment):  # pragma: no cover - must not run
+    raise AssertionError(f'a non-simulator credential reached the CLI at {step!r}')
+
+
+@pytest.mark.parametrize(
+    ('key_id', 'key'),
+    [
+        ('005realkeyid0000000000000', 'K005realapplicationkey00000000000'),
+        ('test-key-id', 'K005realapplicationkey00000000000'),
+        ('005realkeyid0000000000000', 'test-key'),
+    ],
+)
+def test_ambient_real_looking_credentials_are_refused_before_the_cli(key_id, key):
+    health = load_health_check()
+    environment = simulator_environment(
+        B2_TEST_APPLICATION_KEY_ID=key_id, B2_TEST_APPLICATION_KEY=key
+    )
+
+    with pytest.raises(health.CheckFailure) as raised:
+        health.run_health(environment, cli_prefix=['must-not-run'], run_command=forbidden_run)
+    assert raised.value.step == 'configuration'
+    assert raised.value.detail == 'only the fixed simulator credential is accepted'
+    assert 'K005' not in str(raised.value.detail)
+
+
+def test_non_ipv4_loopback_simulator_urls_are_refused():
+    health = load_health_check()
+    environment = simulator_environment(
+        SDKHARNESS_SIMULATOR_URL='http://[::1]:8123', HEALTHCHECK_REALM_URL='http://[::1]:8123'
+    )
+
+    with pytest.raises(health.CheckFailure, match='loopback HTTP'):
+        health.validate_environment(environment)
+
+
+def test_the_cli_child_inherits_no_ambient_b2_values(tmp_path):
+    health = load_health_check()
+    seen = []
+
+    def recording_run(step, _command, environment):
+        seen.append(dict(environment))
+        return ''
+
+    try:
+        health.run_health(
+            simulator_environment(B2_AMBIENT_SECRET='leak', B2_ACCOUNT_INFO='/ambient/db'),
+            cli_prefix=['repository-b2'],
+            run_command=recording_run,
+            scratch_root=tmp_path,
+            object_name='sdkharness-health-check/fixed.txt',
+        )
+    except health.CheckFailure:
+        pass  # later steps of the fake CLI may fail; only the child environments matter
+    assert seen
+    for environment in seen:
+        assert 'B2_AMBIENT_SECRET' not in environment
+        assert 'B2_TEST_APPLICATION_KEY' not in environment
+        assert 'B2_TEST_APPLICATION_KEY_ID' not in environment
+        assert environment['B2_APPLICATION_KEY_ID'] == 'test-key-id'
+        assert environment['B2_APPLICATION_KEY'] == 'test-key'
+        assert environment['B2_ACCOUNT_INFO'].startswith(str(tmp_path))

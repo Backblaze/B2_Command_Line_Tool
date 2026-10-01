@@ -68,6 +68,13 @@ sys.path.insert(0, str(REPOSITORY_ROOT))
 import b2  # noqa: E402
 from b2._internal.version_listing import LATEST_STABLE_VERSION  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'lib'))
+from simulator_guard import (  # noqa: E402
+    CREDENTIAL_REFUSAL,
+    credential_is_fixed,
+    scrubbed_environment,
+)
+
 
 class CheckFailure(Exception):
     """A failed scenario step with a credential-safe reason."""
@@ -96,7 +103,7 @@ def validate_environment(environment: Mapping[str, str]) -> tuple[str, str, str,
         raise CheckFailure('configuration', 'invalid simulator URL') from error
     if (
         parsed.scheme != 'http'
-        or parsed.hostname not in {'127.0.0.1', '::1'}
+        or parsed.hostname != '127.0.0.1'
         or port is None
         or parsed.username is not None
         or parsed.password is not None
@@ -111,6 +118,10 @@ def validate_environment(environment: Mapping[str, str]) -> tuple[str, str, str,
     bucket_name = environment.get('B2_BUCKET_NAME', '')
     if not key_id or not application_key or not bucket_name:
         raise CheckFailure('configuration', 'required simulator input is missing')
+    # Only the simulator's fixed credential is ever used: a real key in the environment
+    # is refused before it reaches the CLI (and so a loopback listener); never echoed.
+    if not credential_is_fixed(key_id, application_key):
+        raise CheckFailure('configuration', CREDENTIAL_REFUSAL)
     return scenario, simulator_url, key_id, application_key, bucket_name
 
 
@@ -467,7 +478,7 @@ class Lifecycle:
         newest = max(versions, key=lambda item: item.get('uploadTimestamp') or 0)
         if newest.get('action') != 'hide':
             raise CheckFailure(
-                'hide', f"the newest version reports action {newest.get('action')!r}, expected hide"
+                'hide', f'the newest version reports action {newest.get("action")!r}, expected hide'
             )
         hide_id = str(hides[0].get('fileId', ''))
         if not hide_id or hide_id == original_id:
@@ -1505,7 +1516,7 @@ class Lifecycle:
             self.scratch = Path(scratch_name)
             self.created_buckets: list[str] = []
             self.created_keys: list[str] = []
-            self.child_environment = dict(self.environment)
+            self.child_environment = scrubbed_environment(self.environment)
             self.child_environment.update(
                 {
                     'B2_ENVIRONMENT': self.simulator_url,

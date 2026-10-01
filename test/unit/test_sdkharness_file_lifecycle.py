@@ -81,8 +81,7 @@ def test_contract_rows_point_to_one_tracked_executable():
     rows = set((REPOSITORY_ROOT / '.sdkharness/tests.tsv').read_text().splitlines())
     for scenario in SCENARIOS:
         assert (
-            f'conformance\t{scenario}\tsimulator\t'
-            './.sdkharness/tests/conformance-file-lifecycle.py'
+            f'conformance\t{scenario}\tsimulator\t./.sdkharness/tests/conformance-file-lifecycle.py'
         ) in rows
     tracked = subprocess.run(
         ['git', 'ls-files', '-s', '--', CHECK.relative_to(REPOSITORY_ROOT)],
@@ -296,3 +295,66 @@ def test_files_hide_fails_when_the_hide_marker_is_not_the_newest_version(tmp_pat
         run_hide(check, tmp_path, FakeHideCli(hide_timestamp=50))
     assert caught.value.step == 'hide'
     assert 'newest version reports action' in caught.value.detail
+
+
+def forbidden_run(step, _command, _environment):  # pragma: no cover - must not run
+    raise AssertionError(f'a non-simulator credential reached the CLI at {step!r}')
+
+
+@pytest.mark.parametrize(
+    ('key_id', 'key'),
+    [
+        ('005realkeyid0000000000000', 'K005realapplicationkey00000000000'),
+        ('test-key-id', 'K005realapplicationkey00000000000'),
+        ('005realkeyid0000000000000', 'test-key'),
+    ],
+)
+def test_ambient_real_looking_credentials_are_refused_before_the_cli(key_id, key):
+    check = load_check()
+    environment = simulator_environment(
+        'files.hide', B2_TEST_APPLICATION_KEY_ID=key_id, B2_TEST_APPLICATION_KEY=key
+    )
+
+    with pytest.raises(check.CheckFailure) as raised:
+        check.run_check(environment, cli_prefix=['must-not-run'], run_command=forbidden_run)
+    assert raised.value.step == 'configuration'
+    assert raised.value.detail == 'only the fixed simulator credential is accepted'
+    assert 'K005' not in str(raised.value.detail)
+
+
+def test_non_ipv4_loopback_simulator_urls_are_refused():
+    check = load_check()
+    environment = simulator_environment('files.hide', SDKHARNESS_SIMULATOR_URL='http://[::1]:8123')
+
+    with pytest.raises(check.CheckFailure, match='loopback HTTP'):
+        check.validate_environment(environment)
+
+
+def test_the_cli_child_inherits_no_ambient_b2_values(tmp_path):
+    check = load_check()
+    seen = []
+
+    def recording_run(step, _command, environment):
+        seen.append(dict(environment))
+        return ''
+
+    try:
+        check.run_check(
+            simulator_environment(
+                'files.hide', B2_AMBIENT_SECRET='leak', B2_ACCOUNT_INFO='/ambient/db'
+            ),
+            cli_prefix=['repository-b2'],
+            run_command=recording_run,
+            scratch_root=tmp_path,
+            object_prefix='sdkharness-conformance/fixed',
+        )
+    except check.CheckFailure:
+        pass  # later steps of the fake CLI may fail; only the child environments matter
+    assert seen
+    for environment in seen:
+        assert 'B2_AMBIENT_SECRET' not in environment
+        assert 'B2_TEST_APPLICATION_KEY' not in environment
+        assert 'B2_TEST_APPLICATION_KEY_ID' not in environment
+        assert environment['B2_APPLICATION_KEY_ID'] == 'test-key-id'
+        assert environment['B2_APPLICATION_KEY'] == 'test-key'
+        assert environment['B2_ACCOUNT_INFO'].startswith(str(tmp_path))
