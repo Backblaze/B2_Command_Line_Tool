@@ -9,7 +9,9 @@
 ######################################################################
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -122,3 +124,40 @@ def test_environment_rejects_wrong_identity_or_unsafe_inputs(overrides, expected
     check = load_check()
     with pytest.raises(check.Failure, match=expected):
         check.validate_environment(environment(**overrides))
+
+
+class FakeProcess:
+    def __init__(self, stdout: str, returncode: int = 0) -> None:
+        self.stdout = stdout
+        self.stderr = ''
+        self.returncode = returncode
+
+
+PAYLOAD = b'sdkharness resilience payload'
+
+
+def file_record(sha1: str) -> str:
+    return json.dumps({'fileId': '4_zabc', 'fileName': 'res/x.bin', 'contentSha1': sha1})
+
+
+def test_upload_must_report_the_sha1_of_the_bytes_that_were_sent():
+    check = load_check()
+    right = hashlib.sha1(PAYLOAD).hexdigest()
+    assert check.uploaded_or_fail(FakeProcess(file_record(right)), PAYLOAD)['fileId'] == '4_zabc'
+    assert check.uploaded_or_fail(FakeProcess(file_record(f'unverified:{right}')), PAYLOAD)
+    assert check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD)
+    with pytest.raises(check.Failure) as caught:
+        check.uploaded_or_fail(FakeProcess(file_record('0' * 40)), PAYLOAD)
+    assert caught.value.step == 'upload'
+    assert 'contentSha1 does not match' in caught.value.detail
+
+
+def test_upload_must_exit_zero_and_print_a_json_record():
+    check = load_check()
+    check.journal = lambda: []  # the control listener is not running in a unit test
+    with pytest.raises(check.Failure) as nonzero:
+        check.uploaded_or_fail(FakeProcess('', returncode=1), PAYLOAD)
+    assert 'was not recovered' in nonzero.value.detail
+    with pytest.raises(check.Failure) as no_json:
+        check.uploaded_or_fail(FakeProcess('not json'), PAYLOAD)
+    assert 'no JSON file record' in no_json.value.detail

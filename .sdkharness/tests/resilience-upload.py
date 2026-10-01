@@ -5,6 +5,7 @@ Each scenario runs the CLI implementation from this checkout against the
 harness-provided loopback simulator and its private fault-control listener.
 """
 
+import hashlib
 import http.client
 import json
 import os
@@ -269,12 +270,15 @@ def put(cli, bucket, name, payload, *flags):
         raise Failure('upload', type(error).__name__) from error
 
 
-def uploaded_or_fail(proc, endpoint='b2_upload_file'):
-    """An upload process that must have recovered and returned a file record.
+def uploaded_or_fail(proc, payload, endpoint='b2_upload_file'):
+    """An upload process that must have recovered and returned the right file record.
 
-    The caller proves byte integrity by downloading the resulting object. That
-    is stronger than trusting the response's B2 protocol checksum and avoids
-    treating SHA-1 as a security primitive in this test.
+    It checks the exit status, that a JSON file record came back, and that the
+    record's protocol checksum (`contentSha1`) matches the bytes that were sent.
+    The caller still proves byte integrity by downloading the object; both are
+    kept because a CLI that stores the right bytes but reports a wrong checksum
+    in its response must still fail. (SHA-1 is B2's wire checksum here, not a
+    security primitive.)
     """
     if proc.returncode != 0:
         error_note(proc)
@@ -287,6 +291,9 @@ def uploaded_or_fail(proc, endpoint='b2_upload_file'):
         meta = json_of(proc.stdout)
     except Exception as error:  # noqa: BLE001
         raise Failure('upload', 'b2 file upload printed no JSON file record') from error
+    got = (meta.get('contentSha1') or '').split(':')[-1]
+    if got not in ('none', hashlib.sha1(payload).hexdigest()):
+        raise Failure('upload', 'the returned contentSha1 does not match the bytes sent')
     return meta
 
 
@@ -339,7 +346,7 @@ def run_retry() -> None:
             )
         return
 
-    uploaded_or_fail(proc, endpoint)
+    uploaded_or_fail(proc, payload, endpoint)
     round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
     entries = journal()
     faulted_entries = [entry for entry in entries if is_faulted(entry)]
@@ -377,7 +384,7 @@ def run_wire_fault() -> None:
     cli, bucket = setup()
     payload = (b'sdkharness resilience wire fault ' * 64)[:1024]
     arm()
-    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload), payload)
     round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
 
     entries = journal()
@@ -405,6 +412,9 @@ def run_wire_fault() -> None:
         file_id = version.get('fileId')
         if not file_id:
             raise Failure('end state', 'a stored version has no fileId')
+        stored_sha1 = (version.get('contentSha1') or '').split(':')[-1]
+        if stored_sha1 != hashlib.sha1(payload).hexdigest():
+            raise Failure('end state', 'a stored version does not carry the uploaded bytes')
         round_trip(cli, f'b2id://{file_id}', payload)
     note(f'{len(mine)} complete version(s) after the reset-before-response')
 
@@ -413,7 +423,7 @@ def run_api_fault() -> None:
     config = API_SCENARIOS[SCENARIO]
     cli, bucket = setup()
     payload = b'sdkharness resilience listing'
-    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+    uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload), payload)
     round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
 
     baseline = None
@@ -484,7 +494,7 @@ def run_transfer_fault() -> None:
     endpoint, status, _code = TRANSFER_SCENARIOS[SCENARIO]
     if SCENARIO == 'download.retry_503':
         payload = bytes(index % 251 for index in range(4096))
-        meta = uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload))
+        meta = uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload), payload)
         file_id = meta.get('fileId')
         if not file_id:
             raise Failure('upload fixture', 'b2 file upload reported no fileId')
@@ -506,6 +516,7 @@ def run_transfer_fault() -> None:
                 '--min-part-size',
                 str(part_size),
             ),
+            payload,
             endpoint,
         )
         round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
@@ -527,6 +538,14 @@ def run_transfer_fault() -> None:
     if SCENARIO == 'download.retry_503':
         return
 
+    if not [
+        entry
+        for entry in entries
+        if entry['endpoint'] == 'b2_start_large_file' and entry['status'] == 200
+    ]:
+        raise Failure(
+            'journal', 'no b2_start_large_file; the upload never took the large-file path'
+        )
     if not after(entries, faulted['seq'], 'b2_get_upload_part_url', 200):
         raise Failure('recovery path', 'no b2_get_upload_part_url after the 503')
     if retries[0]['uploadUrlId'] in (None, faulted['uploadUrlId']):
