@@ -221,3 +221,78 @@ def test_scenario_failure_still_attempts_cleanup(tmp_path):
             scratch_root=tmp_path,
         )
     assert calls == ['authenticate', 'cleanup']
+
+
+class FakeHideCli:
+    """Just enough CLI to run files.hide: one upload, one hide, version/name listings."""
+
+    def __init__(self, hide_timestamp: int, original_timestamp: int = 100) -> None:
+        self.payload = b''
+        self.name = ''
+        self.hidden = False
+        self.hide_timestamp = hide_timestamp
+        self.original_timestamp = original_timestamp
+
+    def _versions(self):
+        import hashlib
+
+        versions = [
+            {
+                'fileId': 'original-id',
+                'fileName': self.name,
+                'action': 'upload',
+                'size': len(self.payload),
+                'contentSha1': hashlib.sha1(self.payload).hexdigest(),
+                'uploadTimestamp': self.original_timestamp,
+            }
+        ]
+        if self.hidden:
+            versions.append(
+                {
+                    'fileId': 'hide-id',
+                    'fileName': self.name,
+                    'action': 'hide',
+                    'size': 0,
+                    'uploadTimestamp': self.hide_timestamp,
+                }
+            )
+        return versions
+
+    def __call__(self, step: str, command: list[str], _environment: dict[str, str]) -> str:
+        import json
+
+        args = command[1:]
+        if args[:2] == ['file', 'upload']:
+            self.payload = Path(args[-2]).read_bytes()
+            self.name = args[-1]
+        elif args[:2] == ['file', 'hide']:
+            self.hidden = True
+        elif args[:2] == ['file', 'download']:
+            Path(args[-1]).write_bytes(self.payload)
+        elif args[0] == 'ls' and '--versions' in args:
+            return json.dumps(self._versions())
+        elif args[0] == 'ls':
+            return json.dumps([] if self.hidden else [{'fileName': self.name, 'action': 'upload'}])
+        return ''
+
+
+def run_hide(check, tmp_path, cli):
+    check.run_check(
+        simulator_environment('files.hide'),
+        cli_prefix=['repository-b2'],
+        run_command=cli,
+        object_prefix='sdkharness-conformance/fixed',
+        scratch_root=tmp_path,
+    )
+
+
+def test_files_hide_passes_when_the_newest_version_is_the_hide_marker(tmp_path):
+    run_hide(load_check(), tmp_path, FakeHideCli(hide_timestamp=200))
+
+
+def test_files_hide_fails_when_the_hide_marker_is_not_the_newest_version(tmp_path):
+    check = load_check()
+    with pytest.raises(check.CheckFailure) as caught:
+        run_hide(check, tmp_path, FakeHideCli(hide_timestamp=50))
+    assert caught.value.step == 'hide'
+    assert 'newest version reports action' in caught.value.detail

@@ -464,6 +464,11 @@ class Lifecycle:
         ids = {str(item.get('fileId', '')) for item in versions}
         if len(versions) != 2 or len(hides) != 1 or original_id not in ids:
             raise CheckFailure('hide', 'versions do not contain one hide marker and the original')
+        newest = max(versions, key=lambda item: item.get('uploadTimestamp') or 0)
+        if newest.get('action') != 'hide':
+            raise CheckFailure(
+                'hide', f"the newest version reports action {newest.get('action')!r}, expected hide"
+            )
         hide_id = str(hides[0].get('fileId', ''))
         if not hide_id or hide_id == original_id:
             raise CheckFailure('hide', 'hide marker has no distinct fileId')
@@ -1353,6 +1358,8 @@ class Lifecycle:
                 'download',
                 '--no-progress',
                 '--threads',
+                str(threads),
+                '--max-download-streams-per-file',
                 str(threads),
                 f'b2://{bucket_name}/{name}',
                 str(path),
