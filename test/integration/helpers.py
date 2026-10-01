@@ -141,7 +141,8 @@ def should_equal(expected, actual):
 
 class CommandLine:
     EXPECTED_STDERR_PATTERNS = [
-        re.compile(r'^Using https?://[\w.]+$'),  # account auth
+        # Keep in sync with test/unit/test_console_tool.py:109.
+        re.compile(r'^Using https?://\S+$'),  # custom realm notice
         re.compile(r'.*B/s]$', re.DOTALL),  # progress bar
         re.compile(r'^\r?$'),  # empty line
         re.compile(
