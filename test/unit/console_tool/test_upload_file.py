@@ -88,6 +88,24 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
     writer.result(timeout=1)
 
 
+@skip_on_windows
+def test_upload_file__incremental_mode_on_named_pipe_is_refused(b2_cli, bucket, tmpdir):
+    """`file upload --incremental-mode` over an unbound stream is refused, not silently downgraded (#1164)."""
+    local_file = tmpdir.join('pipe')
+    os.mkfifo(str(local_file))
+    # No writer needed: get_input_stream only stats the FIFO (points_to_fifo check),
+    # and CommandError is raised before file_identifier_to_read_stream ever opens it.
+    b2_cli.run(
+        ['file', 'upload', '--no-progress', '--incremental-mode', 'my-bucket', str(local_file), 'dst.txt'],
+        expected_status=1,
+        expected_stderr=(
+            'ERROR: incremental mode is not supported for streamed sources; '
+            '--incremental-mode requires a regular file to diff against a '
+            'previous upload\n'
+        ),
+    )
+
+
 @pytest.mark.apiver(to_ver=3)
 def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monkeypatch):
     """Test `file upload` will upload file named `-` instead of stdin by default"""

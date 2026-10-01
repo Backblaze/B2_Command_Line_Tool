@@ -3644,9 +3644,12 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
         except self.NotAnInputStream:  # it is a regular file
             file_version = bucket.upload_local_file(local_file=local_file, **kwargs)
         else:
-            if kwargs.pop('upload_mode', None) != UploadMode.FULL:
-                self._print_stderr(
-                    'WARNING: Ignoring upload mode setting as we are uploading a stream.'
+            upload_mode = kwargs.pop('upload_mode', None)
+            if upload_mode == UploadMode.INCREMENTAL:
+                raise CommandError(
+                    'incremental mode is not supported for streamed sources; '
+                    '--incremental-mode requires a regular file to diff against a '
+                    'previous upload'
                 )
             kwargs = self.upload_file_kwargs_to_unbound_upload(threads=threads, **kwargs)
             del kwargs['threads']
