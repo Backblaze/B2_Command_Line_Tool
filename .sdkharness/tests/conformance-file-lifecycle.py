@@ -22,11 +22,12 @@ import sys
 import tempfile
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
-from urllib.request import urlopen
+from urllib.request import ProxyHandler, build_opener
 
 LEVEL = 'conformance'
 SCENARIOS = {
@@ -60,6 +61,8 @@ SCENARIOS = {
     'large.unbound_incremental',
     'urls.native_download',
 }
+# The URL the CLI printed is fetched directly: never through an ambient HTTP(S)_PROXY.
+NO_PROXY_OPENER = build_opener(ProxyHandler({}))
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 # Resolve the CLI implementation from this checkout. The harness installs the
@@ -69,11 +72,19 @@ import b2  # noqa: E402
 from b2._internal.version_listing import LATEST_STABLE_VERSION  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'lib'))
+from observing_proxy import ObservingProxy  # noqa: E402
 from simulator_guard import (  # noqa: E402
     CREDENTIAL_REFUSAL,
     credential_is_fixed,
     scrubbed_environment,
 )
+
+# How long the observing proxy holds each part upload / ranged download before
+# forwarding it. The simulator answers in milliseconds, so without a hold two
+# requests could overlap without the check ever catching them at the same time.
+OBSERVE_HOLD_SECONDS = 0.5
+# b2sdk's DownloadManager.DEFAULT_MIN_PART_SIZE: the content one ranged download stream retrieves.
+DOWNLOAD_PART_SIZE = 100 * 1024 * 1024
 
 
 class CheckFailure(Exception):
@@ -1266,8 +1277,7 @@ class Lifecycle:
             raise CheckFailure('multi-bucket key', 'unscoped bucket was accessible')
 
     @staticmethod
-    def large_payload() -> bytes:
-        size = 16 * 1024 * 1024
+    def large_payload(size: int = 16 * 1024 * 1024) -> bytes:
         return (b'large-sdkharness-' * (size // 17 + 1))[:size]
 
     def assert_large_version(
@@ -1290,7 +1300,13 @@ class Lifecycle:
         return version
 
     def upload_large(
-        self, bucket_name: str, name: str, payload: bytes, threads: int, step: str
+        self,
+        bucket_name: str,
+        name: str,
+        payload: bytes,
+        threads: int,
+        step: str,
+        part_size: int = 5_000_000,
     ) -> None:
         path = self.scratch / f'large-{uuid.uuid4().hex}.bin'
         path.write_bytes(payload)
@@ -1300,7 +1316,7 @@ class Lifecycle:
             'upload',
             '--no-progress',
             '--min-part-size',
-            '5000000',
+            str(part_size),
             '--threads',
             str(threads),
             bucket_name,
@@ -1348,35 +1364,108 @@ class Lifecycle:
         if self.download_from_bucket('download multipart file', bucket_name, name) != payload:
             raise CheckFailure('multipart round trip', 'downloaded bytes differ from upload')
 
+    @contextmanager
+    def through_observing_proxy(self, label: str) -> Iterator[ObservingProxy]:
+        """Run the CLI against a loopback proxy in front of the simulator.
+
+        The CLI authorizes through the proxy (with its own account-info file), so every
+        API, upload and download URL it is later given leads back through the proxy,
+        which counts how many part uploads / ranged downloads are open at once.
+        """
+        saved = self.child_environment
+        try:
+            with ObservingProxy(self.simulator_url, hold_seconds=OBSERVE_HOLD_SECONDS) as proxy:
+                self.child_environment = {
+                    **saved,
+                    'B2_ENVIRONMENT': proxy.origin,
+                    'B2_ACCOUNT_INFO': str(self.scratch / f'observed-{label}-account-info'),
+                }
+                self.invoke(f'authenticate through observer ({label})', 'account', 'authorize')
+                yield proxy
+        finally:
+            self.child_environment = saved
+
     def large_concurrent_parts(self) -> None:
         bucket_name = self.new_bucket()
         payload = self.large_payload()
+        peaks: dict[int, int] = {}
         for threads, name in ((1, 'st/threads-1.bin'), (4, 'st/threads-4.bin')):
-            self.upload_large(bucket_name, name, payload, threads, f'upload with {threads} threads')
+            with self.through_observing_proxy(f'upload-{threads}') as proxy:
+                self.upload_large(
+                    bucket_name, name, payload, threads, f'upload with {threads} threads'
+                )
+                peaks[threads] = proxy.peak('upload_part')
+                parts = proxy.total('upload_part')
             self.assert_large_version(bucket_name, name, payload, f'read {threads}-thread metadata')
+            if (
+                self.download_from_bucket(f'download {threads}-thread upload', bucket_name, name)
+                != payload
+            ):
+                raise CheckFailure(
+                    'large upload', f'{threads}-thread upload stored different bytes'
+                )
+            if parts < 2:
+                raise CheckFailure('large upload', f'only {parts} b2_upload_part request(s) seen')
+        if peaks[1] != 1:
+            raise CheckFailure('concurrency', f'--threads 1 had {peaks[1]} parts in flight at once')
+        if peaks[4] < 2:
+            raise CheckFailure(
+                'concurrency',
+                f'--threads 4 never had two b2_upload_part requests in flight (peak {peaks[4]})',
+            )
 
     def large_parallel_download(self) -> None:
         bucket_name = self.new_bucket()
-        payload = self.large_payload()
+        # b2sdk starts one ranged stream per DOWNLOAD_PART_SIZE of content and the CLI has no
+        # option to lower it, so a file must be at least two of them for the CLI to download
+        # it in parallel at all: a smaller file is always one plain GET, whatever --threads says.
+        payload = self.large_payload(2 * DOWNLOAD_PART_SIZE + 1024 * 1024)
         name = 'st/parallel-download.bin'
-        self.upload_large(bucket_name, name, payload, 4, 'upload parallel-download fixture')
+        self.upload_large(
+            bucket_name,
+            name,
+            payload,
+            4,
+            'upload parallel-download fixture',
+            part_size=DOWNLOAD_PART_SIZE,
+        )
         self.assert_large_version(bucket_name, name, payload, 'read parallel-download metadata')
+        peaks: dict[int, int] = {}
+        ranged: dict[int, int] = {}
         for threads in (1, 4):
             path = self.scratch / f'download-{threads}.bin'
-            self.invoke(
-                f'download with {threads} threads',
-                'file',
-                'download',
-                '--no-progress',
-                '--threads',
-                str(threads),
-                '--max-download-streams-per-file',
-                str(threads),
-                f'b2://{bucket_name}/{name}',
-                str(path),
-            )
+            with self.through_observing_proxy(f'download-{threads}') as proxy:
+                self.invoke(
+                    f'download with {threads} threads',
+                    'file',
+                    'download',
+                    '--no-progress',
+                    '--threads',
+                    str(threads),
+                    '--max-download-streams-per-file',
+                    str(threads),
+                    f'b2://{bucket_name}/{name}',
+                    str(path),
+                )
+                peaks[threads] = proxy.peak('download_stream')
+                ranged[threads] = proxy.total('ranged_get')
             if path.read_bytes() != payload:
                 raise CheckFailure('parallel download', f'{threads}-thread bytes differ')
+            path.unlink()
+        if peaks[1] != 1 or ranged[1] != 0:
+            raise CheckFailure(
+                'concurrency',
+                f'--threads 1 used {peaks[1]} overlapping streams and {ranged[1]} ranged GETs',
+            )
+        # b2sdk reuses the first, unranged response for the first share of the file and
+        # fetches the rest with Range requests, so both must be present and overlap.
+        if ranged[4] < 1:
+            raise CheckFailure('concurrency', '--threads 4 made no ranged GET')
+        if peaks[4] < 2:
+            raise CheckFailure(
+                'concurrency',
+                f'--threads 4 never had two download streams in flight (peak {peaks[4]})',
+            )
 
     def upload_fifo(
         self, step: str, bucket_name: str, name: str, payload: bytes, *, incremental: bool
@@ -1487,7 +1576,7 @@ class Lifecycle:
         ).strip()
         if not prefix_token or '?' in prefix_token or 'x-amz-' in prefix_token.lower():
             raise CheckFailure('native URL', 'prefix authorization is not a bare token')
-        with urlopen(authorized_url, timeout=10) as response:
+        with NO_PROXY_OPENER.open(authorized_url, timeout=10) as response:
             if response.status != 200 or response.read() != payload:
                 raise CheckFailure('authorized fetch', 'response did not return fixture bytes')
 
@@ -1502,7 +1591,7 @@ class Lifecycle:
         ).splitlines()[0]
         time.sleep(5)
         try:
-            urlopen(short_url, timeout=10)
+            NO_PROXY_OPENER.open(short_url, timeout=10)
         except HTTPError as error:
             if error.code != 401:
                 raise CheckFailure(

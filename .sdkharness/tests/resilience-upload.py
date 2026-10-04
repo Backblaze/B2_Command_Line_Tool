@@ -17,6 +17,18 @@ import tempfile
 import time
 import uuid
 from collections.abc import Mapping
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+# Resolve the CLI implementation from this checkout, as the other executables do, and
+# follow the latest stable apiver rather than a hard-coded one.
+sys.path.insert(0, str(REPOSITORY_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'lib'))
+from simulator_guard import scrubbed_environment  # noqa: E402
+
+import b2  # noqa: E402
+from b2._internal.version_listing import LATEST_STABLE_VERSION  # noqa: E402
 
 LEVEL = 'resilience'
 SCENARIOS = {
@@ -87,7 +99,7 @@ ALL_SCENARIOS = {*SCENARIOS, *WIRE_SCENARIOS, *API_SCENARIOS, *TRANSFER_SCENARIO
 SCENARIO = ''
 OBJECT_NAME = ''
 FAULT: dict[str, object] = {}
-CLI_PREFIX = [sys.executable, '-m', 'b2._internal.b2v5']
+CLI_PREFIX = [sys.executable, '-m', f'b2._internal.{LATEST_STABLE_VERSION}']
 ARM_PATH = '/faults'
 
 
@@ -192,8 +204,12 @@ class Cli:
 
     def __init__(self, scratch: str) -> None:
         self.scratch = scratch
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith('B2_')}
+        # No ambient B2_* value or proxy variable reaches the CLI (see simulator_guard).
+        self.env = scrubbed_environment(os.environ)
         self.env.update(
+            PYTHONPATH=os.pathsep.join(
+                filter(None, (str(REPOSITORY_ROOT), os.environ.get('PYTHONPATH', '')))
+            ),
             B2_APPLICATION_KEY_ID='test-key-id',
             B2_APPLICATION_KEY='test-key',
             B2_ENVIRONMENT=f"http://127.0.0.1:{loopback_port(os.environ, 'SDKHARNESS_SIMULATOR_URL')}",
@@ -205,6 +221,7 @@ class Cli:
     def run(self, *args):
         return subprocess.run(
             [*CLI_PREFIX, *args],
+            cwd=REPOSITORY_ROOT,
             env=self.env,
             capture_output=True,
             text=True,
@@ -242,6 +259,25 @@ def json_of(text: str):
     return json.loads(text[min(starts) :])
 
 
+def authorize(cli, attempts: int = 3) -> None:
+    """Authorize the CLI, retrying the setup step only.
+
+    Authorizing is idempotent and is not what any scenario tests, so a transient failure of
+    the very first CLI start (a cold interpreter and import cache, or a listener that has
+    printed its URL a moment before it accepts) must not be reported as an SDK failure.
+    A retry is announced, and a persistent failure still fails with the CLI's own error.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            cli.must('authenticate', 'account', 'authorize')
+            return
+        except Failure:
+            if attempt == attempts:
+                raise
+            note(f'authorize attempt {attempt} failed; retrying (setup step, not under test)')
+            time.sleep(1.0)
+
+
 def setup():
     """An authorized CLI and a fresh bucket. There is no unreachable/unauthorized
     amber: the runner supplies the server and the credential, so either failing
@@ -249,7 +285,7 @@ def setup():
     scratch = tempfile.mkdtemp(prefix='sdkharness-res-cli.')
     CLEANUP.append(scratch)
     cli = Cli(scratch)
-    cli.must('authenticate', 'account', 'authorize')
+    authorize(cli)
     bucket = f'sdkharness-res-{uuid.uuid4().hex[:12]}'
     cli.must('create bucket', 'bucket', 'create', bucket, 'allPrivate')
     note(
@@ -270,7 +306,7 @@ def put(cli, bucket, name, payload, *flags):
         raise Failure('upload', type(error).__name__) from error
 
 
-def uploaded_or_fail(proc, payload, endpoint='b2_upload_file'):
+def uploaded_or_fail(proc, payload, endpoint='b2_upload_file', large_file=False):
     """An upload process that must have recovered and returned the right file record.
 
     It checks the exit status, that a JSON file record came back, and that the
@@ -279,6 +315,11 @@ def uploaded_or_fail(proc, payload, endpoint='b2_upload_file'):
     kept because a CLI that stores the right bytes but reports a wrong checksum
     in its response must still fail. (SHA-1 is B2's wire checksum here, not a
     security primitive.)
+
+    A large (multipart) file legitimately reports ``contentSha1: none`` -- B2 has no single
+    checksum for it and carries ``large_file_sha1`` in ``fileInfo`` instead -- so ``none`` is
+    accepted only when the caller says the upload is a large file, and then the digest in
+    ``fileInfo`` must match. Every small-file scenario requires the real checksum.
     """
     if proc.returncode != 0:
         error_note(proc)
@@ -292,7 +333,12 @@ def uploaded_or_fail(proc, payload, endpoint='b2_upload_file'):
     except Exception as error:  # noqa: BLE001
         raise Failure('upload', 'b2 file upload printed no JSON file record') from error
     got = (meta.get('contentSha1') or '').split(':')[-1]
-    if got not in ('none', hashlib.sha1(payload).hexdigest()):
+    expected = hashlib.sha1(payload).hexdigest()
+    if large_file and got == 'none':
+        info = meta.get('fileInfo') or {}
+        if not isinstance(info, dict) or info.get('large_file_sha1') != expected:
+            raise Failure('upload', 'the large file record has no matching large_file_sha1')
+    elif got != expected:
         raise Failure('upload', 'the returned contentSha1 does not match the bytes sent')
     return meta
 
@@ -312,6 +358,14 @@ def listed(cli, bucket):
 
 
 CLEANUP = []
+
+
+def check_checkout() -> None:
+    """The CLI under test must be this checkout, not an installed distribution."""
+    try:
+        Path(b2.__file__).resolve().relative_to(REPOSITORY_ROOT)
+    except ValueError as error:
+        raise Failure('setup', 'b2 CLI was not imported from this checkout') from error
 
 
 def validate_environment(environment: Mapping[str, str]) -> str:
@@ -518,6 +572,7 @@ def run_transfer_fault() -> None:
             ),
             payload,
             endpoint,
+            large_file=True,
         )
         round_trip(cli, f'b2://{bucket}/{OBJECT_NAME}', payload)
 
@@ -568,7 +623,11 @@ def run_transfer_fault() -> None:
 def main() -> int:
     global SCENARIO, OBJECT_NAME, FAULT, ARM_PATH
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    # Name the scenario in the result line even when the configuration is refused.
+    requested = os.environ.get('SDKHARNESS_SCENARIO', '')
+    SCENARIO = requested if requested in ALL_SCENARIOS else 'unknown'
     try:
+        check_checkout()
         SCENARIO = validate_environment(os.environ)
         OBJECT_NAME = f"res/{SCENARIO.replace('.', '-')}.bin"
         if SCENARIO in WIRE_SCENARIOS:
