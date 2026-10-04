@@ -153,58 +153,72 @@ class ObservingProxy:
     # -- forwarding ---------------------------------------------------------
 
     def _forward(self, handler: BaseHTTPRequestHandler) -> None:
+        # Only an origin-form path ("/...") is forwarded, and only to the one fixed loopback
+        # upstream chosen at construction: a client cannot name another host through the
+        # request line, a "//host" path, or a Host header (which is never forwarded).
+        path = handler.path
+        if not path.startswith('/') or path.startswith('//') or any(c in path for c in '\r\n'):
+            handler.send_error(400)
+            return
         headers = {name: value for name, value in handler.headers.items()}
-        length = int(headers.get('Content-Length') or 0)
+        try:
+            length = int(headers.get('Content-Length') or 0)
+        except ValueError:
+            length = -1
+        if length < 0:
+            handler.send_error(400)
+            return
         body = handler.rfile.read(length) if length else None
-        labels = tuple(self.classify(handler.command, handler.path, headers))
+        labels = tuple(self.classify(handler.command, path, headers))
         for label in labels:
             self._enter(label)
+        connection = http.client.HTTPConnection(self.upstream_host, self.upstream_port, timeout=120)
         try:
             if labels and self.hold_seconds:
                 time.sleep(self.hold_seconds)
+            outgoing = {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP}
             try:
-                status, response_headers, payload = self._upstream(
-                    handler.command, handler.path, headers, body
-                )
+                connection.request(handler.command, path, body=body, headers=outgoing)
+                response = connection.getresponse()
             except OSError:
                 handler.send_error(502)
                 return
-            handler.send_response(status)
-            for name, value in response_headers:
+            is_json = any(
+                name.lower() == 'content-type' and 'json' in value.lower()
+                for name, value in response.getheaders()
+            )
+            rewritten = None
+            if is_json and handler.command != 'HEAD':
+                # small API documents: buffered so the simulator origin can be replaced
+                rewritten = response.read().replace(
+                    self.upstream_origin.encode(), self.origin.encode()
+                )
+            handler.send_response(response.status)
+            for name, value in response.getheaders():
                 # send_response() already wrote Date and Server; a second Date is refused
                 if name.lower() not in _HOP_BY_HOP | {'date', 'server'}:
                     handler.send_header(name, value)
-            handler.send_header('Content-Length', str(len(payload)))
+            if rewritten is not None:
+                handler.send_header('Content-Length', str(len(rewritten)))
+            elif response.getheader('Content-Length') is not None:
+                handler.send_header('Content-Length', response.getheader('Content-Length'))
             handler.send_header('Connection', 'close')
             handler.end_headers()
-            if handler.command != 'HEAD':
-                # A request stays in flight until its response has been delivered (or the
-                # client hung up, as a parallel download does once its share is read).
-                try:
-                    handler.wfile.write(payload)
-                except OSError:
-                    pass
             handler.close_connection = True
-        finally:
-            for label in labels:
-                self._leave(label)
-
-    def _upstream(self, method, path, headers, body):
-        outgoing = {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP}
-        connection = http.client.HTTPConnection(self.upstream_host, self.upstream_port, timeout=120)
-        try:
-            connection.request(method, path, body=body, headers=outgoing)
-            response = connection.getresponse()
-            payload = response.read() if method != 'HEAD' else b''
-            response_headers = response.getheaders()
-            if method == 'HEAD':
-                # keep the upstream's own Content-Length: there is no body to measure
-                payload = b''
-            elif any(
-                name.lower() == 'content-type' and 'json' in value.lower()
-                for name, value in response_headers
-            ):
-                payload = payload.replace(self.upstream_origin.encode(), self.origin.encode())
-            return response.status, response_headers, payload
+            if handler.command == 'HEAD':
+                return
+            # A request stays in flight until its response has been delivered (or the
+            # client hung up, as a parallel download does once its share is read). File
+            # bodies are streamed, not held in memory.
+            try:
+                if rewritten is not None:
+                    handler.wfile.write(rewritten)
+                else:
+                    while chunk := response.read(1024 * 1024):
+                        handler.wfile.write(chunk)
+            except OSError:
+                pass
         finally:
             connection.close()
+            for label in labels:
+                self._leave(label)
