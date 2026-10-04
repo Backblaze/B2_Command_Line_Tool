@@ -28,6 +28,7 @@ back through the proxy), and never logs a header or body.
 from __future__ import annotations
 
 import http.client
+import re
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -36,6 +37,9 @@ from urllib.parse import urlsplit
 
 # Returns the labels a request is counted under (none: not observed).
 Classifier = Callable[[str, str, Mapping[str, str]], Sequence[str]]
+
+# An origin-form request target: a path and query of RFC 3986 characters, nothing else.
+_SAFE_PATH = re.compile(r"/[A-Za-z0-9._~!$&'()*+,;=:@%/?-]*")
 
 _HOP_BY_HOP = {
     'connection',
@@ -157,7 +161,7 @@ class ObservingProxy:
         # upstream chosen at construction: a client cannot name another host through the
         # request line, a "//host" path, or a Host header (which is never forwarded).
         path = handler.path
-        if not path.startswith('/') or path.startswith('//') or any(c in path for c in '\r\n'):
+        if not _SAFE_PATH.fullmatch(path) or path.startswith('//'):
             handler.send_error(400)
             return
         headers = {name: value for name, value in handler.headers.items()}
