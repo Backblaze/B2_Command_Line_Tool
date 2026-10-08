@@ -17,6 +17,8 @@ from b2sdk.v3 import Bucket
 from b2sdk.v3.exception import DuplicateBucketName, NonExistentBucket
 from b2sdk.v3.testing import BUCKET_NAME_LENGTH, BucketManager
 
+from .helpers import SSE_B2_AES
+
 PERSISTENT_BUCKET_NAME_PREFIX = 'constst'
 
 
@@ -57,6 +59,8 @@ def get_or_create_persistent_bucket(bucket_manager: BucketManager) -> Bucket:
                 }
             ],
         )
+    if bucket.default_server_side_encryption != SSE_B2_AES:
+        bucket = bucket.update(default_server_side_encryption=SSE_B2_AES)
     return bucket
 
 
