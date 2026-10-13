@@ -12,13 +12,15 @@ from __future__ import annotations
 import argparse
 import contextlib
 import functools
+import io
 import locale
 import re
 import sys
 import textwrap
 import unittest.mock
 
-from rst2ansi import rst2ansi
+from rich.console import Console
+from rich_rst import RestructuredText
 
 try:
     getencoding = locale.getencoding
@@ -127,14 +129,13 @@ class B2ArgumentParser(argparse.ArgumentParser):
             return textwrap.dedent(value)
         else:
             encoding = self._get_encoding()
-            try:
-                return rst2ansi(value.encode(encoding), output_encoding=encoding)
-            except SystemError:
-                # FALLBACK(PARSER): rst2ansi can raise SystemError on Python 3.14+ due to
-                # buffer overflow bug in get_terminal_size ioctl call.
-                # See: https://github.com/Backblaze/B2_Command_Line_Tool/issues/1119
-                # TODO-REMOVE-BY: When rst2ansi is updated or replaced
+            if encoding == 'ascii':
                 return textwrap.dedent(value)
+
+            buf = io.StringIO()
+            console = Console(file=buf, color_system='standard')
+            console.print(RestructuredText(textwrap.dedent(value)))
+            return buf.getvalue().rstrip()
 
     def _get_short_description(self) -> str:
         if not self._raw_description:
