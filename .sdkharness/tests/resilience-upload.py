@@ -190,7 +190,7 @@ class Cli:
     bin/conformance/B2_Command_Line_Tool/files.upload reaches @simulator.
     """
 
-    def __init__(self, scratch: str) -> None:
+    def __init__(self, scratch: str, extra_env: Mapping[str, str] | None = None) -> None:
         self.scratch = scratch
         self.env = {k: v for k, v in os.environ.items() if not k.startswith('B2_')}
         self.env.update(
@@ -200,6 +200,7 @@ class Cli:
             B2_ACCOUNT_INFO=os.path.join(scratch, 'account-info'),
             XDG_CONFIG_HOME=os.path.join(scratch, 'xdg'),
         )
+        self.env.update(extra_env or {})
         os.makedirs(self.env['XDG_CONFIG_HOME'])
 
     def run(self, *args):
@@ -242,13 +243,13 @@ def json_of(text: str):
     return json.loads(text[min(starts) :])
 
 
-def setup():
+def setup(extra_env: Mapping[str, str] | None = None):
     """An authorized CLI and a fresh bucket. There is no unreachable/unauthorized
     amber: the runner supplies the server and the credential, so either failing
     is a harness defect."""
     scratch = tempfile.mkdtemp(prefix='sdkharness-res-cli.')
     CLEANUP.append(scratch)
-    cli = Cli(scratch)
+    cli = Cli(scratch, extra_env)
     cli.must('authenticate', 'account', 'authorize')
     bucket = f'sdkharness-res-{uuid.uuid4().hex[:12]}'
     cli.must('create bucket', 'bucket', 'create', bucket, 'allPrivate')
@@ -375,13 +376,17 @@ def run_retry() -> None:
 
 def run_wire_fault() -> None:
     kind = WIRE_SCENARIOS[SCENARIO]
-    if kind == 'stall':
-        raise Skip(
-            'no-client-option',
-            'the CLI exposes no supported per-request timeout shorter than the controlled stall',
-        )
-
-    cli, bucket = setup()
+    # STALL. The CLI has no timeout option, but b2/_internal/_cli/b2api.py shortens the
+    # b2sdk request timeouts (TIMEOUT_FOR_UPLOAD = 24 s, TRY_COUNT_DATA = 2) when `CI` is
+    # set and `GITHUB_REPOSITORY` ends with `/B2_Command_Line_Tool`: the setting the CLI's
+    # own CI uses. Only the stall scenario sets them, so the 60 s stall is abandoned after
+    # 24 s and the upload retries on a new upload URL. The CLI code is unchanged.
+    extra_env = (
+        {'CI': '1', 'GITHUB_REPOSITORY': 'Backblaze/B2_Command_Line_Tool'}
+        if kind == 'stall'
+        else None
+    )
+    cli, bucket = setup(extra_env)
     payload = (b'sdkharness resilience wire fault ' * 64)[:1024]
     arm()
     uploaded_or_fail(put(cli, bucket, OBJECT_NAME, payload), payload)
