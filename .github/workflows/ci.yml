@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_DEFAULT_VERSION: "3.12"
-  UV_VERSION: "0.8.24"
+  UV_VERSION: "0.13.4"
 
 jobs:
   lint:
@@ -185,6 +185,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          pull: true
+          no-cache: true
           load: true
           tags: backblazeit/b2:test
           platforms: linux/amd64

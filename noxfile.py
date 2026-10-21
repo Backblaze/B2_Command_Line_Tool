@@ -675,7 +675,7 @@ def build_and_test_docker(session):
     """
     test_image_tag = 'b2:test'
     generate_dockerfile(session)
-    session.run('docker', 'build', '-t', test_image_tag, '.', external=True)
+    session.run('docker', 'build', '--pull', '--no-cache', '-t', test_image_tag, '.', external=True)
     run_docker_tests(session, test_image_tag)
 
 

@@ -1,6 +1,18 @@
-FROM python:${python_version}-slim as builder
+FROM python:${python_version}-slim AS base
 
-RUN apt-get update -y && apt-get install git patchelf -y && pip install -U uv==0.8.24
+RUN apt-get update -y \
+    && apt-get install --no-install-recommends -y ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+# Bootstrap pip with the checksum published in the Python security advisory.
+RUN python -m pip install --no-cache-dir --upgrade \
+    'pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70'
+
+FROM base AS builder
+
+RUN apt-get update -y \
+    && apt-get install --no-install-recommends -y git patchelf \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir uv==0.13.4
 
 WORKDIR /b2
 COPY ./b2 /b2/b2
@@ -13,7 +25,7 @@ RUN rm -r .venv && mkdir __pypackages__
 RUN uv export --locked --no-dev --extra full --no-hashes --no-editable -o requirements.txt
 RUN uv pip install --compile-bytecode --python /usr/local/bin/python --prefix __pypackages__ -r requirements.txt
 
-FROM python:${python_version}-slim
+FROM base
 
 LABEL vendor=${vendor}
 LABEL name="${name}"
