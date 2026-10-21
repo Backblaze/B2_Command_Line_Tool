@@ -9,6 +9,28 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [5.0.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.1) - 2026-10-21
+
+
+### Fixed
+
+- Reject `--incremental-mode` on unbound/streamed sources instead of silently performing a full upload; `b2 file upload` now fails with a clear error and a non-zero exit code. ([#1164](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1164))
+- Require b2sdk 2.13.2, certifi 2026.10.19, pip 26.2.2, and uv 0.13.4 or newer to address the eMudhra / emSign CA certificate incident. Update CI and container builds to use the patched tools and refresh container system certificates.
+
+### Doc
+
+- Document the ``B2_ENVIRONMENT`` authorization-realm environment variable. ([#1162](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1162))
+
+### Infrastructure
+
+- Expose a version-matched customer-health contract for centralized sdkharness execution against its loopback simulator. ([#1166](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1166))
+- Add a repository-owned sdkharness conformance contract for the files.upload scenario. ([#1168](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1168))
+- Add repository-owned sdkharness conformance contracts for listing, metadata, downloading, hiding, and deleting file versions. ([#1170](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1170))
+- Set the persistent integration-test bucket's SSE-B2 default explicitly so encryption-inheritance tests do not depend on the bucket's age. ([#1184](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1184))
+- Allow the intended custom-realm `Using <url>` notice in integration-test stderr assertions; every other stderr line still fails.
+- Restored three assertions that the repository-owned sdkharness resilience and conformance checks had dropped when they were moved into this repository (the upload response's contentSha1, the stored versions' contentSha1 after a reset-before-response, and that the hide marker is the newest version), plus the parallel-download streams flag, and added a README for running one check locally. This also records, for the repository-owned conformance and resilience migration merged in #1171-#1177 without individual fragments, that those checks now live in `.sdkharness/`.
+
+
 ## [5.0.0](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.0) - 2026-09-14
 
 
