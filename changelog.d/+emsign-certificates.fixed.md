@@ -1,0 +1,1 @@
+Require b2sdk 2.13.2, certifi 2026.10.19, pip 26.2.2, and uv 0.13.4 or newer to address the eMudhra / emSign CA certificate incident. Update CI and container builds to use the patched tools and refresh container system certificates.

@@ -8,7 +8,7 @@ env:
   CD: "true"
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PYTHON_DEFAULT_VERSION: "3.12"
-  UV_VERSION: "0.8.24"
+  UV_VERSION: "0.13.4"
 
 jobs:
   deploy:
@@ -204,6 +204,8 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
+          pull: true
+          no-cache: true
           push: true
           tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
           platforms: linux/amd64,linux/arm64
