@@ -17,8 +17,16 @@ import platform
 import re
 import string
 import subprocess
+import sys
+import tempfile
+import urllib.request
 
 import nox
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # nox depends on tomli on these Python versions
+    import tomli as tomllib
 
 UPSTREAM_REPO_URL = 'git@github.com:Backblaze/B2_Command_Line_Tool.git'
 
@@ -64,6 +72,10 @@ DOCKER_TEMPLATE = pathlib.Path('docker/Dockerfile.template')
 SYSTEM = platform.system().lower()
 MACHINE = platform.machine().lower()
 
+# staticx tags wheels built from its sdist as manylinux1, which does not exist for aarch64 (PEP 599),
+# so uv refuses to install them. Keep in sync with the `wheel` marker in the `bundle` group in pyproject.toml.
+RETAG_STATICX_WHEEL = SYSTEM == 'linux' and MACHINE == 'aarch64'
+
 WINDOWS_TIMESTAMP_SERVER = 'http://timestamp.digicert.com'
 WINDOWS_SIGNTOOL_PATH = 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe'
 
@@ -84,6 +96,7 @@ def uv_install(
     *,
     groups: tuple[str, ...] = (),
     extras: tuple[str, ...] = (),
+    no_install_packages: tuple[str, ...] = (),
     editable: bool = False,
 ) -> None:
     args = ['sync', '--locked']
@@ -95,6 +108,8 @@ def uv_install(
     for extra in extras:
         if extra:
             args.extend(['--extra', extra])
+    for package in no_install_packages:
+        args.extend(['--no-install-package', package])
     uv_env = getattr(session.virtualenv, 'location', os.getenv('VIRTUAL_ENV'))
     session.run_install('uv', *args, env={'UV_PROJECT_ENVIRONMENT': uv_env})
     if INSTALL_SDK_FROM:
@@ -105,6 +120,33 @@ def uv_install(
             INSTALL_SDK_FROM,
             env={'UV_PROJECT_ENVIRONMENT': uv_env},
         )
+
+
+def get_locked_sdist(
+    package: str,
+    lock_file: pathlib.Path = pathlib.Path('./uv.lock'),
+) -> tuple[str, str]:
+    """Return the URL and the `<algorithm>:<digest>` hash of the package's sdist in uv.lock."""
+    lock = tomllib.loads(lock_file.read_text())
+    entries = [entry for entry in lock['package'] if entry['name'] == package]
+    if len(entries) != 1:
+        raise RuntimeError(f'Expected one {package} entry in {lock_file}, found {len(entries)}.')
+    sdist = entries[0]['sdist']
+    return sdist['url'], sdist['hash']
+
+
+def download_verified(url: str, expected_hash: str, directory: pathlib.Path) -> pathlib.Path:
+    """Download a file into the directory and fail unless it matches the `<algorithm>:<digest>` hash."""
+    algorithm, expected_digest = expected_hash.split(':', maxsplit=1)
+    path = directory / url.rsplit('/', maxsplit=1)[-1]
+    with urllib.request.urlopen(url, timeout=60) as response:
+        path.write_bytes(response.read())
+    [actual_hash] = _calculate_hashes(path, [algorithm])
+    if actual_hash.hexdigest() != expected_digest:
+        raise RuntimeError(
+            f'{path.name} has {algorithm} digest {actual_hash.hexdigest()}, expected {expected_digest}.'
+        )
+    return path
 
 
 def github_output(name, value, *, secret=False):
@@ -323,6 +365,43 @@ def dump_license(session: nox.Session):
     session.run('b2', 'license', '--dump', '--with-packages')
 
 
+def install_retagged_staticx(session: nox.Session) -> None:
+    """Install staticx from its locked sdist, retagging the built wheel so that uv accepts it."""
+    sdist_url, sdist_hash = get_locked_sdist('staticx')
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        sdist = download_verified(sdist_url, sdist_hash, pathlib.Path(tmp_dir))
+        wheel_dir = pathlib.Path(tmp_dir, 'wheels')
+        # Build without isolation, as `no-build-isolation-package` in pyproject.toml does for `uv sync`.
+        session.run_install(
+            'uv',
+            'build',
+            '--wheel',
+            '--no-build-isolation',
+            '--python',
+            session.virtualenv.location,
+            '--out-dir',
+            str(wheel_dir),
+            str(sdist),
+        )
+        # Empty when `--no-install` skipped the build; `run_install` then skips retagging as well.
+        built_wheels = [str(path) for path in wheel_dir.glob('*.whl')]
+        session.run_install(
+            'wheel', 'tags', '--remove', '--platform-tag', f'manylinux2014_{MACHINE}', *built_wheels
+        )
+        session.run_install(
+            'uv',
+            'pip',
+            'install',
+            '--no-deps',
+            '--no-index',
+            '--find-links',
+            str(wheel_dir),
+            '--python',
+            session.virtualenv.location,
+            'staticx',
+        )
+
+
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def bundle(session: nox.Session):
     """Bundle the distribution."""
@@ -337,7 +416,10 @@ def bundle(session: nox.Session):
         session,
         groups=('bundle',),
         extras=('full',),
+        no_install_packages=('staticx',) if RETAG_STATICX_WHEEL else (),
     )
+    if RETAG_STATICX_WHEEL:
+        install_retagged_staticx(session)
 
     template_spec = string.Template(pathlib.Path('b2.spec.template').read_text())
     versions = get_versions()
@@ -730,8 +812,6 @@ def load_allowed_change_types(
     """
     Load the list of allowed change types from the pyproject.toml file.
     """
-    import tomllib
-
     configuration = tomllib.loads(project_toml.read_text())
     return set(entry['directory'] for entry in configuration['tool']['towncrier']['type'])
 
