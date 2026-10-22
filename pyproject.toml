@@ -90,6 +90,7 @@ bundle = [
     "patchelf-wrapper==1.2.0; platform_system == \"Linux\"",
     "staticx~=0.14.1; platform_system == \"Linux\"",
     "setuptools>=60,<80; platform_system == \"Linux\"",  # required by non-isolated Linux bundle builds
+    "wheel~=0.48.0; platform_system == \"Linux\" and platform_machine == \"aarch64\"",  # retags the staticx wheel, see noxfile.py
 ]
 
 [tool.uv]
