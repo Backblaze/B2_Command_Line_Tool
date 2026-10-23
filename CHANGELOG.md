@@ -9,6 +9,18 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [5.0.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.2) - 2026-10-23
+
+
+### Fixed
+
+- Require b2sdk 2.13.2, certifi 2026.10.19, pip 26.2.2, and uv 0.13.4 or newer to address the eMudhra / emSign CA certificate incident. Update CI and container builds to use the patched tools and refresh container system certificates.
+
+### Infrastructure
+
+- Retag the staticx wheel built on Linux aarch64 as `manylinux2014_aarch64`, because uv 0.9.16 and newer reject its `manylinux1_aarch64` tag, which blocked building the aarch64 standalone executables.
+
+
 ## [5.0.1](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.1) - 2026-10-21
 
 
