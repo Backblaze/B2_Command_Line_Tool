@@ -146,7 +146,9 @@ class B2ArgumentParser(argparse.ArgumentParser):
         return ''
 
     def error(self, message):
-        self.print_help()
+        # Help printed because of a command line syntax error is part of the error
+        # report, not of the command output, hence it goes to stderr.
+        self.print_help(sys.stderr)
 
         self.exit(2, f'\n{self.prog}: error: {message}\n')
 
