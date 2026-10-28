@@ -959,7 +959,9 @@ def ci(session):
         ['git', 'ls-files', '-om', '--exclude-standard'], text=True
     ).split()
     if changed := sorted(set(path for path in changed if os.path.isfile(path))):
-        session.run('uvx', 'codespell==2.4.1', '-L', 'datas,re-use', *changed, external=True)
+        session.run(
+            'uvx', 'codespell==2.4.1', '-L', 'datas,re-use,re-using', *changed, external=True
+        )
     session.run(*nox_cmd, '-s', 'lint', 'towncrier_check', 'changelog_check', 'build')
     session.run(*nox_cmd, '-s', f'unit-{python}')
     session.run(*nox_cmd, '-s', f'integration-{python}', '--', '-m', 'not require_secrets')
