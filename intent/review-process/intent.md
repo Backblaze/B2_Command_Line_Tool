@@ -1,7 +1,6 @@
 # Intent: review and merge process scaled by risk
 Author: Gonzalo Peña-Castellanos (with Claude). Issue: #1192. Status: draft, for the maintainers.
-Source: [How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/),
-applied to the B2 CLI. Same proposal as Backblaze/blazer#152, adapted.
+Same proposal as the Blazer review-process intent (Backblaze/blazer#152), adapted to the B2 CLI.
 
 ## Problem
 

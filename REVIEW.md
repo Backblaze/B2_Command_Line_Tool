@@ -29,7 +29,8 @@ Tag each finding with its pass.
   flags, output and exit codes; deprecations warn on stderr; `b2` (latest) changes are announced in a
   `changed` or `removed` fragment that says what users must do.
 - **Output**: stdout vs stderr is deliberate; `--quiet` prints nothing on stdout; JSON output stays valid
-  and stable; help text reads well and keeps developer-only knobs out; messages use `self.b2_binary_name`.
+  and stable; help text reads well and keeps developer-only knobs out; messages use the invoked binary name
+  (`self.console_tool.b2_binary_name`), not a hard-coded `b2`.
 - **Data safety**: destructive commands need the flags the user gave, honor `--dry-run`, and touch only
   the bucket, prefix or versions requested.
 - **Security**: application keys, auth tokens and SSE-C keys never printed, logged or put in errors;

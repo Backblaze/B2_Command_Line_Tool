@@ -8,9 +8,10 @@ This file is the map for coding agents and new contributors; `CLAUDE.md` points 
 
 Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv` 0.13.4 or newer).
 
-- Full local gate (mirrors CI on one Python): `nox -s ci`. Run it before every push and paste the tail in
-  the PR. `NOX_CI_PYTHON=3.10 nox -s ci` picks another interpreter.
-- Format: `nox -s format` (ruff). Lint: `nox -s lint` (ruff check and format, license check,
+- Full local gate (CI's lint, build and test jobs on Python 3.12): `nox -s ci`. Run it before every push and
+  paste the tail in the PR. `NOX_CI_PYTHON`, `NOX_CI_BASE` and `NOX_CI_SKIP_CHANGELOG` adjust it (see
+  `noxfile.py`). It does not run the doc, docker or bundle jobs.
+- Format: `nox -s format` (ruff). Lint: `nox -s lint` (ruff check, license check,
   `test/static`, `uv lock --check`).
 - Unit tests: `nox -s unit-3.12`. They run once per ApiVer (`--cli b2v3`, `b2v4`, `b2v5`) and need no
   credentials.
@@ -45,13 +46,14 @@ bumping the `b2sdk` pin.
 
 ## Conventions
 
-- Python 3.10+ (`requires-python`); CI tests 3.10 to 3.14 and PyPy on Linux, macOS and Windows.
+- Python 3.10+ (`requires-python`); CI tests 3.10 to 3.14 on Linux, macOS and Windows, and PyPy 3.10 on Linux.
 - ApiVer is a compatibility promise. `b2vN` keeps its commands, flags, output and exit codes; a change
   to them goes into a new ApiVer or behind a deprecation, never into an existing `b2vN` in place. Check
   the `registry.py` of every version a command is registered in.
 - Command help comes from the class docstring and is part of the product (`--help`, README usage, Sphinx).
   Developer-only flags and environment variables (`--environment`, `--dev`, `B2_ENVIRONMENT`) stay out of the main help.
-- Messages that tell the user to run something use `self.b2_binary_name`, never a hard-coded `b2`.
+- Messages that tell the user to run something use the binary name the user invoked
+  (`self.console_tool.b2_binary_name` in a `Command`), never a hard-coded `b2`.
 - Every source file starts with the Backblaze license header (`test/static` checks it).
 - Comments are short and explain non-obvious decisions. Ruff config is in `pyproject.toml`.
 

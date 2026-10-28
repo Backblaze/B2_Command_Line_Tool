@@ -77,10 +77,12 @@ If an agent wrote your PR, you own it: you review it before asking others to, an
 
 ## Local CI
 
-`nox -s ci` runs what CI runs on one Python version: codespell on the files you changed, `lint`, `towncrier_check`,
+`nox -s ci` runs what CI's lint, build and test jobs run, on Python 3.12: codespell on the files you changed, `lint`, `towncrier_check`,
 `changelog_check`, `build`, unit tests and the integration tests that need no credentials (plus the live-B2 ones
 when `B2_TEST_APPLICATION_KEY` and `B2_TEST_APPLICATION_KEY_ID` are set). Run it before every push. Set
-`NOX_CI_PYTHON` to pick the interpreter.
+`NOX_CI_PYTHON` to pick the interpreter, `NOX_CI_BASE` for a base other than `origin/master`, and
+`NOX_CI_SKIP_CHANGELOG=1` when the PR has the `-changelog` label. Note that `nox -s lint` reformats files in place
+rather than failing on formatting, so commit what it changes.
 
 ## Releases and security
 

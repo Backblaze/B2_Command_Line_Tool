@@ -11,7 +11,7 @@ description: Turn an idea, ticket, pain point or incident into a committed inten
 
 1. Let the originator describe the problem in their own words. No formal language needed. If the source is a ticket or incident, read it (via MCP or the pasted text) and start from there.
 2. Interview until the idea is concrete, asking what an analyst would: who is affected, what they cannot do today, what better looks like, what is out of scope, which systems are touched, which constraints apply (security, compliance, existing auth), how success is observed. Ask a few questions at a time, not a form.
-3. Check for an agreed template (`intent/TEMPLATE.md` or an organization skill) and use it. Otherwise use the template below.
+3. Check for an agreed template (`intent/README.md` or an organization skill) and use it. Otherwise use the template below.
 4. Write the draft to `intent/<change-slug>/intent.md` (kebab-case slug, create the folder).
 5. Read it back and have the originator correct anything misunderstood. Do not invent answers: unresolved items go under Open questions.
 6. Commit when the originator is satisfied (follow the repo's commit conventions). The product owner picks it up from there and decides accept or close.

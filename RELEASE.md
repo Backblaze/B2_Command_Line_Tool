@@ -1,7 +1,7 @@
 # Releasing the B2 CLI
 
-A release is a `release X.Y.Z` commit on `master` (for example `a339404`, release 5.0.1) and a `vX.Y.Z`
-tag on it. The version comes from the git tag (hatch-vcs); no file holds it. Pushing the tag runs
+A release is a changelog commit on `master` (titled `release X.Y.Z` or `vX.Y.Z`, for example `9ea898a`,
+v5.0.2) and a `vX.Y.Z` tag on it. The version comes from the git tag (hatch-vcs); no file holds it. Pushing the tag runs
 [`cd.yml`](.github/workflows/cd.yml), which publishes everything.
 
 ## Before you start
@@ -27,8 +27,9 @@ release rather than cutting one for each.
    the fragments.
 2. Update the usage block in `README.md` from `b2 --help`:
    `COLUMNS=4000 b2 --help | awk '/^usages:/ {p=1; next} p {sub(/^ */, "", $0); print}'`
-3. Commit as `release X.Y.Z` and open a PR for it, so CI and a maintainer see it before it is tagged.
-4. After it merges and CI on `master` is green, tag the merge result and push the tag:
+3. Commit as `release X.Y.Z`. Today it is pushed to `master` directly, as `make_release_commit` prints;
+   `intent/review-process/intent.md` proposes a PR instead, so CI and a maintainer see it before the tag.
+4. Once it is on `master` and CI there is green, tag that commit and push the tag:
    `git tag vX.Y.Z && git push upstream vX.Y.Z`.
 5. Watch `cd.yml` to the end. The release is done when every job passed.
 
