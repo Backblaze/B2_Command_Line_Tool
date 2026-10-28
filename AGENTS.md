@@ -59,7 +59,7 @@ bumping the `b2sdk` pin.
 
 ## Things agents get wrong here
 
-Each line was raised by a reviewer on at least two PRs.
+Each line was raised by reviewers on at least two merged PRs.
 
 1. **Missing changelog fragment.** Every PR adds a `changelog.d` file: `{issue}.{type}.md` or
    `+{slug}.{type}.md`. Only a `uv.lock`-only change or the `-changelog` label skips it.
@@ -84,6 +84,19 @@ Each line was raised by a reviewer on at least two PRs.
 10. **Proof that did not run.** A skipped check is NOT RUN, never PASS. Tests can pass under nox and fail
     under bare pytest (forked tests); run them through nox.
 11. **PR text that disagrees with code.** Re-read the description after the last commit.
+12. **Undocumented options.** Every new flag goes in the command docstring with what it does, its
+    choices and default, plus costs or limits users would otherwise learn from support (transactions,
+    size limits, inclusive ranges).
+13. **Happy-path-only tests.** Test the failure paths and assert the error message; parametrize instead of
+    copying a test to vary one input.
+14. **Unsafe destructive defaults.** Commands that delete (`rm`, `sync --delete`) must not be easy to
+    trigger by accident, and filters must be tested together with deletion. A safer default is still a
+    breaking change: add an opt-in flag in the current major.
+15. **Unrelated changes in the PR.** Refactors, formatter runs and side fixes go in their own PR or an
+    issue; explain the reason for dependency and config changes in the description.
+
+The full list, by theme and with the PRs where each came up, is in
+[doc/review-lessons.md](doc/review-lessons.md). Add to it when a review teaches something new.
 
 ## Workflow (AI-native SDLC)
 

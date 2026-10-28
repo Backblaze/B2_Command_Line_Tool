@@ -14,7 +14,8 @@ is also a failure: it claims coverage it does not give.
 
 ## Before the passes
 
-1. Read the linked issue and, if present, `intent/<slug>/spec.md` and `plan.md`.
+1. Read the linked issue and, if present, `intent/<slug>/spec.md` and `plan.md`. Keep
+   [doc/review-lessons.md](doc/review-lessons.md) at hand: it lists what earlier reviews found.
 2. Check out the PR merged onto current `master` and run `nox -s ci`. Say what you ran.
 3. For each behavior the PR claims to fix or add, revert that line and confirm a test fails. Name any
    behavior no test pins.
