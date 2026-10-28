@@ -1,0 +1,24 @@
+name: Feature request
+description: A command, flag or B2 capability the CLI should support.
+labels: [enhancement]
+type: Feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can you not do today, and who is affected?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed outcome
+      description: The command line you would like to run and what it should print. Link the B2 API docs for the calls involved if you know them.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and alternatives
+      description: Compatibility with existing scripts, capabilities needed, whether b2sdk already supports it, workarounds.

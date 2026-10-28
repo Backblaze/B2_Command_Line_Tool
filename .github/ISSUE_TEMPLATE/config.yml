@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Backblaze/B2_Command_Line_Tool/security/advisories/new
+    about: Report privately. Do not open a public issue. See SECURITY.md.
+  - name: Problem with the B2 service or your account
+    url: https://help.backblaze.com/hc/en-us/requests/new
+    about: Contact Backblaze support for service, billing or account issues.

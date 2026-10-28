@@ -1,0 +1,1 @@
+Add an advisory AI code review and security review workflow (inactive until `ANTHROPIC_API_KEY` is set), review depth and verification rules in `REVIEW.md`, a reviewer eval set in `doc/reviewer-evals.md`, and a `nox -s review_metrics` report.
