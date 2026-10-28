@@ -65,7 +65,7 @@ if CI and not NOX_PYTHONS:
 
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-2] if len(PYTHON_VERSIONS) > 1 else PYTHON_VERSIONS[0]
 
-PY_PATHS = ['b2', 'test', 'noxfile.py']
+PY_PATHS = ['b2', 'test', 'scripts', 'noxfile.py']
 
 DOCKER_TEMPLATE = pathlib.Path('docker/Dockerfile.template')
 
@@ -1011,3 +1011,12 @@ def ci(session):
         )
     else:
         session.log('NOT RUN: integration tests with secrets (B2_TEST_APPLICATION_KEY* unset).')
+
+
+@nox.session(python=False)
+def review_metrics(session):
+    """
+    Report human review time per merged PR, with reverts as the guardrail (needs `gh`).
+    Pass `-- --days N` to change the window (default 30).
+    """
+    session.run(sys.executable, 'scripts/review_metrics.py', *session.posargs)

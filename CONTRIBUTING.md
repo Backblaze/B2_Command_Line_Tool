@@ -71,6 +71,9 @@ Most of the process here is written for people and coding agents alike:
 * [REVIEW.md](REVIEW.md): how PRs are reviewed, the severity of findings and how to answer them.
 * [doc/review-lessons.md](doc/review-lessons.md): what reviewers asked for on past PRs, by theme. Check your PR
   against it before asking for review.
+* [doc/reviewer-evals.md](doc/reviewer-evals.md) and `nox -s review_metrics`: how the review process itself is
+  measured. An AI code review and security review comment on PRs once maintainers enable them; answer their
+  findings like any other review comment.
 * [intent/README.md](intent/README.md): larger changes start with an `intent.md`, then `spec.md` and `plan.md`,
   each approved by a person before the next. Bug fixes with a clear issue can start from a failing test.
 * `.claude/skills/`: the AI-native SDLC playbook skills (`ai-native-sdlc` is the entry point).

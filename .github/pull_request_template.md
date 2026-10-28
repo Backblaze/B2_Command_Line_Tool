@@ -11,8 +11,9 @@ name it and the merge order.
 
 ## Testing
 
-Paste the tail of `nox -s ci`. For each behavior this PR adds or fixes, name the test that fails when the
-change is reverted. List the live-B2 integration tests you ran, and mark the ones you could not as NOT RUN.
+Paste the tail of `nox -s ci` and the output of the changed command run end to end. For each behavior
+this PR adds or fixes, name the test that fails when the change is reverted. List the live-B2
+integration tests you ran, and mark the ones you could not as NOT RUN.
 
 ## Risk
 

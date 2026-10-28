@@ -23,6 +23,8 @@ Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv`
 - Build: `nox -s build`. Docs: `nox --non-interactive -s doc`. Bundle: `nox -s bundle`.
 - Spelling: `nox -s ci` runs codespell 2.4.1 on the files your branch changes.
 - Dependencies: change `pyproject.toml` with `uv add` / `uv lock`; `uv.lock` must stay in sync.
+- Review health: `nox -s review_metrics -- --days 30` (human approvals, comments and wait per merged PR,
+  reverts as the guardrail); reviewer evals in [doc/reviewer-evals.md](doc/reviewer-evals.md).
 
 ## Architecture
 
@@ -37,6 +39,8 @@ Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv`
 | `test/static/` | License headers and other static checks. |
 | `.sdkharness/` | Contract checks run by the central SDK harness against the B2 simulator on loopback. |
 | `changelog.d/` | towncrier fragments; `CHANGELOG.md` is built from them at release. |
+| `scripts/` | Repo tooling run by nox (`review_metrics.py`). |
+| `.github/workflows/ai-review.yml` | Advisory AI code review and security review on PRs, off until `ANTHROPIC_API_KEY` is set and the Claude GitHub App is installed. |
 | `doc/` | Sphinx docs (`doc/source`), plus Markdown pages for niche topics (`authorization_realm.md`). |
 | `intent/` | Per-change `intent.md`, `spec.md`, `plan.md` (see Workflow). |
 
@@ -106,8 +110,12 @@ The full list, by theme and with the PRs where each came up, is in
 - Bug fixes: commit the failing regression test first, then the fix, without editing the test.
 - Skills in `.claude/skills/` (`ai-native-sdlc` routes to the right one). A `PostToolUse` hook in
   `.claude/settings.json` rejects edits that leave a Python file unformatted.
-- Before opening a PR, review your own diff in a fresh context (`/code-review` and `/security-review`, or a
-  subagent that did not write the code) and fix or answer what it finds. Say in the PR what it reported.
+- Before opening a PR: run the command you changed end to end (`python -m b2 ...` against the simulator
+  or a throwaway live bucket) and paste the output; then review your own diff in a fresh context with
+  `/code-review` (bugs), `/simplify` (a smaller diff) and `/security-review`, or a subagent that did not
+  write the code. Fix or answer what they find and say in the PR what they reported. When the same
+  finding keeps coming back, fix the cause (a ruff rule, a test, a line here) rather than each instance.
+- Keep PRs small and reversible; say how to revert in the PR template.
 - Review: [REVIEW.md](REVIEW.md). Every finding gets fixed or resolved with a reason. Agents never approve
   or merge their own PRs; a maintainer approves.
 - The person directing an agent owns its PR: they count as one of its reviewers and fix what it breaks.

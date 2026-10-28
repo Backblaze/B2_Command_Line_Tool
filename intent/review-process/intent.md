@@ -1,6 +1,7 @@
 # Intent: review and merge process scaled by risk
 Author: Gonzalo Peña-Castellanos (with Claude). Issue: #1192. Status: draft, for the maintainers.
-Same proposal as the Blazer review-process intent (Backblaze/blazer#152), adapted to the B2 CLI.
+Source: [How the Claude Code team does code review](https://claude.dev/blog/solving-code-review-at-anthropic/),
+applied to the B2 CLI; the same proposal as Backblaze/blazer#152, adapted.
 
 ## Problem
 
@@ -18,9 +19,14 @@ Today:
 - Nothing measures whether a reviewer change (REVIEW.md, AGENTS.md, model) catches more or fewer real
   bugs.
 
-The PR that adds this file already covers what needs no settings change: REVIEW.md severities, evidence
-and convergence rules, Risk and How-to-revert in the PR template, and a fresh-context self-review before
-a PR opens.
+The PR that adds this file already covers what needs no settings change: a short `AGENTS.md`/`CLAUDE.md`,
+a formatter hook, `REVIEW.md` (failure modes, review depth by path, paths to skip, severities, verified
+findings with `file:line` evidence, a count-first summary, round caps, what people still review), Risk and
+How-to-revert in the PR template, `/code-review`, `/simplify` and `/security-review` before a PR opens, an
+advisory AI code review and security review workflow (`.github/workflows/ai-review.yml`, inactive until the
+secret is set), a seed eval set (`doc/reviewer-evals.md`), and a metrics report (`nox -s review_metrics`).
+On the last 120 days it reports 24 merged PRs, a median of 0 human approvals per PR (p95 1), and a median
+of 5.8 hours (p95 147) to the first human review.
 
 ## Proposed outcome
 
@@ -35,27 +41,52 @@ Human review time goes where the risk is, with no rise in reverts or post-releas
    | High | Destructive commands (`rm`, `sync`, `delete-*`), authorization and account info, `b2v*/registry.py` (ApiVer promises), `.github/workflows/`, `noxfile.py` release/bundle/sign sessions, release commits | One maintainer always; two for workflow and signing changes |
 
    Authors outside the trusted list always need a person. A bot's approval never fills a human slot.
+   A check (a path classifier first, an AI classifier later) sets the tier from the diff, and a second
+   check can still ask for a person when a Low change looks risky. Proposed `.github/CODEOWNERS`, with
+   owners to be filled in by the maintainers:
+
+   ```text
+   *                                    @Backblaze/<cli-maintainers>
+   /.github/workflows/                  @Backblaze/<cli-maintainers> @Backblaze/<security>
+   /noxfile.py                          @Backblaze/<cli-maintainers>
+   /b2/_internal/b2v*/registry.py       @Backblaze/<cli-maintainers>
+   /SECURITY.md                         @Backblaze/<security>
+   ```
 2. **Approvals cover one commit.** New commits pushed after an approval (agent pushes, hand-resolved
-   merges) need re-approval for Medium and High tiers.
+   merges) need re-approval for Medium and High tiers ("dismiss stale approvals" plus "require approval of
+   the most recent push").
 3. **Every review thread resolved before merge** (GitHub "require conversation resolution").
 4. **Automated AI review and security review on every PR**, with open Important findings blocking merge.
-   Start advisory, tune REVIEW.md for a few weeks, then decide on blocking.
+   `ai-review.yml` is in place; a maintainer adds the `ANTHROPIC_API_KEY` secret and installs the Claude
+   GitHub App to turn it on. Start
+   advisory, tune REVIEW.md for a few weeks, then decide on blocking and on the review depth (Deep for the
+   High-tier paths). Decide whether it replaces or runs beside Copilot review.
 5. **Merge queue**, so checks rerun on `master` plus the change, and two PRs that pass alone cannot
    combine into a broken `master`. The live-B2 jobs make each queue run slow; decide whether the queue
    runs them or only the offline jobs.
-6. **Past bugs become reviewer evals.** Build a set from bugs reviewers caught or that shipped, confirmed
-   by a maintainer (for example #1164, incremental mode with stdin; #1163, developer knobs in the main
-   help; #1165, exit codes changed without a release note). Score the reviewer against the set whenever
-   REVIEW.md, AGENTS.md or the model changes.
-7. **Measure it.** Human approvals per PR (median, p95), review rounds to pass, time a PR waits on a
-   person; reverts and post-release fix PRs as the guardrail.
+6. **Past bugs become reviewer evals.** `doc/reviewer-evals.md` seeds the set with six cases (for
+   example #802, a tuple-unpack crash caught in review; #925, `update-bucket` clearing lifecycle rules;
+   #1164, incremental mode silently ignored on stdin). Maintainers confirm each case; every revert and
+   post-release fix adds one. Score the reviewer whenever REVIEW.md, AGENTS.md, the prompt or the model
+   changes, also on known-clean PRs, and classify each live finding as fixed, wrong, intentional or
+   didn't matter to measure noise.
+7. **Measure it.** Human approvals per PR (median, p95), human comments per PR, review rounds to pass,
+   time a PR waits on a person (`nox -s review_metrics`); reverts and post-release fix PRs as the
+   guardrail.
+8. **Circuit breakers.** If reverts or post-release fixes rise over a month, tighten the tiers
+   automatically (Low needs one person again) until a maintainer reviews why.
+9. **Nightly review of existing code.** A scheduled run of the AI reviewer over the destructive commands
+   and credential handling finds old bugs before users do; findings become issues, not PR comments.
+10. **Staged releases and incident reviews.** Use pre-release tags (`vX.Y.ZrcN`, binaries and GitHub
+    release only) for risky behavior before PyPI, keep one-step rollback (yank), and after each
+    post-release fix ask which layer should have caught it (see `RELEASE.md`).
 
 ## Affected users and systems
 
 - Contributors and agents opening PRs; the maintainers.
 - Repo settings: branch protection or rulesets on `master`, merge queue, conversation resolution,
   a new `CODEOWNERS`.
-- Workflows: `ci.yml`, possibly a review workflow and a risk-tier check.
+- Workflows: `ci.yml`, `ai-review.yml`, possibly a risk-tier check and a nightly review.
 - CLI users only indirectly: fewer regressions and faster fixes.
 
 ## Constraints
@@ -75,3 +106,6 @@ Human review time goes where the risk is, with no rise in reverts or post-releas
   Backblaze repos?
 - Is a merge queue available on this org's plan, and who enables it? (repo admin)
 - Where should the eval set live and run: this repo, or the central SDK harness?
+- Who owns the `ANTHROPIC_API_KEY` secret, the Claude GitHub App installation and the review budget, and which model and depth should the
+  review use?
+- What revert or post-release-fix rate trips the circuit breaker?

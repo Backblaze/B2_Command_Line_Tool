@@ -44,9 +44,20 @@ release rather than cutting one for each.
 
 Runner images in `cd.yml` must match the bundle jobs in `ci.yml`, so what was tested is what ships.
 
+## Staged releases
+
+New or risky behavior can ship first as a pre-release tag (`vX.Y.ZrcN`, `aN`, `bN` or `devN`). `cd.yml`
+then publishes the GitHub release and standalone binaries but skips PyPI and Docker, so early users can try
+it before `pip install b2` picks it up. ApiVer is the CLI's flag mechanism: incompatible behavior goes to
+the next `b2vN`, and scripts pinned to an older one keep the old behavior.
+
 ## If something goes wrong
 
 - A failed `cd.yml` job can be re-run from the Actions tab without a new tag.
+- To roll back a bad release in one step, yank it on PyPI (`pip` then skips it unless pinned) and mark the
+  GitHub release as a pre-release; then fix forward.
+- After a post-release fix, ask which layer should have caught it (a test, `REVIEW.md`, the AI review) and
+  add the case to [doc/reviewer-evals.md](doc/reviewer-evals.md).
 - Never move or delete a pushed tag that reached PyPI; PyPI does not accept the same version twice. Fix
   forward with a patch release.
 - A security fix ships as a patch release with a `fixed` fragment and a GitHub security advisory (see
