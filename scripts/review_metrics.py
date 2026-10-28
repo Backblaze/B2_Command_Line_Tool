@@ -10,7 +10,7 @@
 """
 Report how much human review merged PRs needed, with reverts as the guardrail.
 
-Run it through `nox -s review_metrics -- --days 30`. Needs `GITHUB_TOKEN` or an authenticated `gh` CLI. Counts use the
+Run it through `nox -s review_metrics -- --days 30`. Needs an authenticated `gh` CLI. Counts use the
 first 100 reviews and conversation comments of each PR.
 """
 
@@ -19,11 +19,9 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import os
 import statistics
 import subprocess
 import sys
-import urllib.request
 
 REPO = 'Backblaze/B2_Command_Line_Tool'
 QUERY = """
@@ -56,26 +54,21 @@ def is_human_reviewer(actor: dict | None, author: str | None) -> bool:
     return not is_bot(actor) and actor['login'] != author
 
 
-def github_token() -> str:
-    token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
-    if token:
-        return token
-    return subprocess.check_output(['gh', 'auth', 'token'], text=True).strip()
-
-
 def fetch(days: int) -> list[dict]:
     since = (datetime.date.today() - datetime.timedelta(days=days)).isoformat()
     variables = {'q': f'repo:{REPO} is:pr is:merged merged:>={since}', 'endCursor': None}
-    headers = {'Authorization': f'Bearer {github_token()}', 'Content-Type': 'application/json'}
     prs = []
     while True:
-        body = json.dumps({'query': QUERY, 'variables': variables}).encode()
-        request = urllib.request.Request('https://api.github.com/graphql', body, headers)
-        with urllib.request.urlopen(request, timeout=60) as response:
-            page = json.load(response)
-        if 'errors' in page:
-            raise RuntimeError(page['errors'])
-        search = page['data']['search']
+        # The query and its variables go on stdin, so the command line stays constant.
+        body = json.dumps({'query': QUERY, 'variables': variables})
+        out = subprocess.run(
+            ['gh', 'api', 'graphql', '--input', '-'],
+            input=body,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        search = json.loads(out)['data']['search']
         prs += [node for node in search['nodes'] if node]
         if not search['pageInfo']['hasNextPage']:
             return prs
