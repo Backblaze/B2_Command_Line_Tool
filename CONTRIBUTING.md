@@ -52,7 +52,42 @@ These files can either be created manually, or using `towncrier` e.g.
 
 `towncrier create` also takes care of duplicates automatically (if there is more than 1 news fragment of one type 
 for a given github issue).
+
+The entry is one or more complete sentences ending with a full stop, written for users. CI, test, build and tooling
+changes use `infrastructure`; documentation changes use `doc`. Behavior changes that can affect scripts (exit codes,
+output, new stderr messages) must say so. Check your fragments locally with:
+
+    nox -s towncrier_check changelog_check
+
+A PR that only changes `uv.lock` needs no entry; otherwise a maintainer can add the `-changelog` label to skip the
+check.
  
+## Working with coding agents
+
+Most of the process here is written for people and coding agents alike:
+
+* [AGENTS.md](AGENTS.md) (read by Claude Code through `CLAUDE.md`): commands, architecture, conventions and the
+  mistakes reviewers keep finding. Read it before your first PR.
+* [REVIEW.md](REVIEW.md): how PRs are reviewed, the severity of findings and how to answer them.
+* [intent/README.md](intent/README.md): larger changes start with an `intent.md`, then `spec.md` and `plan.md`,
+  each approved by a person before the next. Bug fixes with a clear issue can start from a failing test.
+* `.claude/skills/`: the AI-native SDLC playbook skills (`ai-native-sdlc` is the entry point).
+
+If an agent wrote your PR, you own it: you review it before asking others to, and you answer the review.
+
+## Local CI
+
+`nox -s ci` runs what CI runs on one Python version: codespell on the files you changed, `lint`, `towncrier_check`,
+`changelog_check`, `build`, unit tests and the integration tests that need no credentials (plus the live-B2 ones
+when `B2_TEST_APPLICATION_KEY` and `B2_TEST_APPLICATION_KEY_ID` are set). Run it before every push. Set
+`NOX_CI_PYTHON` to pick the interpreter.
+
+## Releases and security
+
+Maintainers release by following [RELEASE.md](RELEASE.md). Report vulnerabilities privately as described in
+[SECURITY.md](SECURITY.md), never in a public issue. Everyone taking part follows the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Developer Info
 
 You'll need to have [nox](https://github.com/theacodes/nox) and [uv](https://docs.astral.sh/uv/) installed:

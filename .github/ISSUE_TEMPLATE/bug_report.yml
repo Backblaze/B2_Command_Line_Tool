@@ -1,0 +1,46 @@
+name: Bug report
+description: A b2 command behaves incorrectly.
+labels: [bug]
+type: Bug
+body:
+  - type: input
+    id: version
+    attributes:
+      label: b2 version
+      description: Output of `b2 version`, and how you installed it (pip, uv, binary, Docker, Homebrew).
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and Python version
+      placeholder: macOS 15 arm64, Python 3.13 (or "standalone binary")
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Entry point
+      description: Which command you ran, `b2` or a pinned ApiVer such as `b2v4`.
+      placeholder: b2v4
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the exit code if it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands. Never paste application keys, auth tokens or SSE-C keys.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or logs
+      description: Run with `--verbose` if you can. Redact keys, tokens and bucket names you consider private.
+      render: text

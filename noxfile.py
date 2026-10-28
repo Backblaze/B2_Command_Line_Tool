@@ -922,3 +922,50 @@ def towncrier_check(session):
         session.error(
             'Found errors in the changelog.d directory. Check logs above for more information'
         )
+
+
+@nox.session(python=False)
+def changelog_check(session):
+    """
+    Fail if the branch adds no changelog.d entry, like the CI lint job.
+    Pass the base ref as a posarg (default: origin/master).
+    """
+    base = session.posargs[0] if session.posargs else 'origin/master'
+    diff = ['git', 'diff', '--name-only', f'{base}...HEAD']
+    changed = subprocess.check_output([*diff, '--diff-filter=ACMR'], text=True).split()
+    if changed == ['uv.lock']:
+        session.log('Skipping changelog validation for lockfile-only change.')
+        return
+    added = subprocess.check_output([*diff, '--diff-filter=A', '--', 'changelog.d'], text=True)
+    if not added.strip():
+        session.error(
+            f'No changelog.d entry added since {base}. Add one (see CONTRIBUTING.md) '
+            'or ask a maintainer for the "-changelog" label.'
+        )
+
+
+@nox.session(python=False)
+def ci(session):
+    """
+    Local gate that mirrors the CI lint, build and test jobs on one Python version.
+    Integration tests that need B2 credentials run only when they are set.
+    """
+    python = os.environ.get('NOX_CI_PYTHON', PYTHON_DEFAULT_VERSION)
+    nox_cmd = [sys.executable, '-m', 'nox']
+    # Spell-check only what this branch changes; older files still carry known typos.
+    diff = ['git', 'diff', '--diff-filter=ACMR', '--name-only', 'origin/master...HEAD']
+    changed = subprocess.check_output(diff, text=True).split()
+    changed += subprocess.check_output(
+        ['git', 'ls-files', '-om', '--exclude-standard'], text=True
+    ).split()
+    if changed := sorted(set(path for path in changed if os.path.isfile(path))):
+        session.run('uvx', 'codespell==2.4.1', '-L', 'datas,re-use', *changed, external=True)
+    session.run(*nox_cmd, '-s', 'lint', 'towncrier_check', 'changelog_check', 'build')
+    session.run(*nox_cmd, '-s', f'unit-{python}')
+    session.run(*nox_cmd, '-s', f'integration-{python}', '--', '-m', 'not require_secrets')
+    if os.environ.get('B2_TEST_APPLICATION_KEY') and os.environ.get('B2_TEST_APPLICATION_KEY_ID'):
+        session.run(
+            *nox_cmd, '-s', f'integration-{python}', '--', '-m', 'require_secrets', '--cleanup'
+        )
+    else:
+        session.log('NOT RUN: integration tests with secrets (B2_TEST_APPLICATION_KEY* unset).')
