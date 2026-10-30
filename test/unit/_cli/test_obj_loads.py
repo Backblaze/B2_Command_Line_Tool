@@ -66,3 +66,18 @@ def test_validated_loads__typed_dict_types_validation(typed_dict_cls):
     input_ = '{"a": "abc", "b": 2}'
     with pytest.raises(argparse.ArgumentTypeError):
         validated_loads(input_, typed_dict_cls)
+
+
+@pytest.mark.skipif(pydantic is None, reason='pydantic is not enabled')
+def test_validated_loads__parametrized_generic(typed_dict_cls):
+    # `list[...]` is a `types.GenericAlias`, which does not accept new attributes; extra keys must be kept
+    input_ = '[{"a": 1, "b": "2", "extra": null}]'
+    expected_val = [{'a': 1, 'b': '2', 'extra': None}]
+    assert validated_loads(input_, list[typed_dict_cls]) == expected_val
+
+
+@pytest.mark.skipif(pydantic is None, reason='pydantic is not enabled')
+def test_validated_loads__parametrized_generic_types_validation(typed_dict_cls):
+    input_ = '[{"a": "abc", "b": 2}]'
+    with pytest.raises(argparse.ArgumentTypeError):
+        validated_loads(input_, list[typed_dict_cls])

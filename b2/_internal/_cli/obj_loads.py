@@ -57,7 +57,13 @@ _UNDEF = object()
 def type_with_config(type_: type[T], config: pydantic.ConfigDict) -> type[T]:
     type_ = copy.copy(type_)
     if not hasattr(type_, '__config__'):
-        type_.__pydantic_config__ = config
+        try:
+            type_.__pydantic_config__ = config
+        except AttributeError:
+            # parametrized builtin generics (e.g. `list[LifecycleRule]`) are `types.GenericAlias` objects,
+            # which do not accept new attributes; use the type as is, `validated_loads` passes the config
+            # to `TypeAdapter` directly in that case
+            pass
     else:
         type_.__config__ = type_.__config__.copy()
         type_.__config__.update(config)
@@ -67,9 +73,13 @@ def type_with_config(type_: type[T], config: pydantic.ConfigDict) -> type[T]:
 def validated_loads(data: str, expected_type: type[T] | None = None) -> T:
     val = _UNDEF
     if expected_type is not None and pydantic is not None:
-        expected_type = type_with_config(expected_type, pydantic.ConfigDict(extra='allow'))
+        config = pydantic.ConfigDict(extra='allow')
+        expected_type = type_with_config(expected_type, config)
+        has_config = hasattr(expected_type, '__pydantic_config__') or hasattr(
+            expected_type, '__config__'
+        )
         try:
-            ta = TypeAdapter(expected_type)
+            ta = TypeAdapter(expected_type, config=None if has_config else config)
         except TypeError:
             # TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
             # This is thrown on python<3.10 even with eval_type_backport
