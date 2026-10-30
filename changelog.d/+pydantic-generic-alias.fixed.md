@@ -1,1 +1,1 @@
-Fix `b2 bucket create --lifecycle-rule` (and other JSON options typed as a parametrized list) failing with `AttributeError: 'types.GenericAlias' object has no attribute '__pydantic_config__'` when the `full` extra (pydantic) is installed.
+Fix `b2 bucket create` and `b2 bucket update` with the deprecated `--lifecycle-rules` option (and other JSON options typed as a parametrized list) failing with `AttributeError: 'types.GenericAlias' object has no attribute '__pydantic_config__'` when the `full` extra (pydantic) is installed.
