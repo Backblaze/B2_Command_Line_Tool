@@ -57,7 +57,12 @@ _UNDEF = object()
 def type_with_config(type_: type[T], config: pydantic.ConfigDict) -> type[T]:
     type_ = copy.copy(type_)
     if not hasattr(type_, '__config__'):
-        type_.__pydantic_config__ = config
+        try:
+            type_.__pydantic_config__ = config
+        except AttributeError:
+            # parametrized builtin generics (e.g. `list[LifecycleRule]`) are `types.GenericAlias` objects,
+            # which do not accept new attributes; use the type as is, pydantic applies its defaults
+            pass
     else:
         type_.__config__ = type_.__config__.copy()
         type_.__config__.update(config)
