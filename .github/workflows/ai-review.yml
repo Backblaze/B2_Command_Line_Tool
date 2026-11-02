@@ -1,0 +1,88 @@
+name: AI review
+
+# Advisory AI code review and security review on every PR (see REVIEW.md). Both jobs are no-ops until a
+# maintainer adds the ANTHROPIC_API_KEY repository secret and installs the Claude GitHub App (code-review
+# authenticates through it); fork PRs never receive the secret.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  code-review:
+    concurrency:
+      group: ai-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && !github.event.pull_request.draft }}
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip without an API key
+        if: env.HAS_KEY != 'true'
+        run: echo 'Skipped because ANTHROPIC_API_KEY is not set for this repository or PR.'
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@925afb53776cf1a2b738c6bdbed37b4d4000ef13  # v1.0.262
+        if: env.HAS_KEY == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request following REVIEW.md, AGENTS.md and doc/review-lessons.md in this
+            checkout. The working directory holds the PR merged onto its base branch.
+
+            - Read the PR description and the linked issue, and check the diff against the whole repo:
+              does it solve the stated problem, fit the system, and avoid breaking anything else? For a
+              bug fix, check that it addresses the root cause.
+            - Find candidate issues, then verify each one by reading the code it depends on before
+              posting. Post only findings you verified; drop style, diagnostic and cleanup-only remarks.
+            - Do not repeat a finding already posted on this PR, resolved or not. If this is not the
+              first review, review only the commits since the last one.
+            - Post each finding as an inline comment tagged Important, Nit or Pre-existing, citing
+              file:line and the input or sequence that triggers it.
+            - Finish with one top-level comment that starts with the count
+              (for example "1 Important, 0 Nit, 0 Pre-existing" or "No issues found").
+
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) for inline
+            findings and `gh pr comment` for the summary. Only post GitHub comments.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob"
+
+  security-review:
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && !github.event.pull_request.draft }}
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: Skip without an API key
+        if: env.HAS_KEY != 'true'
+        run: echo 'Skipped because ANTHROPIC_API_KEY is not set for this repository or PR.'
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+      - uses: anthropics/claude-code-security-review@0c6a49f1fa56a1d472575da86a94dbc1edb78eda  # main, 2026-02-11
+        if: env.HAS_KEY == 'true'
+        with:
+          comment-pr: true
+          claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          exclude-directories: doc,changelog.d,intent,.claude
+          # Without this the action scans only the first commit of each PR.
+          run-every-commit: true
+          custom-security-scan-instructions: .github/security-review-instructions.txt

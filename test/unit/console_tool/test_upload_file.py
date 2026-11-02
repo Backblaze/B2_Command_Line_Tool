@@ -96,7 +96,15 @@ def test_upload_file__incremental_mode_on_named_pipe_is_refused(b2_cli, bucket, 
     # No writer needed: get_input_stream only stats the FIFO (points_to_fifo check),
     # and CommandError is raised before file_identifier_to_read_stream ever opens it.
     b2_cli.run(
-        ['file', 'upload', '--no-progress', '--incremental-mode', 'my-bucket', str(local_file), 'dst.txt'],
+        [
+            'file',
+            'upload',
+            '--no-progress',
+            '--incremental-mode',
+            'my-bucket',
+            str(local_file),
+            'dst.txt',
+        ],
         expected_status=1,
         expected_stderr=(
             'ERROR: incremental mode is not supported for streamed sources; '
