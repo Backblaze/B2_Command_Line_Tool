@@ -279,3 +279,57 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
             [*command, 'list', '--json', f'b2://{bucket}'],
         )[1]
     ) == [bucket_notification_rule]
+
+
+@pytest.mark.parametrize('subcommand', ['create', 'update'])
+def test_notification_rules__sensitive_arguments_are_not_logged(
+    b2_cli, bucket, bucket_notification_rule, b2_cli_log_fix, caplog, subcommand
+):
+    sign_secret = '0123456789abcdef0123456789abcdef'
+    custom_header = 'X-Webhook-Token=custom-header-secret'
+
+    if subcommand == 'create':
+        command_args = [
+            'bucket',
+            'notification-rule',
+            'create',
+            '--verbose',
+            f'b2://{bucket}',
+            'new-rule',
+            '--event-type',
+            'b2:ObjectCreated:*',
+            '--webhook-url',
+            'https://example.com/webhook',
+        ]
+    else:
+        command_args = [
+            'bucket',
+            'notification-rule',
+            'update',
+            '--verbose',
+            f'b2://{bucket}',
+            bucket_notification_rule['name'],
+            '--disable',
+        ]
+
+    b2_cli.run(
+        [
+            *command_args,
+            '--sign-secret',
+            sign_secret,
+            '--custom-header',
+            custom_header,
+        ]
+    )
+
+    b2_cli.run(['bucket', 'create', '--verbose', 'control-log-bucket', 'allPrivate'])
+
+    console_tool_logs = '\n'.join(
+        record.getMessage()
+        for record in caplog.records
+        if record.name == 'b2._internal.console_tool'
+    )
+    assert sign_secret not in console_tool_logs
+    assert custom_header not in console_tool_logs
+    assert 'arguments hidden' in console_tool_logs
+    assert 'control-log-bucket' in console_tool_logs

@@ -4591,6 +4591,9 @@ class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningM
 class BucketNotificationRuleCreateBase(
     JSONOptionMixin, BucketNotificationRuleWarningMixin, Command
 ):
+    FORBID_LOGGING_ARGUMENTS = True
+    # b2sdk request logging is handled separately.
+
     @classmethod
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
