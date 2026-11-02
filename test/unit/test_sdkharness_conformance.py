@@ -117,6 +117,54 @@ def test_upload_contract_checks_metadata_round_trip_and_cleanup(tmp_path):
     assert calls == ['authenticate', 'upload', 'metadata', 'download', 'cleanup']
 
 
+UPLOAD_PAYLOAD = (b'sdkharness-files-upload-' * 45)[:1024]
+UPLOAD_PAYLOAD_SHA1 = '58bf8c78eae9c113e67cbeb7933824cb6cf2073e'  # literal on purpose: not derived from the checker's own formula
+
+
+@pytest.mark.parametrize(
+    ('defect', 'failed_step'),
+    [
+        ('wrong size', 'metadata'),
+        ('wrong sha1', 'metadata'),
+        ('wrong downloaded bytes', 'round trip'),
+    ],
+)
+def test_upload_contract_fails_on_metadata_or_round_trip_mismatch(tmp_path, defect, failed_step):
+    check = load_check()
+    object_name = 'sdkharness-conformance/fixed.bin'
+    calls: list[str] = []
+
+    def fake_run(step: str, command: list[str], _environment: dict[str, str]):
+        calls.append(step)
+        if step == 'metadata':
+            return json.dumps(
+                [
+                    {
+                        'fileId': '4_zfixture',
+                        'fileName': object_name,
+                        'size': 1023 if defect == 'wrong size' else 1024,
+                        'contentSha1': '0' * 40 if defect == 'wrong sha1' else UPLOAD_PAYLOAD_SHA1,
+                    }
+                ]
+            )
+        if step == 'download':
+            body = b'x' * 1024 if defect == 'wrong downloaded bytes' else UPLOAD_PAYLOAD
+            Path(command[-1]).write_bytes(body)
+        return ''
+
+    with pytest.raises(check.CheckFailure) as raised:
+        check.run_check(
+            simulator_environment(),
+            cli_prefix=['repository-b2'],
+            run_command=fake_run,
+            object_name=object_name,
+            scratch_root=tmp_path,
+        )
+
+    assert raised.value.step == failed_step
+    assert calls[-1] == 'cleanup'
+
+
 def test_failure_still_attempts_cleanup(tmp_path):
     check = load_check()
     calls: list[str] = []

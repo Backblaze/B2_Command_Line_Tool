@@ -297,6 +297,76 @@ def test_files_hide_fails_when_the_hide_marker_is_not_the_newest_version(tmp_pat
     assert 'newest version reports action' in caught.value.detail
 
 
+class FakeVersionsCli:
+    """Just enough CLI to run files.delete_version: two uploads, version listing, rm, download by id."""
+
+    def __init__(self, delete_wrong_version: bool = False, corrupt_survivor: bool = False) -> None:
+        self.delete_wrong_version = delete_wrong_version
+        self.corrupt_survivor = corrupt_survivor
+        self.versions: list[dict] = []
+        self.payloads: dict[str, bytes] = {}
+
+    def __call__(self, step: str, command: list[str], _environment: dict[str, str]) -> str:
+        import hashlib
+
+        args = command[1:]
+        if args[:2] == ['file', 'upload']:
+            payload = Path(args[-2]).read_bytes()
+            file_id = f'id-{len(self.versions) + 1}'
+            self.payloads[file_id] = payload
+            self.versions.append(
+                {
+                    'fileId': file_id,
+                    'fileName': args[-1],
+                    'action': 'upload',
+                    'size': len(payload),
+                    'contentSha1': hashlib.sha1(payload).hexdigest(),
+                    'uploadTimestamp': 100 + len(self.versions),
+                }
+            )
+        elif args[0] == 'rm':
+            target = args[-1].removeprefix('b2id://')
+            if self.delete_wrong_version:
+                target = 'id-1' if target == 'id-2' else 'id-2'
+            self.versions = [item for item in self.versions if item['fileId'] != target]
+        elif args[:2] == ['file', 'download']:
+            payload = self.payloads[args[-2].removeprefix('b2id://')]
+            Path(args[-1]).write_bytes(b'corrupt' if self.corrupt_survivor else payload)
+        elif args[0] == 'ls' and '--versions' in args:
+            return json.dumps(self.versions)
+        return ''
+
+
+def run_delete_version(check, tmp_path, cli):
+    check.run_check(
+        simulator_environment('files.delete_version'),
+        cli_prefix=['repository-b2'],
+        run_command=cli,
+        object_prefix='sdkharness-conformance/fixed',
+        scratch_root=tmp_path,
+    )
+
+
+def test_files_delete_version_passes_when_only_the_newer_version_is_removed(tmp_path):
+    run_delete_version(load_check(), tmp_path, FakeVersionsCli())
+
+
+def test_files_delete_version_fails_when_the_wrong_version_is_removed(tmp_path):
+    check = load_check()
+    with pytest.raises(check.CheckFailure) as caught:
+        run_delete_version(check, tmp_path, FakeVersionsCli(delete_wrong_version=True))
+    assert caught.value.step == 'delete version'
+    assert caught.value.detail == 'the wrong version remained after deletion'
+
+
+def test_files_delete_version_fails_when_the_survivor_bytes_changed(tmp_path):
+    check = load_check()
+    with pytest.raises(check.CheckFailure) as caught:
+        run_delete_version(check, tmp_path, FakeVersionsCli(corrupt_survivor=True))
+    assert caught.value.step == 'delete version'
+    assert caught.value.detail == 'surviving version bytes changed'
+
+
 def forbidden_run(step, _command, _environment):  # pragma: no cover - must not run
     raise AssertionError(f'a non-simulator credential reached the CLI at {step!r}')
 
