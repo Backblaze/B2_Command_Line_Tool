@@ -8,8 +8,11 @@
 #
 ######################################################################
 import json
+import logging
 
 import pytest
+
+from b2._internal.console_tool import CommandError
 
 
 @pytest.fixture()
@@ -281,55 +284,98 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
     ) == [bucket_notification_rule]
 
 
+@pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 @pytest.mark.parametrize('subcommand', ['create', 'update'])
+@pytest.mark.parametrize(
+    'logging_flags', [['--verbose'], ['--debug-logs'], ['--verbose', '--debug-logs']]
+)
 def test_notification_rules__sensitive_arguments_are_not_logged(
-    b2_cli, bucket, bucket_notification_rule, b2_cli_log_fix, caplog, subcommand
+    b2_cli,
+    bucket,
+    bucket_notification_rule,
+    b2_cli_log_fix,
+    cwd_path,
+    caplog,
+    capsys,
+    command,
+    subcommand,
+    logging_flags,
 ):
-    sign_secret = '0123456789abcdef0123456789abcdef'
-    custom_header = 'X-Webhook-Token=custom-header-secret'
+    # Deliberately synthetic values, not credentials.
+    sign_secret = 'a' * 32
+    header_value = 'test-only-header-value'
+    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger='b2sdk._internal.bucket')
+    caplog.clear()
+    capsys.readouterr()
+    original_handlers = logging.root.handlers[:]
 
-    if subcommand == 'create':
-        command_args = [
-            'bucket',
-            'notification-rule',
-            'create',
-            '--verbose',
-            f'b2://{bucket}',
-            'new-rule',
-            '--event-type',
-            'b2:ObjectCreated:*',
-            '--webhook-url',
-            'https://example.com/webhook',
-        ]
-    else:
-        command_args = [
+    try:
+        b2_cli.run(
+            [
+                *command,
+                subcommand,
+                *logging_flags,
+                f'b2://{bucket}',
+                'new-rule' if subcommand == 'create' else bucket_notification_rule['name'],
+                '--event-type',
+                'b2:ObjectCreated:*',
+                '--webhook-url',
+                'https://example.com/webhook',
+                '--sign-secret',
+                sign_secret,
+                '--custom-header',
+                f'X-Test-Header={header_value}',
+            ]
+        )
+
+        outputs = [caplog.text, capsys.readouterr().err]
+        if '--debug-logs' in logging_flags:
+            outputs.append((cwd_path / 'b2_cli.log').read_text())
+        for output in outputs:
+            assert sign_secret not in output
+            assert header_value not in output
+        assert 'arguments hidden' in caplog.text
+
+        caplog.clear()
+        control_args = ['bucket', 'create', *logging_flags, 'control-log-bucket', 'allPrivate']
+        b2_cli.run(control_args)
+        assert f"with arguments: {['b2', *control_args]}" in caplog.text
+        assert 'calling Bucket(' in caplog.text
+    finally:
+        for handler in logging.root.handlers[:]:
+            if handler not in original_handlers:
+                logging.root.removeHandler(handler)
+                handler.close()
+
+
+@pytest.mark.parametrize('sdk_log_level', [logging.DEBUG, logging.WARNING])
+def test_notification_rules__sdk_logging_restored_after_error(
+    b2_cli, bucket, bucket_notification_rule, caplog, monkeypatch, sdk_log_level
+):
+    sdk_logger = logging.getLogger('b2sdk._internal.bucket')
+    caplog.set_level(logging.DEBUG)
+    caplog.set_level(sdk_log_level, logger=sdk_logger.name)
+
+    def reject_rules(*args, **kwargs):
+        sdk_logger.debug('test-only SDK request trace')
+        sdk_logger.warning('test-only SDK warning')
+        raise CommandError('test-only request failure')
+
+    monkeypatch.setattr(b2_cli.raw_api, 'set_bucket_notification_rules', reject_rules)
+    b2_cli.run(
+        [
             'bucket',
             'notification-rule',
             'update',
-            '--verbose',
             f'b2://{bucket}',
             bucket_notification_rule['name'],
             '--disable',
-        ]
-
-    b2_cli.run(
-        [
-            *command_args,
-            '--sign-secret',
-            sign_secret,
-            '--custom-header',
-            custom_header,
-        ]
+        ],
+        expected_status=1,
+        expected_stderr='ERROR: test-only request failure\n',
     )
 
-    b2_cli.run(['bucket', 'create', '--verbose', 'control-log-bucket', 'allPrivate'])
-
-    console_tool_logs = '\n'.join(
-        record.getMessage()
-        for record in caplog.records
-        if record.name == 'b2._internal.console_tool'
-    )
-    assert sign_secret not in console_tool_logs
-    assert custom_header not in console_tool_logs
-    assert 'arguments hidden' in console_tool_logs
-    assert 'control-log-bucket' in console_tool_logs
+    assert 'test-only SDK request trace' not in caplog.text
+    assert 'test-only SDK warning' in caplog.text
+    assert sdk_logger.level == sdk_log_level
