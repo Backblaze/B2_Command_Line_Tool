@@ -4591,6 +4591,18 @@ class BucketNotificationRuleList(JSONOptionMixin, BucketNotificationRuleWarningM
 class BucketNotificationRuleCreateBase(
     JSONOptionMixin, BucketNotificationRuleWarningMixin, Command
 ):
+    FORBID_LOGGING_ARGUMENTS = True
+
+    def run(self, args):
+        # SDK bucket DEBUG call traces include signing secrets and custom header values.
+        sdk_logger = logging.getLogger('b2sdk._internal.bucket')
+        previous_level = sdk_logger.level
+        sdk_logger.setLevel(max(logging.INFO, sdk_logger.getEffectiveLevel()))
+        try:
+            return super().run(args)
+        finally:
+            sdk_logger.setLevel(previous_level)
+
     @classmethod
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
