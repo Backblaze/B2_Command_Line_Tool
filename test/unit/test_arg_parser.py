@@ -34,6 +34,9 @@ class TestCustomArgTypes(TestBase):
         self.assertEqual(1367900664152, parse_millis_from_float_timestamp('1367900664.152'))
         with self.assertRaises(ValueError):
             parse_millis_from_float_timestamp('!$@$%@!@$')
+        # Out-of-range timestamps must be a clean argparse error, not a traceback
+        with self.assertRaises(argparse.ArgumentTypeError):
+            parse_millis_from_float_timestamp('-1e30')
 
     def test_parse_range(self):
         self.assertEqual((1, 2), parse_range('1,2'))
