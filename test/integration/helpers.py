@@ -9,6 +9,7 @@
 ######################################################################
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ import warnings
 from collections.abc import Iterable
 from os import environ, linesep
 from pathlib import Path
-from tempfile import mkdtemp, mktemp
+from tempfile import mkdtemp, mkstemp
 from typing import TypeVar
 
 from b2sdk.v3 import (
@@ -239,8 +240,11 @@ class CommandLine:
                 raise ValueError(
                     'Env vars containing new line characters will break env file format'
                 )
-            env_file_path = mktemp()
-            pathlib.Path(env_file_path).write_text('\n'.join(f'{k}={v}' for k, v in env.items()))
+            # mkstemp creates the file atomically with owner-only permissions; the file holds credentials.
+            fd, env_file_path = mkstemp()
+            atexit.register(pathlib.Path(env_file_path).unlink, missing_ok=True)
+            with os.fdopen(fd, 'w') as env_file:
+                env_file.write('\n'.join(f'{k}={v}' for k, v in env.items()))
             command = [
                 (c if c != self.env_file_cmd_placeholder else env_file_path) for c in command
             ]
