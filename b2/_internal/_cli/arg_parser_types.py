@@ -29,7 +29,10 @@ def parse_millis_from_float_timestamp(s):
     """
     Parse timestamp, e.g. 1367900664 or 1367900664.152
     """
-    parsed = arrow.get(float(s))
+    try:
+        parsed = arrow.get(float(s))
+    except OverflowError as e:
+        raise argparse.ArgumentTypeError(f'invalid timestamp value: {s!r}') from e
     if _arrow_version < (1, 0, 0):
         return int(parsed.format('XSSS'))
     else:
