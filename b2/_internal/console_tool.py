@@ -5637,7 +5637,13 @@ class ConsoleTool:
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
-            handler = logging.FileHandler('b2_cli.log', **errors_kwarg)
+            log_path = 'b2_cli.log'
+            fd = os.open(log_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
+            try:
+                os.chmod(log_path, 0o600)
+            finally:
+                os.close(fd)
+            handler = logging.FileHandler(log_path, **errors_kwarg)
             handler.setFormatter(formatter)
 
             # logs from ALL loggers sent to the log file should be formatted this way

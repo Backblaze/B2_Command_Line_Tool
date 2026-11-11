@@ -9,6 +9,8 @@
 ######################################################################
 import json
 import logging
+import os
+import stat
 
 import pytest
 
@@ -347,6 +349,50 @@ def test_notification_rules__sensitive_arguments_are_not_logged(
             if handler not in original_handlers:
                 logging.root.removeHandler(handler)
                 handler.close()
+
+
+@pytest.mark.parametrize('subcommand', ['create', 'update'])
+@pytest.mark.parametrize('existing_log', [False, True], ids=['new', 'existing'])
+def test_notification_rules__debug_log_permissions(
+    b2_cli, bucket, bucket_notification_rule, b2_cli_log_fix, cwd_path, subcommand, existing_log
+):
+    marker = 'q' * 32
+    log_path = cwd_path / 'b2_cli.log'
+    if existing_log:
+        log_path.write_text('previous entry\n')
+        if os.name == 'posix':
+            log_path.chmod(0o644)
+
+    original_handlers = logging.root.handlers[:]
+    previous_umask = os.umask(0o022) if os.name == 'posix' else None
+    try:
+        b2_cli.run(
+            [
+                'bucket',
+                'notification-rule',
+                subcommand,
+                '--debug-logs',
+                f'b2://{bucket}',
+                'new-rule' if subcommand == 'create' else bucket_notification_rule['name'],
+                '--event-type',
+                'b2:ObjectCreated:*',
+                '--webhook-url',
+                'https://example.com/webhook',
+                '--sign-secret',
+                marker,
+            ]
+        )
+    finally:
+        if previous_umask is not None:
+            os.umask(previous_umask)
+        for handler in logging.root.handlers[:]:
+            if handler not in original_handlers:
+                logging.root.removeHandler(handler)
+                handler.close()
+
+    assert marker not in log_path.read_text()
+    if os.name == 'posix':
+        assert stat.S_IMODE(log_path.stat().st_mode) == 0o600
 
 
 @pytest.mark.parametrize('sdk_log_level', [logging.DEBUG, logging.WARNING])
