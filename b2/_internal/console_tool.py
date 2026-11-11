@@ -5468,6 +5468,14 @@ class CancelLargeFile(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargeUnfinish
     replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
 
 
+class _OwnedFileStreamHandler(logging.StreamHandler):
+    def close(self):
+        try:
+            self.stream.close()
+        finally:
+            super().close()
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
@@ -5499,7 +5507,11 @@ class ConsoleTool:
         parser = B2.create_parser(name=self.b2_binary_name, b2_binary_name=self.b2_binary_name)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
-        self._setup_logging(args, argv)
+        try:
+            self._setup_logging(args, argv)
+        except CommandError as e:
+            self._print_stderr(f'ERROR: {e}')
+            return 1
 
         if args.escape_control_characters is None:
             args.escape_control_characters = self._get_default_escape_cc_setting()
@@ -5638,12 +5650,20 @@ class ConsoleTool:
             )
             formatter.converter = time.gmtime
             log_path = 'b2_cli.log'
-            fd = os.open(log_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
+            flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND | getattr(os, 'O_NOFOLLOW', 0)
+            fd = None
             try:
-                os.chmod(log_path, 0o600)
+                fd = os.open(log_path, flags, 0o600)
+                if hasattr(os, 'fchmod'):
+                    os.fchmod(fd, 0o600)
+                stream = os.fdopen(fd, 'a', **errors_kwarg)
+                fd = None
+            except OSError as e:
+                raise CommandError('could not secure b2_cli.log for debug logging') from e
             finally:
-                os.close(fd)
-            handler = logging.FileHandler(log_path, **errors_kwarg)
+                if fd is not None:
+                    os.close(fd)
+            handler = _OwnedFileStreamHandler(stream)
             handler.setFormatter(formatter)
 
             # logs from ALL loggers sent to the log file should be formatted this way

@@ -7,6 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import errno
 import json
 import logging
 import os
@@ -393,6 +394,103 @@ def test_notification_rules__debug_log_permissions(
     assert marker not in log_path.read_text()
     if os.name == 'posix':
         assert stat.S_IMODE(log_path.stat().st_mode) == 0o600
+
+
+@pytest.fixture
+def debug_log_handler_cleanup():
+    original_handlers = logging.root.handlers[:]
+    yield
+    for handler in logging.root.handlers[:]:
+        if handler not in original_handlers:
+            logging.root.removeHandler(handler)
+            handler.close()
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_uses_secured_descriptor_after_path_change(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    log_path = cwd_path / 'b2_cli.log'
+    secured_path = cwd_path / 'original.log'
+    replacement_text = 'replacement file\n'
+    original_chmod = os.chmod
+    original_fchmod = os.fchmod
+    swapped = False
+
+    def swap_path():
+        nonlocal swapped
+        if swapped:
+            return
+        log_path.rename(secured_path)
+        log_path.write_text(replacement_text)
+        original_chmod(log_path, 0o644)
+        swapped = True
+
+    def chmod_then_swap(path, mode):
+        original_chmod(path, mode)
+        if os.fspath(path) == 'b2_cli.log':
+            swap_path()
+
+    def fchmod_then_swap(fd, mode):
+        original_fchmod(fd, mode)
+        swap_path()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'chmod', chmod_then_swap)
+        patch.setattr(os, 'fchmod', fchmod_then_swap)
+        b2_cli.run(['bucket', 'list', '--debug-logs'])
+
+    assert swapped
+    assert 'starting command' in secured_path.read_text()
+    assert log_path.read_text() == replacement_text
+    assert stat.S_IMODE(log_path.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_refuses_symlink(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    log_path = cwd_path / 'b2_cli.log'
+    log_path.symlink_to(target_path)
+
+    b2_cli.run(
+        ['bucket', 'list', '--debug-logs'],
+        expected_status=1,
+        expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+    )
+
+    assert target_path.read_text() == 'original entry\n'
+    assert log_path.is_symlink()
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_reports_unmodifiable_existing_file(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    log_path = cwd_path / 'b2_cli.log'
+    log_path.write_text('original entry\n')
+    attempted_fd = None
+
+    def deny_fchmod(fd, mode):
+        nonlocal attempted_fd
+        attempted_fd = fd
+        raise PermissionError(errno.EPERM, 'operation not permitted')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'fchmod', deny_fchmod)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+    assert log_path.read_text() == 'original entry\n'
+    assert attempted_fd is not None
+    with pytest.raises(OSError) as exc_info:
+        os.fstat(attempted_fd)
+    assert exc_info.value.errno == errno.EBADF
 
 
 @pytest.mark.parametrize('sdk_log_level', [logging.DEBUG, logging.WARNING])
