@@ -1,1 +1,1 @@
-The `--debug-logs` file now uses owner-only permissions when created or reopened.
+On POSIX systems, the `--debug-logs` file is now created with owner-only permissions, including when an existing file is reopened.
