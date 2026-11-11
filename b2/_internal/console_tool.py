@@ -5470,10 +5470,20 @@ class CancelLargeFile(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargeUnfinish
 
 class _OwnedFileStreamHandler(logging.StreamHandler):
     def close(self):
+        self.acquire()
         try:
-            self.stream.close()
+            try:
+                if self.stream is not None:
+                    try:
+                        self.flush()
+                    finally:
+                        stream = self.stream
+                        self.stream = None
+                        stream.close()
+            finally:
+                super().close()
         finally:
-            super().close()
+            self.release()
 
 
 class ConsoleTool:
@@ -5650,11 +5660,19 @@ class ConsoleTool:
             )
             formatter.converter = time.gmtime
             log_path = 'b2_cli.log'
-            flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND | getattr(os, 'O_NOFOLLOW', 0)
+            flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
+            if os.name == 'posix':
+                if not getattr(os, 'O_NOFOLLOW', 0) or not callable(getattr(os, 'fchmod', None)):
+                    raise CommandError('could not secure b2_cli.log for debug logging')
+                flags |= os.O_NOFOLLOW
+            else:
+                flags |= getattr(os, 'O_NOFOLLOW', 0)
             fd = None
             try:
                 fd = os.open(log_path, flags, 0o600)
-                if hasattr(os, 'fchmod'):
+                if os.name == 'posix':
+                    os.fchmod(fd, 0o600)
+                elif hasattr(os, 'fchmod'):
                     os.fchmod(fd, 0o600)
                 stream = os.fdopen(fd, 'a', **errors_kwarg)
                 fd = None

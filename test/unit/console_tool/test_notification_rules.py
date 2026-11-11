@@ -493,6 +493,59 @@ def test_debug_log_reports_unmodifiable_existing_file(
     assert exc_info.value.errno == errno.EBADF
 
 
+@pytest.mark.parametrize('missing_primitive', ['O_NOFOLLOW', 'fchmod'])
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_requires_posix_file_controls(
+    b2_cli,
+    bucket,
+    b2_cli_log_fix,
+    cwd_path,
+    debug_log_handler_cleanup,
+    monkeypatch,
+    missing_primitive,
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    target_path.chmod(0o644)
+    (cwd_path / 'b2_cli.log').symlink_to(target_path)
+    original_open = os.open
+    log_path_opened = False
+
+    def track_open(path, *args, **kwargs):
+        nonlocal log_path_opened
+        if os.fspath(path) == 'b2_cli.log':
+            log_path_opened = True
+        return original_open(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.delattr(os, missing_primitive)
+        patch.setattr(os, 'open', track_open)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+    assert not log_path_opened
+    assert target_path.read_text() == 'original entry\n'
+    assert stat.S_IMODE(target_path.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_handler_close_releases_stream(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    original_handlers = logging.root.handlers[:]
+    b2_cli.run(['bucket', 'list', '--debug-logs'])
+    [handler] = [handler for handler in logging.root.handlers if handler not in original_handlers]
+    stream = handler.stream
+
+    handler.close()
+
+    assert handler.stream is None
+    assert stream.closed
+
+
 @pytest.mark.parametrize('sdk_log_level', [logging.DEBUG, logging.WARNING])
 def test_notification_rules__sdk_logging_restored_after_error(
     b2_cli, bucket, bucket_notification_rule, caplog, monkeypatch, sdk_log_level
