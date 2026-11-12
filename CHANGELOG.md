@@ -15,6 +15,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 - On POSIX systems, the `--debug-logs` file is now created with owner-only permissions, including when an existing file is reopened.
 - The `bucket notification-rule create` and `bucket notification-rule update` commands no longer log signing secrets or custom header values in command arguments or SDK call traces.
+- The `bucket notification-rule create` and `bucket notification-rule update` commands no longer echo invalid `--sign-secret` values in validation errors.
 
 ### Infrastructure
 
