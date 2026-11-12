@@ -9,6 +9,20 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 <!-- towncrier release notes start -->
 
+## [5.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.3) - 2026-11-12
+
+### Fixed
+
+- On POSIX systems, the `--debug-logs` file is now created with owner-only permissions, including when an existing file is reopened.
+- The `bucket notification-rule create` and `bucket notification-rule update` commands no longer log signing secrets or custom header values in command arguments or SDK call traces.
+
+### Infrastructure
+
+- Updated development tooling dependencies to incorporate compatible security fixes. ([#1201](https://github.com/Backblaze/B2_Command_Line_Tool/issues/1201))
+- Make the `.sdkharness` `files.list` conformance check upload a nested name, so a client that ignores `ls --recursive` fails it.
+- Make the `.sdkharness` `upload.stall` recovery check run: it stalls the upload for 130 s, longer than the 128 s upload timeout of b2sdk, instead of reporting that no client option can shorten it.
+
+
 ## [5.0.2](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.2) - 2026-10-23
 
 
