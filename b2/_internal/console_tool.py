@@ -4607,7 +4607,7 @@ class BucketNotificationRuleCreateBase(
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
             raise argparse.ArgumentTypeError(
-                f'the secret has to be exactly 32 alphanumeric characters, got: {value!r}'
+                'the secret has to be exactly 32 alphanumeric characters'
             )
         return value
 

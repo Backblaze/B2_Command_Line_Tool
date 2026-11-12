@@ -287,6 +287,31 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
     ) == [bucket_notification_rule]
 
 
+@pytest.mark.parametrize('subcommand', ['create', 'update'])
+def test_notification_rules__invalid_sign_secret_message_omits_value(b2_cli, capsys, subcommand):
+    invalid_value = 'DistinctiveInput_' + 'x' * 40
+    b2_cli.run(
+        [
+            'bucket',
+            'notification-rule',
+            subcommand,
+            'b2://my-bucket',
+            'rule-name',
+            '--event-type',
+            'b2:ObjectCreated:*',
+            '--webhook-url',
+            'https://example.com/webhook',
+            '--sign-secret',
+            invalid_value,
+        ],
+        expected_status=2,
+    )
+    stderr = capsys.readouterr().err
+
+    assert 'the secret has to be exactly 32 alphanumeric characters' in stderr
+    assert invalid_value not in stderr
+
+
 @pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 @pytest.mark.parametrize('subcommand', ['create', 'update'])
 @pytest.mark.parametrize(
