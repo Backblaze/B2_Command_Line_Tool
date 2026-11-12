@@ -466,6 +466,25 @@ def test_debug_log_refuses_symlink(
 
 
 @pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_setup_failure_removes_verbose_handler(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    (cwd_path / 'b2_cli.log').symlink_to(target_path)
+    handlers_before = logging.root.handlers[:]
+
+    b2_cli.run(
+        ['bucket', 'list', '--verbose', '--debug-logs'],
+        expected_status=1,
+        expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+    )
+
+    assert logging.root.handlers == handlers_before
+    assert target_path.read_text() == 'original entry\n'
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
 def test_debug_log_reports_unmodifiable_existing_file(
     b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
 ):

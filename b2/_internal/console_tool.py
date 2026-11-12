@@ -5517,9 +5517,14 @@ class ConsoleTool:
         parser = B2.create_parser(name=self.b2_binary_name, b2_binary_name=self.b2_binary_name)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
+        handlers_before = list(logging.root.handlers)
         try:
             self._setup_logging(args, argv)
         except CommandError as e:
+            for handler in list(logging.root.handlers):
+                if handler not in handlers_before:
+                    logging.root.removeHandler(handler)
+                    handler.close()
             self._print_stderr(f'ERROR: {e}')
             return 1
 
