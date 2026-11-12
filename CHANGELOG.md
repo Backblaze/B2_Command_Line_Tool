@@ -13,7 +13,7 @@ upcoming release can be found in [changelog.d](changelog.d).
 
 ### Fixed
 
-- On POSIX systems with `O_NOFOLLOW` and `fchmod`, the `--debug-logs` file is now created with owner-only permissions, including when an existing file is reopened; the command exits if those controls are unavailable, `b2_cli.log` is a symlink, or an existing file cannot be secured.
+- On POSIX, `--debug-logs` creates or reopens `b2_cli.log` with owner-only permissions (0600) when `O_NOFOLLOW` and `fchmod` are available. The command exits if either control is unavailable, the log path is a symlink, or an existing file cannot be secured.
 - The `bucket notification-rule create` and `bucket notification-rule update` commands no longer log signing secrets or custom header values in command arguments or SDK call traces.
 - The `bucket notification-rule create` and `bucket notification-rule update` commands no longer echo invalid `--sign-secret` values in validation errors.
 
