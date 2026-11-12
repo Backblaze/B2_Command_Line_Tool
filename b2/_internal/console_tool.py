@@ -5666,6 +5666,7 @@ class ConsoleTool:
             formatter.converter = time.gmtime
             log_path = 'b2_cli.log'
             flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
+            flags |= getattr(os, 'O_BINARY', 0)
             if os.name == 'posix':
                 if not getattr(os, 'O_NOFOLLOW', 0) or not callable(getattr(os, 'fchmod', None)):
                     raise CommandError('could not secure b2_cli.log for debug logging')

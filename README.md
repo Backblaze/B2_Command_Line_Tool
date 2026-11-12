@@ -156,7 +156,7 @@ Verbose logs to stdout can be enabled with the `--verbose` flag.
 
 A hidden flag `--debug-logs` can be used to enable logging to a `b2_cli.log` file (with log rotation at midnight) in current working directory. Please pay attention not to launch the tool from the directory that you are syncing, or the logs will get synced to the remote server (unless that is really what you want to achieve).
 
-Debug logs can contain sensitive information. On POSIX systems with `O_NOFOLLOW` and `fchmod`, the `b2_cli.log` file is created with owner-only permissions (0600), including when an existing file is reopened. If either file control is unavailable, `--debug-logs` exits with `ERROR: could not secure b2_cli.log for debug logging` before opening the log. On Windows, the file is created with the filesystem's default permissions. Do not share it.
+Debug logs can contain sensitive information. On POSIX systems with `O_NOFOLLOW` and `fchmod`, the `b2_cli.log` file is created with owner-only permissions (0600), including when an existing file is reopened. If either file control is unavailable, `--debug-logs` exits with `ERROR: could not secure b2_cli.log for debug logging` before opening the log. On POSIX, a symlink at `b2_cli.log` or an existing file that cannot be secured also causes this error and prevents the command from running. On Windows, the file is created with the filesystem's default permissions. Do not share it.
 
 For advanced users, a hidden option `--log-config <filename.ini>` can be used to enable logging in a user-defined format and verbosity. Check out the [example log configuration](contrib/debug_logs.ini).
 

@@ -431,6 +431,41 @@ def debug_log_handler_cleanup():
             handler.close()
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='injects a Windows-only open flag on POSIX')
+def test_debug_log_open_requests_binary_mode(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    binary_flag = 1 << 28
+    original_open = os.open
+    log_flags = None
+
+    def track_open(path, flags, *args, **kwargs):
+        nonlocal log_flags
+        if path == 'b2_cli.log':
+            log_flags = flags
+            flags &= ~binary_flag
+        return original_open(path, flags, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'O_BINARY', binary_flag, raising=False)
+        patch.setattr(os, 'open', track_open)
+        b2_cli.run(['bucket', 'list', '--debug-logs'])
+
+    assert log_flags is not None
+    assert log_flags & binary_flag
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='requires Windows newline handling')
+def test_debug_log_has_single_windows_line_endings(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    b2_cli.run(['bucket', 'list', '--debug-logs'])
+
+    log_bytes = (cwd_path / 'b2_cli.log').read_bytes()
+    assert b'\r\n' in log_bytes
+    assert b'\r\r\n' not in log_bytes
+
+
 @pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
 def test_debug_log_uses_secured_descriptor_after_path_change(
     b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
