@@ -572,7 +572,67 @@ def test_debug_log_reports_unmodifiable_existing_file(
     assert exc_info.value.errno == errno.EBADF
 
 
-@pytest.mark.parametrize('missing_primitive', ['O_NOFOLLOW', 'fchmod'])
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file ownership')
+def test_debug_log_refuses_file_owned_by_another_user(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    log_path = cwd_path / 'b2_cli.log'
+    log_path.write_text('original entry\n')
+    log_path.chmod(0o644)
+    other_uid = os.geteuid() + 1
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'geteuid', lambda: other_uid)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+    assert log_path.read_text() == 'original entry\n'
+    assert stat.S_IMODE(log_path.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX FIFOs')
+def test_debug_log_refuses_non_regular_file(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    log_path = cwd_path / 'b2_cli.log'
+    os.mkfifo(log_path)
+    read_fd = os.open(log_path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+        assert os.read(read_fd, 4096) == b''
+    finally:
+        os.close(read_fd)
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX FIFOs')
+def test_debug_log_fifo_open_is_nonblocking(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    os.mkfifo(cwd_path / 'b2_cli.log')
+    original_open = os.open
+
+    def require_nonblocking_open(path, flags, *args, **kwargs):
+        if path == 'b2_cli.log':
+            assert flags & os.O_NONBLOCK
+        return original_open(path, flags, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'open', require_nonblocking_open)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+
+@pytest.mark.parametrize('missing_primitive', ['O_NOFOLLOW', 'O_NONBLOCK', 'fchmod'])
 @pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
 def test_debug_log_requires_posix_file_controls(
     b2_cli,

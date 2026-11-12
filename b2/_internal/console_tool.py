@@ -39,6 +39,7 @@ import platform
 import queue
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -5668,15 +5669,22 @@ class ConsoleTool:
             flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
             flags |= getattr(os, 'O_BINARY', 0)
             if os.name == 'posix':
-                if not getattr(os, 'O_NOFOLLOW', 0) or not callable(getattr(os, 'fchmod', None)):
+                if (
+                    not getattr(os, 'O_NOFOLLOW', 0)
+                    or not getattr(os, 'O_NONBLOCK', 0)
+                    or not callable(getattr(os, 'fchmod', None))
+                ):
                     raise CommandError('could not secure b2_cli.log for debug logging')
-                flags |= os.O_NOFOLLOW
+                flags |= os.O_NOFOLLOW | os.O_NONBLOCK
             else:
                 flags |= getattr(os, 'O_NOFOLLOW', 0)
             fd = None
             try:
                 fd = os.open(log_path, flags, 0o600)
                 if os.name == 'posix':
+                    file_stat = os.fstat(fd)
+                    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_uid != os.geteuid():
+                        raise CommandError('could not secure b2_cli.log for debug logging')
                     os.fchmod(fd, 0o600)
                 elif hasattr(os, 'fchmod'):
                     os.fchmod(fd, 0o600)
