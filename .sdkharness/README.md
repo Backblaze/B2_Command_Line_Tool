@@ -86,7 +86,10 @@ Each prints one `SDKHARNESS_RESULT` line and refuses any simulator URL that is n
 They point the CLI at a small loopback proxy (`tests/lib/observing_proxy.py`) in front of
 the simulator, hold each part upload / download stream for half a second so overlap is
 visible, and require two or more in flight with `--threads 4` and exactly one with
-`--threads 1`. `large.parallel_download` uses a file of just over 200 MiB because b2sdk
+`--threads 1`. The count covers the intentional hold and upstream response reads;
+downstream delivery and connection cleanup after the upstream operation finishes
+are excluded, so a completed serial transfer cannot inflate the next transfer's peak.
+`large.parallel_download` uses a file of just over 200 MiB because b2sdk
 starts one ranged stream per 100 MiB of content and the CLI has no option to lower that.
 
 The guards are covered by `test/unit/test_sdkharness_guards.py` (run with the unit tests). Use a fresh simulator per resilience scenario: an

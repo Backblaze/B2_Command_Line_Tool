@@ -410,3 +410,62 @@ def test_the_proxy_sees_no_overlap_for_serial_requests(upstream):
         assert proxy.total('upload_part') == 3
         proxy.reset()
         assert proxy.peak('upload_part') == 0
+
+
+@pytest.mark.parametrize('content_type', ['application/json', 'application/octet-stream'])
+def test_completed_upstream_cleanup_is_not_counted_as_transfer_overlap(
+    upstream, monkeypatch, content_type
+):
+    """A finished upstream response must not overlap the next serial transfer."""
+    cleanup_started = threading.Event()
+    release_cleanup = threading.Event()
+    connection_class = observing_proxy.http.client.HTTPConnection
+    send_header = Upstream.send_header
+
+    def upstream_header(handler, name, value):
+        if name.lower() == 'content-type':
+            value = content_type
+        return send_header(handler, name, value)
+
+    class DelayedCleanupConnection(connection_class):
+        consumed = False
+
+        def getresponse(self):
+            response = super().getresponse()
+            read = response.read
+
+            def observed_read(amount=None):
+                data = read(amount)
+                if amount is None or not data:
+                    self.consumed = True
+                return data
+
+            response.read = observed_read
+            return response
+
+        def close(self):
+            if (
+                self.port == upstream.server_address[1]
+                and self.consumed
+                and not cleanup_started.is_set()
+            ):
+                cleanup_started.set()
+                assert release_cleanup.wait(5), 'test did not release upstream cleanup'
+            return super().close()
+
+    monkeypatch.setattr(Upstream, 'send_header', upstream_header)
+    monkeypatch.setattr(observing_proxy.http.client, 'HTTPConnection', DelayedCleanupConnection)
+    try:
+        with observing_proxy.ObservingProxy(upstream.origin, hold_seconds=0.1) as proxy:
+            fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 1)
+            assert cleanup_started.wait(5), 'first upstream connection did not enter cleanup'
+            fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 1)
+            assert proxy.peak('upload_part') == 1
+            assert proxy.total('upload_part') == 2
+            release_cleanup.set()
+            proxy.reset()
+            fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 3)
+            assert proxy.peak('upload_part') == 3
+            assert proxy.total('upload_part') == 3
+    finally:
+        release_cleanup.set()

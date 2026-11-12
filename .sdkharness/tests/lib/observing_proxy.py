@@ -11,10 +11,10 @@
 
 The B2 CLI is a separate process, so a check cannot see its thread pool. What it
 can see is the wire: the CLI is pointed at this proxy as its realm, the proxy
-forwards everything to the simulator, and it counts requests that are in flight at
-the same moment. Two ``b2_upload_part`` requests (or two ranged downloads) that are
-open at once are real concurrency; a client that serialises its transfers can never
-produce that, however many threads it was told to use.
+forwards everything to the simulator, and it counts active upstream operations,
+including the intentional hold and upstream response reads. Two ``b2_upload_part``
+requests (or two ranged downloads) active at once are real concurrency; downstream
+delivery and connection cleanup after the upstream response completes are excluded.
 
 Overlap is only reliably observable if each request lasts long enough, and the
 simulator answers in a few milliseconds, so the proxy can hold selected requests
@@ -176,6 +176,13 @@ class ObservingProxy:
         labels = tuple(self.classify(handler.command, path, headers))
         for label in labels:
             self._enter(label)
+
+        def finish_observation() -> None:
+            nonlocal labels
+            active_labels, labels = labels, ()
+            for label in active_labels:
+                self._leave(label)
+
         connection = http.client.HTTPConnection(self.upstream_host, self.upstream_port, timeout=120)
         try:
             if labels and self.hold_seconds:
@@ -185,6 +192,7 @@ class ObservingProxy:
                 connection.request(handler.command, path, body=body, headers=outgoing)
                 response = connection.getresponse()
             except OSError:
+                finish_observation()
                 handler.send_error(502)
                 return
             is_json = any(
@@ -197,6 +205,7 @@ class ObservingProxy:
                 rewritten = response.read().replace(
                     self.upstream_origin.encode(), self.origin.encode()
                 )
+                finish_observation()
             handler.send_response(response.status)
             for name, value in response.getheaders():
                 # send_response() already wrote Date and Server; a second Date is refused
@@ -211,18 +220,23 @@ class ObservingProxy:
             handler.close_connection = True
             if handler.command == 'HEAD':
                 return
-            # A request stays in flight until its response has been delivered (or the
-            # client hung up, as a parallel download does once its share is read). File
-            # bodies are streamed, not held in memory.
+            # Finish counting before the final bytes become visible to the client:
+            # a serial client can begin its next request immediately after reading them.
+            # One-chunk lookahead bounds memory while detecting upstream completion;
+            # neither socket writes nor connection cleanup hold the counter lock.
             try:
                 if rewritten is not None:
                     handler.wfile.write(rewritten)
                 else:
-                    while chunk := response.read(1024 * 1024):
+                    chunk = response.read(1024 * 1024)
+                    while chunk:
+                        following = response.read(1024 * 1024)
+                        if not following:
+                            finish_observation()
                         handler.wfile.write(chunk)
+                        chunk = following
             except OSError:
                 pass
         finally:
+            finish_observation()
             connection.close()
-            for label in labels:
-                self._leave(label)
