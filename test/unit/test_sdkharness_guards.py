@@ -316,6 +316,17 @@ def test_resilience_child_environment_has_no_ambient_b2_or_proxy_values(monkeypa
     assert cli.env['NO_PROXY'] == '127.0.0.1'
 
 
+def test_resilience_child_uses_customer_timeouts_even_under_github_ci(monkeypatch, tmp_path):
+    monkeypatch.setenv('CI', 'true')
+    monkeypatch.setenv('GITHUB_REPOSITORY', 'Backblaze/B2_Command_Line_Tool')
+    monkeypatch.setenv('SDKHARNESS_SIMULATOR_URL', GOOD_URL)
+
+    cli = resilience.Cli(str(tmp_path))
+
+    assert 'CI' not in cli.env
+    assert 'GITHUB_REPOSITORY' not in cli.env
+
+
 # -- the observing proxy ---------------------------------------------------------------------
 
 

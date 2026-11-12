@@ -374,10 +374,12 @@ class Lifecycle:
     def files_list(self) -> None:
         payload = b'l' * 256
         second = b'L' * 300
-        names = [self.object_name(f'list/{leaf}.txt') for leaf in ('a', 'b', 'c')]
+        top_level = [self.object_name(f'list/{leaf}.txt') for leaf in ('a', 'b', 'c')]
+        nested = [self.object_name(f'list/sub/{leaf}.txt') for leaf in ('d', 'e')]
+        names = [*top_level, *nested]
         for name in names:
             self.upload(f'upload {Path(name).stem}', payload, name)
-        self.upload('upload c again', second, names[-1])
+        self.upload('upload c again', second, top_level[-1])
         outsider = self.object_name('outside.txt')
         self.upload('upload outsider', payload, outsider)
 
@@ -392,7 +394,23 @@ class Lifecycle:
         if listed != set(names):
             raise CheckFailure('list names', 'prefix listing differs from uploaded names')
 
-        versions = self.list_versions(names[-1])
+        # Without --recursive the nested names must collapse into one folder entry; with it,
+        # every name is listed (above; --json shows a folder as its first file, so two nested
+        # names also tell the two modes apart there). A client that ignores the option fails
+        # one or the other. The plain listing is read, because --json hides the folder entry.
+        raw = self.invoke(
+            'list one level',
+            'ls',
+            f'b2://{self.bucket_name}/{self.object_name("list/")}',
+        )
+        one_level = {line.strip() for line in raw.splitlines() if line.strip()}
+        folder = self.object_name('list/sub/')
+        if one_level != {*top_level, folder}:
+            raise CheckFailure(
+                'list one level', 'listing without --recursive did not collapse the nested names'
+            )
+
+        versions = self.list_versions(top_level[-1])
         ids = {str(item.get('fileId', '')) for item in versions}
         if len(versions) != 2 or len(ids) != 2 or '' in ids:
             raise CheckFailure('list versions', 'twice-uploaded key did not return two versions')

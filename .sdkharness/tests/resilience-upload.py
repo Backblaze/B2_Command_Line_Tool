@@ -31,6 +31,7 @@ import b2  # noqa: E402
 from b2._internal.version_listing import LATEST_STABLE_VERSION  # noqa: E402
 
 LEVEL = 'resilience'
+STALL_MS = 130000  # above b2sdk's 128 s upload timeout; the simulator accepts up to 300000
 SCENARIOS = {
     'upload.retry_503': ('b2_upload_file', 503, 'service_unavailable'),
     'upload.retry_500': ('b2_upload_file', 500, 'internal_error'),
@@ -206,6 +207,9 @@ class Cli:
         self.scratch = scratch
         # No ambient B2_* value or proxy variable reaches the CLI (see simulator_guard).
         self.env = scrubbed_environment(os.environ)
+        # Keep customer timeouts: these variables enable the CLI's CI-only timeout hook.
+        self.env.pop('CI', None)
+        self.env.pop('GITHUB_REPOSITORY', None)
         self.env.update(
             PYTHONPATH=os.pathsep.join(
                 filter(None, (str(REPOSITORY_ROOT), os.environ.get('PYTHONPATH', '')))
@@ -333,7 +337,7 @@ def uploaded_or_fail(proc, payload, endpoint='b2_upload_file', large_file=False)
     except Exception as error:  # noqa: BLE001
         raise Failure('upload', 'b2 file upload printed no JSON file record') from error
     got = (meta.get('contentSha1') or '').split(':')[-1]
-    expected = hashlib.sha1(payload).hexdigest()
+    expected = hashlib.sha1(payload, usedforsecurity=False).hexdigest()
     if large_file and got == 'none':
         info = meta.get('fileInfo') or {}
         if not isinstance(info, dict) or info.get('large_file_sha1') != expected:
@@ -429,12 +433,6 @@ def run_retry() -> None:
 
 def run_wire_fault() -> None:
     kind = WIRE_SCENARIOS[SCENARIO]
-    if kind == 'stall':
-        raise Skip(
-            'no-client-option',
-            'the CLI exposes no supported per-request timeout shorter than the controlled stall',
-        )
-
     cli, bucket = setup()
     payload = (b'sdkharness resilience wire fault ' * 64)[:1024]
     arm()
@@ -467,7 +465,7 @@ def run_wire_fault() -> None:
         if not file_id:
             raise Failure('end state', 'a stored version has no fileId')
         stored_sha1 = (version.get('contentSha1') or '').split(':')[-1]
-        if stored_sha1 != hashlib.sha1(payload).hexdigest():
+        if stored_sha1 != hashlib.sha1(payload, usedforsecurity=False).hexdigest():
             raise Failure('end state', 'a stored version does not carry the uploaded bytes')
         round_trip(cli, f'b2id://{file_id}', payload)
     note(f'{len(mine)} complete version(s) after the reset-before-response')
@@ -634,7 +632,9 @@ def main() -> int:
             kind = WIRE_SCENARIOS[SCENARIO]
             FAULT = {'on': 'b2_upload_file', 'kind': kind, 'count': 1}
             if kind == 'stall':
-                FAULT['ms'] = 60000
+                # The CLI has no timeout option, so the stall must outlast b2sdk's own upload
+                # timeout (b2http.TIMEOUT_FOR_UPLOAD, 128 s) for the client to give up on it.
+                FAULT['ms'] = STALL_MS
             ARM_PATH = '/wire-faults'
             run_wire_fault()
         elif SCENARIO in API_SCENARIOS:
