@@ -5693,7 +5693,11 @@ class ConsoleTool:
                 fd = os.open(log_path, flags, 0o600)
                 if os.name == 'posix':
                     file_stat = os.fstat(fd)
-                    if not stat.S_ISREG(file_stat.st_mode) or file_stat.st_uid != os.geteuid():
+                    if (
+                        not stat.S_ISREG(file_stat.st_mode)
+                        or file_stat.st_uid != os.geteuid()
+                        or file_stat.st_nlink != 1
+                    ):
                         raise CommandError('could not secure b2_cli.log for debug logging')
                     os.fchmod(fd, 0o600)
                 elif hasattr(os, 'fchmod'):

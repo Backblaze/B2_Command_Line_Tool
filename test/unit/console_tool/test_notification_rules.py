@@ -592,6 +592,27 @@ def test_debug_log_refuses_symlink(
 
 
 @pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_refuses_hard_link(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    target_path.chmod(0o644)
+    log_path = cwd_path / 'b2_cli.log'
+    os.link(target_path, log_path)
+
+    b2_cli.run(
+        ['bucket', 'list', '--debug-logs'],
+        expected_status=1,
+        expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+    )
+
+    assert target_path.read_text() == 'original entry\n'
+    assert stat.S_IMODE(target_path.stat().st_mode) == 0o644
+    assert log_path.stat().st_ino == target_path.stat().st_ino
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
 def test_debug_log_setup_failure_removes_verbose_handler(
     b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
 ):
