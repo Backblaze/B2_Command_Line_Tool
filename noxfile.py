@@ -65,7 +65,7 @@ if CI and not NOX_PYTHONS:
 
 PYTHON_DEFAULT_VERSION = PYTHON_VERSIONS[-2] if len(PYTHON_VERSIONS) > 1 else PYTHON_VERSIONS[0]
 
-PY_PATHS = ['b2', 'test', 'noxfile.py']
+PY_PATHS = ['b2', 'test', 'scripts', 'noxfile.py']
 
 DOCKER_TEMPLATE = pathlib.Path('docker/Dockerfile.template')
 
@@ -922,3 +922,101 @@ def towncrier_check(session):
         session.error(
             'Found errors in the changelog.d directory. Check logs above for more information'
         )
+
+
+def _branch_files(session, base: str, diff_filter: str, *paths: str) -> list[str]:
+    """
+    Files changed since the merge base with `base`, including uncommitted and untracked ones.
+    """
+    try:
+        merge_base = subprocess.check_output(['git', 'merge-base', base, 'HEAD'], text=True).strip()
+        files = subprocess.check_output(
+            [
+                'git',
+                'diff',
+                f'--diff-filter={diff_filter}',
+                '--name-only',
+                '-z',
+                merge_base,
+                '--',
+                *paths,
+            ],
+            text=True,
+        ).split('\0')
+        files += subprocess.check_output(
+            ['git', 'ls-files', '-z', '--others', '--exclude-standard', '--', *paths], text=True
+        ).split('\0')
+    except subprocess.CalledProcessError:
+        session.error(f'Cannot diff against {base!r}; fetch it or pass another base ref.')
+    return sorted(set(filter(None, files)))
+
+
+@nox.session(python=False)
+def changelog_check(session):
+    """
+    Fail if the branch adds no changelog.d entry, like the CI lint job.
+    Pass the base ref as a posarg (default: $NOX_CI_BASE or origin/master).
+    """
+    base = session.posargs[0] if session.posargs else os.environ.get('NOX_CI_BASE', 'origin/master')
+    if _branch_files(session, base, 'ACMR') == ['uv.lock']:
+        session.log('Skipping changelog validation for lockfile-only change.')
+        return
+    if not _branch_files(session, base, 'A', 'changelog.d'):
+        session.error(
+            f'No changelog.d entry added since {base}. Add one (see CONTRIBUTING.md) '
+            'or ask a maintainer for the "-changelog" label.'
+        )
+
+
+@nox.session(python=False)
+def ci(session):
+    """
+    Local gate that mirrors the CI lint, build and test jobs on one Python version (default 3.12,
+    as in ci.yml). It does not run the doc, docker or bundle jobs.
+    Set NOX_CI_BASE for a base other than origin/master, and NOX_CI_SKIP_CHANGELOG=1 when the PR
+    has the "-changelog" label. Integration tests that need B2 credentials run only when they are set.
+    """
+    python = os.environ.get('NOX_CI_PYTHON', '3.12')
+    base = os.environ.get('NOX_CI_BASE', 'origin/master')
+    nox_cmd = [sys.executable, '-m', 'nox']
+    # Child sessions without an explicit version (lint, build, ...) use the same interpreter.
+    env = {'NOX_PYTHONS': python}
+    # Spell-check only what this branch changes; older files still carry known typos.
+    changed = [
+        path
+        for path in _branch_files(session, base, 'ACMR')
+        if os.path.isfile(path) and os.path.basename(path) != '.DS_Store'
+    ]
+    if changed:
+        session.run(
+            'uvx', 'codespell==2.4.1', '-L', 'datas,re-use,re-using', *changed, external=True
+        )
+    session.run(*nox_cmd, '-s', 'lint', 'towncrier_check', 'build', env=env)
+    if os.environ.get('NOX_CI_SKIP_CHANGELOG'):
+        session.log('NOT RUN: changelog_check (NOX_CI_SKIP_CHANGELOG is set).')
+    else:
+        session.run(*nox_cmd, '-s', 'changelog_check', '--', base, env=env)
+    session.run(*nox_cmd, '-s', f'unit-{python}', env=env)
+    session.run(*nox_cmd, '-s', f'integration-{python}', '--', '-m', 'not require_secrets', env=env)
+    if os.environ.get('B2_TEST_APPLICATION_KEY') and os.environ.get('B2_TEST_APPLICATION_KEY_ID'):
+        session.run(
+            *nox_cmd,
+            '-s',
+            f'integration-{python}',
+            '--',
+            '-m',
+            'require_secrets',
+            '--cleanup',
+            env=env,
+        )
+    else:
+        session.log('NOT RUN: integration tests with secrets (B2_TEST_APPLICATION_KEY* unset).')
+
+
+@nox.session(python=False)
+def review_metrics(session):
+    """
+    Report human review time per merged PR, with reverts as the guardrail (needs `gh`).
+    Pass `-- --days N` to change the window (default 30).
+    """
+    session.run(sys.executable, 'scripts/review_metrics.py', *session.posargs)

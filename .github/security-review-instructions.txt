@@ -1,0 +1,10 @@
+This is the Backblaze B2 command-line tool (Python, built on b2sdk). Pay special attention to:
+
+- Application keys, authorization tokens and SSE-C keys reaching logs (--verbose, --debug-logs,
+  b2_cli.log), error messages or stderr, or stdout in commands that do not document it. `account get`
+  and `key create` print credentials on purpose; flag only new or undocumented output.
+- Commands that delete or overwrite data (rm, sync --delete, file and bucket updates) acting beyond the
+  bucket, prefix or versions the user asked for, or ignoring --dry-run.
+- The local account info database (B2_ACCOUNT_INFO): permissions, copying, or printing it.
+- GitHub workflow changes: secrets exposed to untrusted code, broadened permissions, untrusted PR fields
+  in run: steps, and third-party actions not pinned to a commit SHA.
