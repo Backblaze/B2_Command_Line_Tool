@@ -7,8 +7,11 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import errno
 import json
 import logging
+import os
+import stat
 
 import pytest
 
@@ -284,6 +287,31 @@ def test_notification_rules__sign_secret(b2_cli, bucket, bucket_notification_rul
     ) == [bucket_notification_rule]
 
 
+@pytest.mark.parametrize('subcommand', ['create', 'update'])
+def test_notification_rules__invalid_sign_secret_message_omits_value(b2_cli, capsys, subcommand):
+    invalid_value = 'DistinctiveInput_' + 'x' * 40
+    b2_cli.run(
+        [
+            'bucket',
+            'notification-rule',
+            subcommand,
+            'b2://my-bucket',
+            'rule-name',
+            '--event-type',
+            'b2:ObjectCreated:*',
+            '--webhook-url',
+            'https://example.com/webhook',
+            '--sign-secret',
+            invalid_value,
+        ],
+        expected_status=2,
+    )
+    stderr = capsys.readouterr().err
+
+    assert 'the secret has to be exactly 32 alphanumeric characters' in stderr
+    assert invalid_value not in stderr
+
+
 @pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
 @pytest.mark.parametrize('subcommand', ['create', 'update'])
 @pytest.mark.parametrize(
@@ -347,6 +375,401 @@ def test_notification_rules__sensitive_arguments_are_not_logged(
             if handler not in original_handlers:
                 logging.root.removeHandler(handler)
                 handler.close()
+
+
+def test_notification_rules__delete_does_not_log_remaining_rule_configuration(
+    b2_cli, bucket, bucket_notification_rule, b2_cli_log_fix, cwd_path, caplog, capsys
+):
+    # Deliberately synthetic values, not credentials.
+    signing_value = 'a' * 32
+    header_value = 'test-only-header-value'
+    b2_cli.run(
+        [
+            'bucket',
+            'notification-rule',
+            'create',
+            f'b2://{bucket}',
+            'remaining-rule',
+            '--event-type',
+            'b2:ObjectCreated:*',
+            '--webhook-url',
+            'https://example.com/webhook',
+            '--sign-secret',
+            signing_value,
+            '--custom-header',
+            f'X-Test-Header={header_value}',
+        ]
+    )
+    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger='b2sdk._internal.bucket')
+    caplog.clear()
+    capsys.readouterr()
+    original_handlers = logging.root.handlers[:]
+
+    try:
+        _, _, console_stderr = b2_cli.run(
+            [
+                'bucket',
+                'notification-rule',
+                'delete',
+                '--verbose',
+                '--debug-logs',
+                f'b2://{bucket}',
+                bucket_notification_rule['name'],
+            ]
+        )
+        outputs = {
+            'stderr': console_stderr + capsys.readouterr().err,
+            'debug log': (cwd_path / 'b2_cli.log').read_text(),
+            'captured logs': caplog.text,
+        }
+        exposed_sinks = [
+            sink_name
+            for sink_name, output in outputs.items()
+            if any(value in output for value in (signing_value, header_value))
+        ]
+        if exposed_sinks:
+            pytest.fail(f'notification configuration appeared in {", ".join(exposed_sinks)}')
+
+        caplog.clear()
+        b2_cli.run(
+            ['bucket', 'create', '--verbose', '--debug-logs', 'control-log-bucket', 'allPrivate']
+        )
+        assert 'calling Bucket(' in caplog.text
+    finally:
+        for handler in logging.root.handlers[:]:
+            if handler not in original_handlers:
+                logging.root.removeHandler(handler)
+                handler.close()
+
+
+@pytest.mark.parametrize('subcommand', ['create', 'update'])
+@pytest.mark.parametrize('existing_log', [False, True], ids=['new', 'existing'])
+def test_notification_rules__debug_log_permissions(
+    b2_cli, bucket, bucket_notification_rule, b2_cli_log_fix, cwd_path, subcommand, existing_log
+):
+    marker = 'q' * 32
+    log_path = cwd_path / 'b2_cli.log'
+    if existing_log:
+        log_path.write_text('previous entry\n')
+        if os.name == 'posix':
+            log_path.chmod(0o644)
+
+    original_handlers = logging.root.handlers[:]
+    previous_umask = os.umask(0o022) if os.name == 'posix' else None
+    try:
+        b2_cli.run(
+            [
+                'bucket',
+                'notification-rule',
+                subcommand,
+                '--debug-logs',
+                f'b2://{bucket}',
+                'new-rule' if subcommand == 'create' else bucket_notification_rule['name'],
+                '--event-type',
+                'b2:ObjectCreated:*',
+                '--webhook-url',
+                'https://example.com/webhook',
+                '--sign-secret',
+                marker,
+            ]
+        )
+    finally:
+        if previous_umask is not None:
+            os.umask(previous_umask)
+        for handler in logging.root.handlers[:]:
+            if handler not in original_handlers:
+                logging.root.removeHandler(handler)
+                handler.close()
+
+    assert marker not in log_path.read_text()
+    if os.name == 'posix':
+        assert stat.S_IMODE(log_path.stat().st_mode) == 0o600
+
+
+@pytest.fixture
+def debug_log_handler_cleanup():
+    original_handlers = logging.root.handlers[:]
+    yield
+    for handler in logging.root.handlers[:]:
+        if handler not in original_handlers:
+            logging.root.removeHandler(handler)
+            handler.close()
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='injects a Windows-only open flag on POSIX')
+def test_debug_log_open_requests_binary_mode(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    binary_flag = 1 << 28
+    original_open = os.open
+    log_flags = None
+
+    def track_open(path, flags, *args, **kwargs):
+        nonlocal log_flags
+        if path == 'b2_cli.log':
+            log_flags = flags
+            flags &= ~binary_flag
+        return original_open(path, flags, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'O_BINARY', binary_flag, raising=False)
+        patch.setattr(os, 'open', track_open)
+        b2_cli.run(['bucket', 'list', '--debug-logs'])
+
+    assert log_flags is not None
+    assert log_flags & binary_flag
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='requires Windows newline handling')
+def test_debug_log_has_single_windows_line_endings(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    b2_cli.run(['bucket', 'list', '--debug-logs'])
+
+    log_bytes = (cwd_path / 'b2_cli.log').read_bytes()
+    assert b'\r\n' in log_bytes
+    assert b'\r\r\n' not in log_bytes
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_uses_secured_descriptor_after_path_change(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    log_path = cwd_path / 'b2_cli.log'
+    secured_path = cwd_path / 'original.log'
+    replacement_text = 'replacement file\n'
+    original_chmod = os.chmod
+    original_fchmod = os.fchmod
+    swapped = False
+
+    def swap_path():
+        nonlocal swapped
+        if swapped:
+            return
+        log_path.rename(secured_path)
+        log_path.write_text(replacement_text)
+        original_chmod(log_path, 0o644)
+        swapped = True
+
+    def chmod_then_swap(path, mode):
+        original_chmod(path, mode)
+        if os.fspath(path) == 'b2_cli.log':
+            swap_path()
+
+    def fchmod_then_swap(fd, mode):
+        original_fchmod(fd, mode)
+        swap_path()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'chmod', chmod_then_swap)
+        patch.setattr(os, 'fchmod', fchmod_then_swap)
+        b2_cli.run(['bucket', 'list', '--debug-logs'])
+
+    assert swapped
+    assert 'starting command' in secured_path.read_text()
+    assert log_path.read_text() == replacement_text
+    assert stat.S_IMODE(log_path.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_refuses_symlink(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    log_path = cwd_path / 'b2_cli.log'
+    log_path.symlink_to(target_path)
+
+    b2_cli.run(
+        ['bucket', 'list', '--debug-logs'],
+        expected_status=1,
+        expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+    )
+
+    assert target_path.read_text() == 'original entry\n'
+    assert log_path.is_symlink()
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_refuses_hard_link(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    target_path.chmod(0o644)
+    log_path = cwd_path / 'b2_cli.log'
+    os.link(target_path, log_path)
+
+    b2_cli.run(
+        ['bucket', 'list', '--debug-logs'],
+        expected_status=1,
+        expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+    )
+
+    assert target_path.read_text() == 'original entry\n'
+    assert stat.S_IMODE(target_path.stat().st_mode) == 0o644
+    assert log_path.stat().st_ino == target_path.stat().st_ino
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_setup_failure_removes_verbose_handler(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    (cwd_path / 'b2_cli.log').symlink_to(target_path)
+    handlers_before = logging.root.handlers[:]
+
+    b2_cli.run(
+        ['bucket', 'list', '--verbose', '--debug-logs'],
+        expected_status=1,
+        expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+    )
+
+    assert logging.root.handlers == handlers_before
+    assert target_path.read_text() == 'original entry\n'
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_reports_unmodifiable_existing_file(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    log_path = cwd_path / 'b2_cli.log'
+    log_path.write_text('original entry\n')
+    attempted_fd = None
+
+    def deny_fchmod(fd, mode):
+        nonlocal attempted_fd
+        attempted_fd = fd
+        raise PermissionError(errno.EPERM, 'operation not permitted')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'fchmod', deny_fchmod)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+    assert log_path.read_text() == 'original entry\n'
+    assert attempted_fd is not None
+    with pytest.raises(OSError) as exc_info:
+        os.fstat(attempted_fd)
+    assert exc_info.value.errno == errno.EBADF
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file ownership')
+def test_debug_log_refuses_file_owned_by_another_user(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    log_path = cwd_path / 'b2_cli.log'
+    log_path.write_text('original entry\n')
+    log_path.chmod(0o644)
+    other_uid = os.geteuid() + 1
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'geteuid', lambda: other_uid)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+    assert log_path.read_text() == 'original entry\n'
+    assert stat.S_IMODE(log_path.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX FIFOs')
+def test_debug_log_refuses_non_regular_file(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    log_path = cwd_path / 'b2_cli.log'
+    os.mkfifo(log_path)
+    read_fd = os.open(log_path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+        assert os.read(read_fd, 4096) == b''
+    finally:
+        os.close(read_fd)
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX FIFOs')
+def test_debug_log_fifo_open_is_nonblocking(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup, monkeypatch
+):
+    os.mkfifo(cwd_path / 'b2_cli.log')
+    original_open = os.open
+
+    def require_nonblocking_open(path, flags, *args, **kwargs):
+        if path == 'b2_cli.log':
+            assert flags & os.O_NONBLOCK
+        return original_open(path, flags, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'open', require_nonblocking_open)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+
+@pytest.mark.parametrize('missing_primitive', ['O_NOFOLLOW', 'O_NONBLOCK', 'fchmod'])
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_requires_posix_file_controls(
+    b2_cli,
+    bucket,
+    b2_cli_log_fix,
+    cwd_path,
+    debug_log_handler_cleanup,
+    monkeypatch,
+    missing_primitive,
+):
+    target_path = cwd_path / 'target.log'
+    target_path.write_text('original entry\n')
+    target_path.chmod(0o644)
+    (cwd_path / 'b2_cli.log').symlink_to(target_path)
+    original_open = os.open
+    log_path_opened = False
+
+    def track_open(path, *args, **kwargs):
+        nonlocal log_path_opened
+        if os.fspath(path) == 'b2_cli.log':
+            log_path_opened = True
+        return original_open(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.delattr(os, missing_primitive)
+        patch.setattr(os, 'open', track_open)
+        b2_cli.run(
+            ['bucket', 'list', '--debug-logs'],
+            expected_status=1,
+            expected_stderr='ERROR: could not secure b2_cli.log for debug logging\n',
+        )
+
+    assert not log_path_opened
+    assert target_path.read_text() == 'original entry\n'
+    assert stat.S_IMODE(target_path.stat().st_mode) == 0o644
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='requires POSIX file semantics')
+def test_debug_log_handler_close_releases_stream(
+    b2_cli, bucket, b2_cli_log_fix, cwd_path, debug_log_handler_cleanup
+):
+    original_handlers = logging.root.handlers[:]
+    b2_cli.run(['bucket', 'list', '--debug-logs'])
+    [handler] = [handler for handler in logging.root.handlers if handler not in original_handlers]
+    stream = handler.stream
+
+    handler.close()
+
+    assert handler.stream is None
+    assert stream.closed
 
 
 @pytest.mark.parametrize('sdk_log_level', [logging.DEBUG, logging.WARNING])

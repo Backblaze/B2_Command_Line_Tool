@@ -39,6 +39,7 @@ import platform
 import queue
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -4607,7 +4608,7 @@ class BucketNotificationRuleCreateBase(
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
             raise argparse.ArgumentTypeError(
-                f'the secret has to be exactly 32 alphanumeric characters, got: {value!r}'
+                'the secret has to be exactly 32 alphanumeric characters'
             )
         return value
 
@@ -4877,6 +4878,15 @@ class BucketNotificationRuleDelete(Command):
     """
 
     COMMAND_NAME = 'delete'
+
+    def run(self, args):
+        sdk_logger = logging.getLogger('b2sdk._internal.bucket')
+        previous_level = sdk_logger.level
+        sdk_logger.setLevel(max(logging.INFO, sdk_logger.getEffectiveLevel()))
+        try:
+            return super().run(args)
+        finally:
+            sdk_logger.setLevel(previous_level)
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -5468,6 +5478,24 @@ class CancelLargeFile(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargeUnfinish
     replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
 
 
+class _OwnedFileStreamHandler(logging.StreamHandler):
+    def close(self):
+        self.acquire()
+        try:
+            try:
+                if self.stream is not None:
+                    try:
+                        self.flush()
+                    finally:
+                        stream = self.stream
+                        self.stream = None
+                        stream.close()
+            finally:
+                super().close()
+        finally:
+            self.release()
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
@@ -5499,7 +5527,16 @@ class ConsoleTool:
         parser = B2.create_parser(name=self.b2_binary_name, b2_binary_name=self.b2_binary_name)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
-        self._setup_logging(args, argv)
+        handlers_before = list(logging.root.handlers)
+        try:
+            self._setup_logging(args, argv)
+        except CommandError as e:
+            for handler in list(logging.root.handlers):
+                if handler not in handlers_before:
+                    logging.root.removeHandler(handler)
+                    handler.close()
+            self._print_stderr(f'ERROR: {e}')
+            return 1
 
         if args.escape_control_characters is None:
             args.escape_control_characters = self._get_default_escape_cc_setting()
@@ -5637,7 +5674,42 @@ class ConsoleTool:
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
-            handler = logging.FileHandler('b2_cli.log', **errors_kwarg)
+            log_path = 'b2_cli.log'
+            flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
+            flags |= getattr(os, 'O_BINARY', 0)
+            if os.name == 'posix':
+                # Restrict log access and prevent link following (OWASP Logging Cheat Sheet; CWE-59).
+                if (
+                    not getattr(os, 'O_NOFOLLOW', 0)
+                    or not getattr(os, 'O_NONBLOCK', 0)
+                    or not callable(getattr(os, 'fchmod', None))
+                ):
+                    raise CommandError('could not secure b2_cli.log for debug logging')
+                flags |= os.O_NOFOLLOW | os.O_NONBLOCK
+            else:
+                flags |= getattr(os, 'O_NOFOLLOW', 0)
+            fd = None
+            try:
+                fd = os.open(log_path, flags, 0o600)
+                if os.name == 'posix':
+                    file_stat = os.fstat(fd)
+                    if (
+                        not stat.S_ISREG(file_stat.st_mode)
+                        or file_stat.st_uid != os.geteuid()
+                        or file_stat.st_nlink != 1
+                    ):
+                        raise CommandError('could not secure b2_cli.log for debug logging')
+                    os.fchmod(fd, 0o600)
+                elif hasattr(os, 'fchmod'):
+                    os.fchmod(fd, 0o600)
+                stream = os.fdopen(fd, 'a', **errors_kwarg)
+                fd = None
+            except OSError as e:
+                raise CommandError('could not secure b2_cli.log for debug logging') from e
+            finally:
+                if fd is not None:
+                    os.close(fd)
+            handler = _OwnedFileStreamHandler(stream)
             handler.setFormatter(formatter)
 
             # logs from ALL loggers sent to the log file should be formatted this way
