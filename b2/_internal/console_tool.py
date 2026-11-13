@@ -4879,6 +4879,15 @@ class BucketNotificationRuleDelete(Command):
 
     COMMAND_NAME = 'delete'
 
+    def run(self, args):
+        sdk_logger = logging.getLogger('b2sdk._internal.bucket')
+        previous_level = sdk_logger.level
+        sdk_logger.setLevel(max(logging.INFO, sdk_logger.getEffectiveLevel()))
+        try:
+            return super().run(args)
+        finally:
+            sdk_logger.setLevel(previous_level)
+
     @classmethod
     def _setup_parser(cls, parser):
         add_b2_uri_argument(

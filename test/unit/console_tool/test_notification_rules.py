@@ -377,6 +377,64 @@ def test_notification_rules__sensitive_arguments_are_not_logged(
                 handler.close()
 
 
+def test_notification_rules__delete_does_not_log_remaining_rule_configuration(
+    b2_cli, bucket, bucket_notification_rule, b2_cli_log_fix, cwd_path, caplog, capsys
+):
+    # Deliberately synthetic values, not credentials.
+    signing_value = 'a' * 32
+    header_value = 'test-only-header-value'
+    b2_cli.run(
+        [
+            'bucket',
+            'notification-rule',
+            'create',
+            f'b2://{bucket}',
+            'remaining-rule',
+            '--event-type',
+            'b2:ObjectCreated:*',
+            '--webhook-url',
+            'https://example.com/webhook',
+            '--sign-secret',
+            signing_value,
+            '--custom-header',
+            f'X-Test-Header={header_value}',
+        ]
+    )
+    caplog.clear()
+    capsys.readouterr()
+    original_handlers = logging.root.handlers[:]
+
+    try:
+        _, _, console_stderr = b2_cli.run(
+            [
+                'bucket',
+                'notification-rule',
+                'delete',
+                '--verbose',
+                '--debug-logs',
+                f'b2://{bucket}',
+                bucket_notification_rule['name'],
+            ]
+        )
+        outputs = {
+            'stderr': console_stderr + capsys.readouterr().err,
+            'debug log': (cwd_path / 'b2_cli.log').read_text(),
+            'captured logs': caplog.text,
+        }
+        exposed_sinks = [
+            sink_name
+            for sink_name, output in outputs.items()
+            if any(value in output for value in (signing_value, header_value))
+        ]
+        if exposed_sinks:
+            pytest.fail(f'notification configuration appeared in {", ".join(exposed_sinks)}')
+    finally:
+        for handler in logging.root.handlers[:]:
+            if handler not in original_handlers:
+                logging.root.removeHandler(handler)
+                handler.close()
+
+
 @pytest.mark.parametrize('subcommand', ['create', 'update'])
 @pytest.mark.parametrize('existing_log', [False, True], ids=['new', 'existing'])
 def test_notification_rules__debug_log_permissions(
