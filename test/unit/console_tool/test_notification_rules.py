@@ -400,6 +400,8 @@ def test_notification_rules__delete_does_not_log_remaining_rule_configuration(
             f'X-Test-Header={header_value}',
         ]
     )
+    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger='b2sdk._internal.bucket')
     caplog.clear()
     capsys.readouterr()
     original_handlers = logging.root.handlers[:]
@@ -428,6 +430,12 @@ def test_notification_rules__delete_does_not_log_remaining_rule_configuration(
         ]
         if exposed_sinks:
             pytest.fail(f'notification configuration appeared in {", ".join(exposed_sinks)}')
+
+        caplog.clear()
+        b2_cli.run(
+            ['bucket', 'create', '--verbose', '--debug-logs', 'control-log-bucket', 'allPrivate']
+        )
+        assert 'calling Bucket(' in caplog.text
     finally:
         for handler in logging.root.handlers[:]:
             if handler not in original_handlers:

@@ -5678,6 +5678,7 @@ class ConsoleTool:
             flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
             flags |= getattr(os, 'O_BINARY', 0)
             if os.name == 'posix':
+                # Restrict log access and prevent link following (OWASP Logging Cheat Sheet; CWE-59).
                 if (
                     not getattr(os, 'O_NOFOLLOW', 0)
                     or not getattr(os, 'O_NONBLOCK', 0)
