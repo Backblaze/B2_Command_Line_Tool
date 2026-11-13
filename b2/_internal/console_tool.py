@@ -1899,8 +1899,6 @@ class DownloadCommand(
                 self._print_file_attribute(label, attr_value)
         for name in sorted(download_version.file_info):
             self._print_file_attribute(f'INFO {name}', download_version.file_info[name])
-        if download_version.content_sha1 != 'none':
-            self._print('Checksum matches')
         return 0
 
     @classmethod
@@ -2042,6 +2040,12 @@ class FileDownloadBase(
         progress_listener.change_description(output_filepath.name)
 
         downloaded_file.save_to(output_filepath)
+        # only claim a match once the bytes were actually hashed and compared
+        if (
+            not args.skip_hash_verification
+            and downloaded_file.download_version.content_sha1 != 'none'
+        ):
+            self._print('Checksum matches')
         self._print('Download finished')
 
         return 0
