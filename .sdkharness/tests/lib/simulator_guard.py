@@ -27,6 +27,24 @@ def credential_is_fixed(key_id: str, application_key: str) -> bool:
     return (key_id, application_key) == SIMULATOR_CREDENTIAL
 
 
+# Variables that route (or exempt) HTTP traffic through a proxy, in either case.
+PROXY_VARIABLES = frozenset(
+    {'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy', 'ftp_proxy', 'grpc_proxy'}
+)
+
+
 def scrubbed_environment(environment: Mapping[str, str]) -> dict[str, str]:
-    """A copy of ``environment`` without any ``B2_*`` value (set explicitly afterwards)."""
-    return {name: value for name, value in environment.items() if not name.startswith('B2_')}
+    """A copy of ``environment`` without any ``B2_*`` or proxy variable.
+
+    ``B2_*`` values are set explicitly afterwards. Proxy variables are dropped because a
+    proxy configured on a developer or CI machine would otherwise carry the check's
+    loopback traffic (and the fixed credential) to a third party, or break it. Loopback
+    is then exempted explicitly, so nothing a child process inherits can reroute it.
+    """
+    kept = {
+        name: value
+        for name, value in environment.items()
+        if not name.startswith('B2_') and name.lower() not in PROXY_VARIABLES
+    }
+    kept['NO_PROXY'] = kept['no_proxy'] = '127.0.0.1'
+    return kept

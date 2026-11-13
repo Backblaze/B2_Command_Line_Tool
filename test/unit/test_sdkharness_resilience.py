@@ -145,11 +145,26 @@ def test_upload_must_report_the_sha1_of_the_bytes_that_were_sent():
     right = hashlib.sha1(PAYLOAD).hexdigest()
     assert check.uploaded_or_fail(FakeProcess(file_record(right)), PAYLOAD)['fileId'] == '4_zabc'
     assert check.uploaded_or_fail(FakeProcess(file_record(f'unverified:{right}')), PAYLOAD)
-    assert check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD)
+    with pytest.raises(check.Failure, match='contentSha1 does not match'):
+        # a small file has a real checksum; 'none' is only valid for a large file
+        check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD)
     with pytest.raises(check.Failure) as caught:
         check.uploaded_or_fail(FakeProcess(file_record('0' * 40)), PAYLOAD)
     assert caught.value.step == 'upload'
     assert 'contentSha1 does not match' in caught.value.detail
+
+
+def test_a_large_file_may_report_no_sha1_only_with_a_matching_large_file_sha1():
+    check = load_check()
+    digest = hashlib.sha1(PAYLOAD).hexdigest()
+    record = json.dumps(
+        {'fileId': '4_zabc', 'contentSha1': 'none', 'fileInfo': {'large_file_sha1': digest}}
+    )
+    assert (
+        check.uploaded_or_fail(FakeProcess(record), PAYLOAD, large_file=True)['fileId'] == '4_zabc'
+    )
+    with pytest.raises(check.Failure, match='large_file_sha1'):
+        check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD, large_file=True)
 
 
 def test_upload_must_exit_zero_and_print_a_json_record():
