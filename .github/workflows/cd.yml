@@ -29,14 +29,14 @@ jobs:
           echo "prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
           export PUBLISH_DOCKER=$([[ $IS_PRERELEASE == 'false' && "${{ secrets.DOCKERHUB_USERNAME }}" != '' ]] && echo true || echo false)
           echo "publish_docker=$PUBLISH_DOCKER" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -48,12 +48,12 @@ jobs:
         run: uv run nox -vs build
       - name: Read the Changelog
         id: read-changelog
-        uses: mindsers/changelog-reader-action@v2
+        uses: mindsers/changelog-reader-action@1faaf50aa09d5793d9a100819973df801febfb31 # v2.4.0
         with:
           version: ${{ steps.build.outputs.version }}
       - name: Create GitHub release and upload the distribution
         id: create-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: ${{ steps.build.outputs.version }}
           body: ${{ steps.read-changelog.outputs.changes }}
@@ -62,7 +62,7 @@ jobs:
           files: ${{ steps.build.outputs.asset_path }}
       - name: Upload the distribution to PyPI
         if: ${{ env.B2_PYPI_PASSWORD != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           user: __token__
           password: ${{ secrets.B2_PYPI_PASSWORD }}
@@ -77,10 +77,10 @@ jobs:
         os: [ "ubuntu-22.04", "ubuntu-22.04-arm" ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -100,7 +100,7 @@ jobs:
         id: hashes
         run: uv run nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
@@ -115,14 +115,14 @@ jobs:
       SM_CLIENT_CERT_PASSWORD: ${{ secrets. SM_CLIENT_CERT_PASSWORD }}
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -134,7 +134,7 @@ jobs:
         shell: bash
         run: uv run nox -vs bundle
       - name: Install client for code signing with Software Trust Manager
-        uses: digicert/ssm-code-signing@v1.1.0
+        uses: digicert/ssm-code-signing@9476ceec3ea1c63298d4403b983e1ccf2556ff4c # v1.1.0
         env:
           FORCE_DOWNLOAD_TOOLS: 'true'
       - name: Set up client authentication certificate
@@ -151,7 +151,7 @@ jobs:
         run: uv run nox -vs make_dist_digest
       - name: Create GitHub release and upload the distribution
         id: create-release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: ${{ needs.deploy.outputs.version }}
           draft: false
@@ -165,14 +165,14 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -182,9 +182,9 @@ jobs:
       - name: Build Dockerfile
         run: uv run nox -vs generate_dockerfile
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Prepare Docker tags
         id: docker_tags_prep
         run: |
@@ -195,12 +195,12 @@ jobs:
           echo DOCKER_TAGS=$DOCKER_TAGS
           echo "docker_tags=$DOCKER_TAGS" >> $GITHUB_OUTPUT
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@1104d471370f9806843c095c1db02b5a90c5f8b6 # v3.3.1
         with:
           context: .
           pull: true
@@ -209,7 +209,7 @@ jobs:
           tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
           platforms: linux/amd64,linux/arm64
       - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@v4
+        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4.0.2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
