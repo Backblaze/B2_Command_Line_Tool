@@ -2591,11 +2591,11 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
             i = -1
             for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
                 if i:
-                    self._print(',', end='')
+                    self._print(',', end='', enforce_output=True)
                 else:
-                    self._print('[')
+                    self._print('[', enforce_output=True)
                 self._print_json(file_version)
-            self._print(']' if i >= 0 else '[]')
+            self._print(']' if i >= 0 else '[]', enforce_output=True)
         else:
             self._print_files(args)
         return 0
