@@ -136,13 +136,20 @@ def test_release_tag_gate_accepts_only_trusted_signed_tags(tmp_path):
     )
     git('tag', 'v1.0.1')
     script = ROOT / 'scripts/verify-release-tag.sh'
-    no_master = subprocess.run(['bash', str(script), 'v1.0.0'], cwd=repo, capture_output=True)
+    gate_env = {key: value for key, value in os.environ.items() if key != 'GITHUB_SHA'}
+    no_master = subprocess.run(
+        ['bash', str(script), 'v1.0.0'], cwd=repo, env=gate_env, capture_output=True
+    )
     remote = tmp_path / 'remote.git'
     subprocess.run(['git', 'init', '--bare', str(remote)], check=True, capture_output=True)
     git('remote', 'add', 'origin', str(remote))
     git('push', '-u', 'origin', 'master')
-    signed = subprocess.run(['bash', str(script), 'v1.0.0'], cwd=repo, capture_output=True)
-    unsigned = subprocess.run(['bash', str(script), 'v1.0.1'], cwd=repo, capture_output=True)
+    signed = subprocess.run(
+        ['bash', str(script), 'v1.0.0'], cwd=repo, env=gate_env, capture_output=True
+    )
+    unsigned = subprocess.run(
+        ['bash', str(script), 'v1.0.1'], cwd=repo, env=gate_env, capture_output=True
+    )
     assert no_master.returncode != 0
     assert signed.returncode == 0, signed.stderr.decode()
     assert unsigned.returncode != 0
