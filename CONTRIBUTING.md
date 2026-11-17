@@ -26,32 +26,15 @@ established by reading git tags, i.e. no code or manifest file changes are requi
 
 ## Changelog
 
-Each PR needs to have at least one changelog (aka news) item added. This is done by creating files in `changelog.d`.
-`towncrier` is used for compiling these files into [CHANGELOG.md](CHANGELOG.md). There are several types of changes 
-(news):
+Each PR needs a changelog entry in [`.changes/unreleased`](.changes/unreleased). Use
+[Changie](https://changie.dev/) to create it, for example:
 
-1. fixed
-2. changed
-3. added
-4. deprecated
-5. removed
-6. infrastructure
-7. doc
+    changie new --kind Fixed --body 'Describe the user-visible fix.'
 
-
-The `changelog.d` file name convention is:
-
-1. If the PR closes a github issue: `{issue_number}.{type}.md` e.g. `157.fixed.md`. Note that the
-   change description still has to be complete, linking an issue is just there for convenience, a change like 
-   `fixed #157` will not be accepted.
-2. If the PR is not related to a github issue: `+{unique_string}.{type}.md` e.g. `+foobar.fixed.md`. 
-
-These files can either be created manually, or using `towncrier` e.g.
-
-    towncrier create -c 'Add proper changelog example to CONTRIBUTING guide' 157.added.md
-
-`towncrier create` also takes care of duplicates automatically (if there is more than 1 news fragment of one type 
-for a given github issue).
+The configured kinds are Removed, Changed, Fixed, Deprecated, Added, Doc, and Infrastructure.
+Write a complete sentence for the entry. For a release, `changie batch vX.Y.Z` assembles the
+unreleased entries into `.changes/vX.Y.Z.md`; `changie merge` rebuilds [CHANGELOG.md](CHANGELOG.md).
+The existing release history is kept in `.changes/v*.md` so rebuilding the changelog preserves it.
  
 ## Developer Info
 
