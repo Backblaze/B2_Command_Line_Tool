@@ -17,6 +17,7 @@ from b2._internal._cli.autocomplete_install import (
     add_or_update_shell_section,
 )
 from test.helpers import skip_on_windows
+from test.known_defect import known_defect
 
 section = 'test_section'
 managed_by = 'pytest'
@@ -114,3 +115,42 @@ def test_autocomplete_installer(homedir, env, shell, caplog, dummy_command):
     assert shell_installer.is_enabled() is False
     shell_installer.install()
     assert shell_installer.is_enabled() is True
+
+
+@pytest.mark.parametrize(
+    'new_content',
+    [
+        r'eval "$(register-python-argcomplete b2 | sed -e \1)"',  # group reference in the content
+        r'printf "a\nb"',  # escape sequence in the content
+        r'echo C:\Users\dir',  # unknown escape (\U) in the content
+    ],
+)
+@known_defect(
+    'shell-section replacement text containing backslashes is interpreted as a regex template'
+)
+def test_add_or_update_shell_section_existing_section_content_with_backslashes(
+    test_file, new_content
+):
+    """Replacement text containing backslashes must be written verbatim."""
+    test_file.write_text(
+        f"""# preexisting content
+
+# >>> {section} >>>
+# This section is managed by {managed_by} . Manual edit may break automated updates.
+old content
+# <<< {section} <<<
+"""
+    )
+
+    add_or_update_shell_section(test_file, section, managed_by, new_content)
+
+    assert (
+        test_file.read_text()
+        == f"""# preexisting content
+
+# >>> {section} >>>
+# This section is managed by {managed_by} . Manual edit may break automated updates.
+{new_content}
+# <<< {section} <<<
+"""
+    )

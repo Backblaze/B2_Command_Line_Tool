@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import subprocess
 import sys
 
 import argcomplete
@@ -26,6 +27,7 @@ import b2._internal._cli.argcompleters
 import b2._internal.arg_parser
 import b2._internal.console_tool
 from b2._internal._cli import autocomplete_cache
+from test.known_defect import known_defect
 
 from .unpickle import unpickle
 
@@ -248,3 +250,72 @@ def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner
 
         exit, output = cached_complete_result(cache, raise_exc=True)
         assert (exit, output) == (0, uncached_output)
+
+
+@known_defect('b2v3, b2v4 and b2v5 share one autocomplete cache file')
+def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
+    """The b2v3, b2v4 and b2v5 parsers must not share one cache file."""
+    if sys.platform == 'win32':
+        pytest.skip('argcomplete uses file descriptor 8')
+    script = (
+        'import os, sys\n'
+        'os.dup2(os.open(os.devnull, os.O_WRONLY), 8)\n'
+        'sys.argv = [sys.argv[1]]\n'
+        'import importlib\n'
+        'importlib.import_module(f"b2._internal.{sys.argv[0]}.registry").main()\n'
+    )
+    cache_names = {}
+    for apiver in ('b2v3', 'b2v5'):
+        env = {
+            **os.environ,
+            'HOME': str(tmp_path),
+            'XDG_CACHE_HOME': str(tmp_path / 'xdg'),
+            'COMP_LINE': f'{apiver} ',
+            'COMP_POINT': str(len(apiver) + 1),
+            '_ARGCOMPLETE': '1',
+            '_ARGCOMPLETE_IFS': ' ',
+        }
+        subprocess.run([sys.executable, '-c', script, apiver], env=env, cwd=tmp_path, timeout=120)
+        cache_names[apiver] = sorted(
+            p.name for p in tmp_path.rglob('b2-autocomplete-cache-*.pickle')
+        )
+    assert cache_names['b2v3'], 'no cache file was written'
+    assert (
+        cache_names['b2v3'] != cache_names['b2v5']
+    ), f'both api versions use the same cache file: {cache_names}'
+
+
+def _walk_parsers(parser):
+    yield parser
+    for action in parser._actions:
+        for sub in getattr(action, 'choices', None) or ():
+            if isinstance(action.choices, dict):
+                yield from _walk_parsers(action.choices[sub])
+
+
+@known_defect('argument completers are set through a misspelled attribute and are never used')
+def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
+    """Argcomplete reads `.completer`; an argument carrying `.completion` is never completed."""
+    parser = b2._internal.console_tool.B2.create_parser()
+    misspelled = [
+        f'{p.prog}: {action.dest}'
+        for p in _walk_parsers(parser)
+        for action in p._actions
+        if hasattr(action, 'completion')
+    ]
+    assert misspelled == []
+
+
+@known_defect('the os.fdopen test shim recurses into itself')
+def test_os_fdopen_shim_does_not_recurse(autocomplete_runner):
+    """The test shim for os.fdopen must delegate to the real function, not to itself."""
+    read_fd, write_fd = os.pipe()
+    try:
+        with autocomplete_runner('b2 '):
+            with os.fdopen(read_fd) as handle:  # any fd except 9 goes through the shim
+                read_fd = None
+                assert handle.readable()
+    finally:
+        if read_fd is not None:
+            os.close(read_fd)
+        os.close(write_fd)
