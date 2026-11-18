@@ -23,7 +23,7 @@ from io import StringIO
 from unittest import mock
 
 import pytest
-from b2sdk.v3 import Bucket, DownloadedFile, KeepOrDeleteMode
+from b2sdk.v3 import Bucket, DownloadedFile, LegalHold
 from b2sdk.v3.exception import B2SimpleError
 
 from b2._internal._cli.const import (
@@ -31,10 +31,6 @@ from b2._internal._cli.const import (
 )
 from b2._internal.console_tool import _TqdmCloser
 from test.known_defect import known_defect
-
-# KeepOrDeleteMode is imported at module level on purpose: test/unit/_cli/test_pickle.py purges and
-# re-imports b2sdk modules, so a lazy import inside a test would yield an enum class that never equals
-# the one the console tool uses.
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
@@ -65,7 +61,8 @@ def run_no_traceback(b2_cli, argv):
     try:
         return run(b2_cli, argv)
     except Exception as e:  # noqa: BLE001
-        pytest.fail(f'command raised {e!r} instead of reporting an error')
+        # an AssertionError, so that a known_defect on such a test accepts exactly this outcome
+        raise AssertionError(f'command raised {e!r} instead of reporting an error') from e
 
 
 # ----------------------------------------------------------------------------------------
@@ -143,12 +140,29 @@ def test_ls_json_quiet_is_valid_json(b2_cli, uploaded_file):
 @known_defect('download to stdout writes file metadata into the data stream')
 def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_file, capfdbinary):
     """With output `-` the tool's stdout carries only the file content."""
+    expected_content = uploaded_file['content'].encode()
+    assert expected_content, 'the uploaded test file must not be empty'
+    capfdbinary.readouterr()  # drop whatever the fixtures wrote to the real stdout
     status, tool_stdout, _ = run(
         b2_cli,
         ['file', 'download', f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}', '-'],
     )
     assert status == 0
-    assert 'File name' not in tool_stdout and 'Content sha1' not in tool_stdout, tool_stdout
+    # the real stdout (file descriptor 1) must carry exactly the file's bytes, no prefix and no suffix
+    assert capfdbinary.readouterr().out == expected_content
+    # and no file metadata may be written into the data stream
+    for label in (
+        'File name:',
+        'File id:',
+        'Output file path:',
+        'File size:',
+        'Content type:',
+        'Content sha1:',
+        'Encryption:',
+        'Retention:',
+        'Legal hold:',
+    ):
+        assert label not in tool_stdout, tool_stdout
 
 
 # ----------------------------------------------------------------------------------------
@@ -156,7 +170,7 @@ def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_f
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect('a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError')
+@known_defect('a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError', raises=ValueError)
 def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch):
     """A non-numeric B2_ESCAPE_CONTROL_CHARACTERS must be handled, not raise ValueError."""
     monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, 'abc')
@@ -181,10 +195,22 @@ def lock_bucket_file(b2_cli, tmp_path):
 @known_defect('file update leaves the legal-hold change applied when the retention step fails')
 def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, lock_bucket_file):
     """If the retention step fails, the legal hold step must not stay applied."""
+    # `file info` goes through download headers, which the simulator renders as "on" for every legal-hold
+    # value, so read the stored value through the SDK instead
+    _, stdout, _ = b2_cli.run(['file', 'info', lock_bucket_file])
+    file_id = json.loads(stdout)['fileId']
+
+    def stored_legal_hold():
+        return b2_cli.b2_api.get_file_info(file_id).legal_hold
+
+    b2_cli.run(['file', 'update', lock_bucket_file, '--legal-hold', 'off'])
+    legal_hold_before = stored_legal_hold()
+    assert legal_hold_before == LegalHold.OFF, 'the test needs a file whose legal hold is off'
+
     with mock.patch.object(
         b2_cli.b2_api, 'update_file_retention', side_effect=B2SimpleError('injected failure')
-    ):
-        status, _, _ = run(
+    ) as update_file_retention:
+        status, _, stderr = run(
             b2_cli,
             [
                 'file',
@@ -198,10 +224,13 @@ def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, loc
                 '4102444800',
             ],
         )
+    # the injected failure must really have been reached and reported ...
+    update_file_retention.assert_called_once()
     assert status != 0
-    _, stdout, _ = b2_cli.run(['file', 'info', lock_bucket_file])
+    assert 'injected failure' in stderr, stderr
+    # ... and the earlier legal-hold step must not stay applied
     assert (
-        json.loads(stdout)['legalHold'] != 'on'
+        stored_legal_hold() == legal_hold_before
     ), 'legal hold was applied although the command failed'
 
 
@@ -242,30 +271,34 @@ def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):
     dst.mkdir()
     (src / 'a.txt').write_text('a')
     with mock.patch('b2._internal.console_tool.Synchronizer') as synchronizer:
-        status, _, _ = run_no_traceback(
+        status, _, stderr = run_no_traceback(
             b2_cli, ['sync', f'--keep-days={keep_days}', str(src), str(dst)]
         )
-    return status, synchronizer
+    return status, stderr, synchronizer
+
+
+def _assert_keep_days_rejected(keep_days, status, stderr, synchronizer):
+    """The contract is rejection: nonzero status, an error naming --keep-days, nothing synchronized."""
+    assert status != 0, (
+        f'--keep-days={keep_days} was accepted: '
+        f'{synchronizer.call_args and synchronizer.call_args.kwargs}'
+    )
+    assert '--keep-days' in stderr, f'the error does not identify --keep-days: {stderr!r}'
+    synchronizer.assert_not_called()
 
 
 @known_defect('sync accepts a negative or zero --keep-days')
 def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
     """A negative --keep-days must be rejected, not accepted as a retention period."""
-    status, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
-    assert (
-        status != 0
-    ), f'--keep-days=-1 was accepted: {synchronizer.call_args and synchronizer.call_args.kwargs}'
+    status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
+    _assert_keep_days_rejected('-1', status, stderr, synchronizer)
 
 
 @known_defect('sync accepts a negative or zero --keep-days')
-def test_sync_keep_days_zero_is_not_silently_no_delete(b2_cli, tmp_path):
-    """--keep-days 0 must be rejected or honoured, never silently turned into NO_DELETE."""
-    status, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
-    if synchronizer.called:
-        mode = synchronizer.call_args.kwargs['keep_days_or_delete']
-        assert mode != KeepOrDeleteMode.NO_DELETE, '--keep-days 0 silently became NO_DELETE'
-    else:
-        assert status != 0
+def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
+    """--keep-days 0 must be rejected, not silently turned into NO_DELETE (nothing is ever deleted)."""
+    status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
+    _assert_keep_days_rejected('0', status, stderr, synchronizer)
 
 
 @known_defect('a rejected authorize attempt wipes the previously stored authorization')
@@ -303,7 +336,10 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
     with mock.patch.object(Bucket, 'ls', failing_ls):
         status, stdout, _ = run(b2_cli, ['ls', '--json', f'b2://{uploaded_file["bucket"]}'])
     assert status != 0
-    json.loads(stdout)  # must still be a complete JSON document
+    try:
+        json.loads(stdout)
+    except ValueError as e:
+        raise AssertionError(f'stdout is not a complete JSON document: {stdout!r}') from e
 
 
 @pytest.mark.parametrize(
@@ -442,11 +478,34 @@ def test_debug_log_file_rotates_at_midnight_as_documented(
     b2_cli, clean_root_logging, monkeypatch, tmp_path
 ):
     """README says --debug-logs writes b2_cli.log "with log rotation at midnight"."""
-    import logging.handlers
+    import calendar
+    import logging
+    import time
 
     monkeypatch.chdir(tmp_path)
-    before = list(clean_root_logging.handlers)
-    b2_cli.console_tool_class._setup_logging(_logging_args(debug_logs=True), ['b2'])
-    (handler,) = [h for h in clean_root_logging.handlers if h not in before]
-    assert isinstance(handler, logging.handlers.TimedRotatingFileHandler)
-    assert handler.when == 'MIDNIGHT'
+    old_tz = os.environ.get('TZ')
+    os.environ['TZ'] = 'UTC'  # the clock below is read as UTC whatever the zone of the machine
+    time.tzset()
+    clock = [calendar.timegm((2030, 1, 1, 23, 59, 0))]  # one minute before midnight
+    try:
+        with mock.patch('time.time', lambda: clock[0]):
+            with mock.patch('time.time_ns', lambda: int(clock[0] * 1_000_000_000)):
+                b2_cli.console_tool_class._setup_logging(_logging_args(debug_logs=True), ['b2'])
+                test_logger = logging.getLogger('b2-midnight-rotation-test')
+                test_logger.error('record before midnight')
+                clock[0] += 120  # two minutes later it is past midnight
+                test_logger.error('record after midnight')
+    finally:
+        if old_tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = old_tz
+        time.tzset()
+
+    contents = {p.name: p.read_text() for p in tmp_path.glob('b2_cli.log*')}
+    assert 'b2_cli.log' in contents, contents.keys()
+    assert 'record after midnight' in contents['b2_cli.log']
+    assert 'record before midnight' not in contents['b2_cli.log'], 'the log was not rotated'
+    rotated = {name: text for name, text in contents.items() if name != 'b2_cli.log'}
+    assert any('record before midnight' in text for text in rotated.values()), rotated
+    assert not any('record after midnight' in text for text in rotated.values()), rotated

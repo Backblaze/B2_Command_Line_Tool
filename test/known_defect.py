@@ -21,6 +21,11 @@ A test decorated with `known_defect(reason)` is a strict expected failure:
 
       pytest test/unit test/static --cli b2v5 -m known_defect --runxfail
 
+The expected failure is constrained to the failure path of the defect: by default only an `AssertionError`
+is accepted as the expected outcome. A test whose defect shows up as another exception passes it explicitly
+(`known_defect(reason, raises=ValueError)`). Any other exception - a broken fixture, a missing import, a
+crashed subprocess - is reported as a real failure instead of being hidden behind the xfail.
+
 For a parametrized test, mark only the cases that are broken: `pytest.param(..., marks=known_defect_marks(reason))`.
 """
 
@@ -29,19 +34,25 @@ from __future__ import annotations
 import pytest
 
 
-def known_defect_marks(reason: str) -> list[pytest.MarkDecorator]:
+def known_defect_marks(
+    reason: str,
+    raises: type[BaseException] | tuple[type[BaseException], ...] = AssertionError,
+) -> list[pytest.MarkDecorator]:
     """Marks for `pytest.param(..., marks=...)`."""
     return [
         pytest.mark.known_defect,
-        pytest.mark.xfail(strict=True, reason=f'known defect: {reason}'),
+        pytest.mark.xfail(strict=True, raises=raises, reason=f'known defect: {reason}'),
     ]
 
 
-def known_defect(reason: str):
+def known_defect(
+    reason: str,
+    raises: type[BaseException] | tuple[type[BaseException], ...] = AssertionError,
+):
     """Decorator for a test (or test class) that currently fails because of a known defect."""
 
     def decorator(obj):
-        for mark in known_defect_marks(reason):
+        for mark in known_defect_marks(reason, raises):
             obj = mark(obj)
         return obj
 

@@ -128,7 +128,10 @@ def test_copy_has_independent_registrations_and_same_configuration():
     assert 'second' not in registry
 
 
-@known_defect('iter() on a ClassRegistry raises TypeError because __iter__ returns a keys view')
+@known_defect(
+    'iter() on a ClassRegistry raises TypeError because __iter__ returns a keys view',
+    raises=TypeError,
+)
 def test_iterating_registry_yields_registered_keys():
     """Calling iter() or list() on a registry must work and yield the registered keys."""
     registry = ClassRegistry(attr_name='COMMAND_NAME')

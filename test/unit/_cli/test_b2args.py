@@ -16,7 +16,9 @@ from test.known_defect import known_defect
 
 
 @pytest.mark.parametrize('value', ['b2id://4_zabc_def', 'b2id://x'])
-@known_defect('parse_bucket_name accepts a b2id:// URI')
+@known_defect(
+    'parse_bucket_name accepts a b2id:// URI', raises=pytest.fail.Exception
+)  # DID NOT RAISE
 def test_parse_bucket_name_rejects_file_id_uri(value):
     """A `b2id://` URI is not a bucket name and must be rejected locally."""
     with pytest.raises(ValueError):

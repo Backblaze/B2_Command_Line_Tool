@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import pathlib
 import subprocess
 import sys
 
@@ -252,37 +253,78 @@ def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner
         assert (exit, output) == (0, uncached_output)
 
 
-@known_defect('b2v3, b2v4 and b2v5 share one autocomplete cache file')
-def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
-    """The b2v3, b2v4 and b2v5 parsers must not share one cache file."""
-    if sys.platform == 'win32':
-        pytest.skip('argcomplete uses file descriptor 8')
+def _complete_in_subprocess(apiver: str, home: pathlib.Path) -> list[str]:
+    """Run `<apiver> <TAB>` completion in a fresh interpreter; return the completions it printed."""
+    out_path = home / f'completions-{apiver}.txt'
     script = (
         'import os, sys\n'
-        'os.dup2(os.open(os.devnull, os.O_WRONLY), 8)\n'
-        'sys.argv = [sys.argv[1]]\n'
+        'out = os.open(sys.argv[2], os.O_WRONLY | os.O_CREAT | os.O_TRUNC)\n'
+        'os.dup2(out, 8)\n'  # argcomplete writes the completions to fd 8
         'import importlib\n'
+        'sys.argv = [sys.argv[1]]\n'
         'importlib.import_module(f"b2._internal.{sys.argv[0]}.registry").main()\n'
     )
-    cache_names = {}
+    env = {
+        **os.environ,
+        'HOME': str(home),
+        'XDG_CACHE_HOME': str(home / 'xdg'),
+        'COMP_LINE': f'{apiver} ',
+        'COMP_POINT': str(len(apiver) + 1),
+        '_ARGCOMPLETE': '1',
+        '_ARGCOMPLETE_IFS': '\n',
+    }
+    result = subprocess.run(
+        [sys.executable, '-c', script, apiver, str(out_path)],
+        env=env,
+        cwd=home,
+        timeout=120,
+        capture_output=True,
+        text=True,
+    )
+    # argcomplete exits through sys.exit(0) after printing; anything else is a setup problem, not the defect
+    if result.returncode != 0:
+        pytest.fail(f'{apiver} completion subprocess failed: {result.stderr}', pytrace=False)
+    return out_path.read_text().split()
+
+
+def _cache_files(home: pathlib.Path) -> dict[pathlib.Path, bytes]:
+    return {p: p.read_bytes() for p in home.rglob('b2-autocomplete-cache-*.pickle')}
+
+
+@known_defect('b2v3, b2v4 and b2v5 share one autocomplete cache file')
+def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
+    """The b2v3 and b2v5 parsers must each keep, and keep using, their own cache file."""
+    if sys.platform == 'win32':
+        pytest.skip('argcomplete uses file descriptor 8')
+
+    # reference caches, each written in a pristine home so that nothing is shared (setup, not the defect)
+    reference = {}
     for apiver in ('b2v3', 'b2v5'):
-        env = {
-            **os.environ,
-            'HOME': str(tmp_path),
-            'XDG_CACHE_HOME': str(tmp_path / 'xdg'),
-            'COMP_LINE': f'{apiver} ',
-            'COMP_POINT': str(len(apiver) + 1),
-            '_ARGCOMPLETE': '1',
-            '_ARGCOMPLETE_IFS': ' ',
-        }
-        subprocess.run([sys.executable, '-c', script, apiver], env=env, cwd=tmp_path, timeout=120)
-        cache_names[apiver] = sorted(
-            p.name for p in tmp_path.rglob('b2-autocomplete-cache-*.pickle')
-        )
-    assert cache_names['b2v3'], 'no cache file was written'
-    assert (
-        cache_names['b2v3'] != cache_names['b2v5']
-    ), f'both api versions use the same cache file: {cache_names}'
+        fresh_home = tmp_path / f'reference-{apiver}'
+        fresh_home.mkdir()
+        reference[apiver] = (_complete_in_subprocess(apiver, fresh_home), _cache_files(fresh_home))
+        if not reference[apiver][1]:
+            pytest.fail(f'{apiver} wrote no cache file in a pristine home', pytrace=False)
+    if sorted(reference['b2v3'][1].values()) == sorted(reference['b2v5'][1].values()):
+        pytest.fail('b2v3 and b2v5 write identical caches, the test cannot tell them apart')
+
+    # now both versions run against one shared home
+    shared = tmp_path / 'shared'
+    shared.mkdir()
+    _complete_in_subprocess('b2v3', shared)
+    cache_after_v3 = _cache_files(shared)
+    assert sorted(cache_after_v3.values()) == sorted(reference['b2v3'][1].values())
+
+    _complete_in_subprocess('b2v5', shared)
+    cache_after_v5 = _cache_files(shared)
+    assert set(cache_after_v5) > set(cache_after_v3), 'b2v5 wrote no cache file of its own'
+    for path, content in cache_after_v3.items():
+        assert cache_after_v5[path] == content, f'b2v5 overwrote the cache written by b2v3: {path}'
+
+    # with both caches in place, each version must keep being served its own completions
+    for apiver in ('b2v3', 'b2v5'):
+        assert _complete_in_subprocess(apiver, shared) == reference[apiver][0]
+    assert _cache_files(shared) == cache_after_v5, 'a cached run modified the cache files'
 
 
 def _walk_parsers(parser):
@@ -306,16 +348,28 @@ def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
     assert misspelled == []
 
 
-@known_defect('the os.fdopen test shim recurses into itself')
+@known_defect('the os.fdopen test shim recurses into itself', raises=RecursionError)
 def test_os_fdopen_shim_does_not_recurse(autocomplete_runner):
     """The test shim for os.fdopen must delegate to the real function, not to itself."""
-    read_fd, write_fd = os.pipe()
+    if sys.platform == 'win32':
+        pytest.skip('needs fcntl to pick a descriptor number')
+    import fcntl
+
+    pipe_read, pipe_write = os.pipe()
+    # the shim special-cases fd 9 (and returns sys.stderr for it); make sure the descriptor under test is above it
+    read_fd = fcntl.fcntl(pipe_read, fcntl.F_DUPFD, 10)
+    os.close(pipe_read)
+    assert read_fd != 9
     try:
         with autocomplete_runner('b2 '):
-            with os.fdopen(read_fd) as handle:  # any fd except 9 goes through the shim
-                read_fd = None
+            handle = os.fdopen(read_fd)  # any fd except 9 goes through the shim
+            assert handle is not sys.stderr
+            read_fd = None  # the handle owns the descriptor now
+            try:
                 assert handle.readable()
+            finally:
+                handle.close()
     finally:
         if read_fd is not None:
             os.close(read_fd)
-        os.close(write_fd)
+        os.close(pipe_write)

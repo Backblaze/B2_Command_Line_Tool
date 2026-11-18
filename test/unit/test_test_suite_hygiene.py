@@ -32,7 +32,10 @@ from .test_console_tool import BaseConsoleToolTest
 UNIT_DIR = pathlib.Path(__file__).parent
 
 
-@known_defect('the autouse tqdm-closer fixture swallows exceptions raised inside commands')
+@known_defect(
+    'the autouse tqdm-closer fixture swallows exceptions raised inside commands',
+    raises=pytest.fail.Exception,  # pytest.raises: DID NOT RAISE
+)
 def test_tqdm_closer_fixture_does_not_swallow_exceptions():
     """The autouse fixture mocks `_TqdmCloser.__exit__`; the mock must not suppress exceptions."""
     with pytest.raises(RuntimeError, match='boom'):
@@ -98,11 +101,21 @@ def test_camel_case_option_is_rejected_for_the_right_reason(b2_cli, capsys):
 @known_defect('BaseConsoleToolTest.tearDown does not restore the patched class attribute')
 def test_base_console_tool_test_restores_patched_class_attribute(console_tool_class):
     """`BaseConsoleToolTest.setUp` replaces a method on the shared class; tearDown must restore it."""
-    before = inspect.getattr_static(console_tool_class, '_initialize_b2_api')
+    name = '_initialize_b2_api'
+    before = inspect.getattr_static(console_tool_class, name)  # the raw classmethod object
+    owned_by_class = name in vars(console_tool_class)
 
-    test_case = BaseConsoleToolTest()
-    test_case.console_tool_class = console_tool_class
-    test_case.setUp()
-    test_case.tearDown()
+    try:
+        test_case = BaseConsoleToolTest()
+        test_case.console_tool_class = console_tool_class
+        test_case.setUp()
+        test_case.tearDown()
 
-    assert inspect.getattr_static(console_tool_class, '_initialize_b2_api') is before
+        assert inspect.getattr_static(console_tool_class, name) is before
+    finally:
+        # the defect leaves the shared class patched; never let that leak into other tests,
+        # whether the assertion above passes or fails
+        if owned_by_class:
+            setattr(console_tool_class, name, before)
+        elif name in vars(console_tool_class):
+            delattr(console_tool_class, name)

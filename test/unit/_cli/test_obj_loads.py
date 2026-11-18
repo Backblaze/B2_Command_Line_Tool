@@ -71,7 +71,8 @@ def test_validated_loads__typed_dict_types_validation(typed_dict_cls):
 
 @pytest.mark.skipif(pydantic is None, reason='pydantic is not enabled')
 @known_defect(
-    'validated_loads rejects generic aliases such as list[int] when pydantic is installed'
+    'validated_loads rejects generic aliases such as list[int] when pydantic is installed',
+    raises=AttributeError,
 )
 def test_validated_loads__generic_alias_type():
     """`list[X]` (as used by --lifecycle-rules) must be accepted when pydantic is installed."""
