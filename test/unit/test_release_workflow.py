@@ -395,10 +395,16 @@ def test_advisory_visibility_must_be_verified(tmp_path, admin, scopes, strict, s
     gh.chmod(0o755)
     result = subprocess.run(
         ['bash', str(ROOT / 'scripts/release-security-gate.sh')],
-        env=dict(os.environ, PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
-                 GITHUB_ACTIONS='true', RELEASE_SECURITY_TOKEN='test-placeholder',
-                 SECURITY_GATE_STRICT=strict),
-        capture_output=True, text=True, timeout=30,
+        env=dict(
+            os.environ,
+            PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+            GITHUB_ACTIONS='true',
+            RELEASE_SECURITY_TOKEN='test-placeholder',
+            SECURITY_GATE_STRICT=strict,
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode == status, result.stdout + result.stderr
     assert 'UNVERIFIED: security-advisories' in result.stdout
@@ -414,10 +420,16 @@ def test_release_security_gate_holds_on_malformed_alert_data(tmp_path):
     gh.chmod(0o755)
     result = subprocess.run(
         ['bash', str(ROOT / 'scripts/release-security-gate.sh')],
-        env=dict(os.environ, PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
-                 GITHUB_ACTIONS='true', RELEASE_SECURITY_TOKEN='test-placeholder',
-                 SECURITY_GATE_STRICT='false'),
-        capture_output=True, text=True, timeout=30,
+        env=dict(
+            os.environ,
+            PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+            GITHUB_ACTIONS='true',
+            RELEASE_SECURITY_TOKEN='test-placeholder',
+            SECURITY_GATE_STRICT='false',
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode == 1, result.stdout + result.stderr
     assert 'HOLD: dependabot alerts could not be evaluated.' in result.stderr

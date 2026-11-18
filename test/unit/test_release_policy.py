@@ -102,20 +102,29 @@ def test_pull_request_ci_covers_stacked_bases():
 @pytest.mark.skipif(os.name != 'posix', reason='workflow uses Bash')
 @pytest.mark.parametrize(
     ('tag', 'prerelease'),
-    [('v5.1.0', 'false'), ('v5.1.0rc1', 'true'), ('v5.1.0a1', 'true'),
-     ('v5.1.0b1', 'true'), ('v5.1.0dev1', 'true')],
+    [
+        ('v5.1.0', 'false'),
+        ('v5.1.0rc1', 'true'),
+        ('v5.1.0a1', 'true'),
+        ('v5.1.0b1', 'true'),
+        ('v5.1.0dev1', 'true'),
+    ],
 )
 def test_prerelease_step_classifies_tags_before_publication(tmp_path, tag, prerelease):
     source = job('deploy').split('      - name: Determine if pre-release', 1)[1]
-    script = textwrap.dedent(
-        source.split('        run: |\n', 1)[1].split('      - uses:', 1)[0]
-    )
+    script = textwrap.dedent(source.split('        run: |\n', 1)[1].split('      - uses:', 1)[0])
     output = tmp_path / 'outputs'
     result = subprocess.run(
         ['bash', '-c', script],
-        env=dict(os.environ, GITHUB_REF_NAME=tag, GITHUB_OUTPUT=str(output),
-                 DOCKERHUB_USERNAME='test-placeholder'),
-        capture_output=True, text=True, timeout=30,
+        env=dict(
+            os.environ,
+            GITHUB_REF_NAME=tag,
+            GITHUB_OUTPUT=str(output),
+            DOCKERHUB_USERNAME='test-placeholder',
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     assert result.returncode == 0, result.stderr
     actual = dict(line.split('=', 1) for line in output.read_text().splitlines())
