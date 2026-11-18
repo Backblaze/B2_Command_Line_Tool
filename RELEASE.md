@@ -10,7 +10,9 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
 
 1. Configure the `b2` project on PyPI to trust GitHub Actions from owner `Backblaze`, repository
    `B2_Command_Line_Tool`, workflow `cd.yml`, and environment `pypi`. Create or protect the
-   `pypi` GitHub environment before tagging. The PyPI job has `id-token: write` and no PyPI API
+   `pypi` GitHub environment before tagging: require release-maintainer reviewers and allow
+   deployments only from `v*` tags. Configure a repository tag ruleset that restricts creation
+   of `v*` tags to release maintainers. The PyPI job has `id-token: write` and no PyPI API
    token; the pinned PyPA publishing action uploads attestations with each distribution. Confirm
    this Trusted Publisher configuration before removing the old `B2_PYPI_PASSWORD` repository secret.
 2. The trusted SSH public keys for release tags are in
@@ -18,12 +20,21 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    manager must sign with the corresponding private key. Review additions or removals of trusted
    keys as release-security changes. The verifier reads the fetched `origin/master` key policy,
    so a key removed there is no longer accepted when checking an older release commit.
+   The in-workflow checks prevent mistaken releases; they cannot defend against a tag whose
+   commit modifies the workflow or verifier. Environment approval and tag rules are the
+   controls outside that tagged commit and must be configured before publishing.
 3. The release gate reads GitHub's Dependabot, code-scanning, secret-scanning, and repository
    advisory APIs. Configure `RELEASE_SECURITY_TOKEN` with read-only access to these sources,
    including **Repository security advisories: read**, to verify unpublished advisories in CI.
    Without that dedicated token, CI reports advisories as **UNVERIFIED**, because `GITHUB_TOKEN`
    can return only published advisories even when the API request succeeds. The other sources
    use `GITHUB_TOKEN` when the dedicated token is absent. Do not grant broader write permissions.
+   Advisory clearance additionally requires proof of unpublished-advisory visibility: the gate
+   currently recognizes a repository administrator with the classic OAuth `repo` or
+   `repository_advisories:read` scope (the latter is narrower). Other identities and token types,
+   including fine-grained tokens without introspectable scopes, remain **UNVERIFIED** even if
+   the public advisory API returns HTTP 200; inspect them manually before release. The same
+   check applies to the local health check.
 4. `SECURITY_GATE_STRICT` defaults to `false`. An unreadable source is printed as **UNVERIFIED**
    with a workflow warning and needs a manual Security-tab review; it is never treated as a clean
    scan. The code-scanning and secret-scanning alert APIs currently return 404 for this repository.

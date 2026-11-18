@@ -66,6 +66,9 @@ def test_release_security_gate_filters_open_alerts(tmp_path, alerts, fixes, expe
         f'#!{sys.executable}\n'
         'import json, os, pathlib, sys\n'
         'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
+        'if url.count("/") == 2:\n'
+        '    print(\'HTTP/2.0 200 OK\\nX-OAuth-Scopes: repo\\n\\n{"permissions": {"admin": true}}\')\n'
+        '    sys.exit(0)\n'
         'source = url.split("/")[3].split("?")[0]\n'
         'if source == os.environ.get("FAKE_GH_UNREADABLE"): sys.exit(1)\n'
         'path = pathlib.Path(os.environ["RELEASE_GATE_FIXTURES"]) / (source + ".json")\n'
@@ -279,7 +282,8 @@ def test_release_tag_gate_uses_the_current_master_signing_keys(signed_release_re
 
 @pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
 @pytest.mark.parametrize('ci', [True, False])
-def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci):
+@pytest.mark.parametrize('scope', ['repo', 'repository_advisories:read'])
+def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, scope):
     fake_bin = tmp_path / 'bin'
     fake_bin.mkdir()
     calls = tmp_path / 'calls'
@@ -290,6 +294,8 @@ def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci):
         'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
         'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
         '    calls.write(json.dumps([url, os.environ.get("GH_TOKEN")]) + "\\n")\n'
+        'if url.count("/") == 2:\n'
+        f'    print(\'HTTP/2.0 200 OK\\nX-OAuth-Scopes: {scope}\\n\\n{{"permissions": {{"admin": true}}}}\')\n'
     )
     gh.chmod(0o755)
     env = dict(
@@ -366,3 +372,53 @@ def test_release_notes_select_only_requested_version():
     assert '### Fixed' in current.stdout
     assert '## [5.0.2]' not in current.stdout
     assert missing.returncode != 0
+
+
+@pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
+@pytest.mark.parametrize(('admin', 'scopes'), [(False, 'repo'), (True, ''), (True, 'public_repo')])
+@pytest.mark.parametrize(('strict', 'status'), [('false', 0), ('true', 1)])
+def test_advisory_visibility_must_be_verified(tmp_path, admin, scopes, strict, status):
+    fake_bin = tmp_path / 'bin'
+    fake_bin.mkdir()
+    gh = fake_bin / 'gh'
+    gh.write_text(
+        f'#!{sys.executable}\n'
+        'import json, sys\n'
+        'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
+        'if url.count("/") == 2:\n'
+        '    print("HTTP/2.0 200 OK")\n'
+        f'    print("X-OAuth-Scopes: {scopes}")\n'
+        '    print()\n'
+        f'    print(json.dumps({{"permissions": {{"admin": {admin!r}}}}}))\n'
+        # A public endpoint can return 200 with no visible unpublished advisories.
+    )
+    gh.chmod(0o755)
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/release-security-gate.sh')],
+        env=dict(os.environ, PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+                 GITHUB_ACTIONS='true', RELEASE_SECURITY_TOKEN='test-placeholder',
+                 SECURITY_GATE_STRICT=strict),
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == status, result.stdout + result.stderr
+    assert 'UNVERIFIED: security-advisories' in result.stdout
+    assert 'CLEAR: security-advisories' not in result.stdout
+
+
+@pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
+def test_release_security_gate_holds_on_malformed_alert_data(tmp_path):
+    fake_bin = tmp_path / 'bin'
+    fake_bin.mkdir()
+    gh = fake_bin / 'gh'
+    gh.write_text(f'#!{sys.executable}\nprint("<html>upstream error</html>")\n')
+    gh.chmod(0o755)
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/release-security-gate.sh')],
+        env=dict(os.environ, PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+                 GITHUB_ACTIONS='true', RELEASE_SECURITY_TOKEN='test-placeholder',
+                 SECURITY_GATE_STRICT='false'),
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert 'HOLD: dependabot alerts could not be evaluated.' in result.stderr
+    assert 'CLEAR: dependabot' not in result.stdout

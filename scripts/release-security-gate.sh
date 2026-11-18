@@ -45,8 +45,23 @@ check_source() {
 check_source dependabot 'dependabot/alerts?state=open&per_page=100'
 check_source code-scanning 'code-scanning/alerts?state=open&per_page=100'
 check_source secret-scanning 'secret-scanning/alerts?state=open&per_page=100'
+advisory_visibility_verified() {
+  local metadata scopes
+  # Public advisory responses alone do not prove access to unpublished findings.
+  metadata=$(gh api --include "repos/$repo" 2>/dev/null) || return 1
+  scopes=$(printf '%s\n' "$metadata" | awk 'tolower($0) ~ /^x-oauth-scopes:/ {sub(/^[^:]*: */, ""); print}' | tr -d '\r')
+  case ",${scopes// /}," in
+    *,repo,*|*,repository_advisories:read,*|*,repository_advisories:write,*) ;;
+    *) return 1 ;;
+  esac
+  printf '%s\n' "$metadata" | awk 'body {print} /^\r?$/ {body=1}' | jq -e '.permissions.admin == true' >/dev/null
+}
+
 if [[ "${GITHUB_ACTIONS:-false}" == true && -z "${RELEASE_SECURITY_TOKEN:-}" ]]; then
   echo 'UNVERIFIED: security-advisories requires RELEASE_SECURITY_TOKEN with repository-advisory read access.'
+  unverified=1
+elif ! GH_TOKEN="${RELEASE_SECURITY_TOKEN:-${GH_TOKEN:-}}" advisory_visibility_verified; then
+  echo 'UNVERIFIED: security-advisories visibility could not be confirmed for unpublished findings.'
   unverified=1
 else
   GH_TOKEN="${RELEASE_SECURITY_TOKEN:-${GH_TOKEN:-}}" \

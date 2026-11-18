@@ -9,8 +9,13 @@
 ######################################################################
 """Check release workflow contracts without adding a test-only YAML dependency."""
 
+import os
 import re
+import subprocess
+import textwrap
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,6 +34,7 @@ def test_pypi_uses_pinned_trusted_publishing_with_attestations():
     assert re.search(r'^      name: pypi\s*$', publisher, re.M)
     assert re.search(r'^    needs: release-gate\s*$', job('deploy'), re.M)
     assert re.search(r'^    needs: deploy\s*$', publisher, re.M)
+    assert "if: ${{ needs.deploy.outputs.prerelease == 'false' }}" in publisher
     assert re.search(
         r'^        uses: pypa/gh-action-pypi-publish@[0-9a-f]{40}(?:\s+#.*)?$', publisher, re.M
     )
@@ -85,3 +91,33 @@ def test_release_signing_principal_is_not_a_personal_identity():
     lines = (ROOT / 'release-keys/maintainers.allowed_signers').read_text().splitlines()
     principals = [line.split()[0] for line in lines if line.strip() and not line.startswith('#')]
     assert principals == ['backblaze-release']
+
+
+def test_pull_request_ci_covers_stacked_bases():
+    source = (ROOT / '.github/workflows/ci.yml').read_text()
+    trigger = source.split('on:\n', 1)[1].split('\nenv:', 1)[0]
+    assert re.search(r'^  pull_request:\s*(?=^\S|\Z)', trigger, re.M)
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='workflow uses Bash')
+@pytest.mark.parametrize(
+    ('tag', 'prerelease'),
+    [('v5.1.0', 'false'), ('v5.1.0rc1', 'true'), ('v5.1.0a1', 'true'),
+     ('v5.1.0b1', 'true'), ('v5.1.0dev1', 'true')],
+)
+def test_prerelease_step_classifies_tags_before_publication(tmp_path, tag, prerelease):
+    source = job('deploy').split('      - name: Determine if pre-release', 1)[1]
+    script = textwrap.dedent(
+        source.split('        run: |\n', 1)[1].split('      - uses:', 1)[0]
+    )
+    output = tmp_path / 'outputs'
+    result = subprocess.run(
+        ['bash', '-c', script],
+        env=dict(os.environ, GITHUB_REF_NAME=tag, GITHUB_OUTPUT=str(output),
+                 DOCKERHUB_USERNAME='test-placeholder'),
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    actual = dict(line.split('=', 1) for line in output.read_text().splitlines())
+    assert actual['prerelease'] == prerelease
+    assert actual['publish_docker'] == ('true' if prerelease == 'false' else 'false')
