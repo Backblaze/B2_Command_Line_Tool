@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This project uses [*Changie*](https://changie.dev/) and the changes for the
 upcoming release can be found in [.changes/unreleased](.changes/unreleased).
+Release preparation and changelog validation are checked automatically in CI.
 
 ## [5.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.3) - 2026-11-12
 

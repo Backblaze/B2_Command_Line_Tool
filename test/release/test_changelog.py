@@ -161,3 +161,27 @@ def test_changelog_check_after_release_still_checks_rendered_history(release_wor
     result = run_session(release_worktree, 'changie_check')
     assert result.returncode != 0
     assert 'CHANGELOG.md differs' in result.stderr
+
+
+def test_changelog_check_validates_pending_fragments(release_worktree):
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = [
+        json.loads(line)
+        for line in (release_worktree.parent / 'go-calls.jsonl').read_text().splitlines()
+    ]
+    assert any(call[-3:] == ['batch', 'patch', '--dry-run'] for call in calls)
+    assert any(call[-2:] == ['merge', '--dry-run'] for call in calls)
+
+
+def test_changelog_check_rejects_a_malformed_fragment(release_worktree):
+    before = (release_worktree / 'CHANGELOG.md').read_bytes()
+    (release_worktree / '.changes/unreleased/Fixed-release-test.yaml').write_text('kind: [\n')
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode != 0
+    calls = [
+        json.loads(line)
+        for line in (release_worktree.parent / 'go-calls.jsonl').read_text().splitlines()
+    ]
+    assert any(call[-3:] == ['batch', 'patch', '--dry-run'] for call in calls)
+    assert (release_worktree / 'CHANGELOG.md').read_bytes() == before
