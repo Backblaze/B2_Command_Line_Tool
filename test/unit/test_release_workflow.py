@@ -26,15 +26,34 @@ POSIX_TOOLS = os.name == 'posix' and all(
 
 @pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
 @pytest.mark.parametrize(
-    ('alerts', 'expected_status'),
+    ('alerts', 'fixes', 'expected_status'),
     [
-        ({'dependabot': [{'security_advisory': {'severity': 'low'}}]}, 0),
-        ({'dependabot': [{'security_advisory': {'severity': 'medium'}}]}, 1),
-        ({'code-scanning': [{'rule': {'security_severity_level': 'high'}}]}, 1),
-        ({'security-advisories': [{'state': 'draft', 'severity': 'critical'}]}, 1),
+        ({'dependabot': [{'security_advisory': {'severity': 'low'}}]}, '', 0),
+        ({'dependabot': [{'security_advisory': {'severity': 'medium'}}]}, '', 1),
+        ({'code-scanning': [{'rule': {'security_severity_level': 'high'}}]}, '', 1),
+        ({'secret-scanning': [{'state': 'open'}]}, '', 1),
+        ({'security-advisories': [{'state': 'draft', 'severity': 'critical'}]}, '', 1),
+        (
+            {
+                'security-advisories': [
+                    {'state': 'draft', 'severity': 'critical', 'ghsa_id': 'GHSA-xxxx-xxxx-xxxx'}
+                ]
+            },
+            'GHSA-xxxx-xxxx-xxxx',
+            0,
+        ),
+        (
+            {
+                'security-advisories': [
+                    {'state': 'triage', 'severity': 'critical', 'ghsa_id': 'GHSA-xxxx-xxxx-xxxx'}
+                ]
+            },
+            'GHSA-xxxx-xxxx-xxxx',
+            1,
+        ),
     ],
 )
-def test_release_security_gate_filters_open_alerts(tmp_path, alerts, expected_status):
+def test_release_security_gate_filters_open_alerts(tmp_path, alerts, fixes, expected_status):
     fixtures = tmp_path / 'alerts'
     fixtures.mkdir()
     for source in ('dependabot', 'code-scanning', 'secret-scanning', 'security-advisories'):
@@ -60,6 +79,7 @@ def test_release_security_gate_filters_open_alerts(tmp_path, alerts, expected_st
         GITHUB_ACTIONS='true',
         RELEASE_SECURITY_TOKEN='test-placeholder',
         SECURITY_GATE_STRICT='false',
+        RELEASE_FIXES_ADVISORIES=fixes,
         PATH=f'{fake_bin}{os.pathsep}{env["PATH"]}',
     )
     result = subprocess.run(
@@ -118,8 +138,6 @@ def signed_release_repo(tmp_path):
     git('config', 'user.name', 'Release Test')
     git('config', 'user.email', 'release@example.test')
     (repo / 'README').write_text('release test\n')
-    git('add', 'README')
-    git('commit', '-m', 'baseline')
     key = tmp_path / 'signing-key'
     subprocess.run(
         ['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(key)],
@@ -127,9 +145,12 @@ def signed_release_repo(tmp_path):
         capture_output=True,
     )
     (repo / 'release-keys').mkdir()
+    principal = (ROOT / 'release-keys/maintainers.allowed_signers').read_text().split()[0]
     (repo / 'release-keys/maintainers.allowed_signers').write_text(
-        f'release@example.test {key.with_suffix(".pub").read_text()}'
+        f'{principal} {key.with_suffix(".pub").read_text()}'
     )
+    git('add', 'README', 'release-keys/maintainers.allowed_signers')
+    git('commit', '-m', 'baseline')
     git(
         '-c',
         'gpg.format=ssh',
@@ -174,6 +195,9 @@ def test_release_tag_gate_accepts_only_trusted_signed_tags(signed_release_repo):
     assert 'master ref is unavailable' in no_master.stderr
     assert signed.returncode == 0, signed.stderr
     assert 'Verified release tag v1.0.0.' in signed.stdout
+    sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
+    triggered = run_tag_gate(repo, 'v1.0.0', triggering_sha=sha)
+    assert triggered.returncode == 0, triggered.stderr
     assert unsigned.returncode != 0
 
 
@@ -233,6 +257,65 @@ def test_release_tag_gate_rejects_an_untrusted_signer(signed_release_repo, tmp_p
     result = run_tag_gate(repo, 'v1.0.2')
     assert result.returncode != 0
     assert 'No principal matched' in result.stderr
+
+
+def test_release_tag_gate_uses_the_current_master_signing_keys(signed_release_repo, tmp_path):
+    repo, git, _ = signed_release_repo
+    replacement = tmp_path / 'replacement-key'
+    subprocess.run(
+        ['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(replacement)], check=True
+    )
+    principal = (ROOT / 'release-keys/maintainers.allowed_signers').read_text().split()[0]
+    (repo / 'release-keys/maintainers.allowed_signers').write_text(
+        f'{principal} {replacement.with_suffix(".pub").read_text()}'
+    )
+    git('commit', '-am', 'Update release signing keys')
+    git('push', 'origin', 'master')
+    git('reset', '--hard', 'v1.0.0')
+    result = run_tag_gate(repo, 'v1.0.0')
+    assert result.returncode != 0
+    assert 'No principal matched' in result.stderr
+
+
+@pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
+@pytest.mark.parametrize('ci', [True, False])
+def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci):
+    fake_bin = tmp_path / 'bin'
+    fake_bin.mkdir()
+    calls = tmp_path / 'calls'
+    gh = fake_bin / 'gh'
+    gh.write_text(
+        f'#!{sys.executable}\n'
+        'import json, os, pathlib, sys\n'
+        'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
+        'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
+        '    calls.write(json.dumps([url, os.environ.get("GH_TOKEN")]) + "\\n")\n'
+    )
+    gh.chmod(0o755)
+    env = dict(
+        os.environ,
+        GH_TOKEN='local-test-placeholder',
+        GATE_CALLS=str(calls),
+        SECURITY_GATE_STRICT='false',
+        PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+    )
+    env.pop('GITHUB_ACTIONS', None)
+    env.pop('RELEASE_SECURITY_TOKEN', None)
+    if ci:
+        env.update(GITHUB_ACTIONS='true', RELEASE_SECURITY_TOKEN='dedicated-test-placeholder')
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/release-security-gate.sh')],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+    expected = 'dedicated-test-placeholder' if ci else 'local-test-placeholder'
+    assert [token for url, token in recorded if '/security-advisories?' in url] == [expected]
+    assert 'CLEAR: security-advisories' in result.stdout
+    assert 'UNVERIFIED: security-advisories' not in result.stdout
 
 
 @pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')

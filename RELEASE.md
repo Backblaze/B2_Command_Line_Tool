@@ -16,7 +16,8 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
 2. The trusted SSH public keys for release tags are in
    [`release-keys/maintainers.allowed_signers`](release-keys/maintainers.allowed_signers). A release
    manager must sign with the corresponding private key. Review additions or removals of trusted
-   keys as release-security changes.
+   keys as release-security changes. The verifier reads the fetched `origin/master` key policy,
+   so a key removed there is no longer accepted when checking an older release commit.
 3. The release gate reads GitHub's Dependabot, code-scanning, secret-scanning, and repository
    advisory APIs. Configure `RELEASE_SECURITY_TOKEN` with read-only access to these sources,
    including **Repository security advisories: read**, to verify unpublished advisories in CI.
@@ -83,7 +84,7 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    scripts/verify-release-tag.sh vX.Y.Z
    ```
 
-   The verifier checks the signature against the in-repo key file and confirms the tagged commit
+   The verifier checks the signature against the current `origin/master` key file and confirms the tagged commit
    is on `origin/master`. Do not move a published tag; release a new patch version instead.
 2. Push the tag only after the release PR and `master` CI are green. The tag-triggered workflow
    runs signature and security checks **before** any publishing job. A failed gate holds the
@@ -101,3 +102,6 @@ assembly and the released-b2sdk check without creating a tag, uploading artifact
 to PyPI or Docker Hub. The signed-tag, alert-gate, and release-note extraction scripts have local
 tests in `test/unit/test_release_workflow.py`; GitHub environment permissions and the PyPI
 Trusted Publisher must still be validated in a real maintainer-controlled release.
+
+Release work may use stacked pull requests. Pull-request CI runs for every base branch so both
+the Changie migration and its dependent release-workflow change are checked before merging.
