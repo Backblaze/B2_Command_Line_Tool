@@ -16,13 +16,15 @@ jobs:
     permissions:
       contents: read
       security-events: read
-      vulnerability-alerts: read
+      vulnerability-alerts: read  # GitHub workflow-syntax permissions: Dependabot alert access.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Fetch the release branch ancestry
-        run: git fetch --no-tags origin master:refs/remotes/origin/master
+        run: |
+          git fetch --no-tags origin master:refs/remotes/origin/master
+          git fetch --no-tags --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
       - name: Verify maintainer-signed tag
         run: scripts/verify-release-tag.sh "$GITHUB_REF_NAME"
       - name: Check security findings

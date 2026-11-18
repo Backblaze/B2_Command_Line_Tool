@@ -53,6 +53,7 @@ def test_advisory_token_is_forwarded_by_the_release_gate_job():
 
 
 def test_all_publication_jobs_wait_for_the_release_gate():
+    assert 'run: scripts/verify-release-tag.sh "$GITHUB_REF_NAME"' in job('release-gate')
     assert re.search(r'^    needs: release-gate\s*$', job('deploy'), re.M)
     for name in ('deploy-pypi', 'deploy-linux-bundle', 'deploy-windows-bundle', 'deploy-docker'):
         assert re.search(r'^    needs: deploy\s*$', job(name), re.M), name
@@ -97,9 +98,11 @@ def test_pull_request_ci_covers_stacked_bases():
     source = (ROOT / '.github/workflows/ci.yml').read_text()
     trigger = source.split('on:\n', 1)[1].split('\nenv:', 1)[0]
     assert re.search(r'^  pull_request:\s*(?=^\S|\Z)', trigger, re.M)
+    assert re.search(r'^  push:\n    branches: \[master\]', trigger, re.M)
 
 
 @pytest.mark.skipif(os.name != 'posix', reason='workflow uses Bash')
+@pytest.mark.parametrize('username', ['test-placeholder', ''])
 @pytest.mark.parametrize(
     ('tag', 'prerelease'),
     [
@@ -110,7 +113,7 @@ def test_pull_request_ci_covers_stacked_bases():
         ('v5.1.0dev1', 'true'),
     ],
 )
-def test_prerelease_step_classifies_tags_before_publication(tmp_path, tag, prerelease):
+def test_prerelease_step_classifies_tags_before_publication(tmp_path, tag, prerelease, username):
     source = job('deploy').split('      - name: Determine if pre-release', 1)[1]
     script = textwrap.dedent(source.split('        run: |\n', 1)[1].split('      - uses:', 1)[0])
     output = tmp_path / 'outputs'
@@ -120,7 +123,7 @@ def test_prerelease_step_classifies_tags_before_publication(tmp_path, tag, prere
             os.environ,
             GITHUB_REF_NAME=tag,
             GITHUB_OUTPUT=str(output),
-            DOCKERHUB_USERNAME='test-placeholder',
+            DOCKERHUB_USERNAME=username,
         ),
         capture_output=True,
         text=True,
@@ -129,4 +132,46 @@ def test_prerelease_step_classifies_tags_before_publication(tmp_path, tag, prere
     assert result.returncode == 0, result.stderr
     actual = dict(line.split('=', 1) for line in output.read_text().splitlines())
     assert actual['prerelease'] == prerelease
-    assert actual['publish_docker'] == ('true' if prerelease == 'false' else 'false')
+    assert actual['publish_docker'] == ('true' if prerelease == 'false' and username else 'false')
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='workflow uses Bash')
+@pytest.mark.parametrize(
+    ('prerelease', 'version', 'tags'),
+    [
+        ('false', '5.1.0', 'backblazeit/b2:5.1.0,backblazeit/b2:latest'),
+        ('true', '5.1.0rc1', 'backblazeit/b2:5.1.0rc1'),
+    ],
+)
+def test_docker_tags_do_not_mark_prereleases_as_latest(tmp_path, prerelease, version, tags):
+    source = job('deploy-docker').split('      - name: Prepare Docker tags', 1)[1]
+    script = textwrap.dedent(source.split('        run: |\n', 1)[1].split('      - name:', 1)[0])
+    output = tmp_path / 'outputs'
+    result = subprocess.run(
+        ['bash', '-c', script],
+        env=dict(os.environ, GITHUB_OUTPUT=str(output), VERSION=version, PRERELEASE=prerelease),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert output.read_text() == f'docker_tags={tags}\n'
+
+
+def test_replaced_actions_stay_replaced_and_docker_build_pins_match():
+    pins = []
+    for workflow in ('ci.yml', 'cd.yml'):
+        source = (ROOT / '.github/workflows' / workflow).read_text()
+        actions = re.findall(r'^\s+(?:- )?uses: (\S+)', source, re.M)
+        for name in (
+            'softprops/action-gh-release',
+            'mindsers/changelog-reader-action',
+            'codespell-project/actions-codespell',
+            'peter-evans/dockerhub-description',
+            'deadsnakes/action',
+        ):
+            assert not any(action.startswith(name + '@') for action in actions)
+        docker = [action for action in actions if action.startswith('docker/build-push-action@')]
+        assert len(docker) == 1
+        pins.append(docker[0])
+    assert pins[0] == pins[1]

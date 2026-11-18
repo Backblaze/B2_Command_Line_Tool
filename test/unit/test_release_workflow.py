@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,8 @@ POSIX_TOOLS = os.name == 'posix' and all(
         ({'dependabot': [{'security_advisory': {'severity': 'medium'}}]}, '', 1),
         ({'code-scanning': [{'rule': {'security_severity_level': 'high'}}]}, '', 1),
         ({'secret-scanning': [{'state': 'open'}]}, '', 1),
+        ({'security-advisories': [{'state': 'published', 'severity': 'critical'}]}, '', 0),
+        ({'security-advisories': [{'state': 'closed', 'severity': 'critical'}]}, '', 0),
         ({'security-advisories': [{'state': 'draft', 'severity': 'critical'}]}, '', 1),
         (
             {
@@ -106,6 +109,8 @@ def test_release_security_gate_reports_unverified_sources(tmp_path, strict, expe
         'import os, sys\n'
         'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
         'if "/code-scanning/" in url: sys.exit(1)\n'
+        'if url.count("/") == 2:\n'
+        '    print(\'HTTP/2.0 200 OK\\nX-OAuth-Scopes: repo\\n\\n{"permissions": {"admin": true}}\')\n'
     )
     fake_gh.chmod(0o755)
     env = dict(os.environ)
@@ -124,7 +129,9 @@ def test_release_security_gate_reports_unverified_sources(tmp_path, strict, expe
         check=False,
     )
     assert result.returncode == expected_status, result.stdout + result.stderr
-    assert 'UNVERIFIED' in result.stdout + result.stderr
+    assert 'UNVERIFIED: code-scanning' in result.stdout
+    assert 'CLEAR: code-scanning' not in result.stdout
+    assert 'CLEAR: security-advisories' in result.stdout
 
 
 @pytest.fixture
@@ -202,6 +209,7 @@ def test_release_tag_gate_accepts_only_trusted_signed_tags(signed_release_repo):
     triggered = run_tag_gate(repo, 'v1.0.0', triggering_sha=sha)
     assert triggered.returncode == 0, triggered.stderr
     assert unsigned.returncode != 0
+    assert 'annotated signed tag' in unsigned.stderr
 
 
 def test_release_tag_gate_rejects_a_renamed_signed_tag(signed_release_repo):
@@ -336,6 +344,9 @@ def test_ci_advisories_are_unverified_without_a_dedicated_token(tmp_path, strict
         'import os, pathlib, sys\n'
         'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
         '    calls.write(" ".join(sys.argv[1:]) + "\\n")\n'
+        'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
+        'if url.count("/") == 2:\n'
+        '    print(\'HTTP/2.0 200 OK\\nX-OAuth-Scopes: repo\\n\\n{"permissions": {"admin": true}}\')\n'
     )
     gh.chmod(0o755)
     env = dict(
@@ -434,3 +445,29 @@ def test_release_security_gate_holds_on_malformed_alert_data(tmp_path):
     assert result.returncode == 1, result.stdout + result.stderr
     assert 'HOLD: dependabot alerts could not be evaluated.' in result.stderr
     assert 'CLEAR: dependabot' not in result.stdout
+
+
+def release_ref_fetch_script():
+    source = (ROOT / '.github/workflows/cd.yml').read_text()
+    step = source.split('      - name: Fetch the release branch ancestry', 1)[1]
+    run = step.split('        run: ', 1)[1].split('      - name: Verify', 1)[0]
+    return textwrap.dedent(run.split('\n', 1)[1]) if run.startswith('|') else run.strip()
+
+
+def test_release_workflow_restores_the_signed_tag_object(signed_release_repo):
+    repo, git, _ = signed_release_repo
+    git('push', 'origin', 'refs/tags/v1.0.0')
+    # Reproduce checkout's commit-only local tag ref before the verifier runs.
+    git('update-ref', 'refs/tags/v1.0.0', 'refs/tags/v1.0.0^{}')
+    env = dict(os.environ, GITHUB_REF_NAME='v1.0.0')
+    fetched = subprocess.run(
+        ['bash', '-c', release_ref_fetch_script()],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert fetched.returncode == 0, fetched.stderr
+    result = run_tag_gate(repo, 'v1.0.0')
+    assert result.returncode == 0, result.stderr
