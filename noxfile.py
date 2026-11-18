@@ -808,6 +808,13 @@ def make_release_commit(session):
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
+def release_check(session):
+    """Test release preparation in disposable worktrees without publishing."""
+    uv_install(session, groups=('test', 'nox'))
+    session.run('pytest', 'test/release', *PYTEST_GLOBAL_ARGS)
+
+
+@nox.session(python=PYTHON_DEFAULT_VERSION)
 def changie_check(session):
     """Validate unreleased fragments and the assembled changelog."""
     subprocess.run(

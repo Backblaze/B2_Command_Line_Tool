@@ -52,7 +52,7 @@ jobs:
             exit 1
           fi
       - name: Changelog validation
-        run: uv run nox -vs changie_check
+        run: uv run nox -vs changie_check release_check
   build:
     timeout-minutes: 30
     needs: lint
