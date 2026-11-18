@@ -40,7 +40,7 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    ```bash
    gh auth login
    gh auth status
-   nox -vs changie_check lint unit build
+   nox -vs changie_check release_check lint unit build
    GITHUB_REPOSITORY=Backblaze/B2_Command_Line_Tool scripts/release-security-gate.sh
    ```
 
