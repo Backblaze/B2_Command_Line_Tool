@@ -23,7 +23,7 @@ from io import StringIO
 from unittest import mock
 
 import pytest
-from b2sdk.v3 import Bucket, DownloadedFile
+from b2sdk.v3 import Bucket, DownloadedFile, KeepOrDeleteMode
 from b2sdk.v3.exception import B2SimpleError
 
 from b2._internal._cli.const import (
@@ -31,6 +31,10 @@ from b2._internal._cli.const import (
 )
 from b2._internal.console_tool import _TqdmCloser
 from test.known_defect import known_defect
+
+# KeepOrDeleteMode is imported at module level on purpose: test/unit/_cli/test_pickle.py purges and
+# re-imports b2sdk modules, so a lazy import inside a test would yield an enum class that never equals
+# the one the console tool uses.
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
@@ -256,8 +260,6 @@ def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
 @known_defect('sync accepts a negative or zero --keep-days')
 def test_sync_keep_days_zero_is_not_silently_no_delete(b2_cli, tmp_path):
     """--keep-days 0 must be rejected or honoured, never silently turned into NO_DELETE."""
-    from b2sdk.v3 import KeepOrDeleteMode
-
     status, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
     if synchronizer.called:
         mode = synchronizer.call_args.kwargs['keep_days_or_delete']
