@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
   pull_request:
+    # Cover the temporary release stack as well as the default branch.
+    branches: [master, release-standard-changie-oidc]
 
 env:
   PYTHON_DEFAULT_VERSION: "3.12"

@@ -45,7 +45,13 @@ check_source() {
 check_source dependabot 'dependabot/alerts?state=open&per_page=100'
 check_source code-scanning 'code-scanning/alerts?state=open&per_page=100'
 check_source secret-scanning 'secret-scanning/alerts?state=open&per_page=100'
-check_source security-advisories 'security-advisories?per_page=100'
+if [[ "${GITHUB_ACTIONS:-false}" == true && -z "${RELEASE_SECURITY_TOKEN:-}" ]]; then
+  echo 'UNVERIFIED: security-advisories requires RELEASE_SECURITY_TOKEN with repository-advisory read access.'
+  unverified=1
+else
+  GH_TOKEN="${RELEASE_SECURITY_TOKEN:-${GH_TOKEN:-}}" \
+    check_source security-advisories 'security-advisories?per_page=100'
+fi
 
 if (( unverified > 0 )); then
   echo '::warning title=Release security gate::UNVERIFIED sources require manual Security tab review.'

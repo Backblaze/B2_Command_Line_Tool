@@ -18,9 +18,11 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    manager must sign with the corresponding private key. Review additions or removals of trusted
    keys as release-security changes.
 3. The release gate reads GitHub's Dependabot, code-scanning, secret-scanning, and repository
-   advisory APIs. The workflow uses `GITHUB_TOKEN` or `RELEASE_SECURITY_TOKEN` if the former
-   cannot read the needed APIs. Grant any dedicated token read-only access to those security
-   sources. Do not substitute a token with broader write permissions.
+   advisory APIs. Configure `RELEASE_SECURITY_TOKEN` with read-only access to these sources,
+   including **Repository security advisories: read**, to verify unpublished advisories in CI.
+   Without that dedicated token, CI reports advisories as **UNVERIFIED**, because `GITHUB_TOKEN`
+   can return only published advisories even when the API request succeeds. The other sources
+   use `GITHUB_TOKEN` when the dedicated token is absent. Do not grant broader write permissions.
 4. `SECURITY_GATE_STRICT` defaults to `false`. An unreadable source is printed as **UNVERIFIED**
    with a workflow warning and needs a manual Security-tab review; it is never treated as a clean
    scan. The code-scanning and secret-scanning alert APIs currently return 404 for this repository.
@@ -31,17 +33,21 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
 
 1. Choose `X.Y.Z`, create its GitHub milestone, and make sure intended issues and PRs are resolved.
    Confirm `master` CI is green. Do not release with failing CI.
-2. Run the local health check from a clean checkout, with the required `uv` version and `nox`
-   installed:
+2. Run the local health check from a clean checkout, with the required `uv` version, `nox`, Go,
+   GitHub CLI (`gh`), and `jq` installed. Authenticate `gh` as a maintainer with access to the
+   repository's security sources, or provide a token with equivalent read access:
 
    ```bash
+   gh auth login
+   gh auth status
    nox -vs changie_check lint unit build
    GITHUB_REPOSITORY=Backblaze/B2_Command_Line_Tool scripts/release-security-gate.sh
    ```
 
    The gate holds on readable open medium, high, or critical findings; it also holds on any open
    secret-scanning alert. A code owner must inspect each **UNVERIFIED** source on the Security tab
-   before approving the release. For a draft advisory fixed by this release, set
+   before approving the release; a successful gate exit with **UNVERIFIED** sources is not a
+   complete clearance. For a draft advisory fixed by this release, set
    `RELEASE_FIXES_ADVISORIES` to its GHSA ID for the gate, have a code owner confirm the fix, and
    publish that advisory after the release. Never put an unpublished advisory description in a
    public PR.

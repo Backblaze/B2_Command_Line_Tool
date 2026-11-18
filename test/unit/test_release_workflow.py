@@ -57,6 +57,9 @@ def test_release_security_gate_filters_open_alerts(tmp_path, alerts, expected_st
     env.update(
         GITHUB_REPOSITORY='Backblaze/B2_Command_Line_Tool',
         RELEASE_GATE_FIXTURES=str(fixtures),
+        GITHUB_ACTIONS='true',
+        RELEASE_SECURITY_TOKEN='test-placeholder',
+        SECURITY_GATE_STRICT='false',
         PATH=f'{fake_bin}{os.pathsep}{env["PATH"]}',
     )
     result = subprocess.run(
@@ -86,6 +89,8 @@ def test_release_security_gate_reports_unverified_sources(tmp_path, strict, expe
     env.update(
         GITHUB_REPOSITORY='Backblaze/B2_Command_Line_Tool',
         SECURITY_GATE_STRICT=strict,
+        GITHUB_ACTIONS='true',
+        RELEASE_SECURITY_TOKEN='test-placeholder',
         PATH=f'{fake_bin}{os.pathsep}{env["PATH"]}',
     )
     result = subprocess.run(
@@ -99,8 +104,10 @@ def test_release_security_gate_reports_unverified_sources(tmp_path, strict, expe
     assert 'UNVERIFIED' in result.stdout + result.stderr
 
 
-@pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
-def test_release_tag_gate_accepts_only_trusted_signed_tags(tmp_path):
+@pytest.fixture
+def signed_release_repo(tmp_path):
+    if not POSIX_TOOLS:
+        pytest.skip('release scripts require POSIX tools')
     repo = tmp_path / 'repo'
     repo.mkdir()
 
@@ -135,24 +142,132 @@ def test_release_tag_gate_accepts_only_trusted_signed_tags(tmp_path):
         'v1.0.0',
     )
     git('tag', 'v1.0.1')
-    script = ROOT / 'scripts/verify-release-tag.sh'
-    gate_env = {key: value for key, value in os.environ.items() if key != 'GITHUB_SHA'}
-    no_master = subprocess.run(
-        ['bash', str(script), 'v1.0.0'], cwd=repo, env=gate_env, capture_output=True
-    )
     remote = tmp_path / 'remote.git'
     subprocess.run(['git', 'init', '--bare', str(remote)], check=True, capture_output=True)
     git('remote', 'add', 'origin', str(remote))
     git('push', '-u', 'origin', 'master')
-    signed = subprocess.run(
-        ['bash', str(script), 'v1.0.0'], cwd=repo, env=gate_env, capture_output=True
+    return repo, git, key
+
+
+def run_tag_gate(repo, tag, triggering_sha=None):
+    env = {key: value for key, value in os.environ.items() if key != 'GITHUB_SHA'}
+    if triggering_sha is not None:
+        env['GITHUB_SHA'] = triggering_sha
+    return subprocess.run(
+        ['bash', str(ROOT / 'scripts/verify-release-tag.sh'), tag],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
-    unsigned = subprocess.run(
-        ['bash', str(script), 'v1.0.1'], cwd=repo, env=gate_env, capture_output=True
-    )
+
+
+def test_release_tag_gate_accepts_only_trusted_signed_tags(signed_release_repo):
+    repo, git, _ = signed_release_repo
+    git('update-ref', '-d', 'refs/remotes/origin/master')
+    no_master = run_tag_gate(repo, 'v1.0.0')
+    git('update-ref', 'refs/remotes/origin/master', 'HEAD')
+    signed = run_tag_gate(repo, 'v1.0.0')
+    unsigned = run_tag_gate(repo, 'v1.0.1')
     assert no_master.returncode != 0
-    assert signed.returncode == 0, signed.stderr.decode()
+    assert 'master ref is unavailable' in no_master.stderr
+    assert signed.returncode == 0, signed.stderr
+    assert 'Verified release tag v1.0.0.' in signed.stdout
     assert unsigned.returncode != 0
+
+
+def test_release_tag_gate_rejects_a_renamed_signed_tag(signed_release_repo):
+    repo, git, _ = signed_release_repo
+    git('update-ref', 'refs/tags/v9.9.9', 'refs/tags/v1.0.0')
+    result = run_tag_gate(repo, 'v9.9.9')
+    assert result.returncode != 0
+    assert 'does not match its signed tag header' in result.stderr
+
+
+def test_release_tag_gate_rejects_a_commit_outside_master(signed_release_repo):
+    repo, git, key = signed_release_repo
+    git('checkout', '-b', 'outside-master')
+    (repo / 'README').write_text('unmerged commit\n')
+    git('commit', '-am', 'Unmerged change')
+    git(
+        '-c',
+        'gpg.format=ssh',
+        '-c',
+        f'user.signingkey={key}',
+        'tag',
+        '-s',
+        'v1.0.2',
+        '-m',
+        'v1.0.2',
+    )
+    result = run_tag_gate(repo, 'v1.0.2')
+    assert result.returncode != 0
+    assert 'must point to a commit on master' in result.stderr
+
+
+def test_release_tag_gate_rejects_a_different_triggering_commit(signed_release_repo):
+    repo, _, _ = signed_release_repo
+    result = run_tag_gate(repo, 'v1.0.0', triggering_sha='0' * 40)
+    assert result.returncode != 0
+    assert 'does not point to the triggering commit' in result.stderr
+
+
+def test_release_tag_gate_rejects_an_untrusted_signer(signed_release_repo, tmp_path):
+    repo, git, _ = signed_release_repo
+    untrusted = tmp_path / 'untrusted-key'
+    subprocess.run(
+        ['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(untrusted)], check=True
+    )
+    git(
+        '-c',
+        'gpg.format=ssh',
+        '-c',
+        f'user.signingkey={untrusted}',
+        'tag',
+        '-s',
+        'v1.0.2',
+        '-m',
+        'v1.0.2',
+    )
+    result = run_tag_gate(repo, 'v1.0.2')
+    assert result.returncode != 0
+    assert 'No principal matched' in result.stderr
+
+
+@pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
+@pytest.mark.parametrize(('strict', 'status'), [('false', 0), ('true', 1)])
+def test_ci_advisories_are_unverified_without_a_dedicated_token(tmp_path, strict, status):
+    fake_bin = tmp_path / 'bin'
+    fake_bin.mkdir()
+    calls = tmp_path / 'calls'
+    gh = fake_bin / 'gh'
+    gh.write_text(
+        f'#!{sys.executable}\n'
+        'import os, pathlib, sys\n'
+        'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
+        '    calls.write(" ".join(sys.argv[1:]) + "\\n")\n'
+    )
+    gh.chmod(0o755)
+    env = dict(
+        os.environ,
+        GITHUB_ACTIONS='true',
+        RELEASE_SECURITY_TOKEN='',
+        SECURITY_GATE_STRICT=strict,
+        GATE_CALLS=str(calls),
+        PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+    )
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/release-security-gate.sh')],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == status, result.stdout + result.stderr
+    assert 'UNVERIFIED: security-advisories' in result.stdout
+    assert 'CLEAR: security-advisories' not in result.stdout
+    assert 'security-advisories' not in calls.read_text()
 
 
 @pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')

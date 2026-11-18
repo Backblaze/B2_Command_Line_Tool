@@ -28,6 +28,7 @@ jobs:
       - name: Check security findings
         env:
           GH_TOKEN: ${{ secrets.RELEASE_SECURITY_TOKEN || github.token }}
+          RELEASE_SECURITY_TOKEN: ${{ secrets.RELEASE_SECURITY_TOKEN }}
           SECURITY_GATE_STRICT: ${{ vars.SECURITY_GATE_STRICT || 'false' }}
           RELEASE_FIXES_ADVISORIES: ${{ vars.RELEASE_FIXES_ADVISORIES }}
         run: scripts/release-security-gate.sh

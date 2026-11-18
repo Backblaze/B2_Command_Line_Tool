@@ -6,6 +6,19 @@ tag=${1:?Pass the release tag name}
 allowed=release-keys/maintainers.allowed_signers
 [[ -s "$allowed" ]] || { echo 'Maintainer tag-signing keys are unavailable.' >&2; exit 1; }
 
+tag_object=$(git cat-file tag "$tag" 2>/dev/null) || {
+  echo 'Release tag must be an annotated signed tag.' >&2
+  exit 1
+}
+signed_name=$(printf '%s\n' "$tag_object" | awk '
+  /^$/ { header_done = 1 }
+  !header_done && /^tag / { print substr($0, 5) }
+')
+[[ "$signed_name" == "$tag" ]] || {
+  echo 'Release tag name does not match its signed tag header.' >&2
+  exit 1
+}
+
 git -c gpg.format=ssh -c "gpg.ssh.allowedSignersFile=$allowed" verify-tag "$tag"
 commit=$(git rev-parse "$tag^{commit}")
 if [[ -n "${GITHUB_SHA:-}" && "$commit" != "$GITHUB_SHA" ]]; then
