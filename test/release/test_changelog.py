@@ -254,11 +254,13 @@ def test_pr_changelog_gate_requires_an_unreleased_fragment(release_worktree, ent
     ('body', 'message'),
     [
         ('lowercase entry.', 'capital letter'),
+        ('1st entry.', 'capital letter'),
+        ('`code` entry.', 'capital letter'),
         ('Missing punctuation', 'full stop'),
         ('', 'capital letter'),
         ('Large ' + 'x' * (16 * 1024) + '.', '16 KiB'),
     ],
-    ids=['lowercase', 'punctuation', 'empty', 'oversize'],
+    ids=['lowercase', 'digit', 'symbol', 'punctuation', 'empty', 'oversize'],
 )
 def test_changelog_check_preserves_entry_validation(release_worktree, body, message):
     fragment = release_worktree / '.changes/unreleased/Fixed-release-test.yaml'
