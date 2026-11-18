@@ -817,11 +817,12 @@ def release_check(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def changie_check(session):
     """Validate unreleased fragments and the assembled changelog."""
-    subprocess.run(
-        ['go', 'run', CHANGIE, 'batch', 'patch', '--dry-run'],
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
+    if any(pathlib.Path('.changes/unreleased').glob('*.yaml')):
+        subprocess.run(
+            ['go', 'run', CHANGIE, 'batch', 'patch', '--dry-run'],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
     rendered = subprocess.check_output(['go', 'run', CHANGIE, 'merge', '--dry-run'], text=True)
     if rendered != pathlib.Path('CHANGELOG.md').read_text():
         session.error('CHANGELOG.md differs from `changie merge --dry-run`')

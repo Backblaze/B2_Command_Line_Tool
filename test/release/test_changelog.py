@@ -9,6 +9,7 @@
 ######################################################################
 """Exercise release preparation in disposable worktrees without publishing."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -77,6 +78,17 @@ def run_session(worktree, session, *args, requirements='b2sdk==2.13.2\n'):
         f'    os.execv({real_uv!r}, [{real_uv!r}, *sys.argv[1:]])\n'
     )
     uv.chmod(0o755)
+    real_go = shutil.which('go')
+    assert real_go is not None
+    go = tools / 'go'
+    go.write_text(
+        f'#!{sys.executable}\n'
+        'import json, os, sys\n'
+        f'with open({str(worktree.parent / "go-calls.jsonl")!r}, "a") as calls:\n'
+        '    calls.write(json.dumps(sys.argv[1:]) + "\\n")\n'
+        f'os.execv({real_go!r}, [{real_go!r}, *sys.argv[1:]])\n'
+    )
+    go.chmod(0o755)
     env = dict(os.environ, PATH=f'{tools}{os.pathsep}{os.environ["PATH"]}')
     return subprocess.run(
         [sys.executable, '-m', 'nox', '--no-venv', '-s', session, '--', *args],
@@ -107,14 +119,22 @@ def test_release_preparation_batches_fragments_and_preserves_history(release_wor
         assert content.decode().strip() in changelog
 
 
-def test_release_preparation_rejects_unreleased_sdk(release_worktree):
+@pytest.mark.parametrize(
+    'requirements',
+    [
+        'b2sdk @ git+https://example.invalid/b2sdk\n',
+        'b2sdk==2.13.2\nother @ git+https://example.invalid/x\n',
+        'other==1.0\n',
+    ],
+)
+def test_release_preparation_rejects_unreleased_sdk(release_worktree, requirements):
     before = (release_worktree / 'CHANGELOG.md').read_bytes()
 
     result = run_session(
         release_worktree,
         'make_release_commit',
         RELEASE_VERSION,
-        requirements='b2sdk @ git+https://example.invalid/b2sdk\n',
+        requirements=requirements,
     )
 
     assert result.returncode != 0
@@ -127,9 +147,14 @@ def test_changelog_check_after_release_still_checks_rendered_history(release_wor
     result = run_session(release_worktree, 'make_release_commit', RELEASE_VERSION)
     assert result.returncode == 0, result.stdout + result.stderr
     assert not list((release_worktree / '.changes/unreleased').glob('*.yaml'))
+    calls_file = release_worktree.parent / 'go-calls.jsonl'
+    calls_file.write_text('')
 
     result = run_session(release_worktree, 'changie_check')
     assert result.returncode == 0, result.stdout + result.stderr
+    calls = [json.loads(line) for line in calls_file.read_text().splitlines()]
+    assert any('merge' in call for call in calls)
+    assert all('batch' not in call for call in calls)
 
     with (release_worktree / 'CHANGELOG.md').open('a') as changelog:
         changelog.write('\nUnexpected rendered content\n')
