@@ -78,6 +78,7 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    release commit:
 
    ```bash
+   git fetch --no-tags origin master:refs/remotes/origin/master
    git config gpg.format ssh
    git config user.signingkey /path/to/maintainer-signing-key
    git tag -s vX.Y.Z -m vX.Y.Z <merged-release-commit>
