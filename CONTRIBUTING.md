@@ -27,13 +27,15 @@ established by reading git tags, i.e. no code or manifest file changes are requi
 ## Changelog
 
 Each PR needs a changelog entry in [`.changes/unreleased`](.changes/unreleased). Use
-[Changie](https://changie.dev/) to create it, for example:
+[Changie](https://changie.dev/) with [Go](https://go.dev/doc/install) installed. The pinned
+`go run` command downloads Changie on first use; no separate Changie installation is needed:
 
-    changie new --kind Fixed --body 'Describe the user-visible fix.'
+    go run github.com/miniscruff/changie@v1.24.0 new --kind Fixed --body 'Describe the user-visible fix.'
 
 The configured kinds are Removed, Changed, Fixed, Deprecated, Added, Doc, and Infrastructure.
-Write a complete sentence for the entry. For a release, `changie batch vX.Y.Z` assembles the
-unreleased entries into `.changes/vX.Y.Z.md`; `changie merge` rebuilds [CHANGELOG.md](CHANGELOG.md).
+Write a complete sentence for the entry. For a release, `go run github.com/miniscruff/changie@v1.24.0 batch vX.Y.Z` assembles the
+unreleased entries into `.changes/vX.Y.Z.md`;
+`go run github.com/miniscruff/changie@v1.24.0 merge` rebuilds [CHANGELOG.md](CHANGELOG.md).
 The existing release history is kept in `.changes/v*.md` so rebuilding the changelog preserves it.
  
 ## Developer Info

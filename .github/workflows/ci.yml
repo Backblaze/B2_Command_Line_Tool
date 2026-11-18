@@ -47,7 +47,7 @@ jobs:
             exit 0
           fi
 
-          if [ -z "$(git diff --diff-filter=A --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD -- '.changes/unreleased/*.yaml' '.changes/v*.md')" ]; then
+          if [ -z "$(git diff --diff-filter=A --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD -- '.changes/unreleased/*.yaml')" ]; then
             echo "No changelog item added."
             exit 1
           fi

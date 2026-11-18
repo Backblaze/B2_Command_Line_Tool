@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -185,3 +186,50 @@ def test_changelog_check_rejects_a_malformed_fragment(release_worktree):
     ]
     assert any(call[-3:] == ['batch', 'patch', '--dry-run'] for call in calls)
     assert (release_worktree / 'CHANGELOG.md').read_bytes() == before
+
+
+def test_documented_changie_command_creates_a_fragment(release_worktree):
+    docs = (ROOT / 'CONTRIBUTING.md').read_text().split('## Changelog', 1)[1]
+    command = next(line.strip() for line in docs.splitlines() if line.startswith('    '))
+    fragments = release_worktree / '.changes/unreleased'
+    before = set(fragments.glob('*.yaml'))
+    result = subprocess.run(
+        ['bash', '-c', command], cwd=release_worktree, capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    added = set(fragments.glob('*.yaml')) - before
+    assert len(added) == 1
+    assert 'Describe the user-visible fix.' in added.pop().read_text()
+
+
+@pytest.mark.parametrize('entry', ['unreleased/Fixed-new-entry.yaml', 'v999.0.0.md'])
+def test_pr_changelog_gate_requires_an_unreleased_fragment(release_worktree, entry):
+    subprocess.run(
+        ['git', 'update-ref', 'refs/remotes/origin/changelog-test-base', 'HEAD'],
+        cwd=release_worktree,
+        check=True,
+    )
+    (release_worktree / '.changes' / entry).write_text('New entry\n')
+    with (release_worktree / 'CHANGELOG.md').open('a') as changelog:
+        changelog.write('New entry\n')
+    subprocess.run(['git', 'add', '.changes', 'CHANGELOG.md'], cwd=release_worktree, check=True)
+    subprocess.run(
+        ['git', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Add changelog entry'],
+        cwd=release_worktree,
+        check=True,
+    )
+    source = (ROOT / '.github/workflows/ci.yml').read_text()
+    step = source.split('      - name: Validate new changelog entries\n', 1)[1]
+    script = textwrap.dedent(
+        step.split('        run: |\n', 1)[1].split('      - name: Changelog validation', 1)[0]
+    ).replace('${{ github.event.pull_request.base.ref }}', 'changelog-test-base')
+    # Exercise the added-entry gate; the earlier lockfile-only exception is separate.
+    script = script[script.index('if [ -z "$(git diff --diff-filter=A') :]
+    result = subprocess.run(
+        ['bash', '-c', script], cwd=release_worktree, capture_output=True, text=True, timeout=30
+    )
+    if entry.startswith('unreleased/'):
+        assert result.returncode == 0, result.stdout + result.stderr
+    else:
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert 'No changelog item added.' in result.stdout
