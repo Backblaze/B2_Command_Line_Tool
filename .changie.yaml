@@ -5,7 +5,14 @@ changelogPath: CHANGELOG.md
 versionExt: md
 versionFormat: '## [{{.VersionNoPrefix}}](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/{{.Version}}) - {{.Time.Format "2006-01-02"}}'
 kindFormat: '### {{.Kind}}'
-changeFormat: '- {{.Body}}'
+changeFormat: >-
+  {{- if not (regexMatch `^\p{Lu}` .Body) -}}
+  {{- fail "Changelog body must start with a capital letter." -}}
+  {{- end -}}
+  {{- if not (hasSuffix "." (trim .Body)) -}}
+  {{- fail "Changelog body must end with a full stop." -}}
+  {{- end -}}
+  - {{.Body}}
 kinds:
   - label: Removed
     auto: major

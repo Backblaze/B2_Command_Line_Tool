@@ -817,7 +817,11 @@ def release_check(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def changie_check(session):
     """Validate unreleased fragments and the assembled changelog."""
-    if any(pathlib.Path('.changes/unreleased').glob('*.yaml')):
+    fragments = list(pathlib.Path('.changes/unreleased').glob('*.yaml'))
+    for fragment in fragments:
+        if fragment.stat().st_size > 16 * 1024:
+            session.error(f'{fragment}: changelog fragments must be at most 16 KiB')
+    if fragments:
         subprocess.run(
             ['go', 'run', CHANGIE, 'batch', 'patch', '--dry-run'],
             check=True,

@@ -9,6 +9,7 @@
 ######################################################################
 """Exercise release preparation in disposable worktrees without publishing."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -32,12 +33,15 @@ def release_worktree(tmp_path):
     try:
         # Include uncommitted release-helper edits when running this test locally.
         shutil.copyfile(ROOT / 'noxfile.py', worktree / 'noxfile.py')
+        shutil.copyfile(ROOT / '.changie.yaml', worktree / '.changie.yaml')
         fragment = worktree / '.changes/unreleased/Fixed-release-test.yaml'
         fragment.parent.mkdir(exist_ok=True)
         fragment.write_text(
             'kind: Fixed\nbody: Include the release test entry.\ntime: 2026-01-01T00:00:00Z\n'
         )
-        subprocess.run(['git', 'add', 'noxfile.py', str(fragment)], cwd=worktree, check=True)
+        subprocess.run(
+            ['git', 'add', 'noxfile.py', '.changie.yaml', str(fragment)], cwd=worktree, check=True
+        )
         subprocess.run(
             [
                 'git',
@@ -214,7 +218,18 @@ def test_pr_changelog_gate_requires_an_unreleased_fragment(release_worktree, ent
         changelog.write('New entry\n')
     subprocess.run(['git', 'add', '.changes', 'CHANGELOG.md'], cwd=release_worktree, check=True)
     subprocess.run(
-        ['git', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Add changelog entry'],
+        [
+            'git',
+            '-c',
+            'user.name=Release Test',
+            '-c',
+            'user.email=release@example.test',
+            '-c',
+            'commit.gpgsign=false',
+            'commit',
+            '-m',
+            'Add changelog entry',
+        ],
         cwd=release_worktree,
         check=True,
     )
@@ -233,3 +248,38 @@ def test_pr_changelog_gate_requires_an_unreleased_fragment(release_worktree, ent
     else:
         assert result.returncode == 1, result.stdout + result.stderr
         assert 'No changelog item added.' in result.stdout
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ('lowercase entry.', 'capital letter'),
+        ('Missing punctuation', 'full stop'),
+        ('', 'capital letter'),
+        ('Large ' + 'x' * (16 * 1024) + '.', '16 KiB'),
+    ],
+    ids=['lowercase', 'punctuation', 'empty', 'oversize'],
+)
+def test_changelog_check_preserves_entry_validation(release_worktree, body, message):
+    fragment = release_worktree / '.changes/unreleased/Fixed-release-test.yaml'
+    fragment.write_text('kind: Fixed\nbody: ' + json.dumps(body) + '\ntime: 2026-01-01T00:00:00Z\n')
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert message in result.stderr
+
+
+def test_published_history_matches_the_pre_migration_changelog():
+    # Frozen from the 71 sections in master before the Changie migration.
+    versions = (
+        '0.7.4 1.0.0 1.1.0 1.2.0 1.3.0 1.3.2 1.3.4 1.3.6 1.3.8 1.4.0 1.4.2 2.0.0 2.0.2 2.1.0 '
+        '2.2.0 2.3.0 2.4.0 2.5.0 2.5.1 3.0.0 3.0.1 3.0.2 3.0.3 3.1.0 3.10.0 3.10.1 3.11.0 '
+        '3.12.0 3.13.0 3.13.1 3.14.0 3.15.0 3.16.0 3.16.1 3.17.0 3.18.0 3.19.0 3.19.1 3.2.0 '
+        '3.2.1 3.3.0 3.4.0 3.5.0 3.6.0 3.7.0 3.7.1 3.8.0 3.9.0 4.0.0 4.0.1 4.0.2 4.0.3 4.1.0 '
+        '4.2.0 4.3.0 4.3.1 4.3.2 4.3.3 4.4.0 4.4.1 4.4.2 4.5.0 4.5.1 4.6.0 4.7.0 4.7.1 4.8.0 '
+        '5.0.0 5.0.1 5.0.2 5.0.3 '
+    ).split()
+    digest = hashlib.sha256()
+    for version in versions:
+        path = ROOT / '.changes' / f'v{version}.md'
+        digest.update(path.name.encode() + b'\0' + path.read_bytes() + b'\0')
+    assert digest.hexdigest() == 'e77e309b0e7ba240698f676458e3f1a665f81670454021e9964a7571dd40708f'

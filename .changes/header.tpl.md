@@ -6,4 +6,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This project uses [*Changie*](https://changie.dev/) and the changes for the
 upcoming release can be found in [.changes/unreleased](.changes/unreleased).
-Release preparation and changelog validation are checked automatically in CI.
+Release preparation, fragment formatting, and changelog history are checked automatically in CI.

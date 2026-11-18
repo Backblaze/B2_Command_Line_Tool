@@ -33,7 +33,8 @@ Each PR needs a changelog entry in [`.changes/unreleased`](.changes/unreleased).
     go run github.com/miniscruff/changie@v1.24.0 new --kind Fixed --body 'Describe the user-visible fix.'
 
 The configured kinds are Removed, Changed, Fixed, Deprecated, Added, Doc, and Infrastructure.
-Write a complete sentence for the entry. For a release, `go run github.com/miniscruff/changie@v1.24.0 batch vX.Y.Z` assembles the
+Write a complete sentence starting with a capital letter and ending with a full stop.
+CI validates that form and the 16 KiB fragment limit. For a release, `go run github.com/miniscruff/changie@v1.24.0 batch vX.Y.Z` assembles the
 unreleased entries into `.changes/vX.Y.Z.md`;
 `go run github.com/miniscruff/changie@v1.24.0 merge` rebuilds [CHANGELOG.md](CHANGELOG.md).
 The existing release history is kept in `.changes/v*.md` so rebuilding the changelog preserves it.
