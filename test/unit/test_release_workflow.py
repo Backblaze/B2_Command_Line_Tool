@@ -16,6 +16,7 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -36,6 +37,8 @@ POSIX_TOOLS = os.name == 'posix' and all(
         ({'security-advisories': [{'state': 'published', 'severity': 'critical'}]}, '', 0),
         ({'security-advisories': [{'state': 'closed', 'severity': 'critical'}]}, '', 0),
         ({'security-advisories': [{'state': 'draft', 'severity': 'critical'}]}, '', 1),
+        ({'security-advisories': [{'state': 'draft', 'severity': 'low'}]}, '', 0),
+        ({'security-advisories': [{'state': 'draft', 'severity': 'medium'}]}, '', 1),
         (
             {
                 'security-advisories': [
@@ -132,6 +135,7 @@ def test_release_security_gate_reports_unverified_sources(tmp_path, strict, expe
     assert 'UNVERIFIED: code-scanning' in result.stdout
     assert 'CLEAR: code-scanning' not in result.stdout
     assert 'CLEAR: security-advisories' in result.stdout
+    assert '::warning title=Release security gate::UNVERIFIED' in result.stdout
 
 
 @pytest.fixture
@@ -290,8 +294,9 @@ def test_release_tag_gate_uses_the_current_master_signing_keys(signed_release_re
 
 @pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
 @pytest.mark.parametrize('ci', [True, False])
-@pytest.mark.parametrize('scope', ['repo', 'repository_advisories:read'])
-def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, scope):
+@pytest.mark.parametrize('scope', ['repo', 'repository_advisories:read', 'read:org, repo'])
+@pytest.mark.parametrize('alerts_token', ['', 'read-only-alert-placeholder'])
+def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, scope, alerts_token):
     fake_bin = tmp_path / 'bin'
     fake_bin.mkdir()
     calls = tmp_path / 'calls'
@@ -301,16 +306,17 @@ def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, sc
         'import json, os, pathlib, sys\n'
         'url = next(arg for arg in sys.argv if arg.startswith("repos/"))\n'
         'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
-        '    calls.write(json.dumps([url, os.environ.get("GH_TOKEN")]) + "\\n")\n'
+        '    calls.write(json.dumps([url, os.environ.get("GH_TOKEN"), "--paginate" in sys.argv]) + "\\n")\n'
         'if url.count("/") == 2:\n'
-        f'    print(\'HTTP/2.0 200 OK\\nX-OAuth-Scopes: {scope}\\n\\n{{"permissions": {{"admin": true}}}}\')\n'
+        f'    print(\'HTTP/2.0 200 OK\\nx-oauth-scopes: {scope}\\n\\n{{"permissions": {{"admin": true}}}}\')\n'
     )
     gh.chmod(0o755)
     env = dict(
         os.environ,
         GH_TOKEN='local-test-placeholder',
         GATE_CALLS=str(calls),
-        SECURITY_GATE_STRICT='false',
+        SECURITY_GATE_STRICT='true' if ci else 'false',
+        RELEASE_ALERTS_TOKEN=alerts_token,
         PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
     )
     env.pop('GITHUB_ACTIONS', None)
@@ -327,8 +333,20 @@ def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, sc
     assert result.returncode == 0, result.stdout + result.stderr
     recorded = [json.loads(line) for line in calls.read_text().splitlines()]
     expected = 'dedicated-test-placeholder' if ci else 'local-test-placeholder'
-    assert [token for url, token in recorded if '/security-advisories?' in url] == [expected]
-    assert [token for url, token in recorded if url.count('/') == 2] == [expected]
+    assert [token for url, token, _ in recorded if '/security-advisories?' in url] == [expected]
+    assert [token for url, token, _ in recorded if url.count('/') == 2] == [expected]
+    alert_calls = [
+        (url, token, paginated)
+        for url, token, paginated in recorded
+        if any(
+            f'/{source}/' in url for source in ('dependabot', 'code-scanning', 'secret-scanning')
+        )
+    ]
+    assert len(alert_calls) == 3
+    for url, token, paginated in alert_calls:
+        assert token == (alerts_token or 'local-test-placeholder')
+        assert parse_qs(urlsplit(url).query)['state'] == ['open']
+        assert paginated
     assert 'CLEAR: security-advisories' in result.stdout
     assert 'UNVERIFIED: security-advisories' not in result.stdout
 

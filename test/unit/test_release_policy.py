@@ -49,6 +49,10 @@ def test_advisory_token_is_forwarded_by_the_release_gate_job():
         gate,
         re.M,
     )
+    assert re.search(r'^          GH_TOKEN: \$\{\{ github\.token }}\s*$', gate, re.M)
+    assert re.search(
+        r'^          RELEASE_ALERTS_TOKEN: \$\{\{ secrets\.RELEASE_ALERTS_TOKEN }}\s*$', gate, re.M
+    )
     assert 'run: scripts/release-security-gate.sh' in gate
 
 

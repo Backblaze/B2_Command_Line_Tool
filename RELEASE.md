@@ -24,21 +24,26 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    commit modifies the workflow or verifier. Environment approval and tag rules are the
    controls outside that tagged commit and must be configured before publishing.
 3. The release gate reads GitHub's Dependabot, code-scanning, secret-scanning, and repository
-   advisory APIs. Configure `RELEASE_SECURITY_TOKEN` with read-only access to these sources,
-   including **Repository security advisories: read**, to verify unpublished advisories in CI.
-   Without that dedicated token, CI reports advisories as **UNVERIFIED**, because `GITHUB_TOKEN`
-   can return only published advisories even when the API request succeeds. The other sources
-   use `GITHUB_TOKEN` when the dedicated token is absent. Do not grant broader write permissions.
-   Advisory clearance additionally requires proof of unpublished-advisory visibility: the gate
-   currently recognizes a repository administrator with the classic OAuth `repo` or
-   `repository_advisories:read` scope (the latter is narrower). Other identities and token types,
-   including fine-grained tokens without introspectable scopes, remain **UNVERIFIED** even if
-   the public advisory API returns HTTP 200; inspect them manually before release. The same
-   check applies to the local health check.
+   advisory APIs. `GITHUB_TOKEN` supplies Dependabot and code-scanning read access. To read
+   secret-scanning alerts as well, configure `RELEASE_ALERTS_TOKEN`: a fine-grained token with
+   **Dependabot alerts: read**, **Code scanning alerts: read**, and **Secret scanning alerts: read**
+   for this repository. It overrides `GITHUB_TOKEN` only for these three alert sources.
+   No write permissions are needed.
+
+   Configure `RELEASE_SECURITY_TOKEN` separately for the advisory probe and listing only.
+   Automated advisory clearance currently recognizes a repository administrator's classic token
+   with the narrow `repository_advisories:read` scope; no `repo` or `security_events` write-capable
+   scope is required. The probe verifies that scope and the administrator identity, since public
+   advisory responses alone do not prove unpublished-advisory access. Other identities and token
+   types, including fine-grained tokens without introspectable scopes, remain **UNVERIFIED** for
+   advisories even after HTTP 200; inspect them manually. A missing dedicated advisory token in
+   CI is likewise **UNVERIFIED**. The same visibility check applies to the local health check.
+   See [GitHub advisory permissions](https://docs.github.com/en/rest/security-advisories/repository-advisories#list-repository-security-advisories).
 4. `SECURITY_GATE_STRICT` defaults to `false`. An unreadable source is printed as **UNVERIFIED**
    with a workflow warning and needs a manual Security-tab review; it is never treated as a clean
    scan. The code-scanning and secret-scanning alert APIs currently return 404 for this repository.
-   Enable those features and verify the gate can read them before setting the repository variable
+   Enable those features, configure both read-only credentials above, and verify the gate
+   can read every source before setting the repository variable
    `SECURITY_GATE_STRICT=true`; strict mode holds a release on any unreadable source.
 
 ## Prepare the release

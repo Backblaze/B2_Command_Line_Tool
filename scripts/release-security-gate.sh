@@ -42,9 +42,10 @@ check_source() {
   fi
 }
 
-check_source dependabot 'dependabot/alerts?state=open&per_page=100'
-check_source code-scanning 'code-scanning/alerts?state=open&per_page=100'
-check_source secret-scanning 'secret-scanning/alerts?state=open&per_page=100'
+alerts_token=${RELEASE_ALERTS_TOKEN:-${GH_TOKEN:-}}
+GH_TOKEN="$alerts_token" check_source dependabot 'dependabot/alerts?state=open&per_page=100'
+GH_TOKEN="$alerts_token" check_source code-scanning 'code-scanning/alerts?state=open&per_page=100'
+GH_TOKEN="$alerts_token" check_source secret-scanning 'secret-scanning/alerts?state=open&per_page=100'
 advisory_visibility_verified() {
   local metadata scopes
   # Public advisory responses alone do not prove access to unpublished findings.

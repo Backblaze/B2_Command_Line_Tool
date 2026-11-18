@@ -30,7 +30,8 @@ jobs:
         run: scripts/verify-release-tag.sh "$GITHUB_REF_NAME"
       - name: Check security findings
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_SECURITY_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ALERTS_TOKEN: ${{ secrets.RELEASE_ALERTS_TOKEN }}
           RELEASE_SECURITY_TOKEN: ${{ secrets.RELEASE_SECURITY_TOKEN }}
           SECURITY_GATE_STRICT: ${{ vars.SECURITY_GATE_STRICT || 'false' }}
           RELEASE_FIXES_ADVISORIES: ${{ vars.RELEASE_FIXES_ADVISORIES }}

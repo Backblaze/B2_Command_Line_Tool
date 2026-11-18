@@ -1,3 +1,3 @@
 kind: Infrastructure
-body: Restore signed tag objects before verification against the current signing policy, verify advisory visibility with the configured token, and cover release workflow and publication settings.
+body: Restore signed tag objects before verification against the current signing policy, separate read-only alert and advisory credentials, verify advisory visibility, and cover release workflow and publication settings.
 time: 2026-11-18T00:00:00Z
