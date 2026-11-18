@@ -328,6 +328,7 @@ def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, sc
     recorded = [json.loads(line) for line in calls.read_text().splitlines()]
     expected = 'dedicated-test-placeholder' if ci else 'local-test-placeholder'
     assert [token for url, token in recorded if '/security-advisories?' in url] == [expected]
+    assert [token for url, token in recorded if url.count('/') == 2] == [expected]
     assert 'CLEAR: security-advisories' in result.stdout
     assert 'UNVERIFIED: security-advisories' not in result.stdout
 

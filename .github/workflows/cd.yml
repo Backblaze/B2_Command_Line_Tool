@@ -16,7 +16,8 @@ jobs:
     permissions:
       contents: read
       security-events: read
-      vulnerability-alerts: read  # GitHub workflow-syntax permissions: Dependabot alert access.
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+      vulnerability-alerts: read  # Dependabot alerts (read/none supported by GitHub).
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
