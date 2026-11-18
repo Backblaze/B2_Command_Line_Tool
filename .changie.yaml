@@ -5,6 +5,8 @@ changelogPath: CHANGELOG.md
 versionExt: md
 versionFormat: '## [{{.VersionNoPrefix}}](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/{{.Version}}) - {{.Time.Format "2006-01-02"}}'
 kindFormat: '### {{.Kind}}'
+# Preserve the existing repository sentence policy (not a B2 API restriction):
+# https://github.com/Backblaze/B2_Command_Line_Tool/blob/9194ec532616c4a2044b0e78b08c84fd8e86e386/noxfile.py#L853-L877
 changeFormat: >-
   {{- if not (regexMatch `^\p{Lu}` .Body) -}}
   {{- fail "Changelog body must start with a capital letter." -}}

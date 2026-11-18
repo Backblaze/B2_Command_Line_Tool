@@ -283,3 +283,16 @@ def test_published_history_matches_the_pre_migration_changelog():
         path = ROOT / '.changes' / f'v{version}.md'
         digest.update(path.name.encode() + b'\0' + path.read_bytes() + b'\0')
     assert digest.hexdigest() == 'e77e309b0e7ba240698f676458e3f1a665f81670454021e9964a7571dd40708f'
+
+
+@pytest.mark.parametrize(('size', 'status'), [(16384, 0), (16385, 1)])
+def test_changelog_fragment_size_boundary(release_worktree, size, status):
+    prefix = 'kind: Fixed\nbody: A'
+    suffix = '.\ntime: 2026-01-01T00:00:00Z\n'
+    fragment = release_worktree / '.changes/unreleased/Fixed-release-test.yaml'
+    fragment.write_text(prefix + 'x' * (size - len(prefix) - len(suffix)) + suffix)
+    assert fragment.stat().st_size == size
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode == status, result.stdout + result.stderr
+    if status:
+        assert '16 KiB' in result.stderr
