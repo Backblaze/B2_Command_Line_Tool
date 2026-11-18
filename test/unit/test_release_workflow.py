@@ -296,11 +296,17 @@ def test_release_tag_gate_uses_the_current_master_signing_keys(signed_release_re
 @pytest.mark.parametrize('ci', [True, False])
 @pytest.mark.parametrize('scope', ['repo', 'repository_advisories:read', 'read:org, repo'])
 @pytest.mark.parametrize('alerts_token', ['', 'read-only-alert-placeholder'])
-def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, scope, alerts_token):
+@pytest.mark.parametrize('line_ending', ['\n', '\r\n'], ids=['lf', 'crlf'])
+def test_advisories_use_the_configured_token_at_the_gh_boundary(
+    tmp_path, ci, scope, alerts_token, line_ending
+):
     fake_bin = tmp_path / 'bin'
     fake_bin.mkdir()
     calls = tmp_path / 'calls'
     gh = fake_bin / 'gh'
+    metadata = (
+        f'HTTP/2.0 200 OK\nx-oauth-scopes: {scope}\n\n' '{"permissions": {"admin": true}}'
+    ).replace('\n', line_ending)
     gh.write_text(
         f'#!{sys.executable}\n'
         'import json, os, pathlib, sys\n'
@@ -308,7 +314,7 @@ def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, sc
         'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
         '    calls.write(json.dumps([url, os.environ.get("GH_TOKEN"), "--paginate" in sys.argv]) + "\\n")\n'
         'if url.count("/") == 2:\n'
-        f'    print(\'HTTP/2.0 200 OK\\nx-oauth-scopes: {scope}\\n\\n{{"permissions": {{"admin": true}}}}\')\n'
+        f'    print({metadata!r})\n'
     )
     gh.chmod(0o755)
     env = dict(
@@ -348,7 +354,8 @@ def test_advisories_use_the_configured_token_at_the_gh_boundary(tmp_path, ci, sc
         assert parse_qs(urlsplit(url).query)['state'] == ['open']
         assert paginated
     assert 'CLEAR: security-advisories' in result.stdout
-    assert 'UNVERIFIED: security-advisories' not in result.stdout
+    assert 'UNVERIFIED' not in result.stdout
+    assert '::warning' not in result.stdout
 
 
 @pytest.mark.skipif(not POSIX_TOOLS, reason='release scripts require POSIX tools')
