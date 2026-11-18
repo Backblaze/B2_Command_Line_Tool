@@ -42,3 +42,28 @@ def test_file_hide__by_b2_uri(b2_cli, api_bucket, uploaded_file):
 def test_file_hide__cannot_hide_by_b2id(b2_cli, api_bucket, uploaded_file):
     b2_cli.run(['file', 'hide', f"b2id://{uploaded_file['fileId']}"], expected_status=2)
     assert list(api_bucket.ls())
+
+
+@pytest.mark.apiver
+@pytest.mark.parametrize(
+    'make_args, expected_stderr',
+    [
+        (
+            lambda f: [f"b2://{f['bucket']}/{f['fileName']}", f['fileName']],
+            'ERROR: argument B2_URI: Both B2 URI and file name were provided, but only one is expected\n',
+        ),
+        (
+            lambda f: ['notauri'],
+            "ERROR: argument B2_URI: Incorrect B2 URI was provided, expected `b2://bucketName/fileName`, but got 'notauri'\n",
+        ),
+    ],
+)
+def test_file_hide__invalid_b2_uri_argument(
+    b2_cli, api_bucket, uploaded_file, make_args, expected_stderr
+):
+    b2_cli.run(
+        ['file', 'hide', *make_args(uploaded_file)],
+        expected_stderr=expected_stderr,
+        expected_status=2,
+    )
+    assert list(api_bucket.ls())

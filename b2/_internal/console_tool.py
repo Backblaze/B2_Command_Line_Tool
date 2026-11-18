@@ -5587,6 +5587,12 @@ class ConsoleTool:
             else:
                 self._print_stderr(f'ERROR: {e}')
             return 1
+        except argparse.ArgumentError as e:
+            # raised by commands that can only validate their arguments after parsing,
+            # e.g. a B2 URI given together with a file name; report it like a parser error
+            logger.exception('ConsoleTool argument error')
+            self._print_stderr(f'ERROR: {e}')
+            return 2
         except KeyboardInterrupt:
             logger.exception('ConsoleTool command interrupt')
             self._print_stderr('\nInterrupted.  Shutting down...\n')
