@@ -42,12 +42,15 @@ query($q: String!, $endCursor: String) {
 """
 
 
+NON_HUMAN_ACCOUNTS = frozenset({'coveralls'})
+
+
 def is_bot(actor: dict | None) -> bool:
     # GraphQL drops the "[bot]" suffix from Bot logins, so check the type too.
     if not actor or actor.get('__typename') == 'Bot':
         return True
-    login = actor.get('login') or ''
-    return login.endswith('[bot]') or 'copilot' in login.lower() or login == 'coveralls'
+    handle = (actor.get('login') or '').lower()
+    return handle.endswith('[bot]') or 'copilot' in handle or handle in NON_HUMAN_ACCOUNTS
 
 
 def is_human_reviewer(actor: dict | None, author: str | None) -> bool:
