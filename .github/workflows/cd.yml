@@ -84,8 +84,22 @@ jobs:
           path: dist/*
           if-no-files-found: error
       - name: Read release notes
+        # actions-governance: replaced by awk changelog extraction; remove after a real run verifies it
+        # id: read-changelog
+        # uses: mindsers/changelog-reader-action@v2
+        # with:
+        #   version: ${{ steps.build.outputs.version }}
         run: scripts/release-notes.sh "${{ steps.build.outputs.version }}" > release-notes.md
       - name: Create GitHub release and upload the distribution
+        # actions-governance: replaced by gh release create/upload; remove after a real run verifies it
+        # id: create-release
+        # uses: softprops/action-gh-release@v2
+        # with:
+        #   name: ${{ steps.build.outputs.version }}
+        #   body: ${{ steps.read-changelog.outputs.changes }}
+        #   draft: false
+        #   prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+        #   files: ${{ steps.build.outputs.asset_path }}
         env:
           VERSION: ${{ steps.build.outputs.version }}
           PRERELEASE: ${{ steps.prerelease_check.outputs.prerelease }}
@@ -149,6 +163,13 @@ jobs:
         id: hashes
         run: uv run nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
+        # actions-governance: replaced by gh release upload; remove after a real run verifies it
+        # uses: softprops/action-gh-release@v2
+        # with:
+        #   name: ${{ needs.deploy.outputs.version }}
+        #   draft: false
+        #   prerelease: ${{ needs.deploy.outputs.prerelease }}
+        #   files: ${{ steps.sign.outputs.asset_path }}
         run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
   deploy-windows-bundle:
     needs: deploy
@@ -197,6 +218,15 @@ jobs:
         id: hashes
         run: uv run nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
+        # actions-governance: replaced by gh release upload; remove after a real run verifies it
+        # id: create-release
+        # uses: softprops/action-gh-release@v2
+        # with:
+        #   name: ${{ needs.deploy.outputs.version }}
+        #   draft: false
+        #   prerelease: ${{ needs.deploy.outputs.prerelease }}
+        #   files:
+        #     ${{ steps.sign.outputs.asset_path || steps.bundle.outputs.asset_path }}
         shell: bash
         run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
   deploy-docker:
@@ -252,6 +282,13 @@ jobs:
           tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
           platforms: linux/amd64,linux/arm64
       - name: Update Docker Hub Description
+        # actions-governance: replaced by curl Docker Hub API; remove after a real run verifies it
+        # uses: peter-evans/dockerhub-description@v4
+        # with:
+        #   username: ${{ secrets.DOCKERHUB_USERNAME }}
+        #   password: ${{ secrets.DOCKERHUB_TOKEN }}
+        #   repository: backblazeit/b2
+        #   short-description: "Official Backblaze B2 CLI docker image"
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
