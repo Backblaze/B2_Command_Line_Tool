@@ -131,7 +131,7 @@ def test_copy_has_independent_registrations_and_same_configuration():
 @known_defect(
     'iter() on a ClassRegistry raises TypeError because __iter__ returns a keys view',
     raises=TypeError,
-    match="iter\\(\\) returned non-iterator of type '(?:o)?dict_keys'",
+    match=r"^iter\(\) returned non-iterator(?: of type '(?:o)?dict_keys')?$",
 )
 def test_iterating_registry_yields_registered_keys():
     """Calling iter() or list() on a registry must work and yield the registered keys."""
