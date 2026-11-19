@@ -800,10 +800,8 @@ def make_release_commit(session):
         f'    git remote add upstream {UPSTREAM_REPO_URL!r} 2>/dev/null || git remote get-url upstream\n'
         f'    git commit -m "release {version}"\n'
         f'    git push upstream {current_branch}\n'
-        f'Wait for a CI workflow to complete successfully, before triggering CD by pushing a tag.\n'
-        f'    git tag v{version}\n'
-        f'    git push upstream v{version}\n'
-        f'Wait for a CD workflow to complete successfully, indicates the release is done.'
+        f'Open a release PR and wait for CI and maintainer review. After it merges, sign and push '
+        f'v{version} on the release commit. See RELEASE.md for the full process.'
     )
 
 

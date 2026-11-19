@@ -1,64 +1,139 @@
-# Releasing the B2 CLI
+# Releasing the B2 command-line tool
 
-A release is a changelog commit on `master` (titled `release X.Y.Z` or `vX.Y.Z`, for example `9ea898a`,
-v5.0.2) and a `vX.Y.Z` tag on it. The version comes from the git tag (hatch-vcs); no file holds it. Pushing the tag runs
-[`cd.yml`](.github/workflows/cd.yml), which publishes everything.
+Releases use a reviewed commit on `master` and a maintainer-signed `vX.Y.Z` tag. The tag starts
+[`.github/workflows/cd.yml`](.github/workflows/cd.yml), which builds the Python distribution,
+publishes it to PyPI, uploads the Linux and DigiCert-signed Windows bundles to GitHub Releases,
+and publishes the Docker Hub image for stable versions. The package version comes from the tag
+through hatch-vcs; do not edit a version number in `pyproject.toml`.
 
-## Before you start
+## One-time publication setup
 
-- `master` is green in CI, including the live-B2 integration jobs.
-- `pyproject.toml` depends on a released `b2sdk` (no git URL); `make_release_commit` refuses otherwise.
-  If the release needs a new SDK, release `b2-sdk-python` first and bump the pin in its own PR.
-- `.changes/unreleased/` holds an entry for every change since the last tag, and `nox -s changie_check
-  release_check` passes. Review the wording: it becomes the GitHub release body.
-  `go run github.com/miniscruff/changie@v1.24.0 batch vX.Y.Z --dry-run` previews the section.
+1. Configure the `b2` project on PyPI to trust GitHub Actions from owner `Backblaze`, repository
+   `B2_Command_Line_Tool`, workflow `cd.yml`, and environment `pypi`. Create or protect the
+   `pypi` GitHub environment before tagging: require release-maintainer reviewers and allow
+   deployments only from `v*` tags. Configure a repository tag ruleset that restricts creation
+   of `v*` tags to release maintainers. The PyPI job has `id-token: write` and no PyPI API
+   token; the pinned PyPA publishing action uploads attestations with each distribution. Confirm
+   this Trusted Publisher configuration before removing the old `B2_PYPI_PASSWORD` repository secret.
+2. The trusted SSH public keys for release tags are in
+   [`release-keys/maintainers.allowed_signers`](release-keys/maintainers.allowed_signers). A release
+   manager must sign with the corresponding private key. Review additions or removals of trusted
+   keys as release-security changes. The verifier reads the fetched `origin/master` key policy,
+   so a key removed there is no longer accepted when checking an older release commit.
+   The in-workflow checks prevent mistaken releases; they cannot defend against a tag whose
+   commit modifies the workflow or verifier. Environment approval and tag rules are the
+   controls outside that tagged commit and must be configured before publishing.
+3. The release gate reads GitHub's Dependabot, code-scanning, secret-scanning, and repository
+   advisory APIs. `GITHUB_TOKEN` supplies Dependabot and code-scanning read access. To read
+   secret-scanning alerts as well, configure `RELEASE_ALERTS_TOKEN`: a fine-grained token with
+   **Dependabot alerts: read**, **Code scanning alerts: read**, and **Secret scanning alerts: read**
+   for this repository. It overrides `GITHUB_TOKEN` only for these three alert sources.
+   No write permissions are needed.
+
+   Configure `RELEASE_SECURITY_TOKEN` separately for the advisory probe and listing only.
+   Automated advisory clearance currently recognizes a repository administrator's classic token
+   with the narrow `repository_advisories:read` scope; no `repo` or `security_events` write-capable
+   scope is required. The probe verifies that scope and the administrator identity, since public
+   advisory responses alone do not prove unpublished-advisory access. Other identities and token
+   types, including fine-grained tokens without introspectable scopes, remain **UNVERIFIED** for
+   advisories even after HTTP 200; inspect them manually. A missing dedicated advisory token in
+   CI is likewise **UNVERIFIED**. The same visibility check applies to the local health check.
+   See [GitHub advisory permissions](https://docs.github.com/en/rest/security-advisories/repository-advisories#list-repository-security-advisories).
+4. `SECURITY_GATE_STRICT` defaults to `false`. An unreadable source is printed as **UNVERIFIED**
+   with a workflow warning and needs a manual Security-tab review; it is never treated as a clean
+   scan. The code-scanning and secret-scanning alert APIs currently return 404 for this repository.
+   Enable those features, configure both read-only credentials above, and verify the gate
+   can read every source before setting the repository variable
+   `SECURITY_GATE_STRICT=true`; strict mode holds a release on any unreadable source.
 
 ## Versioning
 
 Semantic versioning. A `Removed` or breaking `Changed` entry needs a major bump and, usually, a new
 ApiVer (`b2vN`) so scripts on the old interface keep working. `Added`, `Changed` or `Deprecated` means
-minor; only `Fixed`, `Doc` and `Infrastructure` means patch. Maintainers usually batch trivial changes into the next
-release rather than cutting one for each.
+minor; only `Fixed`, `Doc` and `Infrastructure` means patch. New or risky behavior can ship first as a
+pre-release tag (`vX.Y.ZrcN`, `aN`, `bN` or `devN`), which skips PyPI and Docker Hub.
 
-## Steps
+## Prepare the release
 
-1. On an up-to-date `master` with a clean tree, run `nox -s make_release_commit -- X.Y.Z` (no leading
-   `v`). It runs `changie batch` and `changie merge`, which move the unreleased entries into
-   `.changes/vX.Y.Z.md` and rebuild `CHANGELOG.md` with the new `## [X.Y.Z]` section.
-2. Update the usage block in `README.md` from `b2 --help`:
-   `COLUMNS=4000 b2 --help | awk '/^usages:/ {p=1; next} p {sub(/^ */, "", $0); print}'`
-3. Commit as `release X.Y.Z`. Today it is pushed to `master` directly, as `make_release_commit` prints;
-   `intent/review-process/intent.md` proposes a PR instead, so CI and a maintainer see it before the tag.
-4. Once it is on `master` and CI there is green, tag that commit and push the tag:
-   `git tag vX.Y.Z && git push upstream vX.Y.Z`.
-5. Watch `cd.yml` to the end. The release is done when every job passed.
+1. Choose `X.Y.Z`, create its GitHub milestone, and make sure intended issues and PRs are resolved.
+   Confirm `master` CI is green. Do not release with failing CI.
+2. Run the local health check from a clean checkout, with the required `uv` version, `nox`, Go,
+   GitHub CLI (`gh`), and `jq` installed. Authenticate `gh` as a maintainer with access to the
+   repository's security sources, or provide a token with equivalent read access:
 
-## What `cd.yml` publishes
+   ```bash
+   gh auth login
+   gh auth status
+   nox -vs changie_check release_check lint unit build
+   GITHUB_REPOSITORY=Backblaze/B2_Command_Line_Tool scripts/release-security-gate.sh
+   ```
 
-| Job | Output |
-| --- | --- |
-| `deploy` | sdist and wheel on PyPI (skipped for pre-release tags such as `v5.1.0rc1`), GitHub release with the changelog section as its body |
-| `deploy-linux-bundle` | Standalone Linux binaries (x86_64 and arm64), with hashes, attached to the GitHub release |
-| `deploy-windows-bundle` | Signed Windows binary, with hashes, attached to the GitHub release |
-| `deploy-docker` | `backblazeit/b2` Docker image (not for pre-releases) |
+   The gate holds on readable open medium, high, or critical findings; it also holds on any open
+   secret-scanning alert. A code owner must inspect each **UNVERIFIED** source on the Security tab
+   before approving the release; a successful gate exit with **UNVERIFIED** sources is not a
+   complete clearance. For a draft advisory fixed by this release, set
+   `RELEASE_FIXES_ADVISORIES` to its GHSA ID for the gate, have a code owner confirm the fix, and
+   publish that advisory after the release. Never put an unpublished advisory description in a
+   public PR.
+3. Update the main usage string in `README.md` from `b2 --help` and commit that update before
+   running `make_release_commit`, which requires a clean checkout. A consistent extraction command is:
 
-Runner images in `cd.yml` must match the bundle jobs in `ci.yml`, so what was tested is what ships.
+   ```bash
+   COLUMNS=4000 b2 --help | awk '/^usages:/ {p=1; next} p {sub(/^ */, "", $0); print}'
+   ```
 
-## Staged releases
+4. Prepare Changie notes. Each change should have a fragment in `.changes/unreleased`. Preview
+   the batch without modifying the checkout:
 
-New or risky behavior can ship first as a pre-release tag (`vX.Y.ZrcN`, `aN`, `bN` or `devN`). `cd.yml`
-then publishes the GitHub release and standalone binaries but skips PyPI and Docker, so early users can try
-it before `pip install b2` picks it up. ApiVer is the CLI's flag mechanism: incompatible behavior goes to
-the next `b2vN`, and scripts pinned to an older one keep the old behavior.
+   ```bash
+   go run github.com/miniscruff/changie@v1.24.0 batch vX.Y.Z --dry-run
+   ```
+
+5. On a release branch from `master`, run `nox -s make_release_commit -- X.Y.Z`. It checks that
+   the CLI depends on a **released b2sdk** version, batches the fragments into
+   `.changes/vX.Y.Z.md`, and rebuilds `CHANGELOG.md`. Review the notes and commit them. Open a
+   release PR; a maintainer merges it after CI passes. The release command does not publish or tag.
+
+## Tag and publish
+
+1. Fetch the merged `master` commit. Set up Git SSH signing with the private key matching an
+   in-repo trusted public key, then create and locally verify an annotated signed tag on the
+   release commit:
+
+   ```bash
+   git fetch --no-tags origin master:refs/remotes/origin/master
+   git config gpg.format ssh
+   git config user.signingkey /path/to/maintainer-signing-key
+   git tag -s vX.Y.Z -m vX.Y.Z <merged-release-commit>
+   scripts/verify-release-tag.sh vX.Y.Z
+   ```
+
+   The verifier checks the signature against the current `origin/master` key file and confirms the tagged commit
+   is on `origin/master`. Do not move a published tag; release a new patch version instead.
+2. Push the tag only after the release PR and `master` CI are green. The tag-triggered workflow
+   runs signature and security checks **before** any publishing job. A failed gate holds the
+   release. Pre-release tags skip PyPI and Docker Hub publishing as in the existing workflow.
+3. Check the GitHub release assets, the PyPI project page and its attestations, the Linux and
+   Windows bundle jobs, and the Docker Hub tags/description. The Windows bundle still uses
+   DigiCert signing; Linux signing behavior is unchanged. Publish any advisory fixed by this
+   release after the tag is available.
+
+## Local release-path dry run
+
+Use a throwaway worktree to run `nox -s make_release_commit -- X.Y.Z`; inspect the generated
+`.changes/vX.Y.Z.md` and `CHANGELOG.md`, then remove the worktree. This exercises release-note
+assembly and the released-b2sdk check without creating a tag, uploading artifacts, or publishing
+to PyPI or Docker Hub. The signed-tag, alert-gate, and release-note extraction scripts have local
+tests in `test/unit/test_release_workflow.py`; GitHub environment permissions and the PyPI
+Trusted Publisher must still be validated in a real maintainer-controlled release.
+
+Release work may use stacked pull requests. Pull-request CI runs for every base branch so both
+the Changie migration and its dependent release-workflow change are checked before merging.
 
 ## If something goes wrong
 
 - A failed `cd.yml` job can be re-run from the Actions tab without a new tag.
 - To roll back a bad release in one step, yank it on PyPI (`pip` then skips it unless pinned) and mark the
-  GitHub release as a pre-release; then fix forward.
+  GitHub release as a pre-release; then fix forward with a patch release.
 - After a post-release fix, ask which layer should have caught it (a test, `REVIEW.md`, the AI review) and
   add the case to [doc/reviewer-evals.md](doc/reviewer-evals.md).
-- Never move or delete a pushed tag that reached PyPI; PyPI does not accept the same version twice. Fix
-  forward with a patch release.
-- A security fix ships as a patch release with a `Fixed` entry and a GitHub security advisory (see
-  [SECURITY.md](SECURITY.md)).
