@@ -222,3 +222,34 @@ def test_reusing_parser_without_profile_uses_default(console_tool_class):
     parser = B2.create_parser(name='b2')
     assert parser.parse_args(['--profile', 'named', 'account', 'clear']).profile == 'named'
     assert parser.parse_args(['account', 'clear']).profile is None
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        ['replication', 'setup', 'src-bucket', 'dst-bucket'],
+        ['replication', 'status', 'src-bucket'],
+    ],
+)
+@pytest.mark.parametrize('option', [['--destination-profile='], ['--destination-profile', '']])
+def test_empty_destination_profile_is_rejected(console_tool_class, command, option, capsys):
+    with pytest.raises(SystemExit) as error:
+        B2.create_parser(name='b2').parse_args(['--profile', 'named', *command, *option])
+    assert error.value.code == 2
+    stderr = capsys.readouterr().err
+    assert 'destination-profile' in stderr and 'empty' in stderr
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        ['replication', 'setup', 'src-bucket', 'dst-bucket'],
+        ['replication', 'status', 'src-bucket'],
+    ],
+)
+@pytest.mark.parametrize('destination', [None, 'destination'])
+def test_destination_profile_selection_is_preserved(console_tool_class, command, destination):
+    option = [] if destination is None else ['--destination-profile', destination]
+    args = B2.create_parser(name='b2').parse_args(['--profile', 'named', *command, *option])
+    assert args.profile == 'named'
+    assert args.destination_profile == destination

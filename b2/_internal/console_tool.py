@@ -998,6 +998,9 @@ class Command(Described, metaclass=ABCMeta):
 
     @staticmethod
     def _validate_profile(profile: str) -> str:
+        # The reference SDK's B2_ACCOUNT_INFO_PROFILE_NAME_REGEXP requires a nonempty name:
+        # https://github.com/Backblaze/b2-sdk-python/blob/v2.13.2/b2sdk/_internal/account_info/sqlite_account_info.py
+        # Keep omission (None) distinct from an explicitly empty option.
         if not profile:
             raise argparse.ArgumentTypeError('profile must not be empty')
         return profile
@@ -3939,7 +3942,9 @@ class ReplicationSetupBase(Command):
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        add_normalized_argument(parser, '--destination-profile', default=None)
+        add_normalized_argument(
+            parser, '--destination-profile', type=cls._validate_profile, default=None
+        )
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
         add_normalized_argument(
@@ -4127,7 +4132,7 @@ class ReplicationStatusBase(Command):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         add_normalized_argument(parser, '--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        add_normalized_argument(parser, '--destination-profile')
+        add_normalized_argument(parser, '--destination-profile', type=cls._validate_profile)
         add_normalized_argument(parser, '--dont-scan-destination', action='store_true')
         add_normalized_argument(
             parser, '--output-format', default='console', choices=('console', 'json', 'csv')
