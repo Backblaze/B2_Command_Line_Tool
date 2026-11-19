@@ -29,14 +29,23 @@ def complete(version, cache_home):
         LOCALAPPDATA=str(cache_home),
         APPDATA=str(cache_home),
         XDG_CACHE_HOME=str(cache_home),
+        TEST_AUTOCOMPLETE_CACHE_ROOT=str(cache_home),
         _ARGCOMPLETE='1',
         _ARGCOMPLETE_IFS=' ',
         _ARGCOMPLETE_STDOUT_FILENAME=str(output),
         COMP_LINE=command,
         COMP_POINT=str(len(command)),
     )
+    # Windows may resolve the cache path via the OS instead of environment variables.
+    # Override only that platform boundary before executing the real CLI module.
+    bootstrap = (
+        'import os, platformdirs, runpy, sys\n'
+        'platformdirs.user_cache_dir = lambda *args, **kwargs: '
+        'os.environ["TEST_AUTOCOMPLETE_CACHE_ROOT"]\n'
+        'runpy.run_module(f"b2._internal.{sys.argv[1]}", run_name="__main__", alter_sys=True)\n'
+    )
     subprocess.run(
-        [sys.executable, '-m', f'b2._internal.{version}'],
+        [sys.executable, '-c', bootstrap, version],
         env=env,
         capture_output=True,
         text=True,
@@ -69,6 +78,26 @@ def test_all_three_cli_versions_keep_their_cache(tmp_path):
     assert complete('b2v4', tmp_path).strip() == 'none'
     assert complete('b2v5', tmp_path).strip() == ''
     assert len(list(tmp_path.rglob('b2-autocomplete-cache-*.pickle'))) == 3
+
+
+def test_completion_cache_is_isolated_when_platform_directory_ignores_environment(
+    tmp_path, monkeypatch
+):
+    fake_site = tmp_path / 'site'
+    fake_site.mkdir()
+    (fake_site / 'sitecustomize.py').write_text(
+        'import os, platformdirs\n'
+        'platformdirs.user_cache_dir = lambda *args, **kwargs: os.environ["TEST_OTHER_CACHE"]\n'
+    )
+    other_cache = tmp_path / 'other-cache'
+    isolated_cache = tmp_path / 'isolated-cache'
+    isolated_cache.mkdir()
+    monkeypatch.setenv('PYTHONPATH', str(fake_site))
+    monkeypatch.setenv('TEST_OTHER_CACHE', str(other_cache))
+
+    assert complete('b2v5', isolated_cache).strip() == ''
+    assert len(list(isolated_cache.rglob('b2-autocomplete-cache-*.pickle'))) == 1
+    assert not list(other_cache.rglob('b2-autocomplete-cache-*.pickle'))
 
 
 def test_updating_one_cli_version_keeps_other_versions_cache(tmp_path):
