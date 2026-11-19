@@ -29,6 +29,7 @@ else:  # nox depends on tomli on these Python versions
     import tomli as tomllib
 
 UPSTREAM_REPO_URL = 'git@github.com:Backblaze/B2_Command_Line_Tool.git'
+CHANGIE = 'github.com/miniscruff/changie@v1.24.0'
 
 CI = os.environ.get('CI') is not None
 CD = CI and (os.environ.get('CD') is not None)
@@ -764,7 +765,7 @@ def build_and_test_docker(session):
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def make_release_commit(session):
     """
-    Runs `towncrier build`, commits changes, tags, all that is left to do is pushing
+    Batches Changie fragments and assembles the changelog for a release.
     """
     if session.posargs:
         version = session.posargs[0]
@@ -791,8 +792,8 @@ def make_release_commit(session):
     if current_branch != 'master':
         session.log('WARNING: releasing from a branch different than master')
 
-    uv_install(session, groups=('release',))
-    session.run('towncrier', 'build', '--yes', '--version', version)
+    session.run('go', 'run', CHANGIE, 'batch', f'v{version}', external=True)
+    session.run('go', 'run', CHANGIE, 'merge', external=True)
 
     session.log(
         f'CHANGELOG updated, changes ready to commit and push\n'
@@ -806,119 +807,26 @@ def make_release_commit(session):
     )
 
 
-def load_allowed_change_types(
-    project_toml: pathlib.Path = pathlib.Path('./pyproject.toml'),
-) -> set[str]:
-    """
-    Load the list of allowed change types from the pyproject.toml file.
-    """
-    configuration = tomllib.loads(project_toml.read_text())
-    return set(entry['directory'] for entry in configuration['tool']['towncrier']['type'])
-
-
-def is_changelog_filename_valid(filename: str, allowed_change_types: set[str]) -> tuple[bool, str]:
-    """
-    Validates whether the given filename matches our rules.
-    Provides information about why it doesn't match them.
-    """
-    error_reasons = []
-
-    wanted_extension = 'md'
-    try:
-        description, change_type, extension = filename.rsplit('.', maxsplit=2)
-    except ValueError:
-        # Not enough values to unpack.
-        return False, 'Doesn\'t follow the "<description>.<change_type>.md" pattern.'
-
-    # Check whether the filename ends with .md.
-    if extension != wanted_extension:
-        error_reasons.append(f"Doesn't end with {wanted_extension} extension.")
-
-    # Check whether the change type is valid.
-    if change_type not in allowed_change_types:
-        error_reasons.append(
-            f"Change type '{change_type}' doesn't match allowed types: {allowed_change_types}."
-        )
-
-    # Check whether the description makes sense.
-    try:
-        int(description)
-    except ValueError:
-        if description[0] != '+':
-            error_reasons.append("Doesn't start with a number nor a plus sign.")
-
-    return len(error_reasons) == 0, ' / '.join(error_reasons) if error_reasons else ''
-
-
-def is_changelog_entry_valid(file_content: str) -> tuple[bool, str]:
-    """
-    We expect the changelog entry to be a valid sentence in the English language.
-    This includes, but not limits to, providing a capital letter at the start
-    and the full-stop character at the end.
-
-    Note: to do this "properly", tools like `nltk` and `spacy` should be used.
-    """
-    error_reasons = []
-
-    # Check whether the first character is a capital letter.
-    # Not allowing special characters nor numbers at the very start.
-    if not file_content[0].isalpha() or not file_content[0].isupper():
-        error_reasons.append('The first character is not a capital letter.')
-
-    # Check if the last character is a full-stop character.
-    if file_content.strip()[-1] != '.':
-        error_reasons.append('The last character is not a full-stop character.')
-
-    return len(error_reasons) == 0, ' / '.join(error_reasons) if error_reasons else ''
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def release_check(session):
+    """Test release preparation in disposable worktrees without publishing."""
+    uv_install(session, groups=('test', 'nox'))
+    session.run('pytest', 'test/release', *PYTEST_GLOBAL_ARGS)
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
-def towncrier_check(session):
-    """
-    Check whether all the entries in the changelog.d follow the expected naming convention
-    as well as some basic rules as to their format.
-    """
-    expected_non_md_files = {'.gitkeep'}
-    allowed_change_types = load_allowed_change_types()
-
-    is_error = False
-
-    for filename in pathlib.Path('./changelog.d/').glob('*'):
-        # If that's an expected file, it's all right.
-        if filename.name in expected_non_md_files:
-            continue
-
-        # Check whether the file matches the expected pattern.
-        is_valid, error_message = is_changelog_filename_valid(filename.name, allowed_change_types)
-        if not is_valid:
-            session.log(f"File {filename.name} doesn't match the expected pattern: {error_message}")
-            is_error = True
-            continue
-
-        # Check whether the file isn't too big.
-        if filename.lstat().st_size > 16 * 1024:
-            session.log(
-                f'File {filename.name} content is too big – it should be smaller than 16kB.'
-            )
-            is_error = True
-            continue
-
-        # Check whether the file can be loaded as UTF-8 file.
-        try:
-            file_content = filename.read_text(encoding='utf-8')
-        except UnicodeDecodeError:
-            session.log(f'File {filename.name} is not a valid UTF-8 file.')
-            is_error = True
-            continue
-
-        # Check whether the content of the file is anyhow valid.
-        is_valid, error_message = is_changelog_entry_valid(file_content)
-        if not is_valid:
-            session.log(f'File {filename.name} is not a valid changelog entry: {error_message}')
-            is_error = True
-            continue
-
-    if is_error:
-        session.error(
-            'Found errors in the changelog.d directory. Check logs above for more information'
+def changie_check(session):
+    """Validate unreleased fragments and the assembled changelog."""
+    fragments = list(pathlib.Path('.changes/unreleased').glob('*.yaml'))
+    for fragment in fragments:
+        if fragment.stat().st_size > 16 * 1024:
+            session.error(f'{fragment}: changelog fragments must be at most 16 KiB')
+    if fragments:
+        subprocess.run(
+            ['go', 'run', CHANGIE, 'batch', 'patch', '--dry-run'],
+            check=True,
+            stdout=subprocess.DEVNULL,
         )
+    rendered = subprocess.check_output(['go', 'run', CHANGIE, 'merge', '--dry-run'], text=True)
+    if rendered != pathlib.Path('CHANGELOG.md').read_text():
+        session.error('CHANGELOG.md differs from `changie merge --dry-run`')
