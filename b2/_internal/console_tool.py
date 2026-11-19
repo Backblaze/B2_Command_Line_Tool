@@ -996,6 +996,12 @@ class Command(Described, metaclass=ABCMeta):
         decorator = cls.subcommands_registry.register(key=name)(command_class)
         return decorator
 
+    @staticmethod
+    def _validate_profile(profile: str) -> str:
+        if not profile:
+            raise argparse.ArgumentTypeError('profile must not be empty')
+        return profile
+
     @classmethod
     def create_parser(
         cls,
@@ -1057,7 +1063,10 @@ class Command(Described, metaclass=ABCMeta):
                 add_normalized_argument(common_parser, '--log-config', help=argparse.SUPPRESS)
                 # Keep a profile supplied before this subcommand.
                 common_parser.add_argument(
-                    '--profile', default=argparse.SUPPRESS, help=argparse.SUPPRESS
+                    '--profile',
+                    type=cls._validate_profile,
+                    default=argparse.SUPPRESS,
+                    help=argparse.SUPPRESS,
                 )
                 common_parser.add_argument(
                     '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
@@ -1289,7 +1298,12 @@ class B2(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--profile', default=None, help='Use the named account profile.')
+        parser.add_argument(
+            '--profile',
+            type=cls._validate_profile,
+            default=None,
+            help='Use the named account profile.',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):

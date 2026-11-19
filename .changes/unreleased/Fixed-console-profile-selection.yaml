@@ -1,3 +1,3 @@
 kind: Fixed
-body: Preserve the selected account profile across nested commands.
+body: Preserve the selected account profile across nested commands, accept it before the command, and reject empty profile values.
 time: 2026-11-19T00:00:00Z
