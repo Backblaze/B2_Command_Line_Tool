@@ -35,7 +35,8 @@ def _http_settings(monkeypatch, tmp_path, env: dict[str, str]) -> dict[str, obje
 
 
 @known_defect(
-    'the released CLI changes its HTTP timeouts and retry limits when run from a CI environment'
+    'the released CLI changes its HTTP timeouts and retry limits when run from a CI environment',
+    match='^fork\\ CI\\ changed\\ shipped\\ HTTP\\ limits',
 )
 def test_shipped_cli_does_not_change_http_limits_for_a_fork_in_ci(monkeypatch, tmp_path):
     """A user running the released tool in their own (fork) CI must keep the default timeouts and retries."""
@@ -43,4 +44,4 @@ def test_shipped_cli_does_not_change_http_limits_for_a_fork_in_ci(monkeypatch, t
     in_ci = _http_settings(
         monkeypatch, tmp_path, {'CI': 'true', 'GITHUB_REPOSITORY': 'someone/B2_Command_Line_Tool'}
     )
-    assert in_ci == default
+    assert in_ci == default, 'fork CI changed shipped HTTP limits'

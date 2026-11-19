@@ -10,9 +10,9 @@
 """
 Marker for tests that describe the CORRECT behaviour of something that is still broken.
 
-A test decorated with `known_defect(reason)` is a strict expected failure:
+A test decorated with `known_defect(reason, match=...)` is a strict expected failure:
 
-* in the default run (`nox -s unit`, `nox -s lint`) it is reported as `xfailed` and does not fail the build;
+* in the default run (`nox -s unit`) it is reported as `xfailed` and does not fail the build;
 * if the defect gets fixed the test starts passing, which pytest reports as a failure (strict xfail),
   so the marker has to be removed in the same change that fixes the defect - the test then
   joins the normal suite and protects the fix;
@@ -21,12 +21,12 @@ A test decorated with `known_defect(reason)` is a strict expected failure:
 
       pytest test/unit test/static --cli b2v5 -m known_defect --runxfail
 
-The expected failure is constrained to the failure path of the defect: by default only an `AssertionError`
-is accepted as the expected outcome. A test whose defect shows up as another exception passes it explicitly
-(`known_defect(reason, raises=ValueError)`). Any other exception - a broken fixture, a missing import, a
-crashed subprocess - is reported as a real failure instead of being hidden behind the xfail.
+The expected failure is constrained by exception type, a per-test message pattern, and the test's
+call frame. Setup/teardown errors and unrelated assertion failures remain real failures, even when
+an exception has the same type as the known defect. Passing tests still produce strict XPASS.
 
-For a parametrized test, mark only the cases that are broken: `pytest.param(..., marks=known_defect_marks(reason))`.
+For parametrized cases use `known_defect_marks(reason, match=..., test_name="test_function")`.
+
 """
 
 from __future__ import annotations
@@ -34,25 +34,45 @@ from __future__ import annotations
 import pytest
 
 
+def _raised_during_test(error: BaseException, test_name: str) -> bool:
+    traceback = error.__traceback__
+    while traceback is not None:
+        if traceback.tb_frame.f_code.co_name == test_name:
+            return True
+        traceback = traceback.tb_next
+    return False
+
+
 def known_defect_marks(
     reason: str,
     raises: type[BaseException] | tuple[type[BaseException], ...] = AssertionError,
+    *,
+    match: str,
+    test_name: str,
 ) -> list[pytest.MarkDecorator]:
-    """Marks for `pytest.param(..., marks=...)`."""
+    """Constrain an expected failure to its test call and exception signature."""
     return [
         pytest.mark.known_defect,
-        pytest.mark.xfail(strict=True, raises=raises, reason=f'known defect: {reason}'),
+        pytest.mark.xfail(
+            strict=True,
+            raises=pytest.RaisesExc(
+                raises, match=match, check=lambda error: _raised_during_test(error, test_name)
+            ),
+            reason=f'known defect: {reason}',
+        ),
     ]
 
 
 def known_defect(
     reason: str,
     raises: type[BaseException] | tuple[type[BaseException], ...] = AssertionError,
+    *,
+    match: str,
 ):
-    """Decorator for a test (or test class) that currently fails because of a known defect."""
+    """Mark a regression test function with its specific expected failure."""
 
     def decorator(obj):
-        for mark in known_defect_marks(reason, raises):
+        for mark in known_defect_marks(reason, raises, match=match, test_name=obj.__name__):
             obj = mark(obj)
         return obj
 

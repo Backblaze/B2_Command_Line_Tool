@@ -291,7 +291,10 @@ def _cache_files(home: pathlib.Path) -> dict[pathlib.Path, bytes]:
     return {p: p.read_bytes() for p in home.rglob('b2-autocomplete-cache-*.pickle')}
 
 
-@known_defect('b2v3, b2v4 and b2v5 share one autocomplete cache file')
+@known_defect(
+    'b2v3, b2v4 and b2v5 share one autocomplete cache file',
+    match='^b2v5\\ wrote\\ no\\ cache\\ file\\ of\\ its\\ own',
+)
 def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
     """The b2v3 and b2v5 parsers must each keep, and keep using, their own cache file."""
     if sys.platform == 'win32':
@@ -335,7 +338,10 @@ def _walk_parsers(parser):
                 yield from _walk_parsers(action.choices[sub])
 
 
-@known_defect('argument completers are set through a misspelled attribute and are never used')
+@known_defect(
+    'argument completers are set through a misspelled attribute and are never used',
+    match='^parser\\ has\\ misspelled\\ completer\\ attributes',
+)
 def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
     """Argcomplete reads `.completer`; an argument carrying `.completion` is never completed."""
     parser = b2._internal.console_tool.B2.create_parser()
@@ -345,10 +351,14 @@ def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
         for action in p._actions
         if hasattr(action, 'completion')
     ]
-    assert misspelled == []
+    assert misspelled == [], 'parser has misspelled completer attributes'
 
 
-@known_defect('the os.fdopen test shim recurses into itself', raises=RecursionError)
+@known_defect(
+    'the os.fdopen test shim recurses into itself',
+    raises=RecursionError,
+    match='maximum recursion depth exceeded',
+)
 def test_os_fdopen_shim_does_not_recurse(autocomplete_runner):
     """The test shim for os.fdopen must delegate to the real function, not to itself."""
     if sys.platform == 'win32':

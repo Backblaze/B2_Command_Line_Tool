@@ -70,7 +70,10 @@ def run_no_traceback(b2_cli, argv):
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect('notification-rule update through a URI without a path widens the stored prefix')
+@known_defect(
+    'notification-rule update through a URI without a path widens the stored prefix',
+    match='^prefix\\ of\\ the\\ stored\\ rule\\ was\\ silently\\ widened',
+)
 def test_notification_rule_update_without_path_keeps_stored_prefix(b2_cli, bucket):
     """Updating a rule via a URI with no path must not widen the stored prefix."""
     b2_cli.run(
@@ -99,7 +102,8 @@ def test_notification_rule_update_without_path_keeps_stored_prefix(b2_cli, bucke
 
 
 @known_defect(
-    'replication pause reports errors on stdout and fails when the rule is already paused'
+    'replication pause reports errors on stdout and fails when the rule is already paused',
+    match='^error\\ message\\ not\\ on\\ the\\ tool\\ stderr\\ \\(stdout=',
 )
 def test_replication_pause_error_goes_to_stderr(b2_cli, bucket_info):
     """The "rule could not be found" error must use stderr (not bare print to stdout)."""
@@ -113,7 +117,8 @@ def test_replication_pause_error_goes_to_stderr(b2_cli, bucket_info):
 
 
 @known_defect(
-    'replication pause reports errors on stdout and fails when the rule is already paused'
+    'replication pause reports errors on stdout and fails when the rule is already paused',
+    match='^second\\ pause\\ of\\ the\\ same\\ rule\\ failed:\\ ',
 )
 def test_replication_pause_twice_is_not_an_error(b2_cli, bucket_info):
     """Pausing an already paused rule must be idempotent (exit 0)."""
@@ -127,17 +132,22 @@ def test_replication_pause_twice_is_not_an_error(b2_cli, bucket_info):
     assert status == 0, f'second pause of the same rule failed: {stderr!r}'
 
 
-@known_defect('ls --json --quiet prints invalid JSON')
+@known_defect(
+    'ls --json --quiet prints invalid JSON', match='^quiet\\ JSON\\ listing\\ is\\ not\\ a\\ list'
+)
 def test_ls_json_quiet_is_valid_json(b2_cli, uploaded_file):
     """`ls --json -q` must print a valid JSON document (brackets are not quieted)."""
     status, stdout, stderr = run(b2_cli, ['ls', '--json', '-q', f'b2://{uploaded_file["bucket"]}'])
     assert status == 0, stderr
     parsed = json.loads(stdout)
-    assert isinstance(parsed, list)
+    assert isinstance(parsed, list), 'quiet JSON listing is not a list'
     assert [item['fileName'] for item in parsed] == [uploaded_file['fileName']]
 
 
-@known_defect('download to stdout writes file metadata into the data stream')
+@known_defect(
+    'download to stdout writes file metadata into the data stream',
+    match='^download\\ stdout\\ carries\\ file\\ metadata',
+)
 def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_file, capfdbinary):
     """With output `-` the tool's stdout carries only the file content."""
     expected_content = uploaded_file['content'].encode()
@@ -162,7 +172,9 @@ def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_f
         'Retention:',
         'Legal hold:',
     ):
-        assert label not in tool_stdout, tool_stdout
+        assert label not in tool_stdout, 'download stdout carries file metadata: ' + str(
+            tool_stdout
+        )
 
 
 # ----------------------------------------------------------------------------------------
@@ -170,7 +182,11 @@ def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_f
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect('a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError', raises=ValueError)
+@known_defect(
+    'a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError',
+    raises=ValueError,
+    match="invalid literal for int\\(\\) with base 10: 'abc'",
+)
 def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch):
     """A non-numeric B2_ESCAPE_CONTROL_CHARACTERS must be handled, not raise ValueError."""
     monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, 'abc')
@@ -192,7 +208,10 @@ def lock_bucket_file(b2_cli, tmp_path):
     return 'b2://lock-bucket/f.txt'
 
 
-@known_defect('file update leaves the legal-hold change applied when the retention step fails')
+@known_defect(
+    'file update leaves the legal-hold change applied when the retention step fails',
+    match='^legal\\ hold\\ was\\ applied\\ although\\ the\\ command\\ failed',
+)
 def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, lock_bucket_file):
     """If the retention step fails, the legal hold step must not stay applied."""
     # `file info` goes through download headers, which the simulator renders as "on" for every legal-hold
@@ -235,7 +254,8 @@ def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, loc
 
 
 @known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error'
+    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
+    match='^period\\ without\\ a\\ mode\\ was\\ accepted\\ and\\ ignored',
 )
 def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
     """--default-retention-period alone must be rejected, not silently dropped."""
@@ -250,7 +270,8 @@ def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
 
 
 @known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error'
+    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
+    match="^command raised ValueError\\('must specify period for retention mode RetentionMode.COMPLIANCE'\\)",
 )
 def test_compliance_mode_without_period_is_rejected_cleanly(b2_cli):
     """A retention mode that needs a period must be rejected with a clear error."""
@@ -287,21 +308,24 @@ def _assert_keep_days_rejected(keep_days, status, stderr, synchronizer):
     synchronizer.assert_not_called()
 
 
-@known_defect('sync accepts a negative or zero --keep-days')
+@known_defect('sync accepts a negative or zero --keep-days', match='--keep-days=-1 was accepted:')
 def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
     """A negative --keep-days must be rejected, not accepted as a retention period."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
     _assert_keep_days_rejected('-1', status, stderr, synchronizer)
 
 
-@known_defect('sync accepts a negative or zero --keep-days')
+@known_defect('sync accepts a negative or zero --keep-days', match='--keep-days=0 was accepted:')
 def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
     """--keep-days 0 must be rejected, not silently turned into NO_DELETE (nothing is ever deleted)."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
     _assert_keep_days_rejected('0', status, stderr, synchronizer)
 
 
-@known_defect('a rejected authorize attempt wipes the previously stored authorization')
+@known_defect(
+    'a rejected authorize attempt wipes the previously stored authorization',
+    match='^previous\\ authorization\\ was\\ wiped\\ by\\ the\\ rejected\\ key',
+)
 def test_failed_authorize_keeps_previous_authorization(b2_cli):
     """A rejected key (no listBuckets) must not wipe the previously stored authorization."""
     b2_cli.authorize()
@@ -313,7 +337,10 @@ def test_failed_authorize_keeps_previous_authorization(b2_cli):
     assert 'listBuckets' in allowed['capabilities']
 
 
-@known_defect('bucket update prints more than its help text promises')
+@known_defect(
+    'bucket update prints more than its help text promises',
+    match='^help\\ promises\\ the\\ ID,\\ command\\ prints\\ more',
+)
 def test_bucket_update_help_matches_printed_output(b2_cli, bucket_info):
     """Help says the bucket ID is printed; the printed output must agree with the help."""
     from b2._internal.console_tool import BucketUpdateBase
@@ -324,7 +351,10 @@ def test_bucket_update_help_matches_printed_output(b2_cli, bucket_info):
     assert stdout.strip() == bucket_info['bucketId'], 'help promises the ID, command prints more'
 
 
-@known_defect('ls --json leaves unterminated JSON when the listing fails midway')
+@known_defect(
+    'ls --json leaves unterminated JSON when the listing fails midway',
+    match='^stdout is not a complete JSON document:',
+)
 def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploaded_file):
     """A failure in the middle of `ls --json` must not leave unterminated JSON on stdout."""
     real_ls = Bucket.ls
@@ -349,7 +379,10 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
         ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
     ],
 )
-@known_defect('bad option combinations raise ValueError instead of reporting an error')
+@known_defect(
+    'bad option combinations raise ValueError instead of reporting an error',
+    match="^command raised ValueError\\('(?:provide either both --retain-until and --file-retention-mode or none of them|--threads cannot be used with other thread options)'\\)",
+)
 def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv):
     """User input errors raised as bare ValueError must become `ERROR:` output."""
     status, _, stderr = run_no_traceback(b2_cli, argv)
@@ -364,7 +397,10 @@ def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv
         ['file', 'hide', 'my-bucket'],
     ],
 )
-@known_defect('conflicting file arguments raise ArgumentError instead of reporting a usage error')
+@known_defect(
+    'conflicting file arguments raise ArgumentError instead of reporting a usage error',
+    match='^command raised ArgumentError\\(.*(?:Both B2 URI and file name were provided|Incorrect B2 URI was provided)',
+)
 def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, argv):
     """ArgumentError raised in _run must be shown as a usage error, not a traceback."""
     status, _, stderr = run_no_traceback(b2_cli, argv)
@@ -372,7 +408,10 @@ def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, ar
     assert stderr
 
 
-@known_defect('a failed download leaves an empty temporary file behind')
+@known_defect(
+    'a failed download leaves an empty temporary file behind',
+    match='^failed\\ download\\ left\\ temporary\\ artifacts',
+)
 def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_path):
     """A failed download into a directory must not leave an empty mkstemp file behind."""
     out_dir = tmp_path / 'out'
@@ -390,10 +429,15 @@ def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_pat
             ],
         )
     assert status != 0
-    assert sorted(p.name for p in out_dir.iterdir()) == before
+    assert (
+        sorted(p.name for p in out_dir.iterdir()) == before
+    ), 'failed download left temporary artifacts'
 
 
-@known_defect('a custom header not given as NAME=VALUE is accepted')
+@known_defect(
+    'a custom header not given as NAME=VALUE is accepted',
+    match='^malformed\\ header\\ accepted:\\ ',
+)
 def test_malformed_custom_header_is_rejected(b2_cli, bucket):
     """A header not given as NAME=VALUE must be rejected, not accepted with an empty value."""
     status, stdout, stderr = run(
@@ -420,7 +464,10 @@ def test_malformed_custom_header_is_rejected(b2_cli, bucket):
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect('download with --skip-hash-verification still prints "Checksum matches"')
+@known_defect(
+    'download with --skip-hash-verification still prints "Checksum matches"',
+    match='^unchecked\\ download\\ claimed\\ checksum\\ matches',
+)
 def test_skip_hash_verification_does_not_claim_checksum_matches(b2_cli, uploaded_file, tmp_path):
     """ "Checksum matches" must not be printed when verification is skipped."""
     out = tmp_path / 'out.txt'
@@ -435,7 +482,7 @@ def test_skip_hash_verification_does_not_claim_checksum_matches(b2_cli, uploaded
         ],
     )
     assert status == 0
-    assert 'Checksum matches' not in stdout
+    assert 'Checksum matches' not in stdout, 'unchecked download claimed checksum matches'
 
 
 @pytest.fixture
@@ -460,7 +507,10 @@ def _logging_args(**overrides):
     return argparse.Namespace(**values)
 
 
-@known_defect('logging set-up does not match the documented --verbose / --debug-logs behaviour')
+@known_defect(
+    'logging set-up does not match the documented --verbose / --debug-logs behaviour',
+    match='^verbose\\ output\\ stream\\ differs\\ from\\ documented\\ stdout',
+)
 def test_verbose_logs_go_to_stdout_as_documented(b2_cli, clean_root_logging, monkeypatch, tmp_path):
     """README says "Verbose logs to stdout can be enabled with the --verbose flag"."""
     import sys
@@ -469,11 +519,14 @@ def test_verbose_logs_go_to_stdout_as_documented(b2_cli, clean_root_logging, mon
     before = list(clean_root_logging.handlers)
     b2_cli.console_tool_class._setup_logging(_logging_args(verbose=True), ['b2'])
     (handler,) = [h for h in clean_root_logging.handlers if h not in before]
-    assert handler.stream is sys.stdout
+    assert handler.stream is sys.stdout, 'verbose output stream differs from documented stdout'
 
 
 @pytest.mark.skipif(os.name != 'posix', reason='debug log file is secured only on POSIX')
-@known_defect('logging set-up does not match the documented --verbose / --debug-logs behaviour')
+@known_defect(
+    'logging set-up does not match the documented --verbose / --debug-logs behaviour',
+    match='^the\\ log\\ was\\ not\\ rotated',
+)
 def test_debug_log_file_rotates_at_midnight_as_documented(
     b2_cli, clean_root_logging, monkeypatch, tmp_path
 ):

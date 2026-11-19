@@ -100,7 +100,9 @@ def test_help_in_non_utf8_terminal(command_name: str, monkeypatch):
 
 
 _MIS_SCALED = known_defect_marks(
-    'parse_millis_from_float_timestamp mis-scales timestamps before 2001-09-09'
+    'parse_millis_from_float_timestamp mis-scales timestamps before 2001-09-09',
+    match='^timestamp milliseconds were mis-scaled',
+    test_name='test_parse_millis_from_float_timestamp',
 )
 
 
@@ -119,4 +121,6 @@ _MIS_SCALED = known_defect_marks(
 )
 def test_parse_millis_from_float_timestamp(timestamp, expected_millis):
     """Timestamps before 2001-09-09 must not be mis-scaled by slicing 13 characters."""
-    assert parse_millis_from_float_timestamp(timestamp) == expected_millis
+    assert (
+        parse_millis_from_float_timestamp(timestamp) == expected_millis
+    ), 'timestamp milliseconds were mis-scaled'

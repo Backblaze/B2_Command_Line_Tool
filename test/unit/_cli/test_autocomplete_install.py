@@ -128,7 +128,8 @@ def test_autocomplete_installer(homedir, env, shell, caplog, dummy_command):
 )
 @known_defect(
     'shell-section replacement text containing backslashes is interpreted as a regex template',
-    raises=(re.error, AssertionError),  # a bad template raises, a valid escape is rewritten
+    raises=(re.error, AssertionError),
+    match='invalid group reference|bad escape|^shell\\ section\\ content\\ was\\ rewritten',  # a bad template raises, a valid escape is rewritten
 )
 def test_add_or_update_shell_section_existing_section_content_with_backslashes(
     test_file, new_content
@@ -155,4 +156,4 @@ old content
 {new_content}
 # <<< {section} <<<
 """
-    )
+    ), 'shell section content was rewritten'
