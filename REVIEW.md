@@ -24,7 +24,7 @@ Match the effort to the blast radius of the paths the PR touches.
 
 | Depth | Paths | What it means |
 | --- | --- | --- |
-| Quick | `*.md`, `doc/`, `changelog.d/`, `intent/`, `test/` only | Read the diff; check claims against the code they describe. |
+| Quick | `*.md`, `doc/`, `.changes/unreleased/`, `intent/`, `test/` only | Read the diff; check claims against the code they describe. |
 | Standard | `b2/_internal/` (except below), `noxfile.py` test sessions, `.sdkharness/`, b2sdk bumps | All passes below; run `nox -s ci`. |
 | Deep | `rm`, `sync`, `delete-*`, file and bucket updates, `account authorize` and account info, `b2v*/registry.py`, `.github/workflows/`, `noxfile.py` bundle/sign/release sessions | All passes, read every caller and the b2sdk code involved, and exercise the command end to end (simulator or live B2). |
 
@@ -32,7 +32,7 @@ Match the effort to the blast radius of the paths the PR touches.
 
 Do not review or comment on: `uv.lock` (check only that it matches `pyproject.toml`), `CHANGELOG.md`
 (generated at release), `doc/source/subcommands/` and other generated docs, vendored license files, and
-anything ruff, codespell, the license-header test or `towncrier_check` already enforces. Style,
+anything ruff, codespell, the license-header test or `changie_check` already enforces. Style,
 diagnostic-only and cleanup-only remarks are not findings.
 
 ## Before the passes
@@ -54,7 +54,7 @@ Tag each finding with its pass.
   progress bars, threads and pools left running.
 - **Compatibility**: every ApiVer a command is registered in (`b2/_internal/b2v*/registry.py`) keeps its
   flags, output and exit codes; deprecations warn on stderr; `b2` (latest) changes are announced in a
-  `changed` or `removed` fragment that says what users must do.
+  `Changed` or `Removed` changelog entry that says what users must do.
 - **Output**: stdout vs stderr is deliberate; `--quiet` prints nothing on stdout; JSON output stays valid
   and stable; help text reads well and keeps developer-only knobs out; messages use the invoked binary name
   (`self.console_tool.b2_binary_name`), not a hard-coded `b2`.
@@ -66,7 +66,7 @@ Tag each finding with its pass.
   prints them without saying so in its help. The account info database is never copied, and nothing new
   is sent outside B2.
 - **Compliance**: the change matches the issue, `spec.md` and `plan.md`; the PR description matches the
-  code; a `changelog.d` fragment exists, has the right type and reads well for users; `AGENTS.md` is
+  code; a `.changes/unreleased` entry exists, has the right kind and reads well for users; `AGENTS.md` is
   updated when the change makes it stale or breaks a convention in it.
 
 ## Severity
@@ -130,4 +130,4 @@ of reading it line by line.
 Start with a count (`2 Important, 1 Nit, 0 Pre-existing`, or `No issues found`), then what you checked
 and against what (issue number, live B2 or simulator, commands run). Then a table sorted by severity with
 the columns `Severity | Pass | File:Line | Finding`. Do not report generated files or what CI already
-enforces (ruff, codespell, license headers, `towncrier_check`).
+enforces (ruff, codespell, license headers, `changie_check`).

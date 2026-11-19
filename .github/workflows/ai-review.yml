@@ -82,7 +82,7 @@ jobs:
         with:
           comment-pr: true
           claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          exclude-directories: doc,changelog.d,intent,.claude
+          exclude-directories: doc,.changes,intent,.claude
           # Without this the action scans only the first commit of each PR.
           run-every-commit: true
           custom-security-scan-instructions: .github/security-review-instructions.txt

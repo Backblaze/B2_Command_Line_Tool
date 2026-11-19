@@ -36,7 +36,7 @@ Human review time goes where the risk is, with no rise in reverts or post-releas
 
    | Tier | Paths | Human approvals |
    | --- | --- | --- |
-   | Low | `*.md` docs, `doc/`, `test/` only, `changelog.d/`, `intent/` | None once CI and automated review are green, for authors on the trusted list |
+   | Low | `*.md` docs, `doc/`, `test/` only, `.changes/unreleased/`, `intent/` | None once CI and automated review are green, for authors on the trusted list |
    | Medium | `b2/_internal/` (except below), `.sdkharness/`, `pyproject.toml`/`uv.lock` b2sdk bumps | One maintainer |
    | High | Destructive commands (`rm`, `sync`, `delete-*`), authorization and account info, `b2v*/registry.py` (ApiVer promises), `.github/workflows/`, `noxfile.py` release/bundle/sign sessions, release commits | One maintainer always; two for workflow and signing changes |
 

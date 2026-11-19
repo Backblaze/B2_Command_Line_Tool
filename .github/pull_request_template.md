@@ -28,7 +28,7 @@ Whether reverting this commit is enough, or whether users would need to pin the 
 
 - [ ] `nox -s ci` passes locally.
 - [ ] A fresh-context review (`/code-review`, `/security-review` or a subagent) ran on the diff; findings are fixed or answered below.
-- [ ] A `changelog.d` fragment exists with the right type, or a maintainer added the `-changelog` label.
+- [ ] A `.changes/unreleased` entry exists with the right kind, or a maintainer added the `-changelog` label.
 - [ ] New or changed behavior is pinned by a test in every ApiVer it affects.
 - [ ] Help text, README usage and `AGENTS.md` are updated if needed.
 - [ ] The description matches the final code.

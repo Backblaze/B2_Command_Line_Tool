@@ -18,8 +18,8 @@ Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv`
 - Integration tests: `nox -s integration-3.12 -- -m "not require_secrets"` runs offline. With
   `B2_TEST_APPLICATION_KEY` and `B2_TEST_APPLICATION_KEY_ID` set, `-- -m require_secrets --cleanup` runs
   against live B2. Use a throwaway account. Leftover buckets: `nox -s cleanup_buckets`.
-- Changelog: `nox -s towncrier_check` (fragment names and text) and `nox -s changelog_check` (this branch
-  adds a fragment). See [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
+- Changelog: add an entry with `go run github.com/miniscruff/changie@v1.24.0 new` (needs Go). `nox -s changie_check`
+  validates entries and `nox -s changelog_check` that this branch adds one. See [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 - Build: `nox -s build`. Docs: `nox --non-interactive -s doc`. Bundle: `nox -s bundle`.
 - Spelling: `nox -s ci` runs codespell 2.4.1 on the files your branch changes.
 - Dependencies: change `pyproject.toml` with `uv add` / `uv lock`; `uv.lock` must stay in sync.
@@ -38,7 +38,7 @@ Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv`
 | `test/integration/` | Runs the CLI as a subprocess (`--sut` can point at a bundled binary) against live B2. |
 | `test/static/` | License headers and other static checks. |
 | `.sdkharness/` | Contract checks run by the central SDK harness against the B2 simulator on loopback. |
-| `changelog.d/` | towncrier fragments; `CHANGELOG.md` is built from them at release. |
+| `.changes/` | Changie entries (`unreleased/*.yaml`) and released sections (`v*.md`); `CHANGELOG.md` is built from them. |
 | `scripts/` | Repo tooling run by nox (`review_metrics.py`). |
 | `.github/workflows/ai-review.yml` | Advisory AI code review and security review on PRs, off until `ANTHROPIC_API_KEY` is set and the Claude GitHub App is installed. |
 | `doc/` | Sphinx docs (`doc/source`), plus Markdown pages for niche topics (`authorization_realm.md`). |
@@ -65,12 +65,12 @@ bumping the `b2sdk` pin.
 
 Each line was raised by reviewers on at least two merged PRs.
 
-1. **Missing changelog fragment.** Every PR adds a `changelog.d` file: `{issue}.{type}.md` or
-   `+{slug}.{type}.md`. Only a `uv.lock`-only change or the `-changelog` label skips it.
-2. **Fragment text and type.** One complete sentence ending in a full stop ("fixed #157" is rejected).
-   CI, tests, build and tooling go in `infrastructure`; docs in `doc`. User-facing sections are for users.
+1. **Missing changelog entry.** Every PR adds a `.changes/unreleased/*.yaml` entry (`changie new`). Only a
+   `uv.lock`-only change or the `-changelog` label skips it.
+2. **Entry text and kind.** One complete sentence ending in a full stop ("fixed #157" is rejected).
+   CI, tests, build and tooling go in `Infrastructure`; docs in `Doc`. User-facing sections are for users.
 3. **Unannounced behavior changes.** A new exit code, changed output or new stderr text breaks scripts.
-   Say so in the fragment (`changed`), and keep old ApiVers unchanged.
+   Say so in the entry (`Changed`), and keep old ApiVers unchanged.
 4. **Tests that do not pin the fix.** Revert the change and the new test must fail. Cover each input
    branch (file and stdin `-`, `b2://` and `b2id://`, every ApiVer the command is registered in), in a
    test placed with its topic, not appended to an unrelated block.
@@ -123,6 +123,6 @@ The full list, by theme and with the PRs where each came up, is in
 
 ## Verifying your work
 
-Run `nox -s ci` and paste the tail of its output. codespell (changed files), lint, `towncrier_check`,
-`changelog_check`, build, unit tests and the offline integration tests must pass. If a test fails, fix the code, not the test.
+Run `nox -s ci` and paste the tail of its output. codespell (changed files), lint, `changie_check`,
+`release_check`, `changelog_check`, build, unit tests and the offline integration tests must pass. If a test fails, fix the code, not the test.
 List the live-B2 integration tests you ran, and say NOT RUN for the ones you could not.
