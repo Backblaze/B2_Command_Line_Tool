@@ -7,7 +7,9 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import inspect
 import os
+from unittest import mock
 
 from b2sdk.v3 import DEFAULT_MIN_PART_SIZE
 
@@ -108,6 +110,48 @@ def test_upload_unbound_stream__with_part_size_options(
         expected_stderr=UUS_DEPRECATION_WARNING,
     )
     writer.result(timeout=1)
+
+
+@skip_on_windows
+def test_upload_unbound_stream__part_size_option_is_applied(
+    b2_cli, bucket, tmpdir, mock_stdin, bg_executor
+):
+    """--part-size must change the size of the uploaded parts (and the upload must be multipart)"""
+    part_size = (
+        DEFAULT_MIN_PART_SIZE + 1024
+    )  # differs from the default, so a dropped flag is visible
+    expected_size = part_size * 2 + 500
+
+    fifo_file = tmpdir.join('fifo_file.txt')
+    os.mkfifo(str(fifo_file))
+    writer = bg_executor.submit(lambda: fifo_file.write('x' * expected_size))
+
+    with mock.patch.object(
+        b2_cli.raw_simulator, 'upload_part', wraps=b2_cli.raw_simulator.upload_part
+    ) as upload_part:
+        b2_cli.run(
+            [
+                'upload-unbound-stream',
+                '--min-part-size',
+                str(DEFAULT_MIN_PART_SIZE),
+                '--part-size',
+                str(part_size),
+                '--no-progress',
+                'my-bucket',
+                str(fifo_file),
+                'named_pipe.txt',
+            ],
+            expected_part_of_stdout='URL by file name:',
+            expected_stderr=UUS_DEPRECATION_WARNING,
+        )
+    writer.result(timeout=1)
+
+    signature = inspect.signature(b2_cli.raw_simulator.upload_part)
+    part_lengths = sorted(
+        signature.bind(*call.args, **call.kwargs).arguments['content_length']
+        for call in upload_part.call_args_list
+    )
+    assert part_lengths == sorted([part_size, part_size, 500])
 
 
 def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):

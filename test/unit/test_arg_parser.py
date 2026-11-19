@@ -96,3 +96,22 @@ def test_help_in_non_utf8_terminal(command_name: str, monkeypatch):
         pytest.fail(
             f'Failed to encode help message for command "{command_name}" on a non-UTF-8 terminal: {e}'
         )
+
+
+@pytest.mark.parametrize('command_name', COMMAND_NAMES_CLASSES_MAPPING)
+def test_real_command_help_in_non_utf8_terminal(command_name: str, monkeypatch, capsys):
+    """Render each command's real parser help (options and subcommands), not only its docstring."""
+    from b2._internal.console_tool import ConsoleTool
+
+    with capsys.disabled():
+        monkeypatch.setattr(sys, 'stdout', _ASCIIEncodedStream(sys.stdout))
+        monkeypatch.setattr(sys, 'stderr', _ASCIIEncodedStream(sys.stderr))
+        argv = command_name.split()
+        try:
+            ConsoleTool(sys.stdout, sys.stderr).run_command([*argv, '--help'])
+        except SystemExit:
+            pass  # argparse exits after printing help
+        except UnicodeEncodeError as e:
+            pytest.fail(
+                f'Failed to encode the real help of "{command_name}" on a non-UTF-8 terminal: {e}'
+            )

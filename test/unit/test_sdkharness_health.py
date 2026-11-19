@@ -131,6 +131,44 @@ def test_golden_path_drives_authorize_upload_download_list_and_delete(tmp_path):
     assert all(command[0] == 'repository-b2' for _, command in calls)
 
 
+@pytest.mark.parametrize(
+    ('defect', 'failed_step'),
+    [
+        ('wrong download bytes', 'verify bytes'),
+        ('missing from listing', 'list'),
+        ('still listed after delete', 'confirm gone'),
+    ],
+)
+def test_golden_path_fails_when_the_service_misbehaves(tmp_path, defect, failed_step):
+    health = load_health_check()
+    object_name = 'sdkharness-health-check/fixed.txt'
+    calls: list[str] = []
+
+    def fake_run(step: str, command: list[str], _environment: dict[str, str]):
+        calls.append(step)
+        if step == 'download':
+            payload = b'not what was uploaded' if defect == 'wrong download bytes' else None
+            Path(command[-1]).write_bytes(payload or health.payload_for(object_name))
+        if step == 'list':
+            return '' if defect == 'missing from listing' else object_name
+        if step == 'confirm gone':
+            return object_name if defect == 'still listed after delete' else ''
+        return ''
+
+    with pytest.raises(health.CheckFailure) as raised:
+        health.run_health(
+            simulator_environment(),
+            cli_prefix=['repository-b2'],
+            run_command=fake_run,
+            object_name=object_name,
+            scratch_root=tmp_path,
+        )
+
+    assert raised.value.step == failed_step
+    if failed_step != 'confirm gone':
+        assert calls[-1] == 'cleanup'
+
+
 def test_golden_path_attempts_cleanup_after_a_failure(tmp_path):
     health = load_health_check()
     calls: list[str] = []

@@ -9,8 +9,10 @@
 ######################################################################
 import os
 import pathlib
+from unittest import mock
 
 import pytest
+from b2sdk.v2.exception import ChecksumMismatch
 
 from test.helpers import skip_on_windows
 
@@ -88,13 +90,12 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
     b2_cli.run(
         [
             'download-file-by-name',
+            flag,
             uploaded_file['bucket'],
             uploaded_file['fileName'],
             str(output_path),
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
-            output_path=pathlib.Path(output_path).resolve()
-        ),
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
         expected_stderr='WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
@@ -283,3 +284,51 @@ def test_download_file_by_uri__explicit_file_target_allows_unsupported_server_na
     )
 
     assert output_path.read_text() == 'hello world'
+
+
+def test_download_file__skipped_hash_verification_is_not_reported_as_matching(
+    b2_cli, uploaded_file, tmp_path
+):
+    output_path = tmp_path / 'output.txt'
+
+    b2_cli.run(
+        ['file', 'download', '--skip-hash-verification', 'b2id://9999', str(output_path)],
+        expected_stdout=None,
+        expected_part_of_stdout='Download finished',
+        unexpected_part_of_stdout='Checksum matches',
+    )
+    assert output_path.read_text() == uploaded_file['content']
+
+
+def test_download_file__checksum_mismatch_is_not_reported_as_matching(
+    b2_cli, uploaded_file, tmp_path
+):
+    output_path = tmp_path / 'output.txt'
+
+    with mock.patch(
+        'b2sdk.v2.DownloadedFile.save_to',
+        side_effect=ChecksumMismatch(checksum_type='sha1', expected='a' * 40, actual='b' * 40),
+    ):
+        b2_cli.run(
+            ['file', 'download', '--no-progress', 'b2id://9999', str(output_path)],
+            expected_stdout=None,
+            expected_stderr='ERROR: sha1 checksum mismatch -- bad data\n',
+            expected_status=1,
+            unexpected_part_of_stdout='Checksum matches',
+        )
+
+
+def test_download_file__error_is_reported_when_progress_is_enabled(b2_cli, uploaded_file, tmp_path):
+    """A failing download must give status 1 and an ERROR line also with the default progress bar"""
+    output_path = tmp_path / 'output.txt'
+
+    with mock.patch(
+        'b2sdk.v2.DownloadedFile.save_to',
+        side_effect=ChecksumMismatch(checksum_type='sha1', expected='a' * 40, actual='b' * 40),
+    ):
+        b2_cli.run(
+            ['file', 'download', 'b2id://9999', str(output_path)],
+            expected_stdout=None,
+            expected_stderr='ERROR: sha1 checksum mismatch -- bad data\n',
+            expected_status=1,
+        )

@@ -8,6 +8,8 @@
 #
 ######################################################################
 
+import contextlib
+import inspect
 import json
 import os
 import pathlib
@@ -25,9 +27,12 @@ from b2sdk.v3 import (
     ALL_CAPABILITIES,
     B2Api,
     B2HttpApiConfig,
+    DownloadManager,
     ProgressReport,
     RawSimulator,
     StubAccountInfo,
+    Synchronizer,
+    UploadManager,
     UploadSourceBytes,
     fix_windows_path_limit,
 )
@@ -343,8 +348,12 @@ class TestConsoleTool(BaseConsoleToolTest):
     @pytest.mark.apiver(from_ver=4)
     def test_camel_case_not_supported_in_v4(self):
         self._authorize_account()
+        # a valid value, so that only the unknown option name can make the command fail
         self._run_command(
-            ['bucket', 'create', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2
+            ['bucket', 'create', 'my-bucket', '--bucketInfo', '{"xxx": "123"}', 'allPrivate'],
+            '',
+            '',
+            2,
         )
         self._run_command(
             [
@@ -1250,10 +1259,18 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ['file', 'hide', 'b2://my-bucket/file1.txt'],
             )
 
+            # Both the hide marker (9999) and the uploaded version (9998) exist
+            _, stdout, _ = self._run_command(['ls', '--json', '--versions', 'b2://my-bucket'])
+            assert sorted(entry['fileId'] for entry in json.loads(stdout)) == ['9998', '9999']
+
             # Delete one file version
             self._run_command(['rm', 'b2id://9998'])
+            _, stdout, _ = self._run_command(['ls', '--json', '--versions', 'b2://my-bucket'])
+            assert [entry['fileId'] for entry in json.loads(stdout)] == ['9999']
+
             # Delete one file version
             self._run_command(['rm', 'b2id://9999'])
+            self._run_command(['ls', '--json', '--versions', 'b2://my-bucket'], '[]\n', '', 0)
 
     def test_hide_file_legacy_syntax(self):
         self._authorize_account()
@@ -1467,6 +1484,44 @@ class TestConsoleTool(BaseConsoleToolTest):
                 expected_stderr='WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
+
+    def test_upload_destination_sse_is_sent_to_the_server(self):
+        # B2 buckets always default to SSE-B2, so the stored result alone cannot show whether
+        # the CLI forwarded the flag; check the request that reaches the server instead.
+        self._authorize_account()
+        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+
+        with TempDir() as temp_dir:
+            local_file = self._make_local_file(temp_dir, 'file1.txt')
+            upload_cmd = ['file', 'upload', '--no-progress', 'my-bucket', local_file]
+
+            with mock.patch.object(
+                self.raw_simulator, 'upload_file', wraps=self.raw_simulator.upload_file
+            ) as upload_file:
+                self._run_command(
+                    [*upload_cmd, 'plain.txt'],
+                    expected_part_of_stdout='plain.txt',
+                    remove_version=True,
+                )
+                self._run_command(
+                    [
+                        *upload_cmd[:3],
+                        '--destination-server-side-encryption=SSE-B2',
+                        *upload_cmd[3:],
+                        'encrypted.txt',
+                    ],
+                    expected_part_of_stdout='encrypted.txt',
+                    remove_version=True,
+                )
+
+            signature = inspect.signature(self.raw_simulator.upload_file)
+            plain_sse, encrypted_sse = (
+                signature.bind(*call.args, **call.kwargs).arguments.get('server_side_encryption')
+                for call in upload_file.call_args_list
+            )
+            assert plain_sse is None
+            assert encrypted_sse.mode.value == 'SSE-B2'
+            assert encrypted_sse.algorithm.value == 'AES256'
 
     def test_files_encrypted(self):
         self._authorize_account()
@@ -1899,7 +1954,21 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             with open(file_path, 'ab') as f:
                 f.write(b'*' * min_part_size)
-            self._run_command(incremental_upload_params)
+            with (
+                mock.patch.object(
+                    self.raw_simulator, 'copy_part', wraps=self.raw_simulator.copy_part
+                ) as copy_part,
+                mock.patch.object(
+                    self.raw_simulator, 'upload_part', wraps=self.raw_simulator.upload_part
+                ) as upload_part,
+            ):
+                self._run_command(incremental_upload_params)
+            # the unchanged prefix is copied server-side, only the appended tail is uploaded
+            assert copy_part.call_count >= 1
+            assert [call.kwargs['bytes_range'] for call in copy_part.call_args_list] == [
+                (0, file_size - 1)
+            ]
+            assert [call.args[3] for call in upload_part.call_args_list] == [min_part_size]
 
             downloaded_path = pathlib.Path(temp_dir) / 'out.txt'
             self._run_command(
@@ -2578,6 +2647,42 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_sync_many_thread_options(self):
         self._test_sync_threads(sync_threads=1, download_threads=1, upload_threads=1)
 
+    def _assert_sync_thread_pools(self, expected, **options):
+        """expected is (sync, download, upload) number of workers actually configured"""
+        sync_workers, download_workers, upload_workers = expected
+        with (
+            mock.patch(
+                'b2._internal.console_tool.Synchronizer', wraps=Synchronizer
+            ) as synchronizer,
+            mock.patch.object(
+                DownloadManager, 'set_thread_pool_size', autospec=True
+            ) as set_download_pool,
+            mock.patch.object(
+                UploadManager, 'set_thread_pool_size', autospec=True
+            ) as set_upload_pool,
+        ):
+            self._test_sync_threads(**options)
+        assert synchronizer.call_args.args[0] == sync_workers
+        assert set_download_pool.call_args.args[1] == download_workers
+        assert set_upload_pool.call_args.args[1] == upload_workers
+
+    def test_sync_threads_reaches_all_pools(self):
+        self._assert_sync_thread_pools((3, 3, 3), threads=3)
+
+    def test_sync_sync_threads_reaches_synchronizer_only(self):
+        self._assert_sync_thread_pools((2, 10, 10), sync_threads=2)
+
+    def test_sync_download_threads_reaches_download_pool_only(self):
+        self._assert_sync_thread_pools((10, 4, 10), download_threads=4)
+
+    def test_sync_upload_threads_reaches_upload_pool_only(self):
+        self._assert_sync_thread_pools((10, 10, 5), upload_threads=5)
+
+    def test_sync_many_thread_options_reach_their_pools(self):
+        self._assert_sync_thread_pools(
+            (2, 4, 5), sync_threads=2, download_threads=4, upload_threads=5
+        )
+
     def test_sync_threads_and_upload_threads(self):
         # Using --threads is exclusive with other options
         with self.assertRaises(ValueError):
@@ -2945,7 +3050,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             args = [str(val) for val in chain.from_iterable(params.items()) if val]
-            console_tool.run_command(command + args)
+            # the file ids do not exist; only the settings applied to the api are checked below
+            with contextlib.suppress(KeyError):
+                console_tool.run_command(command + args)
 
             download_manager = console_tool.api.services.download_manager
             assert download_manager.write_buffer_size == params['--write-buffer-size']
@@ -2978,7 +3085,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             mock.MagicMock(),
             mock.MagicMock(),
         )
-        console_tool.run_command(command)
+        with contextlib.suppress(KeyError):  # the file id does not exist
+            console_tool.run_command(command)
 
         download_manager = console_tool.api.services.download_manager
         assert download_manager.write_buffer_size == 123
@@ -3571,11 +3679,20 @@ class TestRmConsoleTool(BaseConsoleToolTest):
         self._run_command(['ls', '--recursive', *self.b2_uri_args('my-bucket')], '')
 
     def test_rm_progress(self):
-        expected_in_stdout = ' count: 4/4 '
-        self._run_command(
-            ['rm', '--recursive', '--with-wildcard', *self.b2_uri_args('my-bucket', '*.csv')],
-            expected_part_of_stdout=expected_in_stdout,
+        _, stdout, _ = self._run_command(
+            [
+                'rm',
+                '--recursive',
+                '--with-wildcard',
+                '--threads',
+                '1',
+                *self.b2_uri_args('my-bucket', '*.csv'),
+            ],
+            expected_part_of_stdout=' count: 4/4 ',
         )
+        # progress is reported after every removed file, not only once at the end
+        for done in range(1, 5):
+            assert f' count: {done}/' in stdout, f'no progress report for {done} removed files'
 
         expected_stdout = """
         a/test.tsv

@@ -87,7 +87,8 @@ def bg_executor():
 
 @pytest.fixture(autouse=True)
 def disable_tqdm_closer_cleanup():
-    with mock.patch.object(_TqdmCloser, '__exit__'):
+    # return_value=None: a bare MagicMock returns a truthy MagicMock, which would swallow every exception
+    with mock.patch.object(_TqdmCloser, '__exit__', return_value=None):
         yield
 
 
