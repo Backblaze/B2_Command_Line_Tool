@@ -3976,13 +3976,12 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
 
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.source).get_fresh_state()
-        found, altered = self.alter_rule_by_name(bucket, args.rule_name)
+        found, _altered = self.alter_rule_by_name(bucket, args.rule_name)
         if not found:
-            print('ERROR: replication rule could not be found!')
+            self._print_stderr('ERROR: replication rule could not be found!')
             return 1
-        elif not altered:
-            print('ERROR: replication rule was found, but could not be changed!')
-            return 1
+        # a rule that is already in the requested state (e.g. pausing a paused rule)
+        # is left unchanged, which is not an error
         return 0
 
     @classmethod
