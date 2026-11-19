@@ -114,12 +114,23 @@ class AutocompleteCache:
             pickle_data = self._store.get_pickle(identifier)
             if pickle_data:
                 parser = self._unpickle(pickle_data)
+                self._restore_suppress(parser)
                 argcomplete.autocomplete(parser, **(uncached_args or {}))
         except Exception:
             if raise_exc:
                 raise
             # Autocomplete from cache failed but maybe we can autocomplete from scratch
             return
+
+    def _restore_suppress(self, parser: argparse.ArgumentParser) -> None:
+        # argparse checks SUPPRESS by identity, which a pickle round trip loses.
+        for action in parser._actions:
+            for attribute in ('default', 'help'):
+                if getattr(action, attribute) == argparse.SUPPRESS:
+                    setattr(action, attribute, argparse.SUPPRESS)
+            if isinstance(action, argparse._SubParsersAction):
+                for subparser in set(action.choices.values()):
+                    self._restore_suppress(subparser)
 
     def _clean_parser(self, parser: argparse.ArgumentParser) -> None:
         # Python 3.14 caches a validation formatter on parsers. The cached formatter can

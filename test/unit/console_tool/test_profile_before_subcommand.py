@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from b2sdk.v3 import SqliteAccountInfo
@@ -47,12 +48,12 @@ def profile_accounts(tmp_path, monkeypatch):
     ):
         account.set_auth_data(
             account_id=account_id,
-            auth_token='test-token',
+            auth_token=f'fixture-{uuid4()}',
             api_url='https://api.example.invalid',
             download_url='https://download.example.invalid',
             recommended_part_size=100,
             absolute_minimum_part_size=10,
-            application_key='test-key',
+            application_key=f'fixture-{uuid4()}',
             realm='production',
             s3_api_url='https://s3.example.invalid',
             allowed=None,
@@ -222,6 +223,49 @@ def test_reusing_parser_without_profile_uses_default(console_tool_class):
     parser = B2.create_parser(name='b2')
     assert parser.parse_args(['--profile', 'named', 'account', 'clear']).profile == 'named'
     assert parser.parse_args(['account', 'clear']).profile is None
+
+
+@pytest.mark.parametrize('profile_option', [[], ['--profile', 'myprofile']])
+def test_cached_file_uri_completion_preserves_profile(
+    cli_version, profile_accounts, profile_option, tmp_path
+):
+    for account, name in zip(profile_accounts, ('default-bucket', 'selected-bucket')):
+        account.refresh_entire_bucket_name_cache([(name, name)])
+    script = """
+import importlib
+import io
+import os
+import sys
+from pathlib import Path
+
+importlib.import_module(f'b2._internal.{sys.argv[1]}.registry')
+from b2._internal.console_tool import B2
+from b2._internal._cli.autocomplete_cache import AutocompleteCache, HomeCachePickleStore, VersionTracker
+
+command = ' '.join(['b2', *sys.argv[3:], 'file', 'download', 'b2://'])
+os.environ.update(COMP_LINE=command, COMP_POINT=str(len(command)), _ARGCOMPLETE='1', _ARGCOMPLETE_IFS='\\n')
+expected = 'selected-bucket' if sys.argv[3:] else 'default-bucket'
+cache = AutocompleteCache(VersionTracker(), HomeCachePickleStore(Path(sys.argv[2])))
+for cache_state in ('cold', 'warm'):
+    output = io.StringIO()
+    exits = []
+    kwargs = {'exit_method': exits.append, 'output_stream': output}
+    if cache_state == 'cold':
+        cache.cache_and_autocomplete(B2.create_parser(name='b2'), uncached_args=kwargs)
+    else:
+        cache.autocomplete_from_cache(uncached_args=kwargs, raise_exc=True)
+    assert exits == [0], cache_state
+    assert output.getvalue().splitlines() == [f'b2://{expected}/'], cache_state
+"""
+    result = subprocess.run(
+        [sys.executable, '-c', script, cli_version, str(tmp_path / 'cache'), *profile_option],
+        cwd=ROOT,
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize(
