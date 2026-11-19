@@ -1055,7 +1055,10 @@ class Command(Described, metaclass=ABCMeta):
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 add_normalized_argument(common_parser, '--log-config', help=argparse.SUPPRESS)
-                common_parser.add_argument('--profile', default=None, help=argparse.SUPPRESS)
+                # Keep a profile supplied before this subcommand.
+                common_parser.add_argument(
+                    '--profile', default=argparse.SUPPRESS, help=argparse.SUPPRESS
+                )
                 common_parser.add_argument(
                     '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
                 )
@@ -1283,6 +1286,11 @@ class B2(Command):
     @classmethod
     def name_and_alias(cls):
         return resolve_b2_bin_call_name(), None
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument('--profile', default=None, help='Use the named account profile.')
+        super()._setup_parser(parser)
 
     def _run(self, args):
         # Commands could be named via name or alias, so we fetch
