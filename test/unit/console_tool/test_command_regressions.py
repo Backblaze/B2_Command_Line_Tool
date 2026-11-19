@@ -272,6 +272,7 @@ def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
 @known_defect(
     'invalid bucket default-retention options are ignored or raise instead of reporting an error',
     match="^command raised ValueError\\('must specify period for retention mode RetentionMode.COMPLIANCE'\\)",
+    assertion_origin='run_no_traceback',
 )
 def test_compliance_mode_without_period_is_rejected_cleanly(b2_cli):
     """A retention mode that needs a period must be rejected with a clear error."""
@@ -308,14 +309,22 @@ def _assert_keep_days_rejected(keep_days, status, stderr, synchronizer):
     synchronizer.assert_not_called()
 
 
-@known_defect('sync accepts a negative or zero --keep-days', match='--keep-days=-1 was accepted:')
+@known_defect(
+    'sync accepts a negative or zero --keep-days',
+    match='--keep-days=-1 was accepted:',
+    assertion_origin='_assert_keep_days_rejected',
+)
 def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
     """A negative --keep-days must be rejected, not accepted as a retention period."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
     _assert_keep_days_rejected('-1', status, stderr, synchronizer)
 
 
-@known_defect('sync accepts a negative or zero --keep-days', match='--keep-days=0 was accepted:')
+@known_defect(
+    'sync accepts a negative or zero --keep-days',
+    match='--keep-days=0 was accepted:',
+    assertion_origin='_assert_keep_days_rejected',
+)
 def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
     """--keep-days 0 must be rejected, not silently turned into NO_DELETE (nothing is ever deleted)."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
@@ -382,6 +391,7 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
 @known_defect(
     'bad option combinations raise ValueError instead of reporting an error',
     match="^command raised ValueError\\('(?:provide either both --retain-until and --file-retention-mode or none of them|--threads cannot be used with other thread options)'\\)",
+    assertion_origin='run_no_traceback',
 )
 def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv):
     """User input errors raised as bare ValueError must become `ERROR:` output."""
@@ -400,6 +410,7 @@ def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv
 @known_defect(
     'conflicting file arguments raise ArgumentError instead of reporting a usage error',
     match='^command raised ArgumentError\\(.*(?:Both B2 URI and file name were provided|Incorrect B2 URI was provided)',
+    assertion_origin='run_no_traceback',
 )
 def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, argv):
     """ArgumentError raised in _run must be shown as a usage error, not a traceback."""

@@ -21,9 +21,10 @@ A test decorated with `known_defect(reason, match=...)` is a strict expected fai
 
       pytest test/unit test/static --cli b2v5 -m known_defect --runxfail
 
-The expected failure is constrained by exception type, a per-test message pattern, and the test's
-call frame. Setup/teardown errors and unrelated assertion failures remain real failures, even when
-an exception has the same type as the known defect. Passing tests still produce strict XPASS.
+An expected failure must match its exception type and per-test message pattern and propagate
+through the test's call frame. AssertionErrors must also originate in the test function, or in
+an explicitly named assertion helper. Fixture setup/teardown errors and nonmatching failures
+remain real failures. Passing tests still produce strict XPASS.
 
 For parametrized cases use `known_defect_marks(reason, match=..., test_name="test_function")`.
 
@@ -34,13 +35,15 @@ from __future__ import annotations
 import pytest
 
 
-def _raised_during_test(error: BaseException, test_name: str) -> bool:
+def _raised_during_test(error: BaseException, test_name: str, assertion_origin: str) -> bool:
     traceback = error.__traceback__
+    during_test = False
+    origin = None
     while traceback is not None:
-        if traceback.tb_frame.f_code.co_name == test_name:
-            return True
+        origin = traceback.tb_frame.f_code.co_name
+        during_test |= origin == test_name
         traceback = traceback.tb_next
-    return False
+    return during_test and (not isinstance(error, AssertionError) or origin == assertion_origin)
 
 
 def known_defect_marks(
@@ -49,6 +52,7 @@ def known_defect_marks(
     *,
     match: str,
     test_name: str,
+    assertion_origin: str | None = None,
 ) -> list[pytest.MarkDecorator]:
     """Constrain an expected failure to its test call and exception signature."""
     return [
@@ -56,7 +60,11 @@ def known_defect_marks(
         pytest.mark.xfail(
             strict=True,
             raises=pytest.RaisesExc(
-                raises, match=match, check=lambda error: _raised_during_test(error, test_name)
+                raises,
+                match=match,
+                check=lambda error: _raised_during_test(
+                    error, test_name, assertion_origin or test_name
+                ),
             ),
             reason=f'known defect: {reason}',
         ),
@@ -68,11 +76,18 @@ def known_defect(
     raises: type[BaseException] | tuple[type[BaseException], ...] = AssertionError,
     *,
     match: str,
+    assertion_origin: str | None = None,
 ):
     """Mark a regression test function with its specific expected failure."""
 
     def decorator(obj):
-        for mark in known_defect_marks(reason, raises, match=match, test_name=obj.__name__):
+        for mark in known_defect_marks(
+            reason,
+            raises,
+            match=match,
+            test_name=obj.__name__,
+            assertion_origin=assertion_origin,
+        ):
             obj = mark(obj)
         return obj
 
