@@ -18,6 +18,7 @@ import contextlib
 import io
 import os
 import pathlib
+import pickletools
 import subprocess
 import sys
 
@@ -291,6 +292,19 @@ def _cache_files(home: pathlib.Path) -> dict[pathlib.Path, bytes]:
     return {p: p.read_bytes() for p in home.rglob('b2-autocomplete-cache-*.pickle')}
 
 
+def _cache_strings(files: dict[pathlib.Path, bytes]) -> list[list[str]]:
+    """Describe cached parsers by the strings they contain; frame sizes and memo layout of pickles
+    differ between interpreters and runs, so raw bytes are not comparable."""
+    return sorted(
+        sorted(
+            arg
+            for opcode, arg, _ in pickletools.genops(content)
+            if isinstance(arg, str) and 'UNICODE' in opcode.name
+        )
+        for content in files.values()
+    )
+
+
 @known_defect(
     'b2v3, b2v4 and b2v5 share one autocomplete cache file',
     match='^b2v5\\ wrote\\ no\\ cache\\ file\\ of\\ its\\ own',
@@ -308,7 +322,7 @@ def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
         reference[apiver] = (_complete_in_subprocess(apiver, fresh_home), _cache_files(fresh_home))
         if not reference[apiver][1]:
             pytest.fail(f'{apiver} wrote no cache file in a pristine home', pytrace=False)
-    if sorted(reference['b2v3'][1].values()) == sorted(reference['b2v5'][1].values()):
+    if _cache_strings(reference['b2v3'][1]) == _cache_strings(reference['b2v5'][1]):
         pytest.fail('b2v3 and b2v5 write identical caches, the test cannot tell them apart')
 
     # now both versions run against one shared home
@@ -316,13 +330,15 @@ def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
     shared.mkdir()
     _complete_in_subprocess('b2v3', shared)
     cache_after_v3 = _cache_files(shared)
-    assert sorted(cache_after_v3.values()) == sorted(reference['b2v3'][1].values())
+    assert _cache_strings(cache_after_v3) == _cache_strings(reference['b2v3'][1])
 
     _complete_in_subprocess('b2v5', shared)
     cache_after_v5 = _cache_files(shared)
     assert set(cache_after_v5) > set(cache_after_v3), 'b2v5 wrote no cache file of its own'
     for path, content in cache_after_v3.items():
-        assert cache_after_v5[path] == content, f'b2v5 overwrote the cache written by b2v3: {path}'
+        assert _cache_strings({path: cache_after_v5[path]}) == _cache_strings(
+            {path: content}
+        ), f'b2v5 overwrote the cache written by b2v3: {path}'
 
     # with both caches in place, each version must keep being served its own completions
     for apiver in ('b2v3', 'b2v5'):
