@@ -996,6 +996,15 @@ class Command(Described, metaclass=ABCMeta):
         decorator = cls.subcommands_registry.register(key=name)(command_class)
         return decorator
 
+    @staticmethod
+    def _validate_profile(profile: str) -> str:
+        # The reference SDK's B2_ACCOUNT_INFO_PROFILE_NAME_REGEXP requires a nonempty name:
+        # https://github.com/Backblaze/b2-sdk-python/blob/v2.13.2/b2sdk/_internal/account_info/sqlite_account_info.py
+        # Keep omission (None) distinct from an explicitly empty option.
+        if not profile:
+            raise argparse.ArgumentTypeError('profile must not be empty')
+        return profile
+
     @classmethod
     def create_parser(
         cls,
@@ -1055,7 +1064,13 @@ class Command(Described, metaclass=ABCMeta):
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 add_normalized_argument(common_parser, '--log-config', help=argparse.SUPPRESS)
-                common_parser.add_argument('--profile', default=None, help=argparse.SUPPRESS)
+                # Keep a profile supplied before this subcommand.
+                common_parser.add_argument(
+                    '--profile',
+                    type=cls._validate_profile,
+                    default=argparse.SUPPRESS,
+                    help=argparse.SUPPRESS,
+                )
                 common_parser.add_argument(
                     '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
                 )
@@ -1283,6 +1298,16 @@ class B2(Command):
     @classmethod
     def name_and_alias(cls):
         return resolve_b2_bin_call_name(), None
+
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--profile',
+            type=cls._validate_profile,
+            default=None,
+            help='Use the named account profile.',
+        )
+        super()._setup_parser(parser)
 
     def _run(self, args):
         # Commands could be named via name or alias, so we fetch
@@ -3917,7 +3942,9 @@ class ReplicationSetupBase(Command):
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        add_normalized_argument(parser, '--destination-profile', default=None)
+        add_normalized_argument(
+            parser, '--destination-profile', type=cls._validate_profile, default=None
+        )
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
         add_normalized_argument(
@@ -4105,7 +4132,7 @@ class ReplicationStatusBase(Command):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         add_normalized_argument(parser, '--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        add_normalized_argument(parser, '--destination-profile')
+        add_normalized_argument(parser, '--destination-profile', type=cls._validate_profile)
         add_normalized_argument(parser, '--dont-scan-destination', action='store_true')
         add_normalized_argument(
             parser, '--output-format', default='console', choices=('console', 'json', 'csv')
