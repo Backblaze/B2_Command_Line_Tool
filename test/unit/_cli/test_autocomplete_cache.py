@@ -293,13 +293,16 @@ def _cache_files(home: pathlib.Path) -> dict[pathlib.Path, bytes]:
 
 
 def _cache_strings(files: dict[pathlib.Path, bytes]) -> list[list[str]]:
-    """Describe cached parsers by the strings they contain; frame sizes and memo layout of pickles
-    differ between interpreters and runs, so raw bytes are not comparable."""
+    """Describe cached parsers by the distinct strings they contain. Frame sizes, memo layout and
+    how often a repeated string is stored differ between interpreters (PyPy) and runs, so raw
+    bytes and string counts are not comparable."""
     return sorted(
         sorted(
-            arg
-            for opcode, arg, _ in pickletools.genops(content)
-            if isinstance(arg, str) and 'UNICODE' in opcode.name
+            {
+                arg
+                for opcode, arg, _ in pickletools.genops(content)
+                if isinstance(arg, str) and 'UNICODE' in opcode.name
+            }
         )
         for content in files.values()
     )
