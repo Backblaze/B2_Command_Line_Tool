@@ -9,6 +9,8 @@
 ######################################################################
 from __future__ import annotations
 
+import json
+
 import pytest
 
 
@@ -83,3 +85,21 @@ def test_ls__b2_uri__pointing_to_a_file(b2_cli, uploaded_file):
         ['ls', f"b2://{uploaded_file['bucket']}/nonExistingFile"],
         expected_stdout='',
     )
+
+
+@pytest.mark.parametrize('quiet', [False, True])
+@pytest.mark.parametrize('n_files', [0, 1, 2])
+def test_ls__json__valid_with_quiet(b2_cli, bucket_info, local_file, quiet, n_files):
+    bucket = bucket_info['bucketName']
+    for i in range(n_files):
+        b2_cli.run(['file', 'upload', '--quiet', bucket, str(local_file), f'file{i}.txt'])
+
+    args = ['ls', '--quiet'] if quiet else ['ls']
+    stdout, stderr = b2_cli._get_stdouterr()
+    status = b2_cli.console_tool_class(stdout, stderr).run_command(
+        ['b2', *args, '--json', f'b2://{bucket}']
+    )
+    assert status == 0
+    assert [f['fileName'] for f in json.loads(stdout.getvalue())] == [
+        f'file{i}.txt' for i in range(n_files)
+    ]
