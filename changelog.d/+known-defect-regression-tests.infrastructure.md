@@ -1,1 +1,0 @@
-Add regression tests for known defects; tests for defects that are still present are strict expected failures (`known_defect` marker) and can be run on demand with `pytest -m known_defect --runxfail`.
