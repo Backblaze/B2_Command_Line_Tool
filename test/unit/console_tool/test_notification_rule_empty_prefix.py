@@ -7,9 +7,11 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import copy
 import json
 
 import pytest
+from b2sdk.v3 import Bucket
 
 
 def create_rule(b2_cli, bucket, command, prefix):
@@ -56,5 +58,15 @@ def test_update_with_path_replaces_existing_prefix(b2_cli, bucket, command):
     assert json.loads(listed)[0]['objectNamePrefix'] == 'new/prefix/'
 
 
-def test_create_without_path_uses_empty_prefix(b2_cli, bucket):
+def test_create_without_path_uses_empty_prefix(b2_cli, bucket, monkeypatch):
+    requests = []
+    original_set_rules = Bucket.set_notification_rules
+
+    def record_set_rules(bucket, rules):
+        requests.append(copy.deepcopy(rules))
+        return original_set_rules(bucket, rules)
+
+    monkeypatch.setattr(Bucket, 'set_notification_rules', record_set_rules)
     create_rule(b2_cli, bucket, ['bucket', 'notification-rule'], '')
+    assert len(requests) == 1
+    assert requests[0][0]['objectNamePrefix'] == ''
