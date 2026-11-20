@@ -20,6 +20,7 @@ from b2._internal._cli.arg_parser_types import (
 )
 from b2._internal.arg_parser import B2ArgumentParser
 from b2._internal.console_tool import B2
+from test.known_defect import known_defect_marks
 
 from .test_base import TestBase
 
@@ -96,3 +97,30 @@ def test_help_in_non_utf8_terminal(command_name: str, monkeypatch):
         pytest.fail(
             f'Failed to encode help message for command "{command_name}" on a non-UTF-8 terminal: {e}'
         )
+
+
+_MIS_SCALED = known_defect_marks(
+    'parse_millis_from_float_timestamp mis-scales timestamps before 2001-09-09',
+    match='^timestamp milliseconds were mis-scaled',
+    test_name='test_parse_millis_from_float_timestamp',
+)
+
+
+@pytest.mark.parametrize(
+    'timestamp, expected_millis',
+    [
+        ('0', 0),
+        pytest.param('1', 1000, marks=_MIS_SCALED),
+        pytest.param('86400', 86400000, marks=_MIS_SCALED),
+        pytest.param('946684800', 946684800000, marks=_MIS_SCALED),  # 2000-01-01, 9 digits
+        # last second before the 10-digit epoch (2001-09-09)
+        pytest.param('999999999', 999999999000, marks=_MIS_SCALED),
+        ('1000000000', 1000000000000),
+        pytest.param('999999999.5', 999999999500, marks=_MIS_SCALED),
+    ],
+)
+def test_parse_millis_from_float_timestamp(timestamp, expected_millis):
+    """Timestamps before 2001-09-09 must not be mis-scaled by slicing 13 characters."""
+    assert (
+        parse_millis_from_float_timestamp(timestamp) == expected_millis
+    ), 'timestamp milliseconds were mis-scaled'

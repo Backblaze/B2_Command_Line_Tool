@@ -81,3 +81,9 @@ def test_validated_loads__parametrized_generic_types_validation(typed_dict_cls):
     input_ = '[{"a": "abc", "b": 2}]'
     with pytest.raises(argparse.ArgumentTypeError):
         validated_loads(input_, list[typed_dict_cls])
+
+
+@pytest.mark.skipif(pydantic is None, reason='pydantic is not enabled')
+def test_validated_loads__generic_alias_type():
+    """`list[X]` (as used by --lifecycle-rules) must be accepted when pydantic is installed."""
+    assert validated_loads('[1, 2]', list[int]) == [1, 2]

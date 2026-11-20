@@ -11,10 +11,38 @@ env:
   UV_VERSION: "0.13.4"
 
 jobs:
-  deploy:
-    env:
-      B2_PYPI_PASSWORD: ${{ secrets.B2_PYPI_PASSWORD }}
+  release-gate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: read
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+      vulnerability-alerts: read  # Dependabot alerts (read/none supported by GitHub).
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the release branch ancestry
+        run: |
+          git fetch --no-tags origin master:refs/remotes/origin/master
+          git fetch --no-tags --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+      - name: Verify maintainer-signed tag
+        run: scripts/verify-release-tag.sh "$GITHUB_REF_NAME"
+      - name: Check security findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ALERTS_TOKEN: ${{ secrets.RELEASE_ALERTS_TOKEN }}
+          RELEASE_SECURITY_TOKEN: ${{ secrets.RELEASE_SECURITY_TOKEN }}
+          SECURITY_GATE_STRICT: ${{ vars.SECURITY_GATE_STRICT || 'false' }}
+          RELEASE_FIXES_ADVISORIES: ${{ vars.RELEASE_FIXES_ADVISORIES }}
+        run: scripts/release-security-gate.sh
+  deploy:
+    needs: release-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     outputs:
       version: ${{ steps.build.outputs.version }}
       prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
@@ -23,20 +51,23 @@ jobs:
     steps:
       - name: Determine if pre-release
         id: prerelease_check
-        # it checks for PEP 440 compatible prerelease tags
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
-          export IS_PRERELEASE=$([[ ${{ github.ref }} =~ [abrcdev]+[0-9]+$ ]] && echo true || echo false)
-          echo "prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-          export PUBLISH_DOCKER=$([[ $IS_PRERELEASE == 'false' && "${{ secrets.DOCKERHUB_USERNAME }}" != '' ]] && echo true || echo false)
-          echo "publish_docker=$PUBLISH_DOCKER" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@v4
+          is_prerelease=false
+          if [[ "$GITHUB_REF_NAME" =~ (a|b|rc|dev)[0-9]+$ ]]; then is_prerelease=true; fi
+          echo "prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+          publish_docker=false
+          if [[ "$is_prerelease" == false && -n "$DOCKERHUB_USERNAME" ]]; then publish_docker=true; fi
+          echo "publish_docker=$publish_docker" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -46,50 +77,81 @@ jobs:
       - name: Build the distribution
         id: build
         run: uv run nox -vs build
-      - name: Read the Changelog
-        id: read-changelog
-        uses: mindsers/changelog-reader-action@v2
+      - name: Save Python distributions for Trusted Publishing
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          version: ${{ steps.build.outputs.version }}
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+      - name: Read release notes
+        # actions-governance: replaced by awk changelog extraction; remove after a real run verifies it
+        # id: read-changelog
+        # uses: mindsers/changelog-reader-action@v2
+        # with:
+        #   version: ${{ steps.build.outputs.version }}
+        run: scripts/release-notes.sh "${{ steps.build.outputs.version }}" > release-notes.md
       - name: Create GitHub release and upload the distribution
-        id: create-release
-        uses: softprops/action-gh-release@v2
+        # actions-governance: replaced by gh release create/upload; remove after a real run verifies it
+        # id: create-release
+        # uses: softprops/action-gh-release@v2
+        # with:
+        #   name: ${{ steps.build.outputs.version }}
+        #   body: ${{ steps.read-changelog.outputs.changes }}
+        #   draft: false
+        #   prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
+        #   files: ${{ steps.build.outputs.asset_path }}
+        env:
+          VERSION: ${{ steps.build.outputs.version }}
+          PRERELEASE: ${{ steps.prerelease_check.outputs.prerelease }}
+        run: |
+          release_args=()
+          if [ "$PRERELEASE" = true ]; then release_args+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$VERSION" --notes-file release-notes.md "${release_args[@]}"
+  deploy-pypi:
+    needs: deploy
+    if: ${{ needs.deploy.outputs.prerelease == 'false' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/b2
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: ${{ steps.build.outputs.version }}
-          body: ${{ steps.read-changelog.outputs.changes }}
-          draft: false
-          prerelease: ${{ steps.prerelease_check.outputs.prerelease }}
-          files: ${{ steps.build.outputs.asset_path }}
-      - name: Upload the distribution to PyPI
-        if: ${{ env.B2_PYPI_PASSWORD != '' && steps.prerelease_check.outputs.prerelease == 'false' }}
-        uses: pypa/gh-action-pypi-publish@release/v1
+          name: python-distributions
+          path: dist/
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
-          user: __token__
-          password: ${{ secrets.B2_PYPI_PASSWORD }}
+          attestations: true
   deploy-linux-bundle:
     needs: deploy
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHON_DEFAULT_VERSION: "3.10"  # Use Ubuntu 22.04's distro Python for staticx.
+      UV_PYTHON_DOWNLOADS: "never"
     strategy:
       fail-fast: false
       matrix:
         os: [ "ubuntu-22.04", "ubuntu-22.04-arm" ]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: deadsnakes/action@v3.2.0  # staticx doesn't work with python installed by setup-python action
-        with:
-          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - name: Install dependencies
         run: |
           sudo apt-get -y update
-          sudo apt-get -y install patchelf scons
-          uv sync --python ${{ env.PYTHON_DEFAULT_VERSION }} --locked --group nox
+          sudo apt-get -y install python${{ env.PYTHON_DEFAULT_VERSION }}-dev python${{ env.PYTHON_DEFAULT_VERSION }}-venv patchelf scons
+          uv sync --python /usr/bin/python${{ env.PYTHON_DEFAULT_VERSION }} --locked --group nox
           git config --global --add safe.directory '*'
       - name: Bundle the distribution
         id: bundle
@@ -101,29 +163,34 @@ jobs:
         id: hashes
         run: uv run nox -vs make_dist_digest
       - name: Upload the bundle to the GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ needs.deploy.outputs.version }}
-          draft: false
-          prerelease: ${{ needs.deploy.outputs.prerelease }}
-          files: ${{ steps.sign.outputs.asset_path }}
+        # actions-governance: replaced by gh release upload; remove after a real run verifies it
+        # uses: softprops/action-gh-release@v2
+        # with:
+        #   name: ${{ needs.deploy.outputs.version }}
+        #   draft: false
+        #   prerelease: ${{ needs.deploy.outputs.prerelease }}
+        #   files: ${{ steps.sign.outputs.asset_path }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
   deploy-windows-bundle:
     needs: deploy
+    permissions:
+      contents: write
     env:
+      GH_TOKEN: ${{ github.token }}
       SM_HOST: ${{ secrets.SM_HOST }}
       SM_API_KEY: ${{ secrets.SM_API_KEY }}
       SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets. SM_CLIENT_CERT_PASSWORD }}
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -135,7 +202,7 @@ jobs:
         shell: bash
         run: uv run nox -vs bundle
       - name: Install client for code signing with Software Trust Manager
-        uses: digicert/ssm-code-signing@v1.1.0
+        uses: digicert/ssm-code-signing@9476ceec3ea1c63298d4403b983e1ccf2556ff4c # v1.1.0
         env:
           FORCE_DOWNLOAD_TOOLS: 'true'
       - name: Set up client authentication certificate
@@ -150,15 +217,18 @@ jobs:
       - name: Generate hashes
         id: hashes
         run: uv run nox -vs make_dist_digest
-      - name: Create GitHub release and upload the distribution
-        id: create-release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ needs.deploy.outputs.version }}
-          draft: false
-          prerelease: ${{ needs.deploy.outputs.prerelease }}
-          files:
-            ${{ steps.sign.outputs.asset_path || steps.bundle.outputs.asset_path }}
+      - name: Upload the bundle to the GitHub release
+        # actions-governance: replaced by gh release upload; remove after a real run verifies it
+        # id: create-release
+        # uses: softprops/action-gh-release@v2
+        # with:
+        #   name: ${{ needs.deploy.outputs.version }}
+        #   draft: false
+        #   prerelease: ${{ needs.deploy.outputs.prerelease }}
+        #   files:
+        #     ${{ steps.sign.outputs.asset_path || steps.bundle.outputs.asset_path }}
+        shell: bash
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber
   deploy-docker:
     needs: deploy
     if: ${{ needs.deploy.outputs.publish_docker == 'true' }}
@@ -166,14 +236,14 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -183,25 +253,27 @@ jobs:
       - name: Build Dockerfile
         run: uv run nox -vs generate_dockerfile
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Prepare Docker tags
         id: docker_tags_prep
+        env:
+          VERSION: ${{ needs.deploy.outputs.version }}
+          PRERELEASE: ${{ needs.deploy.outputs.prerelease }}
         run: |
-          DOCKER_TAGS=backblazeit/b2:${{ needs.deploy.outputs.version }}
-          if [ "${{ needs.deploy.outputs.prerelease }}" != "true" ]; then
-            DOCKER_TAGS="$DOCKER_TAGS,backblazeit/b2:latest"
+          docker_tags="backblazeit/b2:$VERSION"
+          if [ "$PRERELEASE" != true ]; then
+            docker_tags="$docker_tags,backblazeit/b2:latest"
           fi
-          echo DOCKER_TAGS=$DOCKER_TAGS
-          echo "docker_tags=$DOCKER_TAGS" >> $GITHUB_OUTPUT
+          echo "docker_tags=$docker_tags" >> "$GITHUB_OUTPUT"
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           pull: true
@@ -210,9 +282,22 @@ jobs:
           tags: ${{ steps.docker_tags_prep.outputs.docker_tags }}
           platforms: linux/amd64,linux/arm64
       - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: backblazeit/b2
-          short-description: "Official Backblaze B2 CLI docker image"
+        # actions-governance: replaced by curl Docker Hub API; remove after a real run verifies it
+        # uses: peter-evans/dockerhub-description@v4
+        # with:
+        #   username: ${{ secrets.DOCKERHUB_USERNAME }}
+        #   password: ${{ secrets.DOCKERHUB_TOKEN }}
+        #   repository: backblazeit/b2
+        #   short-description: "Official Backblaze B2 CLI docker image"
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          login=$(jq -n --arg username "$DOCKERHUB_USERNAME" --arg password "$DOCKERHUB_TOKEN" '{username: $username, password: $password}' \
+            | curl --fail --silent --show-error --request POST --header 'Content-Type: application/json' --data-binary @- https://hub.docker.com/v2/users/login)
+          token=$(jq -er .token <<< "$login")
+          jq -n --arg short 'Official Backblaze B2 CLI docker image' --rawfile full README.md \
+            '{description: $short, full_description: $full}' \
+            | curl --fail --silent --show-error --output /dev/null --request PATCH \
+                --header 'Content-Type: application/json' --header "Authorization: JWT $token" \
+                --data-binary @- https://hub.docker.com/v2/repositories/backblazeit/b2

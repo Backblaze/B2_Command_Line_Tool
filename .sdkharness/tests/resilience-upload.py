@@ -19,6 +19,7 @@ import uuid
 from collections.abc import Mapping
 
 LEVEL = 'resilience'
+STALL_MS = 130000  # above b2sdk's 128 s upload timeout; the simulator accepts up to 300000
 SCENARIOS = {
     'upload.retry_503': ('b2_upload_file', 503, 'service_unavailable'),
     'upload.retry_500': ('b2_upload_file', 500, 'internal_error'),
@@ -192,7 +193,13 @@ class Cli:
 
     def __init__(self, scratch: str) -> None:
         self.scratch = scratch
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith('B2_')}
+        # CI and GITHUB_REPOSITORY are dropped so the CLI's CI-only short-timeout hook
+        # (b2/_internal/_cli/b2api.py) never applies: a customer's CLI has the default timeouts.
+        self.env = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith('B2_') and k not in ('CI', 'GITHUB_REPOSITORY')
+        }
         self.env.update(
             B2_APPLICATION_KEY_ID='test-key-id',
             B2_APPLICATION_KEY='test-key',
@@ -375,12 +382,6 @@ def run_retry() -> None:
 
 def run_wire_fault() -> None:
     kind = WIRE_SCENARIOS[SCENARIO]
-    if kind == 'stall':
-        raise Skip(
-            'no-client-option',
-            'the CLI exposes no supported per-request timeout shorter than the controlled stall',
-        )
-
     cli, bucket = setup()
     payload = (b'sdkharness resilience wire fault ' * 64)[:1024]
     arm()
@@ -575,7 +576,9 @@ def main() -> int:
             kind = WIRE_SCENARIOS[SCENARIO]
             FAULT = {'on': 'b2_upload_file', 'kind': kind, 'count': 1}
             if kind == 'stall':
-                FAULT['ms'] = 60000
+                # The CLI has no timeout option, so the stall must outlast b2sdk's own upload
+                # timeout (b2http.TIMEOUT_FOR_UPLOAD, 128 s) for the client to give up on it.
+                FAULT['ms'] = STALL_MS
             ARM_PATH = '/wire-faults'
             run_wire_fault()
         elif SCENARIO in API_SCENARIOS:
