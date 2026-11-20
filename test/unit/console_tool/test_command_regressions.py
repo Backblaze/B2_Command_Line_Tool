@@ -97,40 +97,41 @@ def test_notification_rule_update_without_path_keeps_stored_prefix(b2_cli, bucke
     assert rule['objectNamePrefix'] == 'logs/', 'prefix of the stored rule was silently widened'
 
 
-@known_defect(
-    'replication pause reports errors on stdout and fails when the rule is already paused',
-    match='^error\\ message\\ not\\ on\\ the\\ tool\\ stderr\\ \\(stdout=',
-)
-def test_replication_pause_error_goes_to_stderr(b2_cli, bucket_info):
+@pytest.mark.parametrize('quiet', [False, True])
+def test_replication_pause_error_goes_to_stderr(b2_cli, bucket_info, quiet, capsys):
     """The "rule could not be found" error must use stderr (not bare print to stdout)."""
+    option = ['--quiet'] if quiet else []
+    capsys.readouterr()
     status, stdout, stderr = run(
-        b2_cli, ['replication', 'pause', bucket_info['bucketName'], 'nope']
+        b2_cli, ['replication', 'pause', *option, bucket_info['bucketName'], 'nope']
     )
     assert status == 1
     assert (
         'nope' in stderr or 'could not be found' in stderr
     ), f'error message not on the tool stderr (stdout={stdout!r}, stderr={stderr!r})'
+    assert stdout == ''
+    assert capsys.readouterr().out == ''
 
 
-@known_defect(
-    'replication pause reports errors on stdout and fails when the rule is already paused',
-    match='^second\\ pause\\ of\\ the\\ same\\ rule\\ failed:\\ ',
-)
-def test_replication_pause_twice_is_not_an_error(b2_cli, bucket_info):
-    """Pausing an already paused rule must be idempotent (exit 0)."""
+@pytest.mark.parametrize('command', ['pause', 'unpause'])
+def test_replication_pause_twice_is_not_an_error(b2_cli, bucket_info, command):
+    """Applying an existing pause/unpause state must succeed without another update."""
     b2_cli.run(['bucket', 'create', 'dest-bucket', 'allPrivate'], expected_stdout='bucket_1\n')
     b2_cli.run(
         ['replication', 'setup', '--name', 'rule1', bucket_info['bucketName'], 'dest-bucket'],
         expected_part_of_stdout='',
     )
-    assert run(b2_cli, ['replication', 'pause', bucket_info['bucketName'], 'rule1'])[0] == 0
-    status, _, stderr = run(b2_cli, ['replication', 'pause', bucket_info['bucketName'], 'rule1'])
-    assert status == 0, f'second pause of the same rule failed: {stderr!r}'
+    argv = ['replication', command, bucket_info['bucketName'], 'rule1']
+    assert run(b2_cli, argv)[0] == 0
+    before = b2_cli.b2_api.get_bucket_by_name(bucket_info['bucketName']).get_fresh_state()
+    status, stdout, stderr = run(b2_cli, argv)
+    assert status == 0, f'second {command} of the same rule failed: {stderr!r}'
+    assert stdout == stderr == ''
+    after = b2_cli.b2_api.get_bucket_by_name(bucket_info['bucketName']).get_fresh_state()
+    assert after.revision == before.revision
+    assert after.replication.rules[0].is_enabled is (command == 'unpause')
 
 
-@known_defect(
-    'ls --json --quiet prints invalid JSON', match='^quiet\\ JSON\\ listing\\ is\\ not\\ a\\ list'
-)
 def test_ls_json_quiet_is_valid_json(b2_cli, uploaded_file):
     """`ls --json -q` must print a valid JSON document (brackets are not quieted)."""
     status, stdout, stderr = run(b2_cli, ['ls', '--json', '-q', f'b2://{uploaded_file["bucket"]}'])
@@ -140,10 +141,6 @@ def test_ls_json_quiet_is_valid_json(b2_cli, uploaded_file):
     assert [item['fileName'] for item in parsed] == [uploaded_file['fileName']]
 
 
-@known_defect(
-    'download to stdout writes file metadata into the data stream',
-    match='^download\\ stdout\\ carries\\ file\\ metadata',
-)
 def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_file, capfdbinary):
     """With output `-` the tool's stdout carries only the file content."""
     expected_content = uploaded_file['content'].encode()

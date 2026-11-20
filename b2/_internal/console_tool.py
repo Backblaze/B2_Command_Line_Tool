@@ -763,7 +763,7 @@ class B2URIBucketNFilenameArgMixin:
     @classmethod
     def _setup_parser(cls, parser):
         add_bucket_name_argument(parser)
-        parser.add_argument('fileName').completion = file_name_completer
+        parser.add_argument('fileName').completer = file_name_completer
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
@@ -2063,11 +2063,14 @@ class FileDownloadBase(
         )
 
         output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
-        self._print_download_info(downloaded_file, output_filepath)
+        output_to_stdout = output_filepath == STDOUT_FILEPATH
+        if not output_to_stdout:
+            self._print_download_info(downloaded_file, output_filepath)
         progress_listener.change_description(output_filepath.name)
 
         downloaded_file.save_to(output_filepath)
-        self._print('Download finished')
+        if not output_to_stdout:
+            self._print('Download finished')
 
         return 0
 
@@ -2616,11 +2619,11 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
             i = -1
             for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
                 if i:
-                    self._print(',', end='')
+                    self._print(',', end='', enforce_output=True)
                 else:
-                    self._print('[')
+                    self._print('[', enforce_output=True)
                 self._print_json(file_version)
-            self._print(']' if i >= 0 else '[]')
+            self._print(']' if i >= 0 else '[]', enforce_output=True)
         else:
             self._print_files(args)
         return 0
@@ -4003,12 +4006,9 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
 
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.source).get_fresh_state()
-        found, altered = self.alter_rule_by_name(bucket, args.rule_name)
+        found, _ = self.alter_rule_by_name(bucket, args.rule_name)
         if not found:
-            print('ERROR: replication rule could not be found!')
-            return 1
-        elif not altered:
-            print('ERROR: replication rule was found, but could not be changed!')
+            self._print_stderr('ERROR: replication rule could not be found!')
             return 1
         return 0
 

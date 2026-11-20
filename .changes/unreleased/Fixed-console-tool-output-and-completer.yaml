@@ -1,0 +1,3 @@
+kind: Fixed
+body: Keep replication rule changes idempotent and report missing rules on stderr, preserve valid JSON listings in quiet mode, restore file-name completion, and keep stdout downloads free of status text.
+time: 2026-11-20T00:00:00Z
