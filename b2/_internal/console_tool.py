@@ -4694,7 +4694,7 @@ class BucketNotificationRuleCreateBase(
             'name': args.ruleName,
             'eventTypes': args.event_type,
             'isEnabled': args.enable,
-            'objectNamePrefix': args.B2_URI.path,
+            'objectNamePrefix': args.B2_URI.path or None,
             'targetConfiguration': {
                 'url': args.webhook_url,
                 'customHeaders': custom_headers,

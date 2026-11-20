@@ -70,10 +70,6 @@ def run_no_traceback(b2_cli, argv):
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect(
-    'notification-rule update through a URI without a path widens the stored prefix',
-    match='^prefix\\ of\\ the\\ stored\\ rule\\ was\\ silently\\ widened',
-)
 def test_notification_rule_update_without_path_keeps_stored_prefix(b2_cli, bucket):
     """Updating a rule via a URI with no path must not widen the stored prefix."""
     b2_cli.run(

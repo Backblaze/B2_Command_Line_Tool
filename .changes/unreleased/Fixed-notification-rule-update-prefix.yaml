@@ -1,0 +1,3 @@
+kind: Fixed
+body: Preserve the existing notification rule prefix when updating a rule without a path.
+time: 2026-11-20T00:00:00Z
