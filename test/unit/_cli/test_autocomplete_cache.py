@@ -17,6 +17,9 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import pathlib
+import pickletools
+import subprocess
 import sys
 
 import argcomplete
@@ -26,6 +29,7 @@ import b2._internal._cli.argcompleters
 import b2._internal.arg_parser
 import b2._internal.console_tool
 from b2._internal._cli import autocomplete_cache
+from test.known_defect import known_defect
 
 from .unpickle import unpickle
 
@@ -248,3 +252,153 @@ def test_that_autocomplete_cache_loading_does_not_load_b2sdk(autocomplete_runner
 
         exit, output = cached_complete_result(cache, raise_exc=True)
         assert (exit, output) == (0, uncached_output)
+
+
+def _complete_in_subprocess(apiver: str, home: pathlib.Path) -> list[str]:
+    """Run `<apiver> <TAB>` completion in a fresh interpreter; return the completions it printed."""
+    out_path = home / f'completions-{apiver}.txt'
+    script = (
+        'import os, sys\n'
+        'out = os.open(sys.argv[2], os.O_WRONLY | os.O_CREAT | os.O_TRUNC)\n'
+        'os.dup2(out, 8)\n'  # argcomplete writes the completions to fd 8
+        'import importlib\n'
+        'sys.argv = [sys.argv[1]]\n'
+        'importlib.import_module(f"b2._internal.{sys.argv[0]}.registry").main()\n'
+    )
+    env = {
+        **os.environ,
+        'HOME': str(home),
+        'XDG_CACHE_HOME': str(home / 'xdg'),
+        'COMP_LINE': f'{apiver} ',
+        'COMP_POINT': str(len(apiver) + 1),
+        '_ARGCOMPLETE': '1',
+        '_ARGCOMPLETE_IFS': '\n',
+    }
+    result = subprocess.run(
+        [sys.executable, '-c', script, apiver, str(out_path)],
+        env=env,
+        cwd=home,
+        timeout=120,
+        capture_output=True,
+        text=True,
+    )
+    # argcomplete exits through sys.exit(0) after printing; anything else is a setup problem, not the defect
+    if result.returncode != 0:
+        pytest.fail(f'{apiver} completion subprocess failed: {result.stderr}', pytrace=False)
+    return out_path.read_text().split()
+
+
+def _cache_files(home: pathlib.Path) -> dict[pathlib.Path, bytes]:
+    return {p: p.read_bytes() for p in home.rglob('b2-autocomplete-cache-*.pickle')}
+
+
+def _cache_strings(files: dict[pathlib.Path, bytes]) -> list[list[str]]:
+    """Describe cached parsers by the distinct strings they contain. Frame sizes, memo layout and
+    how often a repeated string is stored differ between interpreters (PyPy) and runs, so raw
+    bytes and string counts are not comparable."""
+    return sorted(
+        sorted(
+            {
+                arg
+                for opcode, arg, _ in pickletools.genops(content)
+                if isinstance(arg, str) and 'UNICODE' in opcode.name
+            }
+        )
+        for content in files.values()
+    )
+
+
+@known_defect(
+    'b2v3, b2v4 and b2v5 share one autocomplete cache file',
+    match='^b2v5\\ wrote\\ no\\ cache\\ file\\ of\\ its\\ own',
+)
+def test_autocomplete_cache_is_separated_per_cli_api_version(tmp_path):
+    """The b2v3 and b2v5 parsers must each keep, and keep using, their own cache file."""
+    if sys.platform == 'win32':
+        pytest.skip('argcomplete uses file descriptor 8')
+
+    # reference caches, each written in a pristine home so that nothing is shared (setup, not the defect)
+    reference = {}
+    for apiver in ('b2v3', 'b2v5'):
+        fresh_home = tmp_path / f'reference-{apiver}'
+        fresh_home.mkdir()
+        reference[apiver] = (_complete_in_subprocess(apiver, fresh_home), _cache_files(fresh_home))
+        if not reference[apiver][1]:
+            pytest.fail(f'{apiver} wrote no cache file in a pristine home', pytrace=False)
+    if _cache_strings(reference['b2v3'][1]) == _cache_strings(reference['b2v5'][1]):
+        pytest.fail('b2v3 and b2v5 write identical caches, the test cannot tell them apart')
+
+    # now both versions run against one shared home
+    shared = tmp_path / 'shared'
+    shared.mkdir()
+    _complete_in_subprocess('b2v3', shared)
+    cache_after_v3 = _cache_files(shared)
+    assert _cache_strings(cache_after_v3) == _cache_strings(reference['b2v3'][1])
+
+    _complete_in_subprocess('b2v5', shared)
+    cache_after_v5 = _cache_files(shared)
+    assert set(cache_after_v5) > set(cache_after_v3), 'b2v5 wrote no cache file of its own'
+    for path, content in cache_after_v3.items():
+        assert _cache_strings({path: cache_after_v5[path]}) == _cache_strings(
+            {path: content}
+        ), f'b2v5 overwrote the cache written by b2v3: {path}'
+
+    # with both caches in place, each version must keep being served its own completions
+    for apiver in ('b2v3', 'b2v5'):
+        assert _complete_in_subprocess(apiver, shared) == reference[apiver][0]
+    assert _cache_files(shared) == cache_after_v5, 'a cached run modified the cache files'
+
+
+def _walk_parsers(parser):
+    yield parser
+    for action in parser._actions:
+        for sub in getattr(action, 'choices', None) or ():
+            if isinstance(action.choices, dict):
+                yield from _walk_parsers(action.choices[sub])
+
+
+@known_defect(
+    'argument completers are set through a misspelled attribute and are never used',
+    match='^parser\\ has\\ misspelled\\ completer\\ attributes',
+)
+def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
+    """Argcomplete reads `.completer`; an argument carrying `.completion` is never completed."""
+    parser = b2._internal.console_tool.B2.create_parser()
+    misspelled = [
+        f'{p.prog}: {action.dest}'
+        for p in _walk_parsers(parser)
+        for action in p._actions
+        if hasattr(action, 'completion')
+    ]
+    assert misspelled == [], 'parser has misspelled completer attributes'
+
+
+@known_defect(
+    'the os.fdopen test shim recurses into itself',
+    raises=RecursionError,
+    match='maximum recursion depth exceeded',
+)
+def test_os_fdopen_shim_does_not_recurse(autocomplete_runner):
+    """The test shim for os.fdopen must delegate to the real function, not to itself."""
+    if sys.platform == 'win32':
+        pytest.skip('needs fcntl to pick a descriptor number')
+    import fcntl
+
+    pipe_read, pipe_write = os.pipe()
+    # the shim special-cases fd 9 (and returns sys.stderr for it); make sure the descriptor under test is above it
+    read_fd = fcntl.fcntl(pipe_read, fcntl.F_DUPFD, 10)
+    os.close(pipe_read)
+    assert read_fd != 9
+    try:
+        with autocomplete_runner('b2 '):
+            handle = os.fdopen(read_fd)  # any fd except 9 goes through the shim
+            assert handle is not sys.stderr
+            read_fd = None  # the handle owns the descriptor now
+            try:
+                assert handle.readable()
+            finally:
+                handle.close()
+    finally:
+        if read_fd is not None:
+            os.close(read_fd)
+        os.close(pipe_write)

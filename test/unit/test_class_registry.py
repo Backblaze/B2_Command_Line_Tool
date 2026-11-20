@@ -11,6 +11,7 @@
 import pytest
 
 from b2._internal.class_registry import ClassRegistry, RegistryKeyError
+from test.known_defect import known_defect
 
 
 def test_register_with_key_and_get_instance():
@@ -125,3 +126,25 @@ def test_copy_has_independent_registrations_and_same_configuration():
     assert 'first' not in copied_registry
     assert 'second' in copied_registry
     assert 'second' not in registry
+
+
+@known_defect(
+    'iter() on a ClassRegistry raises TypeError because __iter__ returns a keys view',
+    raises=TypeError,
+    match=r"^iter\(\) returned non-iterator(?: of type '(?:o)?dict_keys')?$",
+)
+def test_iterating_registry_yields_registered_keys():
+    """Calling iter() or list() on a registry must work and yield the registered keys."""
+    registry = ClassRegistry(attr_name='COMMAND_NAME')
+
+    @registry.register
+    class First:
+        COMMAND_NAME = 'first'
+
+    @registry.register
+    class Second:
+        COMMAND_NAME = 'second'
+
+    assert list(registry) == ['first', 'second']
+    iterator = iter(registry)
+    assert next(iterator) == 'first'
