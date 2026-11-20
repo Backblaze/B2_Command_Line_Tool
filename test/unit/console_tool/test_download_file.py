@@ -30,6 +30,32 @@ Download finished
 """
 
 
+@pytest.mark.parametrize('command', ['uri', 'id', 'name'])
+@pytest.mark.parametrize('flag', [None, '--no-progress', '--quiet'])
+def test_stdout_download_is_only_binary_content(
+    b2_cli, bucket, local_file, command, flag, capfdbinary
+):
+    content = b'\x00\xffbinary\r\ncontent\x00'
+    local_file.write_bytes(content)
+    b2_cli.run(['file', 'upload', '--quiet', bucket, str(local_file), 'binary.dat'])
+    if command == 'uri':
+        argv = ['file', 'download', f'b2://{bucket}/binary.dat']
+        warning = ''
+    elif command == 'id':
+        argv = ['download-file-by-id', '9999']
+        warning = (
+            'WARNING: `download-file-by-id` command is deprecated. Use `file download` instead.\n'
+        )
+    else:
+        argv = ['download-file-by-name', bucket, 'binary.dat']
+        warning = (
+            'WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n'
+        )
+    capfdbinary.readouterr()
+    b2_cli.run([*argv, '-', *([flag] if flag else [])], expected_stdout='', expected_stderr=warning)
+    assert capfdbinary.readouterr().out == content
+
+
 @pytest.mark.parametrize(
     'flag,expected_stdout',
     [

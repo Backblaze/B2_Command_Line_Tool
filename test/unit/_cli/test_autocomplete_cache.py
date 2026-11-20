@@ -189,15 +189,16 @@ def test_complete_with_escaped_control_characters(
 
 
 @forked
+@pytest.mark.parametrize('command', ['hide-file', 'download-file-by-name', 'make-friendly-url'])
 def test_complete_with_file_suggestions(
-    autocomplete_runner, tmp_path, bucket, uploaded_file, authorized_b2_cli
+    autocomplete_runner, tmp_path, bucket, uploaded_file, authorized_b2_cli, command
 ):
     file_name = uploaded_file['fileName']
     cache = autocomplete_cache.AutocompleteCache(
         tracker=autocomplete_cache.VersionTracker(),
         store=autocomplete_cache.HomeCachePickleStore(tmp_path),
     )
-    with autocomplete_runner(f'b2 hide-file {bucket} '):
+    with autocomplete_runner(f'b2 {command} {bucket} '):
         exit, argcomplete_output = argcomplete_result()
         assert exit == 0
         assert file_name in argcomplete_output
@@ -357,10 +358,6 @@ def _walk_parsers(parser):
                 yield from _walk_parsers(action.choices[sub])
 
 
-@known_defect(
-    'argument completers are set through a misspelled attribute and are never used',
-    match='^parser\\ has\\ misspelled\\ completer\\ attributes',
-)
 def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
     """Argcomplete reads `.completer`; an argument carrying `.completion` is never completed."""
     parser = b2._internal.console_tool.B2.create_parser()
