@@ -35,7 +35,7 @@ UNIT_DIR = pathlib.Path(__file__).parent
 @known_defect(
     'the autouse tqdm-closer fixture swallows exceptions raised inside commands',
     raises=pytest.fail.Exception,
-    match="DID NOT RAISE <class 'RuntimeError'>",  # pytest.raises: DID NOT RAISE
+    match=r'DID NOT RAISE.*\bRuntimeError\b',  # pytest.raises: DID NOT RAISE
 )
 def test_tqdm_closer_fixture_does_not_swallow_exceptions():
     """The autouse fixture mocks `_TqdmCloser.__exit__`; the mock must not suppress exceptions."""
