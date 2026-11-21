@@ -11,6 +11,8 @@ import os
 import pathlib
 import shutil
 import stat
+import subprocess
+import sys
 
 import pytest
 
@@ -110,19 +112,72 @@ def test_add_or_update_shell_section_permissions(test_file, mode, umask):
     assert stat.S_IMODE(test_file.stat().st_mode) == expected_mode
 
 
-def test_add_or_update_shell_section_replace_failure(test_file, monkeypatch):
+@skip_on_windows
+def test_add_or_update_shell_section_preserves_inode_and_ownership(test_file):
+    test_file.write_text('existing content\n')
+    original = test_file.stat()
+    for group in os.getgroups():
+        if group != original.st_gid:
+            try:
+                os.chown(test_file, -1, group)
+            except PermissionError:
+                continue
+            break
+    original = test_file.stat()
+    add_or_update_shell_section(test_file, section, managed_by, content)
+    updated = test_file.stat()
+    assert (updated.st_dev, updated.st_ino, updated.st_uid, updated.st_gid) == (
+        original.st_dev,
+        original.st_ino,
+        original.st_uid,
+        original.st_gid,
+    )
+
+
+@pytest.mark.skipif(
+    sys.platform != 'darwin' and not hasattr(os, 'setxattr'),
+    reason='extended attributes are unavailable',
+)
+def test_add_or_update_shell_section_preserves_extended_attributes(test_file):
+    test_file.write_text('existing content\n')
+    name = 'user.b2-completion-test'
+    if sys.platform == 'darwin':
+        subprocess.run(['xattr', '-w', name, 'preserved-value', str(test_file)], check=True)
+    else:
+        os.setxattr(test_file, name, b'preserved-value')
+    add_or_update_shell_section(test_file, section, managed_by, content)
+    if sys.platform == 'darwin':
+        names = subprocess.check_output(['xattr', str(test_file)], text=True).splitlines()
+        assert name in names
+        value = subprocess.check_output(['xattr', '-p', name, str(test_file)]).rstrip(b'\n')
+    else:
+        value = os.getxattr(test_file, name)
+    assert value == b'preserved-value'
+
+
+@pytest.mark.skipif(sys.platform != 'darwin', reason='macOS ACL syntax')
+def test_add_or_update_shell_section_preserves_acl(test_file):
+    test_file.write_text('existing content\n')
+    subprocess.run(['chmod', '+a', 'everyone deny execute', str(test_file)], check=True)
+    before = subprocess.check_output(['ls', '-lde', str(test_file)], text=True)
+    assert 'everyone deny execute' in before
+    add_or_update_shell_section(test_file, section, managed_by, content)
+    after = subprocess.check_output(['ls', '-lde', str(test_file)], text=True)
+    assert 'everyone deny execute' in after
+
+
+def test_add_or_update_shell_section_write_failure(test_file, monkeypatch):
     original = 'original content\n'
     test_file.write_text(original)
 
-    def fail_replace(*args, **kwargs):
-        raise OSError('replacement failed')
+    def fail_write(*args, **kwargs):
+        raise OSError('write failed')
 
-    monkeypatch.setattr('os.replace', fail_replace)
-    with pytest.raises(OSError, match='replacement failed'):
+    monkeypatch.setattr(pathlib.Path, 'write_text', fail_write)
+    with pytest.raises(OSError, match='write failed'):
         add_or_update_shell_section(test_file, section, managed_by, content)
 
     assert test_file.read_text() == original
-    assert list(test_file.parent.iterdir()) == [test_file]
 
 
 @skip_on_windows

@@ -17,9 +17,7 @@ import re
 import shlex
 import shutil
 import signal
-import stat
 import subprocess
-import tempfile
 import textwrap
 from datetime import datetime
 from importlib.util import find_spec
@@ -310,12 +308,7 @@ def _silent_success_run_with_pty(
 def add_or_update_shell_section(
     path: Path, section: str, managed_by: str, content: str, comment_sign='#'
 ) -> None:
-    """Atomically add or update a section, treating content literally.
-
-    Follow symlinks and preserve existing permission bits. New files use 0o644
-    subject to the process umask. Other hard links retain the previous inode.
-    """
-    path = path.resolve()
+    """Add or update a section in a file."""
     section_start = f'{comment_sign} >>> {section} >>>'
     section_end = f'{comment_sign} <<< {section} <<<'
     assert section_end not in content
@@ -338,17 +331,7 @@ def add_or_update_shell_section(
         file_content = pattern.sub(lambda m: full_content, file_content)
     else:
         file_content += f'\n{full_content}\n'
-    try:
-        mode = stat.S_IMODE(path.stat().st_mode)
-    except FileNotFoundError:
-        mode = None
-    with tempfile.TemporaryDirectory(dir=path.parent) as temporary_dir:
-        temporary_path = Path(temporary_dir) / path.name
-        temporary_path.write_text(file_content)
-        if mode is None:
-            mode = stat.S_IMODE(temporary_path.stat().st_mode) & 0o644
-        temporary_path.chmod(mode)
-        os.replace(temporary_path, path)
+    path.write_text(file_content)
 
 
 class AutocompleteInstallError(Exception):
