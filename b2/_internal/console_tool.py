@@ -4711,8 +4711,10 @@ class BucketNotificationRuleCreateBase(
             for header in args.custom_header:
                 try:
                     name, value = header.split('=', 1)
-                except ValueError:
-                    name, value = header, ''
+                except ValueError as exc:
+                    raise CommandError(
+                        '--custom-header must have the format HEADER_NAME=VALUE'
+                    ) from exc
                 custom_headers[name] = value
 
         rule = {
