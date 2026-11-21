@@ -29,7 +29,7 @@ from b2sdk.v3.exception import B2SimpleError
 from b2._internal._cli.const import (
     B2_ESCAPE_CONTROL_CHARACTERS,
 )
-from b2._internal.console_tool import _TqdmCloser
+from b2._internal.console_tool import DownloadCommand, _TqdmCloser
 from test.known_defect import known_defect
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
@@ -524,6 +524,27 @@ def test_failed_download_does_not_remove_explicit_destination(b2_cli, uploaded_f
     assert status != 0
     assert 'injected' in stderr
     assert destination.read_text() == 'existing'
+
+
+def test_download_setup_failure_removes_temporary_file(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / uploaded_file['fileName']
+    destination.write_text('existing')
+    with mock.patch.object(
+        DownloadCommand, '_print_download_info', side_effect=B2SimpleError('setup failed')
+    ):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'download',
+                f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+                str(tmp_path),
+            ],
+        )
+    assert status != 0
+    assert 'setup failed' in stderr
+    assert destination.read_text() == 'existing'
+    assert list(tmp_path.iterdir()) == [destination]
 
 
 def test_cleanup_failure_preserves_download_error(b2_cli, uploaded_file, tmp_path):

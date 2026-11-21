@@ -2015,10 +2015,10 @@ class DownloadCommand(
             suffix=file_extension,
             dir=output_directory,
         )
+        self._temporary_download_path = pathlib.Path(output_filepath_str)
         # Close the handle, so the file is not locked.
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
-        self._temporary_download_path = pathlib.Path(output_filepath_str)
 
         # "Normal" file created by Python has readable for everyone, writable for user only.
         # We change the permissions, to match the default ones.
@@ -2064,13 +2064,13 @@ class FileDownloadBase(
             b2_uri, progress_listener, encryption=encryption_setting
         )
 
-        output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
-        output_to_stdout = output_filepath == STDOUT_FILEPATH
-        if not output_to_stdout:
-            self._print_download_info(downloaded_file, output_filepath)
-        progress_listener.change_description(output_filepath.name)
-
+        self._temporary_download_path = None
         try:
+            output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
+            output_to_stdout = output_filepath == STDOUT_FILEPATH
+            if not output_to_stdout:
+                self._print_download_info(downloaded_file, output_filepath)
+            progress_listener.change_description(output_filepath.name)
             downloaded_file.save_to(output_filepath)
         except BaseException:
             if self._temporary_download_path is not None:
