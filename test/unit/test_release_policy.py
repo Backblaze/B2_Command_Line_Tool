@@ -105,7 +105,7 @@ def test_pull_request_ci_covers_stacked_bases():
     # a `types:` event filter (e.g. ready_for_review) does not restrict bases.
     pull_request = re.search(r'^  pull_request:\s*\n((?:    .*\n?)*)', trigger, re.M)
     assert pull_request, 'ci.yml must define an on.pull_request trigger'
-    assert 'branches:' not in pull_request.group(1), (
+    assert not re.search(r'^\s*branches(?:-ignore)?:', pull_request.group(1), re.M), (
         'pull_request must not restrict base branches (stacked PRs rely on it)'
     )
     assert re.search(r'^  push:\n    branches: \[master\]', trigger, re.M)
