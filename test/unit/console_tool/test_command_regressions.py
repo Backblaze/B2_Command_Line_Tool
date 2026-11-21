@@ -294,30 +294,20 @@ def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):
 
 def _assert_keep_days_rejected(keep_days, status, stderr, synchronizer):
     """The contract is rejection: nonzero status, an error naming --keep-days, nothing synchronized."""
-    assert status != 0, (
+    assert status == 1, (
         f'--keep-days={keep_days} was accepted: '
         f'{synchronizer.call_args and synchronizer.call_args.kwargs}'
     )
-    assert '--keep-days' in stderr, f'the error does not identify --keep-days: {stderr!r}'
+    assert stderr == 'ERROR: --keep-days must be greater than 0\n'
     synchronizer.assert_not_called()
 
 
-@known_defect(
-    'sync accepts a negative or zero --keep-days',
-    match='--keep-days=-1 was accepted:',
-    assertion_origin='_assert_keep_days_rejected',
-)
 def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
     """A negative --keep-days must be rejected, not accepted as a retention period."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
     _assert_keep_days_rejected('-1', status, stderr, synchronizer)
 
 
-@known_defect(
-    'sync accepts a negative or zero --keep-days',
-    match='--keep-days=0 was accepted:',
-    assertion_origin='_assert_keep_days_rejected',
-)
 def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
     """--keep-days 0 must be rejected, not silently turned into NO_DELETE (nothing is ever deleted)."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
