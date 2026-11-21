@@ -616,6 +616,20 @@ def doc(session):
         session.run('sphinx-autobuild', *sphinx_args)
 
 
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def doc_examples(session):
+    """Compile the documentation examples: every `b2` command line in README/docs must parse."""
+    uv_install(session, groups=('test',))
+    session.run(
+        'pytest',
+        *PYTEST_GLOBAL_ARGS,
+        '--cli',
+        'b2v5',
+        *session.posargs,
+        'test/unit/test_documentation_examples.py',
+    )
+
+
 @nox.session
 def doc_cover(session):
     """
