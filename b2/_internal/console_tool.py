@@ -3849,11 +3849,6 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
         b2_uri = self.get_b2_uri_from_arg(args)
         file_version = self.api.get_file_info_by_uri(b2_uri)
 
-        if args.legal_hold is not None:
-            self.api.update_file_legal_hold(
-                file_version.id_, file_version.file_name, LegalHold(args.legal_hold)
-            )
-
         if args.file_retention_mode is not None:
             if args.file_retention_mode == 'none':
                 file_retention = FileRetentionSetting(RetentionMode.NONE)
@@ -3865,6 +3860,18 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
             self.api.update_file_retention(
                 file_version.id_, file_version.file_name, file_retention, args.bypass_governance
             )
+
+        if args.legal_hold is not None:
+            try:
+                self.api.update_file_legal_hold(
+                    file_version.id_, file_version.file_name, LegalHold(args.legal_hold)
+                )
+            except B2Error as error:
+                if args.file_retention_mode is not None:
+                    raise CommandError(
+                        f'File retention was applied, but legal hold update failed: {error}'
+                    ) from error
+                raise
 
         return 0
 
