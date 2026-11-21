@@ -1,2 +1,2 @@
 kind: Doc
-body: Correct the changelog date, verbose-logging documentation, and a bucket-update docstring to match actual behavior.
+body: Correct the verbose-logging documentation and a bucket-update docstring to match actual behavior.
