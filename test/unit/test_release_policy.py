@@ -101,7 +101,13 @@ def test_release_signing_principal_is_not_a_personal_identity():
 def test_pull_request_ci_covers_stacked_bases():
     source = (ROOT / '.github/workflows/ci.yml').read_text()
     trigger = source.split('on:\n', 1)[1].split('\nenv:', 1)[0]
-    assert re.search(r'^  pull_request:\s*(?=^\S|\Z)', trigger, re.M)
+    # pull_request must not restrict base branches, so stacked PRs stay covered;
+    # a `types:` event filter (e.g. ready_for_review) does not restrict bases.
+    pull_request = re.search(r'^  pull_request:\s*\n((?:    .*\n?)*)', trigger, re.M)
+    assert pull_request, 'ci.yml must define an on.pull_request trigger'
+    assert 'branches:' not in pull_request.group(1), (
+        'pull_request must not restrict base branches (stacked PRs rely on it)'
+    )
     assert re.search(r'^  push:\n    branches: \[master\]', trigger, re.M)
 
 
