@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import re
 from pathlib import Path
 
@@ -97,6 +98,31 @@ def live_steps(job):
     ]
 
 
+def assert_credential_placement(workflow):
+    remaining = copy.deepcopy(workflow)
+    for name in ('cleanup_buckets', *CONSUMERS):
+        for key in KEYS:
+            value = remaining['jobs'][name]['env'].pop(key)
+            assert f'secrets.{key}' in value
+    assert not re.search(r'secrets\.B2_TEST_APPLICATION_KEY', str(remaining), re.IGNORECASE)
+
+
+@pytest.mark.parametrize('placement', ['workflow_env', 'step_env', 'step_with', 'other_job'])
+def test_credential_scan_rejects_ungated_references(placement):
+    workflow = copy.deepcopy(WORKFLOW)
+    reference = '${{ secrets.B2_TEST_APPLICATION_KEY }}'
+    if placement == 'workflow_env':
+        workflow['env']['UNEXPECTED'] = reference
+    elif placement == 'step_env':
+        workflow['jobs']['test']['steps'][0]['env'] = {'UNEXPECTED': reference}
+    elif placement == 'step_with':
+        workflow['jobs']['test']['steps'][0]['with']['UNEXPECTED'] = reference
+    else:
+        workflow['jobs']['doc']['steps'][0]['env'] = {'UNEXPECTED': reference}
+    with pytest.raises(AssertionError):
+        assert_credential_placement(workflow)
+
+
 @pytest.mark.parametrize(
     'enabled,event,draft,credentials,allowed',
     [
@@ -114,13 +140,8 @@ def test_live_gate_and_credentials(enabled, event, draft, credentials, allowed):
     assert (
         bool(expression(JOBS['cleanup_buckets'].get('if', '${{ true }}'), values)) == gate_enabled
     )
-    credential_jobs = {
-        name
-        for name, job in JOBS.items()
-        if any('secrets.B2_TEST_APPLICATION_KEY' in str(v) for v in job.get('env', {}).values())
-    }
-    assert credential_jobs == {'cleanup_buckets', *CONSUMERS}
-    for name in credential_jobs:
+    assert_credential_placement(WORKFLOW)
+    for name in ('cleanup_buckets', *CONSUMERS):
         job = JOBS[name]
         job_values = dict(values)
         for key in KEYS:
