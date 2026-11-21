@@ -3389,7 +3389,7 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.
 
-    Prints the ID of the bucket updated.
+    Prints the updated bucket as JSON.
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
