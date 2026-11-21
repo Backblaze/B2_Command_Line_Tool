@@ -12,8 +12,7 @@ Checks on the test suite itself.
 
 These do not test the CLI; they pin the properties the suite's own helpers must have, so that a
 broken helper (swallowed exceptions, unused parametrization, leaked patches) is caught instead of
-silently weakening other tests. Tests decorated with `known_defect` describe a defect that is still
-present (see `test/known_defect.py`).
+silently weakening other tests.
 """
 
 from __future__ import annotations
@@ -25,18 +24,12 @@ import pathlib
 import pytest
 
 from b2._internal.console_tool import _TqdmCloser
-from test.known_defect import known_defect
 
 from .test_console_tool import BaseConsoleToolTest
 
 UNIT_DIR = pathlib.Path(__file__).parent
 
 
-@known_defect(
-    'the autouse tqdm-closer fixture swallows exceptions raised inside commands',
-    raises=pytest.fail.Exception,
-    match=r'DID NOT RAISE.*\bRuntimeError\b',  # pytest.raises: DID NOT RAISE
-)
 def test_tqdm_closer_fixture_does_not_swallow_exceptions():
     """The autouse fixture mocks `_TqdmCloser.__exit__`; the mock must not suppress exceptions."""
     with pytest.raises(RuntimeError, match='boom'):
@@ -70,10 +63,6 @@ def _unused_parametrized_arguments(path: pathlib.Path) -> list[str]:
     return problems
 
 
-@known_defect(
-    'a parametrized argument of the download-file tests is never used',
-    match='^download\\ test\\ parameter\\ is\\ unused',
-)
 def test_download_file_tests_use_all_their_parametrized_arguments():
     """A parametrized argument that the body ignores makes every case run the same command."""
     source = UNIT_DIR / 'console_tool' / 'test_download_file.py'
@@ -102,10 +91,6 @@ def test_camel_case_option_is_rejected_for_the_right_reason(b2_cli, capsys):
     b2_cli.run(['bucket', 'list'], expected_stdout='')
 
 
-@known_defect(
-    'BaseConsoleToolTest.tearDown does not restore the patched class attribute',
-    match='^console\\-tool\\ test\\ did\\ not\\ restore\\ API\\ initializer',
-)
 def test_base_console_tool_test_restores_patched_class_attribute(console_tool_class):
     """`BaseConsoleToolTest.setUp` replaces a method on the shared class; tearDown must restore it."""
     name = '_initialize_b2_api'
