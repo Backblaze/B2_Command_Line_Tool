@@ -6,7 +6,6 @@ on:
 
 env:
   CD: "true"
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PYTHON_DEFAULT_VERSION: "3.12"
   UV_VERSION: "0.13.4"
 
