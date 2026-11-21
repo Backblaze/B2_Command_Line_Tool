@@ -17,7 +17,9 @@ import re
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
+import tempfile
 import textwrap
 from datetime import datetime
 from importlib.util import find_spec
@@ -171,7 +173,7 @@ class ZshAutocompleteInstaller(BashLikeAutocompleteInstaller):
         rc_path = self.get_rc_path()
         if not rc_path.exists():
             # if zshrc is missing `zshrc -i` may hang on creation wizard when emulating tty
-            rc_path.touch(mode=0o750)
+            rc_path.touch(mode=0o644)
         _silent_success_run_with_tty(
             [self.shell_exec, '-c', 'autoload -Uz compaudit; echo AUDIT; compaudit']
         )
@@ -309,6 +311,7 @@ def add_or_update_shell_section(
     path: Path, section: str, managed_by: str, content: str, comment_sign='#'
 ) -> None:
     """Add or update a section in a file."""
+    path = path.resolve()
     section_start = f'{comment_sign} >>> {section} >>>'
     section_end = f'{comment_sign} <<< {section} <<<'
     assert section_end not in content
@@ -328,10 +331,18 @@ def add_or_update_shell_section(
         rf'^{re.escape(section_start)}.*?^{re.escape(section_end)}', flags=re.MULTILINE | re.DOTALL
     )
     if pattern.search(file_content):
-        file_content = pattern.sub(full_content, file_content)
+        file_content = pattern.sub(lambda m: full_content, file_content)
     else:
         file_content += f'\n{full_content}\n'
-    path.write_text(file_content)
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        mode = 0o644
+    with tempfile.TemporaryDirectory(dir=path.parent) as temporary_dir:
+        temporary_path = Path(temporary_dir) / path.name
+        temporary_path.write_text(file_content)
+        temporary_path.chmod(mode)
+        os.replace(temporary_path, path)
 
 
 class AutocompleteInstallError(Exception):

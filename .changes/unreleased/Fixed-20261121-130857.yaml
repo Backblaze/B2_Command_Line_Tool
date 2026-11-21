@@ -1,0 +1,3 @@
+kind: Fixed
+body: Preserve literal backslashes when updating shell completion sections, write updates atomically, and create non-executable zsh configuration files.
+time: 2026-11-21T13:08:57.287242-06:00
