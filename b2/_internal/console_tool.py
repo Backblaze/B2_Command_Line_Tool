@@ -3347,7 +3347,9 @@ class Sync(
 
         if args.delete:
             keep_days_or_delete = KeepOrDeleteMode.DELETE
-        elif args.keep_days:
+        elif args.keep_days is not None:
+            if args.keep_days <= 0:
+                raise CommandError('--keep-days must be greater than 0')
             keep_days_or_delete = KeepOrDeleteMode.KEEP_BEFORE_DELETE
             keep_days = args.keep_days
         else:
