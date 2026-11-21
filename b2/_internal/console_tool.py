@@ -5542,11 +5542,15 @@ class ConsoleTool:
     def _get_default_escape_cc_setting(self):
         escape_cc_env_var = os.environ.get(B2_ESCAPE_CONTROL_CHARACTERS, None)
         if escape_cc_env_var is not None:
-            if int(escape_cc_env_var) in (0, 1):
-                return int(escape_cc_env_var) == 1
+            try:
+                escape_cc_value = int(escape_cc_env_var)
+            except ValueError:
+                escape_cc_value = None
+            if escape_cc_value in (0, 1):
+                return escape_cc_value == 1
             else:
                 logger.warning(
-                    'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
+                    f'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
                 )
         return self.stdout.isatty()
 
