@@ -246,37 +246,64 @@ def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, loc
     ), 'legal hold was applied although the command failed'
 
 
-@known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
-    match='^period\\ without\\ a\\ mode\\ was\\ accepted\\ and\\ ignored',
-)
 def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
-    """--default-retention-period alone must be rejected, not silently dropped."""
+    """--default-retention-period alone must be rejected before accessing a bucket."""
     b2_cli.authorize()
     b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
-    status, _, stderr = run(
-        b2_cli,
-        ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
-    )
-    assert status != 0, 'period without a mode was accepted and ignored'
-    assert stderr
+    with mock.patch.object(
+        b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
+    ) as get_bucket:
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
+        )
+    assert status == 1
+    assert stdout == ''
+    assert stderr == 'ERROR: --default-retention-period requires --default-retention-mode\n'
+    get_bucket.assert_not_called()
 
 
-@known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
-    match="^command raised ValueError\\('must specify period for retention mode RetentionMode.COMPLIANCE'\\)",
-    assertion_origin='run_no_traceback',
-)
-def test_compliance_mode_without_period_is_rejected_cleanly(b2_cli):
+@pytest.mark.parametrize('mode', ['compliance', 'governance'])
+def test_retention_mode_without_period_is_rejected_cleanly(b2_cli, mode):
     """A retention mode that needs a period must be rejected with a clear error."""
     b2_cli.authorize()
-    b2_cli.run(['bucket', 'create', 'b8c', 'allPrivate'], expected_stdout='bucket_0\n')
-    status, _, stderr = run_no_traceback(
-        b2_cli,
-        ['bucket', 'update', 'b8c', 'allPublic', '--default-retention-mode', 'compliance'],
+    b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
+    with mock.patch.object(
+        b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
+    ) as get_bucket:
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-mode', mode],
+        )
+    assert status == 1
+    assert stdout == ''
+    assert stderr == (
+        'ERROR: --default-retention-mode requires --default-retention-period '
+        'unless the mode is none\n'
     )
-    assert status != 0
-    assert 'ERROR' in stderr
+    get_bucket.assert_not_called()
+
+
+@pytest.mark.parametrize('mode', [None, 'none', 'compliance', 'governance'])
+def test_valid_bucket_default_retention_options(b2_cli, mode):
+    b2_cli.authorize()
+    b2_cli.run(
+        ['bucket', 'create', 'b8-valid', 'allPrivate', '--file-lock-enabled'],
+        expected_stdout='bucket_0\n',
+    )
+    options = [] if mode is None else ['--default-retention-mode', mode]
+    if mode in ('compliance', 'governance'):
+        options += ['--default-retention-period', '1 days']
+    status, stdout, stderr = run_no_traceback(
+        b2_cli, ['bucket', 'update', 'b8-valid', 'allPublic', *options]
+    )
+    assert status == 0
+    assert stderr == ''
+    retention = json.loads(stdout)['defaultRetention']
+    expected = {'mode': None}
+    if mode in ('compliance', 'governance'):
+        expected = {'mode': mode, 'period': {'duration': 1, 'unit': 'days'}}
+    assert retention == expected
 
 
 def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):

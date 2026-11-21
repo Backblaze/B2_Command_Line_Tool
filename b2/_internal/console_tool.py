@@ -3450,6 +3450,16 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins and the parent class
 
     def _run(self, args):
+        if args.default_retention_period is not None and args.default_retention_mode is None:
+            raise CommandError('--default-retention-period requires --default-retention-mode')
+        if (
+            args.default_retention_mode not in (None, 'none')
+            and args.default_retention_period is None
+        ):
+            raise CommandError(
+                '--default-retention-mode requires --default-retention-period '
+                'unless the mode is none'
+            )
         if args.default_retention_mode is not None:
             if args.default_retention_mode == 'none':
                 default_retention = NO_RETENTION_BUCKET_SETTING
