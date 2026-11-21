@@ -1430,7 +1430,7 @@ class AccountAuthorizeBase(Command):
                     )
                     self._print_stderr(
                         "ERROR: application key is restricted to bucket id '{}', which no longer exists".format(
-                            allowed['bucketId']
+                            allowed['buckets'][0]['id']
                         )
                     )
                     self.api.account_info.clear()
