@@ -284,6 +284,47 @@ def test_retention_mode_without_period_is_rejected_cleanly(b2_cli, mode):
     get_bucket.assert_not_called()
 
 
+def test_retention_period_with_none_mode_clears_retention(b2_cli):
+    """Mode none keeps its existing behavior even when a period is supplied."""
+    b2_cli.authorize()
+    b2_cli.run(
+        ['bucket', 'create', 'b8-none', 'allPrivate', '--file-lock-enabled'],
+        expected_stdout='bucket_0\n',
+    )
+    b2_cli.run(
+        [
+            'bucket',
+            'update',
+            'b8-none',
+            'allPrivate',
+            '--default-retention-mode',
+            'governance',
+            '--default-retention-period',
+            '1 days',
+        ]
+    )
+    status, stdout, stderr = run_no_traceback(
+        b2_cli,
+        [
+            'bucket',
+            'update',
+            'b8-none',
+            'allPublic',
+            '--default-retention-mode',
+            'none',
+            '--default-retention-period',
+            '1 days',
+        ],
+    )
+    assert status == 0
+    assert stderr == ''
+    assert json.loads(stdout)['defaultRetention'] == {'mode': None}
+    bucket = b2_cli.b2_api.get_bucket_by_name('b8-none')
+    assert bucket.default_retention.mode.value is None
+    assert bucket.default_retention.period is None
+    assert bucket.type_ == 'allPublic'
+
+
 @pytest.mark.parametrize('mode', [None, 'none', 'compliance', 'governance'])
 def test_valid_bucket_default_retention_options(b2_cli, mode):
     b2_cli.authorize()
