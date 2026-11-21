@@ -62,6 +62,7 @@ format = [
     "ruff~=0.8.4",
 ]
 lint = [
+    "pyyaml>=6,<7",
     "pip>=26.2.2",
     "ruff~=0.8.4",
     "pytest>=9.0.3,<10",
@@ -70,6 +71,7 @@ lint = [
     "setuptools>=60,<80",  # required by liccheck
 ]
 test = [
+    "pyyaml>=6,<7",
     "pip>=26.2.2",
     "coverage>=7.13.5,<8",
     "pexpect>=4.9.0,<5",

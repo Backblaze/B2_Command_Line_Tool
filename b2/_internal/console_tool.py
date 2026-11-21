@@ -1430,7 +1430,7 @@ class AccountAuthorizeBase(Command):
                     )
                     self._print_stderr(
                         "ERROR: application key is restricted to bucket id '{}', which no longer exists".format(
-                            allowed['bucketId']
+                            allowed['buckets'][0]['id']
                         )
                     )
                     self.api.account_info.clear()
@@ -3347,7 +3347,9 @@ class Sync(
 
         if args.delete:
             keep_days_or_delete = KeepOrDeleteMode.DELETE
-        elif args.keep_days:
+        elif args.keep_days is not None:
+            if args.keep_days <= 0:
+                raise CommandError('--keep-days must be greater than 0')
             keep_days_or_delete = KeepOrDeleteMode.KEEP_BEFORE_DELETE
             keep_days = args.keep_days
         else:
@@ -3450,6 +3452,16 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins and the parent class
 
     def _run(self, args):
+        if args.default_retention_period is not None and args.default_retention_mode is None:
+            raise CommandError('--default-retention-period requires --default-retention-mode')
+        if (
+            args.default_retention_mode not in (None, 'none')
+            and args.default_retention_period is None
+        ):
+            raise CommandError(
+                '--default-retention-mode requires --default-retention-period '
+                'unless the mode is none'
+            )
         if args.default_retention_mode is not None:
             if args.default_retention_mode == 'none':
                 default_retention = NO_RETENTION_BUCKET_SETTING
@@ -4693,8 +4705,10 @@ class BucketNotificationRuleCreateBase(
             for header in args.custom_header:
                 try:
                     name, value = header.split('=', 1)
-                except ValueError:
-                    name, value = header, ''
+                except ValueError as exc:
+                    raise CommandError(
+                        '--custom-header must have the format HEADER_NAME=VALUE'
+                    ) from exc
                 custom_headers[name] = value
 
         rule = {
@@ -5547,11 +5561,15 @@ class ConsoleTool:
     def _get_default_escape_cc_setting(self):
         escape_cc_env_var = os.environ.get(B2_ESCAPE_CONTROL_CHARACTERS, None)
         if escape_cc_env_var is not None:
-            if int(escape_cc_env_var) in (0, 1):
-                return int(escape_cc_env_var) == 1
+            try:
+                escape_cc_value = int(escape_cc_env_var)
+            except ValueError:
+                escape_cc_value = None
+            if escape_cc_value in (0, 1):
+                return escape_cc_value == 1
             else:
                 logger.warning(
-                    'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
+                    f'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
                 )
         return self.stdout.isatty()
 

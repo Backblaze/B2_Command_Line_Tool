@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Make live B2 integration tests opt-in in CI with B2_LIVE_TESTS_ENABLED so master is no longer gated on shared-account availability.
+time: 2026-11-21T00:00:00-06:00

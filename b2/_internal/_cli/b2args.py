@@ -14,6 +14,7 @@ Utility functions for adding b2-specific arguments to an argparse parser.
 import argparse
 import functools
 from os import environ
+from pathlib import Path
 from typing import Optional, Union
 
 from b2._internal._cli.arg_parser_types import wrap_with_argument_type_error
@@ -76,13 +77,15 @@ def b2id_or_file_like_b2_uri(value: str, *, by_id: Optional[bool] = None) -> B2U
 
 def parse_bucket_name(value: str, allow_all_buckets: bool = False) -> str:
     uri = parse_uri(value, allow_all_buckets=allow_all_buckets)
+    if isinstance(uri, Path):
+        return str(value)
     if isinstance(uri, B2URI):
         if uri.path:
             raise ValueError(
                 f'Expected a bucket name, but {value!r} was provided which contains path part: {uri.path!r}'
             )
         return uri.bucket_name
-    return str(value)
+    raise ValueError(f'Expected a bucket name, but {value!r} was provided')
 
 
 def b2id_or_file_like_b2_uri_or_bucket_name(

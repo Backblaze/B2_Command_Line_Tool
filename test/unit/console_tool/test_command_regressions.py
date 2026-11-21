@@ -175,17 +175,25 @@ def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_f
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect(
-    'a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError',
-    raises=ValueError,
-    match="invalid literal for int\\(\\) with base 10: 'abc'",
-)
-def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch):
-    """A non-numeric B2_ESCAPE_CONTROL_CHARACTERS must be handled, not raise ValueError."""
-    monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, 'abc')
+@pytest.mark.parametrize('invalid_value', ['abc', '2'])
+def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch, invalid_value):
+    """Invalid values warn and let commands use the terminal-based default."""
     b2_cli.authorize()
-    status, _, _ = run_no_traceback(b2_cli, ['bucket', 'list'])
+    monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, invalid_value)
+    with mock.patch('b2._internal.console_tool.logger.warning') as warning:
+        status, _, _ = run(b2_cli, ['bucket', 'list'])
     assert status == 0
+    warning.assert_called_once()
+    assert (
+        'invalid value for B2_ESCAPE_CONTROL_CHARACTERS environment variable'
+        in warning.call_args.args[0]
+    )
+
+    for is_tty in (False, True):
+        stdout = StringIO()
+        stdout.isatty = lambda: is_tty
+        tool = b2_cli.console_tool_class(stdout, StringIO())
+        assert tool._get_default_escape_cc_setting() is is_tty
 
 
 @pytest.fixture
@@ -278,37 +286,105 @@ def test_file_update_failing_legal_hold_reports_applied_retention(b2_cli, lock_b
     assert file_version.file_retention.retain_until == 4102444800000
 
 
-@known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
-    match='^period\\ without\\ a\\ mode\\ was\\ accepted\\ and\\ ignored',
-)
 def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
-    """--default-retention-period alone must be rejected, not silently dropped."""
+    """--default-retention-period alone must be rejected before accessing a bucket."""
     b2_cli.authorize()
     b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
-    status, _, stderr = run(
-        b2_cli,
-        ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
-    )
-    assert status != 0, 'period without a mode was accepted and ignored'
-    assert stderr
+    with mock.patch.object(
+        b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
+    ) as get_bucket:
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
+        )
+    assert status == 1
+    assert stdout == ''
+    assert stderr == 'ERROR: --default-retention-period requires --default-retention-mode\n'
+    get_bucket.assert_not_called()
 
 
-@known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
-    match="^command raised ValueError\\('must specify period for retention mode RetentionMode.COMPLIANCE'\\)",
-    assertion_origin='run_no_traceback',
-)
-def test_compliance_mode_without_period_is_rejected_cleanly(b2_cli):
+@pytest.mark.parametrize('mode', ['compliance', 'governance'])
+def test_retention_mode_without_period_is_rejected_cleanly(b2_cli, mode):
     """A retention mode that needs a period must be rejected with a clear error."""
     b2_cli.authorize()
-    b2_cli.run(['bucket', 'create', 'b8c', 'allPrivate'], expected_stdout='bucket_0\n')
-    status, _, stderr = run_no_traceback(
-        b2_cli,
-        ['bucket', 'update', 'b8c', 'allPublic', '--default-retention-mode', 'compliance'],
+    b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
+    with mock.patch.object(
+        b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
+    ) as get_bucket:
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-mode', mode],
+        )
+    assert status == 1
+    assert stdout == ''
+    assert stderr == (
+        'ERROR: --default-retention-mode requires --default-retention-period '
+        'unless the mode is none\n'
     )
-    assert status != 0
-    assert 'ERROR' in stderr
+    get_bucket.assert_not_called()
+
+
+def test_retention_period_with_none_mode_clears_retention(b2_cli):
+    """Mode none keeps its existing behavior even when a period is supplied."""
+    b2_cli.authorize()
+    b2_cli.run(
+        ['bucket', 'create', 'b8-none', 'allPrivate', '--file-lock-enabled'],
+        expected_stdout='bucket_0\n',
+    )
+    b2_cli.run(
+        [
+            'bucket',
+            'update',
+            'b8-none',
+            'allPrivate',
+            '--default-retention-mode',
+            'governance',
+            '--default-retention-period',
+            '1 days',
+        ]
+    )
+    status, stdout, stderr = run_no_traceback(
+        b2_cli,
+        [
+            'bucket',
+            'update',
+            'b8-none',
+            'allPublic',
+            '--default-retention-mode',
+            'none',
+            '--default-retention-period',
+            '1 days',
+        ],
+    )
+    assert status == 0
+    assert stderr == ''
+    assert json.loads(stdout)['defaultRetention'] == {'mode': None}
+    bucket = b2_cli.b2_api.get_bucket_by_name('b8-none')
+    assert bucket.default_retention.mode.value is None
+    assert bucket.default_retention.period is None
+    assert bucket.type_ == 'allPublic'
+
+
+@pytest.mark.parametrize('mode', [None, 'none', 'compliance', 'governance'])
+def test_valid_bucket_default_retention_options(b2_cli, mode):
+    b2_cli.authorize()
+    b2_cli.run(
+        ['bucket', 'create', 'b8-valid', 'allPrivate', '--file-lock-enabled'],
+        expected_stdout='bucket_0\n',
+    )
+    options = [] if mode is None else ['--default-retention-mode', mode]
+    if mode in ('compliance', 'governance'):
+        options += ['--default-retention-period', '1 days']
+    status, stdout, stderr = run_no_traceback(
+        b2_cli, ['bucket', 'update', 'b8-valid', 'allPublic', *options]
+    )
+    assert status == 0
+    assert stderr == ''
+    retention = json.loads(stdout)['defaultRetention']
+    expected = {'mode': None}
+    if mode in ('compliance', 'governance'):
+        expected = {'mode': mode, 'period': {'duration': 1, 'unit': 'days'}}
+    assert retention == expected
 
 
 def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):
@@ -326,30 +402,20 @@ def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):
 
 def _assert_keep_days_rejected(keep_days, status, stderr, synchronizer):
     """The contract is rejection: nonzero status, an error naming --keep-days, nothing synchronized."""
-    assert status != 0, (
+    assert status == 1, (
         f'--keep-days={keep_days} was accepted: '
         f'{synchronizer.call_args and synchronizer.call_args.kwargs}'
     )
-    assert '--keep-days' in stderr, f'the error does not identify --keep-days: {stderr!r}'
+    assert stderr == 'ERROR: --keep-days must be greater than 0\n'
     synchronizer.assert_not_called()
 
 
-@known_defect(
-    'sync accepts a negative or zero --keep-days',
-    match='--keep-days=-1 was accepted:',
-    assertion_origin='_assert_keep_days_rejected',
-)
 def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
     """A negative --keep-days must be rejected, not accepted as a retention period."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
     _assert_keep_days_rejected('-1', status, stderr, synchronizer)
 
 
-@known_defect(
-    'sync accepts a negative or zero --keep-days',
-    match='--keep-days=0 was accepted:',
-    assertion_origin='_assert_keep_days_rejected',
-)
 def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
     """--keep-days 0 must be rejected, not silently turned into NO_DELETE (nothing is ever deleted)."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
@@ -470,10 +536,6 @@ def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_pat
     ), 'failed download left temporary artifacts'
 
 
-@known_defect(
-    'a custom header not given as NAME=VALUE is accepted',
-    match='^malformed\\ header\\ accepted:\\ ',
-)
 def test_malformed_custom_header_is_rejected(b2_cli, bucket):
     """A header not given as NAME=VALUE must be rejected, not accepted with an empty value."""
     status, stdout, stderr = run(
