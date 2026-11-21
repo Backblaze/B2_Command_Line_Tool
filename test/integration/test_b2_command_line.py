@@ -3673,11 +3673,12 @@ def test_upload_file__stdin_pipe_operator(request, bash_runner, b2_tool, persist
     bucket_name = persistent_bucket.bucket_name
     subfolder = persistent_bucket.subfolder
     content = request.node.name
-    run = bash_runner(
-        f'echo -n {content!r} '
-        f'| '
-        f'{" ".join(b2_tool.parse_command(b2_tool.prepare_env()))} file upload {bucket_name} - {subfolder}/{request.node.name}.txt'
-    )
+    with b2_tool.parse_command(b2_tool.prepare_env()) as command:
+        run = bash_runner(
+            f'echo -n {content!r} '
+            f'| '
+            f'{" ".join(command)} file upload {bucket_name} - {subfolder}/{request.node.name}.txt'
+        )
     assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
 
 

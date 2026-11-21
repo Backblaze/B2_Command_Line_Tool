@@ -123,6 +123,7 @@ jobs:
     needs: [lint, cleanup_buckets]
     if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
+      B2_TEST_SHORT_TIMEOUTS: '1'
       B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
       B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
@@ -175,6 +176,7 @@ jobs:
     needs: [lint, cleanup_buckets]
     if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
+      B2_TEST_SHORT_TIMEOUTS: '1'
       B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
       B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
