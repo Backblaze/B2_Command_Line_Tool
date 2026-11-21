@@ -201,10 +201,6 @@ def lock_bucket_file(b2_cli, tmp_path):
     return 'b2://lock-bucket/f.txt'
 
 
-@known_defect(
-    'file update leaves the legal-hold change applied when the retention step fails',
-    match='^legal\\ hold\\ was\\ applied\\ although\\ the\\ command\\ failed',
-)
 def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, lock_bucket_file):
     """If the retention step fails, the legal hold step must not stay applied."""
     # `file info` goes through download headers, which the simulator renders as "on" for every legal-hold
@@ -240,10 +236,46 @@ def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, loc
     update_file_retention.assert_called_once()
     assert status != 0
     assert 'injected failure' in stderr, stderr
-    # ... and the earlier legal-hold step must not stay applied
+    # ... and legal hold must remain unchanged
     assert (
         stored_legal_hold() == legal_hold_before
     ), 'legal hold was applied although the command failed'
+
+
+def test_file_update_failing_legal_hold_reports_applied_retention(b2_cli, lock_bucket_file):
+    """A failed second update must identify the durable retention change."""
+    with (
+        mock.patch.object(
+            b2_cli.b2_api,
+            'update_file_retention',
+            wraps=b2_cli.b2_api.update_file_retention,
+        ) as update_retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', side_effect=B2SimpleError('injected failure')
+        ) as update_legal_hold,
+    ):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'update',
+                lock_bucket_file,
+                '--legal-hold',
+                'on',
+                '--file-retention-mode',
+                'governance',
+                '--retain-until',
+                '4102444800',
+            ],
+        )
+    update_retention.assert_called_once()
+    update_legal_hold.assert_called_once()
+    assert status != 0
+    assert 'File retention was applied, but legal hold update failed:' in stderr
+    assert 'injected failure' in stderr
+    file_version = b2_cli.b2_api.get_file_info(update_retention.call_args.args[0])
+    assert file_version.file_retention.mode.value == 'governance'
+    assert file_version.file_retention.retain_until == 4102444800000
 
 
 @known_defect(
