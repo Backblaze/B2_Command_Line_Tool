@@ -175,17 +175,25 @@ def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_f
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect(
-    'a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError',
-    raises=ValueError,
-    match="invalid literal for int\\(\\) with base 10: 'abc'",
-)
-def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch):
-    """A non-numeric B2_ESCAPE_CONTROL_CHARACTERS must be handled, not raise ValueError."""
-    monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, 'abc')
+@pytest.mark.parametrize('invalid_value', ['abc', '2'])
+def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch, invalid_value):
+    """Invalid values warn and let commands use the terminal-based default."""
     b2_cli.authorize()
-    status, _, _ = run_no_traceback(b2_cli, ['bucket', 'list'])
+    monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, invalid_value)
+    with mock.patch('b2._internal.console_tool.logger.warning') as warning:
+        status, _, _ = run(b2_cli, ['bucket', 'list'])
     assert status == 0
+    warning.assert_called_once()
+    assert (
+        'invalid value for B2_ESCAPE_CONTROL_CHARACTERS environment variable'
+        in warning.call_args.args[0]
+    )
+
+    for is_tty in (False, True):
+        stdout = StringIO()
+        stdout.isatty = lambda: is_tty
+        tool = b2_cli.console_tool_class(stdout, StringIO())
+        assert tool._get_default_escape_cc_setting() is is_tty
 
 
 @pytest.fixture
