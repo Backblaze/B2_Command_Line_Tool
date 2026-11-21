@@ -167,6 +167,29 @@ def test_live_steps_require_both_credentials(name, missing_key):
     assert not expression(step.get('if', '${{ true }}'), values)
 
 
+def assert_live_matrix_filter(step):
+    values = context(enabled='true')
+    values.update({f'env.{key}': 'example' for key in KEYS})
+    for version in ('3.10', '3.11', '3.12', '3.13', '3.14', 'pypy3.10'):
+        values['matrix.python-version'] = version
+        assert bool(expression(step['if'], values)) == (version in ('3.10', '3.14', 'pypy3.10'))
+
+
+def test_live_matrix_filter_rejects_removed_guard():
+    (step,) = live_steps(JOBS['test'])
+    mutant = copy.deepcopy(step)
+    guard = ' && contains(fromJSON(\'["3.10", "pypy3.10", "3.14"]\'), matrix.python-version)'
+    assert guard in mutant['if']
+    mutant['if'] = mutant['if'].replace(guard, '')
+    with pytest.raises(AssertionError):
+        assert_live_matrix_filter(mutant)
+
+
+def test_live_matrix_filter_keeps_edge_versions():
+    (step,) = live_steps(JOBS['test'])
+    assert_live_matrix_filter(step)
+
+
 @pytest.mark.parametrize('name', CONSUMERS)
 @pytest.mark.parametrize(
     'lint,cleanup,cancelled,allowed',
