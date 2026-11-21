@@ -1975,6 +1975,7 @@ class DownloadCommand(
     def get_local_output_filepath(
         self, filename: str, file_request: DownloadedFile
     ) -> pathlib.Path:
+        self._temporary_download_path = None
         if filename == '-':
             return STDOUT_FILEPATH
 
@@ -2008,12 +2009,13 @@ class DownloadCommand(
         file_extension = file_name_as_path.suffix
 
         # Default permissions are: readable and writable by this user only, executable by noone.
-        # This "temporary" file is not automatically removed, but still created in the safest way possible.
+        # The uniquely named file is retained after a successful download.
         fd_handle, output_filepath_str = tempfile.mkstemp(
             prefix=file_name,
             suffix=file_extension,
             dir=output_directory,
         )
+        self._temporary_download_path = pathlib.Path(output_filepath_str)
         # Close the handle, so the file is not locked.
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
@@ -2062,13 +2064,24 @@ class FileDownloadBase(
             b2_uri, progress_listener, encryption=encryption_setting
         )
 
-        output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
-        output_to_stdout = output_filepath == STDOUT_FILEPATH
-        if not output_to_stdout:
-            self._print_download_info(downloaded_file, output_filepath)
-        progress_listener.change_description(output_filepath.name)
-
-        downloaded_file.save_to(output_filepath)
+        self._temporary_download_path = None
+        try:
+            output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
+            output_to_stdout = output_filepath == STDOUT_FILEPATH
+            if not output_to_stdout:
+                self._print_download_info(downloaded_file, output_filepath)
+            progress_listener.change_description(output_filepath.name)
+            downloaded_file.save_to(output_filepath)
+        except BaseException:
+            if self._temporary_download_path is not None:
+                try:
+                    self._temporary_download_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning('Unable to remove temporary download file', exc_info=True)
+                    self._print_stderr(
+                        f'WARNING: Unable to remove temporary download file: {self._temporary_download_path}'
+                    )
+            raise
         if not output_to_stdout:
             self._print('Download finished')
 
