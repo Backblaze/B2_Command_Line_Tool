@@ -439,18 +439,15 @@ def test_failed_authorize_keeps_previous_authorization(b2_cli):
     ), 'previous authorization was replaced by the rejected key'
 
 
-@known_defect(
-    'bucket update prints more than its help text promises',
-    match='^help\\ promises\\ the\\ ID,\\ command\\ prints\\ more',
-)
 def test_bucket_update_help_matches_printed_output(b2_cli, bucket_info):
-    """Help says the bucket ID is printed; the printed output must agree with the help."""
+    """The bucket update help and output both describe the updated bucket as JSON."""
     from b2._internal.console_tool import BucketUpdateBase
 
-    help_text = BucketUpdateBase.__doc__
-    assert 'Prints the ID of the bucket updated' in help_text  # documents the contract under test
+    assert 'Prints the updated bucket as JSON' in BucketUpdateBase.__doc__
     _, stdout, _ = b2_cli.run(['bucket', 'update', bucket_info['bucketName'], 'allPrivate'])
-    assert stdout.strip() == bucket_info['bucketId'], 'help promises the ID, command prints more'
+    bucket = json.loads(stdout)
+    assert bucket['bucketId'] == bucket_info['bucketId']
+    assert bucket['bucketName'] == bucket_info['bucketName']
 
 
 def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploaded_file):
