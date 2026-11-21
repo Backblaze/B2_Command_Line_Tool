@@ -310,7 +310,11 @@ def _silent_success_run_with_pty(
 def add_or_update_shell_section(
     path: Path, section: str, managed_by: str, content: str, comment_sign='#'
 ) -> None:
-    """Add or update a section in a file."""
+    """Atomically add or update a section, treating content literally.
+
+    Follow symlinks and preserve existing permission bits. New files use 0o644
+    subject to the process umask. Other hard links retain the previous inode.
+    """
     path = path.resolve()
     section_start = f'{comment_sign} >>> {section} >>>'
     section_end = f'{comment_sign} <<< {section} <<<'
@@ -337,10 +341,12 @@ def add_or_update_shell_section(
     try:
         mode = stat.S_IMODE(path.stat().st_mode)
     except FileNotFoundError:
-        mode = 0o644
+        mode = None
     with tempfile.TemporaryDirectory(dir=path.parent) as temporary_dir:
         temporary_path = Path(temporary_dir) / path.name
         temporary_path.write_text(file_content)
+        if mode is None:
+            mode = stat.S_IMODE(temporary_path.stat().st_mode) & 0o644
         temporary_path.chmod(mode)
         os.replace(temporary_path, path)
 

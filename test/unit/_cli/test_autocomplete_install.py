@@ -7,6 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import os
 import pathlib
 import shutil
 import stat
@@ -93,14 +94,20 @@ def test_add_or_update_shell_section_preserves_backslashes(test_file, new_conten
 
 @skip_on_windows
 @pytest.mark.parametrize('mode', [None, 0o600, 0o640])
-def test_add_or_update_shell_section_permissions(test_file, mode):
+@pytest.mark.parametrize('umask', [0o022, 0o077])
+def test_add_or_update_shell_section_permissions(test_file, mode, umask):
     if mode is not None:
         test_file.write_text('existing content\n')
         test_file.chmod(mode)
 
-    add_or_update_shell_section(test_file, section, managed_by, content)
+    previous_umask = os.umask(umask)
+    try:
+        add_or_update_shell_section(test_file, section, managed_by, content)
+    finally:
+        os.umask(previous_umask)
 
-    assert stat.S_IMODE(test_file.stat().st_mode) == (0o644 if mode is None else mode)
+    expected_mode = 0o644 & ~umask if mode is None else mode
+    assert stat.S_IMODE(test_file.stat().st_mode) == expected_mode
 
 
 def test_add_or_update_shell_section_replace_failure(test_file, monkeypatch):
@@ -119,7 +126,8 @@ def test_add_or_update_shell_section_replace_failure(test_file, monkeypatch):
 
 
 @skip_on_windows
-def test_zsh_is_enabled_creates_non_executable_rc_file(test_file, monkeypatch):
+@pytest.mark.parametrize('umask', [0o022, 0o077])
+def test_zsh_is_enabled_creates_non_executable_rc_file(test_file, monkeypatch, umask):
     installer = SHELL_REGISTRY.get('zsh', prog='b2')
     monkeypatch.setattr(installer, 'get_rc_path', lambda: test_file)
     monkeypatch.setattr(
@@ -127,8 +135,12 @@ def test_zsh_is_enabled_creates_non_executable_rc_file(test_file, monkeypatch):
         lambda *args, **kwargs: False,
     )
 
-    assert installer.is_enabled() is False
-    assert stat.S_IMODE(test_file.stat().st_mode) == 0o644
+    previous_umask = os.umask(umask)
+    try:
+        assert installer.is_enabled() is False
+    finally:
+        os.umask(previous_umask)
+    assert stat.S_IMODE(test_file.stat().st_mode) == 0o644 & ~umask
 
 
 def test_add_or_update_shell_section_no_file(test_file):
