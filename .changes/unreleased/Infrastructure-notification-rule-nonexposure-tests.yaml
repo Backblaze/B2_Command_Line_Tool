@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Add unit tests asserting that the signing secret and custom header values of notification rule create and update never appear in the CLI argument log, the SDK debug trace, or exception text on the success, pre-authorization, API error and validation error paths.
+time: 2026-11-21T00:00:00Z
