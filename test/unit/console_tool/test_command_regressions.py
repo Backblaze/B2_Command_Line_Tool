@@ -504,10 +504,6 @@ def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_pat
     ), 'failed download left temporary artifacts'
 
 
-@known_defect(
-    'a custom header not given as NAME=VALUE is accepted',
-    match='^malformed\\ header\\ accepted:\\ ',
-)
 def test_malformed_custom_header_is_rejected(b2_cli, bucket):
     """A header not given as NAME=VALUE must be rejected, not accepted with an empty value."""
     status, stdout, stderr = run(
