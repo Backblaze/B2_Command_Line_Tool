@@ -478,18 +478,20 @@ def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, ar
     assert stderr
 
 
-@known_defect(
-    'a failed download leaves an empty temporary file behind',
-    match='^failed\\ download\\ left\\ temporary\\ artifacts',
-)
 def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_path):
     """A failed download into a directory must not leave an empty mkstemp file behind."""
     out_dir = tmp_path / 'out'
     out_dir.mkdir()
-    (out_dir / uploaded_file['fileName']).write_text('existing')  # forces the mkstemp branch
+    existing = out_dir / uploaded_file['fileName']
+    existing.write_text('existing')  # forces the mkstemp branch
     before = sorted(p.name for p in out_dir.iterdir())
-    with mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('injected')):
-        status, _, _ = run(
+
+    def fail_after_partial_write(path):
+        path.write_text('partial')
+        raise B2SimpleError('injected')
+
+    with mock.patch.object(DownloadedFile, 'save_to', side_effect=fail_after_partial_write):
+        status, _, stderr = run(
             b2_cli,
             [
                 'file',
@@ -499,9 +501,67 @@ def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_pat
             ],
         )
     assert status != 0
+    assert 'injected' in stderr
+    assert existing.read_text() == 'existing'
     assert (
         sorted(p.name for p in out_dir.iterdir()) == before
     ), 'failed download left temporary artifacts'
+
+
+def test_failed_download_does_not_remove_explicit_destination(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / 'destination.txt'
+    destination.write_text('existing')
+    with mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('injected')):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'download',
+                f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+                str(destination),
+            ],
+        )
+    assert status != 0
+    assert 'injected' in stderr
+    assert destination.read_text() == 'existing'
+
+
+def test_cleanup_failure_preserves_download_error(b2_cli, uploaded_file, tmp_path):
+    (tmp_path / uploaded_file['fileName']).write_text('existing')
+    with (
+        mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('download failed')),
+        mock.patch('pathlib.Path.unlink', side_effect=PermissionError('cleanup failed')) as unlink,
+    ):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'download',
+                f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+                str(tmp_path),
+            ],
+        )
+    assert status != 0
+    assert 'download failed' in stderr
+    unlink.assert_called_once()
+
+
+def test_successful_download_keeps_unique_file(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / uploaded_file['fileName']
+    destination.write_text('existing')
+    status, _, _ = run(
+        b2_cli,
+        [
+            'file',
+            'download',
+            f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+            str(tmp_path),
+        ],
+    )
+    assert status == 0
+    assert destination.read_text() == 'existing'
+    (downloaded,) = [path for path in tmp_path.iterdir() if path != destination]
+    assert downloaded.read_text() == uploaded_file['content']
 
 
 @known_defect(
