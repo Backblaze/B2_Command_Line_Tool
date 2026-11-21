@@ -30,7 +30,7 @@ from b2._internal._cli.const import (
     B2_ESCAPE_CONTROL_CHARACTERS,
 )
 from b2._internal.console_tool import DownloadCommand, _TqdmCloser
-from test.known_defect import known_defect
+from test.known_defect import known_defect, known_defect_marks
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
@@ -424,7 +424,7 @@ def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
 
 @known_defect(
     'a rejected authorize attempt wipes the previously stored authorization',
-    match='^previous\\ authorization\\ was\\ wiped\\ by\\ the\\ rejected\\ key',
+    match='^previous authorization was (?:wiped|replaced) by the rejected key',
 )
 def test_failed_authorize_keeps_previous_authorization(b2_cli):
     """A rejected key (no listBuckets) must not wipe the previously stored authorization."""
@@ -434,7 +434,9 @@ def test_failed_authorize_keeps_previous_authorization(b2_cli):
     assert status == 1
     allowed = b2_cli.account_info.get_allowed()
     assert allowed is not None, 'previous authorization was wiped by the rejected key'
-    assert 'listBuckets' in allowed['capabilities']
+    assert (
+        'listBuckets' in allowed['capabilities']
+    ), 'previous authorization was replaced by the rejected key'
 
 
 def test_bucket_update_help_matches_printed_output(b2_cli, bucket_info):
@@ -448,10 +450,6 @@ def test_bucket_update_help_matches_printed_output(b2_cli, bucket_info):
     assert bucket['bucketName'] == bucket_info['bucketName']
 
 
-@known_defect(
-    'ls --json leaves unterminated JSON when the listing fails midway',
-    match='^stdout is not a complete JSON document:',
-)
 def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploaded_file):
     """A failure in the middle of `ls --json` must not leave unterminated JSON on stdout."""
     real_ls = Bucket.ls
@@ -473,13 +471,16 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
     'argv',
     [
         ['file', 'upload', '--file-retention-mode', 'governance', 'my-bucket', 'x', 'y'],
-        ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
+        pytest.param(
+            ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
+            marks=known_defect_marks(
+                'conflicting thread options raise ValueError instead of reporting an error',
+                match="^command raised ValueError\\('--threads cannot be used with other thread options'\\)",
+                test_name='test_bad_option_combinations_report_error_not_traceback',
+                assertion_origin='run_no_traceback',
+            ),
+        ),
     ],
-)
-@known_defect(
-    'bad option combinations raise ValueError instead of reporting an error',
-    match="^command raised ValueError\\('(?:provide either both --retain-until and --file-retention-mode or none of them|--threads cannot be used with other thread options)'\\)",
-    assertion_origin='run_no_traceback',
 )
 def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv):
     """User input errors raised as bare ValueError must become `ERROR:` output."""
@@ -494,11 +495,6 @@ def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv
         ['file', 'hide', 'b2://my-bucket/file1.txt', 'file1.txt'],
         ['file', 'hide', 'my-bucket'],
     ],
-)
-@known_defect(
-    'conflicting file arguments raise ArgumentError instead of reporting a usage error',
-    match='^command raised ArgumentError\\(.*(?:Both B2 URI and file name were provided|Incorrect B2 URI was provided)',
-    assertion_origin='run_no_traceback',
 )
 def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, argv):
     """ArgumentError raised in _run must be shown as a usage error, not a traceback."""
@@ -643,10 +639,6 @@ def test_malformed_custom_header_is_rejected(b2_cli, bucket):
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect(
-    'download with --skip-hash-verification still prints "Checksum matches"',
-    match='^unchecked\\ download\\ claimed\\ checksum\\ matches',
-)
 def test_skip_hash_verification_does_not_claim_checksum_matches(b2_cli, uploaded_file, tmp_path):
     """ "Checksum matches" must not be printed when verification is skipped."""
     out = tmp_path / 'out.txt'

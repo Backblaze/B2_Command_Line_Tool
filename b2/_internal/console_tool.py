@@ -408,6 +408,13 @@ class DefaultSseMixin(Described):
         return None
 
 
+def _decode_sse_key(value: str, env_name: str) -> bytes:
+    try:
+        return base64.b64decode(value, validate=True)
+    except ValueError as exc:
+        raise CommandError(f'{env_name} must contain a valid base64-encoded key') from exc
+
+
 class DestinationSseMixin(Described):
     """
     To request SSE-B2 or SSE-C encryption for destination files,
@@ -451,7 +458,7 @@ class DestinationSseMixin(Described):
             elif mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
-                    raise ValueError(
+                    raise CommandError(
                         'Using SSE-C requires providing an encryption key via %s env var'
                         % B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
                     )
@@ -461,7 +468,12 @@ class DestinationSseMixin(Described):
                         f'Encrypting file(s) with SSE-C without providing key id. '
                         f'Set {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} to allow key identification.'
                     )
-                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
+                key = EncryptionKey(
+                    secret=_decode_sse_key(
+                        encryption_key_b64, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
+                    ),
+                    key_id=key_id,
+                )
             else:
                 raise NotImplementedError(f'Unsupported encryption mode for writes: {mode.value}')
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
@@ -498,7 +510,7 @@ class FileRetentionSettingMixin(Described):
     @classmethod
     def _get_file_retention_setting(cls, args):
         if (args.file_retention_mode is None) != (args.retain_until is None):
-            raise ValueError(
+            raise CommandError(
                 'provide either both --retain-until and --file-retention-mode or none of them'
             )
 
@@ -626,12 +638,13 @@ class SourceSseMixin(Described):
             if mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
-                    raise ValueError(
+                    raise CommandError(
                         'Using SSE-C requires providing an encryption key via %s env var'
                         % B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
                     )
                 key = EncryptionKey(
-                    secret=base64.b64decode(encryption_key_b64), key_id=UNKNOWN_KEY_ID
+                    secret=_decode_sse_key(encryption_key_b64, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR),
+                    key_id=UNKNOWN_KEY_ID,
                 )
             else:
                 raise NotImplementedError(
@@ -722,15 +735,13 @@ class B2URIFileOrBucketNameFileNameArgMixin:
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
         if isinstance(args.B2_URI, B2URIBase):
             if args.fileName:
-                raise argparse.ArgumentError(
-                    self._b2_uri_arg,
+                raise CommandError(
                     'Both B2 URI and file name were provided, but only one is expected',
                 )
             return args.B2_URI
 
         if not args.fileName:
-            raise argparse.ArgumentError(
-                self._b2_uri_arg,
+            raise CommandError(
                 f'Incorrect B2 URI was provided, expected `b2://bucketName/fileName`, but got {args.B2_URI!r}',
             )
         self._print_stderr(
@@ -1413,7 +1424,6 @@ class AccountAuthorizeBase(Command):
                 self._print_stderr(
                     'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool'
                 )
-                self.api.account_info.clear()
                 return 1
             buckets = allowed['buckets']
             if buckets:
@@ -1924,8 +1934,6 @@ class DownloadCommand(
                 self._print_file_attribute(label, attr_value)
         for name in sorted(download_version.file_info):
             self._print_file_attribute(f'INFO {name}', download_version.file_info[name])
-        if download_version.content_sha1 != 'none':
-            self._print('Checksum matches')
         return 0
 
     @classmethod
@@ -2083,6 +2091,11 @@ class FileDownloadBase(
                     )
             raise
         if not output_to_stdout:
+            if (
+                not args.skip_hash_verification
+                and downloaded_file.download_version.content_sha1 != 'none'
+            ):
+                self._print('Checksum matches')
             self._print('Download finished')
 
         return 0
@@ -2630,13 +2643,20 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
 
         if args.json:
             i = -1
-            for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
-                if i:
-                    self._print(',', end='', enforce_output=True)
-                else:
-                    self._print('[', enforce_output=True)
-                self._print_json(file_version)
-            self._print(']' if i >= 0 else '[]', enforce_output=True)
+            completed = False
+            try:
+                for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
+                    if i:
+                        self._print(',', end='', enforce_output=True)
+                    else:
+                        self._print('[', enforce_output=True)
+                    self._print_json(file_version)
+                completed = True
+            finally:
+                if i >= 0:
+                    self._print(']', enforce_output=True)
+                elif completed:
+                    self._print('[]', enforce_output=True)
         else:
             self._print_files(args)
         return 0
@@ -5717,7 +5737,7 @@ class ConsoleTool:
     @classmethod
     def _setup_logging(cls, args, argv):
         if args.log_config and (args.verbose or args.debug_logs):
-            raise ValueError('Please provide either --log-config or --verbose/--debug-logs')
+            raise CommandError('Please provide either --log-config or --verbose/--debug-logs')
         errors_kwarg = {'errors': 'backslashreplace'} if sys.version_info >= (3, 9) else {}
         if args.log_config:
             logging.config.fileConfig(args.log_config)
