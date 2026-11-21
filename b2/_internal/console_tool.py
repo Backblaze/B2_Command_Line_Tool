@@ -2078,6 +2078,9 @@ class FileDownloadBase(
                     self._temporary_download_path.unlink(missing_ok=True)
                 except OSError:
                     logger.warning('Unable to remove temporary download file', exc_info=True)
+                    self._print_stderr(
+                        f'WARNING: Unable to remove temporary download file: {self._temporary_download_path}'
+                    )
             raise
         if not output_to_stdout:
             self._print('Download finished')

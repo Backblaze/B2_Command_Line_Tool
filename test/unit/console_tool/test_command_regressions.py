@@ -548,7 +548,8 @@ def test_download_setup_failure_removes_temporary_file(b2_cli, uploaded_file, tm
 
 
 def test_cleanup_failure_preserves_download_error(b2_cli, uploaded_file, tmp_path):
-    (tmp_path / uploaded_file['fileName']).write_text('existing')
+    original = tmp_path / uploaded_file['fileName']
+    original.write_text('existing')
     with (
         mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('download failed')),
         mock.patch('pathlib.Path.unlink', side_effect=PermissionError('cleanup failed')) as unlink,
@@ -565,6 +566,8 @@ def test_cleanup_failure_preserves_download_error(b2_cli, uploaded_file, tmp_pat
     assert status != 0
     assert 'download failed' in stderr
     unlink.assert_called_once()
+    (remaining,) = [path for path in tmp_path.iterdir() if path != original]
+    assert f'Unable to remove temporary download file: {remaining}' in stderr
 
 
 def test_successful_download_keeps_unique_file(b2_cli, uploaded_file, tmp_path):
