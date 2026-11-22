@@ -8,6 +8,10 @@
 #
 ######################################################################
 
-from b2._internal.b2v4.registry import main
+from b2._internal._cli.autocomplete_cache import initialize_autocomplete
+
+initialize_autocomplete('b2v4')
+
+from b2._internal.b2v4.registry import main  # noqa: E402
 
 main()

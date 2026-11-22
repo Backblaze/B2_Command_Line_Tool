@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 env:
   PYTHON_DEFAULT_VERSION: "3.12"
@@ -15,20 +15,36 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: codespell-project/actions-codespell@2391250ab05295bddd51e36a8c6295edb6343b0e
-        with:
-          ignore_words_list: datas re-use
+      # actions-governance: replaced by pipx run codespell; remove after a real run verifies it
+      # - uses: codespell-project/actions-codespell@2391250ab05295bddd51e36a8c6295edb6343b0e
+      #   with:
+      #     ignore_words_list: datas re-use
+      - name: Check spelling
+        # Retain the existing invocation; added-line spelling coverage is checked below.
+        run: pipx run --spec codespell==2.4.1 codespell --count --skip ./.git --ignore-words-list datas re-use
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.27.1'
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
+      - name: Spell-check added lines
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base=HEAD^
+          if [ -n "$BASE_REF" ]; then base="origin/$BASE_REF"; fi
+          git diff --unified=0 "$base"...HEAD -- '*.py' '*.md' '*.yml' '*.yaml' '*.sh' \
+            | awk '/^\+\+\+/ {next} /^\+/ {print substr($0, 2)}' \
+            | uvx --from codespell==2.4.1 codespell --ignore-words-list datas,re-use -
       - name: Install dependencies
         run: |
           uv sync --locked --group nox
@@ -44,25 +60,25 @@ jobs:
             exit 0
           fi
 
-          if [ -z "$(git diff --diff-filter=A --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD -- changelog.d)" ]; then
+          if [ -z "$(git diff --diff-filter=A --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD -- '.changes/unreleased/*.yaml')" ]; then
             echo "No changelog item added."
             exit 1
           fi
       - name: Changelog validation
-        run: uv run nox -vs towncrier_check
+        run: uv run nox -vs changie_check release_check
   build:
     timeout-minutes: 30
     needs: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -72,41 +88,44 @@ jobs:
       - name: Build the distribution
         run: uv run nox -vs build
   cleanup_buckets:
+    if: ${{ vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     timeout-minutes: 30
     needs: lint
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
-        uses: actions/setup-python@v6
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
           cache: "pip"
-      - uses: astral-sh/setup-uv@v7
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - name: Install dependencies
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: |
           uv sync --locked --group nox
       - name: Find and remove old buckets
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs cleanup_buckets
   test:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_SHORT_TIMEOUTS: '1'
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -120,14 +139,14 @@ jobs:
           - os: "windows-latest"
             python-version: "pypy3.10"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -150,25 +169,27 @@ jobs:
         run: uv run nox -vs integration -p ${{ matrix.python-version }} -- -m "not require_secrets"
       - name: Run integration tests (with secrets)
         # Limit CI workload by running integration tests with secrets only on edge Python versions.
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.10", "pypy3.10", "3.14"]'), matrix.python-version) }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.10", "pypy3.10", "3.14"]'), matrix.python-version) }}
         run: uv run nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" --cleanup
   test-docker:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_SHORT_TIMEOUTS: '1'
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -178,11 +199,11 @@ jobs:
       - name: Generate Dockerfile
         run: uv run nox -vs generate_dockerfile
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build Docker
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           pull: true
@@ -191,16 +212,17 @@ jobs:
           tags: backblazeit/b2:test
           platforms: linux/amd64
       - name: Run tests with docker
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs docker_test -- backblazeit/b2:test
   test-linux-bundle:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
       PYTHON_DEFAULT_VERSION: "3.10"  # Use Ubuntu 22.04's distro Python for staticx.
       UV_PYTHON_DOWNLOADS: "never"
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -208,10 +230,10 @@ jobs:
       matrix:
         os: ["ubuntu-22.04", "ubuntu-22.04-arm"]  # keep the versions aligned with cd.yml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -231,11 +253,11 @@ jobs:
       - name: Run integration tests (without secrets)
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           path: ${{ steps.bundle.outputs.asset_path }}
           if-no-files-found: warn
@@ -243,21 +265,22 @@ jobs:
           overwrite: true
   test-windows-bundle:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: windows-2022  # keep the version aligned with cd.yml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
@@ -274,11 +297,11 @@ jobs:
       - name: Run integration tests (without secrets)
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           path: ${{ steps.bundle.outputs.asset_path }}
           if-no-files-found: warn
@@ -289,14 +312,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true

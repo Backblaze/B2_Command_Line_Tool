@@ -30,6 +30,32 @@ Download finished
 """
 
 
+@pytest.mark.parametrize('command', ['uri', 'id', 'name'])
+@pytest.mark.parametrize('flag', [None, '--no-progress', '--quiet'])
+def test_stdout_download_is_only_binary_content(
+    b2_cli, bucket, local_file, command, flag, capfdbinary
+):
+    content = b'\x00\xffbinary\r\ncontent\x00'
+    local_file.write_bytes(content)
+    b2_cli.run(['file', 'upload', '--quiet', bucket, str(local_file), 'binary.dat'])
+    if command == 'uri':
+        argv = ['file', 'download', f'b2://{bucket}/binary.dat']
+        warning = ''
+    elif command == 'id':
+        argv = ['download-file-by-id', '9999']
+        warning = (
+            'WARNING: `download-file-by-id` command is deprecated. Use `file download` instead.\n'
+        )
+    else:
+        argv = ['download-file-by-name', bucket, 'binary.dat']
+        warning = (
+            'WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n'
+        )
+    capfdbinary.readouterr()
+    b2_cli.run([*argv, '-', *([flag] if flag else [])], expected_stdout='', expected_stderr=warning)
+    assert capfdbinary.readouterr().out == content
+
+
 @pytest.mark.parametrize(
     'flag,expected_stdout',
     [
@@ -88,13 +114,12 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
     b2_cli.run(
         [
             'download-file-by-name',
+            flag,
             uploaded_file['bucket'],
             uploaded_file['fileName'],
             str(output_path),
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
-            output_path=pathlib.Path(output_path).resolve()
-        ),
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
         expected_stderr='WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']

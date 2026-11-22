@@ -1,0 +1,3 @@
+kind: Fixed
+body: Reject bucket default retention options when a period is provided without a mode or a compliance or governance mode is provided without a period.
+time: 2026-11-21T00:00:00Z

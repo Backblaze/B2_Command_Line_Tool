@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Run release preparation checks in CI, preserving the released b2sdk requirement and validating sentence form, the existing fragment size boundary, published history, and pending fragments and changelogs after batching.
+time: 2026-11-18T00:00:00Z

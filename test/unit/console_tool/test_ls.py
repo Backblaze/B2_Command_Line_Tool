@@ -14,6 +14,20 @@ import json
 import pytest
 
 
+@pytest.mark.parametrize('file_count', [0, 2])
+@pytest.mark.parametrize('quiet', [False, True])
+def test_ls_json_array_for_empty_and_multiple_files(b2_cli, bucket, local_file, file_count, quiet):
+    names = [f'file-{index}.txt' for index in range(file_count)]
+    for name in names:
+        b2_cli.run(['file', 'upload', '--quiet', bucket, str(local_file), name])
+
+    option = ['--quiet'] if quiet else []
+    _, stdout, _ = b2_cli.run(['ls', '--json', *option, f'b2://{bucket}'])
+    listing = json.loads(stdout)
+    assert isinstance(listing, list)
+    assert [item['fileName'] for item in listing] == names
+
+
 def test_ls__without_bucket_name(b2_cli, bucket_info):
     expected_output = 'bucket_0  allPublic   my-bucket\n'
 
