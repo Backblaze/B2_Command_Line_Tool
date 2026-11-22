@@ -21,6 +21,14 @@ def make_tool(command):
     return CommandLine(command, None, None, None, None, 'ENVFILE', None, None)
 
 
+@pytest.fixture
+def clean_env_for_env_file(monkeypatch):
+    for key, value in os.environ.copy().items():
+        if '\n' in value:
+            monkeypatch.delenv(key)
+
+
+@pytest.mark.usefixtures('clean_env_for_env_file')
 @pytest.mark.skipif(os.name == 'nt', reason='POSIX file permissions and umask')
 def test_env_file_is_private_and_removed_after_child_reads_it(tmp_path):
     child = tmp_path / 'read_env.py'
@@ -46,6 +54,7 @@ def test_env_file_is_private_and_removed_after_child_reads_it(tmp_path):
             path.unlink(missing_ok=True)
 
 
+@pytest.mark.usefixtures('clean_env_for_env_file')
 def test_env_file_is_removed_if_process_start_fails(monkeypatch):
     tool = make_tool('missing-executable ENVFILE')
     created_path = None
