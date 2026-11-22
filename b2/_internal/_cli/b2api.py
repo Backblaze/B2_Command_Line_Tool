@@ -42,10 +42,7 @@ def _get_b2api_for_profile(
         **kwargs,
     )
 
-    if os.getenv('CI', False) and os.getenv(
-        'GITHUB_REPOSITORY',
-        '',
-    ).endswith('/B2_Command_Line_Tool'):
+    if os.getenv('B2_TEST_SHORT_TIMEOUTS') == '1':
         b2http = b2api.session.raw_api.b2_http
         b2http.CONNECTION_TIMEOUT = 3 + 6 + 1
         b2http.TIMEOUT = 12

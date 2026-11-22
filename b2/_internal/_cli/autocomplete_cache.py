@@ -45,15 +45,21 @@ class PickleStore(abc.ABC):
 
 
 class VersionTracker(StateTracker):
+    def __init__(self, cli_version: str | None = None) -> None:
+        self.cli_version = cli_version
+
     def current_state_identifier(self) -> str:
-        return VERSION
+        return f'{VERSION}-{self.cli_version}' if self.cli_version else VERSION
 
 
 class HomeCachePickleStore(PickleStore):
     _dir: pathlib.Path
 
-    def __init__(self, dir_path: pathlib.Path | None = None) -> None:
+    def __init__(
+        self, dir_path: pathlib.Path | None = None, *, cli_version: str | None = None
+    ) -> None:
         self._dir = dir_path
+        self._cli_version = cli_version
 
     def _cache_dir(self) -> pathlib.Path:
         if not self._dir:
@@ -61,7 +67,7 @@ class HomeCachePickleStore(PickleStore):
                 pathlib.Path(platformdirs.user_cache_dir(appname='b2', appauthor='backblaze'))
                 / 'autocomplete'
             )
-        return self._dir
+        return self._dir / self._cli_version if self._cli_version else self._dir
 
     def _fname(self, identifier: str) -> str:
         return f'b2-autocomplete-cache-{identifier}.pickle'
@@ -114,12 +120,23 @@ class AutocompleteCache:
             pickle_data = self._store.get_pickle(identifier)
             if pickle_data:
                 parser = self._unpickle(pickle_data)
+                self._restore_suppress(parser)
                 argcomplete.autocomplete(parser, **(uncached_args or {}))
         except Exception:
             if raise_exc:
                 raise
             # Autocomplete from cache failed but maybe we can autocomplete from scratch
             return
+
+    def _restore_suppress(self, parser: argparse.ArgumentParser) -> None:
+        # argparse checks SUPPRESS by identity, which a pickle round trip loses.
+        for action in parser._actions:
+            for attribute in ('default', 'help'):
+                if getattr(action, attribute) == argparse.SUPPRESS:
+                    setattr(action, attribute, argparse.SUPPRESS)
+            if isinstance(action, argparse._SubParsersAction):
+                for subparser in set(action.choices.values()):
+                    self._restore_suppress(subparser)
 
     def _clean_parser(self, parser: argparse.ArgumentParser) -> None:
         # Python 3.14 caches a validation formatter on parsers. The cached formatter can
@@ -169,3 +186,9 @@ class AutocompleteCache:
 
 
 AUTOCOMPLETE = AutocompleteCache(tracker=VersionTracker(), store=HomeCachePickleStore())
+
+
+def initialize_autocomplete(cli_version: str) -> None:
+    """Select the cache before importing the CLI's parser and loading a cached parser."""
+    AUTOCOMPLETE._tracker = VersionTracker(cli_version)
+    AUTOCOMPLETE._store = HomeCachePickleStore(cli_version=cli_version)
