@@ -1,0 +1,3 @@
+kind: Fixed
+body: Handle invalid control character escaping environment values without crashing.
+time: 2026-11-21T00:00:00Z

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Reject notification rule custom headers without an equals sign.
+time: 2026-11-21T00:00:00Z

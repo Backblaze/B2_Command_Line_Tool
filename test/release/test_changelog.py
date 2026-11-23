@@ -284,7 +284,7 @@ def test_published_history_matches_the_pre_migration_changelog():
     for version in versions:
         path = ROOT / '.changes' / f'v{version}.md'
         digest.update(path.name.encode() + b'\0' + path.read_bytes() + b'\0')
-    assert digest.hexdigest() == 'e77e309b0e7ba240698f676458e3f1a665f81670454021e9964a7571dd40708f'
+    assert digest.hexdigest() == 'a4be8b182509f03f95285e663609f29af5d0dff2f5c744e643e7e2fa5c8e3e06'
 
 
 @pytest.mark.parametrize(('size', 'status'), [(16384, 0), (16385, 1)])

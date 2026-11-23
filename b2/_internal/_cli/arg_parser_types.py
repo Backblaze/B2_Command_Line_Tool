@@ -33,7 +33,7 @@ def parse_millis_from_float_timestamp(s):
     if _arrow_version < (1, 0, 0):
         return int(parsed.format('XSSS'))
     else:
-        return int(parsed.format('x')[:13])
+        return int(parsed.float_timestamp * 1000)
 
 
 def parse_range(s):

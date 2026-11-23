@@ -29,8 +29,8 @@ from b2sdk.v3.exception import B2SimpleError
 from b2._internal._cli.const import (
     B2_ESCAPE_CONTROL_CHARACTERS,
 )
-from b2._internal.console_tool import _TqdmCloser
-from test.known_defect import known_defect
+from b2._internal.console_tool import DownloadCommand, _TqdmCloser
+from test.known_defect import known_defect, known_defect_marks
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
@@ -175,17 +175,25 @@ def test_download_to_stdout_keeps_metadata_out_of_data_stream(b2_cli, uploaded_f
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect(
-    'a non-numeric B2_ESCAPE_CONTROL_CHARACTERS raises ValueError',
-    raises=ValueError,
-    match="invalid literal for int\\(\\) with base 10: 'abc'",
-)
-def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch):
-    """A non-numeric B2_ESCAPE_CONTROL_CHARACTERS must be handled, not raise ValueError."""
-    monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, 'abc')
+@pytest.mark.parametrize('invalid_value', ['abc', '2'])
+def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatch, invalid_value):
+    """Invalid values warn and let commands use the terminal-based default."""
     b2_cli.authorize()
-    status, _, _ = run_no_traceback(b2_cli, ['bucket', 'list'])
+    monkeypatch.setenv(B2_ESCAPE_CONTROL_CHARACTERS, invalid_value)
+    with mock.patch('b2._internal.console_tool.logger.warning') as warning:
+        status, _, _ = run(b2_cli, ['bucket', 'list'])
     assert status == 0
+    warning.assert_called_once()
+    assert (
+        'invalid value for B2_ESCAPE_CONTROL_CHARACTERS environment variable'
+        in warning.call_args.args[0]
+    )
+
+    for is_tty in (False, True):
+        stdout = StringIO()
+        stdout.isatty = lambda: is_tty
+        tool = b2_cli.console_tool_class(stdout, StringIO())
+        assert tool._get_default_escape_cc_setting() is is_tty
 
 
 @pytest.fixture
@@ -201,10 +209,6 @@ def lock_bucket_file(b2_cli, tmp_path):
     return 'b2://lock-bucket/f.txt'
 
 
-@known_defect(
-    'file update leaves the legal-hold change applied when the retention step fails',
-    match='^legal\\ hold\\ was\\ applied\\ although\\ the\\ command\\ failed',
-)
 def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, lock_bucket_file):
     """If the retention step fails, the legal hold step must not stay applied."""
     # `file info` goes through download headers, which the simulator renders as "on" for every legal-hold
@@ -240,43 +244,147 @@ def test_file_update_failing_retention_step_leaves_no_partial_update(b2_cli, loc
     update_file_retention.assert_called_once()
     assert status != 0
     assert 'injected failure' in stderr, stderr
-    # ... and the earlier legal-hold step must not stay applied
+    # ... and legal hold must remain unchanged
     assert (
         stored_legal_hold() == legal_hold_before
     ), 'legal hold was applied although the command failed'
 
 
-@known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
-    match='^period\\ without\\ a\\ mode\\ was\\ accepted\\ and\\ ignored',
-)
+def test_file_update_failing_legal_hold_reports_applied_retention(b2_cli, lock_bucket_file):
+    """A failed second update must identify the durable retention change."""
+    with (
+        mock.patch.object(
+            b2_cli.b2_api,
+            'update_file_retention',
+            wraps=b2_cli.b2_api.update_file_retention,
+        ) as update_retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', side_effect=B2SimpleError('injected failure')
+        ) as update_legal_hold,
+    ):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'update',
+                lock_bucket_file,
+                '--legal-hold',
+                'on',
+                '--file-retention-mode',
+                'governance',
+                '--retain-until',
+                '4102444800',
+            ],
+        )
+    update_retention.assert_called_once()
+    update_legal_hold.assert_called_once()
+    assert status != 0
+    assert 'File retention was applied, but legal hold update failed:' in stderr
+    assert 'injected failure' in stderr
+    file_version = b2_cli.b2_api.get_file_info(update_retention.call_args.args[0])
+    assert file_version.file_retention.mode.value == 'governance'
+    assert file_version.file_retention.retain_until == 4102444800000
+
+
 def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
-    """--default-retention-period alone must be rejected, not silently dropped."""
+    """--default-retention-period alone must be rejected before accessing a bucket."""
     b2_cli.authorize()
     b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
-    status, _, stderr = run(
-        b2_cli,
-        ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
-    )
-    assert status != 0, 'period without a mode was accepted and ignored'
-    assert stderr
+    with mock.patch.object(
+        b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
+    ) as get_bucket:
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
+        )
+    assert status == 1
+    assert stdout == ''
+    assert stderr == 'ERROR: --default-retention-period requires --default-retention-mode\n'
+    get_bucket.assert_not_called()
 
 
-@known_defect(
-    'invalid bucket default-retention options are ignored or raise instead of reporting an error',
-    match="^command raised ValueError\\('must specify period for retention mode RetentionMode.COMPLIANCE'\\)",
-    assertion_origin='run_no_traceback',
-)
-def test_compliance_mode_without_period_is_rejected_cleanly(b2_cli):
+@pytest.mark.parametrize('mode', ['compliance', 'governance'])
+def test_retention_mode_without_period_is_rejected_cleanly(b2_cli, mode):
     """A retention mode that needs a period must be rejected with a clear error."""
     b2_cli.authorize()
-    b2_cli.run(['bucket', 'create', 'b8c', 'allPrivate'], expected_stdout='bucket_0\n')
-    status, _, stderr = run_no_traceback(
-        b2_cli,
-        ['bucket', 'update', 'b8c', 'allPublic', '--default-retention-mode', 'compliance'],
+    b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
+    with mock.patch.object(
+        b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
+    ) as get_bucket:
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-mode', mode],
+        )
+    assert status == 1
+    assert stdout == ''
+    assert stderr == (
+        'ERROR: --default-retention-mode requires --default-retention-period '
+        'unless the mode is none\n'
     )
-    assert status != 0
-    assert 'ERROR' in stderr
+    get_bucket.assert_not_called()
+
+
+def test_retention_period_with_none_mode_clears_retention(b2_cli):
+    """Mode none keeps its existing behavior even when a period is supplied."""
+    b2_cli.authorize()
+    b2_cli.run(
+        ['bucket', 'create', 'b8-none', 'allPrivate', '--file-lock-enabled'],
+        expected_stdout='bucket_0\n',
+    )
+    b2_cli.run(
+        [
+            'bucket',
+            'update',
+            'b8-none',
+            'allPrivate',
+            '--default-retention-mode',
+            'governance',
+            '--default-retention-period',
+            '1 days',
+        ]
+    )
+    status, stdout, stderr = run_no_traceback(
+        b2_cli,
+        [
+            'bucket',
+            'update',
+            'b8-none',
+            'allPublic',
+            '--default-retention-mode',
+            'none',
+            '--default-retention-period',
+            '1 days',
+        ],
+    )
+    assert status == 0
+    assert stderr == ''
+    assert json.loads(stdout)['defaultRetention'] == {'mode': None}
+    bucket = b2_cli.b2_api.get_bucket_by_name('b8-none')
+    assert bucket.default_retention.mode.value is None
+    assert bucket.default_retention.period is None
+    assert bucket.type_ == 'allPublic'
+
+
+@pytest.mark.parametrize('mode', [None, 'none', 'compliance', 'governance'])
+def test_valid_bucket_default_retention_options(b2_cli, mode):
+    b2_cli.authorize()
+    b2_cli.run(
+        ['bucket', 'create', 'b8-valid', 'allPrivate', '--file-lock-enabled'],
+        expected_stdout='bucket_0\n',
+    )
+    options = [] if mode is None else ['--default-retention-mode', mode]
+    if mode in ('compliance', 'governance'):
+        options += ['--default-retention-period', '1 days']
+    status, stdout, stderr = run_no_traceback(
+        b2_cli, ['bucket', 'update', 'b8-valid', 'allPublic', *options]
+    )
+    assert status == 0
+    assert stderr == ''
+    retention = json.loads(stdout)['defaultRetention']
+    expected = {'mode': None}
+    if mode in ('compliance', 'governance'):
+        expected = {'mode': mode, 'period': {'duration': 1, 'unit': 'days'}}
+    assert retention == expected
 
 
 def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):
@@ -294,30 +402,20 @@ def _run_sync_with_keep_days(b2_cli, tmp_path, keep_days):
 
 def _assert_keep_days_rejected(keep_days, status, stderr, synchronizer):
     """The contract is rejection: nonzero status, an error naming --keep-days, nothing synchronized."""
-    assert status != 0, (
+    assert status == 1, (
         f'--keep-days={keep_days} was accepted: '
         f'{synchronizer.call_args and synchronizer.call_args.kwargs}'
     )
-    assert '--keep-days' in stderr, f'the error does not identify --keep-days: {stderr!r}'
+    assert stderr == 'ERROR: --keep-days must be greater than 0\n'
     synchronizer.assert_not_called()
 
 
-@known_defect(
-    'sync accepts a negative or zero --keep-days',
-    match='--keep-days=-1 was accepted:',
-    assertion_origin='_assert_keep_days_rejected',
-)
 def test_sync_negative_keep_days_is_rejected(b2_cli, tmp_path):
     """A negative --keep-days must be rejected, not accepted as a retention period."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '-1')
     _assert_keep_days_rejected('-1', status, stderr, synchronizer)
 
 
-@known_defect(
-    'sync accepts a negative or zero --keep-days',
-    match='--keep-days=0 was accepted:',
-    assertion_origin='_assert_keep_days_rejected',
-)
 def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
     """--keep-days 0 must be rejected, not silently turned into NO_DELETE (nothing is ever deleted)."""
     status, stderr, synchronizer = _run_sync_with_keep_days(b2_cli, tmp_path, '0')
@@ -326,7 +424,7 @@ def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
 
 @known_defect(
     'a rejected authorize attempt wipes the previously stored authorization',
-    match='^previous\\ authorization\\ was\\ wiped\\ by\\ the\\ rejected\\ key',
+    match='^previous authorization was (?:wiped|replaced) by the rejected key',
 )
 def test_failed_authorize_keeps_previous_authorization(b2_cli):
     """A rejected key (no listBuckets) must not wipe the previously stored authorization."""
@@ -336,27 +434,22 @@ def test_failed_authorize_keeps_previous_authorization(b2_cli):
     assert status == 1
     allowed = b2_cli.account_info.get_allowed()
     assert allowed is not None, 'previous authorization was wiped by the rejected key'
-    assert 'listBuckets' in allowed['capabilities']
+    assert (
+        'listBuckets' in allowed['capabilities']
+    ), 'previous authorization was replaced by the rejected key'
 
 
-@known_defect(
-    'bucket update prints more than its help text promises',
-    match='^help\\ promises\\ the\\ ID,\\ command\\ prints\\ more',
-)
 def test_bucket_update_help_matches_printed_output(b2_cli, bucket_info):
-    """Help says the bucket ID is printed; the printed output must agree with the help."""
+    """The bucket update help and output both describe the updated bucket as JSON."""
     from b2._internal.console_tool import BucketUpdateBase
 
-    help_text = BucketUpdateBase.__doc__
-    assert 'Prints the ID of the bucket updated' in help_text  # documents the contract under test
+    assert 'Prints the updated bucket as JSON' in BucketUpdateBase.__doc__
     _, stdout, _ = b2_cli.run(['bucket', 'update', bucket_info['bucketName'], 'allPrivate'])
-    assert stdout.strip() == bucket_info['bucketId'], 'help promises the ID, command prints more'
+    bucket = json.loads(stdout)
+    assert bucket['bucketId'] == bucket_info['bucketId']
+    assert bucket['bucketName'] == bucket_info['bucketName']
 
 
-@known_defect(
-    'ls --json leaves unterminated JSON when the listing fails midway',
-    match='^stdout is not a complete JSON document:',
-)
 def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploaded_file):
     """A failure in the middle of `ls --json` must not leave unterminated JSON on stdout."""
     real_ls = Bucket.ls
@@ -378,13 +471,16 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
     'argv',
     [
         ['file', 'upload', '--file-retention-mode', 'governance', 'my-bucket', 'x', 'y'],
-        ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
+        pytest.param(
+            ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
+            marks=known_defect_marks(
+                'conflicting thread options raise ValueError instead of reporting an error',
+                match="^command raised ValueError\\('--threads cannot be used with other thread options'\\)",
+                test_name='test_bad_option_combinations_report_error_not_traceback',
+                assertion_origin='run_no_traceback',
+            ),
+        ),
     ],
-)
-@known_defect(
-    'bad option combinations raise ValueError instead of reporting an error',
-    match="^command raised ValueError\\('(?:provide either both --retain-until and --file-retention-mode or none of them|--threads cannot be used with other thread options)'\\)",
-    assertion_origin='run_no_traceback',
 )
 def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv):
     """User input errors raised as bare ValueError must become `ERROR:` output."""
@@ -400,11 +496,6 @@ def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv
         ['file', 'hide', 'my-bucket'],
     ],
 )
-@known_defect(
-    'conflicting file arguments raise ArgumentError instead of reporting a usage error',
-    match='^command raised ArgumentError\\(.*(?:Both B2 URI and file name were provided|Incorrect B2 URI was provided)',
-    assertion_origin='run_no_traceback',
-)
 def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, argv):
     """ArgumentError raised in _run must be shown as a usage error, not a traceback."""
     status, _, stderr = run_no_traceback(b2_cli, argv)
@@ -412,18 +503,20 @@ def test_conflicting_file_arguments_report_usage_error(b2_cli, uploaded_file, ar
     assert stderr
 
 
-@known_defect(
-    'a failed download leaves an empty temporary file behind',
-    match='^failed\\ download\\ left\\ temporary\\ artifacts',
-)
 def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_path):
     """A failed download into a directory must not leave an empty mkstemp file behind."""
     out_dir = tmp_path / 'out'
     out_dir.mkdir()
-    (out_dir / uploaded_file['fileName']).write_text('existing')  # forces the mkstemp branch
+    existing = out_dir / uploaded_file['fileName']
+    existing.write_text('existing')  # forces the mkstemp branch
     before = sorted(p.name for p in out_dir.iterdir())
-    with mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('injected')):
-        status, _, _ = run(
+
+    def fail_after_partial_write(path):
+        path.write_text('partial')
+        raise B2SimpleError('injected')
+
+    with mock.patch.object(DownloadedFile, 'save_to', side_effect=fail_after_partial_write):
+        status, _, stderr = run(
             b2_cli,
             [
                 'file',
@@ -433,15 +526,93 @@ def test_failed_download_leaves_no_temporary_file(b2_cli, uploaded_file, tmp_pat
             ],
         )
     assert status != 0
+    assert 'injected' in stderr
+    assert existing.read_text() == 'existing'
     assert (
         sorted(p.name for p in out_dir.iterdir()) == before
     ), 'failed download left temporary artifacts'
 
 
-@known_defect(
-    'a custom header not given as NAME=VALUE is accepted',
-    match='^malformed\\ header\\ accepted:\\ ',
-)
+def test_failed_download_does_not_remove_explicit_destination(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / 'destination.txt'
+    destination.write_text('existing')
+    with mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('injected')):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'download',
+                f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+                str(destination),
+            ],
+        )
+    assert status != 0
+    assert 'injected' in stderr
+    assert destination.read_text() == 'existing'
+
+
+def test_download_setup_failure_removes_temporary_file(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / uploaded_file['fileName']
+    destination.write_text('existing')
+    with mock.patch.object(
+        DownloadCommand, '_print_download_info', side_effect=B2SimpleError('setup failed')
+    ):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'download',
+                f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+                str(tmp_path),
+            ],
+        )
+    assert status != 0
+    assert 'setup failed' in stderr
+    assert destination.read_text() == 'existing'
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_cleanup_failure_preserves_download_error(b2_cli, uploaded_file, tmp_path):
+    original = tmp_path / uploaded_file['fileName']
+    original.write_text('existing')
+    with (
+        mock.patch.object(DownloadedFile, 'save_to', side_effect=B2SimpleError('download failed')),
+        mock.patch('pathlib.Path.unlink', side_effect=PermissionError('cleanup failed')) as unlink,
+    ):
+        status, _, stderr = run(
+            b2_cli,
+            [
+                'file',
+                'download',
+                f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+                str(tmp_path),
+            ],
+        )
+    assert status != 0
+    assert 'download failed' in stderr
+    unlink.assert_called_once()
+    (remaining,) = [path for path in tmp_path.iterdir() if path != original]
+    assert f'Unable to remove temporary download file: {remaining}' in stderr
+
+
+def test_successful_download_keeps_unique_file(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / uploaded_file['fileName']
+    destination.write_text('existing')
+    status, _, _ = run(
+        b2_cli,
+        [
+            'file',
+            'download',
+            f'b2://{uploaded_file["bucket"]}/{uploaded_file["fileName"]}',
+            str(tmp_path),
+        ],
+    )
+    assert status == 0
+    assert destination.read_text() == 'existing'
+    (downloaded,) = [path for path in tmp_path.iterdir() if path != destination]
+    assert downloaded.read_text() == uploaded_file['content']
+
+
 def test_malformed_custom_header_is_rejected(b2_cli, bucket):
     """A header not given as NAME=VALUE must be rejected, not accepted with an empty value."""
     status, stdout, stderr = run(
@@ -468,10 +639,6 @@ def test_malformed_custom_header_is_rejected(b2_cli, bucket):
 # ----------------------------------------------------------------------------------------
 
 
-@known_defect(
-    'download with --skip-hash-verification still prints "Checksum matches"',
-    match='^unchecked\\ download\\ claimed\\ checksum\\ matches',
-)
 def test_skip_hash_verification_does_not_claim_checksum_matches(b2_cli, uploaded_file, tmp_path):
     """ "Checksum matches" must not be printed when verification is skipped."""
     out = tmp_path / 'out.txt'
