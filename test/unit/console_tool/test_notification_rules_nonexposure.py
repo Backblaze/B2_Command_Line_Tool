@@ -13,29 +13,29 @@ Operation-level secret non-exposure for ``b2 bucket notification-rule create`` a
 A notification rule can carry an HMAC signing secret and custom header values. Neither may reach
 the diagnostics the CLI writes while it runs or the text of an error it reports.
 
-Complements ``test_notification_rules.py`` (success-path argument logging, and the stderr text of
-an invalid signing secret). There is one test per (surface, path); each is run for both commands
-(``create``, ``update``) and each sensitive input (``signing_secret``, ``custom_header``), and
-asserts exactly that cell:
+What this adds to ``test_notification_rules.py``: that file checks success-path argument logging
+and the stderr text of an invalid signing secret. This file runs the real ``create`` and ``update``
+commands with ``--verbose --debug-logs`` through each way they can end (success, failure before
+authorization, a service error, and a rejected ``--sign-secret``), and checks that neither
+sensitive input appears in the logs or in the error text. Each run is checked for both inputs
+at once, and a failure message names the input that leaked.
 
-* surfaces: CLI argument log (what the CLI logs about the command it starts), SDK debug trace
-  (everything the ``b2sdk`` loggers write at DEBUG), and exception text (tracebacks logged for
-  the failure plus the error the CLI prints). Both log surfaces are read from the captured log
-  records and from the ``--debug-logs`` file;
-* paths: success (simulator-backed), failure before authorization, API error (the simulator
-  answers the set call with a ``bad_request``), and local validation error (an invalid
-  ``--sign-secret``, rejected while the arguments are parsed).
+Each case is one (surface, path) pair, run for both commands:
 
-Notes on what each cell can honestly assert:
+* ``cli_log``: what the CLI's own loggers wrote (log records and the ``--debug-logs`` file);
+* ``sdk_trace``: what the ``b2sdk`` loggers wrote at DEBUG (log records and the ``--debug-logs``
+  file). The file also holds the CLI's lines, so this surface and ``cli_log`` are not independent;
+  the log records are what tell them apart;
+* ``exception``: tracebacks logged for the failure plus the error text the CLI printed.
 
-* On success nothing is raised, so the success x exception tests assert that no traceback was
-  logged and that the (empty) exception text holds no secret. This is weaker than the
-  failure-path exception tests.
-* A validation error is raised while parsing, before the CLI logs that it started a command, so
-  the validation x CLI argument log tests assert over whatever the CLI logged (possibly nothing).
-* The CLI deliberately prints the rule it created or updated, secrets included, to stdout on
-  success (``test_notification_rules__sign_secret`` relies on it), so stdout is not asserted
-  secret-free here; stdout and stderr are covered by the existing tests.
+Only pairs that can show something are included. Not covered, because there is nothing to
+observe: the CLI log and SDK trace after a rejected ``--sign-secret`` (the arguments are rejected
+before the CLI logs that it started a command), the SDK trace before authorization (no SDK call
+has happened yet) and the exception text on success (nothing is raised).
+
+The CLI deliberately prints the rule it created or updated, secrets included, to stdout on
+success (``test_notification_rules__sign_secret`` relies on it), so stdout is not asserted
+secret-free here.
 """
 
 import logging
@@ -59,12 +59,6 @@ RULE_ARGS = [
 
 # A failing command writes its error report to stderr, which `run` otherwise requires to be empty.
 ACCEPT_ERROR_REPORT = {'expected_stderr': None}
-
-SENSITIVE_VALUES = {'signing_secret': SIGN_SECRET, 'custom_header': HEADER_VALUE}
-SENSITIVE_VALUES_ON_VALIDATION_ERROR = {
-    'signing_secret': INVALID_SIGN_SECRET,
-    'custom_header': HEADER_VALUE,
-}
 
 
 @pytest.fixture
@@ -144,17 +138,7 @@ def _formatted(caplog, logger_prefix):
     )
 
 
-def cli_logs(caplog, cwd_path):
-    """What the CLI's own loggers wrote: log records plus the ``--debug-logs`` file."""
-    return _formatted(caplog, 'b2._internal') + '\n' + _log_file_text(cwd_path)
-
-
-def sdk_logs(caplog, cwd_path):
-    """What the SDK's loggers wrote: log records plus the ``--debug-logs`` file."""
-    return _formatted(caplog, 'b2sdk') + '\n' + _log_file_text(cwd_path)
-
-
-def exception_logs(caplog, error_report):
+def _exception_text(caplog, error_report):
     """Tracebacks logged for a failure, plus the error text the CLI printed to stderr."""
     formatter = logging.Formatter()
     tracebacks = [
@@ -167,331 +151,78 @@ def rejecting_set_call(*args, **kwargs):
     raise BadRequest('rejected by the service', 'bad_request')
 
 
-# ── CLI argument log ─────────────────────────────────────────────────────────
+# path -> (expected exit status, text proving the run ended the way the path says)
+PATHS = {
+    'success': (0, None),
+    'pre_authorization': (1, 'ERROR'),
+    'api_error': (1, 'rejected by the service'),
+    'validation_error': (2, 'the secret has to be exactly 32 alphanumeric characters'),
+}
+CASES = [
+    ('cli_log', 'success'),
+    ('cli_log', 'pre_authorization'),
+    ('cli_log', 'api_error'),
+    ('sdk_trace', 'success'),
+    ('sdk_trace', 'api_error'),
+    ('exception', 'pre_authorization'),
+    ('exception', 'api_error'),
+    ('exception', 'validation_error'),
+]
 
 
 @pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_cli_argument_log_on_success_path(
-    b2_cli, bucket, existing_rule, cli_logging, cwd_path, caplog, subcommand, sensitive_input
-):
-    b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ]
-    )
-    cli_argument_log = cli_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES[sensitive_input] not in cli_argument_log
-    assert 'arguments hidden' in cli_argument_log  # the CLI really logged the command start
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_cli_argument_log_on_pre_authorization_path(
-    unauthorized_cli, cli_logging, cwd_path, caplog, subcommand, sensitive_input
-):
-    unauthorized_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            'b2://my-bucket',
-            'rule-name',
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ],
-        expected_status=1,
-        **ACCEPT_ERROR_REPORT,
-    )
-    cli_argument_log = cli_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES[sensitive_input] not in cli_argument_log
-    assert 'arguments hidden' in cli_argument_log  # logged before the call is authorized
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_cli_argument_log_on_api_error_path(
-    b2_cli,
-    bucket,
-    existing_rule,
-    cli_logging,
+@pytest.mark.parametrize(('surface', 'path'), CASES)
+def test_notification_rule_sensitive_inputs_stay_out_of_diagnostics(
+    request,
     cwd_path,
-    caplog,
-    monkeypatch,
-    subcommand,
-    sensitive_input,
-):
-    monkeypatch.setattr(b2_cli.raw_api, 'set_bucket_notification_rules', rejecting_set_call)
-    b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ],
-        expected_status=1,
-        **ACCEPT_ERROR_REPORT,
-    )
-    cli_argument_log = cli_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES[sensitive_input] not in cli_argument_log
-    assert 'arguments hidden' in cli_argument_log  # the CLI really logged the command start
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_cli_argument_log_on_validation_error_path(
-    b2_cli, bucket, existing_rule, cli_logging, cwd_path, caplog, subcommand, sensitive_input
-):
-    b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            INVALID_SIGN_SECRET,
-        ],
-        expected_status=2,
-        **ACCEPT_ERROR_REPORT,
-    )
-    cli_argument_log = cli_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES_ON_VALIDATION_ERROR[sensitive_input] not in cli_argument_log
-
-
-# ── SDK debug trace ──────────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_sdk_debug_trace_on_success_path(
-    b2_cli, bucket, existing_rule, cli_logging, cwd_path, caplog, subcommand, sensitive_input
-):
-    b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ]
-    )
-    sdk_debug_trace = sdk_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES[sensitive_input] not in sdk_debug_trace
-    assert 'b2sdk' in sdk_debug_trace  # the SDK really logged while the command ran
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_sdk_debug_trace_on_pre_authorization_path(
-    unauthorized_cli, cli_logging, cwd_path, caplog, subcommand, sensitive_input
-):
-    unauthorized_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            'b2://my-bucket',
-            'rule-name',
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ],
-        expected_status=1,
-        **ACCEPT_ERROR_REPORT,
-    )
-    sdk_debug_trace = sdk_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES[sensitive_input] not in sdk_debug_trace
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_sdk_debug_trace_on_api_error_path(
-    b2_cli,
-    bucket,
-    existing_rule,
-    cli_logging,
-    cwd_path,
-    caplog,
-    monkeypatch,
-    subcommand,
-    sensitive_input,
-):
-    monkeypatch.setattr(b2_cli.raw_api, 'set_bucket_notification_rules', rejecting_set_call)
-    b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ],
-        expected_status=1,
-        **ACCEPT_ERROR_REPORT,
-    )
-    sdk_debug_trace = sdk_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES[sensitive_input] not in sdk_debug_trace
-    assert 'b2sdk' in sdk_debug_trace  # the SDK really logged while the command ran
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_sdk_debug_trace_on_validation_error_path(
-    b2_cli, bucket, existing_rule, cli_logging, cwd_path, caplog, subcommand, sensitive_input
-):
-    b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            INVALID_SIGN_SECRET,
-        ],
-        expected_status=2,
-        **ACCEPT_ERROR_REPORT,
-    )
-    sdk_debug_trace = sdk_logs(caplog, cwd_path)
-    assert SENSITIVE_VALUES_ON_VALIDATION_ERROR[sensitive_input] not in sdk_debug_trace
-
-
-# ── exception text ───────────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_exception_on_success_path(
-    b2_cli, bucket, existing_rule, cli_logging, caplog, subcommand, sensitive_input
-):
-    # Weaker than the failure-path cells: a successful run raises nothing, so there is no
-    # exception text that could carry the secret. This pins that nothing was raised or logged
-    # as a traceback (the run succeeded) and that the exception text is therefore free of it.
-    _, _, error_report = b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ]
-    )
-    exception_text = exception_logs(caplog, error_report)
-    assert SENSITIVE_VALUES[sensitive_input] not in exception_text
-    assert 'Traceback' not in exception_text
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_exception_on_pre_authorization_path(
-    unauthorized_cli, cli_logging, caplog, subcommand, sensitive_input
-):
-    _, _, error_report = unauthorized_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            'b2://my-bucket',
-            'rule-name',
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ],
-        expected_status=1,
-        **ACCEPT_ERROR_REPORT,
-    )
-    exception_text = exception_logs(caplog, error_report)
-    assert SENSITIVE_VALUES[sensitive_input] not in exception_text
-    assert 'ERROR' in exception_text  # the failure was really reported
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_exception_on_api_error_path(
-    b2_cli, bucket, existing_rule, cli_logging, caplog, monkeypatch, subcommand, sensitive_input
-):
-    monkeypatch.setattr(b2_cli.raw_api, 'set_bucket_notification_rules', rejecting_set_call)
-    _, _, error_report = b2_cli.run(
-        [
-            'bucket',
-            'notification-rule',
-            subcommand,
-            *LOGGING_FLAGS,
-            f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
-            *RULE_ARGS,
-            '--sign-secret',
-            SIGN_SECRET,
-        ],
-        expected_status=1,
-        **ACCEPT_ERROR_REPORT,
-    )
-    exception_text = exception_logs(caplog, error_report)
-    assert SENSITIVE_VALUES[sensitive_input] not in exception_text
-    assert 'rejected by the service' in exception_text  # the service error was really reported
-
-
-@pytest.mark.parametrize('subcommand', ['create', 'update'])
-@pytest.mark.parametrize('sensitive_input', ['signing_secret', 'custom_header'])
-def test_notification_rule_sensitive_input_stays_out_of_exception_on_validation_error_path(
-    b2_cli,
-    bucket,
-    existing_rule,
-    cli_logging,
     caplog,
     argparse_error_report,
+    monkeypatch,
     subcommand,
-    sensitive_input,
+    surface,
+    path,
 ):
-    b2_cli.run(
+    expected_status, expected_marker = PATHS[path]
+    sign_secret = INVALID_SIGN_SECRET if path == 'validation_error' else SIGN_SECRET
+    if path == 'pre_authorization':
+        cli, bucket, rule_name = request.getfixturevalue('unauthorized_cli'), 'my-bucket', 'rule'
+    else:
+        cli = request.getfixturevalue('b2_cli')
+        bucket = request.getfixturevalue('bucket')
+        existing_rule = request.getfixturevalue('existing_rule')
+        rule_name = 'new-rule' if subcommand == 'create' else existing_rule
+    request.getfixturevalue('cli_logging')  # after the CLI and rule exist, so setup is not logged
+    if path == 'api_error':
+        monkeypatch.setattr(cli.raw_api, 'set_bucket_notification_rules', rejecting_set_call)
+
+    _, _, error_report = cli.run(
         [
             'bucket',
             'notification-rule',
             subcommand,
             *LOGGING_FLAGS,
             f'b2://{bucket}',
-            'new-rule' if subcommand == 'create' else existing_rule,
+            rule_name,
             *RULE_ARGS,
             '--sign-secret',
-            INVALID_SIGN_SECRET,
+            sign_secret,
         ],
-        expected_status=2,
-        **ACCEPT_ERROR_REPORT,
+        expected_status=expected_status,
+        **({} if expected_status == 0 else ACCEPT_ERROR_REPORT),
     )
-    error_report = argparse_error_report()
-    exception_text = exception_logs(caplog, error_report)
-    assert SENSITIVE_VALUES_ON_VALIDATION_ERROR[sensitive_input] not in exception_text
-    assert 'the secret has to be exactly 32 alphanumeric characters' in exception_text
+    if path == 'validation_error':
+        error_report = argparse_error_report()  # argparse writes to the process stderr
+
+    if surface == 'cli_log':
+        text = _formatted(caplog, 'b2._internal') + '\n' + _log_file_text(cwd_path)
+        marker = 'arguments hidden'  # the CLI really logged the command start
+    elif surface == 'sdk_trace':
+        text = _formatted(caplog, 'b2sdk') + '\n' + _log_file_text(cwd_path)
+        marker = 'b2sdk'  # the SDK really logged while the command ran
+    else:
+        text = _exception_text(caplog, error_report)
+        marker = expected_marker  # the failure was really reported
+
+    assert sign_secret not in text, 'signing secret leaked'
+    assert HEADER_VALUE not in text, 'custom header value leaked'
+    assert marker in text
