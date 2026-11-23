@@ -1,0 +1,3 @@
+kind: Fixed
+body: Apply file retention before legal hold and report applied retention if the legal hold update fails.
+time: 2026-11-21T00:00:00Z

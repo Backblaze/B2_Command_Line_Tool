@@ -65,12 +65,14 @@ class Exit:
 
 @pytest.fixture
 def autocomplete_runner(monkeypatch, b2_cli):
+    real_fdopen = os.fdopen
+
     def fdopen(fd, *args, **kwargs):
         # argcomplete package tries to open fd 9 for debugging which causes
         # pytest to later raise errors about bad file descriptors.
         if fd == 9:
             return sys.stderr
-        return os.fdopen(fd, *args, **kwargs)
+        return real_fdopen(fd, *args, **kwargs)
 
     @contextlib.contextmanager
     def runner(command: str):
@@ -370,11 +372,6 @@ def test_no_argument_uses_a_misspelled_completer_attribute(b2_cli):
     assert misspelled == [], 'parser has misspelled completer attributes'
 
 
-@known_defect(
-    'the os.fdopen test shim recurses into itself',
-    raises=RecursionError,
-    match='maximum recursion depth exceeded',
-)
 def test_os_fdopen_shim_does_not_recurse(autocomplete_runner):
     """The test shim for os.fdopen must delegate to the real function, not to itself."""
     if sys.platform == 'win32':

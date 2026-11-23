@@ -41,6 +41,27 @@ def test_authorize_with_bad_key(b2_cli):
     assert b2_cli.account_info.get_account_auth_token() is None
 
 
+def test_authorize_with_deleted_allowed_bucket(b2_cli):
+    allowed = {
+        'buckets': [{'id': 'bucket_0', 'name': None}],
+        'capabilities': ['listBuckets'],
+        'namePrefix': None,
+    }
+    with (
+        mock.patch.object(b2_cli.b2_api, 'authorize_account'),
+        mock.patch.object(b2_cli.account_info, 'get_allowed', return_value=allowed),
+        mock.patch.object(b2_cli.account_info, 'clear', wraps=b2_cli.account_info.clear) as clear,
+    ):
+        b2_cli._run_command(
+            ['account', 'authorize', b2_cli.account_id, b2_cli.master_key],
+            expected_stdout='',
+            expected_stderr="ERROR: application key is restricted to bucket id 'bucket_0', which no longer exists\n",
+            expected_status=1,
+        )
+        clear.assert_called_once()
+    assert b2_cli.account_info.get_account_auth_token() is None
+
+
 @pytest.mark.parametrize(
     'command',
     [

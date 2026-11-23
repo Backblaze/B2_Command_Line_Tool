@@ -87,7 +87,7 @@ def bg_executor():
 
 @pytest.fixture(autouse=True)
 def disable_tqdm_closer_cleanup():
-    with mock.patch.object(_TqdmCloser, '__exit__'):
+    with mock.patch.object(_TqdmCloser, '__exit__', return_value=None):
         yield
 
 

@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import pathlib
 import platform
 import re
 import shutil
@@ -21,9 +20,10 @@ import sys
 import threading
 import warnings
 from collections.abc import Iterable
+from contextlib import contextmanager
 from os import environ, linesep
 from pathlib import Path
-from tempfile import mkdtemp, mktemp
+from tempfile import NamedTemporaryFile, mkdtemp
 from typing import TypeVar
 
 from b2sdk.v3 import (
@@ -228,23 +228,28 @@ class CommandLine:
         env.update(additional_env or {})
         return env
 
+    @contextmanager
     def parse_command(self, env):
-        """
-        Split `self.command` into a list of strings. If necessary, dump the env vars to a tmp file and substitute
-        one the command's argument with that file's path.
-        """
+        """Yield the command with a private temporary env file for its lifetime, if needed."""
         command = self.command.split(' ')
-        if self.env_file_cmd_placeholder:
-            if any('\n' in var_value for var_value in env.values()):
-                raise ValueError(
-                    'Env vars containing new line characters will break env file format'
-                )
-            env_file_path = mktemp()
-            pathlib.Path(env_file_path).write_text('\n'.join(f'{k}={v}' for k, v in env.items()))
-            command = [
-                (c if c != self.env_file_cmd_placeholder else env_file_path) for c in command
-            ]
-        return command
+        env_file_path = None
+        try:
+            if self.env_file_cmd_placeholder:
+                if any('\n' in var_value for var_value in env.values()):
+                    raise ValueError(
+                        'Env vars containing new line characters will break env file format'
+                    )
+                with NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as env_file:
+                    env_file_path = Path(env_file.name)
+                    env_file.write('\n'.join(f'{k}={v}' for k, v in env.items()))
+                command = [
+                    (c if c != self.env_file_cmd_placeholder else str(env_file_path))
+                    for c in command
+                ]
+            yield command
+        finally:
+            if env_file_path is not None:
+                env_file_path.unlink(missing_ok=True)
 
     def execute(
         self,
@@ -260,38 +265,37 @@ class CommandLine:
         # We'll run the b2 command-line by running the b2 module from
         # the current directory or provided as parameter
         env = self.prepare_env(additional_env)
-        command = self.parse_command(env)
+        with self.parse_command(env) as command:
+            args: list[str] = [str(arg) for arg in args] if args else []
+            command.extend(args)
 
-        args: list[str] = [str(arg) for arg in args] if args else []
-        command.extend(args)
+            print('Running:', ' '.join(command))
 
-        print('Running:', ' '.join(command))
+            stdout = StringReader()
+            stderr = StringReader()
 
-        stdout = StringReader()
-        stderr = StringReader()
+            p = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                close_fds=platform.system() != 'Windows',
+                env=env,
+            )
+            p.stdin.close()
+            reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
+            reader1.start()
+            reader2 = threading.Thread(target=stderr.read_from, args=[p.stderr])
+            reader2.start()
+            p.wait()
+            reader1.join()
+            reader2.join()
 
-        p = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            close_fds=platform.system() != 'Windows',
-            env=env,
-        )
-        p.stdin.close()
-        reader1 = threading.Thread(target=stdout.read_from, args=[p.stdout])
-        reader1.start()
-        reader2 = threading.Thread(target=stderr.read_from, args=[p.stderr])
-        reader2.start()
-        p.wait()
-        reader1.join()
-        reader2.join()
+            stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
+            stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
 
-        stdout_decoded = remove_warnings(stdout.get_string().decode('utf-8', errors='replace'))
-        stderr_decoded = remove_warnings(stderr.get_string().decode('utf-8', errors='replace'))
-
-        print_output(p.returncode, stdout_decoded, stderr_decoded)
-        return p.returncode, stdout_decoded, stderr_decoded
+            print_output(p.returncode, stdout_decoded, stderr_decoded)
+            return p.returncode, stdout_decoded, stderr_decoded
 
     def should_succeed_json(self, args, additional_env: dict | None = None, **kwargs):
         """

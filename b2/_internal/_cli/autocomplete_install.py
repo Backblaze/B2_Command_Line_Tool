@@ -171,7 +171,7 @@ class ZshAutocompleteInstaller(BashLikeAutocompleteInstaller):
         rc_path = self.get_rc_path()
         if not rc_path.exists():
             # if zshrc is missing `zshrc -i` may hang on creation wizard when emulating tty
-            rc_path.touch(mode=0o750)
+            rc_path.touch(mode=0o644)
         _silent_success_run_with_tty(
             [self.shell_exec, '-c', 'autoload -Uz compaudit; echo AUDIT; compaudit']
         )
@@ -328,7 +328,7 @@ def add_or_update_shell_section(
         rf'^{re.escape(section_start)}.*?^{re.escape(section_end)}', flags=re.MULTILINE | re.DOTALL
     )
     if pattern.search(file_content):
-        file_content = pattern.sub(full_content, file_content)
+        file_content = pattern.sub(lambda m: full_content, file_content)
     else:
         file_content += f'\n{full_content}\n'
     path.write_text(file_content)
