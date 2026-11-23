@@ -15,6 +15,9 @@ is the command syntax: a renamed subcommand or option leaves the documentation s
 line the tool rejects. This module extracts every shell example that invokes `b2` / `b2v5` (also
 when wrapped in `docker run ... backblazeit/b2:latest b2v5 ...`) and checks that the real argument
 parser accepts it. Nothing is executed and no network is used.
+
+Limitation: argparse accepts unambiguous option prefixes, so a pass proves that the parser accepts
+the documented text, not that the exact option spelled in the documentation exists.
 """
 
 from __future__ import annotations
@@ -189,7 +192,9 @@ class TestRealParser:
 
 def test_documentation_contains_commands_to_validate():
     # Guard against the extraction silently matching nothing (e.g. after a docs reformat).
-    assert len(documented_commands()) >= 10
+    # 16 commands are documented today; the minimum is kept close to that because turning one
+    # `code-block:: sh` into `text` made 5 commands vanish and a looser bound (10) did not notice.
+    assert len(documented_commands()) >= 15
 
 
 @pytest.mark.usefixtures('console_tool_class')

@@ -618,7 +618,7 @@ def doc(session):
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def doc_examples(session):
-    """Compile the documentation examples: every `b2` command line in README/docs must parse."""
+    """Check that every `b2` command line in README/docs is accepted by the CLI argument parser (nothing is run)."""
     uv_install(session, groups=('test',))
     session.run(
         'pytest',
