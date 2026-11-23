@@ -133,11 +133,11 @@ def test_notification_rules__update__no_such_rule(
 
 
 @pytest.mark.parametrize('command', [['bucket', 'notification-rule'], ['notification-rules']])
+@pytest.mark.parametrize('header', ['X-Foo', 'X-Custom-Header: value'])
 def test_notification_rules__update__custom_header_malformed(
-    b2_cli, bucket, bucket_notification_rule, command
+    b2_cli, bucket, bucket_notification_rule, command, header
 ):
-    bucket_notification_rule['isEnabled'] = False
-    _, stdout, _ = b2_cli.run(
+    b2_cli.run(
         [
             *command,
             'update',
@@ -146,13 +146,13 @@ def test_notification_rules__update__custom_header_malformed(
             bucket_notification_rule['name'],
             '--disable',
             '--custom-header',
-            'X-Custom-Header: value',
+            header,
         ],
+        expected_status=1,
+        expected_stderr='ERROR: --custom-header must have the format HEADER_NAME=VALUE\n',
     )
-    bucket_notification_rule['targetConfiguration']['customHeaders'] = {
-        'X-Custom-Header: value': ''
-    }
-    assert json.loads(stdout) == bucket_notification_rule
+    _, stdout, _ = b2_cli.run([*command, 'list', '--json', f'b2://{bucket}'])
+    assert json.loads(stdout) == [bucket_notification_rule]
 
 
 def test_notification_rules__delete(b2_cli, bucket, bucket_notification_rule):

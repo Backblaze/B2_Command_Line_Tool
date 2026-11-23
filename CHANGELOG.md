@@ -9,7 +9,7 @@ upcoming release can be found in [.changes/unreleased](.changes/unreleased).
 Release preparation, fragment formatting, and changelog history are checked automatically in CI.
 The release process and publication checks are documented in [RELEASE.md](RELEASE.md).
 
-## [5.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.3) - 2026-11-12
+## [5.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.3) - 2026-11-13
 
 ### Fixed
 

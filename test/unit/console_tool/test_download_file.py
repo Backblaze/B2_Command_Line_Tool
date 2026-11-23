@@ -114,13 +114,12 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
     b2_cli.run(
         [
             'download-file-by-name',
+            flag,
             uploaded_file['bucket'],
             uploaded_file['fileName'],
             str(output_path),
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
-            output_path=pathlib.Path(output_path).resolve()
-        ),
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
         expected_stderr='WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']

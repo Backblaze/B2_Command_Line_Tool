@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 env:
   PYTHON_DEFAULT_VERSION: "3.12"
@@ -89,41 +90,44 @@ jobs:
       - name: Compile documentation examples
         run: uv run nox -vs doc_examples
   cleanup_buckets:
+    if: ${{ vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     timeout-minutes: 30
     needs: lint
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         with:
           fetch-depth: 0
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
           cache: "pip"
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
       - name: Install dependencies
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: |
           uv sync --locked --group nox
       - name: Find and remove old buckets
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}  # TODO: skip this whole job instead
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs cleanup_buckets
   test:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_SHORT_TIMEOUTS: '1'
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -167,14 +171,16 @@ jobs:
         run: uv run nox -vs integration -p ${{ matrix.python-version }} -- -m "not require_secrets"
       - name: Run integration tests (with secrets)
         # Limit CI workload by running integration tests with secrets only on edge Python versions.
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.10", "pypy3.10", "3.14"]'), matrix.python-version) }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' && contains(fromJSON('["3.10", "pypy3.10", "3.14"]'), matrix.python-version) }}
         run: uv run nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" --cleanup
   test-docker:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_SHORT_TIMEOUTS: '1'
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: ubuntu-latest
     steps:
@@ -208,16 +214,17 @@ jobs:
           tags: backblazeit/b2:test
           platforms: linux/amd64
       - name: Run tests with docker
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs docker_test -- backblazeit/b2:test
   test-linux-bundle:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
       PYTHON_DEFAULT_VERSION: "3.10"  # Use Ubuntu 22.04's distro Python for staticx.
       UV_PYTHON_DOWNLOADS: "never"
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -248,7 +255,7 @@ jobs:
       - name: Run integration tests (without secrets)
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()
@@ -260,10 +267,11 @@ jobs:
           overwrite: true
   test-windows-bundle:
     timeout-minutes: 90
-    needs: cleanup_buckets
+    needs: [lint, cleanup_buckets]
+    if: ${{ !cancelled() && needs.lint.result == 'success' && (needs.cleanup_buckets.result == 'success' || needs.cleanup_buckets.result == 'skipped') }}
     env:
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY || '' }}
+      B2_TEST_APPLICATION_KEY_ID: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && secrets.B2_TEST_APPLICATION_KEY_ID || '' }}
       WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
     runs-on: windows-2022  # keep the version aligned with cd.yml
     steps:
@@ -291,7 +299,7 @@ jobs:
       - name: Run integration tests (without secrets)
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "not require_secrets"
       - name: Run integration tests (with secrets)
-        if: ${{ env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
+        if: ${{ (vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)) && env.B2_TEST_APPLICATION_KEY != '' && env.B2_TEST_APPLICATION_KEY_ID != '' }}
         run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
       - name: Upload assets
         if: failure()

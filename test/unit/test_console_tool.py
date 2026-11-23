@@ -75,7 +75,13 @@ class BaseConsoleToolTest(TestBase):
                 **kwargs,
             )
 
-        self.console_tool_class._initialize_b2_api = lambda cls, args, kwargs: _get_b2api(**kwargs)
+        patcher = mock.patch.object(
+            self.console_tool_class,
+            '_initialize_b2_api',
+            lambda cls, args, kwargs: _get_b2api(**kwargs),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         self.b2_api = _get_b2api()
         self.raw_api = self.b2_api.session.raw_api
@@ -87,6 +93,10 @@ class BaseConsoleToolTest(TestBase):
             B2_ENVIRONMENT_ENV_VAR,
         ]:
             os.environ.pop(env_var_name, None)
+
+    def tearDown(self):
+        self.doCleanups()
+        super().tearDown()
 
     def _get_stdouterr(self):
         stdout = StringIO()
@@ -2907,25 +2917,32 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_passing_api_parameters(self):
         self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        uploaded = bucket.upload(UploadSourceBytes(b'test'), 'test.txt')
+        temporary_dir = TemporaryDirectory()
+        self.addCleanup(temporary_dir.cleanup)
+        output_path = str(pathlib.Path(temporary_dir.name) / 'download.txt')
+        sync_path = str(pathlib.Path(temporary_dir.name) / 'sync')
         commands = [
             [
                 'b2',
                 'download-file-by-name',
                 '--profile',
                 'nonexistent',
-                'dummy-name',
-                'dummy-file-name',
-                'dummy-local-file-name',
+                'my-bucket',
+                'test.txt',
+                output_path,
             ],
             [
                 'b2',
                 'download-file-by-id',
                 '--profile',
                 'nonexistent',
-                'dummy-id',
-                'dummy-local-file-name',
+                uploaded.id_,
+                output_path,
             ],
-            ['b2', 'sync', '--profile', 'nonexistent', 'b2:dummy-source', 'dummy-destination'],
+            ['b2', 'sync', '--profile', 'nonexistent', 'b2:my-bucket', sync_path],
         ]
         parameters = [
             {
@@ -2959,14 +2976,21 @@ class TestConsoleTool(BaseConsoleToolTest):
             assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
 
     def test_passing_api_parameters_with_auth_env_vars(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        uploaded = bucket.upload(UploadSourceBytes(b'test'), 'test.txt')
+        temporary_dir = TemporaryDirectory()
+        self.addCleanup(temporary_dir.cleanup)
+        output_path = str(pathlib.Path(temporary_dir.name) / 'download.txt')
         os.environ[B2_APPLICATION_KEY_ID_ENV_VAR] = self.account_id
         os.environ[B2_APPLICATION_KEY_ENV_VAR] = self.master_key
 
         command = [
             'b2',
             'download-file-by-id',
-            'dummy-id',
-            'dummy-local-file-name',
+            uploaded.id_,
+            output_path,
             '--write-buffer-size',
             '123',
             '--max-download-streams-per-file',
