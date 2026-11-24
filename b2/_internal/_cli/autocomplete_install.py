@@ -15,8 +15,8 @@ import logging
 import os
 import re
 import shlex
-import shutil
 import signal
+import stat
 import subprocess
 import textwrap
 from datetime import datetime
@@ -120,8 +120,15 @@ class BashLikeAutocompleteInstaller(ShellAutocompleteInstaller):
         if rc_path.exists() and rc_path.read_text().strip():
             bck_path = rc_path.with_suffix(f'.{datetime.now():%Y-%m-%dT%H-%M-%S}.bak')
             logger.warning('Backing up %s to %s', rc_path, bck_path)
+            # Preserve the source file's permissions on the backup; a plain copy would
+            # create it with the process umask (e.g. 0o644) and widen access to a
+            # private rc file.
+            src_mode = stat.S_IMODE(rc_path.stat().st_mode)
             try:
-                shutil.copyfile(rc_path, bck_path)
+                fd = os.open(bck_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, src_mode)
+                with os.fdopen(fd, 'wb') as dst:
+                    dst.write(rc_path.read_bytes())
+                os.chmod(bck_path, src_mode)
             except OSError as e:
                 raise AutocompleteInstallError(
                     f'Failed to backup {rc_path} under {bck_path}'

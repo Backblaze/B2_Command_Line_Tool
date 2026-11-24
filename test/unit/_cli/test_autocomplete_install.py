@@ -272,3 +272,26 @@ old content
 # <<< {section} <<<
 """
     ), 'shell section content was rewritten'
+
+
+@skip_on_windows
+@pytest.mark.parametrize('umask', [0o022, 0o077])
+@pytest.mark.parametrize('mode', [0o600, 0o640])
+def test_force_enable_backup_preserves_rc_mode(tmp_path, monkeypatch, mode, umask):
+    """The rc backup must inherit the source file's mode, not the process umask default."""
+    rc_path = tmp_path / 'rc'
+    rc_path.write_text('# existing content\n')
+    rc_path.chmod(mode)
+
+    installer = SHELL_REGISTRY.get('bash', prog='b2')
+    monkeypatch.setattr(installer, 'get_rc_path', lambda: rc_path)
+
+    previous_umask = os.umask(umask)
+    try:
+        installer.force_enable(tmp_path / 'completion.sh')
+    finally:
+        os.umask(previous_umask)
+
+    backups = list(tmp_path.glob('rc.*.bak'))
+    assert len(backups) == 1, f'expected exactly one backup, found {backups}'
+    assert stat.S_IMODE(backups[0].stat().st_mode) == mode
