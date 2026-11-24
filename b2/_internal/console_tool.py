@@ -178,6 +178,17 @@ logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
 
+# Reading the process umask requires temporarily setting it, which is process-global;
+# serialize it so concurrent downloads cannot leave the umask at the probe value.
+_UMASK_LOCK = threading.Lock()
+
+
+def _read_umask() -> int:
+    with _UMASK_LOCK:
+        value = os.umask(0o077)
+        os.umask(value)
+    return value
+
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
@@ -2024,18 +2035,17 @@ class DownloadCommand(
             dir=output_directory,
         )
         self._temporary_download_path = pathlib.Path(output_filepath_str)
+        # Give the file the permissions of an ordinary (non-collision) download: owner
+        # read/write always (the download reopens the path to write, so it must stay
+        # owner-writable) and group/other read only if the umask allows, instead of the
+        # previous unconditional 0644 that ignored the umask. Set the mode on the open
+        # mkstemp descriptor (fchmod) rather than by path, so a symlink swapped in at the
+        # path cannot redirect the permission change to another file.
+        if hasattr(os, 'fchmod'):
+            os.fchmod(fd_handle, 0o600 | (0o044 & ~_read_umask()))
         # Close the handle, so the file is not locked.
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
-
-        # mkstemp creates the file 0600 (minus umask), but the download reopens this path
-        # to write, so it must stay owner-writable, and a successful download should match
-        # the permissions of an ordinary (non-collision) download. Give the owner
-        # read/write and let the umask decide group/other read, instead of the previous
-        # unconditional 0644 that ignored the umask.
-        current_umask = os.umask(0o077)
-        os.umask(current_umask)
-        os.chmod(output_filepath_str, 0o600 | (0o044 & ~current_umask))
 
         return pathlib.Path(output_filepath_str)
 

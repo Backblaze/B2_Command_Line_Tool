@@ -48,9 +48,12 @@ def test_collision_download_respects_umask(b2_cli, uploaded_file, tmp_path, umas
     previous_umask = os.umask(umask)
     try:
         b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
+        umask_after = os.umask(umask)  # the download must restore the process umask
+        os.umask(umask_after)
     finally:
         os.umask(previous_umask)
 
+    assert umask_after == umask, f'download left the process umask at {oct(umask_after)}'
     output = next(path for path in destination.iterdir() if path != existing)
     # The download must succeed (it reopens the file to write, so it must stay
     # owner-writable even under an owner-write-stripping umask) ...
