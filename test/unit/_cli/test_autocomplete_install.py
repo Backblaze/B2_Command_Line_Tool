@@ -277,8 +277,10 @@ old content
 @skip_on_windows
 @pytest.mark.parametrize('umask', [0o022, 0o077])
 @pytest.mark.parametrize('mode', [0o600, 0o640])
-def test_force_enable_backup_preserves_rc_mode(tmp_path, monkeypatch, mode, umask):
-    """The rc backup must inherit the source file's mode, not the process umask default."""
+def test_force_enable_backup_is_owner_only(tmp_path, monkeypatch, mode, umask):
+    """The rc backup must be owner-only (0600), never the umask default and never more
+    accessible than intended — even when the source is group-readable, since the backup
+    may be owned by a different group than the source."""
     rc_path = tmp_path / 'rc'
     rc_path.write_text('# existing content\n')
     rc_path.chmod(mode)
@@ -294,4 +296,4 @@ def test_force_enable_backup_preserves_rc_mode(tmp_path, monkeypatch, mode, umas
 
     backups = list(tmp_path.glob('rc.*.bak'))
     assert len(backups) == 1, f'expected exactly one backup, found {backups}'
-    assert stat.S_IMODE(backups[0].stat().st_mode) == mode
+    assert stat.S_IMODE(backups[0].stat().st_mode) == 0o600

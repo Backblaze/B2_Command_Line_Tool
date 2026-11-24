@@ -1,3 +1,3 @@
 kind: Fixed
-body: Preserve the original file's permissions when backing up a shell configuration file during autocomplete installation, instead of creating the backup with the process umask.
-time: 2026-11-24T14:42:00-06:00
+body: Create the shell configuration backup with owner-only permissions during autocomplete installation, instead of the process umask default or the source file's own (possibly group-readable) mode.
+time: 2026-11-24T15:10:00-06:00
