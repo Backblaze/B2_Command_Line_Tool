@@ -18,6 +18,7 @@ import pytest
 
 from b2._internal._cli.autocomplete_install import (
     SHELL_REGISTRY,
+    AutocompleteInstallError,
     add_or_update_shell_section,
 )
 from test.helpers import skip_on_windows
@@ -272,3 +273,66 @@ old content
 # <<< {section} <<<
 """
     ), 'shell section content was rewritten'
+
+
+@skip_on_windows
+@pytest.mark.parametrize('umask', [0o022, 0o077])
+@pytest.mark.parametrize('mode', [0o600, 0o640])
+def test_force_enable_backup_is_owner_only(tmp_path, monkeypatch, mode, umask):
+    """The rc backup must be owner-only (0600), never the umask default and never more
+    accessible than intended — even when the source is group-readable, since the backup
+    may be owned by a different group than the source."""
+    rc_path = tmp_path / 'rc'
+    rc_path.write_text('# existing content\n')
+    rc_path.chmod(mode)
+
+    installer = SHELL_REGISTRY.get('bash', prog='b2')
+    monkeypatch.setattr(installer, 'get_rc_path', lambda: rc_path)
+
+    previous_umask = os.umask(umask)
+    try:
+        installer.force_enable(tmp_path / 'completion.sh')
+    finally:
+        os.umask(previous_umask)
+
+    backups = list(tmp_path.glob('rc.*.bak'))
+    assert len(backups) == 1, f'expected exactly one backup, found {backups}'
+    assert stat.S_IMODE(backups[0].stat().st_mode) == 0o600
+
+
+@skip_on_windows
+def test_force_enable_backup_not_left_empty_on_read_failure(tmp_path, monkeypatch):
+    """A failure reading the rc file must not leave an empty backup behind."""
+    rc_path = tmp_path / 'rc'
+    rc_path.write_text('# existing content\n')
+
+    installer = SHELL_REGISTRY.get('bash', prog='b2')
+    monkeypatch.setattr(installer, 'get_rc_path', lambda: rc_path)
+
+    real_read_bytes = pathlib.Path.read_bytes
+
+    def failing_read_bytes(self):
+        if self == rc_path:
+            raise OSError('read failed')
+        return real_read_bytes(self)
+
+    monkeypatch.setattr(pathlib.Path, 'read_bytes', failing_read_bytes)
+
+    with pytest.raises(AutocompleteInstallError):
+        installer.force_enable(tmp_path / 'completion.sh')
+    assert list(tmp_path.glob('rc.*.bak')) == []
+
+
+@skip_on_windows
+def test_force_enable_two_backups_do_not_collide(tmp_path, monkeypatch):
+    """Two consecutive fallback installs must each keep their own backup, not clash."""
+    rc_path = tmp_path / 'rc'
+    rc_path.write_text('# existing content\n')
+
+    installer = SHELL_REGISTRY.get('bash', prog='b2')
+    monkeypatch.setattr(installer, 'get_rc_path', lambda: rc_path)
+
+    installer.force_enable(tmp_path / 'completion.sh')
+    installer.force_enable(tmp_path / 'completion.sh')
+
+    assert len(list(tmp_path.glob('rc.*.bak'))) == 2

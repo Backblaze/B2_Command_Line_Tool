@@ -15,7 +15,6 @@ import logging
 import os
 import re
 import shlex
-import shutil
 import signal
 import subprocess
 import textwrap
@@ -118,10 +117,30 @@ class BashLikeAutocompleteInstaller(ShellAutocompleteInstaller):
         """Enable autocomplete for the given program, common logic."""
         rc_path = self.get_rc_path()
         if rc_path.exists() and rc_path.read_text().strip():
-            bck_path = rc_path.with_suffix(f'.{datetime.now():%Y-%m-%dT%H-%M-%S}.bak')
+            # Microsecond precision keeps the backup name unique, so two installs in the
+            # same second do not collide on the O_EXCL create below.
+            bck_path = rc_path.with_suffix(f'.{datetime.now():%Y-%m-%dT%H-%M-%S-%f}.bak')
             logger.warning('Backing up %s to %s', rc_path, bck_path)
+            # Make the backup owner-read/write only (0600) — never readable by group or
+            # other, regardless of umask or the source file's own mode. Read the source
+            # first so a read error leaves no empty backup; create with O_EXCL and set the
+            # mode on the file descriptor
+            # (never a path-based chmod, which a symlink swapped into a writable backup
+            # directory could redirect onto another file); drop a partial backup on error.
             try:
-                shutil.copyfile(rc_path, bck_path)
+                data = rc_path.read_bytes()
+                fd = os.open(bck_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                try:
+                    with os.fdopen(fd, 'wb') as dst:
+                        if hasattr(os, 'fchmod'):
+                            os.fchmod(dst.fileno(), 0o600)
+                        dst.write(data)
+                except OSError:
+                    try:
+                        os.unlink(bck_path)
+                    except OSError:
+                        pass
+                    raise
             except OSError as e:
                 raise AutocompleteInstallError(
                     f'Failed to backup {rc_path} under {bck_path}'
