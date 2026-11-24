@@ -121,9 +121,10 @@ class BashLikeAutocompleteInstaller(ShellAutocompleteInstaller):
             # same second do not collide on the O_EXCL create below.
             bck_path = rc_path.with_suffix(f'.{datetime.now():%Y-%m-%dT%H-%M-%S-%f}.bak')
             logger.warning('Backing up %s to %s', rc_path, bck_path)
-            # Make the backup owner-read/write only (0600): a backup must never be more
-            # accessible than the source. Read the source first so a read error leaves no
-            # empty backup; create with O_EXCL and set the mode on the file descriptor
+            # Make the backup owner-read/write only (0600) — never readable by group or
+            # other, regardless of umask or the source file's own mode. Read the source
+            # first so a read error leaves no empty backup; create with O_EXCL and set the
+            # mode on the file descriptor
             # (never a path-based chmod, which a symlink swapped into a writable backup
             # directory could redirect onto another file); drop a partial backup on error.
             try:
