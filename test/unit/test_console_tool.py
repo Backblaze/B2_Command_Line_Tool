@@ -2552,6 +2552,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         sync_threads=None,
         download_threads=None,
         upload_threads=None,
+        expect_error=False,
     ):
         self._authorize_account()
         self._create_my_bucket()
@@ -2568,6 +2569,15 @@ class TestConsoleTool(BaseConsoleToolTest):
             if upload_threads is not None:
                 command += ['--upload-threads', str(upload_threads)]
             command += [temp_dir, 'b2://my-bucket']
+            if expect_error:
+                self._run_command(
+                    command,
+                    expected_stdout='',
+                    expected_stderr='ERROR: --threads cannot be used with other thread options\n',
+                    expected_status=1,
+                )
+                self.assertEqual([], list(self.b2_api.get_bucket_by_name('my-bucket').ls()))
+                return
             expected_stdout = """
             upload file.txt
             """
@@ -2590,23 +2600,21 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_sync_threads_and_upload_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, upload_threads=1)
+        self._test_sync_threads(threads=1, upload_threads=1, expect_error=True)
 
     def test_sync_threads_and_sync_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, sync_threads=1)
+        self._test_sync_threads(threads=1, sync_threads=1, expect_error=True)
 
     def test_sync_threads_and_download_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, download_threads=1)
+        self._test_sync_threads(threads=1, download_threads=1, expect_error=True)
 
     def test_sync_all_thread_options(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, sync_threads=1, download_threads=1, upload_threads=1)
+        self._test_sync_threads(
+            threads=1, sync_threads=1, download_threads=1, upload_threads=1, expect_error=True
+        )
 
     def test_ls(self):
         self._authorize_account()
