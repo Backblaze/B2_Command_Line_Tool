@@ -30,6 +30,39 @@ Download finished
 """
 
 
+@skip_on_windows(reason='POSIX permission bits and umask required')
+@pytest.mark.parametrize(
+    'umask, expected_mode',
+    [
+        (0o022, 0o644),  # a normal umask keeps the usual readable download
+        (0o077, 0o600),  # a private umask keeps the collision file private (the old bug)
+        (0o200, 0o644),  # an owner-write-stripping umask must not break the reopen/download
+    ],
+)
+def test_collision_download_respects_umask(b2_cli, uploaded_file, tmp_path, umask, expected_mode):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    existing = destination / uploaded_file['fileName']
+    existing.write_text('original')
+
+    previous_umask = os.umask(umask)
+    try:
+        b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
+        umask_after = os.umask(umask)  # the download must restore the process umask
+        os.umask(umask_after)
+    finally:
+        os.umask(previous_umask)
+
+    assert umask_after == umask, f'download left the process umask at {oct(umask_after)}'
+    output = next(path for path in destination.iterdir() if path != existing)
+    # The download must succeed (it reopens the file to write, so it must stay
+    # owner-writable even under an owner-write-stripping umask) ...
+    assert existing.read_text() == 'original'
+    assert output.read_text() == uploaded_file['content']
+    # ... and match an ordinary download's umask-respecting mode, never a fixed 0644.
+    assert output.stat().st_mode & 0o777 == expected_mode
+
+
 @pytest.mark.parametrize('command', ['uri', 'id', 'name'])
 @pytest.mark.parametrize('flag', [None, '--no-progress', '--quiet'])
 def test_stdout_download_is_only_binary_content(
