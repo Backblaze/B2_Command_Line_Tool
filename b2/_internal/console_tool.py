@@ -1055,6 +1055,15 @@ class Command(Described, metaclass=ABCMeta):
 
         if subparsers is None:
             parser = B2ArgumentParser(**parser_kwargs)
+            # Subparsers merge their namespaces over the parent's parsed values.
+            # Supply common defaults once; inherited actions must not reset them.
+            parser.set_defaults(
+                debug_logs=False,
+                verbose=False,
+                log_config=None,
+                quiet=False,
+                escape_control_characters=None,
+            )
         else:
             parser = subparsers.add_parser(
                 parser_kwargs.pop('prog'),
@@ -1069,7 +1078,9 @@ class Command(Described, metaclass=ABCMeta):
 
         if cls.subcommands_registry:
             if not parents:
-                common_parser = B2ArgumentParser(add_help=False, add_help_all=False)
+                common_parser = B2ArgumentParser(
+                    add_help=False, add_help_all=False, argument_default=argparse.SUPPRESS
+                )
                 add_normalized_argument(
                     common_parser, '--debug-logs', action='store_true', help=argparse.SUPPRESS
                 )
@@ -1083,7 +1094,7 @@ class Command(Described, metaclass=ABCMeta):
                     help=argparse.SUPPRESS,
                 )
                 common_parser.add_argument(
-                    '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
+                    '-q', '--quiet', action='store_true', help=argparse.SUPPRESS
                 )
 
                 common_parser.add_argument(
@@ -1096,7 +1107,6 @@ class Command(Described, metaclass=ABCMeta):
                     help=argparse.SUPPRESS,
                 )
 
-                common_parser.set_defaults(escape_control_characters=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(
