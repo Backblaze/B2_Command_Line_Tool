@@ -2028,10 +2028,6 @@ class DownloadCommand(
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
 
-        # "Normal" file created by Python has readable for everyone, writable for user only.
-        # We change the permissions, to match the default ones.
-        os.chmod(output_filepath_str, 0o644)
-
         return pathlib.Path(output_filepath_str)
 
 

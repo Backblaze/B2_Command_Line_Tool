@@ -9,8 +9,10 @@
 ######################################################################
 import os
 import pathlib
+from unittest import mock
 
 import pytest
+from b2sdk.v3 import DownloadedFile
 
 from test.helpers import skip_on_windows
 
@@ -28,6 +30,36 @@ INFO src_last_modified_millis: 1500111222000
 Checksum matches
 Download finished
 """
+
+
+@skip_on_windows(reason='POSIX permission bits and umask required')
+def test_collision_download_respects_private_umask(b2_cli, uploaded_file, tmp_path):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    existing = destination / uploaded_file['fileName']
+    existing.write_text('original')
+    original_save = DownloadedFile.save_to
+    observed_modes = []
+
+    def check_and_save(download, path, *args, **kwargs):
+        observed_modes.append(path.stat().st_mode & 0o777)
+        result = original_save(download, path, *args, **kwargs)
+        observed_modes.append(path.stat().st_mode & 0o777)
+        return result
+
+    previous_umask = os.umask(0o077)
+    try:
+        with mock.patch.object(DownloadedFile, 'save_to', check_and_save):
+            b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
+    finally:
+        os.umask(previous_umask)
+
+    output = next(path for path in destination.iterdir() if path != existing)
+    assert existing.read_text() == 'original'
+    assert output.read_text() == uploaded_file['content']
+    observed_modes.append(output.stat().st_mode & 0o777)
+    assert len(observed_modes) == 3
+    assert all(mode & 0o077 == 0 for mode in observed_modes), observed_modes
 
 
 @pytest.mark.parametrize('command', ['uri', 'id', 'name'])
