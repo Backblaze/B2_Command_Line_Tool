@@ -9,10 +9,8 @@
 ######################################################################
 import os
 import pathlib
-from unittest import mock
 
 import pytest
-from b2sdk.v3 import DownloadedFile
 
 from test.helpers import skip_on_windows
 
@@ -33,33 +31,33 @@ Download finished
 
 
 @skip_on_windows(reason='POSIX permission bits and umask required')
-def test_collision_download_respects_private_umask(b2_cli, uploaded_file, tmp_path):
+@pytest.mark.parametrize(
+    'umask, expected_mode',
+    [
+        (0o022, 0o644),  # a normal umask keeps the usual readable download
+        (0o077, 0o600),  # a private umask keeps the collision file private (the old bug)
+        (0o200, 0o644),  # an owner-write-stripping umask must not break the reopen/download
+    ],
+)
+def test_collision_download_respects_umask(b2_cli, uploaded_file, tmp_path, umask, expected_mode):
     destination = tmp_path / 'downloads'
     destination.mkdir()
     existing = destination / uploaded_file['fileName']
     existing.write_text('original')
-    original_save = DownloadedFile.save_to
-    observed_modes = []
 
-    def check_and_save(download, path, *args, **kwargs):
-        observed_modes.append(path.stat().st_mode & 0o777)
-        result = original_save(download, path, *args, **kwargs)
-        observed_modes.append(path.stat().st_mode & 0o777)
-        return result
-
-    previous_umask = os.umask(0o077)
+    previous_umask = os.umask(umask)
     try:
-        with mock.patch.object(DownloadedFile, 'save_to', check_and_save):
-            b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
+        b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
     finally:
         os.umask(previous_umask)
 
     output = next(path for path in destination.iterdir() if path != existing)
+    # The download must succeed (it reopens the file to write, so it must stay
+    # owner-writable even under an owner-write-stripping umask) ...
     assert existing.read_text() == 'original'
     assert output.read_text() == uploaded_file['content']
-    observed_modes.append(output.stat().st_mode & 0o777)
-    assert len(observed_modes) == 3
-    assert all(mode & 0o077 == 0 for mode in observed_modes), observed_modes
+    # ... and match an ordinary download's umask-respecting mode, never a fixed 0644.
+    assert output.stat().st_mode & 0o777 == expected_mode
 
 
 @pytest.mark.parametrize('command', ['uri', 'id', 'name'])

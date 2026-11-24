@@ -1,0 +1,3 @@
+kind: Fixed
+body: When downloading into a directory where a same-named file already exists, give the uniquely named output file permissions that respect the umask (owner read/write plus group/other read only when the umask allows), instead of an unconditional 0644 that ignored the umask.
+time: 2026-11-24T15:30:00-06:00

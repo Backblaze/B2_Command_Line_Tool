@@ -2028,6 +2028,15 @@ class DownloadCommand(
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
 
+        # mkstemp creates the file 0600 (minus umask), but the download reopens this path
+        # to write, so it must stay owner-writable, and a successful download should match
+        # the permissions of an ordinary (non-collision) download. Give the owner
+        # read/write and let the umask decide group/other read, instead of the previous
+        # unconditional 0644 that ignored the umask.
+        current_umask = os.umask(0o077)
+        os.umask(current_umask)
+        os.chmod(output_filepath_str, 0o600 | (0o044 & ~current_umask))
+
         return pathlib.Path(output_filepath_str)
 
 
