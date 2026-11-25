@@ -20,6 +20,7 @@ import importlib.util
 import json
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.request import ProxyHandler, Request, build_opener
@@ -505,6 +506,38 @@ def test_completed_upstream_cleanup_is_not_counted_as_transfer_overlap(
             assert proxy.total('upload_part') == 3
     finally:
         release_cleanup.set()
+
+
+@pytest.mark.parametrize('content_type', ['application/json', 'application/octet-stream'])
+def test_counting_stops_before_the_final_bytes_reach_the_client(
+    upstream, monkeypatch, content_type
+):
+    """A client may start its next request as soon as it has read the last byte, so the
+    transfer must already be out of the in-flight count by then, not only by connection close.
+
+    Releasing the count is slowed down: if it happened after the final write, the client
+    would read the last byte while the transfer is still counted."""
+    send_header = Upstream.send_header
+    leave = observing_proxy.ObservingProxy._leave
+
+    def upstream_header(handler, name, value):
+        if name.lower() == 'content-type':
+            value = content_type
+        return send_header(handler, name, value)
+
+    def slow_leave(proxy, label):
+        time.sleep(0.3)
+        leave(proxy, label)
+
+    monkeypatch.setattr(Upstream, 'send_header', upstream_header)
+    monkeypatch.setattr(observing_proxy.ObservingProxy, '_leave', slow_leave)
+    with observing_proxy.ObservingProxy(upstream.origin) as proxy:
+        request = Request(f'{proxy.origin}/b2api/v4/b2_upload_part', data=b'x')
+        with NO_PROXY_OPENER.open(request, timeout=10) as response:
+            response.read()
+            with proxy._lock:
+                still_counted = proxy._in_flight.get('upload_part', 0)
+    assert still_counted == 0, 'the transfer was still counted when the last byte arrived'
 
 
 def raw_exchange(port, request: bytes) -> bytes:

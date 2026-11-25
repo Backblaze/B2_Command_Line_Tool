@@ -369,15 +369,23 @@ def test_file_equals_compares_a_file_with_bytes_without_reading_it_whole(tmp_pat
     path = tmp_path / 'same.bin'
     path.write_bytes(payload)
 
-    tracemalloc.start()
+    # Tracing may already be on (PYTHONTRACEMALLOC=1) and owned by the caller: measure only the
+    # growth during the comparison, and stop tracing only if this test started it.
+    already_tracing = tracemalloc.is_tracing()
+    if not already_tracing:
+        tracemalloc.start()
     try:
+        tracemalloc.reset_peak()
+        baseline, _ = tracemalloc.get_traced_memory()
         same = check.file_equals(path, payload)
         _, peak = tracemalloc.get_traced_memory()
     finally:
-        tracemalloc.stop()
+        if not already_tracing:
+            tracemalloc.stop()
 
     assert same
-    assert peak < 4 * 1024 * 1024, f'compared with {peak} bytes of extra memory'
+    extra = peak - baseline
+    assert extra < 4 * 1024 * 1024, f'compared with {extra} bytes of extra memory'
 
 
 @pytest.mark.parametrize(
