@@ -104,7 +104,10 @@ def test_completion_file_capture_preserves_output_and_exit_status(caplog, status
     caplog.set_level('DEBUG')
     code = f'import sys; print("captured-out"); print("captured-err", file=sys.stderr); sys.exit({status})'
     assert _silent_success_run_with_files([sys.executable, '-c', code], timeout=10) is (status == 0)
-    assert 'captured-out' in caplog.text and 'captured-err' in caplog.text
+    expected_stdout = b'captured-out' + os.linesep.encode()
+    expected_stderr = b'captured-err' + os.linesep.encode()
+    assert f'stdout: {expected_stdout!r}' in caplog.text
+    assert f'stderr: {expected_stderr!r}' in caplog.text
 
 
 @pytest.mark.skipif(os.name != 'posix', reason='POSIX process groups')
