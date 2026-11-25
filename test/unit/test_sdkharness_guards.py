@@ -98,6 +98,8 @@ def test_scrubbed_environment_drops_b2_and_proxy_variables():
         'HTTP_PROXY': 'http://proxy.invalid:8080',
         'https_proxy': 'http://proxy.invalid:8080',
         'ALL_PROXY': 'socks5://proxy.invalid',
+        'FTP_PROXY': 'http://proxy.invalid:21',
+        'grpc_proxy': 'http://proxy.invalid:50051',
         'NO_PROXY': 'example.com',
         'no_proxy': 'example.com',
     }

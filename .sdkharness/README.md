@@ -80,7 +80,8 @@ When you are done, stop the simulator with `kill "$SIM_PID"`.
 
 Each prints one `SDKHARNESS_RESULT` line and refuses any simulator URL that is not
 `http://127.0.0.1:<port>`. The CLI child never inherits proxy variables (`HTTP_PROXY`,
-`HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, in either case); loopback is exempted explicitly.
+`HTTPS_PROXY`, `ALL_PROXY`, `FTP_PROXY`, `GRPC_PROXY` and `NO_PROXY`, in either case);
+loopback is exempted explicitly.
 
 `large.concurrent_parts` and `large.parallel_download` observe concurrency on the wire.
 They point the CLI at a small loopback proxy (`tests/lib/observing_proxy.py`) in front of
@@ -92,7 +93,8 @@ are excluded, so a completed serial transfer cannot inflate the next transfer's 
 `large.parallel_download` uses a file of just over 200 MiB because b2sdk
 starts one ranged stream per 100 MiB of content and the CLI has no option to lower that.
 
-The guards are covered by `test/unit/test_sdkharness_guards.py` (run with the unit tests). Use a fresh simulator per resilience scenario: an
-unconsumed injected fault from a failing scenario (for example `upload.retry_408`)
-carries over to the next one. `api.retry_after_503` and `upload.retry_408` are known
+The guards are covered by `test/unit/test_sdkharness_guards.py` (run with the unit tests).
+
+Use a fresh simulator per resilience scenario: an unconsumed injected fault from a failing
+scenario (for example `upload.retry_408`) carries over to the next one. `api.retry_after_503` and `upload.retry_408` are known
 SDK findings, not setup problems.
