@@ -187,6 +187,21 @@ def sha1_bytes(payload: bytes) -> str:
     return hashlib.sha1(payload, usedforsecurity=False).hexdigest()
 
 
+def file_equals(path: Path, payload: bytes, chunk_size: int = 1024 * 1024) -> bool:
+    """Whether ``path`` holds exactly ``payload``, read a chunk at a time.
+
+    ``path.read_bytes() == payload`` would hold a second copy of a 200 MiB payload in memory.
+    """
+    view = memoryview(payload)
+    with path.open('rb') as handle:
+        offset = 0
+        while chunk := handle.read(chunk_size):
+            if view[offset : offset + len(chunk)] != chunk:
+                return False
+            offset += len(chunk)
+    return offset == len(payload)
+
+
 def metadata_sha1(item: Mapping[str, object]) -> str:
     return str(item.get('contentSha1', '')).removeprefix('unverified:')
 
@@ -1467,7 +1482,7 @@ class Lifecycle:
                 )
                 peaks[threads] = proxy.peak('download_stream')
                 ranged[threads] = proxy.total('ranged_get')
-            if path.read_bytes() != payload:
+            if not file_equals(path, payload):
                 raise CheckFailure('parallel download', f'{threads}-thread bytes differ')
             path.unlink()
         if peaks[1] != 1 or ranged[1] != 0:

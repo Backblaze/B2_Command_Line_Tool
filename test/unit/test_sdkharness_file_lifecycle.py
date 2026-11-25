@@ -358,3 +358,41 @@ def test_the_cli_child_inherits_no_ambient_b2_values(tmp_path):
         assert environment['B2_APPLICATION_KEY_ID'] == 'test-key-id'
         assert environment['B2_APPLICATION_KEY'] == 'test-key'
         assert environment['B2_ACCOUNT_INFO'].startswith(str(tmp_path))
+
+
+def test_file_equals_compares_a_file_with_bytes_without_reading_it_whole(tmp_path):
+    import tracemalloc
+
+    check = load_check()
+    payload = check.Lifecycle.large_payload(8 * 1024 * 1024 + 123)
+    path = tmp_path / 'same.bin'
+    path.write_bytes(payload)
+
+    tracemalloc.start()
+    try:
+        same = check.file_equals(path, payload)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert same
+    assert peak < 4 * 1024 * 1024, f'compared with {peak} bytes of extra memory'
+
+
+@pytest.mark.parametrize(
+    'mutate',
+    [
+        lambda data: data[:-1] + b'X',  # differs in the very last byte
+        lambda data: b'X' + data[1:],  # differs in the first byte
+        lambda data: data[:-1],  # shorter
+        lambda data: data + b'X',  # longer
+        lambda data: b'',
+    ],
+)
+def test_file_equals_detects_any_difference(tmp_path, mutate):
+    check = load_check()
+    payload = check.Lifecycle.large_payload(3 * 1024 * 1024 + 7)
+    path = tmp_path / 'file.bin'
+    path.write_bytes(mutate(payload))
+
+    assert not check.file_equals(path, payload)
