@@ -361,7 +361,8 @@ def test_the_cli_child_inherits_no_ambient_b2_values(tmp_path):
 
 
 def test_file_equals_compares_a_file_with_bytes_without_reading_it_whole(tmp_path):
-    import tracemalloc
+    # PyPy has no `_tracemalloc`, so the memory bound can only be measured on CPython.
+    tracemalloc = pytest.importorskip('tracemalloc', reason='tracemalloc is unavailable on PyPy')
 
     check = load_check()
     payload = check.Lifecycle.large_payload(8 * 1024 * 1024 + 123)
