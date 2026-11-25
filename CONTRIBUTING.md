@@ -109,6 +109,18 @@ nox -s lint
 
 ## Testing
 
+### Pull request integration policy
+
+Every pull request must run the integration suite against the pinned private B2 Simulator. GitHub does not expose
+the Simulator's read-only deploy key to untrusted pull request contexts, including forks and Dependabot. Those pull
+requests therefore fail closed: a maintainer must reproduce the change on a branch in this repository before it can
+pass the Simulator check. Do not bypass or skip the check, and do not use `pull_request_target` to run untrusted code
+with the deploy key.
+
+Repository administrators must install a read-only deploy key for `backblaze-labs/b2-simulator`, store its private
+half as the `SIMULATOR_DEPLOY_KEY` Actions secret, and require both `simulator-access-policy` and
+`simulator-integration` before merging.
+
 To run all tests on every available Python version:
 
 ```bash

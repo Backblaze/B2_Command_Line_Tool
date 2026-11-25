@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Add fail-closed pull request integration testing against an exact, private B2 Simulator revision without exposing its fetch credential to untrusted code.
+time: 2026-11-24T00:00:00-03:00
