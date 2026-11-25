@@ -14,7 +14,9 @@ import signal
 import stat
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from unittest import mock
 
@@ -104,6 +106,48 @@ def test_completion_timeout_handles_already_terminated_group(monkeypatch, error)
     # macOS can return EPERM for a group with no remaining signalable processes.
     monkeypatch.setattr(os, 'killpg', mock.Mock(side_effect=error))
     assert _silent_success_run(['shell'], timeout=0.1) is False
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows pipe reader threads')
+def test_windows_completion_timeout_with_descendant_returns_within_bound(tmp_path, monkeypatch):
+    ready = tmp_path / 'child-pid'
+    started = threading.Event()
+    real_popen = subprocess.Popen
+    processes = []
+
+    def start(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        deadline = time.monotonic() + 15
+        while not ready.exists() or not ready.read_text():
+            assert time.monotonic() < deadline, 'descendant did not start'
+            time.sleep(0.01)
+        started.set()
+        return process
+
+    monkeypatch.setattr(subprocess, 'Popen', start)
+    code = (
+        'import pathlib, subprocess, sys, time; '
+        'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"]); '
+        f'pathlib.Path({str(ready)!r}).write_text(str(child.pid)); time.sleep(60)'
+    )
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        result = executor.submit(_silent_success_run, [sys.executable, '-c', code], timeout=0.1)
+        try:
+            assert started.wait(timeout=20), 'shell and descendant did not become ready'
+            assert result.result(timeout=5) is False
+        finally:
+            # Releasing the real child's handles also unblocks a regressed reader,
+            # so even a failing bounded-return assertion can finish its teardown.
+            if ready.exists() and ready.read_text():
+                real_popen(
+                    ['taskkill', '/PID', ready.read_text(), '/T', '/F'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                ).wait(timeout=10)
+            for process in processes:
+                process.kill()
+                process.wait(timeout=10)
 
 
 @pytest.fixture
