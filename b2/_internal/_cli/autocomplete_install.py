@@ -284,7 +284,9 @@ def _silent_success_run(cmd: list[str], timeout: int = 30, env: dict | None = No
                 os.killpg(p.pid, signal.SIGKILL)
             else:
                 p.kill()
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
+            # The group may have exited during timeout handling. macOS can
+            # report EPERM when there are no remaining signalable processes.
             pass
         try:
             stdout, stderr = p.communicate(timeout=1)

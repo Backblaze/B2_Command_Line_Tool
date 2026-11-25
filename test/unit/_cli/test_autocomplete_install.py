@@ -95,6 +95,17 @@ def test_completion_timeout_cleanup_remains_bounded(monkeypatch):
     process.stderr.close.assert_called_once()
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='POSIX process groups')
+@pytest.mark.parametrize('error', [ProcessLookupError, PermissionError])
+def test_completion_timeout_handles_already_terminated_group(monkeypatch, error):
+    process = mock.Mock(returncode=0)
+    process.communicate.side_effect = [subprocess.TimeoutExpired('shell', 0.1), (b'', b'')]
+    monkeypatch.setattr(subprocess, 'Popen', mock.Mock(return_value=process))
+    # macOS can return EPERM for a group with no remaining signalable processes.
+    monkeypatch.setattr(os, 'killpg', mock.Mock(side_effect=error))
+    assert _silent_success_run(['shell'], timeout=0.1) is False
+
+
 @pytest.fixture
 def test_file(tmp_path):
     yield tmp_path / 'test_file.sh'
