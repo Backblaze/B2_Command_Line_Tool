@@ -11,7 +11,21 @@ from pathlib import Path
 
 import pytest
 
-from b2._internal._utils.uri import B2URI, B2FileIdURI, parse_uri
+from b2._internal._utils.uri import B2URI, B2FileIdURI, parse_b2_uri, parse_uri
+
+
+@pytest.mark.parametrize('parse', [parse_uri, parse_b2_uri])
+@pytest.mark.parametrize('control', ['\r', '\n', '\t'])
+def test_uri_controls_are_rejected_instead_of_changing_object_name(parse, control):
+    with pytest.raises(ValueError, match='control characters'):
+        parse(f'b2://bucket/a{control}b')
+
+
+@pytest.mark.parametrize('parse', [parse_uri, parse_b2_uri])
+def test_local_paths_and_uri_spaces_are_preserved(parse):
+    assert parse(' b2://bucket/a b ') == B2URI('bucket', 'a b ')
+    if parse is parse_uri:
+        assert parse('a\tb') == Path('a\tb')
 
 
 class TestB2URI:

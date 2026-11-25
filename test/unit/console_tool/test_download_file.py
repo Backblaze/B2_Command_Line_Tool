@@ -9,10 +9,89 @@
 ######################################################################
 import os
 import pathlib
+import subprocess
 
 import pytest
 
 from test.helpers import skip_on_windows
+from test.unit.console_tool.test_command_regressions import run_no_traceback
+
+
+@skip_on_windows(reason='symlink creation requires privileges on Windows')
+@pytest.mark.parametrize('redirect', ['parent', 'nested-parent', 'dangling-file'])
+def test_directory_download_rejects_symlink_escape(b2_cli, api_bucket, tmp_path, redirect):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    sentinel = outside / 'existing.txt'
+    sentinel.write_text('unchanged')
+    if redirect == 'dangling-file':
+        remote_name = 'probe.txt'
+        (destination / remote_name).symlink_to(outside / 'probe.txt')
+    else:
+        parent = destination
+        if redirect == 'nested-parent':
+            parent = destination / 'nested'
+            parent.mkdir()
+        (parent / 'link').symlink_to(outside, target_is_directory=True)
+        remote_name = ('nested/' if redirect == 'nested-parent' else '') + 'link/probe.txt'
+    uploaded = api_bucket.upload_bytes(b'payload', remote_name)
+    status, _, stderr = run_no_traceback(
+        b2_cli, ['file', 'download', f'b2id://{uploaded.id_}', str(destination)]
+    )
+    assert status == 1
+    assert 'outside download directory' in stderr
+    assert sorted(path.name for path in outside.iterdir()) == ['existing.txt']
+    assert sentinel.read_text() == 'unchanged'
+
+
+def test_directory_download_allows_contained_nested_path(b2_cli, api_bucket, tmp_path):
+    destination = tmp_path / 'downloads'
+    (destination / 'nested').mkdir(parents=True)
+    uploaded = api_bucket.upload_bytes(b'payload', 'nested/probe.txt')
+    b2_cli.run(['file', 'download', '--quiet', f'b2id://{uploaded.id_}', str(destination)])
+    assert (destination / 'nested' / 'probe.txt').read_bytes() == b'payload'
+
+
+@skip_on_windows(reason='symlink creation requires privileges on Windows')
+@pytest.mark.parametrize('selected_root_is_link', [False, True])
+def test_directory_download_allows_contained_symlinks(
+    b2_cli, api_bucket, tmp_path, selected_root_is_link
+):
+    real_directory = tmp_path / 'real'
+    (real_directory / 'nested').mkdir(parents=True)
+    link = tmp_path / 'link' if selected_root_is_link else real_directory / 'link'
+    link.symlink_to(
+        real_directory if selected_root_is_link else real_directory / 'nested',
+        target_is_directory=True,
+    )
+    destination = link if selected_root_is_link else real_directory
+    remote_name = 'nested/probe.txt' if selected_root_is_link else 'link/probe.txt'
+    uploaded = api_bucket.upload_bytes(b'payload', remote_name)
+    b2_cli.run(['file', 'download', '--quiet', f'b2id://{uploaded.id_}', str(destination)])
+    assert (real_directory / 'nested' / 'probe.txt').read_bytes() == b'payload'
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows directory junction')
+def test_directory_download_rejects_junction_escape(b2_cli, api_bucket, tmp_path):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    subprocess.run(
+        ['cmd', '/c', 'mklink', '/J', str(destination / 'link'), str(outside)],
+        capture_output=True,
+        check=True,
+    )
+    uploaded = api_bucket.upload_bytes(b'payload', 'link/probe.txt')
+    status, _, stderr = run_no_traceback(
+        b2_cli, ['file', 'download', f'b2id://{uploaded.id_}', str(destination)]
+    )
+    assert status == 1
+    assert 'outside download directory' in stderr
+    assert list(outside.iterdir()) == []
+
 
 EXPECTED_STDOUT_DOWNLOAD = """
 File name:           file1.txt

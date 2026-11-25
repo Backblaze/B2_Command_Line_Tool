@@ -9,7 +9,63 @@
 ######################################################################
 from __future__ import annotations
 
+import base64
+import json
+
 import pytest
+from b2sdk.v3 import EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting
+
+from test.unit.console_tool.test_command_regressions import run
+
+
+@pytest.mark.parametrize('encryption_side', ['source', 'destination'])
+@pytest.mark.parametrize(
+    'metadata_options', [[], ['--fetch-metadata'], ['--content-type', 'text/plain', '--no-info']]
+)
+def test_sse_c_copy_metadata_requirement(
+    b2_cli, api_bucket, uploaded_file, monkeypatch, encryption_side, metadata_options
+):
+    key = b'a' * 32
+    encoded_key = base64.b64encode(key).decode()
+    monkeypatch.setenv(f'B2_{encryption_side.upper()}_SSE_C_KEY_B64', encoded_key)
+    if encryption_side == 'source':
+        source_id = api_bucket.upload_bytes(
+            b'hello world',
+            'encrypted-source.txt',
+            encryption=EncryptionSetting(
+                EncryptionMode.SSE_C,
+                EncryptionAlgorithm.AES256,
+                EncryptionKey(key, 'source-key'),
+            ),
+        ).id_
+    else:
+        source_id = uploaded_file['fileId']
+        monkeypatch.setenv('B2_DESTINATION_SSE_C_KEY_ID', 'destination-key')
+
+    status, stdout, stderr = run(
+        b2_cli,
+        [
+            'file',
+            'server-side-copy',
+            f'--{encryption_side}-server-side-encryption',
+            'SSE-C',
+            *metadata_options,
+            f'b2id://{source_id}',
+            f'b2://{api_bucket.name}/copy.txt',
+        ],
+    )
+    if metadata_options:
+        assert status == 0
+        assert stderr == ''
+        assert json.loads(stdout)['fileName'] == 'copy.txt'
+    else:
+        assert status == 1
+        assert stdout == ''
+        assert stderr == (
+            'ERROR: Attempting to copy file with metadata while either source or destination uses '
+            'SSE-C. Use --fetch-metadata to fetch source file metadata before copying.\n'
+        )
+        assert all(file.file_name != 'copy.txt' for file, _ in api_bucket.ls())
 
 
 @pytest.mark.apiver

@@ -25,7 +25,7 @@ from b2sdk.v3.exception import B2Error
 
 _B2ID_PATTERN = re.compile(r'^b2id://(?P<file_id>[a-zA-Z0-9:_-]+)$', re.IGNORECASE)
 _B2_PATTERN = re.compile(r'^b2://(?P<bucket>[a-z0-9.-]*)(?P<path>/.*)?$', re.IGNORECASE)
-_SCHEME_PATTERN = re.compile(r'(?P<scheme>[a-z0-9]*)://.*', re.IGNORECASE)
+_SCHEME_PATTERN = re.compile(r'(?P<scheme>[a-z0-9]*)://.*', re.IGNORECASE | re.DOTALL)
 _CONTROL_CHARACTERS_AND_SPACE = '\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f '
 
 
@@ -95,7 +95,7 @@ def parse_uri(uri: str, *, allow_all_buckets: bool = False) -> Path | B2URI | B2
     if not uri:
         raise ValueError('URI cannot be empty')
 
-    if _SCHEME_PATTERN.fullmatch(_clean_uri(uri)):
+    if _SCHEME_PATTERN.fullmatch(uri.lstrip(_CONTROL_CHARACTERS_AND_SPACE)):
         return _parse_b2_uri(uri, allow_all_buckets=allow_all_buckets)
     return Path(uri)
 
@@ -116,10 +116,9 @@ def parse_b2_uri(
 
 
 def _clean_uri(uri: str) -> str:
-    # Clean URI
     uri = uri.lstrip(_CONTROL_CHARACTERS_AND_SPACE)
-    for i in ('\n', '\r', '\t'):
-        uri = uri.replace(i, '')
+    if any(control in uri for control in ('\n', '\r', '\t')):
+        raise ValueError('URI must not contain CR, LF or TAB control characters')
     return uri
 
 

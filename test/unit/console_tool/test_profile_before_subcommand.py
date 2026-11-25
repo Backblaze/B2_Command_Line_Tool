@@ -225,6 +225,36 @@ def test_reusing_parser_without_profile_uses_default(console_tool_class):
     assert parser.parse_args(['account', 'clear']).profile is None
 
 
+@pytest.mark.parametrize('profile', ['../x', '.', 'has space', 'a/b', 'a\\b', 'é', 'a' * 65])
+@pytest.mark.parametrize('position', [0, 1])
+def test_invalid_profile_is_a_usage_error(profile, position, cli_version, profile_accounts):
+    argv = ['version']
+    argv[position:position] = ['--profile', profile]
+    result = _run_cli(cli_version, argv)
+    assert result.returncode == 2, result.stderr
+    assert 'invalid profile name' in result.stderr.lower()
+    assert 'Traceback' not in result.stderr
+    assert profile_accounts[0].get_account_id() == 'default-account'
+    assert profile_accounts[1].get_account_id() == 'selected-account'
+
+
+@pytest.mark.parametrize('profile', ['a', 'A_09-', 'a' * 64])
+def test_profile_grammar_boundaries(console_tool_class, profile):
+    assert (
+        B2.create_parser(name='b2').parse_args(['version', '--profile', profile]).profile == profile
+    )
+
+
+def test_profile_account_file_conflict_reports_command_error(
+    cli_version, profile_accounts, tmp_path, monkeypatch
+):
+    monkeypatch.setenv('B2_ACCOUNT_INFO', str(tmp_path / 'account.sqlite'))
+    result = _run_cli(cli_version, ['version', '--profile', 'myprofile'])
+    assert result.returncode == 1
+    assert 'ERROR:' in result.stderr and 'B2_ACCOUNT_INFO' in result.stderr
+    assert 'Traceback' not in result.stderr
+
+
 @pytest.mark.parametrize('profile_option', [[], ['--profile', 'myprofile']])
 def test_cached_file_uri_completion_preserves_profile(
     cli_version, profile_accounts, profile_option, tmp_path
