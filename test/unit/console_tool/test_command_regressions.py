@@ -30,7 +30,7 @@ from b2._internal._cli.const import (
     B2_ESCAPE_CONTROL_CHARACTERS,
 )
 from b2._internal.console_tool import DownloadCommand, _TqdmCloser
-from test.known_defect import known_defect, known_defect_marks
+from test.known_defect import known_defect
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
@@ -471,15 +471,7 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
     'argv',
     [
         ['file', 'upload', '--file-retention-mode', 'governance', 'my-bucket', 'x', 'y'],
-        pytest.param(
-            ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
-            marks=known_defect_marks(
-                'conflicting thread options raise ValueError instead of reporting an error',
-                match="^command raised ValueError\\('--threads cannot be used with other thread options'\\)",
-                test_name='test_bad_option_combinations_report_error_not_traceback',
-                assertion_origin='run_no_traceback',
-            ),
-        ),
+        ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
     ],
 )
 def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv):

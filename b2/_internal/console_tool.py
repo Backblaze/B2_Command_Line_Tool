@@ -189,6 +189,7 @@ def _read_umask() -> int:
         os.umask(value)
     return value
 
+
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
 VERSION_0_COMPATIBILITY = False
@@ -1681,7 +1682,7 @@ class FileServerSideCopyBase(
         ):  # metadataDirective=REPLACE, no problem
             return None, None
         if not fetch_if_necessary:
-            raise ValueError(
+            raise CommandError(
                 'Attempting to copy file with metadata while either source or destination uses '
                 'SSE-C. Use --fetch-metadata to fetch source file metadata before copying.'
             )
@@ -3299,7 +3300,7 @@ class Sync(
                 or args.upload_threads != self.DEFAULT_UPLOAD_THREADS
                 or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS
             ):
-                raise ValueError('--threads cannot be used with other thread options')
+                raise CommandError('--threads cannot be used with other thread options')
             sync_threads = upload_threads = download_threads = args.threads
         else:
             sync_threads = args.sync_threads

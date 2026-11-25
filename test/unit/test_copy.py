@@ -20,7 +20,7 @@ from b2sdk.v3 import (
 )
 
 from b2._internal._utils.uri import B2FileIdURI
-from b2._internal.console_tool import FileCopyById
+from b2._internal.console_tool import CommandError, FileCopyById
 
 from .test_base import TestBase
 
@@ -88,7 +88,7 @@ class TestCopy(TestBase):
         assert len(mock_api.method_calls) == 0
 
         with self.assertRaises(
-            ValueError,
+            CommandError,
             'Attempting to copy file with metadata while either source or '
             'destination uses SSE-C. Use --fetch-metadata to fetch source '
             'file metadata before copying.',
