@@ -138,7 +138,8 @@ def test_windows_completion_timeout_with_descendant_returns_within_bound(tmp_pat
     monkeypatch.setattr(subprocess, 'Popen', start)
     code = (
         'import pathlib, subprocess, sys, time; '
-        'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"]); '
+        'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], '
+        'stdout=sys.stdout, stderr=sys.stderr); '
         f'pathlib.Path({str(ready)!r}).write_text(str(child.pid)); time.sleep(60)'
     )
     with ThreadPoolExecutor(max_workers=1) as executor:
