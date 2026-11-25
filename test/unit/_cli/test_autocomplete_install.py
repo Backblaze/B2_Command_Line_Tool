@@ -62,6 +62,7 @@ def test_completion_timeout_cleans_descendants_holding_pipes(tmp_path, monkeypat
         f'subprocess.Popen([sys.executable, "-c", {child_code!r}]); '
         + ('' if parent_exits else 'time.sleep(30)')
     )
+    verified_cleanup = False
     try:
         assert _silent_success_run([sys.executable, '-c', code], timeout=0.1) is False
         assert processes[0].returncode is not None
@@ -69,10 +70,14 @@ def test_completion_timeout_cleans_descendants_holding_pipes(tmp_path, monkeypat
         with ready.open() as lock:
             # Closing our pipes alone would leave the descendant holding this lock.
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        verified_cleanup = True
     finally:
         for process in processes:
-            with suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGKILL)
+            # Only clean up after a failed check. A successful run has already
+            # terminated this group; signaling it again can return EPERM on macOS.
+            if not verified_cleanup:
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
             process.wait(timeout=5)
 
 
