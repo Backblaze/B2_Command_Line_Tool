@@ -44,6 +44,7 @@ def test_every_pull_request_is_subject_to_the_simulator_policy():
     }
 
     policy = workflow['jobs']['simulator-access-policy']
+    assert 'if' not in policy  # a skipped job would satisfy a required check
     policy_script = policy['steps'][0]['run']
     assert 'github.event.pull_request.head.repo.full_name' in str(policy['steps'][0]['env'])
 
@@ -79,6 +80,7 @@ def test_private_simulator_is_exactly_pinned_and_uses_a_read_only_deploy_key():
     assert 'continue-on-error' not in str(workflow)
     job = workflow['jobs']['simulator-integration']
     assert job['needs'] == 'simulator-access-policy'
+    assert 'if' not in job  # a skipped job would satisfy a required check
     assert job['timeout-minutes'] == 90
 
     cli_checkout = next(step for step in job['steps'] if step.get('name') == 'Check out the CLI')
