@@ -1,0 +1,3 @@
+kind: Fixed
+body: Keep autocomplete caches separate for each CLI API version.
+time: 2026-11-19T00:00:00Z

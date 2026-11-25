@@ -75,7 +75,13 @@ class BaseConsoleToolTest(TestBase):
                 **kwargs,
             )
 
-        self.console_tool_class._initialize_b2_api = lambda cls, args, kwargs: _get_b2api(**kwargs)
+        patcher = mock.patch.object(
+            self.console_tool_class,
+            '_initialize_b2_api',
+            lambda cls, args, kwargs: _get_b2api(**kwargs),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
         self.b2_api = _get_b2api()
         self.raw_api = self.b2_api.session.raw_api
@@ -87,6 +93,10 @@ class BaseConsoleToolTest(TestBase):
             B2_ENVIRONMENT_ENV_VAR,
         ]:
             os.environ.pop(env_var_name, None)
+
+    def tearDown(self):
+        self.doCleanups()
+        super().tearDown()
 
     def _get_stdouterr(self):
         stdout = StringIO()
@@ -2542,6 +2552,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         sync_threads=None,
         download_threads=None,
         upload_threads=None,
+        expect_error=False,
     ):
         self._authorize_account()
         self._create_my_bucket()
@@ -2558,6 +2569,15 @@ class TestConsoleTool(BaseConsoleToolTest):
             if upload_threads is not None:
                 command += ['--upload-threads', str(upload_threads)]
             command += [temp_dir, 'b2://my-bucket']
+            if expect_error:
+                self._run_command(
+                    command,
+                    expected_stdout='',
+                    expected_stderr='ERROR: --threads cannot be used with other thread options\n',
+                    expected_status=1,
+                )
+                self.assertEqual([], list(self.b2_api.get_bucket_by_name('my-bucket').ls()))
+                return
             expected_stdout = """
             upload file.txt
             """
@@ -2580,23 +2600,21 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_sync_threads_and_upload_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, upload_threads=1)
+        self._test_sync_threads(threads=1, upload_threads=1, expect_error=True)
 
     def test_sync_threads_and_sync_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, sync_threads=1)
+        self._test_sync_threads(threads=1, sync_threads=1, expect_error=True)
 
     def test_sync_threads_and_download_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, download_threads=1)
+        self._test_sync_threads(threads=1, download_threads=1, expect_error=True)
 
     def test_sync_all_thread_options(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, sync_threads=1, download_threads=1, upload_threads=1)
+        self._test_sync_threads(
+            threads=1, sync_threads=1, download_threads=1, upload_threads=1, expect_error=True
+        )
 
     def test_ls(self):
         self._authorize_account()
@@ -2907,25 +2925,32 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_passing_api_parameters(self):
         self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        uploaded = bucket.upload(UploadSourceBytes(b'test'), 'test.txt')
+        temporary_dir = TemporaryDirectory()
+        self.addCleanup(temporary_dir.cleanup)
+        output_path = str(pathlib.Path(temporary_dir.name) / 'download.txt')
+        sync_path = str(pathlib.Path(temporary_dir.name) / 'sync')
         commands = [
             [
                 'b2',
                 'download-file-by-name',
                 '--profile',
                 'nonexistent',
-                'dummy-name',
-                'dummy-file-name',
-                'dummy-local-file-name',
+                'my-bucket',
+                'test.txt',
+                output_path,
             ],
             [
                 'b2',
                 'download-file-by-id',
                 '--profile',
                 'nonexistent',
-                'dummy-id',
-                'dummy-local-file-name',
+                uploaded.id_,
+                output_path,
             ],
-            ['b2', 'sync', '--profile', 'nonexistent', 'b2:dummy-source', 'dummy-destination'],
+            ['b2', 'sync', '--profile', 'nonexistent', 'b2:my-bucket', sync_path],
         ]
         parameters = [
             {
@@ -2959,14 +2984,21 @@ class TestConsoleTool(BaseConsoleToolTest):
             assert parallel_strategy.max_streams == params['--max-download-streams-per-file']
 
     def test_passing_api_parameters_with_auth_env_vars(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        bucket = self.b2_api.get_bucket_by_name('my-bucket')
+        uploaded = bucket.upload(UploadSourceBytes(b'test'), 'test.txt')
+        temporary_dir = TemporaryDirectory()
+        self.addCleanup(temporary_dir.cleanup)
+        output_path = str(pathlib.Path(temporary_dir.name) / 'download.txt')
         os.environ[B2_APPLICATION_KEY_ID_ENV_VAR] = self.account_id
         os.environ[B2_APPLICATION_KEY_ENV_VAR] = self.master_key
 
         command = [
             'b2',
             'download-file-by-id',
-            'dummy-id',
-            'dummy-local-file-name',
+            uploaded.id_,
+            output_path,
             '--write-buffer-size',
             '123',
             '--max-download-streams-per-file',

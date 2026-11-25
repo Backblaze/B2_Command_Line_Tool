@@ -9,10 +9,89 @@
 ######################################################################
 import os
 import pathlib
+import subprocess
 
 import pytest
 
 from test.helpers import skip_on_windows
+from test.unit.console_tool.test_command_regressions import run_no_traceback
+
+
+@skip_on_windows(reason='symlink creation requires privileges on Windows')
+@pytest.mark.parametrize('redirect', ['parent', 'nested-parent', 'dangling-file'])
+def test_directory_download_rejects_symlink_escape(b2_cli, api_bucket, tmp_path, redirect):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    sentinel = outside / 'existing.txt'
+    sentinel.write_text('unchanged')
+    if redirect == 'dangling-file':
+        remote_name = 'probe.txt'
+        (destination / remote_name).symlink_to(outside / 'probe.txt')
+    else:
+        parent = destination
+        if redirect == 'nested-parent':
+            parent = destination / 'nested'
+            parent.mkdir()
+        (parent / 'link').symlink_to(outside, target_is_directory=True)
+        remote_name = ('nested/' if redirect == 'nested-parent' else '') + 'link/probe.txt'
+    uploaded = api_bucket.upload_bytes(b'payload', remote_name)
+    status, _, stderr = run_no_traceback(
+        b2_cli, ['file', 'download', f'b2id://{uploaded.id_}', str(destination)]
+    )
+    assert status == 1
+    assert 'outside download directory' in stderr
+    assert sorted(path.name for path in outside.iterdir()) == ['existing.txt']
+    assert sentinel.read_text() == 'unchanged'
+
+
+def test_directory_download_allows_contained_nested_path(b2_cli, api_bucket, tmp_path):
+    destination = tmp_path / 'downloads'
+    (destination / 'nested').mkdir(parents=True)
+    uploaded = api_bucket.upload_bytes(b'payload', 'nested/probe.txt')
+    b2_cli.run(['file', 'download', '--quiet', f'b2id://{uploaded.id_}', str(destination)])
+    assert (destination / 'nested' / 'probe.txt').read_bytes() == b'payload'
+
+
+@skip_on_windows(reason='symlink creation requires privileges on Windows')
+@pytest.mark.parametrize('selected_root_is_link', [False, True])
+def test_directory_download_allows_contained_symlinks(
+    b2_cli, api_bucket, tmp_path, selected_root_is_link
+):
+    real_directory = tmp_path / 'real'
+    (real_directory / 'nested').mkdir(parents=True)
+    link = tmp_path / 'link' if selected_root_is_link else real_directory / 'link'
+    link.symlink_to(
+        real_directory if selected_root_is_link else real_directory / 'nested',
+        target_is_directory=True,
+    )
+    destination = link if selected_root_is_link else real_directory
+    remote_name = 'nested/probe.txt' if selected_root_is_link else 'link/probe.txt'
+    uploaded = api_bucket.upload_bytes(b'payload', remote_name)
+    b2_cli.run(['file', 'download', '--quiet', f'b2id://{uploaded.id_}', str(destination)])
+    assert (real_directory / 'nested' / 'probe.txt').read_bytes() == b'payload'
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows directory junction')
+def test_directory_download_rejects_junction_escape(b2_cli, api_bucket, tmp_path):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    subprocess.run(
+        ['cmd', '/c', 'mklink', '/J', str(destination / 'link'), str(outside)],
+        capture_output=True,
+        check=True,
+    )
+    uploaded = api_bucket.upload_bytes(b'payload', 'link/probe.txt')
+    status, _, stderr = run_no_traceback(
+        b2_cli, ['file', 'download', f'b2id://{uploaded.id_}', str(destination)]
+    )
+    assert status == 1
+    assert 'outside download directory' in stderr
+    assert list(outside.iterdir()) == []
+
 
 EXPECTED_STDOUT_DOWNLOAD = """
 File name:           file1.txt
@@ -28,6 +107,65 @@ INFO src_last_modified_millis: 1500111222000
 Checksum matches
 Download finished
 """
+
+
+@skip_on_windows(reason='POSIX permission bits and umask required')
+@pytest.mark.parametrize(
+    'umask, expected_mode',
+    [
+        (0o022, 0o644),  # a normal umask keeps the usual readable download
+        (0o077, 0o600),  # a private umask keeps the collision file private (the old bug)
+        (0o200, 0o644),  # an owner-write-stripping umask must not break the reopen/download
+    ],
+)
+def test_collision_download_respects_umask(b2_cli, uploaded_file, tmp_path, umask, expected_mode):
+    destination = tmp_path / 'downloads'
+    destination.mkdir()
+    existing = destination / uploaded_file['fileName']
+    existing.write_text('original')
+
+    previous_umask = os.umask(umask)
+    try:
+        b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
+        umask_after = os.umask(umask)  # the download must restore the process umask
+        os.umask(umask_after)
+    finally:
+        os.umask(previous_umask)
+
+    assert umask_after == umask, f'download left the process umask at {oct(umask_after)}'
+    output = next(path for path in destination.iterdir() if path != existing)
+    # The download must succeed (it reopens the file to write, so it must stay
+    # owner-writable even under an owner-write-stripping umask) ...
+    assert existing.read_text() == 'original'
+    assert output.read_text() == uploaded_file['content']
+    # ... and match an ordinary download's umask-respecting mode, never a fixed 0644.
+    assert output.stat().st_mode & 0o777 == expected_mode
+
+
+@pytest.mark.parametrize('command', ['uri', 'id', 'name'])
+@pytest.mark.parametrize('flag', [None, '--no-progress', '--quiet'])
+def test_stdout_download_is_only_binary_content(
+    b2_cli, bucket, local_file, command, flag, capfdbinary
+):
+    content = b'\x00\xffbinary\r\ncontent\x00'
+    local_file.write_bytes(content)
+    b2_cli.run(['file', 'upload', '--quiet', bucket, str(local_file), 'binary.dat'])
+    if command == 'uri':
+        argv = ['file', 'download', f'b2://{bucket}/binary.dat']
+        warning = ''
+    elif command == 'id':
+        argv = ['download-file-by-id', '9999']
+        warning = (
+            'WARNING: `download-file-by-id` command is deprecated. Use `file download` instead.\n'
+        )
+    else:
+        argv = ['download-file-by-name', bucket, 'binary.dat']
+        warning = (
+            'WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n'
+        )
+    capfdbinary.readouterr()
+    b2_cli.run([*argv, '-', *([flag] if flag else [])], expected_stdout='', expected_stderr=warning)
+    assert capfdbinary.readouterr().out == content
 
 
 @pytest.mark.parametrize(
@@ -88,13 +226,12 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
     b2_cli.run(
         [
             'download-file-by-name',
+            flag,
             uploaded_file['bucket'],
             uploaded_file['fileName'],
             str(output_path),
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
-            output_path=pathlib.Path(output_path).resolve()
-        ),
+        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
         expected_stderr='WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']

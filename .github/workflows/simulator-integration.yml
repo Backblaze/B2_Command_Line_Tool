@@ -1,0 +1,116 @@
+name: Simulator Integration
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_DEFAULT_VERSION: "3.12"
+  UV_VERSION: "0.13.4"
+  SIMULATOR_REVISION: "529721037901412b7b24fdc18498631d298295c5"
+
+jobs:
+  simulator-access-policy:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a trusted PR branch
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPOSITORY" != "$GITHUB_REPOSITORY" ]; then
+            echo "Simulator testing is mandatory. Move this change to a branch in $GITHUB_REPOSITORY so the private Simulator can be fetched without exposing its credential."
+            exit 1
+          fi
+
+  simulator-integration:
+    timeout-minutes: 90
+    needs: simulator-access-policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the private Simulator deploy key
+        env:
+          SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+        run: |
+          if [ -z "$SIMULATOR_DEPLOY_KEY" ]; then
+            echo "SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
+            exit 1
+          fi
+      - name: Check out the CLI
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          path: cli
+      - name: Check out the pinned private Simulator
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: backblaze-labs/b2-simulator
+          ref: 529721037901412b7b24fdc18498631d298295c5
+          ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          persist-credentials: false
+          path: simulator
+      - name: Verify the Simulator revision
+        run: |
+          actual_revision="$(git -C simulator rev-parse HEAD)"
+          test "$actual_revision" = "$SIMULATOR_REVISION"
+          test -z "$(git -C simulator status --short)"
+          node --version
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: cli
+        run: uv sync --locked --group nox
+      - name: Test against Simulator
+        working-directory: cli
+        env:
+          B2_TEST_APPLICATION_KEY_ID: sim-test-id
+          B2_TEST_APPLICATION_KEY: sim-test-secret
+          B2_TEST_SHORT_TIMEOUTS: "1"
+          WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+        run: |
+          simulator_log="$RUNNER_TEMP/b2-simulator.log"
+          node ../simulator/bin/simulator/serve.mjs --custom-upload-timestamps >"$simulator_log" 2>&1 &
+          simulator_pid=$!
+          trap 'kill "$simulator_pid" 2>/dev/null || true; wait "$simulator_pid" 2>/dev/null || true' EXIT
+
+          B2_ENVIRONMENT=""
+          for _ in $(seq 1 150); do
+            B2_ENVIRONMENT="$(sed -n 's|^SIMULATOR-LISTENING \(https://127\.0\.0\.1:[0-9][0-9]*\)$|\1|p' "$simulator_log" | head -1)"
+            if [ -n "$B2_ENVIRONMENT" ]; then break; fi
+            if ! kill -0 "$simulator_pid" 2>/dev/null; then
+              cat "$simulator_log"
+              exit 1
+            fi
+            sleep 0.2
+          done
+          if [ -z "$B2_ENVIRONMENT" ]; then
+            cat "$simulator_log"
+            exit 1
+          fi
+          export B2_ENVIRONMENT
+          B2_TEST_ENVIRONMENT="$B2_ENVIRONMENT"
+          export B2_TEST_ENVIRONMENT
+          certifi_bundle="$(uv run python -c 'import certifi; print(certifi.where())')"
+          simulator_ca_bundle="$RUNNER_TEMP/b2-simulator-ca.pem"
+          cp "$certifi_bundle" "$simulator_ca_bundle"
+          cat "$GITHUB_WORKSPACE/simulator/bin/simulator/loopback-cert.pem" >>"$simulator_ca_bundle"
+          REQUESTS_CA_BUNDLE="$simulator_ca_bundle"
+          export REQUESTS_CA_BUNDLE
+          SSL_CERT_FILE="$REQUESTS_CA_BUNDLE"
+          export SSL_CERT_FILE
+          export PATH="$PWD/.nox/integration-3-12/bin:$PATH"
+
+          uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"

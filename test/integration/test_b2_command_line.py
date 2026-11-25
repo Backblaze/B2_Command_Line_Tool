@@ -1124,7 +1124,7 @@ def test_sync_up(tmp_path, b2_tool, persistent_bucket, apiver_int, dir_, encrypt
     if encryption and encryption.mode == EncryptionMode.SSE_C:
         b2_tool.should_fail(
             command,
-            expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+            expected_pattern='Using SSE-C requires providing an encryption key via '
             'B2_DESTINATION_SSE_C_KEY_B64 env var',
         )
     if encryption is not None:
@@ -1460,7 +1460,7 @@ def sync_down_helper(b2_tool, bucket_name, folder_in_bucket, sample_file, encryp
         with TempDir() as new_local_path:
             b2_tool.should_fail(
                 ['sync', '--no-progress', b2_sync_point, new_local_path] + sync_encryption_args,
-                expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+                expected_pattern='Using SSE-C requires providing an encryption key via '
                 'B2_SOURCE_SSE_C_KEY_B64 env var',
             )
             b2_tool.should_fail(
@@ -1957,7 +1957,7 @@ def test_sse_c(
             f'b2://{bucket_name}/{subfolder}/uploaded_encrypted',
             'gonna_fail_anyway',
         ],
-        expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+        expected_pattern='Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var',
     )
     b2_tool.should_fail(
@@ -2021,7 +2021,7 @@ def test_sse_c(
             f'b2id://{file_version_info["fileId"]}',
             f'b2://{bucket_name}/gonna-fail-anyway',
         ],
-        expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+        expected_pattern='Using SSE-C requires providing an encryption key via '
         'B2_SOURCE_SSE_C_KEY_B64 env var',
     )
     b2_tool.should_fail(
@@ -2033,7 +2033,7 @@ def test_sse_c(
             f'b2id://{file_version_info["fileId"]}',
             f'b2://{bucket_name}/gonna-fail-anyway',
         ],
-        expected_pattern='ValueError: Using SSE-C requires providing an encryption key via '
+        expected_pattern='Using SSE-C requires providing an encryption key via '
         'B2_DESTINATION_SSE_C_KEY_B64 env var',
         additional_env={'B2_SOURCE_SSE_C_KEY_B64': base64.b64encode(secret).decode()},
     )
@@ -2355,7 +2355,7 @@ class TestFileLock(IntegrationTestBase):
                 '--default-retention-mode',
                 'compliance',
             ],
-            'ValueError: must specify period for retention mode RetentionMode.COMPLIANCE',
+            '--default-retention-mode requires --default-retention-period unless the mode is none',
         )
         b2_tool.should_fail(
             [
@@ -3673,11 +3673,12 @@ def test_upload_file__stdin_pipe_operator(request, bash_runner, b2_tool, persist
     bucket_name = persistent_bucket.bucket_name
     subfolder = persistent_bucket.subfolder
     content = request.node.name
-    run = bash_runner(
-        f'echo -n {content!r} '
-        f'| '
-        f'{" ".join(b2_tool.parse_command(b2_tool.prepare_env()))} file upload {bucket_name} - {subfolder}/{request.node.name}.txt'
-    )
+    with b2_tool.parse_command(b2_tool.prepare_env()) as command:
+        run = bash_runner(
+            f'echo -n {content!r} '
+            f'| '
+            f'{" ".join(command)} file upload {bucket_name} - {subfolder}/{request.node.name}.txt'
+        )
     assert hashlib.sha1(content.encode()).hexdigest() in run.stdout
 
 

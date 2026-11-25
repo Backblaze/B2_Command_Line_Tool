@@ -39,6 +39,7 @@ import platform
 import queue
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -176,6 +177,18 @@ with suppress(ImportError):
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
+
+# Reading the process umask requires temporarily setting it, which is process-global;
+# serialize it so concurrent downloads cannot leave the umask at the probe value.
+_UMASK_LOCK = threading.Lock()
+
+
+def _read_umask() -> int:
+    with _UMASK_LOCK:
+        value = os.umask(0o077)
+        os.umask(value)
+    return value
+
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -407,6 +420,13 @@ class DefaultSseMixin(Described):
         return None
 
 
+def _decode_sse_key(value: str, env_name: str) -> bytes:
+    try:
+        return base64.b64decode(value, validate=True)
+    except ValueError as exc:
+        raise CommandError(f'{env_name} must contain a valid base64-encoded key') from exc
+
+
 class DestinationSseMixin(Described):
     """
     To request SSE-B2 or SSE-C encryption for destination files,
@@ -450,7 +470,7 @@ class DestinationSseMixin(Described):
             elif mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
-                    raise ValueError(
+                    raise CommandError(
                         'Using SSE-C requires providing an encryption key via %s env var'
                         % B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
                     )
@@ -460,7 +480,12 @@ class DestinationSseMixin(Described):
                         f'Encrypting file(s) with SSE-C without providing key id. '
                         f'Set {B2_DESTINATION_SSE_C_KEY_ID_ENV_VAR} to allow key identification.'
                     )
-                key = EncryptionKey(secret=base64.b64decode(encryption_key_b64), key_id=key_id)
+                key = EncryptionKey(
+                    secret=_decode_sse_key(
+                        encryption_key_b64, B2_DESTINATION_SSE_C_KEY_B64_ENV_VAR
+                    ),
+                    key_id=key_id,
+                )
             else:
                 raise NotImplementedError(f'Unsupported encryption mode for writes: {mode.value}')
             return EncryptionSetting(mode=mode, algorithm=algorithm, key=key)
@@ -497,7 +522,7 @@ class FileRetentionSettingMixin(Described):
     @classmethod
     def _get_file_retention_setting(cls, args):
         if (args.file_retention_mode is None) != (args.retain_until is None):
-            raise ValueError(
+            raise CommandError(
                 'provide either both --retain-until and --file-retention-mode or none of them'
             )
 
@@ -625,12 +650,13 @@ class SourceSseMixin(Described):
             if mode == EncryptionMode.SSE_C:
                 encryption_key_b64 = os.environ.get(B2_SOURCE_SSE_C_KEY_B64_ENV_VAR)
                 if not encryption_key_b64:
-                    raise ValueError(
+                    raise CommandError(
                         'Using SSE-C requires providing an encryption key via %s env var'
                         % B2_SOURCE_SSE_C_KEY_B64_ENV_VAR
                     )
                 key = EncryptionKey(
-                    secret=base64.b64decode(encryption_key_b64), key_id=UNKNOWN_KEY_ID
+                    secret=_decode_sse_key(encryption_key_b64, B2_SOURCE_SSE_C_KEY_B64_ENV_VAR),
+                    key_id=UNKNOWN_KEY_ID,
                 )
             else:
                 raise NotImplementedError(
@@ -721,15 +747,13 @@ class B2URIFileOrBucketNameFileNameArgMixin:
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
         if isinstance(args.B2_URI, B2URIBase):
             if args.fileName:
-                raise argparse.ArgumentError(
-                    self._b2_uri_arg,
+                raise CommandError(
                     'Both B2 URI and file name were provided, but only one is expected',
                 )
             return args.B2_URI
 
         if not args.fileName:
-            raise argparse.ArgumentError(
-                self._b2_uri_arg,
+            raise CommandError(
                 f'Incorrect B2 URI was provided, expected `b2://bucketName/fileName`, but got {args.B2_URI!r}',
             )
         self._print_stderr(
@@ -762,7 +786,7 @@ class B2URIBucketNFilenameArgMixin:
     @classmethod
     def _setup_parser(cls, parser):
         add_bucket_name_argument(parser)
-        parser.add_argument('fileName').completion = file_name_completer
+        parser.add_argument('fileName').completer = file_name_completer
         super()._setup_parser(parser)
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URIBase:
@@ -995,6 +1019,19 @@ class Command(Described, metaclass=ABCMeta):
         decorator = cls.subcommands_registry.register(key=name)(command_class)
         return decorator
 
+    @staticmethod
+    def _validate_profile(profile: str) -> str:
+        # The reference SDK's B2_ACCOUNT_INFO_PROFILE_NAME_REGEXP requires a nonempty name:
+        # https://github.com/Backblaze/b2-sdk-python/blob/v2.13.2/b2sdk/_internal/account_info/sqlite_account_info.py
+        # Keep omission (None) distinct from an explicitly empty option.
+        if not profile:
+            raise argparse.ArgumentTypeError('profile must not be empty')
+        if re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', profile) is None:
+            raise argparse.ArgumentTypeError(
+                'Invalid profile name: use 1 to 64 ASCII letters, digits, underscores or hyphens'
+            )
+        return profile
+
     @classmethod
     def create_parser(
         cls,
@@ -1034,6 +1071,15 @@ class Command(Described, metaclass=ABCMeta):
 
         if subparsers is None:
             parser = B2ArgumentParser(**parser_kwargs)
+            # Subparsers merge their namespaces over the parent's parsed values.
+            # Supply common defaults once; inherited actions must not reset them.
+            parser.set_defaults(
+                debug_logs=False,
+                verbose=False,
+                log_config=None,
+                quiet=False,
+                escape_control_characters=None,
+            )
         else:
             parser = subparsers.add_parser(
                 parser_kwargs.pop('prog'),
@@ -1048,15 +1094,23 @@ class Command(Described, metaclass=ABCMeta):
 
         if cls.subcommands_registry:
             if not parents:
-                common_parser = B2ArgumentParser(add_help=False, add_help_all=False)
+                common_parser = B2ArgumentParser(
+                    add_help=False, add_help_all=False, argument_default=argparse.SUPPRESS
+                )
                 add_normalized_argument(
                     common_parser, '--debug-logs', action='store_true', help=argparse.SUPPRESS
                 )
                 common_parser.add_argument('--verbose', action='store_true', help=argparse.SUPPRESS)
                 add_normalized_argument(common_parser, '--log-config', help=argparse.SUPPRESS)
-                common_parser.add_argument('--profile', default=None, help=argparse.SUPPRESS)
+                # Keep a profile supplied before this subcommand.
                 common_parser.add_argument(
-                    '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
+                    '--profile',
+                    type=cls._validate_profile,
+                    default=argparse.SUPPRESS,
+                    help=argparse.SUPPRESS,
+                )
+                common_parser.add_argument(
+                    '-q', '--quiet', action='store_true', help=argparse.SUPPRESS
                 )
 
                 common_parser.add_argument(
@@ -1069,7 +1123,6 @@ class Command(Described, metaclass=ABCMeta):
                     help=argparse.SUPPRESS,
                 )
 
-                common_parser.set_defaults(escape_control_characters=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(
@@ -1283,6 +1336,16 @@ class B2(Command):
     def name_and_alias(cls):
         return resolve_b2_bin_call_name(), None
 
+    @classmethod
+    def _setup_parser(cls, parser):
+        parser.add_argument(
+            '--profile',
+            type=cls._validate_profile,
+            default=None,
+            help='Use the named account profile.',
+        )
+        super()._setup_parser(parser)
+
     def _run(self, args):
         # Commands could be named via name or alias, so we fetch
         # the command from args assigned during parser preparation.
@@ -1387,7 +1450,6 @@ class AccountAuthorizeBase(Command):
                 self._print_stderr(
                     'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool'
                 )
-                self.api.account_info.clear()
                 return 1
             buckets = allowed['buckets']
             if buckets:
@@ -1404,7 +1466,7 @@ class AccountAuthorizeBase(Command):
                     )
                     self._print_stderr(
                         "ERROR: application key is restricted to bucket id '{}', which no longer exists".format(
-                            allowed['bucketId']
+                            allowed['buckets'][0]['id']
                         )
                     )
                     self.api.account_info.clear()
@@ -1624,7 +1686,7 @@ class FileServerSideCopyBase(
         ):  # metadataDirective=REPLACE, no problem
             return None, None
         if not fetch_if_necessary:
-            raise ValueError(
+            raise CommandError(
                 'Attempting to copy file with metadata while either source or destination uses '
                 'SSE-C. Use --fetch-metadata to fetch source file metadata before copying.'
             )
@@ -1898,8 +1960,6 @@ class DownloadCommand(
                 self._print_file_attribute(label, attr_value)
         for name in sorted(download_version.file_info):
             self._print_file_attribute(f'INFO {name}', download_version.file_info[name])
-        if download_version.content_sha1 != 'none':
-            self._print('Checksum matches')
         return 0
 
     @classmethod
@@ -1949,6 +2009,7 @@ class DownloadCommand(
     def get_local_output_filepath(
         self, filename: str, file_request: DownloadedFile
     ) -> pathlib.Path:
+        self._temporary_download_path = None
         if filename == '-':
             return STDOUT_FILEPATH
 
@@ -1972,6 +2033,17 @@ class DownloadCommand(
         # and actually overwrite something unintended.
         output_directory = output_filepath
         output_filepath = output_directory / file_request.download_version.file_name
+        # Remote names may traverse pre-existing local symlinks or junctions.
+        # Resolve before opening anything and keep the resolved path for the save,
+        # rather than letting the SDK follow the original redirecting path later.
+        try:
+            resolved_directory = output_directory.resolve()
+            resolved_output = output_filepath.resolve()
+        except (OSError, RuntimeError) as exc:
+            raise CommandError('Unable to resolve download output path') from exc
+        if not resolved_output.is_relative_to(resolved_directory):
+            raise CommandError('Remote filename resolves outside download directory')
+        output_filepath = resolved_output
         # If it doesn't exist, we stop worrying.
         if not output_filepath.exists():
             return output_filepath
@@ -1982,19 +2054,24 @@ class DownloadCommand(
         file_extension = file_name_as_path.suffix
 
         # Default permissions are: readable and writable by this user only, executable by noone.
-        # This "temporary" file is not automatically removed, but still created in the safest way possible.
+        # The uniquely named file is retained after a successful download.
         fd_handle, output_filepath_str = tempfile.mkstemp(
             prefix=file_name,
             suffix=file_extension,
             dir=output_directory,
         )
+        self._temporary_download_path = pathlib.Path(output_filepath_str)
+        # Give the file the permissions of an ordinary (non-collision) download: owner
+        # read/write always (the download reopens the path to write, so it must stay
+        # owner-writable) and group/other read only if the umask allows, instead of the
+        # previous unconditional 0644 that ignored the umask. Set the mode on the open
+        # mkstemp descriptor (fchmod) rather than by path, so a symlink swapped in at the
+        # path cannot redirect the permission change to another file.
+        if hasattr(os, 'fchmod'):
+            os.fchmod(fd_handle, 0o600 | (0o044 & ~_read_umask()))
         # Close the handle, so the file is not locked.
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
-
-        # "Normal" file created by Python has readable for everyone, writable for user only.
-        # We change the permissions, to match the default ones.
-        os.chmod(output_filepath_str, 0o644)
 
         return pathlib.Path(output_filepath_str)
 
@@ -2036,12 +2113,31 @@ class FileDownloadBase(
             b2_uri, progress_listener, encryption=encryption_setting
         )
 
-        output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
-        self._print_download_info(downloaded_file, output_filepath)
-        progress_listener.change_description(output_filepath.name)
-
-        downloaded_file.save_to(output_filepath)
-        self._print('Download finished')
+        self._temporary_download_path = None
+        try:
+            output_filepath = self.get_local_output_filepath(args.localFileName, downloaded_file)
+            output_to_stdout = output_filepath == STDOUT_FILEPATH
+            if not output_to_stdout:
+                self._print_download_info(downloaded_file, output_filepath)
+            progress_listener.change_description(output_filepath.name)
+            downloaded_file.save_to(output_filepath)
+        except BaseException:
+            if self._temporary_download_path is not None:
+                try:
+                    self._temporary_download_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning('Unable to remove temporary download file', exc_info=True)
+                    self._print_stderr(
+                        f'WARNING: Unable to remove temporary download file: {self._temporary_download_path}'
+                    )
+            raise
+        if not output_to_stdout:
+            if (
+                not args.skip_hash_verification
+                and downloaded_file.download_version.content_sha1 != 'none'
+            ):
+                self._print('Checksum matches')
+            self._print('Download finished')
 
         return 0
 
@@ -2588,13 +2684,20 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
 
         if args.json:
             i = -1
-            for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
-                if i:
-                    self._print(',', end='')
-                else:
-                    self._print('[')
-                self._print_json(file_version)
-            self._print(']' if i >= 0 else '[]')
+            completed = False
+            try:
+                for i, (file_version, _) in enumerate(self._get_ls_generator(args, b2_uri=b2_uri)):
+                    if i:
+                        self._print(',', end='', enforce_output=True)
+                    else:
+                        self._print('[', enforce_output=True)
+                    self._print_json(file_version)
+                completed = True
+            finally:
+                if i >= 0:
+                    self._print(']', enforce_output=True)
+                elif completed:
+                    self._print('[]', enforce_output=True)
         else:
             self._print_files(args)
         return 0
@@ -3212,7 +3315,7 @@ class Sync(
                 or args.upload_threads != self.DEFAULT_UPLOAD_THREADS
                 or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS
             ):
-                raise ValueError('--threads cannot be used with other thread options')
+                raise CommandError('--threads cannot be used with other thread options')
             sync_threads = upload_threads = download_threads = args.threads
         else:
             sync_threads = args.sync_threads
@@ -3243,14 +3346,14 @@ class Sync(
             destination_bucket = destination.bucket_name
             write_encryption_settings[destination_bucket] = destination_sse
         elif destination_sse is not None:
-            raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
+            raise CommandError('server-side encryption cannot be set for a non-b2 sync destination')
 
         source_sse = self._get_source_sse_setting(args)
         if source.folder_type() == 'b2':
             source_bucket = source.bucket_name
             read_encryption_settings[source_bucket] = source_sse
         elif source_sse is not None:
-            raise ValueError('server-side encryption cannot be set for a non-b2 sync source')
+            raise CommandError('server-side encryption cannot be set for a non-b2 sync source')
 
         if read_encryption_settings or write_encryption_settings:
             kwargs['encryption_settings_provider'] = BasicSyncEncryptionSettingsProvider(
@@ -3318,7 +3421,9 @@ class Sync(
 
         if args.delete:
             keep_days_or_delete = KeepOrDeleteMode.DELETE
-        elif args.keep_days:
+        elif args.keep_days is not None:
+            if args.keep_days <= 0:
+                raise CommandError('--keep-days must be greater than 0')
             keep_days_or_delete = KeepOrDeleteMode.KEEP_BEFORE_DELETE
             keep_days = args.keep_days
         else:
@@ -3345,7 +3450,7 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
     Updates the ``bucketType`` of an existing bucket.
 
-    Prints the ID of the bucket updated.
+    Prints the updated bucket as JSON.
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
     These can be given as JSON on the command line.
 
@@ -3421,6 +3526,16 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
         super()._setup_parser(parser)  # add parameters from the mixins and the parent class
 
     def _run(self, args):
+        if args.default_retention_period is not None and args.default_retention_mode is None:
+            raise CommandError('--default-retention-period requires --default-retention-mode')
+        if (
+            args.default_retention_mode not in (None, 'none')
+            and args.default_retention_period is None
+        ):
+            raise CommandError(
+                '--default-retention-mode requires --default-retention-period '
+                'unless the mode is none'
+            )
         if args.default_retention_mode is not None:
             if args.default_retention_mode == 'none':
                 default_retention = NO_RETENTION_BUCKET_SETTING
@@ -3795,11 +3910,6 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
         b2_uri = self.get_b2_uri_from_arg(args)
         file_version = self.api.get_file_info_by_uri(b2_uri)
 
-        if args.legal_hold is not None:
-            self.api.update_file_legal_hold(
-                file_version.id_, file_version.file_name, LegalHold(args.legal_hold)
-            )
-
         if args.file_retention_mode is not None:
             if args.file_retention_mode == 'none':
                 file_retention = FileRetentionSetting(RetentionMode.NONE)
@@ -3811,6 +3921,18 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
             self.api.update_file_retention(
                 file_version.id_, file_version.file_name, file_retention, args.bypass_governance
             )
+
+        if args.legal_hold is not None:
+            try:
+                self.api.update_file_legal_hold(
+                    file_version.id_, file_version.file_name, LegalHold(args.legal_hold)
+                )
+            except B2Error as error:
+                if args.file_retention_mode is not None:
+                    raise CommandError(
+                        f'File retention was applied, but legal hold update failed: {error}'
+                    ) from error
+                raise
 
         return 0
 
@@ -3916,7 +4038,9 @@ class ReplicationSetupBase(Command):
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        add_normalized_argument(parser, '--destination-profile', default=None)
+        add_normalized_argument(
+            parser, '--destination-profile', type=cls._validate_profile, default=None
+        )
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
         add_normalized_argument(
@@ -3975,12 +4099,9 @@ class ReplicationRuleChanger(Command, metaclass=ABCMeta):
 
     def _run(self, args):
         bucket = self.api.get_bucket_by_name(args.source).get_fresh_state()
-        found, altered = self.alter_rule_by_name(bucket, args.rule_name)
+        found, _ = self.alter_rule_by_name(bucket, args.rule_name)
         if not found:
-            print('ERROR: replication rule could not be found!')
-            return 1
-        elif not altered:
-            print('ERROR: replication rule was found, but could not be changed!')
+            self._print_stderr('ERROR: replication rule could not be found!')
             return 1
         return 0
 
@@ -4104,7 +4225,7 @@ class ReplicationStatusBase(Command):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         add_normalized_argument(parser, '--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        add_normalized_argument(parser, '--destination-profile')
+        add_normalized_argument(parser, '--destination-profile', type=cls._validate_profile)
         add_normalized_argument(parser, '--dont-scan-destination', action='store_true')
         add_normalized_argument(
             parser, '--output-format', default='console', choices=('console', 'json', 'csv')
@@ -4607,7 +4728,7 @@ class BucketNotificationRuleCreateBase(
     def _validate_secret(cls, value: str) -> str:
         if not re.match(r'^[a-zA-Z0-9]{32}$', value):
             raise argparse.ArgumentTypeError(
-                f'the secret has to be exactly 32 alphanumeric characters, got: {value!r}'
+                'the secret has to be exactly 32 alphanumeric characters'
             )
         return value
 
@@ -4658,15 +4779,17 @@ class BucketNotificationRuleCreateBase(
             for header in args.custom_header:
                 try:
                     name, value = header.split('=', 1)
-                except ValueError:
-                    name, value = header, ''
+                except ValueError as exc:
+                    raise CommandError(
+                        '--custom-header must have the format HEADER_NAME=VALUE'
+                    ) from exc
                 custom_headers[name] = value
 
         rule = {
             'name': args.ruleName,
             'eventTypes': args.event_type,
             'isEnabled': args.enable,
-            'objectNamePrefix': args.B2_URI.path,
+            'objectNamePrefix': args.B2_URI.path or None,
             'targetConfiguration': {
                 'url': args.webhook_url,
                 'customHeaders': custom_headers,
@@ -4877,6 +5000,15 @@ class BucketNotificationRuleDelete(Command):
     """
 
     COMMAND_NAME = 'delete'
+
+    def run(self, args):
+        sdk_logger = logging.getLogger('b2sdk._internal.bucket')
+        previous_level = sdk_logger.level
+        sdk_logger.setLevel(max(logging.INFO, sdk_logger.getEffectiveLevel()))
+        try:
+            return super().run(args)
+        finally:
+            sdk_logger.setLevel(previous_level)
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -5468,6 +5600,24 @@ class CancelLargeFile(CmdReplacedByMixin, B2URIFileIDArgMixin, FileLargeUnfinish
     replaced_by_cmd = (File, FileLarge, FileLargeUnfinished, FileLargeUnfinishedCancel)
 
 
+class _OwnedFileStreamHandler(logging.StreamHandler):
+    def close(self):
+        self.acquire()
+        try:
+            try:
+                if self.stream is not None:
+                    try:
+                        self.flush()
+                    finally:
+                        stream = self.stream
+                        self.stream = None
+                        stream.close()
+            finally:
+                super().close()
+        finally:
+            self.release()
+
+
 class ConsoleTool:
     """
     Implements the commands available in the B2 command-line tool
@@ -5485,11 +5635,15 @@ class ConsoleTool:
     def _get_default_escape_cc_setting(self):
         escape_cc_env_var = os.environ.get(B2_ESCAPE_CONTROL_CHARACTERS, None)
         if escape_cc_env_var is not None:
-            if int(escape_cc_env_var) in (0, 1):
-                return int(escape_cc_env_var) == 1
+            try:
+                escape_cc_value = int(escape_cc_env_var)
+            except ValueError:
+                escape_cc_value = None
+            if escape_cc_value in (0, 1):
+                return escape_cc_value == 1
             else:
                 logger.warning(
-                    'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
+                    f'WARNING: invalid value for {B2_ESCAPE_CONTROL_CHARACTERS} environment variable, available options are 0 or 1 - will assume variable is not set'
                 )
         return self.stdout.isatty()
 
@@ -5499,7 +5653,16 @@ class ConsoleTool:
         parser = B2.create_parser(name=self.b2_binary_name, b2_binary_name=self.b2_binary_name)
         AUTOCOMPLETE.cache_and_autocomplete(parser)
         args = parser.parse_args(argv[1:])
-        self._setup_logging(args, argv)
+        handlers_before = list(logging.root.handlers)
+        try:
+            self._setup_logging(args, argv)
+        except CommandError as e:
+            for handler in list(logging.root.handlers):
+                if handler not in handlers_before:
+                    logging.root.removeHandler(handler)
+                    handler.close()
+            self._print_stderr(f'ERROR: {e}')
+            return 1
 
         if args.escape_control_characters is None:
             args.escape_control_characters = self._get_default_escape_cc_setting()
@@ -5517,7 +5680,11 @@ class ConsoleTool:
         with suppress(AttributeError):
             kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
-        self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
+        try:
+            self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
+        except (ValueError, B2Error) as exc:
+            self._print_stderr(f'ERROR: {exc}')
+            return 1
 
         b2_command = B2(self)
         command_class = b2_command.run(args)
@@ -5615,7 +5782,7 @@ class ConsoleTool:
     @classmethod
     def _setup_logging(cls, args, argv):
         if args.log_config and (args.verbose or args.debug_logs):
-            raise ValueError('Please provide either --log-config or --verbose/--debug-logs')
+            raise CommandError('Please provide either --log-config or --verbose/--debug-logs')
         errors_kwarg = {'errors': 'backslashreplace'} if sys.version_info >= (3, 9) else {}
         if args.log_config:
             logging.config.fileConfig(args.log_config)
@@ -5637,7 +5804,42 @@ class ConsoleTool:
                 '%(asctime)s\t%(process)d\t%(thread)d\t%(name)s\t%(levelname)s\t%(message)s'
             )
             formatter.converter = time.gmtime
-            handler = logging.FileHandler('b2_cli.log', **errors_kwarg)
+            log_path = 'b2_cli.log'
+            flags = os.O_CREAT | os.O_WRONLY | os.O_APPEND
+            flags |= getattr(os, 'O_BINARY', 0)
+            if os.name == 'posix':
+                # Restrict log access and prevent link following (OWASP Logging Cheat Sheet; CWE-59).
+                if (
+                    not getattr(os, 'O_NOFOLLOW', 0)
+                    or not getattr(os, 'O_NONBLOCK', 0)
+                    or not callable(getattr(os, 'fchmod', None))
+                ):
+                    raise CommandError('could not secure b2_cli.log for debug logging')
+                flags |= os.O_NOFOLLOW | os.O_NONBLOCK
+            else:
+                flags |= getattr(os, 'O_NOFOLLOW', 0)
+            fd = None
+            try:
+                fd = os.open(log_path, flags, 0o600)
+                if os.name == 'posix':
+                    file_stat = os.fstat(fd)
+                    if (
+                        not stat.S_ISREG(file_stat.st_mode)
+                        or file_stat.st_uid != os.geteuid()
+                        or file_stat.st_nlink != 1
+                    ):
+                        raise CommandError('could not secure b2_cli.log for debug logging')
+                    os.fchmod(fd, 0o600)
+                elif hasattr(os, 'fchmod'):
+                    os.fchmod(fd, 0o600)
+                stream = os.fdopen(fd, 'a', **errors_kwarg)
+                fd = None
+            except OSError as e:
+                raise CommandError('could not secure b2_cli.log for debug logging') from e
+            finally:
+                if fd is not None:
+                    os.close(fd)
+            handler = _OwnedFileStreamHandler(stream)
             handler.setFormatter(formatter)
 
             # logs from ALL loggers sent to the log file should be formatted this way

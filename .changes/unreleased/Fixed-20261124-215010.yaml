@@ -1,0 +1,3 @@
+kind: Fixed
+body: Reject control characters in remote URIs and invalid profiles, constrain directory downloads to their destination, and clean up timed-out completion checks.
+time: 2026-11-24T21:50:10.481568-03:00

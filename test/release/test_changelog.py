@@ -1,0 +1,300 @@
+######################################################################
+#
+# File: test/release/test_changelog.py
+#
+# Copyright 2026 Backblaze Inc. All Rights Reserved.
+#
+# License https://www.backblaze.com/using_b2_code.html
+#
+######################################################################
+"""Exercise release preparation in disposable worktrees without publishing."""
+
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+RELEASE_VERSION = '999.0.0'
+
+
+@pytest.fixture
+def release_worktree(tmp_path):
+    worktree = tmp_path / 'release'
+    subprocess.run(
+        ['git', 'worktree', 'add', '--detach', str(worktree), 'HEAD'], cwd=ROOT, check=True
+    )
+    try:
+        # Include uncommitted release-helper edits when running this test locally.
+        shutil.copyfile(ROOT / 'noxfile.py', worktree / 'noxfile.py')
+        shutil.copyfile(ROOT / '.changie.yaml', worktree / '.changie.yaml')
+        fragment = worktree / '.changes/unreleased/Fixed-release-test.yaml'
+        fragment.parent.mkdir(exist_ok=True)
+        fragment.write_text(
+            'kind: Fixed\nbody: Include the release test entry.\ntime: 2026-01-01T00:00:00Z\n'
+        )
+        subprocess.run(
+            ['git', 'add', 'noxfile.py', '.changie.yaml', str(fragment)], cwd=worktree, check=True
+        )
+        subprocess.run(
+            [
+                'git',
+                '-c',
+                'user.name=Release Test',
+                '-c',
+                'user.email=release@example.test',
+                '-c',
+                'commit.gpgsign=false',
+                'commit',
+                '--allow-empty',
+                '-m',
+                'Prepare release test worktree',
+            ],
+            cwd=worktree,
+            check=True,
+        )
+        yield worktree
+    finally:
+        subprocess.run(
+            ['git', 'worktree', 'remove', '--force', str(worktree)], cwd=ROOT, check=True
+        )
+
+
+def run_session(worktree, session, *args, requirements='b2sdk==2.13.2\n'):
+    # The export command is the dependency boundary for the released-SDK guard.
+    # Real Changie commands and Git operations run against the disposable worktree.
+    tools = worktree.parent / 'tools'
+    tools.mkdir(exist_ok=True)
+    uv = tools / 'uv'
+    real_uv = shutil.which('uv')
+    assert real_uv is not None
+    uv.write_text(
+        f'#!{sys.executable}\n'
+        'import os, sys\n'
+        'if sys.argv[1:2] == ["export"]:\n'
+        f'    print({requirements!r}, end="")\n'
+        'else:\n'
+        f'    os.execv({real_uv!r}, [{real_uv!r}, *sys.argv[1:]])\n'
+    )
+    uv.chmod(0o755)
+    real_go = shutil.which('go')
+    assert real_go is not None
+    go = tools / 'go'
+    go.write_text(
+        f'#!{sys.executable}\n'
+        'import json, os, sys\n'
+        f'with open({str(worktree.parent / "go-calls.jsonl")!r}, "a") as calls:\n'
+        '    calls.write(json.dumps(sys.argv[1:]) + "\\n")\n'
+        f'os.execv({real_go!r}, [{real_go!r}, *sys.argv[1:]])\n'
+    )
+    go.chmod(0o755)
+    env = dict(os.environ, PATH=f'{tools}{os.pathsep}{os.environ["PATH"]}')
+    return subprocess.run(
+        [sys.executable, '-m', 'nox', '--no-venv', '-s', session, '--', *args],
+        cwd=worktree,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def test_release_preparation_batches_fragments_and_preserves_history(release_worktree):
+    changes = release_worktree / '.changes'
+    history = {path.name: path.read_bytes() for path in changes.glob('v*.md')}
+    fragments = list((changes / 'unreleased').glob('*.yaml'))
+    assert fragments, 'release test requires pending fragments'
+
+    result = run_session(release_worktree, 'make_release_commit', RELEASE_VERSION)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not list((changes / 'unreleased').glob('*.yaml'))
+    release_notes = (changes / f'v{RELEASE_VERSION}.md').read_text()
+    assert 'Include the release test entry.' in release_notes
+    assert all((changes / name).read_bytes() == content for name, content in history.items())
+    changelog = (release_worktree / 'CHANGELOG.md').read_text()
+    assert release_notes.strip() in changelog
+    for content in history.values():
+        assert content.decode().strip() in changelog
+
+
+@pytest.mark.parametrize(
+    'requirements',
+    [
+        'b2sdk @ git+https://example.invalid/b2sdk\n',
+        'b2sdk==2.13.2\nother @ git+https://example.invalid/x\n',
+        'other==1.0\n',
+    ],
+)
+def test_release_preparation_rejects_unreleased_sdk(release_worktree, requirements):
+    before = (release_worktree / 'CHANGELOG.md').read_bytes()
+
+    result = run_session(
+        release_worktree,
+        'make_release_commit',
+        RELEASE_VERSION,
+        requirements=requirements,
+    )
+
+    assert result.returncode != 0
+    assert 'release version must depend on released b2sdk version' in result.stderr
+    assert (release_worktree / 'CHANGELOG.md').read_bytes() == before
+    assert not (release_worktree / f'.changes/v{RELEASE_VERSION}.md').exists()
+
+
+def test_changelog_check_after_release_still_checks_rendered_history(release_worktree):
+    result = run_session(release_worktree, 'make_release_commit', RELEASE_VERSION)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not list((release_worktree / '.changes/unreleased').glob('*.yaml'))
+    calls_file = release_worktree.parent / 'go-calls.jsonl'
+    calls_file.write_text('')
+
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = [json.loads(line) for line in calls_file.read_text().splitlines()]
+    assert any('merge' in call for call in calls)
+    assert all('batch' not in call for call in calls)
+
+    with (release_worktree / 'CHANGELOG.md').open('a') as changelog:
+        changelog.write('\nUnexpected rendered content\n')
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode != 0
+    assert 'CHANGELOG.md differs' in result.stderr
+
+
+def test_changelog_check_validates_pending_fragments(release_worktree):
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = [
+        json.loads(line)
+        for line in (release_worktree.parent / 'go-calls.jsonl').read_text().splitlines()
+    ]
+    assert any(call[-3:] == ['batch', 'patch', '--dry-run'] for call in calls)
+    assert any(call[-2:] == ['merge', '--dry-run'] for call in calls)
+
+
+def test_changelog_check_rejects_a_malformed_fragment(release_worktree):
+    before = (release_worktree / 'CHANGELOG.md').read_bytes()
+    (release_worktree / '.changes/unreleased/Fixed-release-test.yaml').write_text('kind: [\n')
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode != 0
+    calls = [
+        json.loads(line)
+        for line in (release_worktree.parent / 'go-calls.jsonl').read_text().splitlines()
+    ]
+    assert any(call[-3:] == ['batch', 'patch', '--dry-run'] for call in calls)
+    assert (release_worktree / 'CHANGELOG.md').read_bytes() == before
+
+
+def test_documented_changie_command_creates_a_fragment(release_worktree):
+    docs = (ROOT / 'CONTRIBUTING.md').read_text().split('## Changelog', 1)[1]
+    command = next(line.strip() for line in docs.splitlines() if line.startswith('    '))
+    fragments = release_worktree / '.changes/unreleased'
+    before = set(fragments.glob('*.yaml'))
+    result = subprocess.run(
+        ['bash', '-c', command], cwd=release_worktree, capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    added = set(fragments.glob('*.yaml')) - before
+    assert len(added) == 1
+    assert 'Describe the user-visible fix.' in added.pop().read_text()
+
+
+@pytest.mark.parametrize('entry', ['unreleased/Fixed-new-entry.yaml', 'v999.0.0.md'])
+def test_pr_changelog_gate_requires_an_unreleased_fragment(release_worktree, entry):
+    subprocess.run(
+        ['git', 'update-ref', 'refs/remotes/origin/changelog-test-base', 'HEAD'],
+        cwd=release_worktree,
+        check=True,
+    )
+    (release_worktree / '.changes' / entry).write_text('New entry\n')
+    with (release_worktree / 'CHANGELOG.md').open('a') as changelog:
+        changelog.write('New entry\n')
+    subprocess.run(['git', 'add', '.changes', 'CHANGELOG.md'], cwd=release_worktree, check=True)
+    subprocess.run(
+        [
+            'git',
+            '-c',
+            'user.name=Release Test',
+            '-c',
+            'user.email=release@example.test',
+            '-c',
+            'commit.gpgsign=false',
+            'commit',
+            '-m',
+            'Add changelog entry',
+        ],
+        cwd=release_worktree,
+        check=True,
+    )
+    source = (ROOT / '.github/workflows/ci.yml').read_text()
+    step = source.split('      - name: Validate new changelog entries\n', 1)[1]
+    script = textwrap.dedent(
+        step.split('        run: |\n', 1)[1].split('      - name: Changelog validation', 1)[0]
+    ).replace('${{ github.event.pull_request.base.ref }}', 'changelog-test-base')
+    # Exercise the added-entry gate; the earlier lockfile-only exception is separate.
+    script = script[script.index('if [ -z "$(git diff --diff-filter=A') :]
+    result = subprocess.run(
+        ['bash', '-c', script], cwd=release_worktree, capture_output=True, text=True, timeout=30
+    )
+    if entry.startswith('unreleased/'):
+        assert result.returncode == 0, result.stdout + result.stderr
+    else:
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert 'No changelog item added.' in result.stdout
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ('lowercase entry.', 'capital letter'),
+        ('1st entry.', 'capital letter'),
+        ('`code` entry.', 'capital letter'),
+        ('Missing punctuation', 'full stop'),
+        ('', 'capital letter'),
+        ('Large ' + 'x' * (16 * 1024) + '.', '16 KiB'),
+    ],
+    ids=['lowercase', 'digit', 'symbol', 'punctuation', 'empty', 'oversize'],
+)
+def test_changelog_check_preserves_entry_validation(release_worktree, body, message):
+    fragment = release_worktree / '.changes/unreleased/Fixed-release-test.yaml'
+    fragment.write_text('kind: Fixed\nbody: ' + json.dumps(body) + '\ntime: 2026-01-01T00:00:00Z\n')
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert message in result.stderr
+
+
+def test_published_history_matches_the_pre_migration_changelog():
+    # Frozen from the 71 sections in master before the Changie migration.
+    versions = (
+        '0.7.4 1.0.0 1.1.0 1.2.0 1.3.0 1.3.2 1.3.4 1.3.6 1.3.8 1.4.0 1.4.2 2.0.0 2.0.2 2.1.0 '
+        '2.2.0 2.3.0 2.4.0 2.5.0 2.5.1 3.0.0 3.0.1 3.0.2 3.0.3 3.1.0 3.10.0 3.10.1 3.11.0 '
+        '3.12.0 3.13.0 3.13.1 3.14.0 3.15.0 3.16.0 3.16.1 3.17.0 3.18.0 3.19.0 3.19.1 3.2.0 '
+        '3.2.1 3.3.0 3.4.0 3.5.0 3.6.0 3.7.0 3.7.1 3.8.0 3.9.0 4.0.0 4.0.1 4.0.2 4.0.3 4.1.0 '
+        '4.2.0 4.3.0 4.3.1 4.3.2 4.3.3 4.4.0 4.4.1 4.4.2 4.5.0 4.5.1 4.6.0 4.7.0 4.7.1 4.8.0 '
+        '5.0.0 5.0.1 5.0.2 5.0.3 '
+    ).split()
+    digest = hashlib.sha256()
+    for version in versions:
+        path = ROOT / '.changes' / f'v{version}.md'
+        digest.update(path.name.encode() + b'\0' + path.read_bytes() + b'\0')
+    assert digest.hexdigest() == 'a4be8b182509f03f95285e663609f29af5d0dff2f5c744e643e7e2fa5c8e3e06'
+
+
+@pytest.mark.parametrize(('size', 'status'), [(16384, 0), (16385, 1)])
+def test_changelog_fragment_size_boundary(release_worktree, size, status):
+    prefix = 'kind: Fixed\nbody: A'
+    suffix = '.\ntime: 2026-01-01T00:00:00Z\n'
+    fragment = release_worktree / '.changes/unreleased/Fixed-release-test.yaml'
+    fragment.write_text(prefix + 'x' * (size - len(prefix) - len(suffix)) + suffix)
+    assert fragment.stat().st_size == size
+    result = run_session(release_worktree, 'changie_check')
+    assert result.returncode == status, result.stdout + result.stderr
+    if status:
+        assert '16 KiB' in result.stderr

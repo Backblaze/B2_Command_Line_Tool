@@ -35,6 +35,9 @@ class TestCustomArgTypes(TestBase):
         with self.assertRaises(ValueError):
             parse_millis_from_float_timestamp('!$@$%@!@$')
 
+    def test_parse_millis_from_pre_2001_timestamp(self):
+        self.assertEqual(946684800152, parse_millis_from_float_timestamp('946684800.152'))
+
     def test_parse_range(self):
         self.assertEqual((1, 2), parse_range('1,2'))
         with self.assertRaises(argparse.ArgumentTypeError):
@@ -96,3 +99,23 @@ def test_help_in_non_utf8_terminal(command_name: str, monkeypatch):
         pytest.fail(
             f'Failed to encode help message for command "{command_name}" on a non-UTF-8 terminal: {e}'
         )
+
+
+@pytest.mark.parametrize(
+    'timestamp, expected_millis',
+    [
+        ('0', 0),
+        ('1', 1000),
+        ('86400', 86400000),
+        ('946684800', 946684800000),  # 2000-01-01, 9 digits
+        # last second before the 10-digit epoch (2001-09-09)
+        ('999999999', 999999999000),
+        ('1000000000', 1000000000000),
+        ('999999999.5', 999999999500),
+    ],
+)
+def test_parse_millis_from_float_timestamp(timestamp, expected_millis):
+    """Timestamps before 2001-09-09 must not be mis-scaled by slicing 13 characters."""
+    assert (
+        parse_millis_from_float_timestamp(timestamp) == expected_millis
+    ), 'timestamp milliseconds were mis-scaled'
