@@ -17,6 +17,7 @@ import re
 import shlex
 import signal
 import subprocess
+import tempfile
 import textwrap
 from datetime import datetime
 from importlib.util import find_spec
@@ -265,6 +266,62 @@ def _silent_success_run_with_tty(
 
 
 def _silent_success_run(cmd: list[str], timeout: int = 30, env: dict | None = None) -> bool:
+    if os.name == 'nt':
+        return _silent_success_run_with_files(cmd, timeout=timeout, env=env)
+    return _silent_success_run_with_pipes(cmd, timeout=timeout, env=env)
+
+
+def _silent_success_run_with_files(
+    cmd: list[str], timeout: int = 30, env: dict | None = None
+) -> bool:
+    # Windows communicate() uses reader threads, whose buffered-reader locks
+    # make even close() block if a descendant retains a pipe. Regular files
+    # avoid those threads, and their handles can be closed without waiting for EOF.
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        p = subprocess.Popen(
+            cmd, stdout=stdout_file, stderr=stderr_file, stdin=subprocess.DEVNULL, env=env
+        )
+        timed_out = False
+        try:
+            p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            if os.name == 'nt':
+                try:
+                    subprocess.run(
+                        ['taskkill', '/PID', str(p.pid), '/T', '/F'],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=1,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    logger.warning('Unable to terminate completion process tree for %r', cmd)
+            p.kill()
+            try:
+                p.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                logger.warning('Unable to reap timed-out command %r', cmd)
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        # Read a finite snapshot even if a detached descendant is still writing.
+        stdout = stdout_file.read(os.fstat(stdout_file.fileno()).st_size)
+        stderr = stderr_file.read(os.fstat(stderr_file.fileno()).st_size)
+        success = not timed_out and p.returncode == 0
+        logger.log(
+            logging.DEBUG if success else logging.WARNING,
+            'Command %r %s, stdout: %r, stderr: %r',
+            cmd,
+            'timed out' if timed_out else f'exited with code {p.returncode}',
+            stdout,
+            stderr,
+        )
+        return success
+
+
+def _silent_success_run_with_pipes(
+    cmd: list[str], timeout: int = 30, env: dict | None = None
+) -> bool:
     p = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,

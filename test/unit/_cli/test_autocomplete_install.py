@@ -26,6 +26,8 @@ from b2._internal._cli.autocomplete_install import (
     SHELL_REGISTRY,
     AutocompleteInstallError,
     _silent_success_run,
+    _silent_success_run_with_files,
+    _silent_success_run_with_pipes,
     add_or_update_shell_section,
 )
 from test.helpers import skip_on_windows
@@ -92,9 +94,17 @@ def test_completion_timeout_cleanup_remains_bounded(monkeypatch):
     monkeypatch.setattr(subprocess, 'Popen', mock.Mock(return_value=process))
     if hasattr(os, 'killpg'):
         monkeypatch.setattr(os, 'killpg', mock.Mock())
-    assert _silent_success_run(['shell'], timeout=0.1) is False
+    assert _silent_success_run_with_pipes(['shell'], timeout=0.1) is False
     process.stdout.close.assert_called_once()
     process.stderr.close.assert_called_once()
+
+
+@pytest.mark.parametrize('status', [0, 1])
+def test_completion_file_capture_preserves_output_and_exit_status(caplog, status):
+    caplog.set_level('DEBUG')
+    code = f'import sys; print("captured-out"); print("captured-err", file=sys.stderr); sys.exit({status})'
+    assert _silent_success_run_with_files([sys.executable, '-c', code], timeout=10) is (status == 0)
+    assert 'captured-out' in caplog.text and 'captured-err' in caplog.text
 
 
 @pytest.mark.skipif(os.name != 'posix', reason='POSIX process groups')
