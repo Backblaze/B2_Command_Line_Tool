@@ -235,8 +235,10 @@ class ObservingProxy:
                             finish_observation()
                         handler.wfile.write(chunk)
                         chunk = following
-            except OSError:
-                pass
+            except (OSError, http.client.HTTPException):
+                # A client that went away (OSError) or an upstream body cut short
+                # (IncompleteRead is an HTTPException): drop the connection, never trace back.
+                handler.close_connection = True
         finally:
             finish_observation()
             connection.close()

@@ -490,3 +490,82 @@ def test_completed_upstream_cleanup_is_not_counted_as_transfer_overlap(
             assert proxy.total('upload_part') == 3
     finally:
         release_cleanup.set()
+
+
+def raw_exchange(port, request: bytes) -> bytes:
+    """Send raw bytes to a loopback port and return everything until the server closes."""
+    import socket
+
+    with socket.create_connection(('127.0.0.1', port), timeout=10) as connection:
+        connection.sendall(request)
+        chunks = []
+        while chunk := connection.recv(65536):
+            chunks.append(chunk)
+    return b''.join(chunks)
+
+
+@pytest.mark.parametrize(
+    'request_line, extra_headers',
+    [
+        ('GET /a"b HTTP/1.1', ''),  # a character outside the safe set
+        ('GET relative HTTP/1.1', ''),  # not an origin-form target
+        ('POST /b2api/v4/b2_upload_part HTTP/1.1', 'Content-Length: abc\r\n'),
+        ('POST /b2api/v4/b2_upload_part HTTP/1.1', 'Content-Length: -5\r\n'),
+    ],
+)
+def test_the_proxy_refuses_a_bad_request_without_forwarding_it(
+    upstream, request_line, extra_headers
+):
+    classified = []
+
+    def record(method, path, headers):
+        classified.append(path)
+        return ()
+
+    with observing_proxy.ObservingProxy(upstream.origin, classify=record) as proxy:
+        port = int(proxy.origin.rsplit(':', 1)[1])
+        reply = raw_exchange(
+            port, f'{request_line}\r\nHost: x\r\n{extra_headers}Connection: close\r\n\r\n'.encode()
+        )
+
+    assert reply.startswith(b'HTTP/1.1 400 '), reply[:80]
+    assert classified == [], 'a refused request must never be classified or forwarded'
+
+
+def test_a_truncated_upstream_body_drops_the_client_connection_without_a_traceback(
+    capfd, monkeypatch
+):
+    """http.client.IncompleteRead is an HTTPException, not an OSError: it must still be handled."""
+    import socket
+
+    listener = socket.socket()
+    listener.bind(('127.0.0.1', 0))
+    listener.listen(1)
+
+    def serve_a_short_body():
+        connection, _ = listener.accept()
+        with connection:
+            connection.recv(65536)
+            connection.sendall(
+                b'HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n'
+                b'Transfer-Encoding: chunked\r\n\r\n3e8\r\n' + b'x' * 10
+            )
+
+    thread = threading.Thread(target=serve_a_short_body, daemon=True)
+    thread.start()
+    origin = f'http://127.0.0.1:{listener.getsockname()[1]}'
+    try:
+        with observing_proxy.ObservingProxy(origin) as proxy:
+            port = int(proxy.origin.rsplit(':', 1)[1])
+            reply = raw_exchange(
+                port, b'GET /file/bucket/name HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n'
+            )
+            assert proxy.peak('download_stream') == 1
+            assert proxy._in_flight['download_stream'] == 0, 'the observation must be finished'
+    finally:
+        listener.close()
+        thread.join(5)
+
+    assert reply.startswith(b'HTTP/1.1 200 ')
+    assert len(reply.split(b'\r\n\r\n', 1)[1]) < 1000, 'the body must not be completed'
+    assert 'Traceback' not in capfd.readouterr().err
