@@ -3346,14 +3346,14 @@ class Sync(
             destination_bucket = destination.bucket_name
             write_encryption_settings[destination_bucket] = destination_sse
         elif destination_sse is not None:
-            raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
+            raise CommandError('server-side encryption cannot be set for a non-b2 sync destination')
 
         source_sse = self._get_source_sse_setting(args)
         if source.folder_type() == 'b2':
             source_bucket = source.bucket_name
             read_encryption_settings[source_bucket] = source_sse
         elif source_sse is not None:
-            raise ValueError('server-side encryption cannot be set for a non-b2 sync source')
+            raise CommandError('server-side encryption cannot be set for a non-b2 sync source')
 
         if read_encryption_settings or write_encryption_settings:
             kwargs['encryption_settings_provider'] = BasicSyncEncryptionSettingsProvider(
