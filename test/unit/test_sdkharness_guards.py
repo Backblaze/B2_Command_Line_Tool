@@ -393,10 +393,16 @@ def fetch_json(url):
 
 
 def fire(url, count):
-    threads = [
-        threading.Thread(target=lambda: NO_PROXY_OPENER.open(Request(url, data=b'x'), timeout=10).read())
-        for _ in range(count)
-    ]
+    """POST ``count`` requests that leave together, so that thread start-up skew on a busy
+    machine cannot spread them wider than the proxy's hold time."""
+    start_together = threading.Barrier(count)
+
+    def post():
+        start_together.wait(10)
+        with NO_PROXY_OPENER.open(Request(url, data=b'x'), timeout=10) as response:
+            response.read()
+
+    threads = [threading.Thread(target=post) for _ in range(count)]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -414,7 +420,14 @@ def test_the_proxy_observes_overlapping_requests_and_rewrites_the_origin(upstrea
 
 def test_the_proxy_checks_ignore_ambient_proxy_variables(upstream, monkeypatch):
     """An ambient HTTP(S)_PROXY must not capture the loopback requests of these tests."""
-    for name in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'):
+    for name in (
+        'HTTP_PROXY',
+        'HTTPS_PROXY',
+        'ALL_PROXY',
+        'http_proxy',
+        'https_proxy',
+        'all_proxy',
+    ):
         monkeypatch.setenv(name, 'http://127.0.0.1:1')  # nothing listens here
     for name in ('NO_PROXY', 'no_proxy'):
         monkeypatch.delenv(name, raising=False)
@@ -479,7 +492,7 @@ def test_completed_upstream_cleanup_is_not_counted_as_transfer_overlap(
     monkeypatch.setattr(Upstream, 'send_header', upstream_header)
     monkeypatch.setattr(observing_proxy.http.client, 'HTTPConnection', DelayedCleanupConnection)
     try:
-        with observing_proxy.ObservingProxy(upstream.origin, hold_seconds=0.1) as proxy:
+        with observing_proxy.ObservingProxy(upstream.origin, hold_seconds=0.3) as proxy:
             fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 1)
             assert cleanup_started.wait(5), 'first upstream connection did not enter cleanup'
             fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 1)
