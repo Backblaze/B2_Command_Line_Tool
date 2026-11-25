@@ -65,6 +65,15 @@ def run_no_traceback(b2_cli, argv):
         raise AssertionError(f'command raised {e!r} instead of reporting an error') from e
 
 
+@pytest.mark.parametrize('control', ['\r', '\n', '\t'])
+def test_hide_with_uri_controls_does_not_hide_another_object(b2_cli, api_bucket, control, capsys):
+    uploaded = api_bucket.upload_bytes(b'original', 'ab')
+    status, _, _ = run(b2_cli, ['file', 'hide', f'b2://{api_bucket.name}/a{control}b'])
+    assert status == 2
+    assert 'control characters' in capsys.readouterr().err
+    assert api_bucket.get_file_info_by_name('ab').id_ == uploaded.id_
+
+
 # ----------------------------------------------------------------------------------------
 # High
 # ----------------------------------------------------------------------------------------

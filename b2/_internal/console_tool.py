@@ -1026,6 +1026,10 @@ class Command(Described, metaclass=ABCMeta):
         # Keep omission (None) distinct from an explicitly empty option.
         if not profile:
             raise argparse.ArgumentTypeError('profile must not be empty')
+        if re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', profile) is None:
+            raise argparse.ArgumentTypeError(
+                'Invalid profile name: use 1 to 64 ASCII letters, digits, underscores or hyphens'
+            )
         return profile
 
     @classmethod
@@ -2029,6 +2033,17 @@ class DownloadCommand(
         # and actually overwrite something unintended.
         output_directory = output_filepath
         output_filepath = output_directory / file_request.download_version.file_name
+        # Remote names may traverse pre-existing local symlinks or junctions.
+        # Resolve before opening anything and keep the resolved path for the save,
+        # rather than letting the SDK follow the original redirecting path later.
+        try:
+            resolved_directory = output_directory.resolve()
+            resolved_output = output_filepath.resolve()
+        except (OSError, RuntimeError) as exc:
+            raise CommandError('Unable to resolve download output path') from exc
+        if not resolved_output.is_relative_to(resolved_directory):
+            raise CommandError('Remote filename resolves outside download directory')
+        output_filepath = resolved_output
         # If it doesn't exist, we stop worrying.
         if not output_filepath.exists():
             return output_filepath
@@ -5665,7 +5680,11 @@ class ConsoleTool:
         with suppress(AttributeError):
             kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
-        self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
+        try:
+            self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
+        except (ValueError, B2Error) as exc:
+            self._print_stderr(f'ERROR: {exc}')
+            return 1
 
         b2_command = B2(self)
         command_class = b2_command.run(args)

@@ -10,15 +10,20 @@
 import os
 import pathlib
 import shutil
+import signal
 import stat
 import subprocess
 import sys
+import time
+from contextlib import suppress
+from unittest import mock
 
 import pytest
 
 from b2._internal._cli.autocomplete_install import (
     SHELL_REGISTRY,
     AutocompleteInstallError,
+    _silent_success_run,
     add_or_update_shell_section,
 )
 from test.helpers import skip_on_windows
@@ -26,6 +31,63 @@ from test.helpers import skip_on_windows
 section = 'test_section'
 managed_by = 'pytest'
 content = 'test content'
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='POSIX process groups')
+@pytest.mark.parametrize('parent_exits', [False, True])
+def test_completion_timeout_cleans_descendants_holding_pipes(tmp_path, monkeypatch, parent_exits):
+    import fcntl
+
+    ready = tmp_path / 'ready'
+    processes = []
+    real_popen = subprocess.Popen
+
+    def start(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        deadline = time.monotonic() + 10
+        while not ready.exists() or ready.read_text() != 'ready':
+            assert time.monotonic() < deadline, 'child did not signal readiness'
+            time.sleep(0.01)
+        return process
+
+    monkeypatch.setattr(subprocess, 'Popen', start)
+    child_code = (
+        'import fcntl, time; '
+        f'lock = open({str(ready)!r}, "w"); '
+        'fcntl.flock(lock, fcntl.LOCK_EX); lock.write("ready"); lock.flush(); time.sleep(30)'
+    )
+    code = (
+        'import pathlib, subprocess, sys, time; '
+        f'subprocess.Popen([sys.executable, "-c", {child_code!r}]); '
+        + ('' if parent_exits else 'time.sleep(30)')
+    )
+    try:
+        assert _silent_success_run([sys.executable, '-c', code], timeout=0.1) is False
+        assert processes[0].returncode is not None
+        assert processes[0].stdout.closed and processes[0].stderr.closed
+        with ready.open() as lock:
+            # Closing our pipes alone would leave the descendant holding this lock.
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        for process in processes:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+
+
+def test_completion_timeout_cleanup_remains_bounded(monkeypatch):
+    process = mock.Mock()
+    process.communicate.side_effect = [
+        subprocess.TimeoutExpired('shell', 0.1),
+        subprocess.TimeoutExpired('shell', 1, output=b'partial', stderr=b'error'),
+    ]
+    monkeypatch.setattr(subprocess, 'Popen', mock.Mock(return_value=process))
+    if hasattr(os, 'killpg'):
+        monkeypatch.setattr(os, 'killpg', mock.Mock())
+    assert _silent_success_run(['shell'], timeout=0.1) is False
+    process.stdout.close.assert_called_once()
+    process.stderr.close.assert_called_once()
 
 
 @pytest.fixture

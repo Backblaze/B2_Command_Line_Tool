@@ -277,9 +277,30 @@ def _silent_success_run(cmd: list[str], timeout: int = 30, env: dict | None = No
     try:
         stdout, stderr = p.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        p.kill()
-        stdout, stderr = p.communicate(timeout=1)
+        # Descendants can retain the pipes after the shell exits. The new session
+        # above gives us a process group we can terminate without touching ours.
+        try:
+            if hasattr(os, 'killpg'):
+                os.killpg(p.pid, signal.SIGKILL)
+            else:
+                p.kill()
+        except ProcessLookupError:
+            pass
+        try:
+            stdout, stderr = p.communicate(timeout=1)
+        except subprocess.TimeoutExpired as exc:
+            # An escaped descendant must not turn timeout cleanup into a traceback
+            # or an unbounded wait for EOF.
+            stdout, stderr = exc.output, exc.stderr
+            p.stdout.close()
+            p.stderr.close()
+            p.kill()
+            try:
+                p.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                logger.warning('Unable to reap timed-out command %r', cmd)
         logger.warning('Command %r timed out, stdout: %r, stderr: %r', cmd, stdout, stderr)
+        return False
     else:
         logger.log(
             logging.DEBUG if p.returncode == 0 else logging.WARNING,
