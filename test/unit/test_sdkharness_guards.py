@@ -22,7 +22,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import ProxyHandler, Request, build_opener
 
 import pytest
 
@@ -382,9 +382,17 @@ def test_classify_transfer_labels_part_uploads_and_downloads():
     assert classify('POST', '/b2api/v4/b2_list_buckets', {}) == ()
 
 
+NO_PROXY_OPENER = build_opener(ProxyHandler({}))
+
+
+def fetch_json(url):
+    with NO_PROXY_OPENER.open(Request(url, data=b''), timeout=10) as response:
+        return json.load(response)
+
+
 def fire(url, count):
     threads = [
-        threading.Thread(target=lambda: urlopen(url, data=b'x', timeout=10).read())
+        threading.Thread(target=lambda: NO_PROXY_OPENER.open(Request(url, data=b'x'), timeout=10).read())
         for _ in range(count)
     ]
     for thread in threads:
@@ -398,8 +406,21 @@ def test_the_proxy_observes_overlapping_requests_and_rewrites_the_origin(upstrea
         fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 3)
         assert proxy.peak('upload_part') == 3
         assert proxy.total('upload_part') == 3
-        reply = json.load(urlopen(f'{proxy.origin}/b2api/v4/b2_list_buckets', data=b'', timeout=10))
+        reply = fetch_json(f'{proxy.origin}/b2api/v4/b2_list_buckets')
         assert reply == {'self': proxy.origin}, 'JSON URLs must lead back through the proxy'
+
+
+def test_the_proxy_checks_ignore_ambient_proxy_variables(upstream, monkeypatch):
+    """An ambient HTTP(S)_PROXY must not capture the loopback requests of these tests."""
+    for name in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'):
+        monkeypatch.setenv(name, 'http://127.0.0.1:1')  # nothing listens here
+    for name in ('NO_PROXY', 'no_proxy'):
+        monkeypatch.delenv(name, raising=False)
+    with observing_proxy.ObservingProxy(upstream.origin, hold_seconds=0.3) as proxy:
+        fire(f'{proxy.origin}/b2api/v4/b2_upload_part', 3)
+        assert proxy.peak('upload_part') == 3
+        reply = fetch_json(f'{proxy.origin}/b2api/v4/b2_list_buckets')
+        assert reply == {'self': proxy.origin}
 
 
 def test_the_proxy_sees_no_overlap_for_serial_requests(upstream):
