@@ -43,12 +43,13 @@ jobs:
             exit 1
           fi
       - name: Check out the CLI
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
           path: cli
       - name: Check out the pinned private Simulator
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: backblaze-labs/b2-simulator
           ref: 529721037901412b7b24fdc18498631d298295c5
@@ -60,7 +61,10 @@ jobs:
           actual_revision="$(git -C simulator rev-parse HEAD)"
           test "$actual_revision" = "$SIMULATOR_REVISION"
           test -z "$(git -C simulator status --short)"
-          node --version
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
       - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -111,6 +115,4 @@ jobs:
           export REQUESTS_CA_BUNDLE
           SSL_CERT_FILE="$REQUESTS_CA_BUNDLE"
           export SSL_CERT_FILE
-          export PATH="$PWD/.nox/integration-3-12/bin:$PATH"
-
           uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"
