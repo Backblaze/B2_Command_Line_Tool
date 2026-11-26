@@ -16,6 +16,8 @@ Documentation index
 
    quick_start
 
+   scripting
+
    commands
 
    replication
