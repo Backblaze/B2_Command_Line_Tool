@@ -2313,7 +2313,7 @@ class GetDownloadUrlWithAuthBase(Command):
     start with the given file name.
 
     The URL will work for the given file, but is not specific to that file.  Files
-    with longer names that start with the give file name can also be downloaded
+    with longer names that start with the given file name can also be downloaded
     with the same auth token.
 
     The token is valid for the duration specified, which defaults
@@ -2542,10 +2542,8 @@ class FileLargePartsBase(Command):
     large file, which must be a file that was started but not
     finished or canceled.
 
-    For ``file large parts``, each output line contains the part number, length
-    in bytes, and SHA-1 checksum. For ``file large unfinished list``, each output
-    line contains the file ID, file name, content type, and file info entries as
-    space-separated key=value pairs. Neither command supports ``--json``.
+    Each output line contains the part number, length in bytes, and SHA-1
+    checksum. The command does not support ``--json``.
 
     Requires capability:
 
@@ -2563,6 +2561,10 @@ class FileLargeUnfinishedListBase(Command):
     """
     Lists all of the large files in the bucket that were started,
     but not finished or canceled.
+
+    Each output line contains the file ID, file name, content type, and file info
+    entries as space-separated key=value pairs. The command does not support
+    ``--json``.
 
     Requires capability:
 
@@ -5568,7 +5570,7 @@ class FileLargeUnfinished(Command):
 
 @FileLargeUnfinished.subcommands_registry.register
 class FileLargeUnfinishedList(B2BucketURIMixin, FileLargeUnfinishedListBase):
-    __doc__ = FileLargePartsBase.__doc__
+    __doc__ = FileLargeUnfinishedListBase.__doc__
     COMMAND_NAME = 'list'
 
 
