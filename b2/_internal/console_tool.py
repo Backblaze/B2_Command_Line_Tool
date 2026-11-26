@@ -497,8 +497,7 @@ class FileRetentionSettingMixin(Described):
     """
     Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
     with fileLockEnabled=true. Providing ``--file-retention-mode`` requires providing ``--retain-until`` which has to
-    be a future timestamp, in the form of an integer representing milliseconds
-    since epoch. Leaving out these options results in a file retained according to bucket defaults.
+    be a future timestamp in seconds or milliseconds since epoch. Leaving out these options results in a file retained according to bucket defaults.
     """
 
     @classmethod
@@ -513,6 +512,7 @@ class FileRetentionSettingMixin(Described):
         add_normalized_argument(
             parser,
             '--retain-until',
+            help='future timestamp in seconds or milliseconds since epoch',
             type=parse_millis_from_float_timestamp,
             default=None,
             metavar='TIMESTAMP',
@@ -1305,10 +1305,9 @@ class B2(Command):
     reliable authentication file location you should use ``b2 account get``.
 
     Control characters escaping is turned on if running under terminal.
-    You can override it by explicitly using `--escape-control-chars`/`--no-escape-control-chars`` option,
-    or by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
+    You can override it by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
 
-    You can suppress command stdout & stderr output by using ``--quiet`` option.
+    You can suppress command stdout & stderr output by using ``--quiet`` after the subcommand.
     To supress only progress bar, use ``--no-progress`` option.
 
     For more details on one command:
@@ -2653,7 +2652,9 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The ``--replication`` option adds replication status
+    The ``--replication`` option adds replication status to ``--long`` output.
+    Options ``--versions``, ``--include``, ``--exclude`` and ``--with-wildcard``
+    apply only when a bucket is specified.
 
     {AbstractLsCommand}
     """
@@ -3000,14 +3001,14 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
             {NAME} rm --recursive --with-wildcard "b2://bucketName/*.[ct]sv"
 
 
-        Remove all info.txt files from buckets bX, where X is any character:
+        Remove all info.txt files from directories bX, where X is any character:
 
         .. code-block::
 
             {NAME} rm --recursive --with-wildcard "b2://bucketName/b?/info.txt"
 
 
-        Remove all pdf files from buckets b0 to b9 (including sub-directories):
+        Remove all pdf files from directories b0 to b9 (including sub-directories):
 
         .. code-block::
 
@@ -3103,15 +3104,17 @@ class Sync(
     To allow sync to run when the source directory is empty, potentially
     deleting all files in a bucket, specify ``--allow-empty-source``.
     The default is to fail when the specified source directory doesn't exist
-    or is empty.  (This check only applies to version 1.0 and later.)
+    or is empty.
 
-    {ThreadsMixin}
+    Use ``--threads`` to set all three thread limits.
 
     You can alternatively control number of threads per each operation.
     The number of files processed in parallel is set by ``--sync-threads``,
     the number of files/file parts downloaded in parallel is set by ``--download-threads``,
     and the number of files/file parts uploaded in parallel is set by ``--upload-threads``.
     All the three parameters can be set to the same value by ``--threads``.
+    Each defaults to 10. ``--threads`` cannot be combined with an individual thread
+    option set to a value other than its default.
     Experiment with parameters if the defaults are not working well.
 
     Users with low-performance networks may benefit from reducing the
@@ -3166,8 +3169,8 @@ class Sync(
     (including hide markers) which were synced after given time (for local source)
     or ignore only specific file versions (for b2 source).
     Ignored files or file versions will not be taken for consideration during sync.
-    The time should be given as a seconds timestamp (e.g. "1367900664")
-    If you need milliseconds precision, put it after the comma (e.g. "1367900664.152")
+    The time may be given as a timestamp in seconds (e.g. "1367900664") or milliseconds
+    since epoch. For fractional seconds, use a decimal point (e.g. "1367900664.152").
     Alternatively you can specify ``--exclude-if-uploaded-after`` to use the server-side
     object creation timestamp rather than the modification time declared by the client.
 
@@ -3186,7 +3189,7 @@ class Sync(
     specifying the ``--compare-threshold`` option.  This will treat modTimes
     (in milliseconds) or sizes (in bytes) as the same if they are within
     the comparison threshold.  Files that match, within the threshold, will
-    not be synced. Specifying ``--verbose`` and ``--dry-run`` can be useful to
+    not be synced. Specifying ``--verbose`` after ``sync`` and ``--dry-run`` can be useful to
     determine comparison value differences.
 
     When a destination file is present that is not in the source, the
@@ -3244,6 +3247,9 @@ class Sync(
     - **listFiles**
     - **readFiles** (for downloading)
     - **writeFiles** (for uploading)
+    - **deleteFiles** (for ``--delete`` or ``--keep-days`` with a B2 destination)
+
+    In b2v4 and later, reporter errors or warnings cause exit code 1.
     """
 
     DEFAULT_SYNC_THREADS = 10
@@ -3900,6 +3906,7 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
         add_normalized_argument(
             parser,
             '--retain-until',
+            help='future timestamp in seconds or milliseconds since epoch',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
             default=None,
@@ -3999,6 +4006,7 @@ class UpdateFileRetentionBase(FileIdAndOptionalFileNameMixin, Command):
         add_normalized_argument(
             parser,
             '--retain-until',
+            help='future timestamp in seconds or milliseconds since epoch',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
             default=None,
