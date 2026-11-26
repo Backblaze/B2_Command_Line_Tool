@@ -87,6 +87,8 @@ jobs:
           uv sync --locked --group nox
       - name: Build the distribution
         run: uv run nox -vs build
+      - name: Check documented b2 commands parse
+        run: uv run nox -vs doc_examples
   cleanup_buckets:
     if: ${{ vars.B2_LIVE_TESTS_ENABLED == 'true' && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     timeout-minutes: 30
