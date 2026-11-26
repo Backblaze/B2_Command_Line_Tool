@@ -109,6 +109,8 @@ nox -s lint
 
 ## Testing
 
+See the [testing guide](doc/testing.md) for test levels, commands and reporting evidence.
+
 ### Pull request integration policy
 
 Every pull request must run the integration suite against the pinned private B2 Simulator. GitHub does not expose
