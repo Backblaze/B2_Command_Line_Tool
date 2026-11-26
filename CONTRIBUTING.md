@@ -149,6 +149,8 @@ nox -s integration-3.11
 
 ## Documentation
 
+Follow the [writing style guide](doc/writing-style.md) for new and edited documentation.
+
 To build the documentation and watch for changes (including the source code):
 
 ```bash
