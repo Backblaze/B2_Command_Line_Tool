@@ -2652,7 +2652,8 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The ``--replication`` option adds replication status to ``--long`` output.
+    The ``--replication`` option adds replication status to ``--long`` output and
+    has no effect without ``--long``.
     Options ``--versions``, ``--include``, ``--exclude`` and ``--with-wildcard``
     apply only when a bucket is specified.
 
