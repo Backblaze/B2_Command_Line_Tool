@@ -1,7 +1,7 @@
 # Contributing to B2 Command Line Tool
 
-We encourage outside contributors to perform changes to our codebase. Many such changes have been merged already. 
-In order to make it easier to contribute, core developers of this project:
+We welcome outside contributions to the codebase. We have merged many such changes.
+To make contributions easier, core developers:
 
 * provide guidance (through the issue reporting system)
 * provide tool assisted code review (through the Pull Request system)
@@ -93,7 +93,7 @@ Given Python interpreters should be installed in the operating system or via [py
 
 ## Managing dependencies
 
-We use [uv](https://docs.astral.sh/uv/) for managing dependencies and developing locally.
+We use [uv](https://docs.astral.sh/uv/) to manage dependencies and develop locally.
 If you want to change any of the project requirements (or requirement bounds) in `pyproject.toml`,
 make sure that `uv.lock` file reflects those changes by using `uv add`, `uv lock` or other
 commands - see [documentation](https://docs.astral.sh/uv/). You can verify that lock file
@@ -101,7 +101,7 @@ is up to date by running the linter.
 
 ## Linting
 
-To run all available linters:
+Run all available linters:
 
 ```bash
 nox -s lint
