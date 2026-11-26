@@ -1,7 +1,7 @@
 # Authorization realm (advanced / Backblaze development)
 
-By default, the B2 CLI talks to the production Backblaze B2 authorization realm. The controls
-below exist mainly for Backblaze development and testing.
+By default, the B2 CLI uses the production Backblaze B2 authorization realm.
+These controls exist mainly for Backblaze development and testing.
 
 - `B2_ENVIRONMENT` selects the Backblaze authorization realm. Leave it unset for production, or
   set it to a known realm name or a full B2 API endpoint URL.

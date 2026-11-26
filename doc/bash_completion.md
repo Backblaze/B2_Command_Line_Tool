@@ -1,4 +1,4 @@
-Install bash completion by running:
+Install bash completion:
 ```sh
     b2 install-autocomplete
 ```
