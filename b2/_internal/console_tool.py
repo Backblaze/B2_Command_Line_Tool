@@ -2084,6 +2084,11 @@ class FileDownloadBase(
     """
     Download the given file-like object, and store it in the given local file.
 
+    Use ``-`` as the local file name to write the file contents to stdout.
+    When the target is an existing directory, the remote file name is used; if it
+    already exists, a unique file name is chosen. An existing regular file target
+    is overwritten without a prompt.
+
     {ProgressMixin}
     {ThreadsMixin}
     {SourceSseMixin}
@@ -2099,7 +2104,7 @@ class FileDownloadBase(
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        parser.add_argument('localFileName')
+        parser.add_argument('localFileName', help='local file or directory, or - for stdout')
 
     def _run(self, args):
         progress_listener = self.make_progress_listener(
@@ -2377,6 +2382,7 @@ class FileUnhideBase(Command):
 
     - **listFiles**
     - **deleteFiles**
+    - **readFiles** (if using a ``b2id://`` URI)
 
     and optionally:
 
@@ -2385,7 +2391,10 @@ class FileUnhideBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
+        add_normalized_argument(
+            parser, '--bypass-governance', action='store_true', default=False,
+            help='bypass governance retention when deleting the hide marker',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -2532,6 +2541,11 @@ class FileLargePartsBase(Command):
     Lists all of the parts that have been uploaded for the given
     large file, which must be a file that was started but not
     finished or canceled.
+
+    For ``file large parts``, each output line contains the part number, length
+    in bytes, and SHA-1 checksum. For ``file large unfinished list``, each output
+    line contains the file ID, file name, content type, and file info entries as
+    space-separated key=value pairs. Neither command supports ``--json``.
 
     Requires capability:
 
@@ -3035,7 +3049,7 @@ class FileUrlBase(Command):
     filename urls.
 
     The URL will work for the given file, but is not specific to that file.  Files
-    with longer names that start with the give file name can also be downloaded
+    with longer names that start with the given file name can also be downloaded
     with the same auth token.
 
     The token is valid for the duration specified, which defaults
@@ -3050,7 +3064,10 @@ class FileUrlBase(Command):
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--with-auth', action='store_true')
-        parser.add_argument('--duration', type=int, default=86400)
+        parser.add_argument(
+            '--duration', type=int, default=86400,
+            help='authorization token lifetime in seconds (default: 86400); used only with --with-auth',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -3722,6 +3739,10 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     possibly setting options like server-side encryption and retention.
 
     A FIFO file (such as named pipe) can be given instead of regular file.
+    Use ``-`` as the local file path to read from stdin.
+
+    Unless quiet mode is enabled, stdout includes URL by file name and URL by
+    fileId lines before the JSON result, so the full output is not pure JSON.
 
     By default, `file upload` will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
@@ -3735,7 +3756,8 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     {DestinationSseMixin}
     {FileRetentionSettingMixin}
     {LegalHoldMixin}
-    {UploadModeMixin}
+    Use ``--incremental-mode`` to allow for incremental file uploads to save bandwidth.  This will only affect files, which
+    have been appended to since last upload.
 
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
@@ -3866,14 +3888,14 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
 
     Retention:
 
-      Only works in bucket with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
-      providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
+      Only works in bucket with fileLockEnabled=true. Providing a ``--file-retention-mode`` other than ``none`` requires
+      providing ``--retain-until``, which has to be a future timestamp in the form of an integer representing milliseconds
       since epoch.
 
-      If a file already is in governance mode, disabling retention or shortening it's period requires providing
+      If a file already is in governance mode, disabling retention or shortening its period requires providing
       ``--bypass-governance``.
 
-      If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
+      If a file already is in compliance mode, disabling retention or shortening its period is impossible.
 
       In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
 
