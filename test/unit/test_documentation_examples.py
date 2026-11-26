@@ -27,6 +27,7 @@ import io
 import pathlib
 import re
 import shlex
+import sys
 
 import pytest
 
@@ -39,29 +40,29 @@ _DOCKER_IMAGE = 'backblazeit/b2:latest'
 _B2_BINARIES = ('b2', 'b2v3', 'b2v4', 'b2v5')
 
 
-def extract_shell_blocks(text: str) -> list[list[str]]:
-    """Return the lines of each shell code block (reST `code-block` or Markdown fence)."""
+def _numbered_shell_blocks(text: str) -> list[list[tuple[int, str]]]:
+    """Return the (1-based line number, stripped line) pairs of each shell code block."""
     lines = text.splitlines()
-    blocks: list[list[str]] = []
+    blocks: list[list[tuple[int, str]]] = []
     i = 0
     while i < len(lines):
         rst = _RST_SH_BLOCK_RE.match(lines[i])
         if rst:
             base_indent = len(rst.group('indent'))
             i += 1
-            body: list[str] = []
+            body: list[tuple[int, str]] = []
             while i < len(lines):
                 line = lines[i]
                 if line.strip() and len(line) - len(line.lstrip()) <= base_indent:
                     break
-                body.append(line.strip())
+                body.append((i + 1, line.strip()))
                 i += 1
             blocks.append(body)
         elif _MARKDOWN_SH_FENCE_RE.match(lines[i]):
             i += 1
             body = []
             while i < len(lines) and not lines[i].lstrip().startswith('```'):
-                body.append(lines[i].strip())
+                body.append((i + 1, lines[i].strip()))
                 i += 1
             blocks.append(body)
             i += 1
@@ -70,24 +71,34 @@ def extract_shell_blocks(text: str) -> list[list[str]]:
     return blocks
 
 
+def extract_shell_blocks(text: str) -> list[list[str]]:
+    """Return the lines of each shell code block (reST `code-block` or Markdown fence)."""
+    return [[line for _, line in block] for block in _numbered_shell_blocks(text)]
+
+
 def _starts_b2_command(line: str) -> bool:
     """Whether a physical line starts a `b2` invocation (directly or through the docker image)."""
     words = line.removeprefix('$ ').split()
     return bool(words) and (words[0] in _B2_BINARIES or _DOCKER_IMAGE in words)
 
 
-def _logical_commands(block: list[str]) -> list[str]:
+def _logical_commands(block: list[tuple[int, str]]) -> list[tuple[int, str, bool]]:
     """
     Join physical lines into commands: a command continues while a quote is still open.
 
     Only a line that starts a `b2` command opens a command; other lines (installers, sample
     output, ...) are never tokenized, so an apostrophe in output cannot swallow later commands.
+    Returns (first line number, command text, whether its quotes are closed) for each command;
+    a command still open at the end of the block is returned as not closed instead of dropped.
     """
-    commands: list[str] = []
+    commands: list[tuple[int, str, bool]] = []
     pending = ''
-    for line in block:
-        if not pending and not _starts_b2_command(line):
-            continue
+    start = 0
+    for lineno, line in block:
+        if not pending:
+            if not _starts_b2_command(line):
+                continue
+            start = lineno
         candidate = f'{pending}\n{line}' if pending else line
         try:
             shlex.split(candidate, comments=True)
@@ -95,13 +106,20 @@ def _logical_commands(block: list[str]) -> list[str]:
             pending = candidate
             continue
         pending = ''
-        if line:
-            commands.append(candidate)
+        commands.append((start, candidate, True))
     if pending:
-        # Dropping it would silently remove the command (and every later one in the block)
-        # from the checked set.
-        raise ValueError(f'unclosed quote in documented shell block: {pending!r}')
+        commands.append((start, pending, False))
     return commands
+
+
+def _b2_arguments(command: str) -> list[str] | None:
+    """Return the arguments after the `b2` binary name, or None if the command is not `b2`."""
+    tokens = shlex.split(command.removeprefix('$ '), comments=True)
+    if _DOCKER_IMAGE in tokens:
+        tokens = tokens[tokens.index(_DOCKER_IMAGE) + 1 :]
+    if tokens and tokens[0] in _B2_BINARIES:
+        return tokens[1:]
+    return None
 
 
 def b2_argument_lists(block: list[str]) -> list[list[str]]:
@@ -109,15 +127,15 @@ def b2_argument_lists(block: list[str]) -> list[list[str]]:
     Return the argument vector (everything after the `b2` binary name) of each `b2` invocation.
 
     Lines that do not invoke `b2` (installers, `export`, sample output, ...) are ignored.
+    Raises ValueError for a `b2` command whose quote is never closed.
     """
     result = []
-    for command in _logical_commands(block):
-        command = command.removeprefix('$ ')
-        tokens = shlex.split(command, comments=True)
-        if _DOCKER_IMAGE in tokens:
-            tokens = tokens[tokens.index(_DOCKER_IMAGE) + 1 :]
-        if tokens and tokens[0] in _B2_BINARIES:
-            result.append(tokens[1:])
+    for _, command, closed in _logical_commands(list(enumerate(block, start=1))):
+        if not closed:
+            raise ValueError(f'unclosed quote in documented shell block: {command!r}')
+        args = _b2_arguments(command)
+        if args is not None:
+            result.append(args)
     return result
 
 
@@ -126,19 +144,30 @@ def documentation_files() -> list[pathlib.Path]:
 
 
 def documented_commands() -> list:
+    """
+    One pytest param (args, problem) per documented `b2` command, with id `file:line::command`.
+
+    A command that cannot be extracted (an unclosed quote) becomes a param with a `problem`
+    message, so it fails as one named test case instead of interrupting collection.
+    """
     params = []
     for path in documentation_files():
-        text = path.read_text(encoding='utf-8')
-        for block in extract_shell_blocks(text):
-            try:
-                argument_lists = b2_argument_lists(block)
-            except ValueError as exc:
-                raise ValueError(f'{path.relative_to(REPO_ROOT).as_posix()}: {exc}') from exc
-            for args in argument_lists:
+        source = path.relative_to(REPO_ROOT).as_posix()
+        for block in _numbered_shell_blocks(path.read_text(encoding='utf-8')):
+            for lineno, command, closed in _logical_commands(block):
+                if not closed:
+                    problem = (
+                        f'{source}:{lineno}: unclosed quote in documented command: {command!r}'
+                    )
+                    params.append(
+                        pytest.param(None, problem, id=f'{source}:{lineno}::unclosed quote')
+                    )
+                    continue
+                args = _b2_arguments(command)
+                if args is None:
+                    continue
                 label = ' '.join(shlex.join(args).split())[:80]
-                params.append(
-                    pytest.param(args, id=f'{path.relative_to(REPO_ROOT).as_posix()}::{label}')
-                )
+                params.append(pytest.param(args, None, id=f'{source}:{lineno}::{label}'))
     return params
 
 
@@ -223,6 +252,34 @@ class TestRealParser:
         assert 'unrecognized arguments' in stderr
 
 
+def test_broken_example_is_one_failing_case_with_file_and_line(monkeypatch, tmp_path):
+    # A broken example must become a single failing test case naming its file and line, not a
+    # collection error that interrupts the whole unit run; the other commands are still checked.
+    readme = tmp_path / 'README.md'
+    readme.write_text(
+        "```sh\nb2 bucket list\nb2 bucket delete 'oops\n```\n\n```sh\nb2 key list\n```\n",
+        encoding='utf-8',
+    )
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, 'REPO_ROOT', tmp_path)
+    monkeypatch.setattr(module, 'documentation_files', lambda: [readme])
+
+    params = documented_commands()
+
+    assert [p.id for p in params] == [
+        'README.md:2::bucket list',
+        'README.md:3::unclosed quote',
+        'README.md:7::key list',
+    ]
+    assert [p.values for p in params if p.id != 'README.md:3::unclosed quote'] == [
+        (['bucket', 'list'], None),
+        (['key', 'list'], None),
+    ]
+    [(args, problem)] = [p.values for p in params if p.id == 'README.md:3::unclosed quote']
+    assert args is None
+    assert problem.startswith('README.md:3: unclosed quote')
+
+
 def test_documentation_contains_commands_to_validate():
     # Guard against the extraction silently matching nothing (e.g. after a docs reformat).
     # 16 commands are documented today; the minimum is kept close to that because turning one
@@ -231,9 +288,11 @@ def test_documentation_contains_commands_to_validate():
 
 
 @pytest.mark.usefixtures('console_tool_class')
-@pytest.mark.parametrize('args', documented_commands())
-def test_documented_command_is_accepted_by_parser(args, cli_version):
+@pytest.mark.parametrize('args, problem', documented_commands())
+def test_documented_command_is_accepted_by_parser(args, problem, cli_version):
     if cli_version != 'b2v5':
         pytest.skip('documentation describes the b2v5 interface')
+    if problem:
+        pytest.fail(problem, pytrace=False)
     accepted, stderr = parse_with_real_parser(args)
     assert accepted, f'`b2 {shlex.join(args)}` is rejected by the argument parser:\n{stderr}'
