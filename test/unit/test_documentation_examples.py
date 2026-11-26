@@ -70,11 +70,24 @@ def extract_shell_blocks(text: str) -> list[list[str]]:
     return blocks
 
 
+def _starts_b2_command(line: str) -> bool:
+    """Whether a physical line starts a `b2` invocation (directly or through the docker image)."""
+    words = line.removeprefix('$ ').split()
+    return bool(words) and (words[0] in _B2_BINARIES or _DOCKER_IMAGE in words)
+
+
 def _logical_commands(block: list[str]) -> list[str]:
-    """Join physical lines into commands: a command continues while a quote is still open."""
+    """
+    Join physical lines into commands: a command continues while a quote is still open.
+
+    Only a line that starts a `b2` command opens a command; other lines (installers, sample
+    output, ...) are never tokenized, so an apostrophe in output cannot swallow later commands.
+    """
     commands: list[str] = []
     pending = ''
     for line in block:
+        if not pending and not _starts_b2_command(line):
+            continue
         candidate = f'{pending}\n{line}' if pending else line
         try:
             shlex.split(candidate, comments=True)
@@ -173,6 +186,11 @@ class TestExtraction:
         block = ["$ b2 bucket delete 'example-mybucket-b2-1", '$ b2 bucket list']
         with pytest.raises(ValueError, match='unclosed quote'):
             b2_argument_lists(block)
+
+    def test_apostrophes_in_sample_output_do_not_swallow_a_command(self):
+        # Two apostrophes in output lines must not pair up across the `b2` command between them.
+        block = ['$ b2 bucket list', "it's sample output", '$ b2 bucket get no-such', "don't"]
+        assert b2_argument_lists(block) == [['bucket', 'list'], ['bucket', 'get', 'no-such']]
 
     def test_docker_wrapper_is_unwrapped(self):
         block = ['docker run --rm -v b2:/root backblazeit/b2:latest b2v5 bucket list']
