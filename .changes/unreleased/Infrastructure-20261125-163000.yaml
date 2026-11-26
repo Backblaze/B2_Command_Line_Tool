@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Make the sdkharness large-transfer checks observe real upload and download concurrency through a loopback proxy, and harden the resilience executable.
+time: 2026-11-25T16:30:00-03:00

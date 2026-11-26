@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -31,7 +33,9 @@ def triggers(workflow):
 
 def test_every_pull_request_is_subject_to_the_simulator_policy():
     workflow = load_workflow()
-    pull_request = triggers(workflow)['pull_request']
+    workflow_triggers = triggers(workflow)
+    assert 'pull_request_target' not in workflow_triggers
+    pull_request = workflow_triggers['pull_request']
     assert set(pull_request['types']) == {
         'opened',
         'synchronize',
@@ -40,29 +44,63 @@ def test_every_pull_request_is_subject_to_the_simulator_policy():
     }
 
     policy = workflow['jobs']['simulator-access-policy']
-    assert 'if' not in policy
+    assert 'if' not in policy  # a skipped job would satisfy a required check
     policy_script = policy['steps'][0]['run']
     assert 'github.event.pull_request.head.repo.full_name' in str(policy['steps'][0]['env'])
-    assert 'GITHUB_REPOSITORY' in policy_script
-    assert 'exit 1' in policy_script
+
+    def run_policy(*, event_name, head_repository):
+        env = {
+            **os.environ,
+            'EVENT_NAME': event_name,
+            'HEAD_REPOSITORY': head_repository,
+            'GITHUB_REPOSITORY': 'Backblaze/B2_Command_Line_Tool',
+        }
+        return subprocess.run(['bash', '-eu', '-c', policy_script], env=env, check=False)
+
+    assert (
+        run_policy(
+            event_name='pull_request',
+            head_repository='Backblaze/B2_Command_Line_Tool',
+        ).returncode
+        == 0
+    )
+    assert run_policy(event_name='push', head_repository='').returncode == 0
+    assert (
+        run_policy(
+            event_name='pull_request',
+            head_repository='outside-contributor/B2_Command_Line_Tool',
+        ).returncode
+        != 0
+    )
 
 
-def test_private_simulator_is_exactly_pinned_and_credentials_do_not_persist():
+def test_private_simulator_is_exactly_pinned_and_uses_a_read_only_deploy_key():
     workflow = load_workflow()
     assert workflow['permissions'] == {'contents': 'read'}
+    assert 'continue-on-error' not in str(workflow)
     job = workflow['jobs']['simulator-integration']
     assert job['needs'] == 'simulator-access-policy'
-    assert 'if' not in job
+    assert 'if' not in job  # a skipped job would satisfy a required check
+    assert job['timeout-minutes'] == 90
+
+    cli_checkout = next(step for step in job['steps'] if step.get('name') == 'Check out the CLI')
+    assert cli_checkout['with']['persist-credentials'] is False
 
     checkout = next(
         step
         for step in job['steps']
         if step.get('with', {}).get('repository') == SIMULATOR_REPOSITORY
     )
-    assert checkout['with']['ref'] == SIMULATOR_REVISION
+    assert workflow['env']['SIMULATOR_REVISION'] == SIMULATOR_REVISION
+    assert checkout['with']['ref'] == workflow['env']['SIMULATOR_REVISION']
     assert checkout['with']['persist-credentials'] is False
     assert checkout['with']['ssh-key'] == '${{ secrets.SIMULATOR_DEPLOY_KEY }}'
     assert 'token' not in checkout['with']
+
+    node_setup = next(
+        step for step in job['steps'] if str(step.get('uses', '')).startswith('actions/setup-node@')
+    )
+    assert node_setup['with']['node-version'] == 22
 
     remaining_steps = job['steps'][job['steps'].index(checkout) + 1 :]
     assert 'SIMULATOR_DEPLOY_KEY' not in str(remaining_steps)
@@ -86,8 +124,13 @@ def test_simulator_runs_the_secret_marked_suite_with_fixture_credentials():
     assert 'REQUESTS_CA_BUNDLE' in script
     assert 'B2_ENVIRONMENT' in script
     assert 'B2_TEST_ENVIRONMENT' in script
-    assert '.nox/integration-3-12/bin' in script
     assert '-n 0' in script
     assert '-m "require_secrets"' in script
+    nox_command = next(
+        line.strip() for line in script.splitlines() if 'nox -vs integration' in line
+    )
+    assert nox_command == (
+        'uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"'
+    )
     assert '--cleanup' not in script
     assert 'cleanup_buckets' not in script
