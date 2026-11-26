@@ -84,6 +84,10 @@ def _logical_commands(block: list[str]) -> list[str]:
         pending = ''
         if line:
             commands.append(candidate)
+    if pending:
+        # Dropping it would silently remove the command (and every later one in the block)
+        # from the checked set.
+        raise ValueError(f'unclosed quote in documented shell block: {pending!r}')
     return commands
 
 
@@ -113,7 +117,11 @@ def documented_commands() -> list:
     for path in documentation_files():
         text = path.read_text(encoding='utf-8')
         for block in extract_shell_blocks(text):
-            for args in b2_argument_lists(block):
+            try:
+                argument_lists = b2_argument_lists(block)
+            except ValueError as exc:
+                raise ValueError(f'{path.relative_to(REPO_ROOT).as_posix()}: {exc}') from exc
+            for args in argument_lists:
                 label = ' '.join(shlex.join(args).split())[:80]
                 params.append(
                     pytest.param(args, id=f'{path.relative_to(REPO_ROOT).as_posix()}::{label}')
@@ -158,6 +166,13 @@ class TestExtraction:
         [args] = b2_argument_lists(block)
         assert args[:3] == ['bucket', 'update', '--replication']
         assert args[-1] == 'my-bucket'
+
+    def test_unclosed_quote_at_end_of_block_fails_instead_of_vanishing(self):
+        # A documented command that lost its closing quote must not silently drop out of the
+        # checked set (and must not hide later commands in the same block).
+        block = ["$ b2 bucket delete 'example-mybucket-b2-1", '$ b2 bucket list']
+        with pytest.raises(ValueError, match='unclosed quote'):
+            b2_argument_lists(block)
 
     def test_docker_wrapper_is_unwrapped(self):
         block = ['docker run --rm -v b2:/root backblazeit/b2:latest b2v5 bucket list']
