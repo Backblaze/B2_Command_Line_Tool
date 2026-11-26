@@ -9,6 +9,7 @@
 - [Documentation](https://b2-command-line-tool.readthedocs.io/en/master/): Browse the command reference and guides.
 - [Application keys](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/doc/source/quick_start.rst): Authorize with B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY.
 - [Account information](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/README.md#usage): Configure the account database with B2_ACCOUNT_INFO.
+- [Credentials and account data](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/b2/_internal/console_tool.py): Read the B2 command help for authorization and account information.
 - [ApiVer](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/README.md#apiver-cli-versions-b2-vs-b2v3-b2v4-b2v5-etc): Choose between b2 and b2v5 for scripts.
 
 ## Guides
