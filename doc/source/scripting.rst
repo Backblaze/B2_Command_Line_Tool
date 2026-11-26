@@ -173,3 +173,73 @@ action refers to removal of that marker.
        "fileId": "9998",
        "fileName": "example.txt"
    }
+
+Upload output: the fixture file contains ``example content`` followed by a
+newline, with a fixed modification time. The URL lines precede the JSON.
+
+.. code-block:: sh
+
+   b2v5 file upload --no-progress example-scripts example.txt example.txt
+
+.. code-block:: text
+
+   URL by file name: http://download.example.com/file/example-scripts/example.txt
+   URL by fileId: http://download.example.com/b2api/v4/b2_download_file_by_id?fileId=9999
+   {
+       "accountId": "account-0",
+       "action": "upload",
+       "bucketId": "bucket_0",
+       "contentSha1": "a943c7594cae5d4efad6ec2fbc442def5056b170",
+       "contentType": "b2/x-auto",
+       "fileId": "9999",
+       "fileInfo": {
+           "src_last_modified_millis": "1500111222000"
+       },
+       "fileName": "example.txt",
+       "fileRetention": {
+           "mode": null,
+           "retainUntilTimestamp": null
+       },
+       "legalHold": null,
+       "replicationStatus": null,
+       "serverSideEncryption": {
+           "algorithm": "AES256",
+           "mode": "SSE-B2"
+       },
+       "size": 16,
+       "uploadTimestamp": 5000
+   }
+
+CSV output: the simulator has one source object and an ``example-rule``
+replication rule. The destination scan is disabled.
+
+.. code-block:: sh
+
+   b2v5 replication status --no-progress --dont-scan-destination --output-format csv example-scripts
+
+.. code-block:: text
+
+   rule name,"source
+   replication
+   status","source
+   has
+   hide
+   marker","source
+   encryption
+   mode","source
+   has
+   large
+   metadata","source
+   has
+   file
+   retention","source
+   has
+   legal
+   hold","destination
+   replication
+   status","metadata
+   differs","hash
+   differs",count
+   example-rule,,No,SSE_B2,No,No,No,,,,1
+
+The multi-line CSV headers are tracked in `#1293 <https://github.com/Backblaze/B2_Command_Line_Tool/issues/1293>`_.
