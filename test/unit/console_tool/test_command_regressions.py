@@ -142,6 +142,19 @@ def test_replication_status_rejects_unknown_column(b2_cli, bucket_info):
         assert status == 1
         assert 'foo' in stderr and all(column in stderr for column in columns)
         assert 'Traceback' not in stderr
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            [
+                'replication',
+                'status',
+                '--no-progress',
+                '--columns',
+                'all,foo',
+                bucket_info['bucketName'],
+            ],
+        )
+        assert status == 1
+        assert 'all' in stderr and 'Traceback' not in stderr
         status, stdout, stderr = run(
             b2_cli,
             [

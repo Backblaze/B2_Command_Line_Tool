@@ -4274,7 +4274,9 @@ class ReplicationStatusBase(Command):
         )
 
     def _run(self, args):
-        if args.columns[0] != 'all':
+        if 'all' in args.columns and len(args.columns) > 1:
+            raise CommandError("Column 'all' cannot be combined with other columns.")
+        if args.columns != ['all']:
             valid_columns = [field.name for field in dataclasses.fields(ReplicationScanResult)] + [
                 'count'
             ]
