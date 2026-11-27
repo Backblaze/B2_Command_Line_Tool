@@ -288,7 +288,9 @@ def test_documentation_contains_commands_to_validate():
     # Guard against the extraction silently matching nothing (e.g. after a docs reformat).
     # 16 commands are documented today; the minimum is kept close to that because turning one
     # `code-block:: sh` into `text` made 5 commands vanish and a looser bound (10) did not notice.
-    assert len(documented_commands()) >= 15
+    # Count the README and Sphinx pages apart from the skill, whose own commands must not hide a loss.
+    published = [p for p in documented_commands() if not p.id.startswith('.claude/')]
+    assert len(published) >= 15
 
 
 @pytest.mark.usefixtures('console_tool_class')
