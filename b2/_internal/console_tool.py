@@ -3353,7 +3353,7 @@ class Sync(
 
         source = parse_folder(args.source, self.console_tool.api)
         if source.folder_type() == 'local' and not os.path.exists(source.root):
-            raise CommandError(f'Directory {source.root} does not exist.')
+            raise CommandError(f'Directory {args.source} does not exist.')
         destination = parse_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allow_empty_source or VERSION_0_COMPATIBILITY
 
