@@ -2330,6 +2330,32 @@ class TestConsoleTool(BaseConsoleToolTest):
             command = ['sync', '--no-progress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
+    def test_sync_missing_local_source(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            source = os.path.join(temp_dir, 'missing')
+            self._run_command(
+                ['sync', '--no-progress', source, 'b2://my-bucket'],
+                '',
+                f'ERROR: Directory {source} does not exist.\n',
+                1,
+            )
+            self.assertFalse(os.path.exists(source))
+
+    def test_sync_creates_local_destination(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            destination = os.path.join(temp_dir, 'new')
+            self._run_command(
+                ['sync', '--no-progress', '--allow-empty-source', 'b2://my-bucket', destination],
+                '',
+                '',
+                0,
+            )
+            self.assertTrue(os.path.isdir(destination))
+
     def test_sync_empty_folder_when_not_enabled(self):
         self._authorize_account()
         self._create_my_bucket()
