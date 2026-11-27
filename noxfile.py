@@ -826,6 +826,13 @@ def release_check(session):
     session.run('pytest', 'test/release', *PYTEST_GLOBAL_ARGS)
 
 
+@nox.session(python=False)
+def docs_lint(session):
+    """Check changed Markdown docs and test the lint in warn-only mode."""
+    session.run('bash', 'scripts/docs-lint.sh', '--warn-only', external=True)
+    session.run('bash', 'scripts/docs-lint_test.sh', external=True)
+
+
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def changie_check(session):
     """Validate unreleased fragments and the assembled changelog."""
