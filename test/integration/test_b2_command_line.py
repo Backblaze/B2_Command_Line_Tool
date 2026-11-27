@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import hashlib
+import importlib.metadata
 import itertools
 import json
 import os
@@ -39,6 +40,7 @@ from b2sdk.v3 import (
 )
 from b2sdk.v3.exception import MissingAccountData
 from b2sdk.v3.testing import IntegrationTestBase
+from packaging.version import Version
 
 from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ENV_VAR,
@@ -609,9 +611,11 @@ def test_debug_logs(b2_tool, is_running_on_docker, tmp_path):
             *b2_tool.get_bucket_info_args(),
         ],
     )
-    b2_tool.should_succeed(
-        ['bucket', 'delete', to_be_removed_bucket_name],
-    )
+    # Delete the bucket behind the CLI's back, so the CLI still has its id cached and each
+    # `bucket delete` below reaches b2_delete_bucket and logs the server's error. (Deleting it with
+    # the CLI would clear that cache in b2sdk > 2.13.5, and the server would never be called.)
+    b2_api = b2_tool.bucket_manager.b2_api
+    b2_api.delete_bucket(b2_api.get_bucket_by_name(to_be_removed_bucket_name))
     b2_tool.should_fail(
         ['bucket', 'delete', to_be_removed_bucket_name],
         re.compile(r'^ERROR: Bucket with id=\w* not found[^$]*$'),
@@ -861,9 +865,16 @@ class TestKeyRestrictions(IntegrationTestBase):
 
 def test_delete_bucket(b2_tool, bucket_name):
     b2_tool.should_succeed(['bucket', 'delete', bucket_name])
-    b2_tool.should_fail(
-        ['bucket', 'delete', bucket_name], re.compile(r'^ERROR: Bucket with id=\w* not found[^$]*$')
-    )
+    if Version(importlib.metadata.version('b2sdk')) > Version('2.13.5'):
+        # b2sdk clears its bucket cache after a delete (Backblaze/b2-sdk-python#696), so the
+        # name lookup fails before any delete request is sent.
+        expected = re.compile(
+            rf'^Bucket not found: {re.escape(bucket_name)}\. If you believe it exists, run `\S+ bucket list` to reset cache, then try again\.$'
+        )
+    else:
+        # Older b2sdk keeps the deleted bucket's id cached and B2 rejects that id.
+        expected = re.compile(r'^ERROR: Bucket with id=\w* not found[^$]*$')
+    b2_tool.should_fail(['bucket', 'delete', bucket_name], expected)
 
 
 def test_rapid_bucket_operations(b2_tool):

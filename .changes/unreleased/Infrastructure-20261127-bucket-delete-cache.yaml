@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Update the bucket-delete integration tests for b2sdk releases after 2.13.5, which clear the bucket cache after a delete, while keeping them passing with older b2sdk.
+time: 2026-11-27T00:00:00-03:00
