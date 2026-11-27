@@ -12,7 +12,7 @@ permissions:
 env:
   PYTHON_DEFAULT_VERSION: "3.12"
   UV_VERSION: "0.13.4"
-  SIMULATOR_REVISION: "529721037901412b7b24fdc18498631d298295c5"
+  SIMULATOR_REVISION: "4052c6f8f45350486460d19bc796866cbdcdd3bc"
 
 jobs:
   simulator-access-policy:
@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: backblaze-labs/b2-simulator
-          ref: 529721037901412b7b24fdc18498631d298295c5
+          ref: 4052c6f8f45350486460d19bc796866cbdcdd3bc
           ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
           persist-credentials: false
           path: simulator
