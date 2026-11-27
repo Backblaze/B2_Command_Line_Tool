@@ -1,0 +1,40 @@
+name: Task
+description: Maintenance, tooling, CI, docs or release work that is neither a bug nor a new feature.
+type: Task
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: What needs doing, and why?
+      description: The outcome and the reason it matters now.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Checkable conditions, one per line.
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and context
+      description: Files, workflows or settings involved; related issues and PRs; what is out of scope.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CI and workflows
+        - Docs
+        - Release
+        - Tests
+        - Bundles and Docker
+        - Dependencies
+        - Repository settings
+        - Other
+    validations:
+      required: true

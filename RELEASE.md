@@ -46,6 +46,13 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    can read every source before setting the repository variable
    `SECURITY_GATE_STRICT=true`; strict mode holds a release on any unreadable source.
 
+## Versioning
+
+Semantic versioning. A `Removed` or breaking `Changed` entry needs a major bump and, usually, a new
+ApiVer (`b2vN`) so scripts on the old interface keep working. `Added`, `Changed` or `Deprecated` means
+minor; only `Fixed`, `Doc` and `Infrastructure` means patch. New or risky behavior can ship first as a
+pre-release tag (`vX.Y.ZrcN`, `aN`, `bN` or `devN`), which skips PyPI and Docker Hub.
+
 ## Prepare the release
 
 1. Choose `X.Y.Z` and create its GitHub milestone. Make sure intended issues and PRs are resolved.
@@ -122,3 +129,11 @@ Trusted Publisher must still be validated in a real maintainer-controlled releas
 
 Release work may use stacked pull requests. Pull-request CI runs for every base branch so both
 the Changie migration and its dependent release-workflow change are checked before merging.
+
+## If something goes wrong
+
+- A failed `cd.yml` job can be re-run from the Actions tab without a new tag.
+- To roll back a bad release in one step, yank it on PyPI (`pip` then skips it unless pinned) and mark the
+  GitHub release as a pre-release; then fix forward with a patch release.
+- After a post-release fix, ask which layer should have caught it (a test, `REVIEW.md`, the AI review) and
+  add the case to [doc/reviewer-evals.md](doc/reviewer-evals.md).

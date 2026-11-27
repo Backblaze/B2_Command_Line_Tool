@@ -6,7 +6,7 @@ Security-response owner: Backblaze Security.
 
 The latest release of the `b2` CLI is supported. Fixes ship as a new release on top of the latest one;
 older releases are not patched in place. Every ApiVer entry point in that release (`b2`, `b2v3`, `b2v4`,
-`b2v5`) receives the fix.
+`b2v5`) receives the fix. See [`RELEASE.md`](RELEASE.md).
 
 | Version | Supported |
 |---|---|
