@@ -1722,14 +1722,21 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     Requires capability:
 
     - **writeBuckets**
+
+    For some operations:
+
     - **readBucketEncryption**
     - **writeBucketEncryption**
-    - **writeBucketRetentions**
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_normalized_argument(parser, '--bucket-info', type=validated_loads)
+        add_normalized_argument(
+            parser,
+            '--bucket-info',
+            type=validated_loads,
+            help='bucket information as a JSON object',
+        )
         add_normalized_argument(
             parser,
             '--cors-rules',
@@ -1742,7 +1749,9 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             action='store_true',
             help='If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation.',
         )
-        parser.add_argument('--replication', type=validated_loads)
+        parser.add_argument(
+            '--replication', type=validated_loads, help='replication configuration as a JSON object'
+        )
         add_bucket_name_argument(parser)
         parser.add_argument('bucketType', choices=CREATE_BUCKET_TYPES)
 
@@ -1773,17 +1782,18 @@ class KeyCreateBase(Command):
     their IDs, but not the secret keys.
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
-    Optionally, you can pass all capabilities known to this client with ``--all-capabilities``.
+    With ``--all-capabilities``, the client includes its known capabilities except notification
+    capabilities, plus all capabilities of the current key.
 
-    The ``duration`` is the length of time (in seconds) the new application key will exist.
+    The ``--duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
-    The ``bucket`` is the name of a bucket in the account.  When specified, the key
+    The ``--bucket`` is the name of a bucket in the account.  When specified, the key
     will only allow access to that bucket. You can specify multiple buckets by repeating
     the option, e.g. ``--bucket bucket1 --bucket bucket2``
 
-    The ``namePrefix`` restricts file access to files whose names start with the prefix.
+    The ``--name-prefix`` restricts file access to files whose names start with the prefix.
 
     The output is the new application key ID, followed by the application key itself.
     The two values returned are the two that you pass to ``account authorize`` to use the key.
@@ -1795,14 +1805,30 @@ class KeyCreateBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucket', action='append')
-        add_normalized_argument(parser, '--name-prefix')
-        parser.add_argument('--duration', type=int)
-        parser.add_argument('keyName')
+        parser.add_argument(
+            '--bucket',
+            action='append',
+            help='restrict the key to this bucket; repeat for multiple buckets',
+        )
+        add_normalized_argument(
+            parser, '--name-prefix', help='restrict file access to names beginning with this prefix'
+        )
+        parser.add_argument('--duration', type=int, help='key lifetime in seconds')
+        parser.add_argument('keyName', help='name of the application key')
 
         capabilities = parser.add_mutually_exclusive_group(required=True)
-        capabilities.add_argument('capabilities', type=parse_comma_separated_list, nargs='?')
-        add_normalized_argument(capabilities, '--all-capabilities', action='store_true')
+        capabilities.add_argument(
+            'capabilities',
+            type=parse_comma_separated_list,
+            nargs='?',
+            help='comma-separated list of capabilities',
+        )
+        add_normalized_argument(
+            capabilities,
+            '--all-capabilities',
+            action='store_true',
+            help='use known non-notification capabilities and current key capabilities',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -1846,7 +1872,8 @@ class KeyCreateBase(Command):
 
 class BucketDeleteBase(Command):
     """
-    Delete the bucket with the given name.
+    Delete the bucket with the given name. The bucket must be empty.
+    Prints nothing on success.
 
     Requires capability:
 
@@ -1898,6 +1925,7 @@ class DeleteFileVersionBase(FileIdAndOptionalFileNameMixin, Command):
 class KeyDeleteBase(Command):
     """
     Delete the specified application key by ID.
+    Prints the deleted application key ID.
 
     Requires capability:
 
@@ -2179,7 +2207,7 @@ class AccountGetBase(Command):
     Show current account info
 
     Prints account ID, key, auth token, URLs, and what capabilities
-    the current application keys has.
+    the current application key has.
     """
 
     def _run(self, args):
@@ -2455,7 +2483,8 @@ class KeyListBase(Command):
     """
     List the application keys for the current account.
 
-    The columns in the output are:
+    By default, output contains the application key ID and name.
+    With ``--long``, the columns are:
 
     - ID of the application key
     - Name of the application key
@@ -2463,7 +2492,7 @@ class KeyListBase(Command):
     - Date of expiration, or ``-``
     - Time of expiration, or ``-``
     - File name prefix, in single quotes
-    - Command-separated list of capabilities
+    - Comma-separated list of capabilities
 
     None of the values contain whitespace.
 
@@ -2478,7 +2507,12 @@ class KeyListBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('-l', '--long', action='store_true')
+        parser.add_argument(
+            '-l',
+            '--long',
+            action='store_true',
+            help='show restrictions, expiration and capabilities',
+        )
         super()._setup_parser(parser)
 
     def __init__(self, console_tool):
@@ -3474,7 +3508,7 @@ class Sync(
 
 class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
-    Updates the ``bucketType`` of an existing bucket.
+    Update an existing bucket, optionally including its ``bucketType``.
 
     Prints the updated bucket as JSON.
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
@@ -3485,6 +3519,7 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
 
     To set a default retention for files in the bucket ``--default-retention-mode`` and
     ``--default-retention-period`` have to be specified. The latter one is of the form "X days|years".
+    Use ``--default-retention-mode none`` to remove the default retention.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
@@ -3515,7 +3550,12 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_normalized_argument(parser, '--bucket-info', type=validated_loads)
+        add_normalized_argument(
+            parser,
+            '--bucket-info',
+            type=validated_loads,
+            help='bucket information as a JSON object',
+        )
         add_normalized_argument(
             parser,
             '--cors-rules',
@@ -3538,7 +3578,9 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
-        parser.add_argument('--replication', type=validated_loads)
+        parser.add_argument(
+            '--replication', type=validated_loads, help='replication configuration as a JSON object'
+        )
         add_normalized_argument(
             parser,
             '--file-lock-enabled',
@@ -4059,6 +4101,8 @@ class ReplicationSetupBase(Command):
     Set up replication between two buckets.
 
     Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
+    Prints nothing and exits 0 on success. Without ``--name``, a new rule name is
+    based on the destination bucket name; repeated setup can add another rule.
 
     Requires capabilities on both profiles:
 
@@ -4072,7 +4116,11 @@ class ReplicationSetupBase(Command):
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
         add_normalized_argument(
-            parser, '--destination-profile', type=cls._validate_profile, default=None
+            parser,
+            '--destination-profile',
+            type=cls._validate_profile,
+            default=None,
+            help='profile for the destination bucket; defaults to the source profile',
         )
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
@@ -4251,15 +4299,37 @@ class ReplicationStatusBase(Command):
     ``--columns``
     Comma-separated list of columns to be shown. The rows are still grouped by _all_
     columns, no matter which of them are shown / hidden when using ``--columns`` flag.
+    Valid names are ``source_replication_status``, ``source_has_hide_marker``,
+    ``source_encryption_mode``, ``source_has_large_metadata``, ``source_has_file_retention``,
+    ``source_has_legal_hold``, ``destination_replication_status``, ``metadata_differs``,
+    ``hash_differs``, and ``count``. Use ``all`` to show all columns.
+    With no rules and no ``--rule`` filter, console and CSV output are empty;
+    JSON output is an empty object. The command exits 0.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
-        add_normalized_argument(parser, '--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        add_normalized_argument(parser, '--destination-profile', type=cls._validate_profile)
-        add_normalized_argument(parser, '--dont-scan-destination', action='store_true')
+        add_normalized_argument(
+            parser,
+            '--rule',
+            metavar='REPLICATION_RULE_NAME',
+            default=None,
+            help='inspect only the named replication rule',
+        )
+        add_normalized_argument(
+            parser,
+            '--destination-profile',
+            type=cls._validate_profile,
+            help='profile for the destination bucket',
+        )
+        add_normalized_argument(
+            parser,
+            '--dont-scan-destination',
+            action='store_true',
+            help='inspect only the source bucket',
+        )
         add_normalized_argument(
             parser, '--output-format', default='console', choices=('console', 'json', 'csv')
         )
