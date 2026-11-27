@@ -7,6 +7,7 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
+import json
 from unittest import mock
 
 import pytest
@@ -17,6 +18,7 @@ from b2._internal._cli.const import (
     B2_APPLICATION_KEY_ID_ENV_VAR,
     B2_ENVIRONMENT_ENV_VAR,
 )
+from test.unit.b2_simulator import b2_simulator_enabled
 
 
 @pytest.fixture
@@ -28,9 +30,16 @@ def b2_cli_is_authorized_afterwards(b2_cli):
 
 def test_authorize_with_bad_key(b2_cli):
     expected_stdout = ''
-    expected_stderr = """
-    ERROR: unable to authorize account: Invalid authorization token. Server said: secret key is wrong (unauthorized)
-    """
+    if b2_simulator_enabled():
+        # B2 refuses a wrong key with 401 unauthorized and an empty message (b2_authorize_account;
+        # measured on real B2, b2-simulator ledger F-118).
+        expected_stderr = """
+        ERROR: unable to authorize account:  (unauthorized)
+        """
+    else:
+        expected_stderr = """
+        ERROR: unable to authorize account: Invalid authorization token. Server said: secret key is wrong (unauthorized)
+        """
 
     b2_cli._run_command(
         ['account', 'authorize', b2_cli.account_id, 'bad-app-key'],
@@ -163,26 +172,38 @@ def test_authorize_towards_custom_realm_using_env(b2_cli, b2_cli_is_authorized_a
 
 
 def test_authorize_account_prints_account_info(b2_cli):
-    expected_json = {
-        'accountAuthToken': 'auth_token_0',
-        'accountFilePath': None,
-        'accountId': 'account-0',
-        'allowed': {
-            'buckets': None,
-            'capabilities': sorted(ALL_CAPABILITIES),
-            'namePrefix': None,
-        },
-        'apiUrl': 'http://api.example.com',
-        'applicationKey': 'masterKey-0',
-        'applicationKeyId': 'account-0',
-        'downloadUrl': 'http://download.example.com',
-        'isMasterKey': True,
-        's3endpoint': 'http://s3.api.example.com',
-    }
-
-    b2_cli._run_command(
+    _, stdout, _ = b2_cli._run_command(
         ['account', 'authorize', b2_cli.account_id, b2_cli.master_key],
         expected_stderr='',
         expected_status=0,
-        expected_json_in_stdout=expected_json,
     )
+
+    # Tokens and URLs are the ones the server answered with.
+    account_info = b2_cli.account_info
+    capabilities = set(ALL_CAPABILITIES)
+    if b2_simulator_enabled():
+        # A full-capability key on real B2 also holds these four, which b2sdk's
+        # ALL_CAPABILITIES lacks (real-B2 authorize answer of 2026-11-27, b2-simulator F-03).
+        capabilities |= {
+            'readBucketLifecycleRules',
+            'readBucketLogging',
+            'writeBucketLifecycleRules',
+            'writeBucketLogging',
+        }
+    expected_json = {
+        'accountAuthToken': account_info.get_account_auth_token(),
+        'accountFilePath': None,
+        'accountId': b2_cli.account_id,
+        'allowed': {
+            'buckets': None,
+            'capabilities': sorted(capabilities),
+            'namePrefix': None,
+        },
+        'apiUrl': account_info.get_api_url(),
+        'applicationKey': b2_cli.master_key,
+        'applicationKeyId': b2_cli.account_id,
+        'downloadUrl': account_info.get_download_url(),
+        'isMasterKey': True,
+        's3endpoint': account_info.get_s3_api_url(),
+    }
+    b2_cli.assertDictIsContained(expected_json, json.loads(stdout))

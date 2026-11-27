@@ -16,6 +16,7 @@ import stat
 import pytest
 
 from b2._internal.console_tool import CommandError
+from test.unit.b2_simulator import b2_simulator_enabled
 
 
 @pytest.fixture()
@@ -32,6 +33,10 @@ def bucket_notification_rule(b2_cli, bucket):
             'url': 'https://example.com/webhook',
         },
     }
+    if b2_simulator_enabled():
+        # B2 reads unset optional target fields back as null (b2-simulator ledger F-86; the
+        # CLI's integration test expects 'customHeaders': None). RawSimulator leaves them out.
+        rule['targetConfiguration'].update(customHeaders=None, hmacSha256SigningSecret=None)
     _, stdout, _ = b2_cli.run(
         [
             'bucket',
@@ -60,6 +65,12 @@ def test_notification_rules__list_all(b2_cli, bucket, bucket_notification_rule, 
             f'b2://{bucket}',
         ]
     )
+    # B2 reads unset optional target fields back as null (see bucket_notification_rule).
+    null_target_fields = (
+        '    customHeaders: null\n    hmacSha256SigningSecret: null\n'
+        if b2_simulator_enabled()
+        else ''
+    )
     assert (
         stdout
         == f"""\
@@ -72,7 +83,7 @@ Notification rules for b2://{bucket}/ :
   objectNamePrefix: ''
   suspensionReason: ''
   targetConfiguration:
-    targetType: webhook
+{null_target_fields}    targetType: webhook
     url: https://example.com/webhook
 """
     )

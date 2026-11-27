@@ -27,7 +27,9 @@ def test_upload_unbound_stream__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
     os.mkfifo(str(fifo_file))
     writer = bg_executor.submit(fifo_file.write, content)  # writer will block until content is read
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
@@ -49,7 +51,9 @@ def test_upload_unbound_stream__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     content = 'stdin input'
     filename = 'stdin.txt'
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': '2ce72aa159d1f190fddf295cc883f20c4787a751',
@@ -83,7 +87,9 @@ def test_upload_unbound_stream__with_part_size_options(
         lambda: fifo_file.write('x' * expected_size)
     )  # writer will block until content is read
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'fileName': filename,
@@ -117,7 +123,9 @@ def test_upload_unbound_stream__regular_file(b2_cli, bucket, tmpdir):
     filepath = tmpdir.join(filename)
     filepath.write(content)
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': '2ce72aa159d1f190fddf295cc883f20c4787a751',

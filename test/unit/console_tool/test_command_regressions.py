@@ -32,6 +32,9 @@ from b2._internal._cli.const import (
 from b2._internal.console_tool import DownloadCommand, _TqdmCloser
 from test.known_defect import known_defect
 
+# B2 bucket names are 6 to 63 characters (b2_create_bucket); RawSimulator also took 'b8'.
+BUCKET_B8 = 'bucket-b8'
+
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
 
@@ -125,7 +128,7 @@ def test_replication_pause_error_goes_to_stderr(b2_cli, bucket_info, quiet, caps
 @pytest.mark.parametrize('command', ['pause', 'unpause'])
 def test_replication_pause_twice_is_not_an_error(b2_cli, bucket_info, command):
     """Applying an existing pause/unpause state must succeed without another update."""
-    b2_cli.run(['bucket', 'create', 'dest-bucket', 'allPrivate'], expected_stdout='bucket_1\n')
+    b2_cli._create_bucket('dest-bucket', 'allPrivate')
     b2_cli.run(
         ['replication', 'setup', '--name', 'rule1', bucket_info['bucketName'], 'dest-bucket'],
         expected_part_of_stdout='',
@@ -208,10 +211,7 @@ def test_invalid_escape_control_characters_env_does_not_crash(b2_cli, monkeypatc
 @pytest.fixture
 def lock_bucket_file(b2_cli, tmp_path):
     b2_cli.authorize()
-    b2_cli.run(
-        ['bucket', 'create', '--file-lock-enabled', 'lock-bucket', 'allPrivate'],
-        expected_stdout='bucket_0\n',
-    )
+    b2_cli._create_bucket('lock-bucket', 'allPrivate', '--file-lock-enabled')
     local = tmp_path / 'f.txt'
     local.write_text('data')
     b2_cli.run(['file', 'upload', '--quiet', 'lock-bucket', str(local), 'f.txt'])
@@ -298,13 +298,13 @@ def test_file_update_failing_legal_hold_reports_applied_retention(b2_cli, lock_b
 def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
     """--default-retention-period alone must be rejected before accessing a bucket."""
     b2_cli.authorize()
-    b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
+    b2_cli._create_bucket(BUCKET_B8, 'allPrivate')
     with mock.patch.object(
         b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
     ) as get_bucket:
         status, stdout, stderr = run_no_traceback(
             b2_cli,
-            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-period', '1 days'],
+            ['bucket', 'update', BUCKET_B8, 'allPublic', '--default-retention-period', '1 days'],
         )
     assert status == 1
     assert stdout == ''
@@ -316,13 +316,13 @@ def test_retention_period_without_mode_is_not_silently_ignored(b2_cli):
 def test_retention_mode_without_period_is_rejected_cleanly(b2_cli, mode):
     """A retention mode that needs a period must be rejected with a clear error."""
     b2_cli.authorize()
-    b2_cli.run(['bucket', 'create', 'b8', 'allPrivate'], expected_stdout='bucket_0\n')
+    b2_cli._create_bucket(BUCKET_B8, 'allPrivate')
     with mock.patch.object(
         b2_cli.b2_api, 'get_bucket_by_name', wraps=b2_cli.b2_api.get_bucket_by_name
     ) as get_bucket:
         status, stdout, stderr = run_no_traceback(
             b2_cli,
-            ['bucket', 'update', 'b8', 'allPublic', '--default-retention-mode', mode],
+            ['bucket', 'update', BUCKET_B8, 'allPublic', '--default-retention-mode', mode],
         )
     assert status == 1
     assert stdout == ''
@@ -336,10 +336,7 @@ def test_retention_mode_without_period_is_rejected_cleanly(b2_cli, mode):
 def test_retention_period_with_none_mode_clears_retention(b2_cli):
     """Mode none keeps its existing behavior even when a period is supplied."""
     b2_cli.authorize()
-    b2_cli.run(
-        ['bucket', 'create', 'b8-none', 'allPrivate', '--file-lock-enabled'],
-        expected_stdout='bucket_0\n',
-    )
+    b2_cli._create_bucket('b8-none', 'allPrivate', '--file-lock-enabled')
     b2_cli.run(
         [
             'bucket',
@@ -377,10 +374,7 @@ def test_retention_period_with_none_mode_clears_retention(b2_cli):
 @pytest.mark.parametrize('mode', [None, 'none', 'compliance', 'governance'])
 def test_valid_bucket_default_retention_options(b2_cli, mode):
     b2_cli.authorize()
-    b2_cli.run(
-        ['bucket', 'create', 'b8-valid', 'allPrivate', '--file-lock-enabled'],
-        expected_stdout='bucket_0\n',
-    )
+    b2_cli._create_bucket('b8-valid', 'allPrivate', '--file-lock-enabled')
     options = [] if mode is None else ['--default-retention-mode', mode]
     if mode in ('compliance', 'governance'):
         options += ['--default-retention-period', '1 days']
@@ -438,8 +432,8 @@ def test_sync_keep_days_zero_is_rejected(b2_cli, tmp_path):
 def test_failed_authorize_keeps_previous_authorization(b2_cli):
     """A rejected key (no listBuckets) must not wipe the previously stored authorization."""
     b2_cli.authorize()
-    b2_cli.run(['key', 'create', 'key1', 'listKeys'], expected_stdout='appKeyId0 appKey0\n')
-    status, _, _ = run(b2_cli, ['account', 'authorize', 'appKeyId0', 'appKey0'])
+    key_id, key = b2_cli.create_key('key1', 'listKeys')
+    status, _, _ = run(b2_cli, ['account', 'authorize', key_id, key])
     assert status == 1
     allowed = b2_cli.account_info.get_allowed()
     assert allowed is not None, 'previous authorization was wiped by the rejected key'

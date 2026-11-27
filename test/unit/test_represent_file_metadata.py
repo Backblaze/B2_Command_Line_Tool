@@ -28,13 +28,21 @@ from b2sdk.v3 import (
 
 from b2._internal.console_tool import ConsoleTool, DownloadCommand
 
+from .b2_simulator import raw_api_class
 from .test_base import TestBase
+
+# B2 needs a 256-bit SSE-C key (b2_upload_file) and a retain-until in the future (b2-simulator
+# ledger F-85); RawSimulator accepts an empty key and a date in 1970.
+SSE_C_KEY = b'k' * 32
+RETAIN_UNTIL = 4102444800000  # 2100-01-01T00:00:00Z
 
 
 class TestReprentFileMetadata(TestBase):
     def setUp(self):
         self.master_b2_api = B2Api(
-            StubAccountInfo(), None, api_config=B2HttpApiConfig(_raw_api_class=RawSimulator)
+            StubAccountInfo(),
+            None,
+            api_config=B2HttpApiConfig(_raw_api_class=raw_api_class(RawSimulator)),
         )
         self.raw_api = self.master_b2_api.session.raw_api
         (self.master_account_id, self.master_key) = self.raw_api.create_account()
@@ -105,21 +113,28 @@ class TestReprentFileMetadata(TestBase):
         self.assertRetentionRepr(file.id_, self.restricted_b2_api, '<unauthorized to read>')
 
         self.master_b2_api.update_file_retention(
-            file.id_, file.file_name, FileRetentionSetting(RetentionMode.GOVERNANCE, 1500)
+            file.id_,
+            file.file_name,
+            FileRetentionSetting(RetentionMode.GOVERNANCE, RETAIN_UNTIL + 1500),
         )
         self.assertRetentionRepr(
             file.id_,
             self.master_b2_api,
-            'mode=governance, retainUntil=1970-01-01 00:00:01.500000+00:00',
+            'mode=governance, retainUntil=2100-01-01 00:00:01.500000+00:00',
         )
         self.assertRetentionRepr(file.id_, self.restricted_b2_api, '<unauthorized to read>')
 
+        # Replacing a governance retention needs bypassGovernance on B2 (b2-simulator ledger
+        # F-141, measured on real B2).
         self.master_b2_api.update_file_retention(
-            file.id_, file.file_name, FileRetentionSetting(RetentionMode.COMPLIANCE, 2000)
+            file.id_,
+            file.file_name,
+            FileRetentionSetting(RetentionMode.COMPLIANCE, RETAIN_UNTIL + 2000),
+            bypass_governance=True,
         )
 
         self.assertRetentionRepr(
-            file.id_, self.master_b2_api, 'mode=compliance, retainUntil=1970-01-01 00:00:02+00:00'
+            file.id_, self.master_b2_api, 'mode=compliance, retainUntil=2100-01-01 00:00:02+00:00'
         )
         self.assertRetentionRepr(file.id_, self.restricted_b2_api, '<unauthorized to read>')
 
@@ -155,7 +170,7 @@ class TestReprentFileMetadata(TestBase):
             encryption=EncryptionSetting(
                 EncryptionMode.SSE_C,
                 algorithm=EncryptionAlgorithm.AES256,
-                key=EncryptionKey(b'', key_id=None),
+                key=EncryptionKey(SSE_C_KEY, key_id=None),
             ),
         )
         self.assertEncryptionRepr(file.id_, 'mode=SSE-C, algorithm=AES256')
@@ -166,7 +181,7 @@ class TestReprentFileMetadata(TestBase):
             encryption=EncryptionSetting(
                 EncryptionMode.SSE_C,
                 algorithm=EncryptionAlgorithm.AES256,
-                key=EncryptionKey(b'', key_id='some_id'),
+                key=EncryptionKey(SSE_C_KEY, key_id='some_id'),
             ),
         )
         self.assertEncryptionRepr(file.id_, 'mode=SSE-C, algorithm=AES256, key_id=some_id')

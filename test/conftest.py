@@ -12,7 +12,8 @@ import sys
 
 import pytest
 
-pytest_plugins = ['b2sdk.v3.testing']
+# test.unit.b2_simulator: the b2-simulator backend of the simulator-backed unit tests.
+pytest_plugins = ['b2sdk.v3.testing', 'test.unit.b2_simulator']
 
 
 @pytest.hookimpl

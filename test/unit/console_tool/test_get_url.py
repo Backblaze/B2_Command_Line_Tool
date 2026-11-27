@@ -11,15 +11,19 @@ import pytest
 
 
 @pytest.fixture
-def uploaded_file_url(bucket_info, uploaded_file):
-    return (
-        f"http://download.example.com/file/{bucket_info['bucketName']}/{uploaded_file['fileName']}"
-    )
+def download_url(b2_cli, uploaded_file):
+    """The download URL the account was authorized with."""
+    return b2_cli.account_info.get_download_url()
 
 
 @pytest.fixture
-def uploaded_file_url_by_id(uploaded_file):
-    return f"http://download.example.com/b2api/v4/b2_download_file_by_id?fileId={uploaded_file['fileId']}"
+def uploaded_file_url(download_url, bucket_info, uploaded_file):
+    return f"{download_url}/file/{bucket_info['bucketName']}/{uploaded_file['fileName']}"
+
+
+@pytest.fixture
+def uploaded_file_url_by_id(download_url, uploaded_file):
+    return f"{download_url}/b2api/v4/b2_download_file_by_id?fileId={uploaded_file['fileId']}"
 
 
 def test_get_url(b2_cli, uploaded_file, uploaded_file_url_by_id):

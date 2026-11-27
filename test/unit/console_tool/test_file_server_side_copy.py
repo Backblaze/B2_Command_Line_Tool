@@ -16,6 +16,7 @@ import pytest
 from b2sdk.v3 import EncryptionAlgorithm, EncryptionKey, EncryptionMode, EncryptionSetting
 
 from test.unit.console_tool.test_command_regressions import run
+from test.unit.helpers import auto_content_type
 
 
 @pytest.mark.parametrize('encryption_side', ['source', 'destination'])
@@ -68,6 +69,17 @@ def test_sse_c_copy_metadata_requirement(
         assert all(file.file_name != 'copy.txt' for file, _ in api_bucket.ls())
 
 
+def assert_copied_file(b2_cli, stdout, expected_json, bucket_name, file_name):
+    """Check the printed copy against expected_json plus the id and timestamp the server gave it."""
+    copied = b2_cli.b2_api.get_bucket_by_name(bucket_name).get_file_info_by_name(file_name)
+    expected = {
+        **expected_json,
+        'fileId': copied.id_,
+        'uploadTimestamp': copied.upload_timestamp,
+    }
+    b2_cli.assertDictIsContained(expected, json.loads(stdout))
+
+
 @pytest.mark.apiver
 def test_copy_file_by_id(b2_cli, api_bucket, uploaded_file):
     expected_json = {
@@ -76,18 +88,16 @@ def test_copy_file_by_id(b2_cli, api_bucket, uploaded_file):
         'bucketId': api_bucket.id_,
         'size': 11,
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-        'contentType': 'b2/x-auto',
-        'fileId': '9998',
+        'contentType': auto_content_type('text/plain'),
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy.txt',
         'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-        'uploadTimestamp': 5001,
     }
-    b2_cli.run(
-        ['file', 'copy-by-id', '9999', 'my-bucket', 'file1_copy.txt'],
-        expected_json_in_stdout=expected_json,
+    _, stdout, _ = b2_cli.run(
+        ['file', 'copy-by-id', uploaded_file['fileId'], 'my-bucket', 'file1_copy.txt'],
         expected_stderr='WARNING: `copy-by-id` command is deprecated. Use `file server-side-copy` instead.\n',
     )
+    assert_copied_file(b2_cli, stdout, expected_json, 'my-bucket', 'file1_copy.txt')
 
 
 @pytest.mark.apiver
@@ -98,14 +108,12 @@ def test_file_server_side_copy__with_range(b2_cli, api_bucket, uploaded_file):
         'bucketId': api_bucket.id_,
         'size': 5,
         'contentSha1': '4f664540ff30b8d34e037298a84e4736be39d731',
-        'contentType': 'b2/x-auto',
-        'fileId': '9998',
+        'contentType': auto_content_type('text/plain'),
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy.txt',
         'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-        'uploadTimestamp': 5001,
     }
-    b2_cli.run(
+    _, stdout, _ = b2_cli.run(
         [
             'file',
             'server-side-copy',
@@ -114,8 +122,8 @@ def test_file_server_side_copy__with_range(b2_cli, api_bucket, uploaded_file):
             f'b2id://{uploaded_file["fileId"]}',
             'b2://my-bucket/file1_copy.txt',
         ],
-        expected_json_in_stdout=expected_json,
     )
+    assert_copied_file(b2_cli, stdout, expected_json, 'my-bucket', 'file1_copy.txt')
 
 
 @pytest.mark.apiver
@@ -128,7 +136,7 @@ def test_file_server_side_copy__invalid_metadata_copy_with_file_info(
             'server-side-copy',
             '--info',
             'a=b',
-            'b2id://9999',
+            f'b2id://{uploaded_file["fileId"]}',
             'b2://my-bucket/file1_copy.txt',
         ],
         '',
@@ -147,7 +155,7 @@ def test_file_server_side_copy__invalid_metadata_replace_file_info(
             'server-side-copy',
             '--content-type',
             'text/plain',
-            'b2id://9999',
+            f'b2id://{uploaded_file["fileId"]}',
             'b2://my-bucket/file1_copy.txt',
         ],
         '',
@@ -163,13 +171,11 @@ def test_file_server_side_copy__invalid_metadata_replace_file_info(
         'size': 11,
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
         'contentType': 'text/plain',
-        'fileId': '9998',
         'fileInfo': {'a': 'b'},
         'fileName': 'file1_copy.txt',
         'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-        'uploadTimestamp': 5001,
     }
-    b2_cli.run(
+    _, stdout, _ = b2_cli.run(
         [
             'file',
             'server-side-copy',
@@ -177,11 +183,11 @@ def test_file_server_side_copy__invalid_metadata_replace_file_info(
             'text/plain',
             '--info',
             'a=b',
-            'b2id://9999',
+            f'b2id://{uploaded_file["fileId"]}',
             'b2://my-bucket/file1_copy.txt',
         ],
-        expected_json_in_stdout=expected_json,
     )
+    assert_copied_file(b2_cli, stdout, expected_json, 'my-bucket', 'file1_copy.txt')
 
 
 @pytest.mark.apiver
@@ -193,7 +199,7 @@ def test_file_server_side_copy__unsatisfied_range(b2_cli, api_bucket, uploaded_f
             'server-side-copy',
             '--range',
             '12,20',
-            'b2id://9999',
+            f'b2id://{uploaded_file["fileId"]}',
             'b2://my-bucket/file1_copy.txt',
         ],
         '',
@@ -202,24 +208,27 @@ def test_file_server_side_copy__unsatisfied_range(b2_cli, api_bucket, uploaded_f
     )
 
     # Copy in different bucket
-    b2_cli.run(['bucket', 'create', 'my-bucket1', 'allPublic'], 'bucket_1\n', '', 0)
+    bucket_1_id = b2_cli._create_bucket('my-bucket1', 'allPublic')
     expected_json = {
         'accountId': b2_cli.account_id,
         'action': 'copy',
-        'bucketId': 'bucket_1',
+        'bucketId': bucket_1_id,
         'size': 11,
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-        'contentType': 'b2/x-auto',
-        'fileId': '9997',
+        'contentType': auto_content_type('text/plain'),
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy.txt',
         'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-        'uploadTimestamp': 5001,
     }
-    b2_cli.run(
-        ['file', 'server-side-copy', 'b2id://9999', 'b2://my-bucket1/file1_copy.txt'],
-        expected_json_in_stdout=expected_json,
+    _, stdout, _ = b2_cli.run(
+        [
+            'file',
+            'server-side-copy',
+            f'b2id://{uploaded_file["fileId"]}',
+            'b2://my-bucket1/file1_copy.txt',
+        ],
     )
+    assert_copied_file(b2_cli, stdout, expected_json, 'my-bucket1', 'file1_copy.txt')
 
 
 @pytest.mark.apiver
@@ -230,18 +239,16 @@ def test_copy_file_by_id__deprecated(b2_cli, api_bucket, uploaded_file):
         'bucketId': api_bucket.id_,
         'size': 11,
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-        'contentType': 'b2/x-auto',
-        'fileId': '9998',
+        'contentType': auto_content_type('text/plain'),
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1_copy_2.txt',
         'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-        'uploadTimestamp': 5001,
     }
-    b2_cli.run(
-        ['copy-file-by-id', '9999', api_bucket.name, 'file1_copy_2.txt'],
+    _, stdout, _ = b2_cli.run(
+        ['copy-file-by-id', uploaded_file['fileId'], api_bucket.name, 'file1_copy_2.txt'],
         expected_stderr='WARNING: `copy-file-by-id` command is deprecated. Use `file server-side-copy` instead.\n',
-        expected_json_in_stdout=expected_json,
     )
+    assert_copied_file(b2_cli, stdout, expected_json, api_bucket.name, 'file1_copy_2.txt')
 
 
 @pytest.mark.apiver
