@@ -800,3 +800,120 @@ def test_debug_log_file_rotates_at_midnight_as_documented(
     rotated = {name: text for name, text in contents.items() if name != 'b2_cli.log'}
     assert any('record before midnight' in text for text in rotated.values()), rotated
     assert not any('record after midnight' in text for text in rotated.values()), rotated
+
+
+@pytest.mark.parametrize('options', [[], ['--bypass-governance']])
+def test_file_update_without_change_is_rejected_before_lookup(b2_cli, lock_bucket_file, options):
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'get_file_info_by_name', wraps=b2_cli.b2_api.get_file_info_by_name
+        ) as lookup,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, stdout, stderr = run(b2_cli, ['file', 'update', lock_bucket_file, *options])
+    assert status == 1
+    assert stdout == ''
+    assert stderr == (
+        'ERROR: nothing to update; provide --legal-hold or --file-retention-mode '
+        '(with --retain-until when required)\n'
+    )
+    lookup.assert_not_called()
+    retention.assert_not_called()
+    legal_hold.assert_not_called()
+
+
+@pytest.mark.parametrize('extra', [[], ['--legal-hold', 'on']])
+def test_file_update_retain_until_without_mode_is_rejected_before_lookup(
+    b2_cli, lock_bucket_file, extra
+):
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'get_file_info_by_name', wraps=b2_cli.b2_api.get_file_info_by_name
+        ) as lookup,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, stdout, stderr = run(
+            b2_cli, ['file', 'update', lock_bucket_file, '--retain-until', '4102444800', *extra]
+        )
+    assert status == 1
+    assert stdout == ''
+    assert (
+        stderr
+        == 'ERROR: provide either both --retain-until and --file-retention-mode or none of them\n'
+    )
+    lookup.assert_not_called()
+    retention.assert_not_called()
+    legal_hold.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    'options,retention_calls,legal_calls',
+    [
+        (['--legal-hold', 'on'], 0, 1),
+        (['--file-retention-mode', 'none'], 1, 0),
+        (['--file-retention-mode', 'none', '--retain-until', '4102444800'], 1, 0),
+        (['--file-retention-mode', 'governance', '--retain-until', '4102444800'], 1, 0),
+        (
+            [
+                '--file-retention-mode',
+                'governance',
+                '--retain-until',
+                '4102444800',
+                '--legal-hold',
+                'on',
+            ],
+            1,
+            1,
+        ),
+    ],
+)
+def test_file_update_valid_options_still_update(
+    b2_cli, lock_bucket_file, options, retention_calls, legal_calls
+):
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, stdout, stderr = run(b2_cli, ['file', 'update', lock_bucket_file, *options])
+    assert (status, stdout, stderr) == (0, '', '')
+    assert retention.call_count == retention_calls
+    assert legal_hold.call_count == legal_calls
+
+
+@pytest.mark.parametrize(
+    'command,options',
+    [
+        ('update-file-legal-hold', ['on']),
+        ('update-file-retention', ['governance', '--retain-until', '4102444800']),
+        ('update-file-retention', ['none']),
+    ],
+)
+def test_legacy_file_update_aliases_still_update(b2_cli, lock_bucket_file, command, options):
+    _, stdout, _ = b2_cli.run(['file', 'info', lock_bucket_file])
+    file_id = json.loads(stdout)['fileId']
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, _, stderr = run(b2_cli, [command, file_id, *options])
+    assert status == 0, stderr
+    assert retention.call_count == (command == 'update-file-retention')
+    assert legal_hold.call_count == (command == 'update-file-legal-hold')
