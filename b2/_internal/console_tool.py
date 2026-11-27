@@ -91,6 +91,7 @@ from b2sdk.v3 import (
     ReplicationConfiguration,
     ReplicationMonitor,
     ReplicationRule,
+    ReplicationScanResult,
     ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
@@ -4273,6 +4274,16 @@ class ReplicationStatusBase(Command):
         )
 
     def _run(self, args):
+        if args.columns[0] != 'all':
+            valid_columns = [field.name for field in dataclasses.fields(ReplicationScanResult)] + [
+                'count'
+            ]
+            for column in args.columns:
+                if column.replace(' ', '_') not in valid_columns:
+                    raise CommandError(
+                        f'Unknown replication status column {column!r}. Valid columns: {", ".join(valid_columns)}'
+                    )
+
         destination_api = args.destination_profile and _get_b2api_for_profile(
             args.destination_profile
         )

@@ -106,6 +106,59 @@ def test_notification_rule_update_without_path_keeps_stored_prefix(b2_cli, bucke
     assert rule['objectNamePrefix'] == 'logs/', 'prefix of the stored rule was silently widened'
 
 
+def test_replication_status_rejects_unknown_column(b2_cli, bucket_info):
+    b2_cli.run(['bucket', 'create', 'dest-bucket', 'allPrivate'], expected_stdout='bucket_1\n')
+    b2_cli.run(
+        ['replication', 'setup', '--name', 'rule1', bucket_info['bucketName'], 'dest-bucket'],
+        expected_part_of_stdout='',
+    )
+    columns = [
+        'source_replication_status',
+        'source_has_hide_marker',
+        'source_encryption_mode',
+        'source_has_large_metadata',
+        'source_has_file_retention',
+        'source_has_legal_hold',
+        'destination_replication_status',
+        'metadata_differs',
+        'hash_differs',
+        'count',
+    ]
+    with mock.patch(
+        'b2._internal.console_tool.ReplicationStatusBase.get_results_for_rule',
+        return_value=[dict.fromkeys(columns, 1)],
+    ):
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            [
+                'replication',
+                'status',
+                '--no-progress',
+                '--columns',
+                'foo',
+                bucket_info['bucketName'],
+            ],
+        )
+        assert status == 1
+        assert 'foo' in stderr and all(column in stderr for column in columns)
+        assert 'Traceback' not in stderr
+        status, stdout, stderr = run(
+            b2_cli,
+            [
+                'replication',
+                'status',
+                '--no-progress',
+                '--output-format',
+                'json',
+                '--columns',
+                'count',
+                bucket_info['bucketName'],
+            ],
+        )
+        assert status == 0
+        assert json.loads(stdout) == {'rule1': [{'count': 1}]}
+
+
 @pytest.mark.parametrize('quiet', [False, True])
 def test_replication_pause_error_goes_to_stderr(b2_cli, bucket_info, quiet, capsys):
     """The "rule could not be found" error must use stderr (not bare print to stdout)."""
