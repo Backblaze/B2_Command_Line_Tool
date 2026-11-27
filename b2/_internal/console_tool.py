@@ -2331,7 +2331,7 @@ class BucketGetDownloadAuthBase(Command):
         auth_token = bucket.get_download_authorization(
             file_name_prefix=args.prefix, valid_duration_in_seconds=args.duration
         )
-        self._print(auth_token)
+        self._print(auth_token, enforce_output=True)
         return 0
 
 
@@ -2479,7 +2479,7 @@ class BucketListBase(Command):
             return 0
 
         for b in buckets:
-            command._print(f'{b.id_}  {b.type_:<10}  {b.name}')
+            command._print(f'{b.id_}  {b.type_:<10}  {b.name}', enforce_output=True)
         return 0
 
 
@@ -2546,7 +2546,7 @@ class KeyListBase(Command):
             dateStr=date_str,
             timeStr=time_str,
         )
-        self._print(key_str)
+        self._print(key_str, enforce_output=True)
 
     def bucket_display_names(self, bucket_ids):
         # Special case for no bucket IDs
@@ -2590,7 +2590,10 @@ class FileLargePartsBase(Command):
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
         for part in self.api.list_parts(b2_uri.file_id):
-            self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
+            self._print(
+                '%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1),
+                enforce_output=True,
+            )
         return 0
 
 
@@ -2616,7 +2619,8 @@ class FileLargeUnfinishedListBase(Command):
                 f'{k}={unfinished.file_info[k]}' for k in sorted(unfinished.file_info)
             )
             self._print(
-                f'{unfinished.file_id} {unfinished.file_name} {unfinished.content_type} {file_info_text}'
+                f'{unfinished.file_id} {unfinished.file_name} {unfinished.content_type} {file_info_text}',
+                enforce_output=True,
             )
         return 0
 
@@ -2654,6 +2658,9 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         )
         super()._setup_parser(parser)
 
+    # `rm --dry-run` reuses the file printer for a preview, which stays quiet-able
+    PRINT_FILES_AS_DATA = False
+
     def _print_files(self, args, b2_uri: B2URI | None = None):
         generator = self._get_ls_generator(args, b2_uri=b2_uri)
 
@@ -2669,7 +2676,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         name = folder_name or file_version.file_name
         if args.escape_control_characters:
             name = escape_control_chars(name)
-        self._print(name)
+        self._print(name, enforce_output=self.PRINT_FILES_AS_DATA)
 
     def _get_ls_generator(self, args, b2_uri: B2URI | None = None):
         b2_uri = b2_uri or self.get_b2_uri_from_arg(args)
@@ -2720,6 +2727,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     # order is file_id, action, date, time, size(, replication), name
     LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'
     LS_ENTRY_TEMPLATE_REPLICATION = LS_ENTRY_TEMPLATE + '  %s'
+    PRINT_FILES_AS_DATA = True
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -2770,9 +2778,14 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if not args.long:
             super()._print_file_version(args, file_version, folder_name)
         elif folder_name is not None:
-            self._print(self.format_folder_ls_entry(args, folder_name, args.replication))
+            self._print(
+                self.format_folder_ls_entry(args, folder_name, args.replication),
+                enforce_output=True,
+            )
         else:
-            self._print(self.format_ls_entry(args, file_version, args.replication))
+            self._print(
+                self.format_ls_entry(args, file_version, args.replication), enforce_output=True
+            )
 
     def format_folder_ls_entry(self, args, name, replication: bool):
         if args.escape_control_characters:
