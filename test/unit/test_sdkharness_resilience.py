@@ -145,11 +145,26 @@ def test_upload_must_report_the_sha1_of_the_bytes_that_were_sent():
     right = hashlib.sha1(PAYLOAD).hexdigest()
     assert check.uploaded_or_fail(FakeProcess(file_record(right)), PAYLOAD)['fileId'] == '4_zabc'
     assert check.uploaded_or_fail(FakeProcess(file_record(f'unverified:{right}')), PAYLOAD)
-    assert check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD)
+    with pytest.raises(check.Failure, match='contentSha1 does not match'):
+        # a small file has a real checksum; 'none' is only valid for a large file
+        check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD)
     with pytest.raises(check.Failure) as caught:
         check.uploaded_or_fail(FakeProcess(file_record('0' * 40)), PAYLOAD)
     assert caught.value.step == 'upload'
     assert 'contentSha1 does not match' in caught.value.detail
+
+
+def test_a_large_file_may_report_no_sha1_only_with_a_matching_large_file_sha1():
+    check = load_check()
+    digest = hashlib.sha1(PAYLOAD).hexdigest()
+    record = json.dumps(
+        {'fileId': '4_zabc', 'contentSha1': 'none', 'fileInfo': {'large_file_sha1': digest}}
+    )
+    assert (
+        check.uploaded_or_fail(FakeProcess(record), PAYLOAD, large_file=True)['fileId'] == '4_zabc'
+    )
+    with pytest.raises(check.Failure, match='large_file_sha1'):
+        check.uploaded_or_fail(FakeProcess(file_record('none')), PAYLOAD, large_file=True)
 
 
 def test_upload_must_exit_zero_and_print_a_json_record():
@@ -161,3 +176,82 @@ def test_upload_must_exit_zero_and_print_a_json_record():
     with pytest.raises(check.Failure) as no_json:
         check.uploaded_or_fail(FakeProcess('not json'), PAYLOAD)
     assert 'no JSON file record' in no_json.value.detail
+
+
+class FlakyCli:
+    """A stand-in for the CLI whose ``must`` fails a set number of times, then succeeds."""
+
+    def __init__(self, check, failures: int) -> None:
+        self.check = check
+        self.failures = failures
+        self.calls: list[tuple] = []
+
+    def must(self, step_name, *args):
+        self.calls.append((step_name, args))
+        if len(self.calls) <= self.failures:
+            raise self.check.Failure(step_name, 'b2 exited 1')
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    recorded: list[float] = []
+    monkeypatch.setattr('time.sleep', recorded.append)
+    return recorded
+
+
+def test_authorize_retries_a_transient_setup_failure_and_announces_it(sleeps, capsys):
+    check = load_check()
+    check.SCENARIO = 'upload.retry_503'
+    cli = FlakyCli(check, failures=2)
+
+    check.authorize(cli)
+
+    assert [call[1] for call in cli.calls] == [('account', 'authorize')] * 3
+    assert len(sleeps) == 2
+    assert capsys.readouterr().out.count('authorize attempt') == 2
+
+
+def test_authorize_still_fails_with_the_cli_error_when_the_failure_persists(sleeps):
+    check = load_check()
+    cli = FlakyCli(check, failures=99)
+
+    with pytest.raises(check.Failure) as caught:
+        check.authorize(cli)
+
+    assert (caught.value.step, caught.value.detail) == ('authenticate', 'b2 exited 1')
+    assert len(cli.calls) == 3, 'three attempts, no more'
+    assert len(sleeps) == 2, 'no sleep after the last attempt'
+
+
+def test_the_checkout_check_accepts_this_checkout_and_refuses_an_installed_b2(monkeypatch):
+    check = load_check()
+    check.check_checkout()
+
+    monkeypatch.setattr(check.b2, '__file__', '/elsewhere/site-packages/b2/__init__.py')
+    with pytest.raises(check.Failure) as caught:
+        check.check_checkout()
+    assert caught.value.step == 'setup'
+    assert 'this checkout' in caught.value.detail
+
+
+def test_an_installed_b2_is_reported_as_a_failed_result_line(monkeypatch, capsys):
+    check = load_check()
+    monkeypatch.setattr(check.b2, '__file__', '/elsewhere/site-packages/b2/__init__.py')
+    for name, value in environment().items():
+        monkeypatch.setenv(name, value)
+
+    assert check.main() == 1
+
+    fields = capsys.readouterr().out.strip().split('\t')
+    assert fields[:4] == ['SDKHARNESS_RESULT', 'resilience', 'upload.retry_503', 'FAIL']
+    assert fields[4].startswith('setup')
+
+
+def test_the_cli_prefix_follows_the_latest_stable_apiver_it_is_given(monkeypatch):
+    from b2._internal import version_listing
+
+    monkeypatch.setattr(version_listing, 'LATEST_STABLE_VERSION', 'b2vsentinel')
+
+    check = load_check()
+
+    assert check.CLI_PREFIX[-1] == 'b2._internal.b2vsentinel'

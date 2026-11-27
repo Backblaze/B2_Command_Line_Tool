@@ -14,17 +14,24 @@ Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv`
 - Format: `nox -s format` (ruff). Lint: `nox -s lint` (ruff check, license check,
   `test/static`, `uv lock --check`).
 - Unit tests: `nox -s unit-3.12`. They run once per ApiVer (`--cli b2v3`, `b2v4`, `b2v5`) and need no
-  credentials.
+  credentials. Test levels and what each proves: [doc/testing.md](doc/testing.md).
 - Integration tests: `nox -s integration-3.12 -- -m "not require_secrets"` runs offline. With
   `B2_TEST_APPLICATION_KEY` and `B2_TEST_APPLICATION_KEY_ID` set, `-- -m require_secrets --cleanup` runs
   against live B2. Use a throwaway account. Leftover buckets: `nox -s cleanup_buckets`.
 - Changelog: add an entry with `go run github.com/miniscruff/changie@v1.24.0 new` (needs Go). `nox -s changie_check`
   validates entries and `nox -s changelog_check` that this branch adds one. See [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
-- Build: `nox -s build`. Docs: `nox --non-interactive -s doc`. Bundle: `nox -s bundle`.
+- Build: `nox -s build`. Docs: `nox --non-interactive -s doc` (warnings are errors). Bundle: `nox -s bundle`.
+- Doc examples: `nox -s doc_examples` checks that every `b2` command line in the README, the Sphinx pages and
+  the CLI skill is accepted by the argument parser. `nox -s docs_lint` checks changed Markdown for broken
+  relative links; it is warn-only and not yet in CI.
 - Spelling: `nox -s ci` runs codespell 2.4.1 on the files your branch changes.
 - Dependencies: change `pyproject.toml` with `uv add` / `uv lock`; `uv.lock` must stay in sync.
 - Review health: `nox -s review_metrics -- --days 30` (human approvals, comments and wait per merged PR,
   reverts as the guardrail); reviewer evals in [doc/reviewer-evals.md](doc/reviewer-evals.md).
+
+External tools:
+
+- **[b2-mcp](https://github.com/backblaze-labs/b2-mcp)** — a Model Context Protocol server for B2.
 
 ## Architecture
 
@@ -41,7 +48,8 @@ Install [nox](https://nox.thea.codes) and [uv](https://docs.astral.sh/uv/) (`uv`
 | `.changes/` | Changie entries (`unreleased/*.yaml`) and released sections (`v*.md`); `CHANGELOG.md` is built from them. |
 | `scripts/` | Repo tooling run by nox (`review_metrics.py`). |
 | `.github/workflows/ai-review.yml` | Advisory AI code review and security review on PRs, off until `ANTHROPIC_API_KEY` is set and the Claude GitHub App is installed. |
-| `doc/` | Sphinx docs (`doc/source`), plus Markdown pages for niche topics (`authorization_realm.md`). |
+| `doc/` | Sphinx docs (`doc/source`) and Markdown pages: [testing](doc/testing.md), [writing style](doc/writing-style.md). Output formats and exit codes: [doc/source/scripting.rst](doc/source/scripting.rst). |
+| `.claude/skills/b2-cli/` | Agent skill for operating the `b2` CLI safely. |
 | `intent/` | Per-change `intent.md`, `spec.md`, `plan.md` (see Workflow). |
 
 The SDK does the B2 work; the CLI parses arguments, calls `b2sdk.v3`, and prints. A behavior that belongs
@@ -56,6 +64,7 @@ bumping the `b2sdk` pin.
   the `registry.py` of every version a command is registered in.
 - Command help comes from the class docstring and is part of the product (`--help`, README usage, Sphinx).
   Developer-only flags and environment variables (`--environment`, `--dev`, `B2_ENVIRONMENT`) stay out of the main help.
+- Write new and edited docs as described in [doc/writing-style.md](doc/writing-style.md).
 - Messages that tell the user to run something use the binary name the user invoked
   (`self.console_tool.b2_binary_name` in a `Command`), never a hard-coded `b2`.
 - Every source file starts with the Backblaze license header (`test/static` checks it).
@@ -66,7 +75,7 @@ bumping the `b2sdk` pin.
 Each line was raised by reviewers on at least two merged PRs.
 
 1. **Missing changelog entry.** Every PR adds a `.changes/unreleased/*.yaml` entry (`changie new`). Only a
-   `uv.lock`-only change or the `-changelog` label skips it.
+   `uv.lock`-only change or the `-changelog` label skips it. Docs-only PRs use the `Doc` kind.
 2. **Entry text and kind.** One complete sentence ending in a full stop ("fixed #157" is rejected).
    CI, tests, build and tooling go in `Infrastructure`; docs in `Doc`. User-facing sections are for users.
 3. **Unannounced behavior changes.** A new exit code, changed output or new stderr text breaks scripts.
@@ -74,8 +83,9 @@ Each line was raised by reviewers on at least two merged PRs.
 4. **Tests that do not pin the fix.** Revert the change and the new test must fail. Cover each input
    branch (file and stdin `-`, `b2://` and `b2id://`, every ApiVer the command is registered in), in a
    test placed with its topic, not appended to an unrelated block.
-5. **stdout and stderr are a contract.** `--quiet` prints nothing on stdout. JSON output stays parseable.
-   Warnings and deprecations go to stderr, and users monitor stderr, so do not add noise there.
+5. **stdout and stderr are a contract.** `--quiet` prints no progress; results use `enforce_output`.
+   JSON output stays parseable. Warnings and deprecations go to stderr, and users monitor stderr, so do
+   not add noise there. See [doc/source/scripting.rst](doc/source/scripting.rst).
 6. **Developer knobs in user help.** Keep internal flags and env vars out of `--help` and README; document
    them in `doc/` instead.
 7. **Integration tests that share state.** They run in parallel against one live account: no fixed bucket
@@ -108,7 +118,7 @@ The full list, by theme and with the PRs where each came up, is in
   R1..) → `plan.md` (steps cite R numbers). A human approves each before the next. Templates in
   [`intent/README.md`](intent/README.md). Bug fixes with a linked issue may skip straight to a failing test.
 - Bug fixes: commit the failing regression test first, then the fix, without editing the test.
-- Skills in `.claude/skills/` (`ai-native-sdlc` routes to the right one). A `PostToolUse` hook in
+- Skills in `.claude/skills/` (`ai-native-sdlc` routes to the right one; `b2-cli` is for operating the CLI). A `PostToolUse` hook in
   `.claude/settings.json` rejects edits that leave a Python file unformatted.
 - Before opening a PR: run the command you changed end to end (`python -m b2 ...` against the simulator
   or a throwaway live bucket) and paste the output; then review your own diff in a fresh context with
@@ -124,5 +134,6 @@ The full list, by theme and with the PRs where each came up, is in
 ## Verifying your work
 
 Run `nox -s ci` and paste the tail of its output. codespell (changed files), lint, `changie_check`,
-`release_check`, `changelog_check`, build, unit tests and the offline integration tests must pass. If a test fails, fix the code, not the test.
+`release_check`, `changelog_check`, build, unit tests and the offline integration tests must pass. For docs,
+also run `nox -s doc doc_examples docs_lint`. If a test fails, fix the code, not the test.
 List the live-B2 integration tests you ran, and say NOT RUN for the ones you could not.

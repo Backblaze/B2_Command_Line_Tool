@@ -15,9 +15,9 @@ import logging
 import os
 import re
 import shlex
-import shutil
 import signal
 import subprocess
+import tempfile
 import textwrap
 from datetime import datetime
 from importlib.util import find_spec
@@ -118,10 +118,30 @@ class BashLikeAutocompleteInstaller(ShellAutocompleteInstaller):
         """Enable autocomplete for the given program, common logic."""
         rc_path = self.get_rc_path()
         if rc_path.exists() and rc_path.read_text().strip():
-            bck_path = rc_path.with_suffix(f'.{datetime.now():%Y-%m-%dT%H-%M-%S}.bak')
+            # Microsecond precision keeps the backup name unique, so two installs in the
+            # same second do not collide on the O_EXCL create below.
+            bck_path = rc_path.with_suffix(f'.{datetime.now():%Y-%m-%dT%H-%M-%S-%f}.bak')
             logger.warning('Backing up %s to %s', rc_path, bck_path)
+            # Make the backup owner-read/write only (0600) — never readable by group or
+            # other, regardless of umask or the source file's own mode. Read the source
+            # first so a read error leaves no empty backup; create with O_EXCL and set the
+            # mode on the file descriptor
+            # (never a path-based chmod, which a symlink swapped into a writable backup
+            # directory could redirect onto another file); drop a partial backup on error.
             try:
-                shutil.copyfile(rc_path, bck_path)
+                data = rc_path.read_bytes()
+                fd = os.open(bck_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                try:
+                    with os.fdopen(fd, 'wb') as dst:
+                        if hasattr(os, 'fchmod'):
+                            os.fchmod(dst.fileno(), 0o600)
+                        dst.write(data)
+                except OSError:
+                    try:
+                        os.unlink(bck_path)
+                    except OSError:
+                        pass
+                    raise
             except OSError as e:
                 raise AutocompleteInstallError(
                     f'Failed to backup {rc_path} under {bck_path}'
@@ -246,6 +266,62 @@ def _silent_success_run_with_tty(
 
 
 def _silent_success_run(cmd: list[str], timeout: int = 30, env: dict | None = None) -> bool:
+    if os.name == 'nt':
+        return _silent_success_run_with_files(cmd, timeout=timeout, env=env)
+    return _silent_success_run_with_pipes(cmd, timeout=timeout, env=env)
+
+
+def _silent_success_run_with_files(
+    cmd: list[str], timeout: int = 30, env: dict | None = None
+) -> bool:
+    # Windows communicate() uses reader threads, whose buffered-reader locks
+    # make even close() block if a descendant retains a pipe. Regular files
+    # avoid those threads, and their handles can be closed without waiting for EOF.
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        p = subprocess.Popen(
+            cmd, stdout=stdout_file, stderr=stderr_file, stdin=subprocess.DEVNULL, env=env
+        )
+        timed_out = False
+        try:
+            p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            if os.name == 'nt':
+                try:
+                    subprocess.run(
+                        ['taskkill', '/PID', str(p.pid), '/T', '/F'],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=1,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    logger.warning('Unable to terminate completion process tree for %r', cmd)
+            p.kill()
+            try:
+                p.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                logger.warning('Unable to reap timed-out command %r', cmd)
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+        # Read a finite snapshot even if a detached descendant is still writing.
+        stdout = stdout_file.read(os.fstat(stdout_file.fileno()).st_size)
+        stderr = stderr_file.read(os.fstat(stderr_file.fileno()).st_size)
+        success = not timed_out and p.returncode == 0
+        logger.log(
+            logging.DEBUG if success else logging.WARNING,
+            'Command %r %s, stdout: %r, stderr: %r',
+            cmd,
+            'timed out' if timed_out else f'exited with code {p.returncode}',
+            stdout,
+            stderr,
+        )
+        return success
+
+
+def _silent_success_run_with_pipes(
+    cmd: list[str], timeout: int = 30, env: dict | None = None
+) -> bool:
     p = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -258,9 +334,32 @@ def _silent_success_run(cmd: list[str], timeout: int = 30, env: dict | None = No
     try:
         stdout, stderr = p.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        p.kill()
-        stdout, stderr = p.communicate(timeout=1)
+        # Descendants can retain the pipes after the shell exits. The new session
+        # above gives us a process group we can terminate without touching ours.
+        try:
+            if hasattr(os, 'killpg'):
+                os.killpg(p.pid, signal.SIGKILL)
+            else:
+                p.kill()
+        except (ProcessLookupError, PermissionError):
+            # The group may have exited during timeout handling. macOS can
+            # report EPERM when there are no remaining signalable processes.
+            pass
+        try:
+            stdout, stderr = p.communicate(timeout=1)
+        except subprocess.TimeoutExpired as exc:
+            # An escaped descendant must not turn timeout cleanup into a traceback
+            # or an unbounded wait for EOF.
+            stdout, stderr = exc.output, exc.stderr
+            p.stdout.close()
+            p.stderr.close()
+            p.kill()
+            try:
+                p.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                logger.warning('Unable to reap timed-out command %r', cmd)
         logger.warning('Command %r timed out, stdout: %r, stderr: %r', cmd, stdout, stderr)
+        return False
     else:
         logger.log(
             logging.DEBUG if p.returncode == 0 else logging.WARNING,

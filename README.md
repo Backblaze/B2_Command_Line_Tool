@@ -8,11 +8,11 @@ This program provides command-line access to the B2 service.
 
 ## Documentation
 
-The latest documentation is available on [Read the Docs](https://b2-command-line-tool.readthedocs.io/).
+Find the latest documentation on [Read the Docs](https://b2-command-line-tool.readthedocs.io/).
 
 ## Installation
 
-For detailed instructions on how to install the command line tool see our [quick start guide](https://www.backblaze.com/b2/docs/quick_command_line.html).
+For detailed installation instructions, see the [quick start guide](https://www.backblaze.com/b2/docs/quick_command_line.html).
 
 ### Homebrew
 
@@ -59,7 +59,7 @@ Not recommended, unless you want to check if a current pre-release code solves a
 pip install git+https://github.com/Backblaze/B2_Command_Line_Tool.git
 ```
 
-If you wish to contribute to or otherwise modify source code, please see our [contributing guidelines](CONTRIBUTING.md).
+To contribute to or modify the source code, see the [contributing guidelines](CONTRIBUTING.md).
 
 ## Usage
 
@@ -81,7 +81,7 @@ The environment variable `B2_ACCOUNT_INFO` specifies the SQLite
 file to use for caching authentication information.
 Run `b2 account get` to see the file currently in use; its location depends on your profile and environment (see `b2 --help` for the resolution rules).
 
-To get more details on a specific command use `b2 <command> --help`.
+For details on a specific command, use `b2 <command> --help`.
 
 When authorizing with application keys, this tool requires that the key
 have the `listBuckets` capability so that it can take the bucket names
@@ -148,6 +148,10 @@ Even if the `b2` command goes into the ApiVer `6`, `8` or even `10` with some ma
 `b2v5` will still provide the same interface, same commands, and same parameters, with all the security and bug fixes.
 Over time, it might get slower as we may need to emulate some older behaviors, but we'll ensure that it won't break.
 
+## Related projects
+
+- **[b2-mcp](https://github.com/backblaze-labs/b2-mcp)** — a Model Context Protocol server for B2.
+
 ## Contrib
 
 ### Detailed logs
@@ -162,9 +166,9 @@ For advanced users, a hidden option `--log-config <filename.ini>` can be used to
 
 ## Release History
 
-Please refer to the [changelog](CHANGELOG.md).
+See the [changelog](CHANGELOG.md).
 
 ## Developer Info
 
-Please see our [contributing guidelines](CONTRIBUTING.md).
+See the [contributing guidelines](CONTRIBUTING.md).
 See [Authorization realm](doc/authorization_realm.md) for `B2_ENVIRONMENT` and related development flags.

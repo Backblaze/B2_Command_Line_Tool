@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Add a warn-only lint for changed Markdown documentation.
+time: 2026-11-27T09:23:24.792438-06:00

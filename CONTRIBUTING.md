@@ -1,7 +1,7 @@
 # Contributing to B2 Command Line Tool
 
-We encourage outside contributors to perform changes to our codebase. Many such changes have been merged already. 
-In order to make it easier to contribute, core developers of this project:
+We welcome outside contributions to the codebase. We have merged many such changes.
+To make contributions easier, core developers:
 
 * provide guidance (through the issue reporting system)
 * provide tool assisted code review (through the Pull Request system)
@@ -135,7 +135,7 @@ Given Python interpreters should be installed in the operating system or via [py
 
 ## Managing dependencies
 
-We use [uv](https://docs.astral.sh/uv/) for managing dependencies and developing locally.
+We use [uv](https://docs.astral.sh/uv/) to manage dependencies and develop locally.
 If you want to change any of the project requirements (or requirement bounds) in `pyproject.toml`,
 make sure that `uv.lock` file reflects those changes by using `uv add`, `uv lock` or other
 commands - see [documentation](https://docs.astral.sh/uv/). You can verify that lock file
@@ -143,13 +143,36 @@ is up to date by running the linter.
 
 ## Linting
 
-To run all available linters:
+Run all available linters:
 
 ```bash
 nox -s lint
 ```
 
+## Documentation lint
+
+Run `nox -s docs_lint` to check changed Markdown files for broken relative links. It checks `README.md`, `AGENTS.md`,
+`CONTRIBUTING.md`, `RELEASE.md`, `SECURITY.md`, `llms.txt` and `doc/**/*.md`.
+The lint requires frontmatter for new Markdown files under `doc/` and warns about stale dates.
+It ignores links inside code fences. It does not fetch external links or check `.rst` files.
+The session is warn-only and is not yet in CI. Use `bash scripts/docs-lint.sh --strict`
+to fail on errors; stale dates remain warnings.
+
 ## Testing
+
+See the [testing guide](doc/testing.md) for test levels, commands and reporting evidence.
+
+### Pull request integration policy
+
+Every pull request must run the integration suite against the pinned private B2 Simulator. GitHub does not expose
+the Simulator's read-only deploy key to untrusted pull request contexts, including forks and Dependabot. Those pull
+requests therefore fail closed: a maintainer must reproduce the change on a branch in this repository before it can
+pass the Simulator check. Do not bypass or skip the check, and do not use `pull_request_target` to run untrusted code
+with the deploy key.
+
+Repository administrators must install a read-only deploy key for `backblaze-labs/b2-simulator`, store its private
+half as the `SIMULATOR_DEPLOY_KEY` Actions secret, and require both `simulator-access-policy` and
+`simulator-integration` before merging.
 
 To run all tests on every available Python version:
 
@@ -178,6 +201,8 @@ nox -s integration-3.11
 ```
 
 ## Documentation
+
+Follow the [writing style guide](doc/writing-style.md) for new and edited documentation.
 
 To build the documentation and watch for changes (including the source code):
 

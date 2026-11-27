@@ -4,7 +4,7 @@
 Replication
 ########################
 
-If you have access to accounts hosting both source and destination bucket (it can be the same account), we recommend using ``replication setup`` command described below. Otherwise use :ref:`manual setup <replication_manual_setup>`.
+If you have access to accounts hosting both source and destination bucket (it can be the same account), we recommend using ``replication setup`` command described below. Otherwise, use :ref:`manual setup <replication_manual_setup>`.
 
 ***********************
 Automatic setup

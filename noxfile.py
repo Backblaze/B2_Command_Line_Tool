@@ -616,6 +616,20 @@ def doc(session):
         session.run('sphinx-autobuild', *sphinx_args)
 
 
+@nox.session(python=PYTHON_DEFAULT_VERSION)
+def doc_examples(session):
+    """Check that every `b2` command line in README/docs is accepted by the CLI argument parser (nothing is run)."""
+    uv_install(session, groups=('test',))
+    session.run(
+        'pytest',
+        *PYTEST_GLOBAL_ARGS,
+        '--cli',
+        'b2v5',
+        *session.posargs,
+        'test/unit/test_documentation_examples.py',
+    )
+
+
 @nox.session
 def doc_cover(session):
     """
@@ -810,6 +824,13 @@ def release_check(session):
     """Test release preparation in disposable worktrees without publishing."""
     uv_install(session, groups=('test', 'nox'))
     session.run('pytest', 'test/release', *PYTEST_GLOBAL_ARGS)
+
+
+@nox.session(python=False)
+def docs_lint(session):
+    """Check changed Markdown docs and test the lint in warn-only mode."""
+    session.run('bash', 'scripts/docs-lint.sh', '--warn-only', external=True)
+    session.run('bash', 'scripts/docs-lint_test.sh', external=True)
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)

@@ -30,7 +30,7 @@ from b2._internal._cli.const import (
     B2_ESCAPE_CONTROL_CHARACTERS,
 )
 from b2._internal.console_tool import DownloadCommand, _TqdmCloser
-from test.known_defect import known_defect, known_defect_marks
+from test.known_defect import known_defect
 
 # an invalid character inserted into an otherwise valid key; non-strict decoding drops it silently
 
@@ -65,6 +65,15 @@ def run_no_traceback(b2_cli, argv):
         raise AssertionError(f'command raised {e!r} instead of reporting an error') from e
 
 
+@pytest.mark.parametrize('control', ['\r', '\n', '\t'])
+def test_hide_with_uri_controls_does_not_hide_another_object(b2_cli, api_bucket, control, capsys):
+    uploaded = api_bucket.upload_bytes(b'original', 'ab')
+    status, _, _ = run(b2_cli, ['file', 'hide', f'b2://{api_bucket.name}/a{control}b'])
+    assert status == 2
+    assert 'control characters' in capsys.readouterr().err
+    assert api_bucket.get_file_info_by_name('ab').id_ == uploaded.id_
+
+
 # ----------------------------------------------------------------------------------------
 # High
 # ----------------------------------------------------------------------------------------
@@ -95,6 +104,72 @@ def test_notification_rule_update_without_path_keeps_stored_prefix(b2_cli, bucke
     _, stdout, _ = b2_cli.run(['bucket', 'notification-rule', 'list', '--json', f'b2://{bucket}'])
     (rule,) = json.loads(stdout)
     assert rule['objectNamePrefix'] == 'logs/', 'prefix of the stored rule was silently widened'
+
+
+def test_replication_status_rejects_unknown_column(b2_cli, bucket_info):
+    b2_cli.run(['bucket', 'create', 'dest-bucket', 'allPrivate'], expected_stdout='bucket_1\n')
+    b2_cli.run(
+        ['replication', 'setup', '--name', 'rule1', bucket_info['bucketName'], 'dest-bucket'],
+        expected_part_of_stdout='',
+    )
+    columns = [
+        'source_replication_status',
+        'source_has_hide_marker',
+        'source_encryption_mode',
+        'source_has_large_metadata',
+        'source_has_file_retention',
+        'source_has_legal_hold',
+        'destination_replication_status',
+        'metadata_differs',
+        'hash_differs',
+        'count',
+    ]
+    with mock.patch(
+        'b2._internal.console_tool.ReplicationStatusBase.get_results_for_rule',
+        return_value=[dict.fromkeys(columns, 1)],
+    ):
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            [
+                'replication',
+                'status',
+                '--no-progress',
+                '--columns',
+                'foo',
+                bucket_info['bucketName'],
+            ],
+        )
+        assert status == 1
+        assert 'foo' in stderr and all(column in stderr for column in columns)
+        assert 'Traceback' not in stderr
+        status, stdout, stderr = run_no_traceback(
+            b2_cli,
+            [
+                'replication',
+                'status',
+                '--no-progress',
+                '--columns',
+                'all,foo',
+                bucket_info['bucketName'],
+            ],
+        )
+        assert status == 1
+        assert 'all' in stderr and 'Traceback' not in stderr
+        status, stdout, stderr = run(
+            b2_cli,
+            [
+                'replication',
+                'status',
+                '--no-progress',
+                '--output-format',
+                'json',
+                '--columns',
+                'count',
+                bucket_info['bucketName'],
+            ],
+        )
+        assert status == 0
+        assert json.loads(stdout) == {'rule1': [{'count': 1}]}
 
 
 @pytest.mark.parametrize('quiet', [False, True])
@@ -471,15 +546,7 @@ def test_ls_json_failure_midway_does_not_leave_unterminated_json(b2_cli, uploade
     'argv',
     [
         ['file', 'upload', '--file-retention-mode', 'governance', 'my-bucket', 'x', 'y'],
-        pytest.param(
-            ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
-            marks=known_defect_marks(
-                'conflicting thread options raise ValueError instead of reporting an error',
-                match="^command raised ValueError\\('--threads cannot be used with other thread options'\\)",
-                test_name='test_bad_option_combinations_report_error_not_traceback',
-                assertion_origin='run_no_traceback',
-            ),
-        ),
+        ['sync', '--threads', '2', '--sync-threads', '3', 'x', 'y'],
     ],
 )
 def test_bad_option_combinations_report_error_not_traceback(b2_cli, bucket, argv):
@@ -733,3 +800,120 @@ def test_debug_log_file_rotates_at_midnight_as_documented(
     rotated = {name: text for name, text in contents.items() if name != 'b2_cli.log'}
     assert any('record before midnight' in text for text in rotated.values()), rotated
     assert not any('record after midnight' in text for text in rotated.values()), rotated
+
+
+@pytest.mark.parametrize('options', [[], ['--bypass-governance']])
+def test_file_update_without_change_is_rejected_before_lookup(b2_cli, lock_bucket_file, options):
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'get_file_info_by_name', wraps=b2_cli.b2_api.get_file_info_by_name
+        ) as lookup,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, stdout, stderr = run(b2_cli, ['file', 'update', lock_bucket_file, *options])
+    assert status == 1
+    assert stdout == ''
+    assert stderr == (
+        'ERROR: nothing to update; provide --legal-hold or --file-retention-mode '
+        '(with --retain-until when required)\n'
+    )
+    lookup.assert_not_called()
+    retention.assert_not_called()
+    legal_hold.assert_not_called()
+
+
+@pytest.mark.parametrize('extra', [[], ['--legal-hold', 'on']])
+def test_file_update_retain_until_without_mode_is_rejected_before_lookup(
+    b2_cli, lock_bucket_file, extra
+):
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'get_file_info_by_name', wraps=b2_cli.b2_api.get_file_info_by_name
+        ) as lookup,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, stdout, stderr = run(
+            b2_cli, ['file', 'update', lock_bucket_file, '--retain-until', '4102444800', *extra]
+        )
+    assert status == 1
+    assert stdout == ''
+    assert (
+        stderr
+        == 'ERROR: provide either both --retain-until and --file-retention-mode or none of them\n'
+    )
+    lookup.assert_not_called()
+    retention.assert_not_called()
+    legal_hold.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    'options,retention_calls,legal_calls',
+    [
+        (['--legal-hold', 'on'], 0, 1),
+        (['--file-retention-mode', 'none'], 1, 0),
+        (['--file-retention-mode', 'none', '--retain-until', '4102444800'], 1, 0),
+        (['--file-retention-mode', 'governance', '--retain-until', '4102444800'], 1, 0),
+        (
+            [
+                '--file-retention-mode',
+                'governance',
+                '--retain-until',
+                '4102444800',
+                '--legal-hold',
+                'on',
+            ],
+            1,
+            1,
+        ),
+    ],
+)
+def test_file_update_valid_options_still_update(
+    b2_cli, lock_bucket_file, options, retention_calls, legal_calls
+):
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, stdout, stderr = run(b2_cli, ['file', 'update', lock_bucket_file, *options])
+    assert (status, stdout, stderr) == (0, '', '')
+    assert retention.call_count == retention_calls
+    assert legal_hold.call_count == legal_calls
+
+
+@pytest.mark.parametrize(
+    'command,options',
+    [
+        ('update-file-legal-hold', ['on']),
+        ('update-file-retention', ['governance', '--retain-until', '4102444800']),
+        ('update-file-retention', ['none']),
+    ],
+)
+def test_legacy_file_update_aliases_still_update(b2_cli, lock_bucket_file, command, options):
+    _, stdout, _ = b2_cli.run(['file', 'info', lock_bucket_file])
+    file_id = json.loads(stdout)['fileId']
+    with (
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_retention', wraps=b2_cli.b2_api.update_file_retention
+        ) as retention,
+        mock.patch.object(
+            b2_cli.b2_api, 'update_file_legal_hold', wraps=b2_cli.b2_api.update_file_legal_hold
+        ) as legal_hold,
+    ):
+        status, _, stderr = run(b2_cli, [command, file_id, *options])
+    assert status == 0, stderr
+    assert retention.call_count == (command == 'update-file-retention')
+    assert legal_hold.call_count == (command == 'update-file-legal-hold')

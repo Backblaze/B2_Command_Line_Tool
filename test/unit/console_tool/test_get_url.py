@@ -70,3 +70,12 @@ def test_get_url__b2id_uri__with_auth__error(b2_cli, uploaded_file):
         expected_stderr='ERROR: --with-auth param cannot be used with `b2id://` urls. Please, use `b2://bucket/filename` url format instead\n',
         expected_status=1,
     )
+
+
+@pytest.mark.parametrize('flag', ['-q', '--quiet'])
+def test_quiet_file_url_prints_only_url(b2_cli, bucket, uploaded_file, uploaded_file_url, flag):
+    b2_cli.run(
+        ['file', 'url', flag, f'b2://{bucket}/{uploaded_file["fileName"]}'],
+        expected_stdout=f'{uploaded_file_url}\n',
+        expected_stderr='',
+    )

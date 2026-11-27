@@ -55,7 +55,7 @@ pre-release tag (`vX.Y.ZrcN`, `aN`, `bN` or `devN`), which skips PyPI and Docker
 
 ## Prepare the release
 
-1. Choose `X.Y.Z`, create its GitHub milestone, and make sure intended issues and PRs are resolved.
+1. Choose `X.Y.Z` and create its GitHub milestone. Make sure intended issues and PRs are resolved.
    Confirm `master` CI is green. Do not release with failing CI.
 2. Run the local health check from a clean checkout, with the required `uv` version, `nox`, Go,
    GitHub CLI (`gh`), and `jq` installed. Authenticate `gh` as a maintainer with access to the
@@ -76,13 +76,13 @@ pre-release tag (`vX.Y.ZrcN`, `aN`, `bN` or `devN`), which skips PyPI and Docker
    publish that advisory after the release. Never put an unpublished advisory description in a
    public PR.
 3. Update the main usage string in `README.md` from `b2 --help` and commit that update before
-   running `make_release_commit`, which requires a clean checkout. A consistent extraction command is:
+   running `make_release_commit`, which requires a clean checkout. Use this consistent extraction command:
 
    ```bash
    COLUMNS=4000 b2 --help | awk '/^usages:/ {p=1; next} p {sub(/^ */, "", $0); print}'
    ```
 
-4. Prepare Changie notes. Each change should have a fragment in `.changes/unreleased`. Preview
+4. Prepare the Changie notes. Each change should have a fragment in `.changes/unreleased`. Preview
    the batch without modifying the checkout:
 
    ```bash

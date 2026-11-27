@@ -91,6 +91,7 @@ from b2sdk.v3 import (
     ReplicationConfiguration,
     ReplicationMonitor,
     ReplicationRule,
+    ReplicationScanResult,
     ReplicationSetupHelper,
     RetentionMode,
     ScanPoliciesManager,
@@ -177,6 +178,18 @@ with suppress(ImportError):
 logger = logging.getLogger(__name__)
 
 SEPARATOR = '=' * 40
+
+# Reading the process umask requires temporarily setting it, which is process-global;
+# serialize it so concurrent downloads cannot leave the umask at the probe value.
+_UMASK_LOCK = threading.Lock()
+
+
+def _read_umask() -> int:
+    with _UMASK_LOCK:
+        value = os.umask(0o077)
+        os.umask(value)
+    return value
+
 
 # Enable to get 0.* behavior in the command-line tool.
 # Disable for 1.* behavior.
@@ -485,8 +498,7 @@ class FileRetentionSettingMixin(Described):
     """
     Setting file retention settings requires the **writeFileRetentions** capability, and only works in bucket
     with fileLockEnabled=true. Providing ``--file-retention-mode`` requires providing ``--retain-until`` which has to
-    be a future timestamp, in the form of an integer representing milliseconds
-    since epoch. Leaving out these options results in a file retained according to bucket defaults.
+    be a future timestamp in seconds or milliseconds since epoch. Leaving out these options results in a file retained according to bucket defaults.
     """
 
     @classmethod
@@ -501,6 +513,7 @@ class FileRetentionSettingMixin(Described):
         add_normalized_argument(
             parser,
             '--retain-until',
+            help='future timestamp in seconds or milliseconds since epoch',
             type=parse_millis_from_float_timestamp,
             default=None,
             metavar='TIMESTAMP',
@@ -1014,6 +1027,10 @@ class Command(Described, metaclass=ABCMeta):
         # Keep omission (None) distinct from an explicitly empty option.
         if not profile:
             raise argparse.ArgumentTypeError('profile must not be empty')
+        if re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', profile) is None:
+            raise argparse.ArgumentTypeError(
+                'Invalid profile name: use 1 to 64 ASCII letters, digits, underscores or hyphens'
+            )
         return profile
 
     @classmethod
@@ -1055,6 +1072,15 @@ class Command(Described, metaclass=ABCMeta):
 
         if subparsers is None:
             parser = B2ArgumentParser(**parser_kwargs)
+            # Subparsers merge their namespaces over the parent's parsed values.
+            # Supply common defaults once; inherited actions must not reset them.
+            parser.set_defaults(
+                debug_logs=False,
+                verbose=False,
+                log_config=None,
+                quiet=False,
+                escape_control_characters=None,
+            )
         else:
             parser = subparsers.add_parser(
                 parser_kwargs.pop('prog'),
@@ -1069,7 +1095,9 @@ class Command(Described, metaclass=ABCMeta):
 
         if cls.subcommands_registry:
             if not parents:
-                common_parser = B2ArgumentParser(add_help=False, add_help_all=False)
+                common_parser = B2ArgumentParser(
+                    add_help=False, add_help_all=False, argument_default=argparse.SUPPRESS
+                )
                 add_normalized_argument(
                     common_parser, '--debug-logs', action='store_true', help=argparse.SUPPRESS
                 )
@@ -1083,7 +1111,7 @@ class Command(Described, metaclass=ABCMeta):
                     help=argparse.SUPPRESS,
                 )
                 common_parser.add_argument(
-                    '-q', '--quiet', action='store_true', default=False, help=argparse.SUPPRESS
+                    '-q', '--quiet', action='store_true', help=argparse.SUPPRESS
                 )
 
                 common_parser.add_argument(
@@ -1096,7 +1124,6 @@ class Command(Described, metaclass=ABCMeta):
                     help=argparse.SUPPRESS,
                 )
 
-                common_parser.set_defaults(escape_control_characters=None)
                 parents = [common_parser]
 
             subparsers = parser.add_subparsers(
@@ -1279,10 +1306,9 @@ class B2(Command):
     reliable authentication file location you should use ``b2 account get``.
 
     Control characters escaping is turned on if running under terminal.
-    You can override it by explicitly using `--escape-control-chars`/`--no-escape-control-chars`` option,
-    or by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
+    You can override it by setting `B2_ESCAPE_CONTROL_CHARACTERS` environment variable to either `1` or `0`.
 
-    You can suppress command stdout & stderr output by using ``--quiet`` option.
+    You can suppress command stdout & stderr output by using ``--quiet`` after the subcommand.
     To supress only progress bar, use ``--no-progress`` option.
 
     For more details on one command:
@@ -1660,7 +1686,7 @@ class FileServerSideCopyBase(
         ):  # metadataDirective=REPLACE, no problem
             return None, None
         if not fetch_if_necessary:
-            raise ValueError(
+            raise CommandError(
                 'Attempting to copy file with metadata while either source or destination uses '
                 'SSE-C. Use --fetch-metadata to fetch source file metadata before copying.'
             )
@@ -1697,14 +1723,21 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     Requires capability:
 
     - **writeBuckets**
+
+    For some operations:
+
     - **readBucketEncryption**
     - **writeBucketEncryption**
-    - **writeBucketRetentions**
     """
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_normalized_argument(parser, '--bucket-info', type=validated_loads)
+        add_normalized_argument(
+            parser,
+            '--bucket-info',
+            type=validated_loads,
+            help='bucket information as a JSON object',
+        )
         add_normalized_argument(
             parser,
             '--cors-rules',
@@ -1717,7 +1750,9 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             action='store_true',
             help='If given, the bucket will have the file lock mechanism enabled. This parameter cannot be changed after bucket creation.',
         )
-        parser.add_argument('--replication', type=validated_loads)
+        parser.add_argument(
+            '--replication', type=validated_loads, help='replication configuration as a JSON object'
+        )
         add_bucket_name_argument(parser)
         parser.add_argument('bucketType', choices=CREATE_BUCKET_TYPES)
 
@@ -1735,7 +1770,7 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             is_file_lock_enabled=args.file_lock_enabled,
             replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
         )
-        self._print(bucket.id_)
+        self._print(bucket.id_, enforce_output=True)
         return 0
 
 
@@ -1748,17 +1783,18 @@ class KeyCreateBase(Command):
     their IDs, but not the secret keys.
 
     The capabilities are passed in as a comma-separated list, like ``readFiles,writeFiles``.
-    Optionally, you can pass all capabilities known to this client with ``--all-capabilities``.
+    With ``--all-capabilities``, the client includes its known capabilities except notification
+    capabilities, plus all capabilities of the current key.
 
-    The ``duration`` is the length of time (in seconds) the new application key will exist.
+    The ``--duration`` is the length of time (in seconds) the new application key will exist.
     When the time expires the key will disappear and will no longer be usable.  If not
     specified, the key will not expire.
 
-    The ``bucket`` is the name of a bucket in the account.  When specified, the key
+    The ``--bucket`` is the name of a bucket in the account.  When specified, the key
     will only allow access to that bucket. You can specify multiple buckets by repeating
     the option, e.g. ``--bucket bucket1 --bucket bucket2``
 
-    The ``namePrefix`` restricts file access to files whose names start with the prefix.
+    The ``--name-prefix`` restricts file access to files whose names start with the prefix.
 
     The output is the new application key ID, followed by the application key itself.
     The two values returned are the two that you pass to ``account authorize`` to use the key.
@@ -1770,14 +1806,30 @@ class KeyCreateBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('--bucket', action='append')
-        add_normalized_argument(parser, '--name-prefix')
-        parser.add_argument('--duration', type=int)
-        parser.add_argument('keyName')
+        parser.add_argument(
+            '--bucket',
+            action='append',
+            help='restrict the key to this bucket; repeat for multiple buckets',
+        )
+        add_normalized_argument(
+            parser, '--name-prefix', help='restrict file access to names beginning with this prefix'
+        )
+        parser.add_argument('--duration', type=int, help='key lifetime in seconds')
+        parser.add_argument('keyName', help='name of the application key')
 
         capabilities = parser.add_mutually_exclusive_group(required=True)
-        capabilities.add_argument('capabilities', type=parse_comma_separated_list, nargs='?')
-        add_normalized_argument(capabilities, '--all-capabilities', action='store_true')
+        capabilities.add_argument(
+            'capabilities',
+            type=parse_comma_separated_list,
+            nargs='?',
+            help='comma-separated list of capabilities',
+        )
+        add_normalized_argument(
+            capabilities,
+            '--all-capabilities',
+            action='store_true',
+            help='use known non-notification capabilities and current key capabilities',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -1815,13 +1867,17 @@ class KeyCreateBase(Command):
             name_prefix=args.name_prefix,
         )
 
-        self._print(f'{application_key.id_} {application_key.application_key}')
+        self._print(
+            f'{application_key.id_} {application_key.application_key}',
+            enforce_output=True,
+        )
         return 0
 
 
 class BucketDeleteBase(Command):
     """
-    Delete the bucket with the given name.
+    Delete the bucket with the given name. The bucket must be empty.
+    Prints nothing on success.
 
     Requires capability:
 
@@ -1873,6 +1929,7 @@ class DeleteFileVersionBase(FileIdAndOptionalFileNameMixin, Command):
 class KeyDeleteBase(Command):
     """
     Delete the specified application key by ID.
+    Prints the deleted application key ID.
 
     Requires capability:
 
@@ -2007,6 +2064,17 @@ class DownloadCommand(
         # and actually overwrite something unintended.
         output_directory = output_filepath
         output_filepath = output_directory / file_request.download_version.file_name
+        # Remote names may traverse pre-existing local symlinks or junctions.
+        # Resolve before opening anything and keep the resolved path for the save,
+        # rather than letting the SDK follow the original redirecting path later.
+        try:
+            resolved_directory = output_directory.resolve()
+            resolved_output = output_filepath.resolve()
+        except (OSError, RuntimeError) as exc:
+            raise CommandError('Unable to resolve download output path') from exc
+        if not resolved_output.is_relative_to(resolved_directory):
+            raise CommandError('Remote filename resolves outside download directory')
+        output_filepath = resolved_output
         # If it doesn't exist, we stop worrying.
         if not output_filepath.exists():
             return output_filepath
@@ -2024,13 +2092,17 @@ class DownloadCommand(
             dir=output_directory,
         )
         self._temporary_download_path = pathlib.Path(output_filepath_str)
+        # Give the file the permissions of an ordinary (non-collision) download: owner
+        # read/write always (the download reopens the path to write, so it must stay
+        # owner-writable) and group/other read only if the umask allows, instead of the
+        # previous unconditional 0644 that ignored the umask. Set the mode on the open
+        # mkstemp descriptor (fchmod) rather than by path, so a symlink swapped in at the
+        # path cannot redirect the permission change to another file.
+        if hasattr(os, 'fchmod'):
+            os.fchmod(fd_handle, 0o600 | (0o044 & ~_read_umask()))
         # Close the handle, so the file is not locked.
         # This file is no longer 100% "safe", but that's acceptable.
         os.close(fd_handle)
-
-        # "Normal" file created by Python has readable for everyone, writable for user only.
-        # We change the permissions, to match the default ones.
-        os.chmod(output_filepath_str, 0o644)
 
         return pathlib.Path(output_filepath_str)
 
@@ -2042,6 +2114,11 @@ class FileDownloadBase(
 ):
     """
     Download the given file-like object, and store it in the given local file.
+
+    Use ``-`` as the local file name to write the file contents to stdout.
+    When the target is an existing directory, the remote file name is used; if it
+    already exists, a unique file name is chosen. An existing regular file target
+    is overwritten without a prompt.
 
     {ProgressMixin}
     {ThreadsMixin}
@@ -2058,7 +2135,7 @@ class FileDownloadBase(
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
-        parser.add_argument('localFileName')
+        parser.add_argument('localFileName', help='local file or directory, or - for stdout')
 
     def _run(self, args):
         progress_listener = self.make_progress_listener(
@@ -2134,7 +2211,7 @@ class AccountGetBase(Command):
     Show current account info
 
     Prints account ID, key, auth token, URLs, and what capabilities
-    the current application keys has.
+    the current application key has.
     """
 
     def _run(self, args):
@@ -2254,7 +2331,7 @@ class BucketGetDownloadAuthBase(Command):
         auth_token = bucket.get_download_authorization(
             file_name_prefix=args.prefix, valid_duration_in_seconds=args.duration
         )
-        self._print(auth_token)
+        self._print(auth_token, enforce_output=True)
         return 0
 
 
@@ -2267,7 +2344,7 @@ class GetDownloadUrlWithAuthBase(Command):
     start with the given file name.
 
     The URL will work for the given file, but is not specific to that file.  Files
-    with longer names that start with the give file name can also be downloaded
+    with longer names that start with the given file name can also be downloaded
     with the same auth token.
 
     The token is valid for the duration specified, which defaults
@@ -2336,6 +2413,7 @@ class FileUnhideBase(Command):
 
     - **listFiles**
     - **deleteFiles**
+    - **readFiles** (if using a ``b2id://`` URI)
 
     and optionally:
 
@@ -2344,7 +2422,10 @@ class FileUnhideBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
+        add_normalized_argument(
+            parser, '--bypass-governance', action='store_true', default=False,
+            help='bypass governance retention when deleting the hide marker',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -2398,7 +2479,7 @@ class BucketListBase(Command):
             return 0
 
         for b in buckets:
-            command._print(f'{b.id_}  {b.type_:<10}  {b.name}')
+            command._print(f'{b.id_}  {b.type_:<10}  {b.name}', enforce_output=True)
         return 0
 
 
@@ -2406,7 +2487,8 @@ class KeyListBase(Command):
     """
     List the application keys for the current account.
 
-    The columns in the output are:
+    By default, output contains the application key ID and name.
+    With ``--long``, the columns are:
 
     - ID of the application key
     - Name of the application key
@@ -2414,7 +2496,7 @@ class KeyListBase(Command):
     - Date of expiration, or ``-``
     - Time of expiration, or ``-``
     - File name prefix, in single quotes
-    - Command-separated list of capabilities
+    - Comma-separated list of capabilities
 
     None of the values contain whitespace.
 
@@ -2429,7 +2511,12 @@ class KeyListBase(Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        parser.add_argument('-l', '--long', action='store_true')
+        parser.add_argument(
+            '-l',
+            '--long',
+            action='store_true',
+            help='show restrictions, expiration and capabilities',
+        )
         super()._setup_parser(parser)
 
     def __init__(self, console_tool):
@@ -2459,7 +2546,7 @@ class KeyListBase(Command):
             dateStr=date_str,
             timeStr=time_str,
         )
-        self._print(key_str)
+        self._print(key_str, enforce_output=True)
 
     def bucket_display_names(self, bucket_ids):
         # Special case for no bucket IDs
@@ -2492,6 +2579,9 @@ class FileLargePartsBase(Command):
     large file, which must be a file that was started but not
     finished or canceled.
 
+    Each output line contains the part number, length in bytes, and SHA-1
+    checksum. The command does not support ``--json``.
+
     Requires capability:
 
     - **writeFiles**
@@ -2500,7 +2590,10 @@ class FileLargePartsBase(Command):
     def _run(self, args):
         b2_uri = self.get_b2_uri_from_arg(args)
         for part in self.api.list_parts(b2_uri.file_id):
-            self._print('%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1))
+            self._print(
+                '%5d  %9d  %s' % (part.part_number, part.content_length, part.content_sha1),
+                enforce_output=True,
+            )
         return 0
 
 
@@ -2508,6 +2601,10 @@ class FileLargeUnfinishedListBase(Command):
     """
     Lists all of the large files in the bucket that were started,
     but not finished or canceled.
+
+    Each output line contains the file ID, file name, content type, and file info
+    entries as space-separated key=value pairs. The command does not support
+    ``--json``.
 
     Requires capability:
 
@@ -2522,7 +2619,8 @@ class FileLargeUnfinishedListBase(Command):
                 f'{k}={unfinished.file_info[k]}' for k in sorted(unfinished.file_info)
             )
             self._print(
-                f'{unfinished.file_id} {unfinished.file_name} {unfinished.content_type} {file_info_text}'
+                f'{unfinished.file_id} {unfinished.file_name} {unfinished.content_type} {file_info_text}',
+                enforce_output=True,
             )
         return 0
 
@@ -2560,6 +2658,9 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         )
         super()._setup_parser(parser)
 
+    # `rm --dry-run` reuses the file printer for a preview, which stays quiet-able
+    PRINT_FILES_AS_DATA = False
+
     def _print_files(self, args, b2_uri: B2URI | None = None):
         generator = self._get_ls_generator(args, b2_uri=b2_uri)
 
@@ -2575,7 +2676,7 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
         name = folder_name or file_version.file_name
         if args.escape_control_characters:
             name = escape_control_chars(name)
-        self._print(name)
+        self._print(name, enforce_output=self.PRINT_FILES_AS_DATA)
 
     def _get_ls_generator(self, args, b2_uri: B2URI | None = None):
         b2_uri = b2_uri or self.get_b2_uri_from_arg(args)
@@ -2588,7 +2689,10 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
                 filters=args.filters,
             )
         except Exception as err:
-            raise CommandError(unprintable_to_hex(str(err))) from err
+            message = str(err)
+            if message == 'with_wildcard requires recursive to be turned on as well':
+                message = '--with-wildcard requires --recursive to be turned on as well'
+            raise CommandError(unprintable_to_hex(message)) from err
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
         raise NotImplementedError
@@ -2612,7 +2716,10 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     The ``--json`` option produces machine-readable output similar to
     the server api response format.
 
-    The ``--replication`` option adds replication status
+    The ``--replication`` option adds replication status to ``--long`` output and
+    has no effect without ``--long``.
+    Options ``--versions``, ``--include``, ``--exclude`` and ``--with-wildcard``
+    apply only when a bucket is specified.
 
     {AbstractLsCommand}
     """
@@ -2620,6 +2727,7 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
     # order is file_id, action, date, time, size(, replication), name
     LS_ENTRY_TEMPLATE = '%83s  %6s  %10s  %8s  %9d  %s'
     LS_ENTRY_TEMPLATE_REPLICATION = LS_ENTRY_TEMPLATE + '  %s'
+    PRINT_FILES_AS_DATA = True
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -2670,9 +2778,14 @@ class BaseLs(AbstractLsCommand, metaclass=ABCMeta):
         if not args.long:
             super()._print_file_version(args, file_version, folder_name)
         elif folder_name is not None:
-            self._print(self.format_folder_ls_entry(args, folder_name, args.replication))
+            self._print(
+                self.format_folder_ls_entry(args, folder_name, args.replication),
+                enforce_output=True,
+            )
         else:
-            self._print(self.format_ls_entry(args, file_version, args.replication))
+            self._print(
+                self.format_ls_entry(args, file_version, args.replication), enforce_output=True
+            )
 
     def format_folder_ls_entry(self, args, name, replication: bool):
         if args.escape_control_characters:
@@ -2959,14 +3072,14 @@ class Rm(B2IDOrB2URIMixin, BaseRm):
             {NAME} rm --recursive --with-wildcard "b2://bucketName/*.[ct]sv"
 
 
-        Remove all info.txt files from buckets bX, where X is any character:
+        Remove all info.txt files from directories bX, where X is any character:
 
         .. code-block::
 
             {NAME} rm --recursive --with-wildcard "b2://bucketName/b?/info.txt"
 
 
-        Remove all pdf files from buckets b0 to b9 (including sub-directories):
+        Remove all pdf files from directories b0 to b9 (including sub-directories):
 
         .. code-block::
 
@@ -2994,7 +3107,7 @@ class FileUrlBase(Command):
     filename urls.
 
     The URL will work for the given file, but is not specific to that file.  Files
-    with longer names that start with the give file name can also be downloaded
+    with longer names that start with the given file name can also be downloaded
     with the same auth token.
 
     The token is valid for the duration specified, which defaults
@@ -3009,7 +3122,10 @@ class FileUrlBase(Command):
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--with-auth', action='store_true')
-        parser.add_argument('--duration', type=int, default=86400)
+        parser.add_argument(
+            '--duration', type=int, default=86400,
+            help='authorization token lifetime in seconds (default: 86400); used only with --with-auth',
+        )
         super()._setup_parser(parser)
 
     def _run(self, args):
@@ -3026,7 +3142,7 @@ class FileUrlBase(Command):
                 file_name_prefix=b2_uri.path, valid_duration_in_seconds=args.duration
             )
             url += '?Authorization=' + auth_token
-        self._print(url)
+        self._print(url, enforce_output=True)
         return 0
 
 
@@ -3062,15 +3178,17 @@ class Sync(
     To allow sync to run when the source directory is empty, potentially
     deleting all files in a bucket, specify ``--allow-empty-source``.
     The default is to fail when the specified source directory doesn't exist
-    or is empty.  (This check only applies to version 1.0 and later.)
+    or is empty.
 
-    {ThreadsMixin}
+    Use ``--threads`` to set all three thread limits.
 
     You can alternatively control number of threads per each operation.
     The number of files processed in parallel is set by ``--sync-threads``,
     the number of files/file parts downloaded in parallel is set by ``--download-threads``,
     and the number of files/file parts uploaded in parallel is set by ``--upload-threads``.
     All the three parameters can be set to the same value by ``--threads``.
+    Each defaults to 10. ``--threads`` cannot be combined with an individual thread
+    option set to a value other than its default.
     Experiment with parameters if the defaults are not working well.
 
     Users with low-performance networks may benefit from reducing the
@@ -3125,8 +3243,8 @@ class Sync(
     (including hide markers) which were synced after given time (for local source)
     or ignore only specific file versions (for b2 source).
     Ignored files or file versions will not be taken for consideration during sync.
-    The time should be given as a seconds timestamp (e.g. "1367900664")
-    If you need milliseconds precision, put it after the comma (e.g. "1367900664.152")
+    The time may be given as a timestamp in seconds (e.g. "1367900664") or milliseconds
+    since epoch. For fractional seconds, use a decimal point (e.g. "1367900664.152").
     Alternatively you can specify ``--exclude-if-uploaded-after`` to use the server-side
     object creation timestamp rather than the modification time declared by the client.
 
@@ -3145,7 +3263,7 @@ class Sync(
     specifying the ``--compare-threshold`` option.  This will treat modTimes
     (in milliseconds) or sizes (in bytes) as the same if they are within
     the comparison threshold.  Files that match, within the threshold, will
-    not be synced. Specifying ``--verbose`` and ``--dry-run`` can be useful to
+    not be synced. Specifying ``--verbose`` after ``sync`` and ``--dry-run`` can be useful to
     determine comparison value differences.
 
     When a destination file is present that is not in the source, the
@@ -3203,6 +3321,9 @@ class Sync(
     - **listFiles**
     - **readFiles** (for downloading)
     - **writeFiles** (for uploading)
+    - **deleteFiles** (for ``--delete`` or ``--keep-days`` with a B2 destination)
+
+    In b2v4 and later, reporter errors or warnings cause exit code 1.
     """
 
     DEFAULT_SYNC_THREADS = 10
@@ -3217,15 +3338,9 @@ class Sync(
         add_normalized_argument(parser, '--dry-run', action='store_true')
         add_normalized_argument(parser, '--allow-empty-source', action='store_true')
         add_normalized_argument(parser, '--exclude-all-symlinks', action='store_true')
-        add_normalized_argument(
-            parser, '--sync-threads', type=int, default=cls.DEFAULT_SYNC_THREADS
-        )
-        add_normalized_argument(
-            parser, '--download-threads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS
-        )
-        add_normalized_argument(
-            parser, '--upload-threads', type=int, default=cls.DEFAULT_UPLOAD_THREADS
-        )
+        add_normalized_argument(parser, '--sync-threads', type=int, default=None)
+        add_normalized_argument(parser, '--download-threads', type=int, default=None)
+        add_normalized_argument(parser, '--upload-threads', type=int, default=None)
         add_normalized_argument(
             parser, '--compare-versions', default='modTime', choices=('none', 'modTime', 'size')
         )
@@ -3268,23 +3383,35 @@ class Sync(
     def _run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
+        # The individual options default to None so that an explicitly passed value
+        # equal to the default still conflicts with --threads.
         if args.threads is not None:
             if (
-                args.sync_threads != self.DEFAULT_SYNC_THREADS
-                or args.upload_threads != self.DEFAULT_UPLOAD_THREADS
-                or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS
+                args.sync_threads is not None
+                or args.upload_threads is not None
+                or args.download_threads is not None
             ):
-                raise ValueError('--threads cannot be used with other thread options')
+                raise CommandError('--threads cannot be used with other thread options')
             sync_threads = upload_threads = download_threads = args.threads
         else:
-            sync_threads = args.sync_threads
-            upload_threads = args.upload_threads
-            download_threads = args.download_threads
+            sync_threads = (
+                self.DEFAULT_SYNC_THREADS if args.sync_threads is None else args.sync_threads
+            )
+            upload_threads = (
+                self.DEFAULT_UPLOAD_THREADS if args.upload_threads is None else args.upload_threads
+            )
+            download_threads = (
+                self.DEFAULT_DOWNLOAD_THREADS
+                if args.download_threads is None
+                else args.download_threads
+            )
 
         self.api.services.upload_manager.set_thread_pool_size(upload_threads)
         self.api.services.download_manager.set_thread_pool_size(download_threads)
 
         source = parse_folder(args.source, self.console_tool.api)
+        if source.folder_type() == 'local' and not os.path.exists(source.root):
+            raise CommandError(f'Directory {args.source} does not exist.')
         destination = parse_folder(args.destination, self.console_tool.api)
         allow_empty_source = args.allow_empty_source or VERSION_0_COMPATIBILITY
 
@@ -3305,14 +3432,14 @@ class Sync(
             destination_bucket = destination.bucket_name
             write_encryption_settings[destination_bucket] = destination_sse
         elif destination_sse is not None:
-            raise ValueError('server-side encryption cannot be set for a non-b2 sync destination')
+            raise CommandError('server-side encryption cannot be set for a non-b2 sync destination')
 
         source_sse = self._get_source_sse_setting(args)
         if source.folder_type() == 'b2':
             source_bucket = source.bucket_name
             read_encryption_settings[source_bucket] = source_sse
         elif source_sse is not None:
-            raise ValueError('server-side encryption cannot be set for a non-b2 sync source')
+            raise CommandError('server-side encryption cannot be set for a non-b2 sync source')
 
         if read_encryption_settings or write_encryption_settings:
             kwargs['encryption_settings_provider'] = BasicSyncEncryptionSettingsProvider(
@@ -3407,7 +3534,7 @@ class Sync(
 
 class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     """
-    Updates the ``bucketType`` of an existing bucket.
+    Update an existing bucket, optionally including its ``bucketType``.
 
     Prints the updated bucket as JSON.
     Optionally stores bucket info, CORS rules and lifecycle rules with the bucket.
@@ -3418,6 +3545,7 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
 
     To set a default retention for files in the bucket ``--default-retention-mode`` and
     ``--default-retention-period`` have to be specified. The latter one is of the form "X days|years".
+    Use ``--default-retention-mode none`` to remove the default retention.
 
     {FILE_RETENTION_COMPATIBILITY_WARNING}
 
@@ -3448,7 +3576,12 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
 
     @classmethod
     def _setup_parser(cls, parser):
-        add_normalized_argument(parser, '--bucket-info', type=validated_loads)
+        add_normalized_argument(
+            parser,
+            '--bucket-info',
+            type=validated_loads,
+            help='bucket information as a JSON object',
+        )
         add_normalized_argument(
             parser,
             '--cors-rules',
@@ -3471,7 +3604,9 @@ class BucketUpdateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             type=parse_default_retention_period,
             metavar='period',
         )
-        parser.add_argument('--replication', type=validated_loads)
+        parser.add_argument(
+            '--replication', type=validated_loads, help='replication configuration as a JSON object'
+        )
         add_normalized_argument(
             parser,
             '--file-lock-enabled',
@@ -3681,6 +3816,10 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     possibly setting options like server-side encryption and retention.
 
     A FIFO file (such as named pipe) can be given instead of regular file.
+    Use ``-`` as the local file path to read from stdin.
+
+    Unless quiet mode is enabled, stdout includes URL by file name and URL by
+    fileId lines before the JSON result, so the full output is not pure JSON.
 
     By default, `file upload` will compute the sha1 checksum of the file
     to be uploaded.  But, if you already have it, you can provide it
@@ -3694,7 +3833,8 @@ class FileUploadBase(UploadFileMixin, UploadModeMixin, Command):
     {DestinationSseMixin}
     {FileRetentionSettingMixin}
     {LegalHoldMixin}
-    {UploadModeMixin}
+    Use ``--incremental-mode`` to allow for incremental file uploads to save bandwidth.  This will only affect files, which
+    have been appended to since last upload.
 
     The ``--custom-upload-timestamp``, in milliseconds-since-epoch, can be used
     to artificially change the upload timestamp of the file for the purpose
@@ -3825,14 +3965,14 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
 
     Retention:
 
-      Only works in bucket with fileLockEnabled=true. Providing a ``retention-mode`` other than ``none`` requires
-      providing ``retainUntil``, which has to be a future timestamp in the form of an integer representing milliseconds
+      Only works in bucket with fileLockEnabled=true. Providing a ``--file-retention-mode`` other than ``none`` requires
+      providing ``--retain-until``, which has to be a future timestamp in the form of an integer representing milliseconds
       since epoch.
 
-      If a file already is in governance mode, disabling retention or shortening it's period requires providing
+      If a file already is in governance mode, disabling retention or shortening its period requires providing
       ``--bypass-governance``.
 
-      If a file already is in compliance mode, disabling retention or shortening it's period is impossible.
+      If a file already is in compliance mode, disabling retention or shortening its period is impossible.
 
       In both cases prolonging the retention period is possible. Changing from governance to compliance is also supported.
 
@@ -3859,6 +3999,7 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
         add_normalized_argument(
             parser,
             '--retain-until',
+            help='future timestamp in seconds or milliseconds since epoch',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
             default=None,
@@ -3866,6 +4007,16 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
         add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
 
     def _run(self, args):
+        if args.retain_until is not None and args.file_retention_mode is None:
+            raise CommandError(
+                'provide either both --retain-until and --file-retention-mode or none of them'
+            )
+        if args.file_retention_mode is None and args.legal_hold is None:
+            raise CommandError(
+                'nothing to update; provide --legal-hold or --file-retention-mode '
+                '(with --retain-until when required)'
+            )
+
         b2_uri = self.get_b2_uri_from_arg(args)
         file_version = self.api.get_file_info_by_uri(b2_uri)
 
@@ -3958,6 +4109,7 @@ class UpdateFileRetentionBase(FileIdAndOptionalFileNameMixin, Command):
         add_normalized_argument(
             parser,
             '--retain-until',
+            help='future timestamp in seconds or milliseconds since epoch',
             type=parse_millis_from_float_timestamp,
             metavar='TIMESTAMP',
             default=None,
@@ -3985,6 +4137,8 @@ class ReplicationSetupBase(Command):
     Set up replication between two buckets.
 
     Sets up replication between two buckets (potentially from different accounts), creating and replacing keys if necessary.
+    Prints nothing and exits 0 on success. Without ``--name``, a new rule name is
+    based on the destination bucket name; repeated setup can add another rule.
 
     Requires capabilities on both profiles:
 
@@ -3998,7 +4152,11 @@ class ReplicationSetupBase(Command):
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
         add_normalized_argument(
-            parser, '--destination-profile', type=cls._validate_profile, default=None
+            parser,
+            '--destination-profile',
+            type=cls._validate_profile,
+            default=None,
+            help='profile for the destination bucket; defaults to the source profile',
         )
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
         parser.add_argument('destination', metavar='DESTINATION_BUCKET_NAME')
@@ -4177,15 +4335,37 @@ class ReplicationStatusBase(Command):
     ``--columns``
     Comma-separated list of columns to be shown. The rows are still grouped by _all_
     columns, no matter which of them are shown / hidden when using ``--columns`` flag.
+    Valid names are ``source_replication_status``, ``source_has_hide_marker``,
+    ``source_encryption_mode``, ``source_has_large_metadata``, ``source_has_file_retention``,
+    ``source_has_legal_hold``, ``destination_replication_status``, ``metadata_differs``,
+    ``hash_differs``, and ``count``. Use ``all`` to show all columns.
+    With no rules and no ``--rule`` filter, console and CSV output are empty;
+    JSON output is an empty object. The command exits 0.
     """
 
     @classmethod
     def _setup_parser(cls, parser):
         super()._setup_parser(parser)
         parser.add_argument('source', metavar='SOURCE_BUCKET_NAME')
-        add_normalized_argument(parser, '--rule', metavar='REPLICATION_RULE_NAME', default=None)
-        add_normalized_argument(parser, '--destination-profile', type=cls._validate_profile)
-        add_normalized_argument(parser, '--dont-scan-destination', action='store_true')
+        add_normalized_argument(
+            parser,
+            '--rule',
+            metavar='REPLICATION_RULE_NAME',
+            default=None,
+            help='inspect only the named replication rule',
+        )
+        add_normalized_argument(
+            parser,
+            '--destination-profile',
+            type=cls._validate_profile,
+            help='profile for the destination bucket',
+        )
+        add_normalized_argument(
+            parser,
+            '--dont-scan-destination',
+            action='store_true',
+            help='inspect only the source bucket',
+        )
         add_normalized_argument(
             parser, '--output-format', default='console', choices=('console', 'json', 'csv')
         )
@@ -4199,6 +4379,18 @@ class ReplicationStatusBase(Command):
         )
 
     def _run(self, args):
+        if 'all' in args.columns and len(args.columns) > 1:
+            raise CommandError("Column 'all' cannot be combined with other columns.")
+        if args.columns != ['all']:
+            valid_columns = [field.name for field in dataclasses.fields(ReplicationScanResult)] + [
+                'count'
+            ]
+            for column in args.columns:
+                if column.replace(' ', '_') not in valid_columns:
+                    raise CommandError(
+                        f'Unknown replication status column {column!r}. Valid columns: {", ".join(valid_columns)}'
+                    )
+
         destination_api = args.destination_profile and _get_b2api_for_profile(
             args.destination_profile
         )
@@ -5505,7 +5697,7 @@ class FileLargeUnfinished(Command):
 
 @FileLargeUnfinished.subcommands_registry.register
 class FileLargeUnfinishedList(B2BucketURIMixin, FileLargeUnfinishedListBase):
-    __doc__ = FileLargePartsBase.__doc__
+    __doc__ = FileLargeUnfinishedListBase.__doc__
     COMMAND_NAME = 'list'
 
 
@@ -5639,7 +5831,11 @@ class ConsoleTool:
         with suppress(AttributeError):
             kwargs['max_download_streams_per_file'] = args.max_download_streams_per_file
 
-        self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
+        try:
+            self.api = self._initialize_b2_api(args=args, kwargs=kwargs)
+        except (ValueError, B2Error) as exc:
+            self._print_stderr(f'ERROR: {exc}')
+            return 1
 
         b2_command = B2(self)
         command_class = b2_command.run(args)

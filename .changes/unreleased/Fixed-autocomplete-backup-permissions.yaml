@@ -1,0 +1,3 @@
+kind: Fixed
+body: Create the shell configuration backup with owner-only permissions during autocomplete installation, instead of the process umask default or the source file's own (possibly group-readable) mode.
+time: 2026-11-24T15:10:00-06:00

@@ -370,6 +370,41 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+    def test_quiet_key_create_prints_only_credentials(self):
+        self._authorize_account()
+        for index, flag in enumerate(('-q', '--quiet')):
+            self._run_command(
+                ['key', 'create', flag, f'key{index}', 'listBuckets'],
+                f'appKeyId{index} appKey{index}\n',
+                '',
+                0,
+            )
+
+    def test_quiet_deprecated_create_key_and_create_bucket_print_results(self):
+        self._authorize_account()
+        self._run_command(
+            ['create-key', '-q', 'legacykey', 'listBuckets'],
+            'appKeyId0 appKey0\n',
+            'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
+            0,
+        )
+        self._run_command(
+            ['create-bucket', '-q', 'legacy-bucket', 'allPrivate'],
+            'bucket_0\n',
+            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n',
+            0,
+        )
+
+    def test_quiet_bucket_create_prints_only_bucket_id(self):
+        self._authorize_account()
+        for index, flag in enumerate(('-q', '--quiet')):
+            self._run_command(
+                ['bucket', 'create', flag, f'my-bucket-{index}', 'allPrivate'],
+                f'bucket_{index}\n',
+                '',
+                0,
+            )
+
     def test_create_key_and_authorize_with_it(self):
         # Start with authorizing with the master key
         self._authorize_account()
@@ -2330,6 +2365,32 @@ class TestConsoleTool(BaseConsoleToolTest):
             command = ['sync', '--no-progress', temp_dir, 'b2://my-bucket']
             self._run_command(command, expected_stdout, '', 0)
 
+    def test_sync_missing_local_source(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            source = os.path.join(temp_dir, 'missing')
+            self._run_command(
+                ['sync', '--no-progress', source, 'b2://my-bucket'],
+                '',
+                f'ERROR: Directory {source} does not exist.\n',
+                1,
+            )
+            self.assertFalse(os.path.exists(source))
+
+    def test_sync_creates_local_destination(self):
+        self._authorize_account()
+        self._create_my_bucket()
+        with TempDir() as temp_dir:
+            destination = os.path.join(temp_dir, 'new')
+            self._run_command(
+                ['sync', '--no-progress', '--allow-empty-source', 'b2://my-bucket', destination],
+                '',
+                '',
+                0,
+            )
+            self.assertTrue(os.path.isdir(destination))
+
     def test_sync_empty_folder_when_not_enabled(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -2552,6 +2613,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         sync_threads=None,
         download_threads=None,
         upload_threads=None,
+        expect_error=False,
     ):
         self._authorize_account()
         self._create_my_bucket()
@@ -2568,6 +2630,15 @@ class TestConsoleTool(BaseConsoleToolTest):
             if upload_threads is not None:
                 command += ['--upload-threads', str(upload_threads)]
             command += [temp_dir, 'b2://my-bucket']
+            if expect_error:
+                self._run_command(
+                    command,
+                    expected_stdout='',
+                    expected_stderr='ERROR: --threads cannot be used with other thread options\n',
+                    expected_status=1,
+                )
+                self.assertEqual([], list(self.b2_api.get_bucket_by_name('my-bucket').ls()))
+                return
             expected_stdout = """
             upload file.txt
             """
@@ -2590,23 +2661,60 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_sync_threads_and_upload_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, upload_threads=1)
+        self._test_sync_threads(threads=1, upload_threads=1, expect_error=True)
 
     def test_sync_threads_and_sync_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, sync_threads=1)
+        self._test_sync_threads(threads=1, sync_threads=1, expect_error=True)
 
     def test_sync_threads_and_download_threads(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, download_threads=1)
+        self._test_sync_threads(threads=1, download_threads=1, expect_error=True)
 
     def test_sync_all_thread_options(self):
         # Using --threads is exclusive with other options
-        with self.assertRaises(ValueError):
-            self._test_sync_threads(threads=1, sync_threads=1, download_threads=1, upload_threads=1)
+        self._test_sync_threads(
+            threads=1, sync_threads=1, download_threads=1, upload_threads=1, expect_error=True
+        )
+
+    def test_sync_threads_and_explicit_default_sync_threads(self):
+        # An explicitly passed option conflicts even when it equals the default (10).
+        self._test_sync_threads(threads=3, sync_threads=10, expect_error=True)
+
+    def test_sync_threads_and_explicit_default_download_threads(self):
+        self._test_sync_threads(threads=3, download_threads=10, expect_error=True)
+
+    def test_sync_threads_and_explicit_default_upload_threads(self):
+        self._test_sync_threads(threads=3, upload_threads=10, expect_error=True)
+
+    def _sync_pool_sizes(self, *thread_args):
+        self._authorize_account()
+        self._create_my_bucket()
+        upload_manager = type(self.b2_api.services.upload_manager)
+        download_manager = type(self.b2_api.services.download_manager)
+        with TempDir() as temp_dir:
+            self._make_local_file(temp_dir, 'file.txt')
+            with (
+                mock.patch.object(upload_manager, 'set_thread_pool_size') as up,
+                mock.patch.object(download_manager, 'set_thread_pool_size') as down,
+            ):
+                self._run_command(
+                    ['sync', '--no-progress', *thread_args, temp_dir, 'b2://my-bucket'],
+                    'upload file.txt\n',
+                )
+        return up.call_args.args[-1], down.call_args.args[-1]
+
+    def test_sync_default_thread_pool_sizes(self):
+        self.assertEqual((10, 10), self._sync_pool_sizes())
+
+    def test_sync_threads_sets_all_pool_sizes(self):
+        self.assertEqual((3, 3), self._sync_pool_sizes('--threads', '3'))
+
+    def test_sync_upload_threads_keeps_other_defaults(self):
+        self.assertEqual((4, 10), self._sync_pool_sizes('--upload-threads', '4'))
+
+    def test_sync_download_threads_keeps_other_defaults(self):
+        self.assertEqual((10, 5), self._sync_pool_sizes('--download-threads', '5'))
 
     def test_ls(self):
         self._authorize_account()
@@ -2747,7 +2855,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Check with no files
         self._run_command(
             ['ls', '--with-wildcard', *self.b2_uri_args('my-bucket')],
-            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_stderr='ERROR: --with-wildcard requires --recursive to be turned on as well\n',
             expected_status=1,
         )
 
@@ -3576,7 +3684,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_with_wildcard_without_recursive(self):
         self._run_command(
             ['rm', '--with-wildcard', *self.b2_uri_args('my-bucket')],
-            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_stderr='ERROR: --with-wildcard requires --recursive to be turned on as well\n',
             expected_status=1,
         )
 

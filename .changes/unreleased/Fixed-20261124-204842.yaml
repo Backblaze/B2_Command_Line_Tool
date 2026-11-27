@@ -1,0 +1,3 @@
+kind: Fixed
+body: Report conflicting sync thread options and missing SSE-C copy metadata as command errors instead of tracebacks.
+time: 2026-11-24T20:48:42.821377-03:00
