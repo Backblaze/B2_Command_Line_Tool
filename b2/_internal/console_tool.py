@@ -1727,8 +1727,6 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
     - **writeBucketRetentions**
     """
 
-    ENFORCE_RESULT_OUTPUT = False
-
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--bucket-info', type=validated_loads)
@@ -1762,7 +1760,7 @@ class BucketCreateBase(DefaultSseMixin, LifecycleRulesMixin, Command):
             is_file_lock_enabled=args.file_lock_enabled,
             replication=args.replication and ReplicationConfiguration.from_dict(args.replication),
         )
-        self._print(bucket.id_, enforce_output=self.ENFORCE_RESULT_OUTPUT)
+        self._print(bucket.id_, enforce_output=True)
         return 0
 
 
@@ -1794,8 +1792,6 @@ class KeyCreateBase(Command):
 
     - **writeKeys**
     """
-
-    ENFORCE_RESULT_OUTPUT = False
 
     @classmethod
     def _setup_parser(cls, parser):
@@ -1846,7 +1842,7 @@ class KeyCreateBase(Command):
 
         self._print(
             f'{application_key.id_} {application_key.application_key}',
-            enforce_output=self.ENFORCE_RESULT_OUTPUT,
+            enforce_output=True,
         )
         return 0
 
@@ -3072,8 +3068,6 @@ class FileUrlBase(Command):
     - **shareFiles** (if using ``--with-auth``)
     """
 
-    ENFORCE_RESULT_OUTPUT = False
-
     @classmethod
     def _setup_parser(cls, parser):
         add_normalized_argument(parser, '--with-auth', action='store_true')
@@ -3097,7 +3091,7 @@ class FileUrlBase(Command):
                 file_name_prefix=b2_uri.path, valid_duration_in_seconds=args.duration
             )
             url += '?Authorization=' + auth_token
-        self._print(url, enforce_output=self.ENFORCE_RESULT_OUTPUT)
+        self._print(url, enforce_output=True)
         return 0
 
 
@@ -5105,7 +5099,6 @@ class KeyListSubcommand(KeyListBase):
 @Key.subcommands_registry.register
 class KeyCreateSubcommand(KeyCreateBase):
     __doc__ = KeyCreateBase.__doc__
-    ENFORCE_RESULT_OUTPUT = True
     COMMAND_NAME = 'create'
 
 
@@ -5295,7 +5288,6 @@ class BucketGet(BucketGetBase):
 @BucketCmd.subcommands_registry.register
 class BucketCreate(BucketCreateBase):
     __doc__ = BucketCreateBase.__doc__
-    ENFORCE_RESULT_OUTPUT = True
     COMMAND_NAME = 'create'
 
 
@@ -5390,7 +5382,6 @@ class FileInfo(B2URIFileArgMixin, FileInfoBase):
 @File.subcommands_registry.register
 class FileUrl(B2URIFileArgMixin, FileUrlBase):
     __doc__ = FileUrlBase.__doc__
-    ENFORCE_RESULT_OUTPUT = True
     COMMAND_NAME = 'url'
 
 
