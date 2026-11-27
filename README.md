@@ -148,6 +148,10 @@ Even if the `b2` command goes into the ApiVer `6`, `8` or even `10` with some ma
 `b2v5` will still provide the same interface, same commands, and same parameters, with all the security and bug fixes.
 Over time, it might get slower as we may need to emulate some older behaviors, but we'll ensure that it won't break.
 
+## Related projects
+
+- **[b2-mcp](https://github.com/backblaze-labs/b2-mcp)** — a Model Context Protocol server for B2.
+
 ## Contrib
 
 ### Detailed logs
