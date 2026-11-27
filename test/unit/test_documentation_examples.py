@@ -8,7 +8,7 @@
 #
 ######################################################################
 """
-Validate the `b2` command lines published in the README and the Sphinx docs.
+Validate the `b2` command lines published in the README, Sphinx docs, and CLI skill.
 
 The examples need a live B2 account, so they cannot be executed here. What can drift silently
 is the command syntax: a renamed subcommand or option leaves the documentation showing a command
@@ -33,6 +33,7 @@ import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DOC_SOURCE = REPO_ROOT / 'doc' / 'source'
+SKILL_PATH = REPO_ROOT / '.claude' / 'skills' / 'b2-cli' / 'SKILL.md'
 
 _RST_SH_BLOCK_RE = re.compile(r'^(?P<indent>[ ]*)\.\. code-block:: (?:sh|bash|shell)[ ]*$')
 _MARKDOWN_SH_FENCE_RE = re.compile(r'^[ ]*```(?:sh|bash|shell)[ ]*$')
@@ -118,6 +119,9 @@ def _b2_arguments(command: str) -> list[str] | None:
     if _DOCKER_IMAGE in tokens:
         tokens = tokens[tokens.index(_DOCKER_IMAGE) + 1 :]
     if tokens and tokens[0] in _B2_BINARIES:
+        # Shell redirection belongs to the shell, not the CLI argument parser.
+        if len(tokens) >= 3 and tokens[-2] == '>':
+            tokens = tokens[:-2]
         return tokens[1:]
     return None
 
@@ -140,7 +144,7 @@ def b2_argument_lists(block: list[str]) -> list[list[str]]:
 
 
 def documentation_files() -> list[pathlib.Path]:
-    return [REPO_ROOT / 'README.md', *sorted(DOC_SOURCE.glob('*.rst'))]
+    return [REPO_ROOT / 'README.md', *sorted(DOC_SOURCE.glob('*.rst')), SKILL_PATH]
 
 
 def documented_commands() -> list:
@@ -284,7 +288,9 @@ def test_documentation_contains_commands_to_validate():
     # Guard against the extraction silently matching nothing (e.g. after a docs reformat).
     # 16 commands are documented today; the minimum is kept close to that because turning one
     # `code-block:: sh` into `text` made 5 commands vanish and a looser bound (10) did not notice.
-    assert len(documented_commands()) >= 15
+    # Count the README and Sphinx pages apart from the skill, whose own commands must not hide a loss.
+    published = [p for p in documented_commands() if not p.id.startswith('.claude/')]
+    assert len(published) >= 15
 
 
 @pytest.mark.usefixtures('console_tool_class')
@@ -296,3 +302,30 @@ def test_documented_command_is_accepted_by_parser(args, problem, cli_version):
         pytest.fail(problem, pytrace=False)
     accepted, stderr = parse_with_real_parser(args)
     assert accepted, f'`b2 {shlex.join(args)}` is rejected by the argument parser:\n{stderr}'
+
+
+def test_skill_examples_are_collected():
+    commands = [
+        args
+        for block in extract_shell_blocks(SKILL_PATH.read_text(encoding='utf-8'))
+        for args in b2_argument_lists(block)
+    ]
+    assert len(commands) >= 10
+    assert SKILL_PATH in documentation_files()
+    assert ['version'] in commands
+
+
+def test_skill_contains_no_credential_values():
+    text = SKILL_PATH.read_text(encoding='utf-8')
+    assert not re.search(r'(?:K00|005)[A-Za-z0-9]{20,}', text), 'credential-shaped value in skill'
+    for match in re.finditer(r'B2_APPLICATION_KEY\s*=\s*([^\s`]+)', text):
+        value = match.group(1).strip('"\'')
+        assert re.fullmatch(
+            r'<[A-Za-z_][A-Za-z_0-9-]*>', value
+        ), 'non-placeholder key assignment in skill'
+
+
+def test_shell_redirection_is_not_a_cli_argument():
+    assert b2_argument_lists(['b2v5 key create scoped readFiles > /secure/output']) == [
+        ['key', 'create', 'scoped', 'readFiles']
+    ]
