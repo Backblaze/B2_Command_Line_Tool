@@ -3939,6 +3939,16 @@ class FileUpdateBase(B2URIFileArgMixin, LegalHoldMixin, Command):
         add_normalized_argument(parser, '--bypass-governance', action='store_true', default=False)
 
     def _run(self, args):
+        if args.retain_until is not None and args.file_retention_mode is None:
+            raise CommandError(
+                'provide either both --retain-until and --file-retention-mode or none of them'
+            )
+        if args.file_retention_mode is None and args.legal_hold is None:
+            raise CommandError(
+                'nothing to update; provide --legal-hold or --file-retention-mode '
+                '(with --retain-until when required)'
+            )
+
         b2_uri = self.get_b2_uri_from_arg(args)
         file_version = self.api.get_file_info_by_uri(b2_uri)
 
