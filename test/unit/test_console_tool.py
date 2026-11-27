@@ -2677,6 +2677,45 @@ class TestConsoleTool(BaseConsoleToolTest):
             threads=1, sync_threads=1, download_threads=1, upload_threads=1, expect_error=True
         )
 
+    def test_sync_threads_and_explicit_default_sync_threads(self):
+        # An explicitly passed option conflicts even when it equals the default (10).
+        self._test_sync_threads(threads=3, sync_threads=10, expect_error=True)
+
+    def test_sync_threads_and_explicit_default_download_threads(self):
+        self._test_sync_threads(threads=3, download_threads=10, expect_error=True)
+
+    def test_sync_threads_and_explicit_default_upload_threads(self):
+        self._test_sync_threads(threads=3, upload_threads=10, expect_error=True)
+
+    def _sync_pool_sizes(self, *thread_args):
+        self._authorize_account()
+        self._create_my_bucket()
+        upload_manager = type(self.b2_api.services.upload_manager)
+        download_manager = type(self.b2_api.services.download_manager)
+        with TempDir() as temp_dir:
+            self._make_local_file(temp_dir, 'file.txt')
+            with (
+                mock.patch.object(upload_manager, 'set_thread_pool_size') as up,
+                mock.patch.object(download_manager, 'set_thread_pool_size') as down,
+            ):
+                self._run_command(
+                    ['sync', '--no-progress', *thread_args, temp_dir, 'b2://my-bucket'],
+                    'upload file.txt\n',
+                )
+        return up.call_args.args[-1], down.call_args.args[-1]
+
+    def test_sync_default_thread_pool_sizes(self):
+        self.assertEqual((10, 10), self._sync_pool_sizes())
+
+    def test_sync_threads_sets_all_pool_sizes(self):
+        self.assertEqual((3, 3), self._sync_pool_sizes('--threads', '3'))
+
+    def test_sync_upload_threads_keeps_other_defaults(self):
+        self.assertEqual((4, 10), self._sync_pool_sizes('--upload-threads', '4'))
+
+    def test_sync_download_threads_keeps_other_defaults(self):
+        self.assertEqual((10, 5), self._sync_pool_sizes('--download-threads', '5'))
+
     def test_ls(self):
         self._authorize_account()
         self._create_my_bucket()
