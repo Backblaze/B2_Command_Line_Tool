@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Add an opt-in b2-simulator backend for the simulator-backed unit tests and derive the ids, URLs and tokens those tests expect from the server instead of hard-coding RawSimulator values.
+time: 2026-11-27T12:00:00Z

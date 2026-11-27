@@ -98,6 +98,15 @@ class ConsoleToolTester(BaseConsoleToolTest):
     def run(self, *args, **kwargs):
         return self._run_command(*args, **kwargs)
 
+    def create_key(self, key_name, capabilities, *args):
+        """Run `key create`, check it prints the new key's id and secret, return both."""
+        _, stdout, _ = self.run(['key', 'create', *args, key_name, capabilities])
+        key_id, key = stdout.split()
+        self.assertEqual(f'{key_id} {key}\n', stdout)
+        created = [k for k in self.b2_api.list_keys() if k.key_name == key_name]
+        self.assertEqual([key_id], [k.id_ for k in created])
+        return key_id, key
+
 
 @pytest.fixture(scope='session', autouse=True)
 def mock_signal():
@@ -127,8 +136,7 @@ def authorized_b2_cli(b2_cli):
 @pytest.fixture
 def bucket_info(b2_cli, authorized_b2_cli):
     bucket_name = 'my-bucket'
-    bucket_id = 'bucket_0'
-    b2_cli.run(['bucket', 'create', bucket_name, 'allPublic'], expected_stdout=f'{bucket_id}\n')
+    bucket_id = b2_cli._create_bucket(bucket_name, 'allPublic')
     return {
         'bucketName': bucket_name,
         'bucketId': bucket_id,
@@ -168,7 +176,7 @@ def uploaded_file_with_control_chars(b2_cli, bucket_info, local_file):
         'bucketId': bucket_info['bucketId'],
         'fileName': filename,
         'escapedFileName': '\\\\x9bC\\\\x9bC\\\\x9bIfile.txt',
-        'fileId': '1111',
+        'fileId': b2_cli._file_id(bucket_info['bucketName'], filename),
         'content': local_file.read_text(),
     }
 
@@ -181,7 +189,7 @@ def uploaded_file(b2_cli, bucket_info, local_file):
         'bucket': bucket_info['bucketName'],
         'bucketId': bucket_info['bucketId'],
         'fileName': filename,
-        'fileId': '9999',
+        'fileId': b2_cli._file_id(bucket_info['bucketName'], filename),
         'content': local_file.read_text(),
     }
 

@@ -103,10 +103,10 @@ def test_sync_encryption_on_b2_endpoint_preserves_content(
     if remote_side == 'source':
         assert local_file.read_bytes() == content
     else:
-        assert (
-            api_bucket.get_file_info_by_name('file.txt').server_side_encryption.mode
-            is encryption.mode
-        )
+        # Read the stored mode from a listing: reading an SSE-C file's headers needs its key on
+        # B2, and RawSimulator alone answers without it.
+        (uploaded,) = [file for file, _ in api_bucket.ls() if file.file_name == 'file.txt']
+        assert uploaded.server_side_encryption.mode is encryption.mode
         downloaded = BytesIO()
         api_bucket.download_file_by_name('file.txt', encryption=encryption).save(downloaded)
         assert downloaded.getvalue() == content

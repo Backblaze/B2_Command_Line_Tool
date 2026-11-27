@@ -8,6 +8,7 @@
 #
 ######################################################################
 
+import datetime
 import json
 import os
 import pathlib
@@ -45,7 +46,23 @@ from b2._internal.b2v4.registry import Rm as v4Rm
 from b2._internal.version import VERSION
 from test.helpers import skip_on_windows
 
+from .b2_simulator import b2_simulator_enabled, raw_api_class
 from .test_base import TestBase
+
+
+class _ArgsTail(list):
+    """A view of recorded calls that keeps only the last `n` positional arguments of each."""
+
+    def __init__(self, calls, n):
+        super().__init__()
+        self._calls = calls
+        self._n = n
+
+    def __iter__(self):
+        return iter([(args[-self._n :], answer) for args, answer in self._calls])
+
+    def __len__(self):
+        return len(self._calls)
 
 
 def file_mod_time_millis(path):
@@ -62,7 +79,8 @@ class BaseConsoleToolTest(TestBase):
         # this is a hack - B2HttpApiConfig expects a class, but we want to use an instance
         # which will be reused during the test, thus instead of class we pass a lambda which
         # returns already predefined instance
-        self.raw_simulator = RawSimulator()
+        self.raw_simulator = raw_api_class(RawSimulator)()
+        self.on_b2_simulator = b2_simulator_enabled()
         self.api_config = B2HttpApiConfig(_raw_api_class=lambda *args, **kwargs: self.raw_simulator)
 
         @cache
@@ -199,8 +217,116 @@ class BaseConsoleToolTest(TestBase):
         """
         self._run_command_ignore_output(['account', 'clear'])
 
+    def _create_bucket(self, bucket_name, *args):
+        """Run `bucket create`, check that it prints exactly the new bucket's id, return the id."""
+        _, stdout, _ = self._run_command(['bucket', 'create', bucket_name, *args])
+        bucket_id = self.b2_api.get_bucket_by_name(bucket_name).id_
+        self.assertEqual(f'{bucket_id}\n', stdout)
+        return bucket_id
+
     def _create_my_bucket(self):
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        return self._create_bucket('my-bucket', 'allPublic')
+
+    def _file_id(self, bucket_name, file_name):
+        """The id of the latest version of a file, as the server reports it."""
+        return self.b2_api.get_bucket_by_name(bucket_name).get_file_info_by_name(file_name).id_
+
+    def _b2(self, raw_simulator_value, b2_value):
+        """
+        Expected value where b2sdk's RawSimulator differs from B2.
+
+        RawSimulator's own value in the default run, B2's value on b2-simulator.
+        """
+        return b2_value if self.on_b2_simulator else raw_simulator_value
+
+    @property
+    def _bucket_options(self):
+        # B2 reports `options: ["s3"]` on buckets (b2-simulator ledger F-79); RawSimulator `[]`.
+        return self._b2([], ['s3'])
+
+    @property
+    def _hide_marker_sha1(self):
+        # B2 gives a hide marker the SHA-1 of empty content (real B2, 2026-11-27, b2-simulator
+        # parity report item 9); RawSimulator 'none'.
+        return self._b2('none', 'da39a3ee5e6b4b0d3255bfef95601890afd80709')
+
+    def _bucket_revision(self, updates):
+        # B2 reports revision 2 for a new bucket and +1 per update (b2-simulator ledger F-75);
+        # RawSimulator starts at 1.
+        return updates + self._b2(1, 2)
+
+    def _master_b2_api(self):
+        """A B2Api of its own, authorized with the master key, on the same server as the test."""
+        api = getattr(self, '_master_api', None)
+        if api is None:
+            api = B2Api(StubAccountInfo(), cache=None, api_config=self.api_config)
+            api.authorize_account(self.account_id, self.master_key, realm='production')
+            self._master_api = api
+        return api
+
+    def _create_key(self, argv, expected_stderr=''):
+        """
+        Run a key-creating command and return the new key's id and secret.
+
+        Checks that the command prints exactly `<keyId> <secret>` and that the server lists a key
+        with that id and the key name given in `argv`.
+        """
+        _, stdout, _ = self._run_command(argv, None, expected_stderr, 0)
+        key_id, secret = stdout.split()
+        self.assertEqual(f'{key_id} {secret}\n', stdout)
+        keys = {key.id_: key for key in self._master_b2_api().list_keys()}
+        self.assertIn(key_id, keys)
+        self.assertIn(keys[key_id].key_name, argv)
+        return key_id, secret
+
+    def _versions(self, bucket_name, file_name):
+        """Every version of one file name, newest first, as the server lists them."""
+        bucket = self._master_b2_api().get_bucket_by_name(bucket_name)
+        return [
+            version
+            for version in bucket.list_file_versions(file_name)
+            if version.file_name == file_name
+        ]
+
+    def _newest_version(self, bucket_name, file_name):
+        """Id and upload timestamp of the newest version of one file name, from the server."""
+        newest = self._versions(bucket_name, file_name)[0]
+        return newest.id_, newest.upload_timestamp
+
+    def _record_answers(self, raw_api_method):
+        """
+        Record each call of one raw API method and the server's answer to it.
+
+        Returns the list the calls are appended to, as `(positional arguments, answer)`.
+        """
+        calls = []
+        original = getattr(self.raw_api, raw_api_method)
+
+        def recording(*args):
+            answer = original(*args)
+            calls.append((args, answer))
+            return answer
+
+        patcher = mock.patch.object(self.raw_api, raw_api_method, recording)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return calls
+
+    def _record_download_authorizations(self):
+        """`_record_answers` of `get_download_authorization`, as `((bucket, prefix, duration), answer)`."""
+        calls = self._record_answers('get_download_authorization')
+        return _ArgsTail(calls, 3)
+
+    def _assert_json_in_stdout(self, expected_json, stdout):
+        """The same check as `_run_command(expected_json_in_stdout=...)`, on captured stdout."""
+        json_match = self.json_pattern.match(stdout)
+        if not json_match:
+            self.fail('EXPECTED TO FIND A JSON IN: ' + repr(stdout))
+        found_json = json.loads(json_match.group('dict_json') or json_match.group('list_json'))
+        if json_match.group('dict_json'):
+            self.assertDictIsContained(expected_json, found_json)
+        else:
+            self.assertListOfDictsIsContained(expected_json, found_json)
 
     def _run_command(
         self,
@@ -307,7 +433,7 @@ class TestTTYConsoleTool(BaseConsoleToolTest):
 
     def test_e_c1_char_ls_default_escape_control_chars_setting(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket-cc', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket-cc', 'allPrivate')
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'x')
@@ -330,25 +456,8 @@ class TestConsoleTool(BaseConsoleToolTest):
     @pytest.mark.apiver(to_ver=3)
     def test_camel_case_supported_in_v3(self):
         self._authorize_account()
-        self._run_command(
-            ['bucket', 'create', 'my-bucket', '--bucketInfo', '{"xxx": "123"}', 'allPrivate'],
-            'bucket_0\n',
-            '',
-            0,
-        )
-        self._run_command(
-            [
-                'bucket',
-                'create',
-                'my-bucket-kebab',
-                '--bucket-info',
-                '{"xxx": "123"}',
-                'allPrivate',
-            ],
-            'bucket_1\n',
-            '',
-            0,
-        )
+        self._create_bucket('my-bucket', '--bucketInfo', '{"xxx": "123"}', 'allPrivate')
+        self._create_bucket('my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate')
 
     @pytest.mark.apiver(from_ver=4)
     def test_camel_case_not_supported_in_v4(self):
@@ -356,19 +465,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(
             ['bucket', 'create', 'my-bucket', '--bucketInfo', 'allPrivate'], '', '', 2
         )
-        self._run_command(
-            [
-                'bucket',
-                'create',
-                'my-bucket-kebab',
-                '--bucket-info',
-                '{"xxx": "123"}',
-                'allPrivate',
-            ],
-            'bucket_0\n',
-            '',
-            0,
-        )
+        self._create_bucket('my-bucket-kebab', '--bucket-info', '{"xxx": "123"}', 'allPrivate')
 
     def test_quiet_key_create_prints_only_credentials(self):
         self._authorize_account()
@@ -410,31 +507,24 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Create a key
-        self._run_command(
-            ['key', 'create', 'key1', 'listBuckets,listKeys'],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
-        )
+        key_id_0, key_0 = self._create_key(['key', 'create', 'key1', 'listBuckets,listKeys'])
 
         # test deprecated command
-        self._run_command(
+        key_id_1, key_1 = self._create_key(
             ['create-key', 'key2', 'listBuckets,listKeys'],
-            'appKeyId1 appKey1\n',
             'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
-            0,
         )
 
         # Authorize with the key
         self._run_command(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id_0, key_0],
             None,
             '',
             0,
         )
 
         self._run_command(
-            ['account', 'authorize', 'appKeyId1', 'appKey1'],
+            ['account', 'authorize', key_id_1, key_1],
             None,
             '',
             0,
@@ -442,7 +532,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # test deprecated command
         self._run_command(
-            ['authorize-account', 'appKeyId0', 'appKey0'],
+            ['authorize-account', key_id_0, key_0],
             None,
             'WARNING: `authorize-account` command is deprecated. Use `account authorize` instead.\n',
             0,
@@ -450,7 +540,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # test deprecated command
         self._run_command(
-            ['authorize-account', 'appKeyId1', 'appKey1'],
+            ['authorize-account', key_id_1, key_1],
             None,
             'WARNING: `authorize-account` command is deprecated. Use `account authorize` instead.\n',
             0,
@@ -474,35 +564,22 @@ class TestConsoleTool(BaseConsoleToolTest):
             assert B2_APPLICATION_KEY_ENV_VAR in os.environ
 
             # The first time we're running on this cache there will be output from the implicit "account authorize" call
-            self._run_command(
-                ['key', 'create', 'key1', 'listBuckets,listKeys'],
-                'appKeyId0 appKey0\n',
-                '',
-                0,
-            )
+            self._create_key(['key', 'create', 'key1', 'listBuckets,listKeys'])
 
             # The second time "account authorize" is not called
-            self._run_command(
-                ['key', 'create', 'key1', 'listBuckets,listKeys,writeKeys'],
-                'appKeyId1 appKey1\n',
-                '',
-                0,
+            key_id_1, key_1 = self._create_key(
+                ['key', 'create', 'key1', 'listBuckets,listKeys,writeKeys']
             )
 
             with mock.patch.dict(
                 'os.environ',
                 {
-                    B2_APPLICATION_KEY_ID_ENV_VAR: 'appKeyId1',
-                    B2_APPLICATION_KEY_ENV_VAR: 'appKey1',
+                    B2_APPLICATION_KEY_ID_ENV_VAR: key_id_1,
+                    B2_APPLICATION_KEY_ENV_VAR: key_1,
                 },
             ):
                 # "account authorize" is called when the key changes
-                self._run_command(
-                    ['key', 'create', 'key1', 'listBuckets,listKeys'],
-                    'appKeyId2 appKey2\n',
-                    '',
-                    0,
-                )
+                self._create_key(['key', 'create', 'key1', 'listBuckets,listKeys'])
 
                 # "account authorize" is also called when the realm changes
                 with mock.patch.dict(
@@ -511,22 +588,20 @@ class TestConsoleTool(BaseConsoleToolTest):
                         B2_ENVIRONMENT_ENV_VAR: 'http://custom.example.com',
                     },
                 ):
-                    self._run_command(
+                    self._create_key(
                         ['key', 'create', 'key1', 'listBuckets,listKeys'],
-                        'appKeyId3 appKey3\n',
                         'Using http://custom.example.com\n',
-                        0,
                     )
 
     def test_authorize_key_without_list_buckets(self):
         self._authorize_account()
 
         # Create a key without listBuckets
-        self._run_command(['key', 'create', 'key1', 'listKeys'], 'appKeyId0 appKey0\n', '', 0)
+        key_id, key = self._create_key(['key', 'create', 'key1', 'listKeys'])
 
         # Authorize with the key
         self._run_command(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id, key],
             '',
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
@@ -539,12 +614,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             {'daysFromHidingToDeleting': 1, 'daysFromUploadingToHiding': None, 'fileNamePrefix': ''}
         )
 
-        self._run_command(
-            ['bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rule', rule],
-            'bucket_0\n',
-            '',
-            0,
-        )
+        self._create_bucket('my-bucket', 'allPrivate', '--lifecycle-rule', rule)
 
     def test_create_bucket__with_lifecycle_rules(self):
         self._authorize_account()
@@ -559,12 +629,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             ]
         )
 
-        self._run_command(
-            ['bucket', 'create', 'my-bucket', 'allPrivate', '--lifecycle-rules', rules],
-            'bucket_0\n',
-            '',
-            0,
-        )
+        self._create_bucket('my-bucket', 'allPrivate', '--lifecycle-rules', rules)
 
     def test_create_bucket__mutually_exclusive_lifecycle_rules_options(self):
         self._authorize_account()
@@ -594,34 +659,30 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Make a bucket
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket', 'allPrivate')
 
-        # Create a key restricted to that bucket
-        self._run_command(
-            ['key', 'create', '--bucket', 'my-bucket', 'key1', 'listKeys,listBuckets'],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
+        # Create a key restricted to that bucket. B2 refuses listKeys, writeKeys and deleteKeys on
+        # a bucket-restricted key (https://www.backblaze.com/docs/cloud-storage-application-keys).
+        key_id_0, key_0 = self._create_key(
+            ['key', 'create', '--bucket', 'my-bucket', 'key1', 'listFiles,listBuckets']
         )
 
         # test deprecated command
-        self._run_command(
-            ['create-key', '--bucket', 'my-bucket', 'key2', 'listKeys,listBuckets'],
-            'appKeyId1 appKey1\n',
+        key_id_1, key_1 = self._create_key(
+            ['create-key', '--bucket', 'my-bucket', 'key2', 'listFiles,listBuckets'],
             'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
-            0,
         )
 
         # Authorize with the key
         self._run_command(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id_0, key_0],
             None,
             '',
             0,
         )
 
         self._run_command(
-            ['account', 'authorize', 'appKeyId1', 'appKey1'],
+            ['account', 'authorize', key_id_1, key_1],
             None,
             '',
             0,
@@ -632,11 +693,12 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Make two buckets
-        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(['bucket', 'create', 'my-bucket-1', 'allPrivate'], 'bucket_1\n', '', 0)
+        self._create_bucket('my-bucket-0', 'allPrivate')
+        self._create_bucket('my-bucket-1', 'allPrivate')
 
-        # Create a key restricted to those buckets
-        self._run_command(
+        # Create a key restricted to those buckets (no listKeys on a bucket-restricted key, as
+        # above)
+        key_id_0, key_0 = self._create_key(
             [
                 'key',
                 'create',
@@ -645,15 +707,12 @@ class TestConsoleTool(BaseConsoleToolTest):
                 '--bucket',
                 'my-bucket-1',
                 'key1',
-                'listKeys,listBuckets',
-            ],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
+                'listFiles,listBuckets',
+            ]
         )
 
         # test deprecated command
-        self._run_command(
+        key_id_1, key_1 = self._create_key(
             [
                 'create-key',
                 '--bucket',
@@ -661,23 +720,21 @@ class TestConsoleTool(BaseConsoleToolTest):
                 '--bucket',
                 'my-bucket-1',
                 'key2',
-                'listKeys,listBuckets',
+                'listFiles,listBuckets',
             ],
-            'appKeyId1 appKey1\n',
             'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
-            0,
         )
 
         # Authorize with the key
         self._run_command(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id_0, key_0],
             None,
             '',
             0,
         )
 
         self._run_command(
-            ['account', 'authorize', 'appKeyId1', 'appKey1'],
+            ['account', 'authorize', key_id_1, key_1],
             None,
             '',
             0,
@@ -689,23 +746,16 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         bucket_name = 'my-bucket-liferules'
         # Create a bucket with lifecycleRule
-        self._run_command(
-            [
-                'bucket',
-                'create',
-                '--lifecycle-rule',
-                '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}',
-                bucket_name,
-                'allPrivate',
-            ],
-            'bucket_0\n',
-            '',
-            0,
+        bucket_id = self._create_bucket(
+            bucket_name,
+            '--lifecycle-rule',
+            '{"daysFromHidingToDeleting": 2, "fileNamePrefix": "foo"}',
+            'allPrivate',
         )
 
         expected_stdout_dict = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_id,
             'bucketInfo': {'xxx': '123'},
             'bucketName': 'my-bucket-liferules',
             'bucketType': 'allPrivate',
@@ -753,21 +803,21 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Make two buckets
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(['bucket', 'create', 'your-bucket', 'allPrivate'], 'bucket_1\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket', 'allPrivate')
+        bucket_1 = self._create_bucket('your-bucket', 'allPrivate')
 
         # Update one of them
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 2,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(1),
         }
 
         self._run_command(
@@ -776,11 +826,12 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Make sure they are there
         expected_stdout = """
-        bucket_0  allPublic   my-bucket
-        bucket_1  allPrivate  your-bucket
+        {bucket_0}  allPublic   my-bucket
+        {bucket_1}  allPrivate  your-bucket
         """
+        bucket_ids = {'bucket_0': bucket_0, 'bucket_1': bucket_1}
 
-        self._run_command(['bucket', 'list'], expected_stdout, '', 0)
+        self._run_command(['bucket', 'list'], expected_stdout, '', 0, format_vars=bucket_ids)
 
         # Delete one
         expected_stdout = ''
@@ -798,31 +849,32 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command(['create-bucket', 'bad/bucket/name', 'allPublic'], '', expected_stderr, 1)
 
         # Make two buckets
-        self._run_command(
-            ['create-bucket', 'my-bucket', 'allPrivate'],
-            'bucket_0\n',
-            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n',
-            0,
+        deprecation = (
+            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n'
         )
-        self._run_command(
-            ['create-bucket', 'your-bucket', 'allPrivate'],
-            'bucket_1\n',
-            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n',
-            0,
+        _, stdout, _ = self._run_command(
+            ['create-bucket', 'my-bucket', 'allPrivate'], None, deprecation, 0
         )
+        bucket_0 = self.b2_api.get_bucket_by_name('my-bucket').id_
+        self.assertEqual(f'{bucket_0}\n', stdout)
+        _, stdout, _ = self._run_command(
+            ['create-bucket', 'your-bucket', 'allPrivate'], None, deprecation, 0
+        )
+        bucket_1 = self.b2_api.get_bucket_by_name('your-bucket').id_
+        self.assertEqual(f'{bucket_1}\n', stdout)
 
         # Update one of them
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 2,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(1),
         }
 
         self._run_command(
@@ -833,15 +885,17 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Make sure they are there
         expected_stdout = """
-        bucket_0  allPublic   my-bucket
-        bucket_1  allPrivate  your-bucket
+        {bucket_0}  allPublic   my-bucket
+        {bucket_1}  allPrivate  your-bucket
         """
+        bucket_ids = {'bucket_0': bucket_0, 'bucket_1': bucket_1}
 
         self._run_command(
             ['list-buckets'],
             expected_stdout,
             'WARNING: `list-buckets` command is deprecated. Use `bucket list` instead.\n',
             0,
+            format_vars=bucket_ids,
         )
 
         # Delete one
@@ -858,32 +912,23 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._authorize_account()
 
         # Make two encrypted buckets
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(
-            [
-                'bucket',
-                'create',
-                '--default-server-side-encryption=SSE-B2',
-                'your-bucket',
-                'allPrivate',
-            ],
-            'bucket_1\n',
-            '',
-            0,
+        bucket_0 = self._create_bucket('my-bucket', 'allPrivate')
+        bucket_1 = self._create_bucket(
+            'your-bucket', '--default-server-side-encryption=SSE-B2', 'allPrivate'
         )
 
         # Update the one without encryption
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 2,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(1),
         }
 
         self._run_command(
@@ -900,15 +945,15 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Update the one with encryption
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_1',
+            'bucketId': bucket_1,
             'bucketInfo': {},
             'bucketName': 'your-bucket',
             'bucketType': 'allPrivate',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 2,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(1),
         }
 
         self._run_command(
@@ -917,24 +962,29 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Make sure they are there
         expected_stdout = """
-        bucket_0  allPublic   my-bucket
-        bucket_1  allPrivate  your-bucket
+        {bucket_0}  allPublic   my-bucket
+        {bucket_1}  allPrivate  your-bucket
         """
+        bucket_ids = {'bucket_0': bucket_0, 'bucket_1': bucket_1}
 
-        self._run_command(['bucket', 'list'], expected_stdout, '', 0)
+        self._run_command(['bucket', 'list'], expected_stdout, '', 0, format_vars=bucket_ids)
 
     def test_keys(self):
         self._authorize_account()
 
-        self._run_command(['bucket', 'create', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
-        self._run_command(['bucket', 'create', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
-        self._run_command(['bucket', 'create', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket-a', 'allPublic')
+        bucket_1 = self._create_bucket('my-bucket-b', 'allPublic')
+        bucket_2 = self._create_bucket('my-bucket-c', 'allPublic')
 
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
 
-        # Make a key with an illegal name
-        expected_stderr = 'ERROR: Bad request: illegal key name: bad_key_name\n'
+        # Make a key with an illegal name. Real B2's text (measured 2026-11-27, b2-simulator ledger
+        # F-148); RawSimulator has its own.
+        expected_stderr = self._b2(
+            'ERROR: Bad request: illegal key name: bad_key_name\n',
+            "ERROR: Invalid characters in keyName: must be alphanumeric or '-' (bad_request)\n",
+        )
         self._run_command(
             ['key', 'create', 'bad_key_name', capabilities_with_commas], '', expected_stderr, 1
         )
@@ -967,13 +1017,10 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Create three keys
-        self._run_command(
-            ['key', 'create', 'goodKeyName-One', capabilities_with_commas],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
+        key_id_0, key_0 = self._create_key(
+            ['key', 'create', 'goodKeyName-One', capabilities_with_commas]
         )
-        self._run_command(
+        key_id_1, key_1 = self._create_key(
             [
                 'key',
                 'create',
@@ -981,12 +1028,9 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'my-bucket-a',
                 'goodKeyName-Two',
                 capabilities_with_commas + ',readBucketEncryption',
-            ],
-            'appKeyId1 appKey1\n',
-            '',
-            0,
+            ]
         )
-        self._run_command(
+        key_id_2, _ = self._create_key(
             [
                 'key',
                 'create',
@@ -994,18 +1038,10 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'my-bucket-b',
                 'goodKeyName-Three',
                 capabilities_with_commas,
-            ],
-            'appKeyId2 appKey2\n',
-            '',
-            0,
+            ]
         )
-        self._run_command(
-            ['key', 'create', '--all-capabilities', 'goodKeyName-Four'],
-            'appKeyId3 appKey3\n',
-            '',
-            0,
-        )
-        self._run_command(
+        key_id_3, _ = self._create_key(['key', 'create', '--all-capabilities', 'goodKeyName-Four'])
+        key_id_4, _ = self._create_key(
             [
                 'key',
                 'create',
@@ -1013,25 +1049,20 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'my-bucket-b',
                 'goodKeyName-Five',
                 capabilities_with_commas,
-            ],
-            'appKeyId4 appKey4\n',
-            '',
-            0,
+            ]
         )
-        self._run_command(
+        key_id_5, _ = self._create_key(
             ['create-key', '--bucket', 'my-bucket-b', 'goodKeyName-Six', capabilities_with_commas],
-            'appKeyId5 appKey5\n',
             'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
-            0,
         )
 
         # Delete one key
-        self._run_command(['key', 'delete', 'appKeyId2'], 'appKeyId2\n', '', 0)
+        self._run_command(['key', 'delete', key_id_2], f'{key_id_2}\n', '', 0)
 
         # test deprecated command
         self._run_command(
-            ['delete-key', 'appKeyId5'],
-            'appKeyId5\n',
+            ['delete-key', key_id_5],
+            f'{key_id_5}\n',
             'WARNING: `delete-key` command is deprecated. Use `key delete` instead.\n',
             0,
         )
@@ -1040,61 +1071,81 @@ class TestConsoleTool(BaseConsoleToolTest):
         self._run_command_ignore_output(['bucket', 'delete', 'my-bucket-b'])
 
         # List keys
+        key_ids = {
+            'key_id_0': key_id_0,
+            'key_id_1': key_id_1,
+            'key_id_3': key_id_3,
+            'key_id_4': key_id_4,
+            # A deleted bucket is shown by its id
+            'deleted_bucket': f'id={bucket_1}',
+            # `--all-capabilities` asks for b2sdk's ALL_CAPABILITIES plus every capability of the
+            # key in use (here the master key, which B2 may give capabilities b2sdk does not name)
+            'all_capabilities': ','.join(
+                sorted(
+                    set(ALL_CAPABILITIES)
+                    | set(self._master_b2_api().account_info.get_allowed()['capabilities'])
+                )
+            ),
+        }
         expected_list_keys_out = """
-            appKeyId0   goodKeyName-One
-            appKeyId1   goodKeyName-Two
-            appKeyId3   goodKeyName-Four
-            appKeyId4   goodKeyName-Five
+            {key_id_0}   goodKeyName-One
+            {key_id_1}   goodKeyName-Two
+            {key_id_3}   goodKeyName-Four
+            {key_id_4}   goodKeyName-Five
             """
 
         expected_list_keys_out_long = """
-            appKeyId0   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
-            appKeyId1   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
-            appKeyId3   goodKeyName-Four       -                      -            -          ''   {}
-            appKeyId4   goodKeyName-Five       id=bucket_1            -            -          ''   readFiles,listBuckets
-            """.format(','.join(sorted(ALL_CAPABILITIES)))
+            {key_id_0}   goodKeyName-One        -                      -            -          ''   readFiles,listBuckets
+            {key_id_1}   goodKeyName-Two        my-bucket-a            -            -          ''   readFiles,listBuckets,readBucketEncryption
+            {key_id_3}   goodKeyName-Four       -                      -            -          ''   {all_capabilities}
+            {key_id_4}   goodKeyName-Five       {deleted_bucket:20s}   -            -          ''   readFiles,listBuckets
+            """
 
-        self._run_command(['key', 'list'], expected_list_keys_out, '', 0)
-        self._run_command(['key', 'list', '--long'], expected_list_keys_out_long, '', 0)
+        self._run_command(['key', 'list'], expected_list_keys_out, '', 0, format_vars=key_ids)
+        self._run_command(
+            ['key', 'list', '--long'], expected_list_keys_out_long, '', 0, format_vars=key_ids
+        )
 
         self._run_command(
             ['list-keys'],
             expected_list_keys_out,
             'WARNING: `list-keys` command is deprecated. Use `key list` instead.\n',
             0,
+            format_vars=key_ids,
         )
         self._run_command(
             ['list-keys', '--long'],
             expected_list_keys_out_long,
             'WARNING: `list-keys` command is deprecated. Use `key list` instead.\n',
             0,
+            format_vars=key_ids,
         )
 
         # authorize and make calls using application key with no restrictions
-        self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], None, '', 0)
+        self._run_command(['account', 'authorize', key_id_0, key_0], None, '', 0)
         self._run_command(
             ['bucket', 'list'],
-            'bucket_0  allPublic   my-bucket-a\nbucket_2  allPublic   my-bucket-c\n',
+            f'{bucket_0}  allPublic   my-bucket-a\n{bucket_2}  allPublic   my-bucket-c\n',
             '',
             0,
         )
 
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket-a',
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultServerSideEncryption': {'mode': None},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
         }
         self._run_command(['bucket', 'get', 'my-bucket-a'], expected_json_in_stdout=expected_json)
 
         # authorize and make calls using an application key with bucket restrictions
-        self._run_command(['account', 'authorize', 'appKeyId1', 'appKey1'], None, '', 0)
+        self._run_command(['account', 'authorize', key_id_1, key_1], None, '', 0)
 
         self._run_command(
             ['bucket', 'list'],
@@ -1111,15 +1162,15 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket-a',
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
         }
 
         self._run_command(['bucket', 'get', 'my-bucket-a'], expected_json_in_stdout=expected_json)
@@ -1133,9 +1184,9 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_multi_bucket_keys(self):
         self._authorize_account()
 
-        self._run_command(['bucket', 'create', 'my-bucket-a', 'allPublic'], 'bucket_0\n', '', 0)
-        self._run_command(['bucket', 'create', 'my-bucket-b', 'allPublic'], 'bucket_1\n', '', 0)
-        self._run_command(['bucket', 'create', 'my-bucket-c', 'allPublic'], 'bucket_2\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket-a', 'allPublic')
+        bucket_1 = self._create_bucket('my-bucket-b', 'allPublic')
+        self._create_bucket('my-bucket-c', 'allPublic')
 
         capabilities = ['readFiles', 'listBuckets']
         capabilities_with_commas = ','.join(capabilities)
@@ -1160,7 +1211,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         )
 
         # Create a multi-bucket key
-        self._run_command(
+        key_id, key = self._create_key(
             [
                 'key',
                 'create',
@@ -1170,24 +1221,27 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'my-bucket-b',
                 'goodKeyName',
                 capabilities_with_commas,
-            ],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
+            ]
         )
 
         # List keys
-        expected_list_keys_out = 'appKeyId0   goodKeyName\n'
+        expected_list_keys_out = f'{key_id}   goodKeyName\n'
 
         expected_list_keys_out_long = """
-            appKeyId0   goodKeyName            my-bucket-a, my-bucket-b   -            -          ''   readFiles,listBuckets
+            {key_id}   goodKeyName            my-bucket-a, my-bucket-b   -            -          ''   readFiles,listBuckets
             """
 
         self._run_command(['key', 'list'], expected_list_keys_out, '', 0)
-        self._run_command(['key', 'list', '--long'], expected_list_keys_out_long, '', 0)
+        self._run_command(
+            ['key', 'list', '--long'],
+            expected_list_keys_out_long,
+            '',
+            0,
+            format_vars={'key_id': key_id},
+        )
 
         # authorize and make calls using an application key with bucket restrictions
-        self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], None, '', 0)
+        self._run_command(['account', 'authorize', key_id, key], None, '', 0)
 
         self._run_command(
             ['bucket', 'list'],
@@ -1212,18 +1266,18 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'corsRules': [],
                 'defaultServerSideEncryption': {'mode': None},
                 'lifecycleRules': [],
-                'options': [],
-                'revision': 1,
+                'options': self._bucket_options,
+                'revision': self._bucket_revision(0),
             }
 
         self._run_command(
             ['bucket', 'get', 'my-bucket-a'],
-            expected_json_in_stdout=_get_expected_json('bucket_0', 'my-bucket-a'),
+            expected_json_in_stdout=_get_expected_json(bucket_0, 'my-bucket-a'),
         )
 
         self._run_command(
             ['bucket', 'get', 'my-bucket-b'],
-            expected_json_in_stdout=_get_expected_json('bucket_1', 'my-bucket-b'),
+            expected_json_in_stdout=_get_expected_json(bucket_1, 'my-bucket-b'),
         )
 
         self._run_command(
@@ -1235,21 +1289,21 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_bucket_info_from_json(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket', 'allPublic')
 
         bucket_info = {'color': 'blue'}
 
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {'color': 'blue'},
             'bucketName': 'my-bucket',
             'bucketType': 'allPrivate',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 2,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(1),
         }
         self._run_command(
             [
@@ -1266,7 +1320,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     @pytest.mark.apiver(from_ver=4)
     def test_rm_fileid_v4(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket', 'allPublic')
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -1289,20 +1343,22 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ],
                 remove_version=True,
             )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'file1.txt')
 
             # Hide file
             self._run_command(
                 ['file', 'hide', 'b2://my-bucket/file1.txt'],
             )
 
+            hide_id, upload_id = (v.id_ for v in self._versions('my-bucket', 'file1.txt'))
             # Delete one file version
-            self._run_command(['rm', 'b2id://9998'])
+            self._run_command(['rm', f'b2id://{hide_id}'])
             # Delete one file version
-            self._run_command(['rm', 'b2id://9999'])
+            self._run_command(['rm', f'b2id://{upload_id}'])
 
     def test_hide_file_legacy_syntax(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket', 'allPublic')
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -1325,50 +1381,50 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ],
                 remove_version=True,
             )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'file1.txt')
 
             # Get file info
             expected_json = {
                 'accountId': self.account_id,
                 'action': 'upload',
-                'bucketId': 'bucket_0',
+                'bucketId': bucket_0,
                 'size': 11,
                 'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
                 'fileInfo': {
                     'src_last_modified_millis': '1500111222000',
                     'b2-cache-control': 'private, max-age=3600',
                 },
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'uploadTimestamp': 5000,
+                'uploadTimestamp': upload_ts,
             }
 
             self._run_command(
-                ['file', 'info', 'b2id://9999'],
+                ['file', 'info', f'b2id://{upload_id}'],
                 expected_json_in_stdout=expected_json,
             )
 
             # Hide the file
+            _, stdout, _ = self._run_command(['file', 'hide', 'b2://my-bucket/file1.txt'])
+            hide_id, hide_ts = self._newest_version('my-bucket', 'file1.txt')
             expected_json = {
                 'action': 'hide',
-                'contentSha1': 'none',
-                'fileId': '9998',
+                'contentSha1': self._hide_marker_sha1,
+                'fileId': hide_id,
                 'fileInfo': {},
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'mode': 'none'},
                 'size': 0,
-                'uploadTimestamp': 5001,
+                'uploadTimestamp': hide_ts,
             }
 
-            self._run_command(
-                ['file', 'hide', 'b2://my-bucket/file1.txt'],
-                expected_json_in_stdout=expected_json,
-            )
+            self._assert_json_in_stdout(expected_json, stdout)
 
     def test_files(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket', 'allPublic')
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -1379,25 +1435,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             self.assertEqual(1500111222, os.path.getmtime(local_file1))
 
             # Upload a file
-            expected_stdout = """
-            URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999"""
-            expected_json = {
-                'action': 'upload',
-                'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
-                'fileInfo': {
-                    'src_last_modified_millis': '1500111222000',
-                    'b2-cache-control': 'private, max-age=3600',
-                },
-                'fileName': 'file1.txt',
-                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'size': 11,
-                'uploadTimestamp': 5000,
-            }
-
-            self._run_command(
+            _, stdout, _ = self._run_command(
                 [
                     'file',
                     'upload',
@@ -1407,9 +1445,35 @@ class TestConsoleTool(BaseConsoleToolTest):
                     'file1.txt',
                     '--cache-control=private, max-age=3600',
                 ],
-                expected_json_in_stdout=expected_json,
                 remove_version=True,
-                expected_part_of_stdout=expected_stdout,
+            )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'file1.txt')
+            upload_id, upload_ts = self._newest_version('my-bucket', 'file1.txt')
+            expected_stdout = """
+            URL by file name: {download_url}/file/my-bucket/file1.txt
+            URL by fileId: {download_url}/b2api/vx/b2_download_file_by_id?fileId={upload_id}"""
+            expected_json = {
+                'action': 'upload',
+                'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
+                'fileInfo': {
+                    'src_last_modified_millis': '1500111222000',
+                    'b2-cache-control': 'private, max-age=3600',
+                },
+                'fileName': 'file1.txt',
+                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
+                'size': 11,
+                'uploadTimestamp': upload_ts,
+            }
+
+            self._assert_json_in_stdout(expected_json, stdout)
+            self.assertIn(
+                self._normalize_expected_output(
+                    expected_stdout,
+                    {'download_url': self.account_info.get_download_url(), 'upload_id': upload_id},
+                ),
+                stdout,
             )
 
             # Get file info
@@ -1417,59 +1481,58 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json = {
                 'accountId': self.account_id,
                 'action': 'upload',
-                'bucketId': 'bucket_0',
+                'bucketId': bucket_0,
                 'size': 11,
                 'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
                 'fileInfo': {
                     'src_last_modified_millis': '1500111222000',
                     'b2-cache-control': 'private, max-age=3600',
                 },
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'uploadTimestamp': 5000,
+                'uploadTimestamp': upload_ts,
             }
 
             self._run_command(
-                ['file', 'info', 'b2id://9999'],
+                ['file', 'info', f'b2id://{upload_id}'],
                 expected_json_in_stdout=expected_json,
             )
 
             # Hide the file
+            _, stdout, _ = self._run_command(['file', 'hide', 'b2://my-bucket/file1.txt'])
+            hide_id, hide_ts = self._newest_version('my-bucket', 'file1.txt')
             expected_json = {
                 'action': 'hide',
-                'contentSha1': 'none',
-                'fileId': '9998',
+                'contentSha1': self._hide_marker_sha1,
+                'fileId': hide_id,
                 'fileInfo': {},
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'mode': 'none'},
                 'size': 0,
-                'uploadTimestamp': 5001,
+                'uploadTimestamp': hide_ts,
             }
 
-            self._run_command(
-                ['file', 'hide', 'b2://my-bucket/file1.txt'],
-                expected_json_in_stdout=expected_json,
-            )
+            self._assert_json_in_stdout(expected_json, stdout)
 
             # List the file versions
             expected_json = [
                 {
                     'action': 'hide',
-                    'contentSha1': 'none',
-                    'fileId': '9998',
+                    'contentSha1': self._hide_marker_sha1,
+                    'fileId': hide_id,
                     'fileInfo': {},
                     'fileName': 'file1.txt',
                     'serverSideEncryption': {'mode': 'none'},
                     'size': 0,
-                    'uploadTimestamp': 5001,
+                    'uploadTimestamp': hide_ts,
                 },
                 {
                     'action': 'upload',
                     'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                    'contentType': 'b2/x-auto',
-                    'fileId': '9999',
+                    'contentType': self._b2('b2/x-auto', 'text/plain'),
+                    'fileId': upload_id,
                     'fileInfo': {
                         'src_last_modified_millis': str(mod_time_str),
                         'b2-cache-control': 'private, max-age=3600',
@@ -1477,7 +1540,7 @@ class TestConsoleTool(BaseConsoleToolTest):
                     'fileName': 'file1.txt',
                     'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
                     'size': 11,
-                    'uploadTimestamp': 5000,
+                    'uploadTimestamp': upload_ts,
                 },
             ]
 
@@ -1496,26 +1559,26 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             # Delete one file version, passing the name in
-            expected_json = {'action': 'delete', 'fileId': '9998', 'fileName': 'file1.txt'}
+            expected_json = {'action': 'delete', 'fileId': hide_id, 'fileName': 'file1.txt'}
 
             self._run_command(
-                ['delete-file-version', 'file1.txt', '9998'],
+                ['delete-file-version', 'file1.txt', hide_id],
                 expected_stderr='WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
             # Delete one file version, not passing the name in
-            expected_json = {'action': 'delete', 'fileId': '9999', 'fileName': 'file1.txt'}
+            expected_json = {'action': 'delete', 'fileId': upload_id, 'fileName': 'file1.txt'}
 
             self._run_command(
-                ['delete-file-version', '9999'],
+                ['delete-file-version', upload_id],
                 expected_stderr='WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
     def test_files_encrypted(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        bucket_0 = self._create_bucket('my-bucket', 'allPublic')
 
         with TempDir() as temp_dir:
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
@@ -1526,22 +1589,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             self.assertEqual(1500111222, os.path.getmtime(local_file1))
 
             # Upload a file
-            expected_stdout = """
-            URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999"""
-            expected_json = {
-                'action': 'upload',
-                'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
-                'fileInfo': {'src_last_modified_millis': '1500111222000'},
-                'fileName': 'file1.txt',
-                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'size': 11,
-                'uploadTimestamp': 5000,
-            }
-
-            self._run_command(
+            _, stdout, _ = self._run_command(
                 [
                     'file',
                     'upload',
@@ -1551,9 +1599,31 @@ class TestConsoleTool(BaseConsoleToolTest):
                     local_file1,
                     'file1.txt',
                 ],
-                expected_json_in_stdout=expected_json,
                 remove_version=True,
-                expected_part_of_stdout=expected_stdout,
+            )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'file1.txt')
+            expected_stdout = """
+            URL by file name: {download_url}/file/my-bucket/file1.txt
+            URL by fileId: {download_url}/b2api/vx/b2_download_file_by_id?fileId={upload_id}"""
+            expected_json = {
+                'action': 'upload',
+                'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
+                'fileInfo': {'src_last_modified_millis': '1500111222000'},
+                'fileName': 'file1.txt',
+                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
+                'size': 11,
+                'uploadTimestamp': upload_ts,
+            }
+
+            self._assert_json_in_stdout(expected_json, stdout)
+            self.assertIn(
+                self._normalize_expected_output(
+                    expected_stdout,
+                    {'download_url': self.account_info.get_download_url(), 'upload_id': upload_id},
+                ),
+                stdout,
             )
 
             # Get file info
@@ -1561,30 +1631,30 @@ class TestConsoleTool(BaseConsoleToolTest):
             expected_json = {
                 'accountId': self.account_id,
                 'action': 'upload',
-                'bucketId': 'bucket_0',
+                'bucketId': bucket_0,
                 'size': 11,
                 'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
                 'fileInfo': {'src_last_modified_millis': '1500111222000'},
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'uploadTimestamp': 5000,
+                'uploadTimestamp': upload_ts,
             }
 
             self._run_command(
-                ['file', 'info', 'b2id://9999'],
+                ['file', 'info', f'b2id://{upload_id}'],
                 expected_json_in_stdout=expected_json,
             )
 
             self._run_command(
-                ['file-info', 'b2id://9999'],
+                ['file-info', f'b2id://{upload_id}'],
                 expected_stderr='WARNING: `file-info` command is deprecated. Use `file info` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
             self._run_command(
-                ['get-file-info', '9999'],
+                ['get-file-info', upload_id],
                 expected_stderr='WARNING: `get-file-info` command is deprecated. Use `file info` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
@@ -1593,10 +1663,10 @@ class TestConsoleTool(BaseConsoleToolTest):
             local_download1 = os.path.join(temp_dir, 'download1.txt')
             expected_stdout_template = """
             File name:           file1.txt
-            File id:             9999
+            File id:             {file_id}
             Output file path:    {output_path}
             File size:           11
-            Content type:        b2/x-auto
+            Content type:        {content_type}
             Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
             Encryption:          mode=SSE-B2, algorithm=AES256
             Retention:           none
@@ -1606,7 +1676,9 @@ class TestConsoleTool(BaseConsoleToolTest):
             Download finished
             """
             expected_stdout = expected_stdout_template.format(
-                output_path=pathlib.Path(local_download1).resolve()
+                output_path=pathlib.Path(local_download1).resolve(),
+                file_id=upload_id,
+                content_type=self._b2('b2/x-auto', 'text/plain'),
             )
 
             self._run_command(
@@ -1621,10 +1693,12 @@ class TestConsoleTool(BaseConsoleToolTest):
             # Download file by ID.  (Same expected output as downloading by name)
             local_download2 = os.path.join(temp_dir, 'download2.txt')
             expected_stdout = expected_stdout_template.format(
-                output_path=pathlib.Path(local_download2).resolve()
+                output_path=pathlib.Path(local_download2).resolve(),
+                file_id=upload_id,
+                content_type=self._b2('b2/x-auto', 'text/plain'),
             )
             self._run_command(
-                ['file', 'download', '--no-progress', 'b2id://9999', local_download2],
+                ['file', 'download', '--no-progress', f'b2id://{upload_id}', local_download2],
                 expected_stdout,
                 '',
                 0,
@@ -1632,44 +1706,43 @@ class TestConsoleTool(BaseConsoleToolTest):
             self.assertEqual(b'hello world', self._read_file(local_download2))
 
             # Hide the file
+            _, stdout, _ = self._run_command(['file', 'hide', 'b2://my-bucket/file1.txt'])
+            hide_id, hide_ts = self._newest_version('my-bucket', 'file1.txt')
             expected_json = {
                 'action': 'hide',
-                'contentSha1': 'none',
-                'fileId': '9998',
+                'contentSha1': self._hide_marker_sha1,
+                'fileId': hide_id,
                 'fileInfo': {},
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'mode': 'none'},
                 'size': 0,
-                'uploadTimestamp': 5001,
+                'uploadTimestamp': hide_ts,
             }
 
-            self._run_command(
-                ['file', 'hide', 'b2://my-bucket/file1.txt'],
-                expected_json_in_stdout=expected_json,
-            )
+            self._assert_json_in_stdout(expected_json, stdout)
 
             # List the file versions
             expected_json = [
                 {
                     'action': 'hide',
-                    'contentSha1': 'none',
-                    'fileId': '9998',
+                    'contentSha1': self._hide_marker_sha1,
+                    'fileId': hide_id,
                     'fileInfo': {},
                     'fileName': 'file1.txt',
                     'serverSideEncryption': {'mode': 'none'},
                     'size': 0,
-                    'uploadTimestamp': 5001,
+                    'uploadTimestamp': hide_ts,
                 },
                 {
                     'action': 'upload',
                     'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                    'contentType': 'b2/x-auto',
-                    'fileId': '9999',
+                    'contentType': self._b2('b2/x-auto', 'text/plain'),
+                    'fileId': upload_id,
                     'fileInfo': {'src_last_modified_millis': str(mod_time_str)},
                     'fileName': 'file1.txt',
                     'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
                     'size': 11,
-                    'uploadTimestamp': 5000,
+                    'uploadTimestamp': upload_ts,
                 },
             ]
 
@@ -1688,19 +1761,19 @@ class TestConsoleTool(BaseConsoleToolTest):
             )
 
             # Delete one file version, passing the name in
-            expected_json = {'action': 'delete', 'fileId': '9998', 'fileName': 'file1.txt'}
+            expected_json = {'action': 'delete', 'fileId': hide_id, 'fileName': 'file1.txt'}
 
             self._run_command(
-                ['delete-file-version', 'file1.txt', '9998'],
+                ['delete-file-version', 'file1.txt', hide_id],
                 expected_stderr='WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
 
             # Delete one file version, not passing the name in
-            expected_json = {'action': 'delete', 'fileId': '9999', 'fileName': 'file1.txt'}
+            expected_json = {'action': 'delete', 'fileId': upload_id, 'fileName': 'file1.txt'}
 
             self._run_command(
-                ['delete-file-version', '9999'],
+                ['delete-file-version', upload_id],
                 expected_stderr='WARNING: `delete-file-version` command is deprecated. Use `rm` instead.\n',
                 expected_json_in_stdout=expected_json,
             )
@@ -1721,8 +1794,13 @@ class TestConsoleTool(BaseConsoleToolTest):
                 ['file', 'upload', '--no-progress', 'my-bucket', local_file, source_filename],
                 remove_version=True,
             )
+            file_id, _ = self._newest_version('my-bucket', source_filename)
 
-            b2uri = f'b2://my-bucket/{source_filename}' if download_by == 'name' else 'b2id://9999'
+            b2uri = (
+                f'b2://my-bucket/{source_filename}'
+                if download_by == 'name'
+                else f'b2id://{file_id}'
+            )
             command = [
                 'file',
                 'download',
@@ -1757,18 +1835,18 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_download_auth_defaults(self):
         self._authorize_account()
-        self._create_my_bucket()
-        self._run_command(
-            ['bucket', 'get-download-auth', 'my-bucket'],
-            'fake_download_auth_token_bucket_0__86400\n',
-            '',
-            0,
-        )
+        bucket_id = self._create_my_bucket()
+        authorizations = self._record_download_authorizations()
+        _, stdout, _ = self._run_command(['bucket', 'get-download-auth', 'my-bucket'], None, '', 0)
+        [(request, answer)] = authorizations
+        self.assertEqual((bucket_id, '', 86400), request)
+        self.assertEqual(f"{answer['authorizationToken']}\n", stdout)
 
     def test_get_download_auth_explicit(self):
         self._authorize_account()
-        self._create_my_bucket()
-        self._run_command(
+        bucket_id = self._create_my_bucket()
+        authorizations = self._record_download_authorizations()
+        _, stdout, _ = self._run_command(
             [
                 'bucket',
                 'get-download-auth',
@@ -1778,42 +1856,63 @@ class TestConsoleTool(BaseConsoleToolTest):
                 '12345',
                 'my-bucket',
             ],
-            'fake_download_auth_token_bucket_0_prefix_12345\n',
+            None,
             '',
             0,
         )
+        [(request, answer)] = authorizations
+        self.assertEqual((bucket_id, 'prefix', 12345), request)
+        self.assertEqual(f"{answer['authorizationToken']}\n", stdout)
 
     def test_get_download_auth_url(self):
         self._authorize_account()
-        self._create_my_bucket()
-        self._run_command(
+        bucket_id = self._create_my_bucket()
+        authorizations = self._record_download_authorizations()
+        _, stdout, _ = self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', 'my-file'],
-            'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
+            None,
             'WARNING: `get-download-url-with-auth` command is deprecated. Use `file url` instead.\n',
             0,
         )
-        self._run_command(
+        _, stdout_2, _ = self._run_command(
             ['file', 'url', '--with-auth', '--duration', '12345', 'b2://my-bucket/my-file'],
-            'http://download.example.com/file/my-bucket/my-file?Authorization=fake_download_auth_token_bucket_0_my-file_12345\n',
+            None,
             '',
             0,
         )
+        download_url = self.account_info.get_download_url()
+        self.assertEqual(2, len(authorizations))
+        for (request, answer), output in zip(authorizations, (stdout, stdout_2)):
+            self.assertEqual((bucket_id, 'my-file', 12345), request)
+            self.assertEqual(
+                f"{download_url}/file/my-bucket/my-file?Authorization={answer['authorizationToken']}\n",
+                output,
+            )
 
     def test_get_download_auth_url_with_encoding(self):
         self._authorize_account()
-        self._create_my_bucket()
-        self._run_command(
+        bucket_id = self._create_my_bucket()
+        authorizations = self._record_download_authorizations()
+        _, stdout, _ = self._run_command(
             ['get-download-url-with-auth', '--duration', '12345', 'my-bucket', '\u81ea'],
-            'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
+            None,
             'WARNING: `get-download-url-with-auth` command is deprecated. Use `file url` instead.\n',
             0,
         )
-        self._run_command(
+        _, stdout_2, _ = self._run_command(
             ['file', 'url', '--with-auth', '--duration', '12345', 'b2://my-bucket/\u81ea'],
-            'http://download.example.com/file/my-bucket/%E8%87%AA?Authorization=fake_download_auth_token_bucket_0_%E8%87%AA_12345\n',
+            None,
             '',
             0,
         )
+        download_url = self.account_info.get_download_url()
+        self.assertEqual(2, len(authorizations))
+        for (request, answer), output in zip(authorizations, (stdout, stdout_2)):
+            self.assertEqual((bucket_id, '\u81ea', 12345), request)
+            self.assertEqual(
+                f"{download_url}/file/my-bucket/%E8%87%AA?Authorization={answer['authorizationToken']}\n",
+                output,
+            )
 
     def test_list_unfinished_large_files_with_none(self):
         self._authorize_account()
@@ -1836,26 +1935,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             text = '*' * file_size
             with open(file_path, 'wb') as f:
                 f.write(text.encode('utf-8'))
-            mod_time_str = str(file_mod_time_millis(file_path))
-            expected_stdout = """
-            URL by file name: http://download.example.com/file/my-bucket/test.txt
-            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999"""
-            expected_json = {
-                'action': 'upload',
-                'contentSha1': 'none',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
-                'fileInfo': {
-                    'large_file_sha1': 'cc8954ec25e0c564b6a693fb22200e4f832c18e8',
-                    'src_last_modified_millis': str(mod_time_str),
-                },
-                'fileName': 'test.txt',
-                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'size': 600,
-                'uploadTimestamp': 5000,
-            }
-
-            self._run_command(
+            _, stdout, _ = self._run_command(
                 [
                     'file',
                     'upload',
@@ -1866,14 +1946,40 @@ class TestConsoleTool(BaseConsoleToolTest):
                     file_path,
                     'test.txt',
                 ],
-                expected_json_in_stdout=expected_json,
                 remove_version=True,
-                expected_part_of_stdout=expected_stdout,
+            )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'test.txt')
+            mod_time_str = str(file_mod_time_millis(file_path))
+            expected_stdout = """
+            URL by file name: {download_url}/file/my-bucket/test.txt
+            URL by fileId: {download_url}/b2api/vx/b2_download_file_by_id?fileId={upload_id}"""
+            expected_json = {
+                'action': 'upload',
+                'contentSha1': 'none',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
+                'fileInfo': {
+                    'large_file_sha1': 'cc8954ec25e0c564b6a693fb22200e4f832c18e8',
+                    'src_last_modified_millis': str(mod_time_str),
+                },
+                'fileName': 'test.txt',
+                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
+                'size': 600,
+                'uploadTimestamp': upload_ts,
+            }
+
+            self._assert_json_in_stdout(expected_json, stdout)
+            self.assertIn(
+                self._normalize_expected_output(
+                    expected_stdout,
+                    {'download_url': self.account_info.get_download_url(), 'upload_id': upload_id},
+                ),
+                stdout,
             )
 
     def test_upload_large_file_encrypted(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket', 'allPublic')
         min_part_size = self.account_info.get_recommended_part_size()
         file_size = min_part_size * 3
 
@@ -1882,26 +1988,7 @@ class TestConsoleTool(BaseConsoleToolTest):
             text = '*' * file_size
             with open(file_path, 'wb') as f:
                 f.write(text.encode('utf-8'))
-            mod_time_str = str(file_mod_time_millis(file_path))
-            expected_stdout = """
-            URL by file name: http://download.example.com/file/my-bucket/test.txt
-            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999"""
-            expected_json = {
-                'action': 'upload',
-                'contentSha1': 'none',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
-                'fileInfo': {
-                    'large_file_sha1': 'cc8954ec25e0c564b6a693fb22200e4f832c18e8',
-                    'src_last_modified_millis': str(mod_time_str),
-                },
-                'fileName': 'test.txt',
-                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
-                'size': 600,
-                'uploadTimestamp': 5000,
-            }
-
-            self._run_command(
+            _, stdout, _ = self._run_command(
                 [
                     'file',
                     'upload',
@@ -1913,14 +2000,40 @@ class TestConsoleTool(BaseConsoleToolTest):
                     file_path,
                     'test.txt',
                 ],
-                expected_json_in_stdout=expected_json,
                 remove_version=True,
-                expected_part_of_stdout=expected_stdout,
+            )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'test.txt')
+            mod_time_str = str(file_mod_time_millis(file_path))
+            expected_stdout = """
+            URL by file name: {download_url}/file/my-bucket/test.txt
+            URL by fileId: {download_url}/b2api/vx/b2_download_file_by_id?fileId={upload_id}"""
+            expected_json = {
+                'action': 'upload',
+                'contentSha1': 'none',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
+                'fileInfo': {
+                    'large_file_sha1': 'cc8954ec25e0c564b6a693fb22200e4f832c18e8',
+                    'src_last_modified_millis': str(mod_time_str),
+                },
+                'fileName': 'test.txt',
+                'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
+                'size': 600,
+                'uploadTimestamp': upload_ts,
+            }
+
+            self._assert_json_in_stdout(expected_json, stdout)
+            self.assertIn(
+                self._normalize_expected_output(
+                    expected_stdout,
+                    {'download_url': self.account_info.get_download_url(), 'upload_id': upload_id},
+                ),
+                stdout,
             )
 
     def test_upload_incremental(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket', 'allPublic'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket', 'allPublic')
         min_part_size = self.account_info.get_recommended_part_size()
         file_size = min_part_size * 2
 
@@ -1961,20 +2074,25 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_get_account_info(self):
         self._authorize_account()
         expected_json = {
-            'accountAuthToken': 'auth_token_0',
+            'accountAuthToken': self.account_info.get_account_auth_token(),
             'accountFilePath': getattr(
                 self.account_info, 'filename', None
             ),  # missing in StubAccountInfo in tests
             'accountId': self.account_id,
             'allowed': {
                 'buckets': None,
-                'capabilities': sorted(ALL_CAPABILITIES),
+                # The master key's capabilities: RawSimulator grants b2sdk's ALL_CAPABILITIES, B2
+                # every capability it has, which b2sdk's list may not name yet.
+                'capabilities': self._b2(
+                    sorted(ALL_CAPABILITIES),
+                    sorted(self._master_b2_api().account_info.get_allowed()['capabilities']),
+                ),
                 'namePrefix': None,
             },
-            'apiUrl': 'http://api.example.com',
+            'apiUrl': self.account_info.get_api_url(),
             'applicationKey': self.master_key,
-            'downloadUrl': 'http://download.example.com',
-            's3endpoint': 'http://s3.api.example.com',
+            'downloadUrl': self.account_info.get_download_url(),
+            's3endpoint': self.account_info.get_s3_api_url(),
         }
         self._run_command(
             ['account', 'get'],
@@ -1989,18 +2107,18 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
             'corsRules': [],
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
         }
         self._run_command(
             ['bucket', 'get', 'my-bucket'],
@@ -2009,10 +2127,10 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_empty_show_size(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2020,8 +2138,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 0,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 0,
         }
         self._run_command(
@@ -2031,36 +2149,39 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_one_item_show_size(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
         with TempDir() as temp_dir:
             # Upload a standard test file.
             local_file1 = self._make_local_file(temp_dir, 'file1.txt')
             mod_time_str = str(file_mod_time_millis(local_file1))
-            expected_stdout = """
-            URL by file name: http://download.example.com/file/my-bucket/file1.txt
-            URL by fileId: http://download.example.com/b2api/vx/b2_download_file_by_id?fileId=9999"""
+            _, stdout, _ = self._run_command(
+                ['file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
+                remove_version=True,
+            )
+            upload_id, upload_ts = self._newest_version('my-bucket', 'file1.txt')
+            expected_stdout = (
+                f'URL by file name: {self.account_info.get_download_url()}/file/my-bucket/file1.txt\n'
+                f'URL by fileId: {self.account_info.get_download_url()}'
+                f'/b2api/vx/b2_download_file_by_id?fileId={upload_id}'
+            )
             expected_json = {
                 'action': 'upload',
                 'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                'contentType': 'b2/x-auto',
-                'fileId': '9999',
+                'contentType': self._b2('b2/x-auto', 'text/plain'),
+                'fileId': upload_id,
                 'fileInfo': {'src_last_modified_millis': str(mod_time_str)},
                 'fileName': 'file1.txt',
                 'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
                 'size': 11,
-                'uploadTimestamp': 5000,
+                'uploadTimestamp': upload_ts,
             }
-            self._run_command(
-                ['file', 'upload', '--no-progress', 'my-bucket', local_file1, 'file1.txt'],
-                expected_json_in_stdout=expected_json,
-                remove_version=True,
-                expected_part_of_stdout=expected_stdout,
-            )
+            self._assert_json_in_stdout(expected_json, stdout)
+            self.assertIn(expected_stdout, stdout)
 
             # Now check the output of `bucket get` against the canon.
             expected_json = {
                 'accountId': self.account_id,
-                'bucketId': 'bucket_0',
+                'bucketId': bucket_0,
                 'bucketInfo': {},
                 'bucketName': 'my-bucket',
                 'bucketType': 'allPublic',
@@ -2068,8 +2189,8 @@ class TestConsoleTool(BaseConsoleToolTest):
                 'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
                 'fileCount': 1,
                 'lifecycleRules': [],
-                'options': [],
-                'revision': 1,
+                'options': self._bucket_options,
+                'revision': self._bucket_revision(0),
                 'totalSize': 11,
             }
             self._run_command(
@@ -2079,7 +2200,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_with_versions(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
 
         # Put many versions of a file into the test bucket. Unroll the loop here for convenience.
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
@@ -2097,7 +2218,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Now check the output of `bucket get` against the canon.
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2105,8 +2226,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 10,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 40,
         }
         self._run_command(
@@ -2116,7 +2237,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_with_folders(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
 
         # Create a hierarchical structure within the test bucket. Unroll the loop here for
         # convenience.
@@ -2145,7 +2266,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Now check the output of `bucket get` against the canon.
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2153,8 +2274,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 20,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 90,
         }
         self._run_command(
@@ -2164,7 +2285,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_with_hidden(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
 
         # Put some files into the test bucket. Unroll the loop for convenience.
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
@@ -2190,7 +2311,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Now check the output of `bucket get` against the canon.
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2198,8 +2319,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 9,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 24,
         }
         self._run_command(
@@ -2210,7 +2331,7 @@ class TestConsoleTool(BaseConsoleToolTest):
     @pytest.mark.apiver(from_ver=4)
     def test_unhide_b2id(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
 
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         stdout, stderr = self._get_stdouterr()
@@ -2223,7 +2344,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2231,8 +2352,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 1,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 4,
         }
         self._run_command(
@@ -2242,7 +2363,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_complex(self):
         self._authorize_account()
-        self._create_my_bucket()
+        bucket_0 = self._create_my_bucket()
 
         # Create a hierarchical structure within the test bucket. Unroll the loop here for
         # convenience.
@@ -2287,7 +2408,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Now check the output of `bucket get` against the canon.
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2295,8 +2416,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 28,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 99,
         }
         self._run_command(
@@ -2306,22 +2427,15 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_get_bucket_encrypted(self):
         self._authorize_account()
-        self._run_command(
-            [
-                'bucket',
-                'create',
-                '--default-server-side-encryption=SSE-B2',
-                '--default-server-side-encryption-algorithm=AES256',
-                'my-bucket',
-                'allPublic',
-            ],
-            'bucket_0\n',
-            '',
-            0,
+        bucket_0 = self._create_bucket(
+            'my-bucket',
+            '--default-server-side-encryption=SSE-B2',
+            '--default-server-side-encryption-algorithm=AES256',
+            'allPublic',
         )
         expected_json = {
             'accountId': self.account_id,
-            'bucketId': 'bucket_0',
+            'bucketId': bucket_0,
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -2329,8 +2443,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'fileCount': 0,
             'lifecycleRules': [],
-            'options': [],
-            'revision': 1,
+            'options': self._bucket_options,
+            'revision': self._bucket_revision(0),
             'totalSize': 0,
         }
         self._run_command(
@@ -2440,17 +2554,18 @@ class TestConsoleTool(BaseConsoleToolTest):
 
             # file should have been uploaded
             mtime = file_mod_time_millis(temp_file)
+            upload_id, upload_ts = self._newest_version('my-bucket', 'test-dry-run.txt')
             expected_json = [
                 {
                     'action': 'upload',
                     'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-                    'contentType': 'b2/x-auto',
-                    'fileId': '9999',
+                    'contentType': self._b2('b2/x-auto', 'text/plain'),
+                    'fileId': upload_id,
                     'fileInfo': {'src_last_modified_millis': str(mtime)},
                     'fileName': 'test-dry-run.txt',
                     'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
                     'size': 11,
-                    'uploadTimestamp': 5000,
+                    'uploadTimestamp': upload_ts,
                 }
             ]
             self._run_command(
@@ -2541,6 +2656,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             ]
             self._run_command(command, expected_stdout, '', 0)
 
+    # Custom upload timestamps are a restricted B2 feature that must be enabled for the account.
+    @pytest.mark.b2_simulator_config(customUploadTimestampsEnabled=True)
     def test_sync_exclude_if_uploaded_after_in_range(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -2574,6 +2691,8 @@ class TestConsoleTool(BaseConsoleToolTest):
             """
             self._run_command(command, expected_stdout, '', 0)
 
+    # Custom upload timestamps are a restricted B2 feature that must be enabled for the account.
+    @pytest.mark.b2_simulator_config(customUploadTimestampsEnabled=True)
     def test_sync_exclude_if_uploaded_after_exact(self):
         self._authorize_account()
         self._create_my_bucket()
@@ -2725,11 +2844,11 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Create some files, including files in a folder
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
-        bucket.upload(UploadSourceBytes(b''), 'a')
+        file_a = bucket.upload(UploadSourceBytes(b''), 'a')
         bucket.upload(UploadSourceBytes(b' '), 'b/b1')
         bucket.upload(UploadSourceBytes(b'   '), 'b/b2')
-        bucket.upload(UploadSourceBytes(b'     '), 'c')
-        bucket.upload(UploadSourceBytes(b'      '), 'c')
+        file_c_old = bucket.upload(UploadSourceBytes(b'     '), 'c')
+        file_c = bucket.upload(UploadSourceBytes(b'      '), 'c')
 
         # Condensed output
         expected_stdout = """
@@ -2753,21 +2872,46 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Check long output.   (The format expects full-length file ids, so it causes whitespace here)
         expected_stdout = """
-                                                                                       9999  upload  1970-01-01  00:00:05          0  a
+        {a}  upload  {a_time}          0  a
                                                                                           -       -           -         -          0  b/
-                                                                                       9995  upload  1970-01-01  00:00:05          6  c
+        {c}  upload  {c_time}          6  c
         """
-        self._run_command(['ls', '--long', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0)
+        # The upload times in the listing are UTC.
+        times = {
+            name: datetime.datetime.fromtimestamp(
+                version.upload_timestamp / 1000, datetime.timezone.utc
+            ).strftime('%Y-%m-%d  %H:%M:%S')
+            for name, version in (('a', file_a), ('c', file_c), ('c_old', file_c_old))
+        }
+        listed = {
+            'a': f'{file_a.id_:>83}',
+            'a_time': times['a'],
+            'c': f'{file_c.id_:>83}',
+            'c_time': times['c'],
+            'c_old': f'{file_c_old.id_:>83}',
+            'c_old_time': times['c_old'],
+        }
+        self._run_command(
+            ['ls', '--long', *self.b2_uri_args('my-bucket')],
+            expected_stdout,
+            '',
+            0,
+            format_vars=listed,
+        )
 
         # Check long versions output   (The format expects full-length file ids, so it causes whitespace here)
         expected_stdout = """
-                                                                                       9999  upload  1970-01-01  00:00:05          0  a
+        {a}  upload  {a_time}          0  a
                                                                                           -       -           -         -          0  b/
-                                                                                       9995  upload  1970-01-01  00:00:05          6  c
-                                                                                       9996  upload  1970-01-01  00:00:05          5  c
+        {c}  upload  {c_time}          6  c
+        {c_old}  upload  {c_old_time}          5  c
         """
         self._run_command(
-            ['ls', '--long', '--versions', *self.b2_uri_args('my-bucket')], expected_stdout, '', 0
+            ['ls', '--long', '--versions', *self.b2_uri_args('my-bucket')],
+            expected_stdout,
+            '',
+            0,
+            format_vars=listed,
         )
 
     def test_ls_wildcard(self):
@@ -2869,19 +3013,16 @@ class TestConsoleTool(BaseConsoleToolTest):
 
         # Create a bucket to use
         bucket_name = 'restrictedBucket'
-        bucket_id = 'bucket_0'
-        self._run_command(['bucket', 'create', bucket_name, 'allPrivate'], bucket_id + '\n', '', 0)
+        bucket_id = self._create_bucket(bucket_name, 'allPrivate')
 
         # Create another bucket
         other_bucket_name = 'otherBucket'
         self._run_command_ignore_output(['bucket', 'create', other_bucket_name, 'allPrivate'])
 
         # Create a key restricted to a bucket
-        app_key_id = 'appKeyId0'
-        app_key = 'appKey0'
         capabilities = 'listBuckets,readFiles'
         file_prefix = 'some/file/prefix/'
-        self._run_command(
+        app_key_id, app_key = self._create_key(
             [
                 'key',
                 'create',
@@ -2891,16 +3032,15 @@ class TestConsoleTool(BaseConsoleToolTest):
                 file_prefix,
                 'my-key',
                 capabilities,
-            ],
-            app_key_id + ' ' + app_key + '\n',
-            '',
-            0,
+            ]
         )
 
+        authorizations = self._record_answers('authorize_account')
         self._run_command_ignore_output(['account', 'authorize', app_key_id, app_key])
 
-        # Auth token should be in account info now
-        self.assertEqual('auth_token_1', self.account_info.get_account_auth_token())
+        # Auth token should be in account info now: the one the server issued for the new key
+        [(_, answer)] = authorizations
+        self.assertEqual(answer['authorizationToken'], self.account_info.get_account_auth_token())
 
         # Assertions that the restrictions not only are saved but what they are supposed to be
         self.assertEqual(
@@ -2932,25 +3072,15 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_list_buckets_not_allowed_for_app_key(self):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
-        self._run_command(
-            ['bucket', 'create', 'my-bucket', 'allPrivate'],
-            'bucket_0\n',
-            '',
-            0,
-        )
+        self._create_bucket('my-bucket', 'allPrivate')
 
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
-        self._run_command(
-            ['key', 'create', 'my-key', 'listFiles'],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
-        )
+        key_id, key = self._create_key(['key', 'create', 'my-key', 'listFiles'])
 
         # Authorize with the key, which should result in an error.
         self._run_command(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id, key],
             '',
             'ERROR: application key has no listBuckets capability, which is required for the b2 command-line tool\n',
             1,
@@ -2959,17 +3089,9 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_bucket_missing_for_bucket_key(self):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
-        self._run_command(
-            ['bucket', 'create', 'my-bucket', 'allPrivate'],
-            'bucket_0\n',
-            '',
-            0,
-        )
-        self._run_command(
-            ['key', 'create', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
+        self._create_bucket('my-bucket', 'allPrivate')
+        key_id, key = self._create_key(
+            ['key', 'create', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles']
         )
 
         # Get rid of the bucket, leaving the key with a dangling pointer to it.
@@ -2978,7 +3100,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Authorizing with the key will fail because the ConsoleTool needs
         # to be able to look up the name of the bucket.
         self._run_command(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id, key],
             '',
             "ERROR: unable to authorize account: Application key is restricted to a bucket that doesn't exist\n",
             1,
@@ -2987,22 +3109,14 @@ class TestConsoleTool(BaseConsoleToolTest):
     def test_ls_for_restricted_bucket(self):
         # Create a bucket and a key restricted to that bucket.
         self._authorize_account()
-        self._run_command(
-            ['bucket', 'create', 'my-bucket', 'allPrivate'],
-            'bucket_0\n',
-            '',
-            0,
-        )
-        self._run_command(
-            ['key', 'create', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles'],
-            'appKeyId0 appKey0\n',
-            '',
-            0,
+        self._create_bucket('my-bucket', 'allPrivate')
+        key_id, key = self._create_key(
+            ['key', 'create', '--bucket', 'my-bucket', 'my-key', 'listBuckets,listFiles']
         )
 
         # Authorize with the key and list the files
         self._run_command_ignore_output(
-            ['account', 'authorize', 'appKeyId0', 'appKey0'],
+            ['account', 'authorize', key_id, key],
         )
         self._run_command(
             ['ls', *self.b2_uri_args('my-bucket')],
@@ -3207,8 +3321,8 @@ class TestConsoleTool(BaseConsoleToolTest):
     @skip_on_windows
     def test_escape_c0_char_on_sync_stack_trace(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
-        self._run_command(['bucket', 'create', 'my-bucket-1', 'allPrivate'], 'bucket_1\n', '', 0)
+        self._create_bucket('my-bucket-0', 'allPrivate')
+        self._create_bucket('my-bucket-1', 'allPrivate')
 
         with TempDir() as temp_dir:
             _ = self._make_local_file(temp_dir, '\x1b[32mC\x1b[33mC\x1b[34mI\x1b[0m')
@@ -3238,12 +3352,13 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_escape_c0_char_on_key_restricted_path(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPublic'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket-0', 'allPublic')
         cc_name = "$'\x1b[31mC\x1b[32mC\x1b[33mI\x1b[0m'"
-        escaped_error = "ERROR: unauthorized for application key with capabilities 'listBuckets,listKeys', restricted to buckets ['my-bucket-0'], restricted to files that start with '$'\\x1b[31mC\\x1b[32mC\\x1b[33mI\\x1b[0m'' (unauthorized)\n"
+        escaped_error = "ERROR: unauthorized for application key with capabilities 'listBuckets,readFiles', restricted to buckets ['my-bucket-0'], restricted to files that start with '$'\\x1b[31mC\\x1b[32mC\\x1b[33mI\\x1b[0m'' (unauthorized)\n"
 
-        # Create a key
-        self._run_command(
+        # Create a key (without listFiles, so that `ls` is refused). B2 refuses listKeys on a
+        # bucket-restricted key (https://www.backblaze.com/docs/cloud-storage-application-keys).
+        key_id, key = self._create_key(
             [
                 'key',
                 'create',
@@ -3252,14 +3367,12 @@ class TestConsoleTool(BaseConsoleToolTest):
                 '--name-prefix',
                 cc_name,
                 'key1',
-                'listBuckets,listKeys',
-            ],
-            'appKeyId0 appKey0\n',
-            expected_status=0,
+                'listBuckets,readFiles',
+            ]
         )
 
         # Authorize with the key
-        self._run_command(['account', 'authorize', 'appKeyId0', 'appKey0'], expected_status=0)
+        self._run_command(['account', 'authorize', key_id, key], expected_status=0)
 
         self._run_command(
             ['ls', *self.b2_uri_args('my-bucket-0'), '--no-escape-control-characters'],
@@ -3281,7 +3394,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_escape_c1_char_on_ls_long(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket-0', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket-0', 'allPrivate')
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'file1.txt')
@@ -3309,7 +3422,7 @@ class TestConsoleTool(BaseConsoleToolTest):
 
     def test_escape_c1_char_ls(self):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-bucket-cc', 'allPrivate'], 'bucket_0\n', '', 0)
+        self._create_bucket('my-bucket-cc', 'allPrivate')
 
         with TempDir() as temp_dir:
             local_file = self._make_local_file(temp_dir, 'x')
@@ -3345,69 +3458,78 @@ class TestConsoleToolWithBucket(BaseConsoleToolTest):
     def setUp(self):
         super().setUp()
         self._authorize_account()
-        self._create_my_bucket()
+        self.bucket_id = self._create_my_bucket()
 
     def test_cancel_large_file(self):
         file = self.b2_api.services.large_file.start_large_file(
-            'bucket_0', 'file1', 'text/plain', {}
+            self.bucket_id, 'file1', 'text/plain', {}
         )
 
         self._run_command(
             ['file', 'large', 'unfinished', 'cancel', f'b2id://{file.file_id}'],
-            '9999 canceled\n',
+            f'{file.file_id} canceled\n',
             '',
             0,
         )
 
     def test_cancel_large_file_deprecated(self):
         file = self.b2_api.services.large_file.start_large_file(
-            'bucket_0', 'file1', 'text/plain', {}
+            self.bucket_id, 'file1', 'text/plain', {}
         )
 
         self._run_command(
             ['cancel-large-file', file.file_id],
-            '9999 canceled\n',
+            f'{file.file_id} canceled\n',
             'WARNING: `cancel-large-file` command is deprecated. Use `file large unfinished cancel` instead.\n',
             0,
         )
 
     def test_cancel_all_large_file(self):
-        self.b2_api.services.large_file.start_large_file('bucket_0', 'file1', 'text/plain', {})
-        self.b2_api.services.large_file.start_large_file('bucket_0', 'file2', 'text/plain', {})
+        large_files = self.b2_api.services.large_file
+        file1 = large_files.start_large_file(self.bucket_id, 'file1', 'text/plain', {})
+        file2 = large_files.start_large_file(self.bucket_id, 'file2', 'text/plain', {})
 
         expected_stdout = """
-        9999 canceled
-        9998 canceled
+        {file1} canceled
+        {file2} canceled
         """
+        file_ids = {'file1': file1.file_id, 'file2': file2.file_id}
 
         self._run_command(
-            ['file', 'large', 'unfinished', 'cancel', 'b2://my-bucket'], expected_stdout, '', 0
+            ['file', 'large', 'unfinished', 'cancel', 'b2://my-bucket'],
+            expected_stdout,
+            '',
+            0,
+            format_vars=file_ids,
         )
 
     def test_cancel_all_large_file_deprecated(self):
-        self.b2_api.services.large_file.start_large_file('bucket_0', 'file1', 'text/plain', {})
-        self.b2_api.services.large_file.start_large_file('bucket_0', 'file2', 'text/plain', {})
+        large_files = self.b2_api.services.large_file
+        file1 = large_files.start_large_file(self.bucket_id, 'file1', 'text/plain', {})
+        file2 = large_files.start_large_file(self.bucket_id, 'file2', 'text/plain', {})
         expected_stdout = """
-        9999 canceled
-        9998 canceled
+        {file1} canceled
+        {file2} canceled
         """
+        file_ids = {'file1': file1.file_id, 'file2': file2.file_id}
 
         self._run_command(
             ['cancel-all-unfinished-large-files', 'my-bucket'],
             expected_stdout,
             'WARNING: `cancel-all-unfinished-large-files` command is deprecated. Use `file large unfinished cancel` instead.\n',
             0,
+            format_vars=file_ids,
         )
 
     def test_list_parts_with_none(self):
         file = self.b2_api.services.large_file.start_large_file(
-            'bucket_0', 'file1', 'text/plain', {}
+            self.bucket_id, 'file1', 'text/plain', {}
         )
         self._run_command(['file', 'large', 'parts', f'b2id://{file.file_id}'], '', '', 0)
 
     def test_list_parts_with_none_deprecated(self):
         file = self.b2_api.services.large_file.start_large_file(
-            'bucket_0', 'file1', 'text/plain', {}
+            self.bucket_id, 'file1', 'text/plain', {}
         )
         self._run_command(
             ['list-parts', file.file_id],
@@ -3419,7 +3541,7 @@ class TestConsoleToolWithBucket(BaseConsoleToolTest):
     def test_list_parts_with_parts(self):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = self.b2_api.services.large_file.start_large_file(
-            'bucket_0', 'file', 'text/plain', {}
+            self.bucket_id, 'file', 'text/plain', {}
         )
         content = b'hello world'
         large_file_upload_state = mock.MagicMock()
@@ -3454,7 +3576,7 @@ class TestConsoleToolWithBucket(BaseConsoleToolTest):
     def test_list_parts_with_parts_deprecated(self):
         bucket = self.b2_api.get_bucket_by_name('my-bucket')
         file = self.b2_api.services.large_file.start_large_file(
-            'bucket_0', 'file', 'text/plain', {}
+            self.bucket_id, 'file', 'text/plain', {}
         )
         content = b'hello world'
         large_file_upload_state = mock.MagicMock()
@@ -3492,44 +3614,55 @@ class TestConsoleToolWithBucket(BaseConsoleToolTest):
     def test_list_unfinished_large_files_with_some(self):
         api_url = self.account_info.get_api_url()
         auth_token = self.account_info.get_account_auth_token()
-        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
-        self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+        file1 = self.raw_api.start_large_file(
+            api_url, auth_token, self.bucket_id, 'file1', 'text/plain', {}
         )
-        self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
+        file2 = self.raw_api.start_large_file(
+            api_url, auth_token, self.bucket_id, 'file2', 'text/plain', {'color': 'blue'}
+        )
+        file3 = self.raw_api.start_large_file(
+            api_url, auth_token, self.bucket_id, 'file3', 'application/json', {}
         )
         expected_stdout = """
-        9999 file1 text/plain
-        9998 file2 text/plain color=blue
-        9997 file3 application/json
+        {file1} file1 text/plain
+        {file2} file2 text/plain color=blue
+        {file3} file3 application/json
         """
+        file_ids = {'file1': file1['fileId'], 'file2': file2['fileId'], 'file3': file3['fileId']}
 
         self._run_command(
-            ['file', 'large', 'unfinished', 'list', 'b2://my-bucket'], expected_stdout, '', 0
+            ['file', 'large', 'unfinished', 'list', 'b2://my-bucket'],
+            expected_stdout,
+            '',
+            0,
+            format_vars=file_ids,
         )
 
     def test_list_unfinished_large_files_with_some_deprecated(self):
         api_url = self.account_info.get_api_url()
         auth_token = self.account_info.get_account_auth_token()
-        self.raw_api.start_large_file(api_url, auth_token, 'bucket_0', 'file1', 'text/plain', {})
-        self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file2', 'text/plain', {'color': 'blue'}
+        file1 = self.raw_api.start_large_file(
+            api_url, auth_token, self.bucket_id, 'file1', 'text/plain', {}
         )
-        self.raw_api.start_large_file(
-            api_url, auth_token, 'bucket_0', 'file3', 'application/json', {}
+        file2 = self.raw_api.start_large_file(
+            api_url, auth_token, self.bucket_id, 'file2', 'text/plain', {'color': 'blue'}
+        )
+        file3 = self.raw_api.start_large_file(
+            api_url, auth_token, self.bucket_id, 'file3', 'application/json', {}
         )
         expected_stdout = """
-        9999 file1 text/plain
-        9998 file2 text/plain color=blue
-        9997 file3 application/json
+        {file1} file1 text/plain
+        {file2} file2 text/plain color=blue
+        {file3} file3 application/json
         """
+        file_ids = {'file1': file1['fileId'], 'file2': file2['fileId'], 'file3': file3['fileId']}
 
         self._run_command(
             ['list-unfinished-large-files', 'my-bucket'],
             expected_stdout,
             'WARNING: `list-unfinished-large-files` command is deprecated. Use `file large unfinished list` instead.\n',
             0,
+            format_vars=file_ids,
         )
 
 
@@ -3761,8 +3894,9 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_fail_fast(self):
         # Since we already have all the jobs submitted to another thread,
         # we can only rely on the log to tell when it stopped.
-        expected_in_stdout = """
-        Deletion of file "b/b1/test.csv" (9996) failed: Conflict:
+        file_id = self._file_id('my-bucket', 'b/b1/test.csv')
+        expected_in_stdout = f"""
+        Deletion of file "b/b1/test.csv" ({file_id}) failed: Conflict:
          count: 3/4"""
         unexpected_in_stdout = ' count: 5/5 '
         self._run_problematic_removal(['--fail-fast'], expected_in_stdout, unexpected_in_stdout)
@@ -3812,7 +3946,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
 
     def rm_filters_helper(self, rm_args: list[str], expected_ls_stdout: str):
         self._authorize_account()
-        self._run_command(['bucket', 'create', 'my-rm-bucket', 'allPublic'], 'bucket_1\n', '', 0)
+        self._create_bucket('my-rm-bucket', 'allPublic')
         bucket = self.b2_api.get_bucket_by_name('my-rm-bucket')
 
         # Create some files, including files in a folder

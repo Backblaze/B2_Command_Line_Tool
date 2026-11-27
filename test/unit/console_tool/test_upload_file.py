@@ -12,6 +12,7 @@ import os
 import pytest
 
 from test.helpers import skip_on_windows
+from test.unit.helpers import auto_content_type
 
 
 def test_upload_file__file_info_src_last_modified_millis_and_headers(b2_cli, bucket, tmpdir):
@@ -71,11 +72,13 @@ def test_upload_file__named_pipe(b2_cli, bucket, tmpdir, bg_executor):
         local_file1.write, content
     )  # writer will block until content is read
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-        'contentType': 'b2/x-auto',
+        'contentType': auto_content_type('text/plain'),
         'fileName': filename,
         'size': len(content),
     }
@@ -115,7 +118,9 @@ def test_upload_file__hyphen_file_instead_of_stdin(b2_cli, bucket, tmpdir, monke
     source_file = tmpdir.join('-')
     source_file.write(content)
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': 'ab467567b98216a255f77aef08aa2c418073d974',
@@ -143,7 +148,9 @@ def test_upload_file__ignore_hyphen_file(b2_cli, bucket, tmpdir, monkeypatch, mo
     content = 'stdin input'
     filename = 'stdin.txt'
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': '2ce72aa159d1f190fddf295cc883f20c4787a751',
@@ -166,7 +173,9 @@ def test_upload_file__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     content = 'stdin input'
     filename = 'stdin.txt'
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': '2ce72aa159d1f190fddf295cc883f20c4787a751',
@@ -189,7 +198,9 @@ def test_upload_file_deprecated__stdin(b2_cli, bucket, tmpdir, mock_stdin):
     content = 'stdin input deprecated'
     filename = 'stdin-deprecated.txt'
 
-    expected_stdout = f'URL by file name: http://download.example.com/file/my-bucket/{filename}'
+    expected_stdout = (
+        f'URL by file name: {b2_cli.account_info.get_download_url()}/file/my-bucket/{filename}'
+    )
     expected_json = {
         'action': 'upload',
         'contentSha1': 'fcaa935e050efe0b5d7b26e65162b32b5e40aa81',

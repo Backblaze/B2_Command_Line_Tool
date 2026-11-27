@@ -15,6 +15,7 @@ import pytest
 
 from test.helpers import skip_on_windows
 from test.unit.console_tool.test_command_regressions import run_no_traceback
+from test.unit.helpers import auto_content_type
 
 
 @skip_on_windows(reason='symlink creation requires privileges on Windows')
@@ -93,12 +94,20 @@ def test_directory_download_rejects_junction_escape(b2_cli, api_bucket, tmp_path
     assert list(outside.iterdir()) == []
 
 
+def expected_download_stdout(template, output_path, uploaded_file):
+    return template.format(
+        output_path=pathlib.Path(output_path).resolve(),
+        file_id=uploaded_file['fileId'],
+        content_type=auto_content_type('text/plain'),
+    )
+
+
 EXPECTED_STDOUT_DOWNLOAD = """
 File name:           file1.txt
-File id:             9999
+File id:             {file_id}
 Output file path:    {output_path}
 File size:           11
-Content type:        b2/x-auto
+Content type:        {content_type}
 Content sha1:        2aae6c35c94fcfb415dbe95f408b9ce91ee846ed
 Encryption:          mode=SSE-B2, algorithm=AES256
 Retention:           none
@@ -126,7 +135,9 @@ def test_collision_download_respects_umask(b2_cli, uploaded_file, tmp_path, umas
 
     previous_umask = os.umask(umask)
     try:
-        b2_cli.run(['file', 'download', '--quiet', 'b2id://9999', str(destination)])
+        b2_cli.run(
+            ['file', 'download', '--quiet', f'b2id://{uploaded_file["fileId"]}', str(destination)]
+        )
         umask_after = os.umask(umask)  # the download must restore the process umask
         os.umask(umask_after)
     finally:
@@ -154,7 +165,7 @@ def test_stdout_download_is_only_binary_content(
         argv = ['file', 'download', f'b2://{bucket}/binary.dat']
         warning = ''
     elif command == 'id':
-        argv = ['download-file-by-id', '9999']
+        argv = ['download-file-by-id', b2_cli._file_id(bucket, 'binary.dat')]
         warning = (
             'WARNING: `download-file-by-id` command is deprecated. Use `file download` instead.\n'
         )
@@ -180,15 +191,15 @@ def test_download_file_by_uri__flag_support(b2_cli, uploaded_file, tmp_path, fla
     output_path = tmp_path / 'output.txt'
 
     b2_cli.run(
-        ['file', 'download', flag, 'b2id://9999', str(output_path)],
-        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
+        ['file', 'download', flag, f'b2id://{uploaded_file["fileId"]}', str(output_path)],
+        expected_stdout=expected_download_stdout(expected_stdout, output_path, uploaded_file),
     )
     assert output_path.read_text() == uploaded_file['content']
 
     b2_cli.run(
-        ['download-file', flag, 'b2id://9999', str(output_path)],
+        ['download-file', flag, f'b2id://{uploaded_file["fileId"]}', str(output_path)],
         expected_stderr='WARNING: `download-file` command is deprecated. Use `file download` instead.\n',
-        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
+        expected_stdout=expected_download_stdout(expected_stdout, output_path, uploaded_file),
     )
     assert output_path.read_text() == uploaded_file['content']
 
@@ -197,16 +208,17 @@ def test_download_file_by_uri__flag_support(b2_cli, uploaded_file, tmp_path, fla
     'b2_uri',
     [
         'b2://my-bucket/file1.txt',
-        'b2id://9999',
+        'b2id://{fileId}',
     ],
 )
 def test_download_file_by_uri__b2_uri_support(b2_cli, uploaded_file, tmp_path, b2_uri):
     output_path = tmp_path / 'output.txt'
+    b2_uri = b2_uri.format(**uploaded_file)
 
     b2_cli.run(
         ['file', 'download', b2_uri, str(output_path)],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
-            output_path=pathlib.Path(output_path).resolve()
+        expected_stdout=expected_download_stdout(
+            EXPECTED_STDOUT_DOWNLOAD, output_path, uploaded_file
         ),
     )
     assert output_path.read_text() == uploaded_file['content']
@@ -231,7 +243,7 @@ def test_download_file_by_name(b2_cli, local_file, uploaded_file, tmp_path, flag
             uploaded_file['fileName'],
             str(output_path),
         ],
-        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
+        expected_stdout=expected_download_stdout(expected_stdout, output_path, uploaded_file),
         expected_stderr='WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
@@ -249,8 +261,8 @@ def test_download_file_by_id(b2_cli, uploaded_file, tmp_path, flag, expected_std
     output_path = tmp_path / 'output.txt'
 
     b2_cli.run(
-        ['download-file-by-id', flag, '9999', str(output_path)],
-        expected_stdout=expected_stdout.format(output_path=pathlib.Path(output_path).resolve()),
+        ['download-file-by-id', flag, uploaded_file['fileId'], str(output_path)],
+        expected_stdout=expected_download_stdout(expected_stdout, output_path, uploaded_file),
         expected_stderr='WARNING: `download-file-by-id` command is deprecated. Use `file download` instead.\n',
     )
     assert output_path.read_text() == uploaded_file['content']
@@ -279,8 +291,8 @@ def test_download_file_by_name__named_pipe(
             uploaded_file['fileName'],
             str(output_path),
         ],
-        expected_stdout=EXPECTED_STDOUT_DOWNLOAD.format(
-            output_path=pathlib.Path(output_path).resolve()
+        expected_stdout=expected_download_stdout(
+            EXPECTED_STDOUT_DOWNLOAD, output_path, uploaded_file
         ),
         expected_stderr='WARNING: `download-file-by-name` command is deprecated. Use `file download` instead.\n',
     )
@@ -340,13 +352,14 @@ def test_cat__b2_uri__not_a_file(b2_cli, bucket, capfd):
 
 
 def test_cat__b2id_uri(b2_cli, bucket, uploaded_stdout_txt, tmp_path, capfd):
+    file_id = b2_cli._file_id(bucket, uploaded_stdout_txt['fileName'])
     b2_cli.run(
-        ['file', 'cat', '--no-progress', 'b2id://9999'],
+        ['file', 'cat', '--no-progress', f'b2id://{file_id}'],
     )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']
 
     b2_cli.run(
-        ['cat', '--no-progress', 'b2id://9999'],
+        ['cat', '--no-progress', f'b2id://{file_id}'],
         expected_stderr='WARNING: `cat` command is deprecated. Use `file cat` instead.\n',
     )
     assert capfd.readouterr().out == uploaded_stdout_txt['content']

@@ -35,7 +35,14 @@ def test_inherited_escape_option_sanitizes_download_metadata(b2_cli, api_bucket,
 def test_inherited_quiet_option_suppresses_download_status(b2_cli, uploaded_file, tmp_path):
     target = tmp_path / 'download.txt'
     b2_cli.run(
-        ['file', '--quiet', 'download', '--no-progress', 'b2id://9999', str(target)],
+        [
+            'file',
+            '--quiet',
+            'download',
+            '--no-progress',
+            f'b2id://{uploaded_file["fileId"]}',
+            str(target),
+        ],
         expected_stdout='',
     )
     assert target.read_text() == uploaded_file['content']

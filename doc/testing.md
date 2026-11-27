@@ -37,6 +37,29 @@ command in the table covers their unit tests, not the scenario runs. The
 simulator workflow is mandatory for PRs; see the integration policy in
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
+## Unit tests on b2-simulator (opt-in)
+
+The unit tests that use b2sdk's `RawSimulator` (`BaseConsoleToolTest`, the `b2_cli`
+fixture and `test_represent_file_metadata.py`) can run against the standalone
+b2-simulator (backblaze-labs/b2-simulator, v0.6.0 or later) over HTTP instead:
+
+```sh
+B2_SIMULATOR_DIR=/path/to/b2-simulator nox -s unit-3.12 -- -n 2 --b2-simulator
+```
+
+The plugin in [`test/unit/b2_simulator.py`](../test/unit/b2_simulator.py) starts one
+simulator per pytest process (one per xdist worker) and resets it before each test. It
+needs Node.js 20.6 or later; with the backend on and `B2_SIMULATOR_DIR` missing or wrong,
+the run stops with a usage error instead of skipping. `--no-b2-simulator` turns it off.
+The `b2_simulator` ini option sets the default when neither flag is given; it is `false`
+today, and setting it to `true` makes b2-simulator the default backend.
+`@pytest.mark.b2_simulator_config(...)` adds simulator reset settings for one test.
+
+Tests read ids, URLs, tokens and timestamps from the run, so the same assertion holds on
+both backends. Where B2 answers differently from `RawSimulator` (an error text, a field B2
+fills in), the test branches on `b2_simulator_enabled()` and asserts the exact value on
+each side, citing the B2 evidence.
+
 ## Known defects and proving a fix
 
 `test/known_defect.py` marks tests that assert correct behavior for a known bug.

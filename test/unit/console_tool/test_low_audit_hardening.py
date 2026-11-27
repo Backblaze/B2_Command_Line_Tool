@@ -98,11 +98,11 @@ def test_restricted_key_authorization_is_not_cleared(b2_cli):
     from test.unit.console_tool.test_command_regressions import run
 
     b2_cli.authorize()
-    b2_cli.run(['key', 'create', 'key1', 'listKeys'], expected_stdout='appKeyId0 appKey0\n')
-    status, _, stderr = run(b2_cli, ['account', 'authorize', 'appKeyId0', 'appKey0'])
+    key_id, key = b2_cli.create_key('key1', 'listKeys')
+    status, _, stderr = run(b2_cli, ['account', 'authorize', key_id, key])
     assert status == 1
     assert 'listBuckets' in stderr
-    assert b2_cli.account_info.get_application_key_id() == 'appKeyId0'
+    assert b2_cli.account_info.get_application_key_id() == key_id
     assert b2_cli.account_info.get_allowed()['capabilities'] == ['listKeys']
 
 

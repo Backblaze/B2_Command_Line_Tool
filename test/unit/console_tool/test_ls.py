@@ -13,6 +13,8 @@ import json
 
 import pytest
 
+from test.unit.b2_simulator import b2_simulator_enabled
+
 
 @pytest.mark.parametrize('file_count', [0, 2])
 @pytest.mark.parametrize('quiet', [False, True])
@@ -29,17 +31,20 @@ def test_ls_json_array_for_empty_and_multiple_files(b2_cli, bucket, local_file, 
 
 
 def test_ls__without_bucket_name(b2_cli, bucket_info):
-    expected_output = 'bucket_0  allPublic   my-bucket\n'
+    expected_output = f'{bucket_info["bucketId"]}  allPublic   my-bucket\n'
 
     b2_cli.run(['ls'], expected_stdout=expected_output)
     b2_cli.run(['ls', 'b2://'], expected_stdout=expected_output)
 
 
 def test_ls__without_bucket_name__json(b2_cli, bucket_info):
+    # B2 enables S3 on a new bucket and starts its revision at 2 (b2-simulator ledger F-79,
+    # F-75); RawSimulator reports no options and revision 1.
+    bucket_options, revision = (['s3'], 2) if b2_simulator_enabled() else ([], 1)
     expected_output = [
         {
-            'accountId': 'account-0',
-            'bucketId': 'bucket_0',
+            'accountId': b2_cli.account_info.get_account_id(),
+            'bucketId': bucket_info['bucketId'],
             'bucketInfo': {},
             'bucketName': 'my-bucket',
             'bucketType': 'allPublic',
@@ -48,12 +53,12 @@ def test_ls__without_bucket_name__json(b2_cli, bucket_info):
             'defaultServerSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
             'isFileLockEnabled': False,
             'lifecycleRules': [],
-            'options': [],
+            'options': bucket_options,
             'replication': {
                 'asReplicationDestination': None,
                 'asReplicationSource': None,
             },
-            'revision': 1,
+            'revision': revision,
         }
     ]
 

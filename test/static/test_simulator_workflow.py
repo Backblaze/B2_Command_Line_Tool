@@ -19,7 +19,7 @@ import yaml
 
 WORKFLOW_PATH = Path(__file__).parents[2] / '.github/workflows/simulator-integration.yml'
 SIMULATOR_REPOSITORY = 'backblaze-labs/b2-simulator'
-SIMULATOR_REVISION = '529721037901412b7b24fdc18498631d298295c5'
+SIMULATOR_REVISION = '4052c6f8f45350486460d19bc796866cbdcdd3bc'
 
 
 def load_workflow():

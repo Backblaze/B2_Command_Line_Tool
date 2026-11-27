@@ -9,18 +9,20 @@
 ######################################################################
 import pytest
 
+from test.unit.helpers import auto_content_type
+
 
 @pytest.fixture
 def uploaded_download_version(b2_cli, bucket_info, uploaded_file):
     return {
         'contentSha1': '2aae6c35c94fcfb415dbe95f408b9ce91ee846ed',
-        'contentType': 'b2/x-auto',
+        'contentType': auto_content_type('text/plain'),
         'fileId': uploaded_file['fileId'],
         'fileInfo': {'src_last_modified_millis': '1500111222000'},
         'fileName': 'file1.txt',
         'serverSideEncryption': {'algorithm': 'AES256', 'mode': 'SSE-B2'},
         'size': 11,
-        'uploadTimestamp': 5000,
+        'uploadTimestamp': b2_cli.b2_api.get_file_info(uploaded_file['fileId']).upload_timestamp,
     }
 
 
