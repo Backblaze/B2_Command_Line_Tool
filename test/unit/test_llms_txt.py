@@ -34,7 +34,10 @@ REQUIRED_URLS = {
         'CHANGELOG.md',
         'b2/_internal/console_tool.py',
     )
-} | {'https://b2-command-line-tool.readthedocs.io/en/master/'}
+} | {
+    'https://b2-command-line-tool.readthedocs.io/en/master/',
+    'https://github.com/backblaze-labs/b2-mcp',
+}
 
 
 def validate_index(text):
@@ -107,3 +110,12 @@ def test_repository_url_variants_fail_closed(url):
     text = (ROOT / 'llms.txt').read_text(encoding='utf-8')
     with pytest.raises(AssertionError, match='invalid repository ref'):
         validate_index(text + f'\n- [Extra]({url}): Refer to the file.\n')
+
+
+def test_b2_mcp_wording_matches_readme():
+    url = 'https://github.com/backblaze-labs/b2-mcp'
+    wording = 'a Model Context Protocol server for B2.'
+    readme = (ROOT / 'README.md').read_text(encoding='utf-8')
+    index = (ROOT / 'llms.txt').read_text(encoding='utf-8')
+    assert f'- **[b2-mcp]({url})** — {wording}' in readme.splitlines()
+    assert f'- [b2-mcp]({url}): {wording}' in index.splitlines()

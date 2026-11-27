@@ -25,3 +25,7 @@
 - [Releases](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/RELEASE.md): Follow the release process.
 - [Security](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/SECURITY.md): Report a security issue.
 - [Changelog](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/CHANGELOG.md): Review release changes.
+
+## Optional
+
+- [b2-mcp](https://github.com/backblaze-labs/b2-mcp): a Model Context Protocol server for B2.
