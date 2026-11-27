@@ -1,3 +1,0 @@
-kind: Fixed
-body: Improve command error reporting, preserve authorization data, complete interrupted JSON listings, validate encryption keys, and report checksums after verification.
-time: 2026-11-21T00:00:00Z

@@ -1,3 +1,0 @@
-kind: Infrastructure
-body: Add regression tests for known defects, where tests for defects that are still present are strict expected failures marked as known_defect and can be run on demand with the pytest known_defect marker and the runxfail option.
-time: 2026-11-19T00:00:00Z

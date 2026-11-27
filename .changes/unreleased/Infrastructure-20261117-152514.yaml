@@ -1,3 +1,0 @@
-kind: Infrastructure
-body: Verify signed release tags and security findings before publishing, and use Trusted Publishing for PyPI distributions.
-time: 2026-11-17T15:25:14.770822-06:00

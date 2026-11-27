@@ -1,3 +1,0 @@
-kind: Fixed
-body: Protect temporary integration test environment files and require explicit opt-in for shortened HTTP timeouts.
-time: 2026-11-21T00:00:00Z

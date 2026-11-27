@@ -1,2 +1,0 @@
-kind: Doc
-body: Correct the verbose-logging documentation and a bucket-update docstring to match actual behavior.

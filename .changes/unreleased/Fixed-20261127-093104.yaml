@@ -1,3 +1,0 @@
-kind: Fixed
-body: Reject file updates that specify no changes or a retention deadline without a retention mode.
-time: 2026-11-27T09:31:04.569721-06:00

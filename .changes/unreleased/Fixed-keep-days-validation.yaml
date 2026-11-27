@@ -1,3 +1,0 @@
-kind: Fixed
-body: Reject zero and negative values for sync --keep-days instead of silently accepting them.
-time: 2026-11-21T12:00:00-06:00

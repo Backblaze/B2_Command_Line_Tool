@@ -1,3 +1,0 @@
-kind: Fixed
-body: Print listing results (ls, bucket list, key list, large file listings, and download authorization tokens) when quiet mode is enabled.
-time: 2026-11-27T10:12:49.026604-06:00
