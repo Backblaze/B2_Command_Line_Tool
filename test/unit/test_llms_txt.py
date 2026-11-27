@@ -20,6 +20,7 @@ REQUIRED_URLS = {
     REPOSITORY_PREFIX + path
     for path in (
         'README.md',
+        '.claude/skills/b2-cli/SKILL.md',
         'README.md#installation',
         'README.md#usage',
         'README.md#apiver-cli-versions-b2-vs-b2v3-b2v4-b2v5-etc',
