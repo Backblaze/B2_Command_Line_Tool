@@ -26,7 +26,7 @@ ROOT = Path(__file__).parents[2]
 WORKFLOW_PATH = ROOT / '.github/workflows/simulator-integration.yml'
 HELPER_PATH = ROOT / 'scripts/with-b2-simulator.sh'
 SIMULATOR_REPOSITORY = 'backblaze-labs/b2-simulator'
-SIMULATOR_REVISION = 'a1e1db373b71f2d5f40082c19bc716cb6b3c3675'
+SIMULATOR_REVISION = '4052c6f8f45350486460d19bc796866cbdcdd3bc'
 KEY_CHECK_STEP = 'Require the private Simulator deploy key'
 DEPENDABOT_MESSAGE = 'an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret'
 POSIX = os.name == 'posix' and shutil.which('bash') is not None

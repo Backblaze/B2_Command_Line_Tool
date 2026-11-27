@@ -13,7 +13,7 @@ env:
   PYTHON_DEFAULT_VERSION: "3.12"
   UV_VERSION: "0.13.4"
   # The only place the Simulator revision is stated; every checkout below reads it.
-  SIMULATOR_REVISION: "a1e1db373b71f2d5f40082c19bc716cb6b3c3675"
+  SIMULATOR_REVISION: "4052c6f8f45350486460d19bc796866cbdcdd3bc"
 
 # Every job that fetches the private Simulator starts with the same deploy-key check. The check
 # reads only a job-level boolean derived from the secret, so the key never reaches a shell.
