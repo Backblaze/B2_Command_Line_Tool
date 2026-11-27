@@ -19,6 +19,7 @@ shift
 
 temp_dir="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 simulator_log="$temp_dir/b2-simulator.log"
+: >"$simulator_log"  # exists before the first read, even if the background start is slow
 node "$simulator_dir/bin/simulator/serve.mjs" --custom-upload-timestamps >"$simulator_log" 2>&1 &
 simulator_pid=$!
 trap 'kill "$simulator_pid" 2>/dev/null || true; wait "$simulator_pid" 2>/dev/null || true' EXIT
@@ -41,7 +42,8 @@ export B2_ENVIRONMENT
 B2_TEST_ENVIRONMENT="$B2_ENVIRONMENT"
 export B2_TEST_ENVIRONMENT
 
-certifi_bundle="$(uv run python -c 'import certifi; print(certifi.where())')"
+# Windows Python ends the line with "\r\n"; drop the "\r" that Git Bash may keep.
+certifi_bundle="$(uv run python -c 'import certifi; print(certifi.where())' | tr -d '\r')"
 simulator_ca_bundle="${B2_SIMULATOR_CA_BUNDLE:-$temp_dir/b2-simulator-ca.pem}"
 cp "$certifi_bundle" "$simulator_ca_bundle"
 cat "$simulator_dir/bin/simulator/loopback-cert.pem" >>"$simulator_ca_bundle"

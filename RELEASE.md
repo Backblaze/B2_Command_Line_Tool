@@ -52,7 +52,10 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    Confirm `master` CI is green. Do not release with failing CI.
    Pull request CI tests against the B2 Simulator, not real B2. The release gate therefore holds
    unless the latest finished `Weekly Live B2 Integration` run on `master` passed within the last
-   8 days (cancelled runs are ignored). If it is older, or it failed, run that workflow on `master`
+   8 days. Only scheduled or manually dispatched runs whose commit is on `master` count;
+   cancelled runs are ignored. The gate checks age, not that the run tested the tagged commit;
+   after a merge that may affect B2 behavior, dispatch the workflow on `master` before tagging.
+   If the latest run is older, or it failed, run that workflow on `master`
    (Actions tab, **Run workflow**) and wait for it to pass before tagging.
 2. Run the local health check from a clean checkout, with the required `uv` version, `nox`, Go,
    GitHub CLI (`gh`), and `jq` installed. Authenticate `gh` as a maintainer with access to the

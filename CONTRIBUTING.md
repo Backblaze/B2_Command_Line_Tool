@@ -128,15 +128,18 @@ the deploy key.
 
 Repository administrators must install a read-only deploy key for `backblaze-labs/b2-simulator`,
 store its private half as the `SIMULATOR_DEPLOY_KEY` Actions secret and as the
-`SIMULATOR_DEPLOY_KEY` Dependabot secret, and require both `simulator-access-policy` and
-`simulator-integration` before merging.
+`SIMULATOR_DEPLOY_KEY` Dependabot secret, and require these checks before merging:
+`simulator-access-policy`, `simulator-integration`, `simulator-python-versions`,
+`simulator-docker`, `simulator-linux-bundle`, `simulator-windows-bundle` and
+`simulator-macos-regression`. The matrix jobs report one check per leg.
 
 Pull request CI never receives real-B2 credentials. The `Weekly Live B2 Integration` workflow
 (`.github/workflows/live-b2.yml`) runs against real B2 every Monday and on manual dispatch: the
 secret-marked suite on Python 3.10, 3.14 and PyPy 3.10 on Linux (x86 and Arm), macOS and Windows
 (no PyPy on macOS or Windows), plus the Docker image and the Linux and Windows bundles. It fails
 if `B2_TEST_APPLICATION_KEY_ID` or `B2_TEST_APPLICATION_KEY` is missing, so a live run cannot pass
-by skipping its tests. Runs never overlap, because they share one B2 account. When a scheduled
+by skipping its tests. Runs never overlap, because they share one B2 account; a newer queued run
+replaces a waiting one, which then shows as cancelled and opens no issue. When a scheduled
 run fails, the workflow opens an issue titled "Weekly live B2 integration failed", or comments on
 it if it is still open. Releases wait for a recent green run (see [RELEASE.md](RELEASE.md)).
 

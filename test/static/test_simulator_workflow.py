@@ -425,3 +425,15 @@ def test_the_simulator_helper_fails_without_running_the_command_if_the_server_di
     assert result.returncode != 0
     assert 'simulator crashed on start' in result.stdout + result.stderr
     assert not (state / 'ran').exists()
+
+
+@pytest.mark.skipif(not POSIX, reason='helper uses Bash')
+def test_the_simulator_helper_accepts_a_windows_line_ending_from_python(fake_simulator, tmp_path):
+    # Windows Python prints "\r\n"; Git Bash may keep the "\r" in a command substitution.
+    simulator, state, temp, env = fake_simulator
+    uv = Path(env['PATH'].split(os.pathsep)[0]) / 'uv'
+    uv.write_text(f'#!/bin/sh\nprintf "%s\\r\\n" "{tmp_path / "certifi.pem"}"\n')
+    result = run_helper(simulator, env, 'printf %s "$REQUESTS_CA_BUNDLE" >"$FAKE_STATE/env"')
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert Path((state / 'env').read_text()).read_text() == 'PUBLIC ROOTS\nLOOPBACK CERT\n'

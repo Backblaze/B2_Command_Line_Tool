@@ -505,19 +505,57 @@ NOW = 1_795_000_000  # 2026-11-18T11:06:40Z
 DAY = 86_400
 
 
-def live_run(run_id, conclusion, started):
+def live_run(
+    run_id,
+    conclusion,
+    started,
+    *,
+    event='schedule',
+    commit='on-master',
+    repository='Backblaze/B2_Command_Line_Tool',
+):
+    """A workflow run as the GitHub API lists it; ``commit`` names a commit in ``live_gate_repo``."""
     timestamp = datetime.datetime.fromtimestamp(started, datetime.timezone.utc)
     return {
         'id': run_id,
         'conclusion': conclusion,
+        'event': event,
+        'head_branch': 'master',
+        'head_sha': commit,
+        'head_repository': {'full_name': repository},
         'run_started_at': timestamp.strftime('%Y-%m-%dT%H:%M:%SZ'),
         'html_url': f'{LIVE_RUN_URL}{run_id}',
     }
 
 
+def live_gate_repo(tmp_path):
+    """A checkout whose origin/master holds one commit, plus one commit that is not on master."""
+    repo = tmp_path / 'repo'
+    repo.mkdir(parents=True)
+
+    def git(*args):
+        return subprocess.run(
+            ['git', *args], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    git('init', '-b', 'master')
+    git('config', 'user.name', 'Release Test')
+    git('config', 'user.email', 'release@example.test')
+    git('commit', '--allow-empty', '-m', 'on master')
+    on_master = git('rev-parse', 'HEAD')
+    git('update-ref', 'refs/remotes/origin/master', on_master)
+    git('checkout', '-b', 'elsewhere')
+    git('commit', '--allow-empty', '-m', 'not on master')
+    commits = {'on-master': on_master, 'off-master': git('rev-parse', 'HEAD')}
+    git('checkout', 'master')
+    return repo, commits
+
+
 def run_live_gate(tmp_path, runs, *, gh_status=0):
+    repo, commits = live_gate_repo(tmp_path)
+    runs = [dict(run, head_sha=commits[run['head_sha']]) for run in runs]
     fake_bin = tmp_path / 'bin'
-    fake_bin.mkdir()
+    fake_bin.mkdir(parents=True)
     calls = tmp_path / 'calls'
     gh = fake_bin / 'gh'
     gh.write_text(
@@ -531,6 +569,7 @@ def run_live_gate(tmp_path, runs, *, gh_status=0):
     gh.chmod(0o755)
     result = subprocess.run(
         ['bash', str(ROOT / 'scripts/release-live-b2-gate.sh')],
+        cwd=repo,
         env=dict(
             os.environ,
             PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
@@ -600,4 +639,47 @@ def test_live_gate_ignores_cancelled_runs(tmp_path):
 def test_live_gate_holds_when_the_runs_cannot_be_read(tmp_path):
     result, _ = run_live_gate(tmp_path, [live_run(8, 'success', NOW - DAY)], gh_status=1)
     assert result.returncode != 0
+    assert 'CLEAR' not in result.stdout
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+@pytest.mark.parametrize(
+    'forged',
+    [
+        # A tag or branch named "master" can carry a modified live-b2.yml that triggers on push.
+        live_run(10, 'success', NOW - 3600, event='push'),
+        live_run(10, 'success', NOW - 3600, event='pull_request'),
+        live_run(10, 'success', NOW - 3600, repository='someone/B2_Command_Line_Tool'),
+    ],
+    ids=['push', 'pull-request', 'other-repository'],
+)
+def test_live_gate_counts_only_scheduled_or_dispatched_runs_of_this_repository(tmp_path, forged):
+    alone, _ = run_live_gate(tmp_path / 'alone', [forged])
+    assert alone.returncode == 1, alone.stdout + alone.stderr
+    assert 'no finished Weekly Live B2 Integration run on master' in alone.stderr
+
+    behind_a_failure, _ = run_live_gate(
+        tmp_path / 'failure', [forged, live_run(9, 'failure', NOW - DAY)]
+    )
+    assert behind_a_failure.returncode == 1
+    assert 'failure' in behind_a_failure.stderr
+    assert 'CLEAR' not in behind_a_failure.stdout
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+@pytest.mark.parametrize('event', ['schedule', 'workflow_dispatch'])
+def test_live_gate_accepts_scheduled_and_dispatched_runs(tmp_path, event):
+    result, _ = run_live_gate(tmp_path, [live_run(9, 'success', NOW - DAY, event=event)])
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+def test_live_gate_holds_when_the_green_run_tested_a_commit_outside_master(tmp_path):
+    # A ref named "master" that is not the master branch reports head_branch "master" too.
+    result, _ = run_live_gate(
+        tmp_path,
+        [live_run(9, 'success', NOW - DAY, event='workflow_dispatch', commit='off-master')],
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert 'not on origin/master' in result.stderr
     assert 'CLEAR' not in result.stdout
