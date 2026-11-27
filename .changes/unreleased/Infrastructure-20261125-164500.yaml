@@ -1,3 +1,0 @@
-kind: Infrastructure
-body: Harden the Simulator integration workflow by removing persisted checkout credentials, pinning the checkout and Node.js actions, and documenting the fork and Dependabot policy.
-time: 2026-11-25T16:45:00-03:00

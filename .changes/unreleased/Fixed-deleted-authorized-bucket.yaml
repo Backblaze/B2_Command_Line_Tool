@@ -1,3 +1,0 @@
-kind: Fixed
-body: Report the bucket ID when an application key is restricted to a deleted bucket.
-time: 2026-11-21T00:00:00-06:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: Report sync encryption options on local endpoints as command errors instead of tracebacks.
-time: 2026-11-24T22:47:51.503645-03:00

@@ -1,3 +1,0 @@
-kind: Infrastructure
-body: Require every pull request to pass integration tests against an exact, private B2 Simulator revision without exposing its fetch credential to fork code.
-time: 2026-11-24T00:00:00-03:00

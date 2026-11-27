@@ -1,3 +1,0 @@
-kind: Infrastructure
-body: Cover `b2 ls --json` with and without `--quiet` for zero, one, and two files.
-time: 2026-11-22T00:45:00Z

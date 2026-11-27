@@ -1,3 +1,0 @@
-kind: Fixed
-body: Remove the temporary file created for a conflicting destination when a download fails.
-time: 2026-11-21T00:00:00-06:00

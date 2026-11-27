@@ -1,3 +1,0 @@
-kind: Infrastructure
-body: Add a unit test proving that the `license` command's outbound license download stops waiting on an unresponsive server within its request timeout.
-time: 2026-11-21T01:11:05.54809-03:00

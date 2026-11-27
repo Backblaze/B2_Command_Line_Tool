@@ -1,2 +1,0 @@
-kind: Infrastructure
-body: Scope the release workflow GitHub token to the jobs that use it instead of exposing it workflow-wide.

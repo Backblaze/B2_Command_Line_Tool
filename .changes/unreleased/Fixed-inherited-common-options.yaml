@@ -1,3 +1,0 @@
-kind: Fixed
-body: Preserve explicitly supplied common options across nested commands.
-time: 2026-11-24T00:00:00Z

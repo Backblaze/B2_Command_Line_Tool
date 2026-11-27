@@ -9,6 +9,80 @@ upcoming release can be found in [.changes/unreleased](.changes/unreleased).
 Release preparation, fragment formatting, and changelog history are checked automatically in CI.
 The release process and publication checks are documented in [RELEASE.md](RELEASE.md).
 
+## [5.0.4](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.4) - 2026-11-27
+
+### Fixed
+
+- Keep autocomplete caches separate for each CLI API version.
+- Preserve the selected account profile across nested commands, accept it before the command, reject empty profile values, and retain file URI completion with cached parsers.
+- Preserve the existing notification rule prefix when updating a rule without a path.
+- Keep replication rule changes idempotent and report missing rules on stderr, preserve valid JSON listings in quiet mode, restore file-name completion, and keep stdout downloads free of status text.
+- Fix `b2 bucket create` and `b2 bucket update` with the deprecated `--lifecycle-rules` option (and other JSON options typed as a parametrized list) failing with `AttributeError: 'types.GenericAlias' object has no attribute '__pydantic_config__'` when the `full` extra (pydantic) is installed.
+- Handle invalid control character escaping environment values without crashing.
+- Reject bucket default retention options when a period is provided without a mode or a compliance or governance mode is provided without a period.
+- Reject notification rule custom headers without an equals sign.
+- Apply file retention before legal hold and report applied retention if the legal hold update fails.
+- Improve command error reporting, preserve authorization data, complete interrupted JSON listings, validate encryption keys, and report checksums after verification.
+- Protect temporary integration test environment files and require explicit opt-in for shortened HTTP timeouts.
+- Remove the temporary file created for a conflicting destination when a download fails.
+- Report the bucket ID when an application key is restricted to a deleted bucket.
+- Reject zero and negative values for sync --keep-days instead of silently accepting them.
+- Correct timestamp conversion to milliseconds for dates before September 9, 2001.
+- Preserve literal backslashes when updating shell completion sections and create non-executable zsh configuration files.
+- Reject file ID URIs passed as bucket names.
+- Preserve explicitly supplied common options across nested commands.
+- Create the shell configuration backup with owner-only permissions during autocomplete installation, instead of the process umask default or the source file's own (possibly group-readable) mode.
+- When downloading into a directory where a same-named file already exists, give the uniquely named output file permissions that respect the umask (owner read/write plus group/other read only when the umask allows), instead of an unconditional 0644 that ignored the umask.
+- Report conflicting sync thread options and missing SSE-C copy metadata as command errors instead of tracebacks.
+- Reject control characters in remote URIs and invalid profiles, constrain directory downloads to their destination, and clean up timed-out completion checks.
+- Report sync encryption options on local endpoints as command errors instead of tracebacks.
+- Report a missing local sync source without creating it.
+- Report unknown replication status columns as command errors.
+- Preserve key, bucket, and file URL results when quiet mode is enabled.
+- Name the real options in the ls and rm wildcard error.
+- Reject file updates that specify no changes or a retention deadline without a retention mode.
+- Reject `sync --threads` combined with an individual thread option even when that option is passed with its default value of 10.
+- Print listing results (ls, bucket list, key list, large file listings, and download authorization tokens) when quiet mode is enabled.
+
+### Doc
+
+- Correct the verbose-logging documentation and a bucket-update docstring to match actual behavior.
+- Add a writing style guide for documentation.
+- Add a testing guide describing test levels and verification evidence.
+- Correct file command help for options, output, and input.
+- Correct command help for sync, ls, rm, timestamps, and hidden options.
+- Document current output formats, exit codes, and streams for scripting and agents.
+- Add an index of documentation for agents.
+- Improve the wording in the documentation.
+- Improve the wording in the documentation.
+- Improve the wording in the documentation.
+- Link the B2 MCP server from the project documentation.
+- Add an agent skill for safe use of the B2 command line tool.
+- Correct help text for account, bucket, key and replication commands.
+- Add AGENTS.md and a CLAUDE.md pointer with commands, conventions and recurring review findings for contributors and agents.
+
+### Infrastructure
+
+- Scope the release workflow GitHub token to the jobs that use it instead of exposing it workflow-wide.
+- Add a SECURITY.md describing the coordinated vulnerability-disclosure policy.
+- Build standalone Linux executables with Ubuntu 22.04's system Python 3.10, removing the dependency on the deadsnakes PPA in CI and release builds.
+- Use Changie to assemble and validate release notes.
+- Verify signed release tags and security findings before publishing, and use Trusted Publishing for PyPI distributions.
+- Restore signed tag objects before verification against the current signing policy, separate read-only alert and advisory credentials, verify advisory visibility, and cover release workflow and publication settings.
+- Run release preparation checks in CI, preserving the released b2sdk requirement and validating sentence form, the existing fragment size boundary, published history, and pending fragments and changelogs after batching.
+- Replace community-maintained release, changelog, spelling, and Docker Hub description actions with inline workflow commands, retaining commented fallbacks during verification.
+- Add regression tests for known defects, where tests for defects that are still present are strict expected failures marked as known_defect and can be run on demand with the pytest known_defect marker and the runxfail option.
+- Check in CI, as a separate step, that every b2 command line shown in the README and documentation examples is accepted by the argument parser (the commands are parsed, not run), and add direct unit tests for the filter_out_empty_values helper.
+- Add unit tests asserting that the signing secret and custom header values of notification rule create and update never appear in the CLI argument log, the SDK debug trace, or exception text on the success, pre-authorization, API error and validation error paths.
+- Add a unit test proving that the `license` command's outbound license download stops waiting on an unresponsive server within its request timeout.
+- Make live B2 integration tests opt-in in CI with B2_LIVE_TESTS_ENABLED so master is no longer gated on shared-account availability.
+- Correct the 5.0.3 release date in the changelog.
+- Cover `b2 ls --json` with and without `--quiet` for zero, one, and two files.
+- Require every pull request to pass integration tests against an exact, private B2 Simulator revision without exposing its fetch credential to fork code.
+- Make the sdkharness large-transfer checks observe real upload and download concurrency through a loopback proxy, and harden the resilience executable.
+- Harden the Simulator integration workflow by removing persisted checkout credentials, pinning the checkout and Node.js actions, and documenting the fork and Dependabot policy.
+- Add a warn-only lint for changed Markdown documentation.
+
 ## [5.0.3](https://github.com/Backblaze/B2_Command_Line_Tool/releases/tag/v5.0.3) - 2026-11-13
 
 ### Fixed
