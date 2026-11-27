@@ -3325,15 +3325,9 @@ class Sync(
         add_normalized_argument(parser, '--dry-run', action='store_true')
         add_normalized_argument(parser, '--allow-empty-source', action='store_true')
         add_normalized_argument(parser, '--exclude-all-symlinks', action='store_true')
-        add_normalized_argument(
-            parser, '--sync-threads', type=int, default=cls.DEFAULT_SYNC_THREADS
-        )
-        add_normalized_argument(
-            parser, '--download-threads', type=int, default=cls.DEFAULT_DOWNLOAD_THREADS
-        )
-        add_normalized_argument(
-            parser, '--upload-threads', type=int, default=cls.DEFAULT_UPLOAD_THREADS
-        )
+        add_normalized_argument(parser, '--sync-threads', type=int, default=None)
+        add_normalized_argument(parser, '--download-threads', type=int, default=None)
+        add_normalized_argument(parser, '--upload-threads', type=int, default=None)
         add_normalized_argument(
             parser, '--compare-versions', default='modTime', choices=('none', 'modTime', 'size')
         )
@@ -3376,18 +3370,28 @@ class Sync(
     def _run(self, args):
         policies_manager = self.get_policies_manager_from_args(args)
 
+        # The individual options default to None so that an explicitly passed value
+        # equal to the default still conflicts with --threads.
         if args.threads is not None:
             if (
-                args.sync_threads != self.DEFAULT_SYNC_THREADS
-                or args.upload_threads != self.DEFAULT_UPLOAD_THREADS
-                or args.download_threads != self.DEFAULT_DOWNLOAD_THREADS
+                args.sync_threads is not None
+                or args.upload_threads is not None
+                or args.download_threads is not None
             ):
                 raise CommandError('--threads cannot be used with other thread options')
             sync_threads = upload_threads = download_threads = args.threads
         else:
-            sync_threads = args.sync_threads
-            upload_threads = args.upload_threads
-            download_threads = args.download_threads
+            sync_threads = (
+                self.DEFAULT_SYNC_THREADS if args.sync_threads is None else args.sync_threads
+            )
+            upload_threads = (
+                self.DEFAULT_UPLOAD_THREADS if args.upload_threads is None else args.upload_threads
+            )
+            download_threads = (
+                self.DEFAULT_DOWNLOAD_THREADS
+                if args.download_threads is None
+                else args.download_threads
+            )
 
         self.api.services.upload_manager.set_thread_pool_size(upload_threads)
         self.api.services.download_manager.set_thread_pool_size(download_threads)
