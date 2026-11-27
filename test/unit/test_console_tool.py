@@ -2790,7 +2790,7 @@ class TestConsoleTool(BaseConsoleToolTest):
         # Check with no files
         self._run_command(
             ['ls', '--with-wildcard', *self.b2_uri_args('my-bucket')],
-            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_stderr='ERROR: --with-wildcard requires --recursive to be turned on as well\n',
             expected_status=1,
         )
 
@@ -3619,7 +3619,7 @@ class TestRmConsoleTool(BaseConsoleToolTest):
     def test_rm_with_wildcard_without_recursive(self):
         self._run_command(
             ['rm', '--with-wildcard', *self.b2_uri_args('my-bucket')],
-            expected_stderr='ERROR: with_wildcard requires recursive to be turned on as well\n',
+            expected_stderr='ERROR: --with-wildcard requires --recursive to be turned on as well\n',
             expected_status=1,
         )
 

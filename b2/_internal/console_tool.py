@@ -2682,7 +2682,10 @@ class AbstractLsCommand(Command, metaclass=ABCMeta):
                 filters=args.filters,
             )
         except Exception as err:
-            raise CommandError(unprintable_to_hex(str(err))) from err
+            message = str(err)
+            if message == 'with_wildcard requires recursive to be turned on as well':
+                message = '--with-wildcard requires --recursive to be turned on as well'
+            raise CommandError(unprintable_to_hex(message)) from err
 
     def get_b2_uri_from_arg(self, args: argparse.Namespace) -> B2URI:
         raise NotImplementedError
