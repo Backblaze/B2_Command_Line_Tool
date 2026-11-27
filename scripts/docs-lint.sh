@@ -20,8 +20,8 @@ if ! ancestor=$(git merge-base "$base" HEAD); then
   echo "ERROR: cannot find merge base for $base" >&2
   exit 2
 fi
-git diff --name-only -z --diff-filter=ACMR "$ancestor" -- 'README.md' 'CONTRIBUTING.md' 'RELEASE.md' 'SECURITY.md' 'llms.txt' 'doc/*.md' 'doc/**/*.md' > "$tmp/files"
-git ls-files --others --exclude-standard -z -- 'README.md' 'CONTRIBUTING.md' 'RELEASE.md' 'SECURITY.md' 'llms.txt' 'doc/*.md' 'doc/**/*.md' >> "$tmp/files"
+git diff --name-only -z --diff-filter=ACMR "$ancestor" -- 'README.md' 'AGENTS.md' 'CONTRIBUTING.md' 'RELEASE.md' 'SECURITY.md' 'llms.txt' 'doc/*.md' 'doc/**/*.md' > "$tmp/files"
+git ls-files --others --exclude-standard -z -- 'README.md' 'AGENTS.md' 'CONTRIBUTING.md' 'RELEASE.md' 'SECURITY.md' 'llms.txt' 'doc/*.md' 'doc/**/*.md' >> "$tmp/files"
 errors=0
 report() {
   if [ "$mode" = warn ]; then echo "WARNING: $*"; else echo "ERROR: $*"; fi

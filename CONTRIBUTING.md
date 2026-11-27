@@ -109,7 +109,8 @@ nox -s lint
 
 ## Documentation lint
 
-Run `nox -s docs_lint` to check changed Markdown files for broken relative links.
+Run `nox -s docs_lint` to check changed Markdown files for broken relative links. It checks `README.md`, `AGENTS.md`,
+`CONTRIBUTING.md`, `RELEASE.md`, `SECURITY.md`, `llms.txt` and `doc/**/*.md`.
 The lint requires frontmatter for new Markdown files under `doc/` and warns about stale dates.
 It ignores links inside code fences. It does not fetch external links or check `.rst` files.
 The session is warn-only and is not yet in CI. Use `bash scripts/docs-lint.sh --strict`

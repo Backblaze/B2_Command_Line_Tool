@@ -7,6 +7,8 @@ cd "$tmp"
 git init -q
 git config user.name Test
 git config user.email test@example.invalid
+git config commit.gpgsign false
+git config core.hooksPath /dev/null
 mkdir doc
 printf 'baseline\n' > baseline
 cat > README.md <<'DOC'
@@ -228,3 +230,9 @@ rm doc/nested/staged.md
 printf '%s\n' '---' 'ordinary prose without metadata' > README.md
 "$script" --base "$base" --strict >out 2>&1 || { cat out; echo 'FAIL optional root frontmatter'; exit 1; }
 echo 'ok   root horizontal rule needs no frontmatter'
+git checkout -q -- README.md
+printf '[guide](doc/missing.md)\n' > AGENTS.md
+if "$script" --base "$base" --strict >out 2>&1; then echo 'FAIL broken link in AGENTS.md accepted'; exit 1; fi
+grep -q 'missing.md' out || { cat out; exit 1; }
+echo 'ok   AGENTS.md is linted'
+rm AGENTS.md
