@@ -12,7 +12,13 @@ permissions:
 env:
   PYTHON_DEFAULT_VERSION: "3.12"
   UV_VERSION: "0.13.4"
-  SIMULATOR_REVISION: "529721037901412b7b24fdc18498631d298295c5"
+  # The only place the Simulator revision is stated; every checkout below reads it.
+  SIMULATOR_REVISION: "4052c6f8f45350486460d19bc796866cbdcdd3bc"
+
+# Every job that fetches the private Simulator starts with the same deploy-key check. The check
+# reads only a job-level boolean derived from the secret, so the key never reaches a shell.
+# Dependabot pull requests receive Dependabot secrets, not Actions secrets, so the key must also
+# be stored as a Dependabot secret.
 
 jobs:
   simulator-access-policy:
@@ -33,15 +39,20 @@ jobs:
     timeout-minutes: 90
     needs: simulator-access-policy
     runs-on: ubuntu-latest
+    env:
+      HAS_SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY != '' }}
     steps:
       - name: Require the private Simulator deploy key
+        if: ${{ env.HAS_SIMULATOR_DEPLOY_KEY != 'true' }}
         env:
-          SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          ACTOR: ${{ github.actor }}
         run: |
-          if [ -z "$SIMULATOR_DEPLOY_KEY" ]; then
-            echo "SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
-            exit 1
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::error::Dependabot pull requests receive only Dependabot secrets, and Simulator testing is mandatory, so an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret."
+          else
+            echo "::error::SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
           fi
+          exit 1
       - name: Check out the CLI
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,7 +63,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: backblaze-labs/b2-simulator
-          ref: 529721037901412b7b24fdc18498631d298295c5
+          ref: ${{ env.SIMULATOR_REVISION }}
           ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
           persist-credentials: false
           path: simulator
@@ -84,35 +95,361 @@ jobs:
           B2_TEST_APPLICATION_KEY: sim-test-secret
           B2_TEST_SHORT_TIMEOUTS: "1"
           WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
-        run: |
-          simulator_log="$RUNNER_TEMP/b2-simulator.log"
-          node ../simulator/bin/simulator/serve.mjs --custom-upload-timestamps >"$simulator_log" 2>&1 &
-          simulator_pid=$!
-          trap 'kill "$simulator_pid" 2>/dev/null || true; wait "$simulator_pid" 2>/dev/null || true' EXIT
+        run: bash scripts/with-b2-simulator.sh ../simulator uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"
 
-          B2_ENVIRONMENT=""
-          for _ in $(seq 1 150); do
-            B2_ENVIRONMENT="$(sed -n 's|^SIMULATOR-LISTENING \(https://127\.0\.0\.1:[0-9][0-9]*\)$|\1|p' "$simulator_log" | head -1)"
-            if [ -n "$B2_ENVIRONMENT" ]; then break; fi
-            if ! kill -0 "$simulator_pid" 2>/dev/null; then
-              cat "$simulator_log"
-              exit 1
-            fi
-            sleep 0.2
-          done
-          if [ -z "$B2_ENVIRONMENT" ]; then
-            cat "$simulator_log"
-            exit 1
+  # Python versions that ran the secret-marked suite against live B2 in pull requests before
+  # live B2 moved to the weekly workflow.
+  simulator-python-versions:
+    timeout-minutes: 90
+    needs: simulator-access-policy
+    runs-on: ubuntu-latest
+    env:
+      HAS_SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.14", "pypy3.10"]
+    steps:
+      - name: Require the private Simulator deploy key
+        if: ${{ env.HAS_SIMULATOR_DEPLOY_KEY != 'true' }}
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::error::Dependabot pull requests receive only Dependabot secrets, and Simulator testing is mandatory, so an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret."
+          else
+            echo "::error::SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
           fi
-          export B2_ENVIRONMENT
-          B2_TEST_ENVIRONMENT="$B2_ENVIRONMENT"
-          export B2_TEST_ENVIRONMENT
-          certifi_bundle="$(uv run python -c 'import certifi; print(certifi.where())')"
-          simulator_ca_bundle="$RUNNER_TEMP/b2-simulator-ca.pem"
-          cp "$certifi_bundle" "$simulator_ca_bundle"
-          cat "$GITHUB_WORKSPACE/simulator/bin/simulator/loopback-cert.pem" >>"$simulator_ca_bundle"
-          REQUESTS_CA_BUNDLE="$simulator_ca_bundle"
-          export REQUESTS_CA_BUNDLE
-          SSL_CERT_FILE="$REQUESTS_CA_BUNDLE"
-          export SSL_CERT_FILE
-          uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"
+          exit 1
+      - name: Check out the CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: cli
+      - name: Check out the pinned private Simulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: backblaze-labs/b2-simulator
+          ref: ${{ env.SIMULATOR_REVISION }}
+          ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          persist-credentials: false
+          path: simulator
+      - name: Verify the Simulator revision
+        run: |
+          actual_revision="$(git -C simulator rev-parse HEAD)"
+          test "$actual_revision" = "$SIMULATOR_REVISION"
+          test -z "$(git -C simulator status --short)"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: cli
+        run: uv sync --locked --group nox
+      - name: Test against Simulator
+        working-directory: cli
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          B2_TEST_APPLICATION_KEY_ID: sim-test-id
+          B2_TEST_APPLICATION_KEY: sim-test-secret
+          B2_TEST_SHORT_TIMEOUTS: "1"
+          WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+        run: bash scripts/with-b2-simulator.sh ../simulator uv run nox -vs integration -p "$PYTHON_VERSION" -- -n 0 -m "require_secrets"
+
+  simulator-docker:
+    timeout-minutes: 90
+    needs: simulator-access-policy
+    runs-on: ubuntu-latest
+    env:
+      HAS_SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY != '' }}
+    steps:
+      - name: Require the private Simulator deploy key
+        if: ${{ env.HAS_SIMULATOR_DEPLOY_KEY != 'true' }}
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::error::Dependabot pull requests receive only Dependabot secrets, and Simulator testing is mandatory, so an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret."
+          else
+            echo "::error::SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
+          fi
+          exit 1
+      - name: Check out the CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: cli
+      - name: Check out the pinned private Simulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: backblaze-labs/b2-simulator
+          ref: ${{ env.SIMULATOR_REVISION }}
+          ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          persist-credentials: false
+          path: simulator
+      - name: Verify the Simulator revision
+        run: |
+          actual_revision="$(git -C simulator rev-parse HEAD)"
+          test "$actual_revision" = "$SIMULATOR_REVISION"
+          test -z "$(git -C simulator status --short)"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: cli
+        run: uv sync --locked --group nox
+      - name: Generate Dockerfile
+        working-directory: cli
+        run: uv run nox -vs generate_dockerfile
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build Docker
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: cli
+          pull: true
+          no-cache: true
+          load: true
+          tags: backblazeit/b2:test
+          platforms: linux/amd64
+      - name: Test the Docker image against Simulator
+        working-directory: cli
+        env:
+          B2_TEST_APPLICATION_KEY_ID: sim-test-id
+          B2_TEST_APPLICATION_KEY: sim-test-secret
+          B2_TEST_SHORT_TIMEOUTS: "1"
+          WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+          # The Simulator listens on the host's loopback interface only, and docker_test mounts
+          # /tmp into the container, so the container can read the trust bundle written there.
+          B2_TEST_DOCKER_NETWORK: host
+          B2_SIMULATOR_CA_BUNDLE: /tmp/b2-simulator-ca.pem
+        run: bash scripts/with-b2-simulator.sh ../simulator uv run nox -vs docker_test -- backblazeit/b2:test -n 0
+
+  simulator-linux-bundle:
+    timeout-minutes: 90
+    needs: simulator-access-policy
+    env:
+      HAS_SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY != '' }}
+      PYTHON_DEFAULT_VERSION: "3.10"  # Use Ubuntu 22.04's distro Python for staticx.
+      UV_PYTHON_DOWNLOADS: "never"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-22.04", "ubuntu-22.04-arm"]  # keep the versions aligned with cd.yml
+    steps:
+      - name: Require the private Simulator deploy key
+        if: ${{ env.HAS_SIMULATOR_DEPLOY_KEY != 'true' }}
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::error::Dependabot pull requests receive only Dependabot secrets, and Simulator testing is mandatory, so an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret."
+          else
+            echo "::error::SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
+          fi
+          exit 1
+      - name: Check out the CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: cli
+      - name: Check out the pinned private Simulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: backblaze-labs/b2-simulator
+          ref: ${{ env.SIMULATOR_REVISION }}
+          ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          persist-credentials: false
+          path: simulator
+      - name: Verify the Simulator revision
+        run: |
+          actual_revision="$(git -C simulator rev-parse HEAD)"
+          test "$actual_revision" = "$SIMULATOR_REVISION"
+          test -z "$(git -C simulator status --short)"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: cli
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install python${{ env.PYTHON_DEFAULT_VERSION }}-dev python${{ env.PYTHON_DEFAULT_VERSION }}-venv patchelf scons
+          uv sync --python /usr/bin/python${{ env.PYTHON_DEFAULT_VERSION }} --locked --group nox
+          git config --global --add safe.directory '*'
+      - name: Bundle the distribution
+        id: bundle
+        working-directory: cli
+        shell: bash
+        run: uv run nox -vs bundle
+      - name: Test against Simulator
+        working-directory: cli
+        shell: bash
+        env:
+          SUT: ${{ steps.bundle.outputs.sut_path }}
+          B2_TEST_APPLICATION_KEY_ID: sim-test-id
+          B2_TEST_APPLICATION_KEY: sim-test-secret
+          B2_TEST_SHORT_TIMEOUTS: "1"
+          WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+        run: bash scripts/with-b2-simulator.sh ../simulator uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- --sut="$SUT" -n 0 -m "require_secrets"
+
+  simulator-windows-bundle:
+    timeout-minutes: 90
+    needs: simulator-access-policy
+    env:
+      HAS_SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY != '' }}
+    runs-on: windows-2022  # keep the version aligned with cd.yml
+    steps:
+      - name: Require the private Simulator deploy key
+        if: ${{ env.HAS_SIMULATOR_DEPLOY_KEY != 'true' }}
+        shell: bash
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::error::Dependabot pull requests receive only Dependabot secrets, and Simulator testing is mandatory, so an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret."
+          else
+            echo "::error::SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
+          fi
+          exit 1
+      - name: Check out the CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: cli
+      - name: Check out the pinned private Simulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: backblaze-labs/b2-simulator
+          ref: ${{ env.SIMULATOR_REVISION }}
+          ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          persist-credentials: false
+          path: simulator
+      - name: Verify the Simulator revision
+        shell: bash
+        run: |
+          actual_revision="$(git -C simulator rev-parse HEAD)"
+          test "$actual_revision" = "$SIMULATOR_REVISION"
+          test -z "$(git -C simulator status --short)"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: cli
+        run: uv sync --locked --group nox
+      - name: Bundle the distribution
+        id: bundle
+        working-directory: cli
+        shell: bash
+        run: uv run nox -vs bundle
+      - name: Test against Simulator
+        working-directory: cli
+        shell: bash
+        env:
+          SUT: ${{ steps.bundle.outputs.sut_path }}
+          B2_TEST_APPLICATION_KEY_ID: sim-test-id
+          B2_TEST_APPLICATION_KEY: sim-test-secret
+          B2_TEST_SHORT_TIMEOUTS: "1"
+          WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+        run: bash scripts/with-b2-simulator.sh ../simulator uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- --sut="$SUT" -n 0 -m "require_secrets"
+
+  simulator-macos-regression:
+    timeout-minutes: 30
+    needs: simulator-integration
+    runs-on: macos-latest
+    env:
+      HAS_SIMULATOR_DEPLOY_KEY: ${{ secrets.SIMULATOR_DEPLOY_KEY != '' }}
+    steps:
+      - name: Require the private Simulator deploy key
+        if: ${{ env.HAS_SIMULATOR_DEPLOY_KEY != 'true' }}
+        env:
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [ "$ACTOR" = "dependabot[bot]" ]; then
+            echo "::error::Dependabot pull requests receive only Dependabot secrets, and Simulator testing is mandatory, so an admin must add SIMULATOR_DEPLOY_KEY as a Dependabot secret."
+          else
+            echo "::error::SIMULATOR_DEPLOY_KEY is required because Simulator testing is mandatory."
+          fi
+          exit 1
+      - name: Check out the CLI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: cli
+      - name: Check out the pinned private Simulator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: backblaze-labs/b2-simulator
+          ref: ${{ env.SIMULATOR_REVISION }}
+          ssh-key: ${{ secrets.SIMULATOR_DEPLOY_KEY }}
+          persist-credentials: false
+          path: simulator
+      - name: Verify the Simulator revision
+        run: |
+          actual_revision="$(git -C simulator rev-parse HEAD)"
+          test "$actual_revision" = "$SIMULATOR_REVISION"
+          test -z "$(git -C simulator status --short)"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: cli
+        run: uv sync --locked --group nox
+      - name: Test against Simulator
+        working-directory: cli
+        env:
+          B2_TEST_APPLICATION_KEY_ID: sim-test-id
+          B2_TEST_APPLICATION_KEY: sim-test-secret
+          B2_TEST_SHORT_TIMEOUTS: "1"
+          WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+        run: bash scripts/with-b2-simulator.sh ../simulator uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets" -k "tqdm_closer"

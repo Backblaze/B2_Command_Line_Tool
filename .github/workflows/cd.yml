@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Read the Weekly Live B2 Integration results.
+      actions: read
       security-events: read
       # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
       vulnerability-alerts: read  # Dependabot alerts (read/none supported by GitHub).
@@ -35,6 +37,11 @@ jobs:
           SECURITY_GATE_STRICT: ${{ vars.SECURITY_GATE_STRICT || 'false' }}
           RELEASE_FIXES_ADVISORIES: ${{ vars.RELEASE_FIXES_ADVISORIES }}
         run: scripts/release-security-gate.sh
+      - name: Require a recent green live B2 run
+        # Pull request CI tests against the B2 Simulator only, so a release waits for real B2.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/release-live-b2-gate.sh
   deploy:
     needs: release-gate
     runs-on: ubuntu-latest

@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Run real-B2 integration tests in a fail-closed weekly and manual workflow that covers the former live Python versions, systems, Docker image and bundles, reports scheduled failures in an issue and must pass recently before a release, retire the B2_LIVE_TESTS_ENABLED opt-in, and run pull request integration tests for those Python versions, the Docker image, the bundles and the macOS-only tqdm regression against the B2 Simulator pinned to a commit on its main branch.
+time: 2026-11-27T00:00:00-03:00

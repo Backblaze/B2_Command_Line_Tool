@@ -7,224 +7,249 @@
 # License https://www.backblaze.com/using_b2_code.html
 #
 ######################################################################
-"""Check the live B2 opt-in and offline job dependencies in the CI workflow."""
+"""Keep pull requests on Simulator and real-B2 tests outside the PR path."""
 
 from __future__ import annotations
 
-import ast
-import copy
+import json
+import os
 import re
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
-WORKFLOW = yaml.safe_load((Path(__file__).parents[2] / '.github/workflows/ci.yml').read_text())
-JOBS = WORKFLOW['jobs']
+ROOT = Path(__file__).parents[2]
+WORKFLOWS = ROOT / '.github/workflows'
+CI_TEXT = (WORKFLOWS / 'ci.yml').read_text()
+LIVE_PATH = WORKFLOWS / 'live-b2.yml'
+REPORT_SCRIPT = ROOT / 'scripts/report-live-b2-failure.sh'
 KEYS = ('B2_TEST_APPLICATION_KEY', 'B2_TEST_APPLICATION_KEY_ID')
-CONSUMERS = ('test', 'test-docker', 'test-linux-bundle', 'test-windows-bundle')
-
-
-def expression(value, context):
-    """Evaluate the workflow expression subset used by these gates; reject unknown syntax."""
-    if not isinstance(value, str) or not value.startswith('${{'):
-        return value
-    code = value[3:-2].strip().replace('cancelled()', repr(context['cancelled']))
-    matrix_guard = 'contains(fromJSON(\'["3.10", "pypy3.10", "3.14"]\'), matrix.python-version)'
-    code = code.replace(
-        matrix_guard, repr(context['matrix.python-version'] in ('3.10', 'pypy3.10', '3.14'))
-    )
-    code = re.sub(
-        r'[a-zA-Z_][\w-]*(?:\.[a-zA-Z_][\w-]*)+',
-        lambda match: repr(context[match.group()]),
-        code,
-    )
-    code = code.replace('&&', ' and ').replace('||', ' or ')
-    code = re.sub(r'!(?!=)', 'not ', code)
-    code = re.sub(r"(?<!['\"])\btrue\b(?!['\"])", 'True', code)
-    code = re.sub(r"(?<!['\"])\bfalse\b(?!['\"])", 'False', code)
-    tree = ast.parse(code.strip(), mode='eval')
-
-    def resolve(node):
-        if isinstance(node, ast.Constant) and isinstance(node.value, (str, bool)):
-            return node.value
-        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-            return not resolve(node.operand)
-        if isinstance(node, ast.BoolOp):
-            result = resolve(node.values[0])
-            for child in node.values[1:]:
-                if isinstance(node.op, ast.And) and not result:
-                    return result
-                if isinstance(node.op, ast.Or) and result:
-                    return result
-                result = resolve(child)
-            return result
-        if isinstance(node, ast.Compare):
-            left = resolve(node.left)
-            for operator, child in zip(node.ops, node.comparators):
-                right = resolve(child)
-                assert isinstance(operator, (ast.Eq, ast.NotEq)), code
-                if (left == right) != isinstance(operator, ast.Eq):
-                    return False
-                left = right
-            return True
-        raise AssertionError(f'Unsupported workflow expression: {code}')
-
-    return resolve(tree.body)
-
-
-def context(enabled='', event='push', draft=False, credentials=True):
-    return {
-        'vars.B2_LIVE_TESTS_ENABLED': enabled,
-        'github.event_name': event,
-        'github.event.pull_request.draft': draft,
-        'secrets.B2_TEST_APPLICATION_KEY': 'example-key' if credentials else '',
-        'secrets.B2_TEST_APPLICATION_KEY_ID': 'example-id' if credentials else '',
-        'needs.lint.result': 'success',
-        'needs.cleanup_buckets.result': 'skipped',
-        'matrix.python-version': '3.14',
-        'cancelled': False,
-    }
-
-
-def live_steps(job):
-    return [
-        step
-        for step in job['steps']
-        if 'require_secrets' in step.get('run', '')
-        and 'not require_secrets' not in step.get('run', '')
-        or 'nox -vs docker_test' in step.get('run', '')
-        or 'nox -vs cleanup_buckets' in step.get('run', '')
-    ]
-
-
-def assert_credential_placement(workflow):
-    remaining = copy.deepcopy(workflow)
-    for name in ('cleanup_buckets', *CONSUMERS):
-        for key in KEYS:
-            value = remaining['jobs'][name]['env'].pop(key)
-            assert f'secrets.{key}' in value
-    assert not re.search(r'secrets\.B2_TEST_APPLICATION_KEY', str(remaining), re.IGNORECASE)
-
-
-@pytest.mark.parametrize('placement', ['workflow_env', 'step_env', 'step_with', 'other_job'])
-def test_credential_scan_rejects_ungated_references(placement):
-    workflow = copy.deepcopy(WORKFLOW)
-    reference = '${{ secrets.B2_TEST_APPLICATION_KEY }}'
-    if placement == 'workflow_env':
-        workflow['env']['UNEXPECTED'] = reference
-    elif placement == 'step_env':
-        workflow['jobs']['test']['steps'][0]['env'] = {'UNEXPECTED': reference}
-    elif placement == 'step_with':
-        workflow['jobs']['test']['steps'][0]['with']['UNEXPECTED'] = reference
-    else:
-        workflow['jobs']['doc']['steps'][0]['env'] = {'UNEXPECTED': reference}
-    with pytest.raises(AssertionError):
-        assert_credential_placement(workflow)
-
-
-@pytest.mark.parametrize(
-    'enabled,event,draft,credentials,allowed',
-    [
-        ('', 'push', False, True, False),
-        ('false', 'push', False, True, False),
-        ('true', 'pull_request', True, True, False),
-        ('true', 'pull_request', False, True, True),
-        ('true', 'push', False, True, True),
-        ('true', 'push', False, False, False),
-    ],
+LIVE_TEST_JOBS = (
+    'live-b2-integration',
+    'live-b2-docker',
+    'live-b2-linux-bundle',
+    'live-b2-windows-bundle',
 )
-def test_live_gate_and_credentials(enabled, event, draft, credentials, allowed):
-    values = context(enabled, event, draft, credentials)
-    gate_enabled = enabled == 'true' and (event != 'pull_request' or not draft)
+POSIX = os.name == 'posix' and all(shutil.which(tool) for tool in ('bash', 'jq'))
+
+
+def triggers(workflow):
+    """Return workflow triggers despite PyYAML treating ``on`` as YAML 1.1 boolean."""
+    return workflow.get('on', workflow.get(True))
+
+
+def load_live():
+    return yaml.safe_load(LIVE_PATH.read_text())
+
+
+def run_scripts(job):
+    return '\n'.join(step.get('run', '') for step in job['steps'])
+
+
+def test_pull_request_ci_never_references_real_b2_credentials():
+    for key in KEYS:
+        assert not re.search(rf'secrets\.{key}\b', CI_TEXT)
+        assert not re.search(
+            rf'secrets\.{key}\b', (WORKFLOWS / 'simulator-integration.yml').read_text()
+        )
+
+
+def test_the_retired_live_tests_switch_is_not_read_by_any_workflow():
+    # B2_LIVE_TESTS_ENABLED used to opt pull request CI into live B2. Pull requests no longer run
+    # live B2, and the weekly run is paused by disabling the workflow, not by a variable that
+    # would turn a scheduled run green without testing anything.
+    for workflow in WORKFLOWS.glob('*.yml'):
+        assert 'B2_LIVE_TESTS_ENABLED' not in workflow.read_text(), workflow.name
+
+
+def test_live_b2_workflow_is_weekly_and_manual_only():
+    workflow = load_live()
+    event_names = set(triggers(workflow))
+    assert event_names == {'schedule', 'workflow_dispatch'}
+    assert triggers(workflow)['schedule']
+
+
+def test_live_runs_never_overlap_on_the_shared_b2_account():
+    workflow = load_live()
+    assert workflow['concurrency'] == {'group': 'live-b2', 'cancel-in-progress': False}
+
+
+def test_weekly_live_b2_run_fails_closed_without_credentials():
+    workflow = load_live()
+    preflight = workflow['jobs']['live-b2-preflight']
+    assert preflight['env'] == {
+        'HAS_B2_TEST_APPLICATION_KEY_ID': "${{ secrets.B2_TEST_APPLICATION_KEY_ID != '' }}",
+        'HAS_B2_TEST_APPLICATION_KEY': "${{ secrets.B2_TEST_APPLICATION_KEY != '' }}",
+    }
+    assert 'if' not in preflight
+    script = run_scripts(preflight)
+
+    def check(key_id, key):
+        return subprocess.run(
+            ['bash', '-eu', '-c', script],
+            env={
+                **os.environ,
+                'HAS_B2_TEST_APPLICATION_KEY_ID': key_id,
+                'HAS_B2_TEST_APPLICATION_KEY': key,
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    assert check('true', 'true').returncode == 0
+    for key_id, key in (('false', 'true'), ('true', 'false'), ('false', 'false')):
+        result = check(key_id, key)
+        assert result.returncode == 1
+        assert (
+            'B2_TEST_APPLICATION_KEY_ID and B2_TEST_APPLICATION_KEY are required' in result.stdout
+        )
+
+    cleanup = workflow['jobs']['live-b2-cleanup']
+    assert cleanup['needs'] == 'live-b2-preflight'
+    assert 'uv run nox -vs cleanup_buckets' in run_scripts(cleanup)
+    for name in LIVE_TEST_JOBS:
+        job = workflow['jobs'][name]
+        assert job['needs'] == 'live-b2-cleanup', name
+        assert 'if' not in job, name
+
+
+def test_every_live_job_receives_the_live_credentials_and_runs_secret_tests():
+    workflow = load_live()
+    for name in ('live-b2-cleanup', *LIVE_TEST_JOBS):
+        job = workflow['jobs'][name]
+        for key in KEYS:
+            assert job['env'][key] == f'${{{{ secrets.{key} }}}}', name
+        assert job['env']['WORKFLOW_ID'].startswith('${{ github.run_id }}'), name
+    for name in LIVE_TEST_JOBS:
+        assert '--cleanup' in run_scripts(workflow['jobs'][name]), name
+
+
+def test_live_b2_covers_the_python_versions_and_systems_that_used_to_run_live():
+    job = load_live()['jobs']['live-b2-integration']
+    matrix = job['strategy']['matrix']
+    assert job['strategy']['fail-fast'] is False
+    assert job['runs-on'] == '${{ matrix.os }}'
+    combinations = {
+        (os_name, python)
+        for os_name in matrix['os']
+        for python in matrix['python-version']
+        if {'os': os_name, 'python-version': python} not in matrix.get('exclude', [])
+    }
+    assert combinations == {
+        (os_name, python)
+        for os_name in ('ubuntu-latest', 'ubuntu-24.04-arm', 'macos-latest', 'windows-latest')
+        for python in ('3.10', '3.14', 'pypy3.10')
+        if not (python == 'pypy3.10' and os_name in ('macos-latest', 'windows-latest'))
+    }
     assert (
-        bool(expression(JOBS['cleanup_buckets'].get('if', '${{ true }}'), values)) == gate_enabled
+        'uv run nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" '
+        '--cleanup' in run_scripts(job)
     )
-    assert_credential_placement(WORKFLOW)
-    for name in ('cleanup_buckets', *CONSUMERS):
-        job = JOBS[name]
-        job_values = dict(values)
-        for key in KEYS:
-            actual = expression(job['env'][key], values)
-            assert actual == (values[f'secrets.{key}'] if gate_enabled else '')
-            job_values[f'env.{key}'] = actual
-        steps = live_steps(job)
-        assert len(steps) == 1, name
-        assert bool(expression(steps[0].get('if', '${{ true }}'), job_values)) == allowed
-        if not gate_enabled:
-            # Check the step gate independently of the credential masking above.
-            job_values.update({f'env.{key}': 'example' for key in KEYS})
-            assert not expression(steps[0].get('if', '${{ true }}'), job_values)
 
 
-@pytest.mark.parametrize('name', ['cleanup_buckets', *CONSUMERS])
-@pytest.mark.parametrize('missing_key', KEYS)
-def test_live_steps_require_both_credentials(name, missing_key):
-    values = context(enabled='true')
-    values.update({f'env.{key}': 'example' for key in KEYS})
-    values[f'env.{missing_key}'] = ''
-    (step,) = live_steps(JOBS[name])
-    assert not expression(step.get('if', '${{ true }}'), values)
+def test_live_b2_tests_the_docker_image_and_the_bundles():
+    jobs = load_live()['jobs']
+    docker = jobs['live-b2-docker']
+    assert 'uv run nox -vs docker_test -- backblazeit/b2:test --cleanup' in run_scripts(docker)
+    assert 'B2_TEST_DOCKER_NETWORK' not in str(docker)
+
+    linux = jobs['live-b2-linux-bundle']
+    assert set(linux['strategy']['matrix']['os']) == {'ubuntu-22.04', 'ubuntu-22.04-arm'}
+    assert jobs['live-b2-windows-bundle']['runs-on'] == 'windows-2022'
+    for job in (linux, jobs['live-b2-windows-bundle']):
+        assert (
+            'uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- '
+            '--sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup'
+        ) in run_scripts(job)
 
 
-def assert_live_matrix_filter(step):
-    values = context(enabled='true')
-    values.update({f'env.{key}': 'example' for key in KEYS})
-    for version in ('3.10', '3.11', '3.12', '3.13', '3.14', 'pypy3.10'):
-        values['matrix.python-version'] = version
-        assert bool(expression(step['if'], values)) == (version in ('3.10', '3.14', 'pypy3.10'))
+def test_only_the_failure_report_can_write_issues():
+    workflow = load_live()
+    assert workflow['permissions'] == {'contents': 'read'}
+    report = workflow['jobs']['report-scheduled-failure']
+    assert report['permissions'] == {'contents': 'read', 'issues': 'write'}
+    assert set(report['needs']) == {'live-b2-preflight', 'live-b2-cleanup', *LIVE_TEST_JOBS}
+    assert report['if'] == "${{ failure() && github.event_name == 'schedule' }}"
+    assert 'run: scripts/report-live-b2-failure.sh' in yaml.safe_dump(report, width=1000)
+    for name, job in workflow['jobs'].items():
+        if name != 'report-scheduled-failure':
+            assert 'permissions' not in job, name
+            assert 'secrets.GITHUB_TOKEN' not in str(job), name
+            assert 'github.token' not in str(job), name
 
 
-def test_live_matrix_filter_rejects_removed_guard():
-    (step,) = live_steps(JOBS['test'])
-    mutant = copy.deepcopy(step)
-    guard = ' && contains(fromJSON(\'["3.10", "pypy3.10", "3.14"]\'), matrix.python-version)'
-    assert guard in mutant['if']
-    mutant['if'] = mutant['if'].replace(guard, '')
-    with pytest.raises(AssertionError):
-        assert_live_matrix_filter(mutant)
-
-
-def test_live_matrix_filter_keeps_edge_versions():
-    (step,) = live_steps(JOBS['test'])
-    assert_live_matrix_filter(step)
-
-
-@pytest.mark.parametrize('name', CONSUMERS)
-@pytest.mark.parametrize(
-    'lint,cleanup,cancelled,allowed',
-    [
-        ('success', 'skipped', False, True),
-        ('success', 'success', False, True),
-        ('failure', 'skipped', False, False),
-        ('success', 'failure', False, False),
-        ('success', 'cancelled', False, False),
-        ('success', 'skipped', True, False),
-    ],
-)
-def test_offline_jobs_survive_skipped_cleanup(name, lint, cleanup, cancelled, allowed):
-    job = JOBS[name]
-    assert set(job['needs']) == {'lint', 'cleanup_buckets'}
-    values = context()
-    values.update(
-        {'needs.lint.result': lint, 'needs.cleanup_buckets.result': cleanup, 'cancelled': cancelled}
+@pytest.fixture
+def fake_gh(tmp_path):
+    fake_bin = tmp_path / 'bin'
+    fake_bin.mkdir()
+    gh = fake_bin / 'gh'
+    gh.write_text(
+        f'#!{sys.executable}\n'
+        'import json, os, pathlib, sys\n'
+        'with pathlib.Path(os.environ["GH_CALLS"]).open("a") as calls:\n'
+        '    calls.write(json.dumps(sys.argv[1:]) + "\\n")\n'
+        'if sys.argv[1:3] == ["issue", "list"]:\n'
+        '    print(os.environ["GH_ISSUES"])\n'
     )
-    assert bool(expression(job['if'], values)) == allowed
+    gh.chmod(0o755)
+    calls = tmp_path / 'calls'
+
+    def run(issues):
+        result = subprocess.run(
+            ['bash', str(REPORT_SCRIPT)],
+            env={
+                **os.environ,
+                'PATH': f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+                'GH_CALLS': str(calls),
+                'GH_ISSUES': json.dumps(issues),
+                'GITHUB_SERVER_URL': 'https://github.com',
+                'GITHUB_REPOSITORY': 'Backblaze/B2_Command_Line_Tool',
+                'GITHUB_RUN_ID': '42',
+            },
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+        return result, recorded
+
+    return run
 
 
-def test_offline_steps_are_unconditional_and_draft_trigger_is_present():
-    triggers = WORKFLOW.get('on', WORKFLOW.get(True))
-    assert set(triggers['pull_request']['types']) == {
-        'opened',
-        'synchronize',
-        'reopened',
-        'ready_for_review',
-    }
-    for name in ('test', 'test-linux-bundle', 'test-windows-bundle'):
-        steps = JOBS[name]['steps']
-        offline = [step for step in steps if 'not require_secrets' in step.get('run', '')]
-        assert len(offline) == 1
-        assert 'if' not in offline[0]
-    assert 'if' not in next(
-        step for step in JOBS['test']['steps'] if step.get('name') == 'Run unit tests'
-    )
+TITLE = 'Weekly live B2 integration failed'
+RUN_URL = 'https://github.com/Backblaze/B2_Command_Line_Tool/actions/runs/42'
+
+
+def option(call, name):
+    return call[call.index(name) + 1]
+
+
+@pytest.mark.skipif(not POSIX, reason='report script uses Bash and jq')
+def test_a_failed_scheduled_run_opens_an_issue(fake_gh):
+    result, calls = fake_gh([{'number': 7, 'title': 'Some other issue'}])
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert calls[0][:2] == ['issue', 'list']
+    assert option(calls[0], '--state') == 'open'
+    created = calls[1]
+    assert created[:2] == ['issue', 'create']
+    assert option(created, '--title') == TITLE
+    assert RUN_URL in option(created, '--body')
+    assert option(created, '--repo') == 'Backblaze/B2_Command_Line_Tool'
+    assert len(calls) == 2
+
+
+@pytest.mark.skipif(not POSIX, reason='report script uses Bash and jq')
+def test_a_repeated_failure_updates_the_open_issue(fake_gh):
+    result, calls = fake_gh([{'number': 7, 'title': 'Other'}, {'number': 12, 'title': TITLE}])
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert len(calls) == 2
+    comment = calls[1]
+    assert comment[:3] == ['issue', 'comment', '12']
+    assert RUN_URL in option(comment, '--body')
+    assert not any(call[:2] == ['issue', 'create'] for call in calls)

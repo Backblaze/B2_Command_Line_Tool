@@ -56,6 +56,17 @@ def test_advisory_token_is_forwarded_by_the_release_gate_job():
     assert 'run: scripts/release-security-gate.sh' in gate
 
 
+def test_release_gate_requires_a_recent_green_live_b2_run():
+    gate = job('release-gate')
+    assert re.search(r'^      actions: read\s*$', gate, re.M)
+    step = gate.split('      - name: Require a recent green live B2 run\n', 1)[1]
+    step = step.split('      - name:', 1)[0]
+    assert re.search(r'^          GH_TOKEN: \$\{\{ github\.token }}\s*$', step, re.M)
+    assert re.search(r'^        run: scripts/release-live-b2-gate\.sh\s*$', step, re.M)
+    assert 'continue-on-error' not in gate
+    assert 'B2_TEST_APPLICATION_KEY' not in gate  # the gate reads run results, never live keys
+
+
 def test_all_publication_jobs_wait_for_the_release_gate():
     assert 'run: scripts/verify-release-tag.sh "$GITHUB_REF_NAME"' in job('release-gate')
     assert re.search(r'^    needs: release-gate\s*$', job('deploy'), re.M)
