@@ -9,6 +9,7 @@
 ######################################################################
 """Release gate and signed-tag checks run without publishing artifacts."""
 
+import datetime
 import json
 import os
 import shutil
@@ -497,3 +498,106 @@ def test_release_workflow_restores_the_signed_tag_object(signed_release_repo):
     assert fetched.returncode == 0, fetched.stderr
     result = run_tag_gate(repo, 'v1.0.0')
     assert result.returncode == 0, result.stderr
+
+
+LIVE_RUN_URL = 'https://github.com/Backblaze/B2_Command_Line_Tool/actions/runs/'
+NOW = 1_795_000_000  # 2026-11-18T11:06:40Z
+DAY = 86_400
+
+
+def live_run(run_id, conclusion, started):
+    timestamp = datetime.datetime.fromtimestamp(started, datetime.timezone.utc)
+    return {
+        'id': run_id,
+        'conclusion': conclusion,
+        'run_started_at': timestamp.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'html_url': f'{LIVE_RUN_URL}{run_id}',
+    }
+
+
+def run_live_gate(tmp_path, runs, *, gh_status=0):
+    fake_bin = tmp_path / 'bin'
+    fake_bin.mkdir()
+    calls = tmp_path / 'calls'
+    gh = fake_bin / 'gh'
+    gh.write_text(
+        f'#!{sys.executable}\n'
+        'import json, os, pathlib, sys\n'
+        'with pathlib.Path(os.environ["GATE_CALLS"]).open("a") as calls:\n'
+        '    calls.write(json.dumps([sys.argv[1:], os.environ.get("GH_TOKEN")]) + "\\n")\n'
+        f'if {gh_status}: sys.exit({gh_status})\n'
+        'print(os.environ["LIVE_RUNS"])\n'
+    )
+    gh.chmod(0o755)
+    result = subprocess.run(
+        ['bash', str(ROOT / 'scripts/release-live-b2-gate.sh')],
+        env=dict(
+            os.environ,
+            PATH=f'{fake_bin}{os.pathsep}{os.environ["PATH"]}',
+            GITHUB_REPOSITORY='Backblaze/B2_Command_Line_Tool',
+            GH_TOKEN='release-token-placeholder',
+            GATE_CALLS=str(calls),
+            LIVE_RUNS=json.dumps({'workflow_runs': runs}),
+            LIVE_B2_GATE_NOW=str(NOW),
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    recorded = [json.loads(line) for line in calls.read_text().splitlines()]
+    return result, recorded
+
+
+LIVE_GATE_TOOLS = POSIX_TOOLS and shutil.which('jq') is not None
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+def test_live_gate_clears_a_release_after_a_recent_green_run_on_master(tmp_path):
+    result, calls = run_live_gate(tmp_path, [live_run(9, 'success', NOW - 2 * DAY)])
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f'CLEAR: live B2 run {LIVE_RUN_URL}9 passed' in result.stdout
+    ((args, token),) = calls
+    assert token == 'release-token-placeholder'
+    url = next(arg for arg in args if arg.startswith('repos/'))
+    path, query = url.split('?', 1)
+    assert path == 'repos/Backblaze/B2_Command_Line_Tool/actions/workflows/live-b2.yml/runs'
+    assert parse_qs(query)['branch'] == ['master']
+    assert parse_qs(query)['status'] == ['completed']
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+@pytest.mark.parametrize(
+    ('runs', 'reason'),
+    [
+        ([], 'no finished Weekly Live B2 Integration run on master'),
+        ([live_run(9, 'failure', NOW - DAY), live_run(8, 'success', NOW - 2 * DAY)], 'failure'),
+        ([live_run(9, 'timed_out', NOW - DAY)], 'timed_out'),
+        ([live_run(9, 'success', NOW - 9 * DAY)], 'older than 8 days'),
+    ],
+    ids=['no-run', 'latest-failed', 'latest-timed-out', 'stale'],
+)
+def test_live_gate_holds_a_release_without_a_recent_green_run(tmp_path, runs, reason):
+    result, _ = run_live_gate(tmp_path, runs)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert 'HOLD:' in result.stderr
+    assert reason in result.stderr
+    assert 'CLEAR' not in result.stdout
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+def test_live_gate_ignores_cancelled_runs(tmp_path):
+    runs = [
+        live_run(10, 'cancelled', NOW - 3600),
+        live_run(9, 'skipped', NOW - 7200),
+        live_run(8, 'success', NOW - DAY),
+    ]
+    result, _ = run_live_gate(tmp_path, runs)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f'{LIVE_RUN_URL}8' in result.stdout
+
+
+@pytest.mark.skipif(not LIVE_GATE_TOOLS, reason='live gate requires POSIX tools and jq')
+def test_live_gate_holds_when_the_runs_cannot_be_read(tmp_path):
+    result, _ = run_live_gate(tmp_path, [live_run(8, 'success', NOW - DAY)], gh_status=1)
+    assert result.returncode != 0
+    assert 'CLEAR' not in result.stdout

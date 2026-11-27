@@ -11,9 +11,9 @@ see [CONTRIBUTING.md](../CONTRIBUTING.md) for setup. Examples use Python 3.12;
 | Offline integration | `test/integration/` | `nox -s integration-3.12 -- -n 2 -m "not require_secrets"` | Selected credential-free tests against each installed CLI executable. | Authenticated operations or B2 service behavior. |
 | Live integration | `test/integration/` | `nox -s integration-3.12 -- -n 2 -m "require_secrets" --cleanup` | Selected authenticated CLI interactions with real B2 for that account and run. | Other accounts, regions, future service versions, or unselected behavior. |
 | Documentation examples | `test/unit/test_documentation_examples.py`, README and docs | `NOX_PYTHONS=3.12 nox -s doc_examples` | The extracted examples parse with the b2v5 argument parser. | That examples execute successfully or work against B2. |
-| Simulator integration | `.github/workflows/simulator-integration.yml`, `test/integration/` | `nox -s integration-3.12 -- -n 0 -m "require_secrets"` | The secret-marked integration cases exercised against the configured simulator. | Production B2 behavior or scenarios the simulator does not model. The workflow provisions its pinned simulator, trust bundle and fixture credentials before running this command. |
+| Simulator integration | `.github/workflows/simulator-integration.yml`, `scripts/with-b2-simulator.sh`, `test/integration/` | `scripts/with-b2-simulator.sh SIMULATOR_DIR nox -s integration-3.12 -- -n 0 -m "require_secrets"` | The secret-marked integration cases exercised against the configured simulator. | Production B2 behavior or scenarios the simulator does not model. The helper starts the simulator checkout and sets its endpoint and trust bundle; export the fixture credentials (`sim-test-id`, `sim-test-secret`) first. |
 | SDK harness | `.sdkharness/tests.tsv`, `.sdkharness/tests/`; `test/unit/test_sdkharness_*.py` | `nox -s unit-3.12 -- -n 2 -k sdkharness` | Repository-owned guard and harness unit tests. The separately invoked scenarios check CLI behavior against a loopback simulator. | The nox selection alone does not run the registered simulator scenarios or prove real B2 behavior. |
-| Docker | `noxfile.py` `docker_test`, `test/integration/` | `NOX_PYTHONS=3.12 nox -s docker_test -- b2:test` | Integration tests against the supplied image, for the default and versioned CLI commands. | Other images or platforms; a missing daemon, image or credentials does not verify the container. |
+| Docker | `noxfile.py` `docker_test`, `test/integration/` | `NOX_PYTHONS=3.12 nox -s docker_test -- b2:test [PYTEST_ARG...]` | Integration tests against the supplied image, for the default and versioned CLI commands. | Other images or platforms; a missing daemon, image or credentials does not verify the container. |
 
 The unit session runs pytest once per CLI API version, passing `--cli b2v3`,
 `--cli b2v4`, and `--cli b2v5` itself. Run all three when shared command,
@@ -28,7 +28,12 @@ resources; review cleanup and use a disposable account. The simulator command
 requires a running simulator and its fixture credentials, endpoint and trust
 configuration as in the workflow; these are not production B2 credentials. The
 Docker session also runs credential-requiring integration tests and needs a
-working Docker daemon, the named image, and throwaway credentials for live B2.
+working Docker daemon, the named image, and throwaway credentials for live B2
+or the simulator. Arguments after the image tag go to pytest. Against the
+simulator, which listens only on the host's loopback interface, set
+`B2_TEST_DOCKER_NETWORK=host` and write the trust bundle under the shared
+`/tmp` mount with `B2_SIMULATOR_CA_BUNDLE=/tmp/b2-simulator-ca.pem`, as the
+workflow does.
 
 The SDK harness scenarios do not have a nox session: follow
 [.sdkharness/README.md](../.sdkharness/README.md) to start a loopback simulator

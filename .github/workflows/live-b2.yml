@@ -1,5 +1,13 @@
 name: Weekly Live B2 Integration
 
+# Runs the integration suites against real B2: every Monday, and on manual dispatch.
+# - Fails closed: a run without B2_TEST_APPLICATION_KEY_ID and B2_TEST_APPLICATION_KEY fails
+#   instead of passing by skipping its tests.
+# - No repository variable switches it off (see "Pull request integration policy" in
+#   CONTRIBUTING.md). To pause the weekly run, disable this workflow in the Actions tab.
+# - A failed scheduled run opens, or comments on, the "Weekly live B2 integration failed" issue.
+# - Releases require a recent green run of this workflow on master (cd.yml, release-gate).
+
 on:
   schedule:
     - cron: "15 6 * * 1"
@@ -8,26 +16,39 @@ on:
 permissions:
   contents: read
 
+# All runs share one B2 account; never let two of them overlap.
+concurrency:
+  group: live-b2
+  cancel-in-progress: false
+
 env:
   PYTHON_DEFAULT_VERSION: "3.12"
   UV_VERSION: "0.13.4"
 
 jobs:
-  live-b2-integration:
+  live-b2-preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 5
     env:
-      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
-      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
-      B2_TEST_SHORT_TIMEOUTS: "1"
-      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+      HAS_B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID != '' }}
+      HAS_B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY != '' }}
     steps:
       - name: Require live B2 credentials
         run: |
-          if [ -z "$B2_TEST_APPLICATION_KEY_ID" ] || [ -z "$B2_TEST_APPLICATION_KEY" ]; then
-            echo "B2_TEST_APPLICATION_KEY_ID and B2_TEST_APPLICATION_KEY are required."
+          if [ "$HAS_B2_TEST_APPLICATION_KEY_ID" != true ] || [ "$HAS_B2_TEST_APPLICATION_KEY" != true ]; then
+            echo "::error::B2_TEST_APPLICATION_KEY_ID and B2_TEST_APPLICATION_KEY are required; a live run must not pass by skipping its tests."
             exit 1
           fi
+
+  live-b2-cleanup:
+    needs: live-b2-preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
@@ -44,5 +65,180 @@ jobs:
         run: uv sync --locked --group nox
       - name: Remove stale test buckets
         run: uv run nox -vs cleanup_buckets
+
+  # The Python versions and systems that ran the secret-marked suite against live B2 in pull
+  # request CI before it moved here.
+  live-b2-integration:
+    needs: live-b2-cleanup
+    timeout-minutes: 90
+    env:
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_SHORT_TIMEOUTS: "1"
+      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest", "ubuntu-24.04-arm", "macos-latest", "windows-latest"]
+        python-version: ["3.10", "3.14", "pypy3.10"]
+        exclude:
+          - os: "macos-latest"
+            python-version: "pypy3.10"
+          - os: "windows-latest"
+            python-version: "pypy3.10"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install test binary dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install zsh fish
+          sudo chmod -R 755 /usr/share/zsh/vendor-completions /usr/share/zsh  # Fix permissions for zsh completions
+      - name: Install test binary dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: brew install fish
+      - name: Install dependencies
+        run: uv sync --locked --group nox
       - name: Test against live B2
-        run: uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets" --cleanup
+        run: uv run nox -vs integration -p ${{ matrix.python-version }} -- -m "require_secrets" --cleanup
+
+  live-b2-docker:
+    needs: live-b2-cleanup
+    timeout-minutes: 90
+    env:
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_SHORT_TIMEOUTS: "1"
+      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --group nox
+      - name: Generate Dockerfile
+        run: uv run nox -vs generate_dockerfile
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build Docker
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          pull: true
+          no-cache: true
+          load: true
+          tags: backblazeit/b2:test
+          platforms: linux/amd64
+      - name: Test the Docker image against live B2
+        run: uv run nox -vs docker_test -- backblazeit/b2:test --cleanup
+
+  live-b2-linux-bundle:
+    needs: live-b2-cleanup
+    timeout-minutes: 90
+    env:
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      PYTHON_DEFAULT_VERSION: "3.10"  # Use Ubuntu 22.04's distro Python for staticx.
+      UV_PYTHON_DOWNLOADS: "never"
+      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-22.04", "ubuntu-22.04-arm"]  # keep the versions aligned with cd.yml
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install python${{ env.PYTHON_DEFAULT_VERSION }}-dev python${{ env.PYTHON_DEFAULT_VERSION }}-venv patchelf scons
+          uv sync --python /usr/bin/python${{ env.PYTHON_DEFAULT_VERSION }} --locked --group nox
+          git config --global --add safe.directory '*'
+      - name: Bundle the distribution
+        id: bundle
+        shell: bash
+        run: uv run nox -vs bundle
+      - name: Test the bundle against live B2
+        run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
+
+  live-b2-windows-bundle:
+    needs: live-b2-cleanup
+    timeout-minutes: 90
+    env:
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    runs-on: windows-2022  # keep the version aligned with cd.yml
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --group nox
+      - name: Bundle the distribution
+        id: bundle
+        shell: bash
+        run: uv run nox -vs bundle
+      - name: Test the bundle against live B2
+        run: uv run nox -vs integration -p ${{ env.PYTHON_DEFAULT_VERSION }} -- --sut=${{ steps.bundle.outputs.sut_path }} -m "require_secrets" --cleanup
+
+  report-scheduled-failure:
+    needs:
+      - live-b2-preflight
+      - live-b2-cleanup
+      - live-b2-integration
+      - live-b2-docker
+      - live-b2-linux-bundle
+      - live-b2-windows-bundle
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/report-live-b2-failure.sh

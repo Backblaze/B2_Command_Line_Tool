@@ -50,6 +50,10 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
 
 1. Choose `X.Y.Z` and create its GitHub milestone. Make sure intended issues and PRs are resolved.
    Confirm `master` CI is green. Do not release with failing CI.
+   Pull request CI tests against the B2 Simulator, not real B2. The release gate therefore holds
+   unless the latest finished `Weekly Live B2 Integration` run on `master` passed within the last
+   8 days (cancelled runs are ignored). If it is older, or it failed, run that workflow on `master`
+   (Actions tab, **Run workflow**) and wait for it to pass before tagging.
 2. Run the local health check from a clean checkout, with the required `uv` version, `nox`, Go,
    GitHub CLI (`gh`), and `jq` installed. Authenticate `gh` as a maintainer with access to the
    repository's security sources, or provide a token with equivalent read access:
@@ -104,8 +108,8 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
    The verifier checks the signature against the current `origin/master` key file and confirms the tagged commit
    is on `origin/master`. Do not move a published tag; release a new patch version instead.
 2. Push the tag only after the release PR and `master` CI are green. The tag-triggered workflow
-   runs signature and security checks **before** any publishing job. A failed gate holds the
-   release. Pre-release tags skip PyPI and Docker Hub publishing as in the existing workflow.
+   runs signature, security and live-B2 checks **before** any publishing job. A failed gate
+   holds the release. Pre-release tags skip PyPI and Docker Hub publishing as in the existing workflow.
 3. Check the GitHub release assets, the PyPI project page and its attestations, the Linux and
    Windows bundle jobs, and the Docker Hub tags/description. The Windows bundle still uses
    DigiCert signing; Linux signing behavior is unchanged. Publish any advisory fixed by this
@@ -116,7 +120,7 @@ through hatch-vcs; do not edit a version number in `pyproject.toml`.
 Use a throwaway worktree to run `nox -s make_release_commit -- X.Y.Z`; inspect the generated
 `.changes/vX.Y.Z.md` and `CHANGELOG.md`, then remove the worktree. This exercises release-note
 assembly and the released-b2sdk check without creating a tag, uploading artifacts, or publishing
-to PyPI or Docker Hub. The signed-tag, alert-gate, and release-note extraction scripts have local
+to PyPI or Docker Hub. The signed-tag, alert-gate, live-B2 gate and release-note extraction scripts have local
 tests in `test/unit/test_release_workflow.py`; GitHub environment permissions and the PyPI
 Trusted Publisher must still be validated in a real maintainer-controlled release.
 

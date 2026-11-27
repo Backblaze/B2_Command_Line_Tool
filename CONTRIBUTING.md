@@ -113,21 +113,38 @@ See the [testing guide](doc/testing.md) for test levels, commands and reporting 
 
 ### Pull request integration policy
 
-Every pull request must run the integration suite against the pinned private B2 Simulator. GitHub does not expose
-the Simulator's read-only deploy key to untrusted pull request contexts, including forks and Dependabot. Those pull
-requests therefore fail closed: a maintainer must reproduce the change on a branch in this repository before it can
-pass the Simulator check. Do not bypass or skip the check, and do not use `pull_request_target` to run untrusted code
-with the deploy key.
+Every pull request must run the integration suite against the pinned private B2 Simulator. The
+`Simulator Integration` workflow (`.github/workflows/simulator-integration.yml`) runs the
+secret-marked suite on Python 3.12, 3.10, 3.14 and PyPy 3.10, against the Docker image, against
+the Linux and Windows bundles, and runs the macOS-only `tqdm_closer` regression. The Simulator
+revision is stated once, as `SIMULATOR_REVISION` in that workflow.
 
-Repository administrators must install a read-only deploy key for `backblaze-labs/b2-simulator`, store its private
-half as the `SIMULATOR_DEPLOY_KEY` Actions secret, and require both `simulator-access-policy` and
+GitHub does not expose the Simulator's read-only deploy key to fork pull requests. Those pull
+requests fail closed: a maintainer must reproduce the change on a branch in this repository before
+it can pass the Simulator check. Dependabot pull requests receive only Dependabot secrets, so the
+same key must also be stored as a Dependabot secret; without it they fail with a message saying so.
+Do not bypass or skip the check, and do not use `pull_request_target` to run untrusted code with
+the deploy key.
+
+Repository administrators must install a read-only deploy key for `backblaze-labs/b2-simulator`,
+store its private half as the `SIMULATOR_DEPLOY_KEY` Actions secret and as the
+`SIMULATOR_DEPLOY_KEY` Dependabot secret, and require both `simulator-access-policy` and
 `simulator-integration` before merging.
 
 Pull request CI never receives real-B2 credentials. The `Weekly Live B2 Integration` workflow
-(`.github/workflows/live-b2.yml`) runs the secret-marked integration suite against real B2 every Monday and on
-manual dispatch. It fails if `B2_TEST_APPLICATION_KEY_ID` or `B2_TEST_APPLICATION_KEY` is missing, so a live run
-cannot pass by skipping its tests. To check a change that depends on real B2 behavior before merge, run that
-workflow manually on the branch.
+(`.github/workflows/live-b2.yml`) runs against real B2 every Monday and on manual dispatch: the
+secret-marked suite on Python 3.10, 3.14 and PyPy 3.10 on Linux (x86 and Arm), macOS and Windows
+(no PyPy on macOS or Windows), plus the Docker image and the Linux and Windows bundles. It fails
+if `B2_TEST_APPLICATION_KEY_ID` or `B2_TEST_APPLICATION_KEY` is missing, so a live run cannot pass
+by skipping its tests. Runs never overlap, because they share one B2 account. When a scheduled
+run fails, the workflow opens an issue titled "Weekly live B2 integration failed", or comments on
+it if it is still open. Releases wait for a recent green run (see [RELEASE.md](RELEASE.md)).
+
+The `B2_LIVE_TESTS_ENABLED` repository variable is retired. It opted pull request CI into live
+B2, which no longer runs there, and no workflow reads it. To pause the weekly run, disable the
+workflow in the Actions tab; a disabled run is visible there, unlike a run that passes without
+testing. To check a change that depends on real B2 behavior before merge, run the weekly workflow
+manually on the branch.
 
 To run all tests on every available Python version:
 

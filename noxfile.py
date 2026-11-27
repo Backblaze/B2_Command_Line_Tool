@@ -729,11 +729,20 @@ def generate_dockerfile(session):
     pathlib.Path('./Dockerfile').write_text(dockerfile)
 
 
-def run_docker_tests(session, image_tag):
-    """Run unittests against a docker image."""
+def run_docker_tests(session, image_tag, pytest_args=()):
+    """Run unittests against a docker image.
+
+    Set ``B2_TEST_DOCKER_NETWORK`` (for example to ``host``) to choose the container's network,
+    such as when the tests target a server that listens only on the host's loopback interface.
+    """
     user_id = session.run('id', '-u', silent=True, external=True).strip()
     group_id = session.run('id', '-g', silent=True, external=True).strip()
-    docker_run_cmd = f'docker run -i --user {user_id}:{group_id} -v /tmp:/tmp:rw --env-file ENVFILE'
+    network = os.environ.get('B2_TEST_DOCKER_NETWORK')
+    network_args = f' --network {network}' if network else ''
+    docker_run_cmd = (
+        f'docker run -i{network_args} --user {user_id}:{group_id} -v /tmp:/tmp:rw '
+        '--env-file ENVFILE'
+    )
     run_integration_test(
         session,
         [
@@ -741,6 +750,7 @@ def run_docker_tests(session, image_tag):
             f'{docker_run_cmd} {image_tag}',
             '--env-file-cmd-placeholder',
             'ENVFILE',
+            *pytest_args,
         ],
     )
     for binary_name in get_versions():
@@ -751,18 +761,19 @@ def run_docker_tests(session, image_tag):
                 f'{docker_run_cmd} {image_tag} {binary_name}',
                 '--env-file-cmd-placeholder',
                 'ENVFILE',
+                *pytest_args,
             ],
         )
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
 def docker_test(session):
-    """Run unittests against a docker image."""
+    """Run unittests against a docker image: ``-- IMAGE_TAG [PYTEST_ARG...]``."""
     if session.posargs:
-        image_tag = session.posargs[0]
+        image_tag, *pytest_args = session.posargs
     else:
         raise ValueError('Provide -- {docker_image_tag}')
-    run_docker_tests(session, image_tag)
+    run_docker_tests(session, image_tag, pytest_args)
 
 
 @nox.session(python=PYTHON_DEFAULT_VERSION)
