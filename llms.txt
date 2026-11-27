@@ -23,6 +23,7 @@
 
 ## Project
 
+- [Agent instructions](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/AGENTS.md): Find commands, conventions and checks for contributors and agents.
 - [Contributing](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/CONTRIBUTING.md): Contribute to the project.
 - [Releases](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/RELEASE.md): Follow the release process.
 - [Security](https://github.com/Backblaze/B2_Command_Line_Tool/blob/master/SECURITY.md): Report a security issue.
