@@ -1,0 +1,3 @@
+kind: Infrastructure
+body: Run real-B2 integration tests in a fail-closed weekly and manual workflow instead of pull request CI, and cover the macOS-only tqdm regression against the B2 Simulator.
+time: 2026-11-27T00:00:00-03:00

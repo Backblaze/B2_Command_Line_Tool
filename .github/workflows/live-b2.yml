@@ -1,0 +1,48 @@
+name: Weekly Live B2 Integration
+
+on:
+  schedule:
+    - cron: "15 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_DEFAULT_VERSION: "3.12"
+  UV_VERSION: "0.13.4"
+
+jobs:
+  live-b2-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      B2_TEST_APPLICATION_KEY_ID: ${{ secrets.B2_TEST_APPLICATION_KEY_ID }}
+      B2_TEST_APPLICATION_KEY: ${{ secrets.B2_TEST_APPLICATION_KEY }}
+      B2_TEST_SHORT_TIMEOUTS: "1"
+      WORKFLOW_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}
+    steps:
+      - name: Require live B2 credentials
+        run: |
+          if [ -z "$B2_TEST_APPLICATION_KEY_ID" ] || [ -z "$B2_TEST_APPLICATION_KEY" ]; then
+            echo "B2_TEST_APPLICATION_KEY_ID and B2_TEST_APPLICATION_KEY are required."
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python ${{ env.PYTHON_DEFAULT_VERSION }}
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --group nox
+      - name: Remove stale test buckets
+        run: uv run nox -vs cleanup_buckets
+      - name: Test against live B2
+        run: uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets" --cleanup

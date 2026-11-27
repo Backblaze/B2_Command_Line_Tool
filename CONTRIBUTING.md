@@ -123,6 +123,12 @@ Repository administrators must install a read-only deploy key for `backblaze-lab
 half as the `SIMULATOR_DEPLOY_KEY` Actions secret, and require both `simulator-access-policy` and
 `simulator-integration` before merging.
 
+Pull request CI never receives real-B2 credentials. The `Weekly Live B2 Integration` workflow
+(`.github/workflows/live-b2.yml`) runs the secret-marked integration suite against real B2 every Monday and on
+manual dispatch. It fails if `B2_TEST_APPLICATION_KEY_ID` or `B2_TEST_APPLICATION_KEY` is missing, so a live run
+cannot pass by skipping its tests. To check a change that depends on real B2 behavior before merge, run that
+workflow manually on the branch.
+
 To run all tests on every available Python version:
 
 ```bash

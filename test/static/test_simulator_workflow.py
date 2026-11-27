@@ -126,11 +126,38 @@ def test_simulator_runs_the_secret_marked_suite_with_fixture_credentials():
     assert 'B2_TEST_ENVIRONMENT' in script
     assert '-n 0' in script
     assert '-m "require_secrets"' in script
-    nox_command = next(
-        line.strip() for line in script.splitlines() if 'nox -vs integration' in line
-    )
-    assert nox_command == (
-        'uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"'
-    )
+    nox_commands = {line.strip() for line in script.splitlines() if 'nox -vs integration' in line}
+    assert nox_commands == {
+        'uv run nox -vs integration -p "$PYTHON_DEFAULT_VERSION" -- -n 0 -m "require_secrets"',
+    }
     assert '--cleanup' not in script
     assert 'cleanup_buckets' not in script
+
+
+def test_simulator_covers_the_macos_only_tqdm_regression():
+    workflow = load_workflow()
+    job = workflow['jobs']['simulator-macos-regression']
+
+    assert job['runs-on'] == 'macos-latest'
+    assert job['needs'] == 'simulator-integration'
+
+    checkout = next(
+        step
+        for step in job['steps']
+        if step.get('with', {}).get('repository') == SIMULATOR_REPOSITORY
+    )
+    assert checkout['with']['ref'] == SIMULATOR_REVISION
+    assert checkout['with']['persist-credentials'] is False
+    assert checkout['with']['ssh-key'] == '${{ secrets.SIMULATOR_DEPLOY_KEY }}'
+    remaining_steps = job['steps'][job['steps'].index(checkout) + 1 :]
+    assert 'SIMULATOR_DEPLOY_KEY' not in str(remaining_steps)
+    assert 'secrets.' not in str(remaining_steps)
+
+    test_step = next(step for step in job['steps'] if step.get('name') == 'Test against Simulator')
+    script = test_step['run']
+    assert test_step['env']['B2_TEST_APPLICATION_KEY_ID'] == 'sim-test-id'
+    assert test_step['env']['B2_TEST_APPLICATION_KEY'] == 'sim-test-secret'
+    assert 'bin/simulator/serve.mjs' in script
+    assert '--custom-upload-timestamps' in script
+    assert 'REQUESTS_CA_BUNDLE' in script
+    assert '-k "tqdm_closer"' in script
