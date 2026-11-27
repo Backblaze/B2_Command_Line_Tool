@@ -1,0 +1,3 @@
+kind: Fixed
+body: Report unknown replication status columns as command errors.
+time: 2026-11-27T09:29:00.677085-06:00
