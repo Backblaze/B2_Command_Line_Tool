@@ -29,6 +29,7 @@ REQUIRED_URLS = {
         'doc/authorization_realm.md',
         'doc/testing.md',
         'doc/writing-style.md',
+        'AGENTS.md',
         'CONTRIBUTING.md',
         'RELEASE.md',
         'SECURITY.md',
@@ -120,3 +121,12 @@ def test_b2_mcp_wording_matches_readme():
     index = (ROOT / 'llms.txt').read_text(encoding='utf-8')
     assert f'- **[b2-mcp]({url})** — {wording}' in readme.splitlines()
     assert f'- [b2-mcp]({url}): {wording}' in index.splitlines()
+
+
+def test_agents_md_b2_mcp_line_matches_readme():
+    line = (
+        '- **[b2-mcp](https://github.com/backblaze-labs/b2-mcp)** — '
+        'a Model Context Protocol server for B2.'
+    )
+    assert line in (ROOT / 'README.md').read_text(encoding='utf-8').splitlines()
+    assert line in (ROOT / 'AGENTS.md').read_text(encoding='utf-8').splitlines()
