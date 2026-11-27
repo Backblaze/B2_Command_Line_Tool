@@ -370,6 +370,41 @@ class TestConsoleTool(BaseConsoleToolTest):
             0,
         )
 
+    def test_quiet_key_create_prints_only_credentials(self):
+        self._authorize_account()
+        for index, flag in enumerate(('-q', '--quiet')):
+            self._run_command(
+                ['key', 'create', flag, f'key{index}', 'listBuckets'],
+                f'appKeyId{index} appKey{index}\n',
+                '',
+                0,
+            )
+
+    def test_quiet_deprecated_create_key_and_create_bucket_print_results(self):
+        self._authorize_account()
+        self._run_command(
+            ['create-key', '-q', 'legacykey', 'listBuckets'],
+            'appKeyId0 appKey0\n',
+            'WARNING: `create-key` command is deprecated. Use `key create` instead.\n',
+            0,
+        )
+        self._run_command(
+            ['create-bucket', '-q', 'legacy-bucket', 'allPrivate'],
+            'bucket_0\n',
+            'WARNING: `create-bucket` command is deprecated. Use `bucket create` instead.\n',
+            0,
+        )
+
+    def test_quiet_bucket_create_prints_only_bucket_id(self):
+        self._authorize_account()
+        for index, flag in enumerate(('-q', '--quiet')):
+            self._run_command(
+                ['bucket', 'create', flag, f'my-bucket-{index}', 'allPrivate'],
+                f'bucket_{index}\n',
+                '',
+                0,
+            )
+
     def test_create_key_and_authorize_with_it(self):
         # Start with authorizing with the master key
         self._authorize_account()
